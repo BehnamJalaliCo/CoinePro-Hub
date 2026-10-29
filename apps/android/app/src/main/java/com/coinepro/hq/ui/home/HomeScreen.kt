@@ -122,6 +122,7 @@ fun HomeScreen(onNewOrder: () -> Unit, onVoiceOrder: () -> Unit = {}) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                     HqButton("فرمان صوتی", onVoiceOrder, variant = BtnVariant.PRIMARY, icon = DivanIcon.MIC)
                     HqButton("فرمان تازه", onNewOrder, icon = DivanIcon.COMMAND)
+                    HqButton("فرمان‌های من", { nav.go("orders") }, icon = DivanIcon.TASK, variant = BtnVariant.TEXT)
                     if (presence.data?.khalvat == true) Pill("خلوت روشن؛ فقط فوری میرسد", Tone.LEARN, icon = DivanIcon.KHALVAT)
                 }
             }
@@ -167,6 +168,8 @@ fun HomeScreen(onNewOrder: () -> Unit, onVoiceOrder: () -> Unit = {}) {
                 }
             }
         }
+        // The owner's orders, followed from given to delivered: prominent, under the four numbers.
+        item(key = "orders") { com.coinepro.hq.ui.work.HomeOrdersCard(onNewOrder) }
         item { OverseerCard() }
         // ⟨1.5⟩ §21.2: ask the hub, above the cartable.
         item { com.coinepro.hq.ui.ask.AskBox() }
@@ -209,7 +212,7 @@ fun HomeScreen(onNewOrder: () -> Unit, onVoiceOrder: () -> Unit = {}) {
                             if (idx > 0) HorizontalDivider(color = c.lineDivider)
                             Row(Modifier.fillMaxWidth().clickable { nav.go("work/${it.ref}") }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Text(jTime(it.at), style = Divan.type.caption, color = c.textMuted, modifier = Modifier.width(40.dp))
-                                Box(Modifier.size(8.dp).clip(CircleShape).background(if (it.status == "done") c.positive else if (it.priority <= "P1") c.negative else c.silverInk))
+                                Box(Modifier.size(8.dp).clip(CircleShape).background(if (it.status == "done") c.positive else if (com.coinepro.hq.core.format.isUrgentPriority(it.priority)) c.negative else c.silverInk))
                                 Text(it.title, style = Divan.type.small, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                                 if (it.recurring) DIcon(DivanIcon.REFRESH, size = 14.dp, tint = c.textMuted)
                                 CompanyMark(it.company, height = 12.dp, mono = true, ink = c.textSecondary)
@@ -270,7 +273,7 @@ private fun LiveCard(companies: List<Company>) {
             live.feed.filter { it.type != "activity.changed" && it.type != "run.step" }.take(4).forEach { e ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     e.company?.let { CompanyMark(it, height = 12.dp, mono = true, ink = c.textSecondary) }
-                    Box(Modifier.weight(1f)) { com.coinepro.hq.ui.companies.FeedLine(com.coinepro.hq.ui.companies.FeedRow(e.at.ifBlank { com.coinepro.hq.core.format.HqClock.now().toString() }, e.type, e.ref, (e.data["employee"] as? kotlinx.serialization.json.JsonPrimitive)?.content, (e.data["state"] as? kotlinx.serialization.json.JsonPrimitive)?.content)) { r -> com.coinepro.hq.ui.v17.refRoute(r)?.let(nav::go) } }
+                    Box(Modifier.weight(1f)) { com.coinepro.hq.ui.companies.FeedLine(com.coinepro.hq.ui.companies.feedRowOf(e)) { route -> nav.go(route) } }
                 }
             }
         }

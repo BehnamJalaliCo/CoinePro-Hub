@@ -57,10 +57,14 @@ class ApiException(
     @Volatile var logged: Long? = null
     val isAuth: Boolean get() = status == 401
     val isOffline: Boolean get() = status == 0
+    /** No answer, or a 502/503/504 from the proxy: what a hub that is restarting looks like (retried, then waited out). */
+    val transient: Boolean get() = status == 0 || (status in 502..504 && code == "hub_unreachable")
 
     companion object {
         fun offline() = ApiException(0, "network_error", "اتصال برقرار نشد. اینترنت را بررسی کن.")
-        fun unexpected(status: Int) = ApiException(status, "internal_error", "خطای غیرمنتظره؛ دوباره تلاش کن.")
+        fun unexpected(status: Int) =
+            if (status in 502..504) ApiException(status, "hub_unreachable", "هاب الان جواب نمیدهد؛ چند لحظه بعد خودکار دوباره تلاش میشود.")
+            else ApiException(status, "internal_error", "خطای غیرمنتظره؛ دوباره تلاش کن.")
     }
 }
 
@@ -84,6 +88,14 @@ data class ApiFailure(
     val field: String? = null,
     /** decode: what it expected, without the input. */
     val detail: String? = null,
+    /** The server's own sentence (the Problem's detail or Persian message); the log trims, redacts and masks it. */
+    val message: String? = null,
+    /** From sending the request to the answer (or the failure), all attempts. */
+    val durationMs: Long? = null,
+    /** The response's headers; the log keeps an allow-list only. */
+    val headers: Map<String, String> = emptyMap(),
+    /** error · warning · info; null: the log decides from the kind and status. */
+    val level: String? = null,
 )
 
 /** Where the app records failed calls (the «خطاخوان» log); [forget] takes back one a caller expected. */
@@ -140,9 +152,19 @@ class Api(
     /** The app's error log for a real session; the demo and the tests leave it null. */
     @Volatile var failures: FailureSink? = null
 
-    private fun mismatch(status: Int, method: String, path: String, e: Throwable, requestId: String? = null): ApiException {
+    /** Whether the hub is answering (a restart's burst of 502s); every answer and every failure reports here. */
+    @Volatile var hub: HubHealth? = null
+
+    /** Asks the hub whether it is back (`GET /meta`), without logging: any answer but 502/503/504 counts. */
+    suspend fun probe(): Boolean = try {
+        send(Request.Builder().url(url("/meta")).get().header(REQUEST_ID, UUID.randomUUID().toString()).build(), client).use { !proxied(it) }
+    } catch (e: IOException) {
+        false
+    }
+
+    private fun mismatch(status: Int, method: String, path: String, e: Throwable, requestId: String? = null, durationMs: Long? = null): ApiException {
         val x = ApiException(status, "contract_mismatch", "پاسخ سرور با قرارداد نمیخواند؛ نسخه‌ی اپ را به‌روز کن.", requestId)
-        x.logged = failures?.record(decodeFailure(method, if (path.startsWith("/api/")) path else "/api/v1$path", status, e, requestId))
+        x.logged = failures?.record(decodeFailure(method, if (path.startsWith("/api/")) path else "/api/v1$path", status, e, requestId).copy(durationMs = durationMs))
         return x
     }
 
@@ -1167,7 +1189,7 @@ class Api(
             json.decodeFromString(s, text)
         } catch (e: IllegalArgumentException) {
             // SerializationException is an IllegalArgumentException, and so is a number that does not fit its type.
-            throw mismatch(r.code, r.request.method, r.request.url.encodedPath, e, r.header("X-Request-Id"))
+            throw mismatch(r.code, r.request.method, r.request.url.encodedPath, e, r.header("X-Request-Id") ?: r.request.header(REQUEST_ID), elapsed(r))
         }
     }
 
@@ -1175,8 +1197,14 @@ class Api(
         if (r.isSuccessful) return
         if (r.code == 401) tokens.clear()
         val p = runCatching { json.decodeFromString(Problem.serializer(), r.body.string()) }.getOrNull()
-        val rid = p?.requestId ?: r.header("X-Request-Id")
-        val logged = failures?.record(ApiFailure("http", r.request.method, r.request.url.encodedPath, r.code, p?.code ?: "unexpected", p?.title ?: r.message.ifBlank { null }, rid))
+        val rid = p?.requestId ?: r.header("X-Request-Id") ?: r.request.header(REQUEST_ID)
+        val logged = failures?.record(
+            ApiFailure(
+                "http", r.request.method, r.request.url.encodedPath, r.code, p?.code ?: if (r.code in 502..504) "hub_unreachable" else "unexpected",
+                p?.title ?: r.message.ifBlank { null }, rid, message = p?.detail ?: p?.messageFa, durationMs = elapsed(r),
+                headers = r.headers.toMultimap().mapValues { it.value.joinToString(", ") },
+            ),
+        )
         if (p?.messageFa == null) throw ApiException.unexpected(r.code).also { it.logged = logged }
         val wait = r.header("Retry-After")?.trim()?.toIntOrNull()?.takeIf { it > 0 }
         throw ApiException(
@@ -1185,15 +1213,43 @@ class Api(
         ).also { it.logged = logged }
     }
 
-    private suspend fun execute(request: Request, via: OkHttpClient = client): Response = suspendCancellableCoroutine { cont ->
+    /**
+     * One call: a client request id the hub echoes (so its logs match the phone's), and for a read a quiet retry with a short pause when
+     * the answer is 502/503/504 or there is none ([RETRY_MS]); every answer and failure tells [hub]. Only the final outcome is logged.
+     */
+    private suspend fun execute(request: Request, via: OkHttpClient = client): Response {
+        val req = if (request.header(REQUEST_ID) == null) request.newBuilder().header(REQUEST_ID, UUID.randomUUID().toString()).build() else request
+        val started = System.nanoTime()
+        val retries = if (req.method == "GET") RETRY_MS.size else 0
+        var attempt = 0
+        while (true) {
+            val res = try {
+                send(req, via)
+            } catch (e: IOException) {
+                hub?.transient()
+                if (attempt < retries) { kotlinx.coroutines.delay(RETRY_MS[attempt++]); continue }
+                val x = ApiException.offline()
+                x.logged = failures?.record(
+                    ApiFailure("network", req.method, req.url.encodedPath, null, "network_error", e::class.simpleName, req.header(REQUEST_ID), durationMs = msSince(started)),
+                )
+                throw x
+            }
+            if (proxied(res)) {
+                hub?.transient()
+                if (attempt < retries) { res.close(); kotlinx.coroutines.delay(RETRY_MS[attempt++]); continue }
+            } else hub?.ok()
+            return res.newBuilder().header(ELAPSED, msSince(started).toString()).build()
+        }
+    }
+
+    /** The raw exchange; an IOException is the caller's to read. */
+    private suspend fun send(request: Request, via: OkHttpClient): Response = suspendCancellableCoroutine { cont ->
         val call = via.newCall(request)
         cont.invokeOnCancellation { call.cancel() }
         call.enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 if (cont.isCancelled) return
-                val x = ApiException.offline()
-                x.logged = failures?.record(ApiFailure("network", request.method, request.url.encodedPath, null, "network_error", e::class.simpleName))
-                cont.resumeWithException(x)
+                cont.resumeWithException(e)
             }
 
             override fun onResponse(call: Call, response: Response) {
@@ -1202,7 +1258,25 @@ class Api(
         })
     }
 
+    /** A 502/503/504 the proxy answered for a hub that is not there; a Problem from the hub itself (a 503 `channel_not_configured`)
+     *  is the hub answering, not a restart. */
+    private fun proxied(r: Response): Boolean {
+        if (r.code !in 502..504) return false
+        val type = r.header("Content-Type").orEmpty()
+        if (!type.contains("json")) return true
+        return !runCatching { r.peekBody(8_192).string().contains("\"code\"") }.getOrDefault(false)
+    }
+
+    private fun msSince(t0: Long): Long = (System.nanoTime() - t0) / 1_000_000
+    private fun elapsed(r: Response): Long? = r.header(ELAPSED)?.toLongOrNull()
+
     companion object {
+        /** The id each call carries; the hub accepts it (`^[A-Za-z0-9-]{8,64}$`), logs it and sends it back as `X-Request-ID`. */
+        const val REQUEST_ID = "X-Request-Id"
+        /** How long a call took, on the response the app hands on (never sent anywhere). */
+        private const val ELAPSED = "X-HQ-Elapsed-Ms"
+        /** A read that met a 502/503/504 or no answer is tried again after these pauses. */
+        val RETRY_MS = longArrayOf(400, 1_200)
         private val JSON = "application/json".toMediaType()
         private val LOCAL = listOf("data:", "file:", "content:")
 

@@ -16,6 +16,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,9 +37,24 @@ class Env(
     val offlineSince: StateFlow<String?> = MutableStateFlow(null),
     /** ⟨1.7.3⟩ outputs marked seen on the phone while the hub could not keep it. */
     val seen: com.coinepro.hq.core.data.SeenStore = com.coinepro.hq.core.data.SeenStore.memory(),
+    /** Whether the hub answers (a restart's burst of 502s turns into one banner and a quiet wait). */
+    val hub: com.coinepro.hq.core.net.HubHealth = com.coinepro.hq.core.net.HubHealth(),
 ) {
+    /** Work refs and titles for lines that carry only an id (the live stream). */
+    val works = com.coinepro.hq.core.data.WorkTitles(scope) { key ->
+        try {
+            api.workOne(key)
+        } catch (e: com.coinepro.hq.core.net.ApiException) {
+            if (e.status == 404) { e.logged?.let { api.failures?.forget(it) }; null } else throw e
+        }
+    }
+
+    /** The owner's orders, watched on the stream for a change of stage. */
+    val orders = com.coinepro.hq.core.data.OrderWatcher(api, stream.events, scope, works)
+
     fun close() {
         stream.stop()
+        orders.stop()
         scope.cancel()
     }
 }
@@ -76,12 +94,38 @@ class AppGraph(context: Context) {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         val api = Api(BuildConfig.HQ_ORIGIN, tokens, if (demo) Demo.interceptor() else offline)
         if (!demo) api.failures = errors
-        val cache = QueryCache(scope)
+        com.coinepro.hq.core.diag.Diag.log = if (demo) null else errors
+        val hub = com.coinepro.hq.core.net.HubHealth()
+        api.hub = hub
+        val cache = QueryCache(scope, hub)
+        val stream = HoldingStream(api, cache, scope, demo, if (demo) null else errors)
+        watchHub(hub, api, scope, if (demo) null else errors)
         return Env(
-            api, Auth(api, tokens, demo), cache, HoldingStream(api, cache, scope, demo), MediaKit(app, api), demo, scope,
+            api, Auth(api, tokens, demo), cache, stream, MediaKit(app, api), demo, scope,
             if (demo) MutableStateFlow(null) else offline.since,
             seen = if (demo) com.coinepro.hq.core.data.SeenStore.memory() else seen,
+            hub = hub,
         )
+    }
+}
+
+/** While the hub is away: probe it with a growing pause until it answers, and note in the log how long it was gone. */
+private fun watchHub(hub: com.coinepro.hq.core.net.HubHealth, api: Api, scope: CoroutineScope, log: com.coinepro.hq.core.diag.ErrorLog?) {
+    scope.launch {
+        hub.state.collectLatest { s ->
+            if (s != com.coinepro.hq.core.net.HubState.RESTARTING) return@collectLatest
+            log?.crumb("hub unreachable")
+            var attempt = 0
+            while (hub.outage) {
+                delay(com.coinepro.hq.core.net.HubHealth.backoff(attempt++))
+                if (api.probe()) hub.ok()
+            }
+        }
+    }
+    scope.launch {
+        hub.recovered.collect { ms ->
+            log?.note("hub", com.coinepro.hq.core.diag.LEVEL_INFO, "hub reachable again", "the hub answered again after ${(ms + 500) / 1000} s")
+        }
     }
 }
 

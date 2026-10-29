@@ -81,6 +81,25 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
 
         private val SCREENS: Map<String, @Composable (AppGraph) -> Unit> = linkedMapOf(
             "home" to { _ -> HomeScreen(onNewOrder = {}) },
+            // The owner's orders: on their way (one just given, one taken, one delegated, one at work under a manager and two analysts),
+            // delivered and done, failed; an order at work, a delivered one with its output and a failed one with its reason (their pages:
+            // the tracker, then the timeline on its own); the new order with the priorities in words; the live feed's lines (a work named
+            // only by its id resolved to its ref and title, a gone one in words, never an id); the hub restarting (one banner).
+            "orders" to { _ -> com.coinepro.hq.ui.work.OrdersScreen() },
+            "orders-delivered" to { _ -> com.coinepro.hq.ui.work.OrdersScreen(tab0 = "delivered") },
+            "orders-ended" to { _ -> com.coinepro.hq.ui.work.OrdersScreen(tab0 = "ended") },
+            "order-working" to { _ -> WorkScreen(ORDER_WORKING) },
+            "order-timeline" to { _ -> Cardlike { WithTrack(ORDER_WORKING) { com.coinepro.hq.ui.work.TimelineCard(it) } } },
+            "order-delivered" to { _ -> WorkScreen(ORDER_DELIVERED) },
+            "order-failed" to { _ -> WorkScreen(ORDER_FAILED) },
+            "new-order" to { _ -> Sheetlike { androidx.compose.foundation.layout.Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(14.dp)) { com.coinepro.hq.ui.work.NewOrderContent({}, company0 = "TY", title0 = "گزارش رقبای صرافی", priority0 = "P2") } } },
+            "live-feed" to { _ -> Cardlike { LiveFeed() } },
+            "hub-restarting" to { _ ->
+                androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
+                    com.coinepro.hq.ui.shell.HubBanner()
+                    HomeScreen(onNewOrder = {})
+                }
+            },
             "cartable" to { _ -> CartableScreen() },
             "decision-hire" to { _ -> DecisionScreen("D-000014") },
             "decision-deploy" to { _ -> DecisionScreen("D-000017") },
@@ -157,7 +176,13 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
             "errors" to { g -> androidx.compose.runtime.remember { sampleErrors(g) }; com.coinepro.hq.ui.settings.ErrorLogScreen(g.errors) },
             "errors-open" to { g ->
                 val e = androidx.compose.runtime.remember { sampleErrors(g); g.errors.entries.value }
-                Cardlike { for ((i, x) in e.withIndex()) com.coinepro.hq.ui.settings.EntryCard(x, open0 = i == 0 || x.kind == "crash") }
+                Cardlike { for (x in e.filter { it.kind in setOf("unreachable", "decode", "crash") }) com.coinepro.hq.ui.settings.EntryCard(x, open0 = true) }
+            },
+            // An earlier version's log, kept apart and read-only.
+            "errors-archive" to { _ ->
+                val ctx = androidx.compose.ui.platform.LocalContext.current
+                val log = androidx.compose.runtime.remember { archivedLog(ctx) }
+                com.coinepro.hq.ui.settings.ErrorLogScreen(log, version0 = "0.2.1 (201)")
             },
             "workshop" to { _ -> WorkshopScreen(onNewSession = {}, onGrant = {}) },
             "session-approval" to { _ -> SessionScreen("S-0004") },
@@ -370,7 +395,56 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
             "legal-case-holds" to { _ -> Cardlike { com.coinepro.hq.ui.archive.CaseHolds("LC-0001") } },
         )
 
-        /** The demo's live stream running under [content]: its first beat (a run starting) lands at once. */
+        /** The demo's orders (OrdersDemo): at work under a manager, delivered with its output, failed with its reason. */
+        private const val ORDER_WORKING = "0193b1c2-0001-7d4f-8a2e-0000005a1001"
+        private const val ORDER_DELIVERED = "0193b1c2-0005-7d4f-8a2e-0000005a1005"
+        private const val ORDER_FAILED = "0193b1c2-0007-7d4f-8a2e-0000005a1007"
+
+        /** An order and what is under it, as the demo serves it. */
+        @Composable
+        private fun WithTrack(id: String, content: @Composable (com.coinepro.hq.core.data.OrderTrack) -> Unit) {
+            com.coinepro.hq.ui.work.rememberTrack(id, full = true).data?.let { content(it) }
+        }
+
+        /** The live feed's lines as the stream sends them: works by ref and by id (one gone), runs on a work, an output, a file. */
+        @Composable
+        private fun LiveFeed() {
+            fun e(type: String, ref: String?, co: String, min: Long, vararg d: Pair<String, String>) = com.coinepro.hq.core.net.StreamEvent(
+                "x", type, java.time.Instant.parse("2026-10-17T08:30:00Z").minusSeconds(min * 60).toString(), co, ref,
+                kotlinx.serialization.json.JsonObject(d.toMap().mapValues { kotlinx.serialization.json.JsonPrimitive(it.value) }),
+            )
+            val rows = listOf(
+                e("work.delegated", "W-000210", "TY", 1, "child" to "W-000215", "to" to "TY-GROWTH-MGR"),
+                e("work.updated", ORDER_WORKING.replace("0001", "0003").replace("5a1001", "5a1003"), "FX", 2, "status" to "in_progress"),
+                e("run.started", "0193b1c2-9999-7d4f-8a2e-000000000001", "TY", 3, "employee" to "TY-GROWTH-01", "work" to "W-000217"),
+                e("deliverable.created", "O-000044", "TY", 5, "producer" to "TY-CEO", "work" to "W-000206"),
+                e("run.finished", "0193b1c2-9999-7d4f-8a2e-000000000002", "FX", 7, "employee" to "FX-CEO", "state" to "done", "work" to "W-000211"),
+                e("work.updated", "01a187f8-e3e9-7b4f-8dd2-3c4e5f607182", "HQ", 8, "status" to "failed"),
+                e("file.ready", "01a187f8-e3e9-7b4f-8dd2-3c4e5f607183", "HQ", 9),
+                e("work.completed", "W-000201", "FX", 12, "by" to "owner"),
+            )
+            HqCardLike {
+                for (r in rows) com.coinepro.hq.ui.companies.FeedLine(com.coinepro.hq.ui.companies.feedRowOf(r)) {}
+            }
+        }
+
+        @Composable
+        private fun HqCardLike(content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) =
+            com.coinepro.hq.designsystem.HqCard(Modifier.fillMaxSize(), content = content)
+
+        /** A log whose previous version (0.2.1) was archived when 0.3.0 started: a burst, a contract mismatch, a session. */
+        private fun archivedLog(ctx: android.content.Context): com.coinepro.hq.core.diag.ErrorLog {
+            val dir = java.io.File(ctx.cacheDir, "errors-archive").apply { deleteRecursively() }
+            val old = com.coinepro.hq.core.diag.ErrorLog(ctx, dir, app = "0.2.1 (201)")
+            old.screen = "home"
+            com.coinepro.hq.core.format.HqClock.fixed = java.time.Instant.parse("2026-10-16T09:12:04.120Z")
+            for (p in listOf("/api/v1/inbox/summary", "/api/v1/work", "/api/v1/decisions", "/api/v1/companies")) old.record(com.coinepro.hq.core.net.ApiFailure("http", "GET", p, 502, "hub_unreachable", "Bad Gateway"))
+            old.record(com.coinepro.hq.core.net.ApiFailure("decode", "GET", "/api/v1/stars/rollup", 200, "contract_mismatch", null, "01JBX4Q2ZK", "$.companies[0].stars", "Expected Int"))
+            com.coinepro.hq.core.format.HqClock.fixed = java.time.Instant.parse("2026-10-17T08:30:00Z")
+            Thread.sleep(200)
+            return com.coinepro.hq.core.diag.ErrorLog(ctx, dir, app = "0.3.0 (300)")
+        }
+
         @Composable
         private fun Live(g: AppGraph, content: @Composable () -> Unit) {
             androidx.compose.runtime.remember { g.env.value.stream.start() }
@@ -397,18 +471,45 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
             com.coinepro.hq.ui.companies.HoldingControlCard(holding, list, base, ui) {}
         }
 
-        /** The error log as a real session fills it: what the owner reported, with the fields the report names. */
+        /** The error log as a real session fills it: the session line, what the owner reported (a hub restart's burst of 502s collapsed
+         *  into one entry, the stream dropping and coming back), a passkey cancelled, a speech error, an HTTP error counted twice, a contract
+         *  mismatch with its field, a crash. */
         private fun sampleErrors(g: AppGraph) {
             val l = g.errors
             l.clear()
+            fun t(s: String) { com.coinepro.hq.core.format.HqClock.fixed = java.time.Instant.parse(s) }
+            t("2026-10-17T07:41:02.104Z")
+            l.note("session", com.coinepro.hq.core.diag.LEVEL_INFO, "app started", "app started v${l.app} on Google Pixel 9 · Android 16 (API 36)")
             l.screen = "voice"
-            l.record(com.coinepro.hq.core.net.ApiFailure("network", "POST", "/api/v1/transcribe", null, "network_error", "SocketTimeoutException"))
+            t("2026-10-17T07:44:10.552Z")
+            l.note("speech", com.coinepro.hq.core.diag.LEVEL_WARNING, "recogniser error", "SpeechRecognizer error 13 (fa-IR)", "speech_13")
             l.screen = "stars"
-            val http = com.coinepro.hq.core.net.ApiFailure("http", "GET", "/api/v1/media/voices/reference", 503, "channel_not_configured", "Service Unavailable", "01JBX4Q7A9")
+            t("2026-10-17T07:52:31.020Z")
+            val http = com.coinepro.hq.core.net.ApiFailure("http", "GET", "/api/v1/media/voices/reference", 503, "channel_not_configured", "Service Unavailable", "01JBX4Q7A9", message = "speech-to-text is off on this hub", durationMs = 214)
             l.record(http); l.record(http)
+            l.screen = "control"
+            t("2026-10-17T07:58:44.871Z")
+            l.note("passkey", com.coinepro.hq.core.diag.LEVEL_INFO, "cancelled", "GetCredentialCancellationException", "passkey_ceremony_failed")
+            l.screen = "home"
+            l.crumb("sheet tools")
+            // The deploy: every call answers 502 for about twenty seconds, the stream drops; one entry, then the hub and the stream back.
+            var at = java.time.Instant.parse("2026-10-17T08:05:11.300Z")
+            val paths = listOf("/api/v1/inbox/summary", "/api/v1/owner/away-summary", "/api/v1/treasury/summary", "/api/v1/decisions", "/api/v1/work", "/api/v1/companies", "/api/v1/oversight/summary")
+            for (i in 0 until 15) {
+                com.coinepro.hq.core.format.HqClock.fixed = at
+                if (i == 4) l.record(com.coinepro.hq.core.net.ApiFailure("stream", "GET", "/api/v1/stream", 502, "hub_unreachable", "refused"))
+                else l.record(com.coinepro.hq.core.net.ApiFailure("http", "GET", paths[i % paths.size], 502, "hub_unreachable", "Bad Gateway", "c0ffee00-$i-4a1b-9c2d", durationMs = 1_640L + i * 7, headers = mapOf("Server" to "Caddy")))
+                at = at.plusMillis(1_310)
+            }
+            t("2026-10-17T08:05:36.020Z")
+            l.note("hub", com.coinepro.hq.core.diag.LEVEL_INFO, "hub reachable again", "the hub answered again after 25 s")
+            l.note("stream", com.coinepro.hq.core.diag.LEVEL_INFO, "reconnected", "the live stream is back after 26 s (resumed from the last event)")
             l.screen = "outputs/{ref}"
-            l.record(com.coinepro.hq.core.net.ApiFailure("decode", "GET", "/api/v1/media/voices", 200, "contract_mismatch", null, "01JBX4Q2ZK", "$[0].mem_mb", "Expected Int, got 412.6"))
+            t("2026-10-17T08:21:09.448Z")
+            l.record(com.coinepro.hq.core.net.ApiFailure("decode", "GET", "/api/v1/media/voices", 200, "contract_mismatch", null, "01JBX4Q2ZK", "$[0].mem_mb", "Expected Int, got 412.6", durationMs = 96))
+            t("2026-10-17T08:24:50.006Z")
             l.crash(Thread.currentThread(), IllegalStateException("demo crash for the screenshot"))
+            com.coinepro.hq.core.format.HqClock.fixed = java.time.Instant.parse("2026-10-17T08:30:00Z")
         }
 
         /** Every provider logo at 48dp and at the list's 20dp, with its key. */

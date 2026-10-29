@@ -29,8 +29,6 @@ import com.coinepro.hq.designsystem.Divan
 import com.coinepro.hq.designsystem.FilterChip
 import com.coinepro.hq.designsystem.HqButton
 import com.coinepro.hq.designsystem.HqTextField
-import com.coinepro.hq.designsystem.SegOption
-import com.coinepro.hq.designsystem.Segmented
 import com.coinepro.hq.designsystem.generated.DivanIcon
 import com.coinepro.hq.ui.LocalEnv
 import com.coinepro.hq.ui.LocalNav
@@ -43,6 +41,17 @@ import com.coinepro.hq.ui.rememberCompanies
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NewOrderSheet(onDismiss: () -> Unit, company0: String? = null) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Divan.colors.overlay) {
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 16.dp).padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) { NewOrderContent(onDismiss, company0) }
+    }
+}
+
+/** The order's form: the company, the title and brief, how urgent it is (in words, with its meaning), and whether it repeats. */
+@Composable
+fun NewOrderContent(onDismiss: () -> Unit, company0: String? = null, title0: String = "", priority0: String = com.coinepro.hq.core.format.DEFAULT_PRIORITY) {
     val env = LocalEnv.current
     val nav = LocalNav.current
     val toasts = LocalToasts.current
@@ -50,53 +59,46 @@ fun NewOrderSheet(onDismiss: () -> Unit, company0: String? = null) {
     val companies = rememberCompanies()
     val action = rememberAction()
     var company by rememberSaveable { mutableStateOf(company0) }
-    var title by rememberSaveable { mutableStateOf("") }
+    var title by rememberSaveable { mutableStateOf(title0) }
     var brief by rememberSaveable { mutableStateOf("") }
-    var priority by rememberSaveable { mutableStateOf("P3") }
+    var priority by rememberSaveable { mutableStateOf(priority0) }
     var repeat by rememberSaveable { mutableStateOf("none") }
-
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = c.overlay) {
-        Column(
-            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 16.dp).padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Text("فرمان تازه", style = Divan.type.h2)
-            Text("به کدام شرکت؟ مدیرعاملش کار را به دپارتمان درست میسپارد.", style = Divan.type.caption, color = c.textMuted)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                companies.sortedBy { if (it.kind == "holding") 0 else 1 }.forEach { co ->
-                    FilterChip(if (co.kind == "holding") "هلدینگ" else co.nameFa ?: co.code, company == co.code, { company = co.code })
-                }
-            }
-            HqTextField(title, { title = it }, "عنوان کار", Modifier.fillMaxWidth(), maxLength = 200)
-            HqTextField(brief, { brief = it }, "شرح: چه میخواهی، تا کی، با چه معیاری تمام است", Modifier.fillMaxWidth(), singleLine = false, minLines = 4)
-            Text("اولویت", style = Divan.type.caption, color = c.textMuted)
-            Segmented(listOf("P0", "P1", "P2", "P3", "P4").map { SegOption(it, it) }, priority, { priority = it }, Modifier.fillMaxWidth())
-            Text("تکرار", style = Divan.type.caption, color = c.textMuted)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip("یک‌باره", repeat == "none", { repeat = "none" })
-                FilterChip("هر روز ۸ صبح", repeat == "daily", { repeat = "daily" })
-                FilterChip("هر شنبه", repeat == "weekly", { repeat = "weekly" })
-            }
-            if (priority == "P0") Text("P0 یعنی اضطراری: حتی با کلید توقف هم اجرا میشود. فقط برای اتفاق واقعی.", style = Divan.type.caption, color = c.warning)
-            HqButton(
-                "بفرست", {
-                    action.run {
-                        val rrule = when (repeat) { "daily" -> "FREQ=DAILY;BYHOUR=8;BYMINUTE=0"; "weekly" -> "FREQ=WEEKLY;BYDAY=SA;BYHOUR=8;BYMINUTE=0"; else -> null }
-                        val w = env.api.createWork(
-                            WorkCreate(
-                                company = company!!, title = title.trim(), brief = brief.trim(), priority = priority,
-                                kind = if (rrule != null) "recurring" else "one_off", schedule = rrule?.let { ScheduleIn(it, OWNER_TZ) },
-                            ),
-                        )
-                        env.cache.invalidate("work", "planner", "companies")
-                        toasts.ok("فرمان ${w.ref} رفت.")
-                        onDismiss()
-                        nav.go("work/${w.id}")
-                    }
-                },
-                Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.SEND,
-                enabled = company != null && title.isNotBlank(), loading = action.busy,
-            )
+    Text("فرمان تازه", style = Divan.type.h2)
+    Text("به کدام شرکت؟ مدیرعاملش کار را به دپارتمان درست میسپارد.", style = Divan.type.caption, color = c.textMuted)
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        companies.sortedBy { if (it.kind == "holding") 0 else 1 }.forEach { co ->
+            FilterChip(if (co.kind == "holding") "هلدینگ" else co.nameFa ?: co.code, company == co.code, { company = co.code })
         }
     }
+    HqTextField(title, { title = it }, "عنوان کار", Modifier.fillMaxWidth(), maxLength = 200)
+    HqTextField(brief, { brief = it }, "شرح: چه میخواهی، تا کی، با چه معیاری تمام است", Modifier.fillMaxWidth(), singleLine = false, minLines = 4)
+    Text("چقدر عجله دارد؟", style = Divan.type.caption, color = c.textMuted)
+    PriorityPicker(priority, { priority = it }, Modifier.fillMaxWidth())
+    Text("تکرار", style = Divan.type.caption, color = c.textMuted)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FilterChip("یک‌باره", repeat == "none", { repeat = "none" })
+        FilterChip("هر روز ۸ صبح", repeat == "daily", { repeat = "daily" })
+        FilterChip("هر شنبه", repeat == "weekly", { repeat = "weekly" })
+    }
+    HqButton(
+        "بفرست", {
+            action.run {
+                val rrule = when (repeat) { "daily" -> "FREQ=DAILY;BYHOUR=8;BYMINUTE=0"; "weekly" -> "FREQ=WEEKLY;BYDAY=SA;BYHOUR=8;BYMINUTE=0"; else -> null }
+                val w = env.api.createWork(
+                    WorkCreate(
+                        company = company!!, title = title.trim(), brief = brief.trim(), priority = priority,
+                        kind = if (rrule != null) "recurring" else "one_off", schedule = rrule?.let { ScheduleIn(it, OWNER_TZ) },
+                    ),
+                )
+                // Followed at once: its stage changes are told even before the list is read again.
+                env.orders.track(w)
+                env.cache.invalidate("work", "planner", "companies")
+                toasts.ok("فرمان ${w.ref} رفت؛ در «فرمان‌های من» مرحله‌به‌مرحله دنبالش کن.", "فرمان‌های من") { nav.go("orders") }
+                onDismiss()
+                nav.go("work/${w.id}")
+            }
+        },
+        Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.SEND,
+        enabled = company != null && title.isNotBlank(), loading = action.busy,
+    )
 }

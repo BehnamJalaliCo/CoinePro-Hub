@@ -4,4 +4,6 @@
     <string name="widget_title">کارتابل</string>
     <string name="widget_description">مُهرهای منتظر تو و موارد فوری، از آخرین باری که اپ دید</string>
     <string name="tile_voice">فرمان صوتی</string>
+    <string name="channel_orders">فرمان‌ها</string>
+    <string name="channel_orders_description">وقتی فرمانی که دادی واگذار، تحویل، ناموفق یا تمام شد</string>
 </resources>

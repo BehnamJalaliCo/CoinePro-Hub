@@ -95,6 +95,7 @@ import com.coinepro.hq.designsystem.Pill
 import com.coinepro.hq.designsystem.Radius
 import com.coinepro.hq.designsystem.SectionTitle
 import com.coinepro.hq.designsystem.Skeleton
+import com.coinepro.hq.core.format.WORK_STATUS
 import com.coinepro.hq.designsystem.Space
 import com.coinepro.hq.designsystem.collapseOut
 import com.coinepro.hq.designsystem.expandIn
@@ -968,7 +969,7 @@ private fun LiveFeedCard(code: String, holding: Boolean, d: ControlData) {
     val outs = rememberQuery("deliverables:company:$code", "deliverables", maxAgeMs = 30_000) { deliverables(company = code, limit = 6) }
     val cards = rememberQuery("decisions:company:$code", "decisions", maxAgeMs = 30_000) { decisions(status = null, company = code, limit = 20) }
     val rows = remember(d.pulses[code], runs.data, outs.data, cards.data) {
-        feedOf(d.pulses[code]?.recent.orEmpty().map { FeedRow(it.at, it.type, it.ref, it.data["employee"].str(), it.data["state"].str()) }, runs.data?.items.orEmpty(), outs.data?.items.orEmpty().filter { it.company == code }, cards.data?.items.orEmpty().filter { it.company == code })
+        feedOf(d.pulses[code]?.recent.orEmpty().map(::feedRowOf), runs.data?.items.orEmpty(), outs.data?.items.orEmpty().filter { it.company == code }, cards.data?.items.orEmpty().filter { it.company == code })
     }
     val live = d.busy(code)
     HqCard(Modifier.fillMaxWidth()) {
@@ -980,27 +981,64 @@ private fun LiveFeedCard(code: String, holding: Boolean, d: ControlData) {
             rows.isEmpty() && runs.data == null -> Skeleton(Modifier.fillMaxWidth().height(160.dp), radius = Radius.tile)
             rows.isEmpty() -> Text("هنوز خبری نیست؛ ایجنت‌ها تا رسیدن کار خواب‌اند.", style = Divan.type.caption, color = c.textMuted)
             else -> Column(Modifier.smoothSize()) {
-                rows.take(8).forEach { r -> FeedLine(r) { ref -> com.coinepro.hq.ui.v17.refRoute(ref)?.let(nav::go) } }
+                rows.take(8).forEach { r -> FeedLine(r) { route -> nav.go(route) } }
             }
         }
     }
 }
 
 @Immutable
-data class FeedRow(val at: String, val type: String, val ref: String?, val employee: String?, val state: String?)
+data class FeedRow(
+    val at: String,
+    val type: String,
+    val ref: String?,
+    val employee: String?,
+    val state: String?,
+    /** The work a run or an output belongs to (the event's `data.work`), by ref. */
+    val work: String? = null,
+    /** A work event's new status (`data.status`). */
+    val status: String? = null,
+    /** A delegation's assignee (`data.to`). */
+    val to: String? = null,
+)
+
+/** A stream event as a feed line. */
+fun feedRowOf(e: com.coinepro.hq.core.net.StreamEvent): FeedRow = FeedRow(
+    e.at.ifBlank { com.coinepro.hq.core.format.HqClock.now().toString() }, e.type, e.ref,
+    e.data["employee"].str(), e.data["state"].str(), e.data["work"].str(), e.data["status"].str(), e.data["to"].str(),
+)
+
+/** Persian for a stream topic, for an event the feed has no sentence of its own for. */
+private val TOPIC_FA = mapOf(
+    "file" to "فایل", "workshop" to "کارگاه کد", "order" to "فرمان صوتی", "oversight" to "ناظر کل", "inquiry" to "استعلام", "errand" to "دستیار",
+    "stars" to "ستاره‌ها", "skill" to "مهارت‌ها", "academy" to "آکادمی", "founding" to "تأسیس", "provision" to "سرور تازه", "backup" to "پشتیبان‌گیری",
+    "brand" to "نشان شرکت", "revenue" to "درآمد", "support" to "پشتیبانی", "rescue" to "نجات رفرال", "lifecycle" to "پیام‌های رشد", "nps" to "نظرسنجی",
+    "feedback" to "بازخورد", "meeting" to "جلسه", "charter" to "اساسنامه", "kpi" to "شاخص‌ها", "okr" to "OKR", "outcome" to "بازبینی نتیجه",
+    "risk" to "ریسک", "calendar" to "تقویم تغییرات", "knowledge" to "دانشنامه", "memo" to "یادداشت مشاور", "advisor" to "مشاور کل", "ask" to "پرسش از هاب",
+    "review" to "مرور هفتگی", "briefing" to "گزارش صوتی", "rankings" to "رتبه‌ها", "hr" to "ارزیابی منابع انسانی", "note" to "یادداشت‌ها",
+    "claim" to "ادعاها", "dceo" to "مدیر کل دیجیتال", "substitute" to "بازیکن ذخیره", "creative" to "طرح‌ها", "media" to "استودیوی رسانه",
+    "legal" to "مشاور حقوقی", "role" to "نقش‌ها", "record" to "بایگانی", "reminder" to "یادآور بایگانی", "hold" to "توقیف", "fixity" to "سلامت بایگانی",
+    "schema" to "طرح بایگانی", "message" to "پیام‌ها", "notification" to "اعلان‌ها", "employee" to "کارمندها", "presence" to "خلوت", "budget" to "بودجه",
+    "llm" to "مصرف مدل", "hiring" to "استخدام", "story" to "استوری‌ها", "company" to "شرکت‌ها", "position" to "جایگاه‌ها",
+)
 
 /** The feed: the stream's events and the latest runs, outputs and cards, newest first, each once. */
 fun feedOf(live: List<FeedRow>, runs: List<Run>, outs: List<com.coinepro.hq.core.net.Deliverable>, cards: List<com.coinepro.hq.core.net.Decision>): List<FeedRow> {
     val loaded = runs.flatMap { r ->
         listOfNotNull(
-            r.startedAt?.let { FeedRow(it, "run.started", r.id, r.employee, null) },
-            r.finishedAt?.let { FeedRow(it, "run.finished", r.id, r.employee, r.state) },
+            r.startedAt?.let { FeedRow(it, "run.started", r.id, r.employee, null, work = r.workRef) },
+            r.finishedAt?.let { FeedRow(it, "run.finished", r.id, r.employee, r.state, work = r.workRef) },
         )
-    } + outs.map { FeedRow(it.createdAt, "deliverable.created", it.ref, it.producer.code, null) } +
+    } + outs.map { FeedRow(it.createdAt, "deliverable.created", it.ref, it.producer.code, null, work = it.workRef) } +
         cards.flatMap { k -> listOfNotNull(FeedRow(k.createdAt, "decision.created", k.ref, null, null), k.decidedAt?.let { FeedRow(it, "decision.decided", k.ref, null, k.status) }) }
     return (live + loaded).distinctBy { "${it.type}|${it.ref}" }.sortedByDescending { instant(it.at)?.toEpochMilli() ?: 0 }
 }
 
+/**
+ * One line of a live feed in words: who did what to which work, by its ref and title. A line about a work item carries the work's ref
+ * (`W-000003`) and title, looked up once per session when the event names only an id; a skeleton holds its place until it resolves. An
+ * id is never shown: an event the feed has no sentence for names its topic, and a ref only when it is one a person can read.
+ */
 @Composable
 fun FeedLine(r: FeedRow, open: (String) -> Unit) {
     val c = Divan.colors
@@ -1008,32 +1046,74 @@ fun FeedLine(r: FeedRow, open: (String) -> Unit) {
         r.type == "run.started" -> DivanIcon.AGENT to c.goldInk
         r.type == "run.finished" && r.state == "done" -> DivanIcon.SEAL to c.positive
         r.type == "run.finished" -> DivanIcon.URGENT to c.warning
+        r.type == "work.delegated" -> DivanIcon.DELEGATE to c.lapis
+        r.type == "work.completed" || (r.type == "work.updated" && r.status in setOf("delivered", "done")) -> DivanIcon.SEAL to c.positive
+        r.type == "work.updated" && r.status == "failed" -> DivanIcon.URGENT to c.negative
+        r.type.startsWith("work") -> DivanIcon.TASK to c.goldInk
         r.type.startsWith("deliverable") -> DivanIcon.DELIVERABLE to c.silverInk
         r.type.startsWith("decision") -> DivanIcon.CARTABLE to c.goldInk
         r.type.startsWith("control") -> DivanIcon.LOCK to c.negative
-        else -> DivanIcon.TASK to c.silverInk
+        else -> DivanIcon.INFO to c.silverInk
     }
+    val workKey = when {
+        r.type.startsWith("work.") -> r.ref
+        r.type.startsWith("run.") || r.type.startsWith("deliverable.") -> r.work
+        else -> null
+    }?.takeIf { it.isNotBlank() }
+    val label = com.coinepro.hq.ui.work.rememberWorkLabel(workKey)
+    val known = (label as? com.coinepro.hq.core.data.LabelState.Known)?.label
+    val loading = workKey != null && label == com.coinepro.hq.core.data.LabelState.Loading
     val text = buildAnnotatedString {
         fun who() { r.employee?.let { append(" "); fig(it) } }
-        when (r.type) {
-            "run.started" -> { append("اجرای"); who(); append(" شروع شد") }
-            "run.finished" -> { append("اجرای"); who(); append(when (r.state) { "done" -> " تمام شد"; "failed" -> " شکست خورد"; "refused" -> " ایستاد"; else -> " بسته شد" }) }
-            "deliverable.created" -> { append("خروجی تازه "); r.ref?.let { fig(it, c.goldInk) } }
-            "deliverable.rated" -> { append("امتیاز تو به "); r.ref?.let { fig(it, c.goldInk) } }
-            "decision.created" -> { append("کارت تازه در کارتابل "); r.ref?.let { fig(it, c.goldInk) } }
-            "decision.decided" -> { append("تصمیم "); r.ref?.let { fig(it, c.goldInk) }; append(" گرفته شد") }
-            "control.changed" -> append("کلیدها تغییر کرد")
-            else -> { append("کار "); r.ref?.let { fig(it, c.goldInk) }; append(" به‌روز شد") }
+        // The work as the owner knows it: its ref and title; its ref alone while the title is not known; never its id.
+        fun work() {
+            when {
+                known != null -> { fig(known.ref, c.goldInk); append(" · "); append(known.title) }
+                workKey != null && com.coinepro.hq.core.data.WorkTitles.isHuman(workKey) -> fig(workKey, c.goldInk)
+                else -> append("کاری که دیگر در دسترس نیست")
+            }
+        }
+        // The verb first, so a line cut short still says what happened; then the work by ref and title.
+        when {
+            r.type == "run.started" -> { append("اجرای"); who(); append(" شروع شد"); if (workKey != null) { append(": "); work() } }
+            r.type == "run.finished" -> {
+                append("اجرای"); who(); append(when (r.state) { "done" -> " تمام شد"; "failed" -> " شکست خورد"; "refused" -> " ایستاد"; else -> " بسته شد" })
+                if (workKey != null) { append(": "); work() }
+            }
+            r.type == "deliverable.created" -> { append("خروجی تازه "); r.ref?.takeIf(com.coinepro.hq.core.data.WorkTitles::isHuman)?.let { fig(it, c.goldInk) }; if (workKey != null) { append(" برای "); work() } }
+            r.type == "deliverable.rated" -> { append("امتیاز تو به "); r.ref?.takeIf(com.coinepro.hq.core.data.WorkTitles::isHuman)?.let { fig(it, c.goldInk) } }
+            r.type == "decision.created" -> { append("کارت تازه در کارتابل "); r.ref?.takeIf(com.coinepro.hq.core.data.WorkTitles::isHuman)?.let { fig(it, c.goldInk) } }
+            r.type == "decision.decided" -> { append("تصمیم "); r.ref?.takeIf(com.coinepro.hq.core.data.WorkTitles::isHuman)?.let { fig(it, c.goldInk) }; append(" گرفته شد") }
+            r.type == "control.changed" -> append("کلیدها تغییر کرد")
+            r.type == "work.created" -> { append("کار تازه: "); work() }
+            r.type == "work.delegated" -> {
+                append("واگذار شد")
+                r.to?.let { append(" به "); com.coinepro.hq.core.data.agentTitleOf(it)?.let { t -> append(t) } ?: fig(it) }
+                append(": "); work()
+            }
+            r.type == "work.completed" -> { append("تمام شد: "); work() }
+            r.type == "work.updated" -> { append(r.status?.let { WORK_STATUS[it] } ?: "به‌روز شد"); append(": "); work() }
+            r.type.startsWith("work.") -> { append("به‌روز شد: "); work() }
+            else -> {
+                append("رویداد تازه در ")
+                append(TOPIC_FA[r.type.substringBefore('.')] ?: "هاب")
+                r.ref?.takeIf(com.coinepro.hq.core.data.WorkTitles::isHuman)?.let { append(" "); fig(it, c.goldInk) }
+            }
         }
     }
-    val ref = r.ref?.takeIf { r.type.startsWith("deliverable") || r.type.startsWith("decision") || r.type.startsWith("work") }
+    val route = when {
+        known != null -> "work/${known.id ?: known.ref}"
+        workKey != null && com.coinepro.hq.core.data.WorkTitles.isWorkRef(workKey) && r.type.startsWith("work") -> "work/$workKey"
+        else -> r.ref?.takeIf { (r.type.startsWith("deliverable") || r.type.startsWith("decision")) && com.coinepro.hq.core.data.WorkTitles.isHuman(it) }?.let { com.coinepro.hq.ui.v17.refRoute(it) }
+    }
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.small)).then(if (ref != null) Modifier.clickable { open(ref) } else Modifier).padding(vertical = 7.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.small)).then(if (route != null) Modifier.clickable { open(route) } else Modifier).padding(vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Space.sm),
     ) {
         Box(Modifier.size(28.dp).clip(CircleShape).background(tint.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) { DIcon(icon, size = 14.dp, tint = tint) }
-        Text(text, style = Divan.type.small, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (loading) Box(Modifier.weight(1f)) { Skeleton(Modifier.fillMaxWidth(0.8f).height(14.dp)) }
+        else Text(text, style = Divan.type.small, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
         Text(ago(r.at), style = Divan.type.micro, color = c.textMuted)
     }
 }

@@ -235,3 +235,37 @@ fun Chevron(open: Boolean, size: androidx.compose.ui.unit.Dp = 14.dp, tint: Colo
     val r = animateFloatAsState(if (open) 180f else 0f, motionMedium(), label = "chevron")
     DIcon(com.coinepro.hq.designsystem.generated.DivanIcon.CHEVRON, Modifier.graphicsLayer { rotationZ = r.value }, size = size, tint = tint)
 }
+
+// --------------------------------------------------------------- springs --
+/** The one place the app springs: things that arrive by the owner's hand (a sheet's tiles), with a small, settled overshoot. Everything
+ *  else keeps the calm curves above. */
+object Springs {
+    const val DAMPING = 0.68f
+    val STIFFNESS = androidx.compose.animation.core.Spring.StiffnessMediumLow
+    /** Frames between one item's start and the next one's (about 33 ms at 60 Hz). */
+    const val STAGGER_FRAMES = 2
+    /** Items after this many arrive together, so a long grid never keeps the owner waiting. */
+    const val STAGGER_MAX = 14
+}
+
+/**
+ * Arrives with a spring: it rises a little, grows from 90% and fades in, the [index]th item a couple of frames after the one before (frames,
+ * not milliseconds, so it follows the display and the test clock alike). Still and in place when animations are removed. The motion
+ * lives in the layer, so it never re-lays out.
+ */
+fun Modifier.springIn(index: Int): Modifier = composed {
+    if (LocalReducedMotion.current) return@composed this
+    val p = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        repeat(minOf(index, Springs.STAGGER_MAX) * Springs.STAGGER_FRAMES) { androidx.compose.runtime.withFrameNanos { } }
+        p.animateTo(1f, androidx.compose.animation.core.spring(Springs.DAMPING, Springs.STIFFNESS))
+    }
+    graphicsLayer {
+        val v = p.value
+        alpha = v.coerceIn(0f, 1f)
+        val s = 0.9f + 0.1f * v
+        scaleX = s
+        scaleY = s
+        translationY = (1f - v) * 18.dp.toPx()
+    }
+}

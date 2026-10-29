@@ -52,6 +52,12 @@ class PhoneSpeech(private val context: Context) {
             override fun onError(error: Int) {
                 release()
                 val (fa, unavailable) = messageOf(error)
+                // «خطاخوان»: the recogniser's error code; "nothing heard" is ordinary, the rest are worth a look.
+                val quiet = error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                com.coinepro.hq.core.diag.Diag.note(
+                    "speech", if (quiet) com.coinepro.hq.core.diag.LEVEL_INFO else com.coinepro.hq.core.diag.LEVEL_WARNING,
+                    if (quiet) "nothing heard" else "recogniser error", "SpeechRecognizer error $error ($LANGUAGE)", "speech_$error",
+                )
                 l.failed(fa, unavailable)
             }
         })

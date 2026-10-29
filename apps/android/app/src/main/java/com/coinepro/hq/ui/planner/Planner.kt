@@ -174,7 +174,7 @@ private fun MonthGrid(first: LocalDate, last: LocalDate, days: List<com.coinepro
 @Composable
 private fun PlanRow(i: PlannerItem, onClick: () -> Unit) {
     val c = Divan.colors
-    val bar = when { i.status == "done" -> c.positive; i.priority <= "P1" -> c.negative; else -> c.silverInk }
+    val bar = when { i.status == "done" -> c.positive; com.coinepro.hq.core.format.isUrgentPriority(i.priority) -> c.negative; else -> c.silverInk }
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.tile).clickable(role = Role.Button, onClick = onClick).padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -190,6 +190,6 @@ private fun PlanRow(i: PlannerItem, onClick: () -> Unit) {
             }
         }
         CompanyMark(i.company, height = 12.dp, mono = true, ink = c.textSecondary)
-        Fig(i.priority, style = Divan.type.figureSmall, color = c.textMuted, modifier = Modifier.size(width = 22.dp, height = 16.dp))
+        com.coinepro.hq.ui.work.PriorityTag(i.priority, compact = true)
     }
 }

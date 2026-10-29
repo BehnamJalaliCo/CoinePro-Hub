@@ -162,6 +162,8 @@ internal class ControlDemo(private val store: MutableMap<String, Pair<Int, JsonE
  */
 internal object DemoLive {
     @Volatile var stopped: Set<String> = emptySet()
+    /** The owner's orders moving on their own ([OrdersDemo]). */
+    @Volatile var orders: OrdersDemo? = null
     private val queue = ConcurrentLinkedQueue<StreamEvent>()
     private var seq = 0
     private var step = 0
@@ -197,7 +199,19 @@ internal object DemoLive {
         val out = mutableListOf<StreamEvent>()
         while (true) out += queue.poll() ?: break
         if (tick % 4 == 0) beat()?.let { out += it }
+        out += orders?.tick(tick).orEmpty()
+        // Two lines an older hub sends with an id where a ref belongs: the feed resolves the first and names the second's topic.
+        if (tick == 2) out += event("FX", "work.updated", "0193b1c2-0003-7d4f-8a2e-0000005a1003", mapOf("status" to "in_progress"))
+        if (tick == 3) out += event("HQ", "file.ready", "01a187f8-e3e9-7b4f-8dd2-3c4e5f607182", emptyMap())
         return out
+    }
+
+    /** A hub restart: what the screens on show watch changes, so they ask again and meet the 502s ([Demo.simulateRestart]). */
+    fun burst() {
+        queue += event("HQ", "work.updated", "W-000130", mapOf("status" to "in_progress"))
+        queue += event("HQ", "decision.created", "D-000014", emptyMap())
+        queue += event("HQ", "deliverable.rated", "O-000031", emptyMap())
+        queue += event("HQ", "budget.alert", null, emptyMap())
     }
 
     /** What a change of control makes the stream say; stopping a company ends its runs. */

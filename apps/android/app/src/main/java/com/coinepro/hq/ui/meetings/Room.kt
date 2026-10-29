@@ -1,5 +1,6 @@
 package com.coinepro.hq.ui.meetings
 
+import com.coinepro.hq.ui.work.priorityText
 import com.coinepro.hq.designsystem.fadingEdges
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -836,7 +837,7 @@ private fun WarRoom(m: Meeting, turns: List<Turn>) {
             m.incident?.let { RefChip(it, tone = RefTone.NEG) }
             Pill(if (m.state == "ended") "مهار شد" else "در جریان", if (m.state == "ended") Tone.POS else Tone.NEG, dot = m.state != "live", live = m.state == "live")
         }
-        Text(buildAnnotatedString { append("از ${jTime(m.startsAt)} · اولویت "); fig("P0"); append(" · بی‌سقف جلسه، داخل سقف روزانه و کلید توقف") }, style = Divan.type.caption, color = c.textMuted)
+        Text(buildAnnotatedString { append("از ${jTime(m.startsAt)} · اولویت "); priorityText("P0"); append(" · بی‌سقف جلسه، داخل سقف روزانه و کلید توقف") }, style = Divan.type.caption, color = c.textMuted)
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("خط زمانی", style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold))
             for (t in turns) Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {

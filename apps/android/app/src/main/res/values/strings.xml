@@ -4,4 +4,6 @@
     <string name="widget_title">Cartable</string>
     <string name="widget_description">Seals waiting for you and urgent items, as the app last saw them</string>
     <string name="tile_voice">Voice order</string>
+    <string name="channel_orders">Orders</string>
+    <string name="channel_orders_description">When an order you gave is delegated, delivered, fails or is done</string>
 </resources>

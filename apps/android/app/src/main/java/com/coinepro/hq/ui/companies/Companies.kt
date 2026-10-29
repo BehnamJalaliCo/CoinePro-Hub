@@ -257,7 +257,7 @@ fun WorkRow(w: Work, onClick: () -> Unit) {
             Text(w.title, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(buildAnnotatedString { fig(w.ref); append("، ${w.assignee?.titleFa ?: "بدون مسئول"}، ${ago(w.updatedAt)}") }, style = Divan.type.micro, color = c.textMuted, maxLines = 1)
         }
-        Fig(w.priority, style = Divan.type.figureSmall, color = if (w.priority <= "P1") c.negative else c.textMuted)
+        com.coinepro.hq.ui.work.PriorityTag(w.priority, compact = true)
         Text(WORK_STATUS[w.status] ?: w.status, style = Divan.type.micro, color = c.textSecondary)
     }
 }
@@ -329,16 +329,19 @@ fun EmployeeScreen(code: String) {
     }
 }
 
-/** One piece of work: brief, progress, budget, the delegation chain and its events. */
+/** One piece of work: the order's tracker (stage, estimate, who holds it, its outputs), brief, budget, the delegation chain, the live
+ *  timeline of its events and runs, and the runs themselves. */
 @Composable
 fun WorkScreen(id: String) {
     val nav = LocalNav.current
     val c = Divan.colors
+    val env = com.coinepro.hq.ui.LocalEnv.current
     val q = rememberQuery("work:$id", "work") { workOne(id) }
     val wid = q.data?.id
-    val ev = if (wid != null) rememberQuery("work:events:$wid", "work") { workEvents(wid) } else null
+    androidx.compose.runtime.LaunchedEffect(q.data) { q.data?.let(env.works::seed) }
+    val track = if (wid != null) com.coinepro.hq.ui.work.rememberTrack(wid, full = true) else null
     val runs = if (wid != null) rememberQuery("runs:work:$wid", "runs", "work", maxAgeMs = 15_000) { workRuns(wid) } else null
-    val r = refresher(*listOfNotNull(q, ev, runs).toTypedArray())
+    val r = refresher(*listOfNotNull(q, track, runs).toTypedArray())
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
         item {
             Loadable(q) { w ->
@@ -352,15 +355,19 @@ fun WorkScreen(id: String) {
                         Text(w.title, style = Divan.type.h2)
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Pill(WORK_STATUS[w.status] ?: w.status, if (w.status == "in_progress") Tone.GOLD else Tone.SILVER, live = w.status == "in_progress")
-                            Pill(w.priority, if (w.priority <= "P1") Tone.NEG else Tone.NEUTRAL, figure = true)
+                            com.coinepro.hq.ui.work.PriorityTag(w.priority)
                             if (w.overdue) Pill("دیرکرد", Tone.NEG, icon = DivanIcon.URGENT)
                             w.dueAt?.let { Pill("موعد: ${jDateTime(it)}", Tone.NEUTRAL, icon = DivanIcon.TIME) }
                         }
                         com.coinepro.hq.ui.owner.WorkActions(w) { q.set(it) }
                     }
+                    when (val t = track?.data) {
+                        null -> Skeleton(Modifier.fillMaxWidth().height(196.dp), radius = 16.dp)
+                        else -> com.coinepro.hq.ui.work.OrderTrackerCard(t)
+                    }
                     w.progressPct?.let { p ->
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Row { Text("پیشرفت", style = Divan.type.caption, color = c.textMuted, modifier = Modifier.weight(1f)); Text("$p٪", style = Divan.type.caption) }
+                            Row { Text("گزارش پیشرفت مجری", style = Divan.type.caption, color = c.textMuted, modifier = Modifier.weight(1f)); Text("$p٪", style = Divan.type.caption) }
                             MeterBar(p.toDouble(), tone = com.coinepro.hq.designsystem.BarTone.GOLD)
                             w.progressNote?.let { Text(it, style = Divan.type.caption, color = c.textSecondary) }
                         }
@@ -390,21 +397,11 @@ fun WorkScreen(id: String) {
                             }
                         }
                     }
+                    track?.data?.let { com.coinepro.hq.ui.work.TimelineCard(it) }
                     runs?.let { rq ->
                         HqCard(Modifier.fillMaxWidth()) {
                             SectionTitle("اجرای ایجنت‌ها روی این کار", note = "هر اجرا با قدم‌ها و ابزارهایش")
                             Column(Modifier.padding(top = 10.dp)) { Loadable(rq) { list -> com.coinepro.hq.ui.owner.RunList(list, "هنوز ایجنتی روی این کار اجرا نشده.", withSteps = true) } }
-                        }
-                    }
-                    val events = ev?.data?.items.orEmpty()
-                    if (events.isNotEmpty()) HqCard(Modifier.fillMaxWidth()) {
-                        SectionTitle("رویدادها")
-                        events.forEach { e ->
-                            Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Text(jDateTime(e.at), style = Divan.type.micro, color = c.textMuted, modifier = Modifier.width(96.dp))
-                                Fig(e.kind, style = Divan.type.figureSmall, modifier = Modifier.weight(1f))
-                                Fig(e.actorCode, style = Divan.type.figureSmall, color = c.textMuted)
-                            }
                         }
                     }
                     Text("ساخته‌شده توسط ${actorFa(w.createdBy)}، ${ago(w.createdAt)}", style = Divan.type.micro, color = c.textMuted)

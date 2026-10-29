@@ -55,6 +55,8 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.coinepro.hq.designsystem.springIn
+import kotlinx.coroutines.launch
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -127,80 +129,86 @@ private val TABS = listOf(
     Tab("messages", "پیام‌ها", DivanIcon.MESSAGES, "messages"),
 )
 
-private data class Tool(val route: String, val label: String, val icon: DivanIcon)
+/** One place of the tools sheet: where it goes, its name, its icon and one short line on what it is for. */
+private data class Tool(val route: String, val label: String, val icon: DivanIcon, val hint: String)
 
-/** The organisation beside the advisor (contract §18): the overseer and the assistant first, then what they run. */
-private val ORG = listOf(
-    Tool("advisor", "مشاور کل", DivanIcon.ADVISOR),
-    Tool("oversight", "ناظر کل", DivanIcon.OVERSEER),
-    Tool("assistant", "دستیار", DivanIcon.ASSISTANT),
-    Tool("stars", "ستاره‌ها", DivanIcon.STAR),
-    Tool("founding", "تأسیس شرکت", DivanIcon.FOUND),
-    Tool("skills", "مهارت‌ها", DivanIcon.SKILL),
-    Tool("academy", "آکادمی", DivanIcon.ACADEMY),
-    Tool("tools", "ابزارها و اینترنت", DivanIcon.GLOBE),
+/** A titled group of the tools sheet, with a line on what its places have in common. */
+private data class ToolGroupDef(val key: String, val title: String, val note: String, val tools: List<Tool>)
+
+/** Everything beyond the bottom bar, grouped by what the owner does with it; each place says in one line what it is for. */
+private val GROUPS = listOf(
+    ToolGroupDef("work", "فرمان و کار", "آنچه دادی و آنچه تحویل گرفتی", listOf(
+        Tool("orders", "فرمان‌های من", DivanIcon.COMMAND, "هر فرمانی که دادی، از ثبت تا تحویل"),
+        Tool("outputs", "خروجی‌ها", DivanIcon.DELIVERABLE, "گزارش‌ها و کارهای تحویل‌شده؛ بخوان و امتیاز بده"),
+        Tool("planner", "پلنر", DivanIcon.PLANNER, "کارهای امروز و این هفته در یک تقویم"),
+        Tool("runs", "اجرای ایجنت‌ها", DivanIcon.AGENT, "هر ایجنت الان چه میکند، قدم‌به‌قدم"),
+        Tool("notifications", "اعلان‌ها", DivanIcon.BELL, "هشدارها، گزارش‌ها و پرسش‌های یک‌ضربه‌ای"),
+        Tool("resolutions", "دفتر مصوبات", DivanIcon.SEAL, "تصمیم‌های ثبت‌شده، با جست‌وجو و خروجی اکسل"),
+        Tool("workshop", "کارگاه کد", DivanIcon.CODE, "جلسه‌های کدنویسی ایجنت‌ها و اجازه‌ی push"),
+    )),
+    // The organisation beside the owner (contract §18): the advisor and the overseer first, then what they run.
+    ToolGroupDef("org", "سازمان", "کسانی که کنار تو کار میکنند و آنچه یاد میگیرند", listOf(
+        Tool("advisor", "مشاور کل", DivanIcon.ADVISOR, "با او فکر کن و نظر دوم بگیر"),
+        Tool("oversight", "ناظر کل", DivanIcon.OVERSEER, "چه کسی کجا خطا کرد و چه نگه داشته شد"),
+        Tool("assistant", "دستیار", DivanIcon.ASSISTANT, "کارهای بیرونی تو را در اینترنت پیگیری میکند"),
+        Tool("stars", "ستاره‌ها", DivanIcon.STAR, "بهترین شرکت و کارمندهای هفته و ماه"),
+        Tool("founding", "تأسیس شرکت", DivanIcon.FOUND, "از یک ریپو یا یک ایده، شرکت تازه بساز"),
+        Tool("skills", "مهارت‌ها", DivanIcon.SKILL, "مهارت تازه به ایجنت‌ها یاد بده و فعالش کن"),
+        Tool("academy", "آکادمی", DivanIcon.ACADEMY, "آموزش، آزمون و پیشرفت هر نقش"),
+        Tool("tools", "ابزارها و اینترنت", DivanIcon.GLOBE, "ایجنت‌ها به کجا وصل میشوند و چه میفرستند"),
+    )),
+    // ⟨1.5⟩ revenue and support (§19), with the treasury.
+    ToolGroupDef("money", "پول و مشتری", "خرج مدل‌ها، درآمد شرکت‌ها و حرف مشتری‌ها", listOf(
+        Tool("treasury", "خزانه‌ی توکن", DivanIcon.TREASURY, "مصرف مدل‌ها، بودجه‌ها و سهمیه‌ی اشتراک"),
+        Tool("revenue", "درآمد", DivanIcon.CHART, "درآمد هر شرکت و هشدار وقتی افت کند"),
+        Tool("support", "پشتیبانی", DivanIcon.MESSAGES, "گفت‌وگوی مشتری‌ها و پاسخ‌های آماده"),
+        Tool("growth", "رشد و پیام‌ها", DivanIcon.SEND, "قالب پیام، قاعده‌های ارسال و نظرسنجی"),
+        Tool("feedback", "بازخورد", DivanIcon.RATE, "حرف کاربران، پرتکرارها اول"),
+    )),
+    // ⟨1.5⟩ management tools (§21).
+    ToolGroupDef("manage", "ابزار مدیریت", "یادداشت، گزارش صوتی و پیش‌بینی تصمیم‌های تو", listOf(
+        Tool("notes", "یادداشت‌ها", DivanIcon.EDIT, "فکرهای سریع؛ بعداً کار یا فرمان میشوند"),
+        Tool("letter", "گزارش صوتی و نامه‌ها", DivanIcon.MIC, "گزارش صبح و نامه‌ی هفتگی مدیرعامل‌ها"),
+        Tool("substitutes", "بازیکن‌های ذخیره", DivanIcon.AGENT, "ChatGPT و Gemini، وقتی سهمیه‌ی Claude تمام شود"),
+        Tool("digital-ceo", "مدیر کل دیجیتال", DivanIcon.HOLDING, "پیش‌بینی تصمیم تو و این‌که چقدر درست درآمد"),
+    )),
+    // ⟨1.5⟩ governance (§20).
+    ToolGroupDef("gov", "حاکمیت", "قاعده‌ها، هدف‌ها، ریسک‌ها و جلسه‌ها", listOf(
+        Tool("meetings", "اتاق جلسه", DivanIcon.MEETING, "جلسه‌های زنده، صورت‌جلسه و اتاق جنگ"),
+        Tool("charter", "اساسنامه", DivanIcon.REPORT, "قانون پایه‌ی هلدینگ و هر شرکت"),
+        Tool("knowledge", "دانشنامه", DivanIcon.KNOWLEDGE, "آنچه سازمان میداند، با منبع و انقضا"),
+        Tool("scorecard", "کارت‌ها و امتیاز", DivanIcon.CHART, "شاخص‌های اصلی هر شرکت در یک نگاه"),
+        Tool("okr", "OKR", DivanIcon.PLANNER, "هدف‌های فصل و نتیجه‌های کلیدی"),
+        Tool("outcomes", "بازبینی نتیجه", DivanIcon.REFRESH, "تصمیم‌ها بعد از ۳۰، ۶۰ و ۹۰ روز چه شدند"),
+        Tool("risks", "دفتر ریسک", DivanIcon.URGENT, "ریسک‌ها روی ماتریس احتمال و اثر"),
+        Tool("calendar", "تقویم تغییرات", DivanIcon.TIME, "انتشارها و تغییرها، و تداخل‌هایشان"),
+        Tool("authority", "ماتریس اختیار", DivanIcon.LOCK, "چه کسی بی‌اجازه‌ی تو چه کاری میتواند"),
+    )),
+    // ⟨1.6⟩ the media studio and the legal counsel (§22).
+    ToolGroupDef("media", "رسانه و حقوقی", "ویدیو و انتشار، و پرونده‌های حقوقی", listOf(
+        Tool("studio", "استودیوی رسانه", DivanIcon.VIDEO, "ویدیو و تصویر هر شرکت، از سناریو تا انتشار"),
+        Tool("series", "برنامه‌های انتشار", DivanIcon.SEND, "چه چیزی، کجا و چه روزی منتشر شود"),
+        Tool("voice", "صدای هاب", DivanIcon.MIC, "صدایی که گزارش‌ها با آن خوانده میشوند"),
+        Tool("legal", "مشاور حقوقی", DivanIcon.DECISION, "پرونده‌ها، مهلت‌ها و ایمیل‌های حقوقی"),
+    )),
+    // ⟨1.7⟩ the archive of record (§23).
+    ToolGroupDef("archive", "بایگانی", "سندها، قراردادها و زمان نگهداری‌شان", listOf(
+        Tool("archive", "بایگانی", DivanIcon.DELIVERABLE, "سندها و قراردادها، با جست‌وجو در متنشان"),
+        Tool("archive-holds", "توقیف‌ها", DivanIcon.LOCK, "سندهایی که به‌خاطر پرونده نباید پاک شوند"),
+        Tool("archive-reminders", "یادآورها", DivanIcon.TIME, "تمدیدها و موعدهای سندها"),
+        Tool("archive-retention", "پایان نگهداری", DivanIcon.MEMORY, "سندهایی که زمان امحایشان رسیده"),
+        Tool("archive-settings", "طرح بایگانی", DivanIcon.SETTINGS, "دسته‌ها، پوشه‌ها و قاعده‌های بایگانی"),
+    )),
+    ToolGroupDef("system", "سیستم و ایمنی", "کلیدهای توقف، سلامت و ردّ هر اقدام", listOf(
+        Tool("control", "کنترل", DivanIcon.LOCK, "توقف و ادامه‌ی شرکت‌ها و انتشارها"),
+        Tool("sites", "پایش سایت‌ها", DivanIcon.SERVER, "سالم بودن سایت‌ها و رخدادهایشان"),
+        Tool("audit", "دفتر Audit", DivanIcon.REPORT, "ردّ تغییرناپذیر هر اقدام در هاب"),
+        Tool("settings", "تنظیمات", DivanIcon.SETTINGS, "دستگاه‌ها، اعلان‌ها، استخدام و ظاهر"),
+        Tool("errors", "خطاخوان", DivanIcon.URGENT, "خطاهای اپ، برای فرستادن به توسعه‌دهنده"),
+    )),
 )
 
-/** ⟨1.5⟩ governance (§20): the meeting room, the charter, knowledge, the cards, OKRs, outcomes, risks, the change calendar and authority. */
-private val GOVERNANCE = listOf(
-    Tool("meetings", "اتاق جلسه", DivanIcon.MEETING),
-    Tool("charter", "اساسنامه", DivanIcon.REPORT),
-    Tool("knowledge", "دانشنامه", DivanIcon.KNOWLEDGE),
-    Tool("scorecard", "کارت‌ها و امتیاز", DivanIcon.CHART),
-    Tool("okr", "OKR", DivanIcon.PLANNER),
-    Tool("outcomes", "بازبینی نتیجه", DivanIcon.REFRESH),
-    Tool("risks", "دفتر ریسک", DivanIcon.URGENT),
-    Tool("calendar", "تقویم تغییرات", DivanIcon.TIME),
-    Tool("authority", "ماتریس اختیار", DivanIcon.LOCK),
-)
-
-/** ⟨1.5⟩ management tools (§21): quick notes, the spoken briefings and CEO letters, the substitute players, the digital CEO. */
-private val MANAGEMENT = listOf(
-    Tool("notes", "یادداشت‌ها", DivanIcon.EDIT),
-    Tool("letter", "گزارش صوتی و نامه‌ها", DivanIcon.MIC),
-    Tool("substitutes", "بازیکن‌های ذخیره", DivanIcon.AGENT),
-    Tool("digital-ceo", "مدیر کل دیجیتال", DivanIcon.HOLDING),
-)
-
-/** ⟨1.6⟩ the media studio and the legal counsel (§22): each company's pipeline, the sealed publishing series, the hub's own voice, the cases. */
-private val MEDIA = listOf(
-    Tool("studio", "استودیوی رسانه", DivanIcon.VIDEO),
-    Tool("series", "برنامه‌های انتشار", DivanIcon.SEND),
-    Tool("voice", "صدای هاب", DivanIcon.MIC),
-    Tool("legal", "مشاور حقوقی", DivanIcon.DECISION),
-)
-
-/** ⟨1.7⟩ the archive of record (§23): search and intake, legal holds, reminders, the end of retention, and the open layer. */
-private val ARCHIVE = listOf(
-    Tool("archive", "بایگانی", DivanIcon.DELIVERABLE),
-    Tool("archive-holds", "توقیف‌ها", DivanIcon.LOCK),
-    Tool("archive-reminders", "یادآورها", DivanIcon.TIME),
-    Tool("archive-retention", "پایان نگهداری", DivanIcon.MEMORY),
-    Tool("archive-settings", "طرح بایگانی", DivanIcon.SETTINGS),
-)
-
-private val TOOLS = listOf(
-    // ⟨1.5⟩ revenue and support (§19)
-    Tool("revenue", "درآمد", DivanIcon.CHART),
-    Tool("support", "پشتیبانی", DivanIcon.MESSAGES),
-    Tool("growth", "رشد و پیام‌ها", DivanIcon.SEND),
-    Tool("feedback", "بازخورد", DivanIcon.RATE),
-    Tool("workshop", "کارگاه کد", DivanIcon.CODE),
-    Tool("outputs", "خروجی‌ها", DivanIcon.DELIVERABLE),
-    Tool("treasury", "خزانه‌ی توکن", DivanIcon.TREASURY),
-    Tool("planner", "پلنر", DivanIcon.PLANNER),
-    Tool("resolutions", "دفتر مصوبات", DivanIcon.SEAL),
-    Tool("runs", "اجرای ایجنت‌ها", DivanIcon.AGENT),
-    Tool("sites", "پایش سایت‌ها", DivanIcon.SERVER),
-    Tool("notifications", "اعلان‌ها", DivanIcon.BELL),
-    Tool("control", "کنترل", DivanIcon.LOCK),
-    Tool("audit", "دفتر Audit", DivanIcon.REPORT),
-    Tool("settings", "تنظیمات", DivanIcon.SETTINGS),
-    Tool("errors", "خطاخوان", DivanIcon.URGENT),
-)
-
-private val TOP = TABS.map { it.route }.toSet() + ORG.map { it.route } + MANAGEMENT.map { it.route } + MEDIA.map { it.route } + ARCHIVE.map { it.route } +
-    GOVERNANCE.map { it.route } + TOOLS.map { it.route }
+private val TOP = TABS.map { it.route }.toSet() + GROUPS.flatMap { g -> g.tools.map { it.route } }
 
 private class NavImpl(private val nav: NavHostController) : Nav {
     override fun go(route: String) {
@@ -251,9 +259,31 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
     var granting by remember { mutableStateOf(false) }
     // The quick-settings tile and the widget open the app on a place (voice order, cartable).
     LaunchedEffect(launch) {
-        when (launch) { "voice" -> voice = true; "cartable" -> navApi.go("cartable") }
+        when {
+            launch == "voice" -> voice = true
+            launch == "cartable" || launch == "orders" -> navApi.go(launch)
+            // A notification on the «فرمان‌ها» channel opens its order or its output.
+            launch != null && (launch.startsWith("work/") || launch.startsWith("outputs/")) -> navApi.go(launch)
+        }
         if (launch != null) onLaunchConsumed()
     }
+    // The owner's orders: a change of stage while the app is open is a toast with a way in, and a notification when the phone allows it.
+    val toasts = com.coinepro.hq.ui.LocalToasts.current
+    LaunchedEffect(env) {
+        env.orders.start()
+        env.orders.notices.collect { n ->
+            val route = com.coinepro.hq.device.OrderNotify.routeOf(n)
+            val action = if (n.kind == com.coinepro.hq.core.data.NoticeKind.DELIVERED && n.deliverable != null) "خروجی" else "باز کن"
+            when (n.kind) {
+                com.coinepro.hq.core.data.NoticeKind.FAILED -> toasts.error(n.text, action) { navApi.go(route) }
+                com.coinepro.hq.core.data.NoticeKind.DELEGATED -> toasts.info(n.text, action) { navApi.go(route) }
+                else -> toasts.ok(n.text, action) { navApi.go(route) }
+            }
+            com.coinepro.hq.device.OrderNotify.post(ctx, n)
+            env.cache.invalidate("work", "orders")
+        }
+    }
+    val hubState by env.hub.state.collectAsStateWithLifecycle()
     // The home-screen widget shows the last counts the app saw (M12); the demo never writes to it.
     LaunchedEffect(inbox.data, env.demo) {
         val i = inbox.data ?: return@LaunchedEffect
@@ -277,10 +307,15 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                 demo = env.demo,
                 urgent = (inbox.data?.notifications?.get("urgent") ?: 0) + (inbox.data?.notifications?.get("decision") ?: 0),
                 onBell = { navApi.go("notifications") },
-                onMore = { tools = true },
+                onMore = { tools = true; graph.errors.crumb("sheet tools") },
+                onDemo = { com.coinepro.hq.Demo.simulateRestart() },
                 onVoice = { voice = true },
             )
-            offlineSince?.let { at ->
+            // A restart of the hub (a deploy): one calm line, the screens keep what they had and reconnect on their own.
+            androidx.compose.animation.AnimatedVisibility(hubState == com.coinepro.hq.core.net.HubState.RESTARTING, enter = com.coinepro.hq.designsystem.expandIn(), exit = com.coinepro.hq.designsystem.collapseOut()) {
+                HubBanner()
+            }
+            offlineSince?.takeIf { hubState != com.coinepro.hq.core.net.HubState.RESTARTING }?.let { at ->
                 Row(Modifier.fillMaxWidth().background(Divan.colors.softWarning).padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     com.coinepro.hq.designsystem.DIcon(DivanIcon.OFFLINE, size = 16.dp, tint = Divan.colors.warning)
                     Text("آفلاین؛ آخرین وضعیت از ${com.coinepro.hq.core.format.jDateTime(at)}. هیچ اقدامی آفلاین انجام نمیشود.", style = Divan.type.caption, color = Divan.colors.textPrimary)
@@ -326,6 +361,7 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     },
                 ) {
                     composable("home") { HomeScreen(onNewOrder = { order = true }, onVoiceOrder = { voice = true }) }
+                    composable("orders") { com.coinepro.hq.ui.work.OrdersScreen(onNewOrder = { order = true }) }
                     composable("workshop") { WorkshopScreen(onNewSession = { newSession = true }, onGrant = { grantFor = it; granting = true }) }
                     composable("workshop/{ref}") { SessionScreen(it.arguments?.getString("ref").orEmpty()) }
                     composable("cartable") { CartableScreen() }
@@ -416,8 +452,9 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
             BottomBar(route, inbox.data?.decisionsPending ?: 0, inbox.data?.messagesUnread ?: 0, listening = voice, onOrder = { voice = true }, onTypedOrder = { order = true }) { navApi.go(it) }
         }
         if (tools) {
-            ModalBottomSheet(onDismissRequest = { tools = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Divan.colors.overlay) {
-                ToolsSheet(outputs = inbox.data?.let { it.deliverablesUnseen ?: it.deliverablesUnrated } ?: 0, errors = graph.errors.entries.collectAsStateWithLifecycle().value.size) { r -> tools = false; navApi.go(r) }
+            // Half height first (the first groups), pulled up for the rest.
+            ModalBottomSheet(onDismissRequest = { tools = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false), containerColor = Divan.colors.overlay) {
+                ToolsSheet(outputs = inbox.data?.let { it.deliverablesUnseen ?: it.deliverablesUnrated } ?: 0, errors = graph.errors.entries.collectAsStateWithLifecycle().value.count { it.level != com.coinepro.hq.core.diag.LEVEL_INFO }) { r -> tools = false; navApi.go(r) }
             }
         }
         if (order) NewOrderSheet(onDismiss = { order = false })
@@ -431,8 +468,9 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
 private fun AnimatedContentTransitionScope<androidx.navigation.NavBackStackEntry>.sideways(): Boolean =
     initialState.destination.route in TOP && targetState.destination.route in TOP
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun TopBar(back: Boolean, onBack: () -> Unit, stream: StreamState, demo: Boolean, urgent: Int, onBell: () -> Unit, onMore: () -> Unit, onVoice: () -> Unit) {
+private fun TopBar(back: Boolean, onBack: () -> Unit, stream: StreamState, demo: Boolean, urgent: Int, onBell: () -> Unit, onMore: () -> Unit, onVoice: () -> Unit, onDemo: () -> Unit = {}) {
     val c = Divan.colors
     Column(Modifier.fillMaxWidth().background(c.page).statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -445,7 +483,8 @@ private fun TopBar(back: Boolean, onBack: () -> Unit, stream: StreamState, demo:
             }
             if (demo) {
                 Spacer(Modifier.width(8.dp))
-                Box(Modifier.clip(CircleShape).background(c.softLearning).padding(horizontal = 8.dp, vertical = 2.dp)) {
+                // The demo's badge: a long press plays a hub restart (a burst of 502s), to see the banner and the quiet wait.
+                Box(Modifier.clip(CircleShape).background(c.softLearning).combinedClickable(onLongClickLabel = "نمایش راه‌اندازی دوباره‌ی هاب", onLongClick = onDemo, onClick = {}).padding(horizontal = 8.dp, vertical = 2.dp)) {
                     Text("نمایشی", style = Divan.type.micro, color = c.learning)
                 }
             }
@@ -523,41 +562,92 @@ private fun BottomBar(route: String, decisions: Int, messages: Int, listening: B
     }
 }
 
+/**
+ * The tools sheet (⋮): every place beyond the bottom bar as a grid of tiles, two to a row, in titled groups, each tile with its icon, its
+ * name and one line on what it is for. A row of the groups' names jumps to one. The tiles arrive with a spring, one after another (still
+ * when the phone removes animations). The sheet opens at half height and pulls up for the rest.
+ */
 @Composable
 internal fun ToolsSheet(outputs: Int, errors: Int, go: (String) -> Unit) {
-    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        ToolGroup("سازمان", ORG, go)
-        ToolGroup("ابزار مدیریت", MANAGEMENT, go)
-        ToolGroup("رسانه و حقوقی", MEDIA, go)
-        ToolGroup("بایگانی", ARCHIVE, go)
-        ToolGroup("حاکمیت", GOVERNANCE, go)
-        ToolGroup("ابزارها", TOOLS, go) { t -> when { t.route == "outputs" && outputs > 0 -> outputs; t.route == "errors" && errors > 0 -> errors; else -> null } }
-    }
-}
-
-/** One group of the tools sheet: its header in the section style, then its rows on one card, separated by space, not lines. */
-@Composable
-private fun ToolGroup(title: String, tools: List<Tool>, go: (String) -> Unit, badge: (Tool) -> Int? = { null }) {
     val c = Divan.colors
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(title, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textMuted, modifier = Modifier.padding(horizontal = 4.dp).semantics { heading() })
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.card).padding(vertical = 4.dp)) {
-            for (t in tools) ToolRow(t, badge(t), go)
+    val grid = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    // Where each group's title sits in the grid: its chip scrolls there.
+    val starts = remember { GROUPS.runningFold(1) { at, g -> at + 1 + g.tools.size }.dropLast(1) }
+    val badge = { t: Tool -> when { t.route == "outputs" && outputs > 0 -> outputs; t.route == "errors" && errors > 0 -> errors; else -> null } }
+    // The spring is the sheet's arrival: tiles scrolled into view later simply are there.
+    var arrived by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { repeat(80) { androidx.compose.runtime.withFrameNanos { } }; arrived = true }
+    androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+        androidx.compose.foundation.lazy.grid.GridCells.Fixed(2),
+        Modifier.fillMaxWidth(),
+        state = grid,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, bottom = 28.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        item(key = "head", span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(bottom = 2.dp)) {
+                Text("همه‌ی بخش‌ها", style = Divan.type.h2, modifier = Modifier.semantics { heading() })
+                com.coinepro.hq.designsystem.ScrollRow {
+                    GROUPS.forEachIndexed { i, g ->
+                        com.coinepro.hq.designsystem.FilterChip(g.title, false, { scope.launch { grid.animateScrollToItem(starts[i]) } })
+                    }
+                }
+            }
+        }
+        var n = 0
+        for (g in GROUPS) {
+            item(key = "g-${g.key}", span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                Column(Modifier.padding(top = 10.dp, start = 2.dp, end = 2.dp), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Text(g.title, style = Divan.type.bodyStrong, color = c.textPrimary, modifier = Modifier.semantics { heading() })
+                    Text(g.note, style = Divan.type.caption, color = c.textMuted)
+                }
+            }
+            for (t in g.tools) {
+                val index = n++
+                item(key = t.route) { ToolTile(t, badge(t), if (arrived) Modifier else Modifier.springIn(index), go) }
+            }
         }
     }
 }
 
+/** One place: its icon in a soft tile, its name, and one line on what it is for (two lines kept, so the tiles of a row line up). */
 @Composable
-private fun ToolRow(t: Tool, badge: Int?, go: (String) -> Unit) {
+private fun ToolTile(t: Tool, badge: Int?, modifier: Modifier, go: (String) -> Unit) {
+    val c = Divan.colors
+    val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    Column(
+        modifier
+            .fillMaxWidth()
+            .pressScale(src, 0.96f)
+            .clip(RoundedCornerShape(14.dp))
+            .background(c.card)
+            .clickable(src, androidx.compose.material3.ripple(), role = Role.Button, onClickLabel = t.label) { go(t.route) }
+            .semantics { contentDescription = "${t.label}: ${t.hint}" }
+            .padding(horizontal = 10.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(c.softGold), contentAlignment = Alignment.Center) { DIcon(t.icon, size = 17.dp, tint = c.goldInk) }
+            Text(t.label, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            if (badge != null) Badge(badge)
+        }
+        Text(t.hint, style = Divan.type.micro.copy(lineHeight = 16.sp), color = c.textMuted, maxLines = 2, minLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+    }
+}
+
+/** The hub is restarting (a deploy): one calm line instead of an error on every card; the app reconnects on its own. */
+@Composable
+internal fun HubBanner(modifier: Modifier = Modifier) {
     val c = Divan.colors
     Row(
-        Modifier.fillMaxWidth().clickable(role = Role.Button) { go(t.route) }.padding(horizontal = 12.dp, vertical = 8.dp),
+        modifier.fillMaxWidth().background(c.softLapis).padding(horizontal = 16.dp, vertical = 9.dp).semantics(mergeDescendants = true) {},
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(c.tile), contentAlignment = Alignment.Center) { DIcon(t.icon, size = 20.dp, tint = c.textSecondary) }
-        Text(t.label, style = Divan.type.body, modifier = Modifier.weight(1f))
-        if (badge != null) Badge(badge)
-        DIcon(DivanIcon.NEXT, size = 16.dp, tint = c.textMuted)
+        if (com.coinepro.hq.designsystem.LocalReducedMotion.current) DIcon(DivanIcon.REFRESH, size = 14.dp, tint = c.lapis)
+        else androidx.compose.material3.CircularProgressIndicator(Modifier.size(14.dp), color = c.lapis, strokeWidth = 2.dp)
+        Text("هاب در حال راه‌اندازی دوباره است؛ خودکار وصل میشوم.", style = Divan.type.caption, color = c.textPrimary, modifier = Modifier.weight(1f))
     }
 }

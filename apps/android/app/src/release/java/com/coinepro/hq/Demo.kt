@@ -10,4 +10,5 @@ object Demo {
     fun init(context: Context) = Unit
     fun interceptor(): Interceptor? = null
     fun next(tick: Int): List<StreamEvent> = emptyList()
+    fun simulateRestart() = Unit
 }

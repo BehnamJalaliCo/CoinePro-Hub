@@ -18,6 +18,7 @@ class HqApp : Application() {
         ProcessLifecycleOwner.get().lifecycle.addObserver(graph.lock)
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
+                graph.errors.foreground = true
                 val env = graph.env.value
                 if (env.auth.signedIn.value) {
                     env.cache.refreshObserved()
@@ -25,7 +26,10 @@ class HqApp : Application() {
                 }
             }
 
-            override fun onStop(owner: LifecycleOwner) = graph.env.value.stream.stop()
+            override fun onStop(owner: LifecycleOwner) {
+                graph.errors.foreground = false
+                graph.env.value.stream.stop()
+            }
         })
     }
 }

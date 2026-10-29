@@ -188,7 +188,12 @@ fun CartableScreen(company0: String? = null) {
     val q = rememberQuery("decisions:$tab", "decisions") { decisions(if (tab == "pending") "pending" else null, limit = 100) }
     val r = refresher(q)
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
-        item { PageHeader(coF?.let { "کارتابل ${com.coinepro.hq.ui.companyOf(companies, it).nameFa}" } ?: "کارتابل", eyebrow = "تصمیم‌هایی که مُهر تو را لازم دارند") }
+        item {
+            PageHeader(coF?.let { "کارتابل ${com.coinepro.hq.ui.companyOf(companies, it).nameFa}" } ?: "کارتابل", eyebrow = "تصمیم‌هایی که مُهر تو را لازم دارند") {
+                // The other half of the owner's desk: the orders given, followed to their delivery.
+                com.coinepro.hq.designsystem.HqButton("فرمان‌های من", { nav.go("orders") }, size = com.coinepro.hq.designsystem.BtnSize.SM, variant = com.coinepro.hq.designsystem.BtnVariant.TEXT, icon = com.coinepro.hq.designsystem.generated.DivanIcon.COMMAND)
+            }
+        }
         item {
             Segmented(listOf(SegOption("pending", "منتظر مُهر"), SegOption("all", "همه")), tab, { tab = it }, Modifier.fillMaxWidth())
         }

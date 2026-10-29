@@ -169,8 +169,16 @@ Every library is free and open source and pinned to an exact version (`gradle/li
 - **Voice to text on the phone** — every voice-to-text (orders, notes, composers) uses the phone's own speech recognition in Persian
   (`fa-IR`) while the hub's `/transcribe` is off; the hub is asked only where the phone has none (and keeps the original audio then).
   The gold button in the middle of the bottom bar speaks an order (a long press types one); the advisor is first in the tools sheet.
-- **«خطاخوان»** (Settings, and the tools sheet) — the last 300 failed calls, contract mismatches (with the JSON field the decoder
-  stopped at) and crashes, on the phone only, ids masked and no bodies; copied or shared as a plain-text report.
+- **«خطاخوان»** (Settings, and the tools sheet) — a forensic log per app version: a new version opens an empty log with an "app started"
+  line and keeps the last three versions' logs apart («نسخه‌های قبلی», read-only); up to 1000 entries per version. Every entry has a sequence
+  number, its time in Asia/Tehran and in UTC to the millisecond, a level (error, warning, info), the app version, screen, foreground or
+  background, the network (wifi, cellular…), the masked path, status, duration, the server's code and sentence, the request id (the app sends
+  its own `X-Request-Id` on every call and the hub echoes it, so the hub's logs match), an allow-list of response headers, and the last ten
+  screens and steps before it. Crashes (stack trimmed, shown on the next start), contract mismatches with their field, stream drops and
+  reconnects, passkey and speech-recognition failures are recorded too. A hub restart's burst of 502/503/504 or unanswered calls is one
+  entry ("hub unreachable, N requests, from–to", with the tally and the requests it touched); real 4xx and 5xx stay their own. Filter by level,
+  search, copy or share as plain text with a header (version, device, Android, time zone, export time in both zones). Secrets never enter it:
+  tokens, cookies, `X-Step-Up`, passwords and keys are redacted by name in any text, ids and contacts masked (`ErrorLogTest`).
 - **Company control** (contract §9) — every company card in «شرکت‌ها» (and «کنترل») shows its state at a glance: running, stopped
   (its own switch or the holding's) or deploys closed, a chip with its icon and a coloured edge; its mark in a ring where a gold comet
   orbits while its agents work (`GET /runs?state=running` and the stream's `run.*` and `activity.changed`); today's spend
@@ -182,6 +190,23 @@ Every library is free and open source and pinned to an exact version (`gradle/li
   **control room**: the state and the switches, their history (audit rows, with the owner's reasons from `/owner/interactions`), the
   month's budget as a gauge with a quick edit (`PUT /budgets`, `budgets.update` on the body), the live activity of its agents, hiring
   and its envelope, and its sites' health.
+- **Priorities in words** ⟨0.4⟩ — P0…P4 are chosen and shown by name with the code small beside it: «اضطراری» (incident and war room;
+  runs even with the kill switch on), «فوری» (what product users see), «مهم» (the owner's level; a reserved slot), «عادی» (the default:
+  scheduled operations), «هر وقت شد» (background; paused first when the quota warns). The chosen one's meaning sits under the picker
+  (`ui/work/Priority.kt`, `core/format/Priority.kt`); red belongs to the emergency alone.
+- **«فرمان‌های من»** ⟨0.4⟩ — every order the owner gave (home's card, the cartable's header, the tools sheet): company, title, priority, the
+  stage on a stepper (ثبت شد → مدیرعامل گرفت → واگذار شد → در حال انجام → تحویل شد → تمام), an estimate in steps of 5 that moves only when
+  something happens (stage weight plus the share of the children done; `core/data/Orders.kt`), who holds it now down the delegation, when it
+  last moved, and its output. An order's page adds the timeline of its events, its children's and its runs' step summaries, live from the
+  stream. While the app is open, an order delegated, delivered, failed or done is a toast with a way in and a notification on the «فرمان‌ها»
+  channel (Android 13+ asks first; no push service). The live feeds name works by ref and title, never by id: an id is looked up once
+  (`core/data/WorkTitles.kt`) behind a skeleton.
+- **A hub restart** ⟨0.4⟩ — a read that meets 502/503/504 or no answer is retried twice quietly; four such failures within 15 s mean the
+  hub is away (`core/net/HubHealth.kt`): one calm banner «هاب در حال راه‌اندازی دوباره است؛ خودکار وصل میشوم», screens keep what they had (or
+  their skeletons) instead of an error on every card, the app probes `/meta` with a growing pause, and the first answer refreshes what waited.
+  In the demo, a long press on «نمایشی» plays a nine-second restart.
+- **The tools sheet** ⟨0.4⟩ — opens at half height; two tiles to a row in eight titled groups, each tile with its icon, name and one line on
+  what it is for; a row of the groups' names jumps to one; the tiles arrive with a spring, one after another (still with animations removed).
 - **Motion** — `designsystem/Motion.kt`: three durations (120, 220, 400 ms) and the standard and emphasised curves for everything that
   moves (screens pushed and popped, list items arriving and reordering, press feedback, expand and collapse, counters, meters, the
   breathing glow of the gold button while it listens, the shimmer of what is loading); loops run in the draw phase only. With the phone's
@@ -193,7 +218,9 @@ Every library is free and open source and pinned to an exact version (`gradle/li
 app/src/main/java/com/coinepro/hq/
   core/net/        Api (contract v1.7; every 🔏 write names its step-up action and target), Models, Models14 … Models20
   core/auth/       Auth (sign-in, enrolment, step-up), Passkeys, TokenVault
-  core/data/       QueryCache (shared cached queries), HoldingStream (SSE), LiveActivity (who works now), Control (switches, optimistic)
+  core/data/       QueryCache (shared cached queries), HoldingStream (SSE), LiveActivity (who works now), Control (switches, optimistic),
+                   Orders (stage, estimate, holders, timeline, notices), OrderWatcher, WorkTitles (ids to refs and titles)
+  core/diag/       ErrorLog («خطاخوان», per version), Diag
   core/format/     Jalali dates, figures, Persian labels
   designsystem/    Theme, motion and spacing, icons and marks, components, seal, avatar and orb, charts, Markdown subset
   designsystem/generated/   made by scripts/gen_assets.py from design/ — never edited by hand

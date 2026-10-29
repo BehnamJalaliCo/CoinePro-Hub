@@ -29,6 +29,8 @@ class HoldingStream(
     private val cache: QueryCache,
     private val scope: CoroutineScope,
     private val demo: Boolean,
+    /** «خطاخوان»: drops and reconnects are recorded (a real session only). */
+    private val log: com.coinepro.hq.core.diag.ErrorLog? = null,
 ) {
     private val stateFlow = MutableStateFlow(StreamState.CONNECTING)
     val state: StateFlow<StreamState> = stateFlow.asStateFlow()
@@ -40,11 +42,16 @@ class HoldingStream(
     private var source: EventSource? = null
     private var loop: Job? = null
     private var lastId: String? = null
+    /** When the connection last dropped (elapsed ms), so the reconnect can say after how long. */
+    @Volatile private var droppedAt: Long? = null
+    /** The app is going to the background: the connection is closed on purpose, not dropped. */
+    @Volatile private var stopping = false
     /** A server older than contract v1.4.2 refuses topics it does not know (422); then only the core topics are asked for. */
     private var coreOnly = false
 
     fun start() {
         if (loop?.isActive == true) return
+        stopping = false
         loop = scope.launch {
             if (demo) return@launch demoPulse()
             var retry = 0
@@ -61,6 +68,7 @@ class HoldingStream(
     }
 
     fun stop() {
+        stopping = true
         loop?.cancel()
         source?.cancel()
         source = null
@@ -75,6 +83,13 @@ class HoldingStream(
         return EventSources.createFactory(api.streamClient).newEventSource(req, object : EventSourceListener() {
             override fun onOpen(eventSource: EventSource, response: Response) {
                 stateFlow.value = StreamState.LIVE
+                api.hub?.ok()
+                droppedAt?.let { t ->
+                    val s = (android.os.SystemClock.elapsedRealtime() - t + 500) / 1000
+                    log?.note("stream", com.coinepro.hq.core.diag.LEVEL_INFO, "reconnected", "the live stream is back after $s s" + (lastId?.let { " (resumed from the last event)" } ?: ""))
+                    log?.crumb("stream live")
+                }
+                droppedAt = null
             }
 
             override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
@@ -84,15 +99,34 @@ class HoldingStream(
                 dispatch(event)
             }
 
-            override fun onClosed(eventSource: EventSource) = onClosed()
+            override fun onClosed(eventSource: EventSource) {
+                dropped(null, "closed by the hub", null)
+                onClosed()
+            }
 
             override fun onFailure(eventSource: EventSource, t: Throwable?, response: Response?) {
                 if (response?.code == 401) api.unauthorized()
                 if (response?.code == 422) coreOnly = true
+                if (response == null || response.code in 502..504) api.hub?.transient()
+                dropped(response?.code, if (response == null) "no answer" else "refused", t?.let { it::class.simpleName })
                 response?.close()
                 onClosed()
             }
         })
+    }
+
+    /** A drop goes to the log once per outage (a burst of failed reconnects collapses there, like the calls). */
+    private fun dropped(status: Int?, title: String, cause: String?) {
+        if (stopping) return
+        if (droppedAt == null) {
+            droppedAt = android.os.SystemClock.elapsedRealtime()
+            log?.crumb("stream dropped")
+        }
+        log?.record(
+            com.coinepro.hq.core.net.ApiFailure(
+                "stream", "GET", "/api/v1/stream", status, if (status == null || status in 502..504) "hub_unreachable" else "stream_refused", title, detail = cause,
+            ),
+        )
     }
 
     private fun dispatch(e: StreamEvent) {

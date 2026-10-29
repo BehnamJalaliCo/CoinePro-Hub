@@ -191,7 +191,7 @@ fun ConversationScreen(ref: String) {
                                     Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.tile).padding(horizontal = 12.dp, vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 ) {
-                                    Text(buildAnnotatedString { append("اصلاح پیش‌نویس "); fig(m.id) }, style = Divan.type.caption, color = c.textSecondary, modifier = Modifier.weight(1f))
+                                    Text(buildAnnotatedString { append("اصلاح پیش‌نویس"); if (com.coinepro.hq.core.data.WorkTitles.isHuman(m.id)) { append(" "); fig(m.id) } }, style = Divan.type.caption, color = c.textSecondary, modifier = Modifier.weight(1f))
                                     DIcon(DivanIcon.CLOSE, size = 14.dp, tint = c.textMuted, label = "بی‌پیش‌نویس", modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(role = Role.Button) { from = null })
                                 }
                             }

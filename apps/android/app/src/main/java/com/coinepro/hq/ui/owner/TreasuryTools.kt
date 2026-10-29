@@ -71,6 +71,7 @@ import com.coinepro.hq.ui.rememberQuery
 import com.coinepro.hq.ui.settings.parseMillions
 import com.coinepro.hq.ui.v14.HqSheet
 import com.coinepro.hq.ui.v14.figs
+import com.coinepro.hq.ui.work.priorityText
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.launch
@@ -99,7 +100,7 @@ fun QuotaCard() {
                     s.connection?.let { Fig(it, style = Divan.type.figureSmall, color = c.textMuted) }
                 }
                 val paused = q.data!!.throttle.pausedPriorities
-                if (paused.isNotEmpty()) Text(figs("کارهای ${paused.joinToString("، ")} تا ریست سهمیه نگه داشته شده‌اند."), style = Divan.type.caption,
+                if (paused.isNotEmpty()) Text(androidx.compose.ui.text.buildAnnotatedString { append("کارهای "); paused.forEachIndexed { i, p -> if (i > 0) append("، "); priorityText(p) }; append(" تا ریست سهمیه نگه داشته شده‌اند.") }, style = Divan.type.caption,
                     modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.softWarning).padding(10.dp))
             }
         }

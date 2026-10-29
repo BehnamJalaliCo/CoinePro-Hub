@@ -643,6 +643,8 @@ data class Problem(
     val code: String = "internal_error",
     val messageFa: String? = null,
     val title: String? = null,
+    /** The server's own sentence (RFC 9457 `detail`), when it sends one. */
+    val detail: String? = null,
     val status: Int? = null,
     val requestId: String? = null,
     /** Field errors; ⟨1.5⟩ `422 batch_not_eligible` carries `fields.items: [{ref, reason}]` (§20.12), so it is read as JSON. */

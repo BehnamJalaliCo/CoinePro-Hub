@@ -88,7 +88,7 @@ private fun EditWorkSheet(w: Work, onDismiss: () -> Unit, onChanged: (Work) -> U
         Text("شرح", style = Divan.type.caption, color = Divan.colors.textSecondary)
         HqTextField(brief, { brief = it }, "شرح", Modifier.fillMaxWidth(), singleLine = false, minLines = 4, maxLength = 20000)
         Text("اولویت", style = Divan.type.caption, color = Divan.colors.textSecondary)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("P0", "P1", "P2", "P3", "P4").forEach { FilterChip(it, priority == it, { priority = it }) } }
+        com.coinepro.hq.ui.work.PriorityPicker(priority, { priority = it }, Modifier.fillMaxWidth())
         Text("موعد", style = Divan.type.caption, color = Divan.colors.textSecondary)
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
             HqTextField(due, { due = it }, "2026-10-20 14:00", Modifier.fillMaxWidth(), maxLength = 16, figure = true)

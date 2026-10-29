@@ -23,6 +23,7 @@ class Query<T> internal constructor(
     val tags: Set<String>,
     private val scope: CoroutineScope,
     private val fetch: suspend () -> T,
+    private val hubAway: () -> Boolean = { false },
 ) {
     private val flow = MutableStateFlow(QueryState<T>())
     val state: StateFlow<QueryState<T>> = flow.asStateFlow()
@@ -31,18 +32,25 @@ class Query<T> internal constructor(
 
     internal val observed: Boolean get() = flow.subscriptionCount.value > 0
 
+    /** The last fetch met a hub that was away (502/503/504 or no answer): it is waited out, not shown as an error. */
+    internal val waiting: Boolean get() = flow.value.let { it.error?.transient == true || (it.loading && awaiting) }
+    @Volatile private var awaiting = false
+
     fun refresh() {
         if (job?.isActive == true) return
         job = scope.launch {
             flow.update { it.copy(loading = true) }
             try {
                 val v = fetch()
+                awaiting = false
                 fetchedAt = SystemClock.elapsedRealtime()
                 flow.value = QueryState(v, null, false)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ApiException) {
-                flow.update { it.copy(error = e, loading = false) }
+                // While the hub restarts, a screen keeps what it had (or its skeleton) and the banner says why; no error on every card.
+                if (e.transient && hubAway()) { awaiting = true; flow.update { it.copy(error = null, loading = true) } }
+                else flow.update { it.copy(error = e, loading = false) }
             } catch (e: Exception) {
                 flow.update { it.copy(error = ApiException.unexpected(-1), loading = false) }
             }
@@ -56,18 +64,38 @@ class Query<T> internal constructor(
 
     internal fun markStale() { fetchedAt = 0L }
 
+    /** The hub went away: a transient error already on screen becomes a wait (the skeleton or the last data stays). */
+    internal fun hold() {
+        if (flow.value.error?.transient == true) { awaiting = true; flow.update { it.copy(error = null, loading = true) } }
+    }
+
     /** Optimistic local edit (e.g. a rating) until the next fetch confirms it. */
     fun set(value: T) { flow.update { it.copy(data = value) } }
 }
 
 /** The app's query cache (the Android twin of the web's react-query): one entry per key, shared across
  *  screens, refreshed by holding-stream events and by mutations through [invalidate]. */
-class QueryCache(private val scope: CoroutineScope) {
+class QueryCache(private val scope: CoroutineScope, private val hub: com.coinepro.hq.core.net.HubHealth? = null) {
     private val entries = ConcurrentHashMap<String, Query<*>>()
+
+    init {
+        if (hub != null) {
+            scope.launch { hub.state.collect { if (it == com.coinepro.hq.core.net.HubState.RESTARTING) entries.values.forEach { q -> q.hold() } } }
+            scope.launch { hub.recovered.collect { resume() } }
+        }
+    }
 
     @Suppress("UNCHECKED_CAST")
     fun <T> get(key: String, tags: Set<String>, fetch: suspend () -> T): Query<T> =
-        entries.getOrPut(key) { Query(key, tags + key.substringBefore(':'), scope, fetch) } as Query<T>
+        entries.getOrPut(key) { Query(key, tags + key.substringBefore(':'), scope, fetch) { hub?.outage == true } } as Query<T>
+
+    /** The hub is back: what waited for it fetches again (on screen now, the rest when next shown). */
+    fun resume() {
+        for (q in entries.values) if (q.waiting) {
+            q.markStale()
+            if (q.observed) q.refresh()
+        }
+    }
 
     /** Marks every query carrying one of [tags] stale and refetches those on screen now. */
     fun invalidate(vararg tags: String) {

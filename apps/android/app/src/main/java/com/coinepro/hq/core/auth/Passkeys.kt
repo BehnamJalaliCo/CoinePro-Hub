@@ -74,6 +74,14 @@ object Passkeys {
                 (e is GetPublicKeyCredentialDomException && e.domError is NotAllowedError) -> "تأیید با اثر انگشت یا چهره لغو شد یا زمانش گذشت."
             else -> "تأیید هویت انجام نشد؛ دوباره تلاش کن."
         }
+        // «خطاخوان»: the ceremony's outcome by class and DOM error, never the options, the challenge or the credential.
+        val cancelled = e is CreateCredentialCancellationException || e is GetCredentialCancellationException
+        val dom = (e as? CreatePublicKeyCredentialDomException)?.domError ?: (e as? GetPublicKeyCredentialDomException)?.domError
+        com.coinepro.hq.core.diag.Diag.note(
+            "passkey", if (cancelled) com.coinepro.hq.core.diag.LEVEL_INFO else com.coinepro.hq.core.diag.LEVEL_WARNING,
+            if (cancelled) "cancelled" else "ceremony failed",
+            listOfNotNull(e::class.simpleName, dom?.let { it::class.simpleName }).joinToString(" · "), "passkey_ceremony_failed",
+        )
         return ApiException(400, "passkey_ceremony_failed", fa)
     }
 }

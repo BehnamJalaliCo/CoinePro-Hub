@@ -52,6 +52,7 @@ import com.coinepro.hq.designsystem.DIcon
 import com.coinepro.hq.designsystem.Divan
 import com.coinepro.hq.designsystem.ErrorBlock
 import com.coinepro.hq.designsystem.Skeleton
+import com.coinepro.hq.designsystem.fig
 import com.coinepro.hq.designsystem.generated.DivanIcon
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -147,18 +148,21 @@ fun activity(): Activity = requireNotNull(LocalActivity.current) { "no Activity"
 
 // --------------------------------------------------------------- toasts --
 enum class ToastTone { OK, INFO, ERROR }
-data class Toast(val id: Long, val tone: ToastTone, val text: String)
+/** One toast; [action] is a short label and what it opens (an order's page, its output). */
+data class Toast(val id: Long, val tone: ToastTone, val text: String, val action: Pair<String, () -> Unit>? = null)
 
-/** Toasts (D1 feedback): one line, tone icon + words, auto-dismissed. */
+/** Toasts (D1 feedback): one line, tone icon + words, auto-dismissed; one with an action stays a little longer. */
 @Stable
 class Toasts {
     val items = mutableStateListOf<Toast>()
     private var seq = 0L
-    fun ok(text: String) = push(ToastTone.OK, text)
-    fun info(text: String) = push(ToastTone.INFO, text)
-    fun error(text: String) = push(ToastTone.ERROR, text)
-    private fun push(tone: ToastTone, text: String) {
-        items.add(Toast(++seq, tone, text))
+    fun ok(text: String, action: String? = null, onAction: (() -> Unit)? = null) = push(ToastTone.OK, text, action, onAction)
+    fun info(text: String, action: String? = null, onAction: (() -> Unit)? = null) = push(ToastTone.INFO, text, action, onAction)
+    fun error(text: String, action: String? = null, onAction: (() -> Unit)? = null) = push(ToastTone.ERROR, text, action, onAction)
+    private fun push(tone: ToastTone, text: String, action: String?, onAction: (() -> Unit)?) {
+        items.add(Toast(++seq, tone, text, if (action != null && onAction != null) action to onAction else null))
+        // «خطاخوان»: what the owner was told goes into the breadcrumbs (an error's words help trace it).
+        if (tone == ToastTone.ERROR) com.coinepro.hq.core.diag.Diag.crumb("toast error: ${text.take(48)}")
         while (items.size > 3) items.removeAt(0)
     }
     fun dismiss(id: Long) = items.removeAll { it.id == id }
@@ -169,7 +173,7 @@ fun BoxScope.ToastHost(toasts: Toasts, modifier: Modifier = Modifier) {
     val c = Divan.colors
     Column(modifier.align(Alignment.BottomCenter).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         for (t in toasts.items) {
-            LaunchedEffect(t.id) { delay(if (t.tone == ToastTone.ERROR) 5_000 else 3_200); toasts.dismiss(t.id) }
+            LaunchedEffect(t.id) { delay(if (t.action != null) 7_000 else if (t.tone == ToastTone.ERROR) 5_000 else 3_200); toasts.dismiss(t.id) }
             var shown by remember(t.id) { mutableStateOf(false) }
             LaunchedEffect(t.id) { shown = true }
             val reduced = com.coinepro.hq.designsystem.LocalReducedMotion.current
@@ -189,11 +193,27 @@ fun BoxScope.ToastHost(toasts: Toasts, modifier: Modifier = Modifier) {
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     DIcon(icon, size = 20.dp, tint = tint)
-                    Text(t.text, style = Divan.type.small, color = c.textPrimary)
+                    Text(latinRefs(t.text), style = Divan.type.small, color = c.textPrimary, modifier = Modifier.weight(1f))
+                    t.action?.let { (label, go) ->
+                        com.coinepro.hq.designsystem.HqButton(label, { toasts.dismiss(t.id); go() }, variant = com.coinepro.hq.designsystem.BtnVariant.TEXT, size = com.coinepro.hq.designsystem.BtnSize.SM)
+                    }
                 }
             }
         }
     }
+}
+
+private val REF_IN_TEXT = Regex("\\b[A-Z]{1,3}-\\d{2,8}\\b")
+
+/** A sentence with refs in it ("فرمان W-000210 رفت"): each ref set Latin, so it reads as the code it is. */
+fun latinRefs(text: String): androidx.compose.ui.text.AnnotatedString = androidx.compose.ui.text.buildAnnotatedString {
+    var last = 0
+    for (m in REF_IN_TEXT.findAll(text)) {
+        append(text.substring(last, m.range.first))
+        fig(m.value)
+        last = m.range.last + 1
+    }
+    append(text.substring(last))
 }
 
 // --------------------------------------------------------------- screen --

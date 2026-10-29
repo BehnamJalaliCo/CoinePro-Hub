@@ -55,6 +55,16 @@ object Demo {
 
     /** The demo stream's events for this tick (about every 600 ms): what the owner's actions caused, and the script's next beat. */
     fun next(tick: Int): List<com.coinepro.hq.core.net.StreamEvent> = DemoLive.next(tick)
+
+    /** Until when (wall clock) every call answers 502, as the hub's proxy does while the API container restarts during a deploy. */
+    @Volatile var restartUntil: Long = 0
+
+    /** A hub restart of [seconds]: every call answers 502 meanwhile, and the stream asks the screens on show to refetch, so the app meets
+     *  the burst at once (the banner, the quiet wait, then everything back). The demo badge's long press plays it. */
+    fun simulateRestart(seconds: Int = 9) {
+        restartUntil = System.currentTimeMillis() + seconds * 1000L
+        DemoLive.burst()
+    }
 }
 
 private class DemoInterceptor(private val context: Context) : Interceptor {
@@ -82,9 +92,22 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
 
     @Synchronized
     override fun intercept(chain: Interceptor.Chain): Response {
-        Thread.sleep(150)
         val req = chain.request()
+        // A hub restart (Demo.simulateRestart): the proxy answers 502 with its own empty page, no Problem body, for everything.
+        if (System.currentTimeMillis() < Demo.restartUntil) {
+            Thread.sleep(60)
+            return Response.Builder().request(req).protocol(Protocol.HTTP_1_1).code(502).message("Bad Gateway").header("Server", "Caddy")
+                .body("".toResponseBody("text/plain".toMediaType())).build()
+        }
         val path = req.url.encodedPath.removePrefix("/api/v1").let { java.net.URLDecoder.decode(it, "UTF-8") }
+        // The owner's orders answer quickly: a list of orders asks for several details at once.
+        if (path == "/work" || path.startsWith("/work/")) {
+            val q0 = req.url.queryParameterNames.associateWith { req.url.queryParameter(it) }
+            val b0 = req.body?.let { b -> Buffer().also { b.writeTo(it) }.readUtf8() }?.takeIf { it.isNotBlank() }?.let { Api.json.parseToJsonElement(it) as? JsonObject }
+            Thread.sleep(40)
+            orders.handle(req.method, path, q0, b0)?.let { return respond(req, it) }
+        }
+        Thread.sleep(150)
         if (req.method == "POST" && (path == "/files" || path == "/transcribe")) return respond(req, binary(req, path))
         // ⟨1.6⟩ the studio's renders, posters and voice clips (assets/demo), as the web serves them from public/demo.
         if (req.method == "GET" && path.startsWith("/files/")) demoFile(req, path.removePrefix("/files/"), req.url.queryParameter("variant"))?.let { return it }
@@ -235,6 +258,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     private val outputs by lazy { OutputsDemo(store) }
     /** Eager: the holding's mixed states are there from the first read. */
     private val control = ControlDemo(store)
+    /** Eager too: the owner's orders in every stage, and their live progress on the stream. */
+    private val orders = OrdersDemo(store)
     private val scripts = mutableMapOf<String, MutableList<JsonObject>>().apply {
         for ((k, v) in store) if (k.startsWith("#script:")) put(k.removePrefix("#script:"), v.second.jsonObject["items"]!!.jsonArray.map { it.jsonObject }.toMutableList())
     }
