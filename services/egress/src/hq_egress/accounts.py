@@ -88,6 +88,10 @@ class Account(BaseModel):
     browse: BrowseLogin | None = None
     ports: list[int] = Field(default_factory=list, max_length=5)
     allow: list[AllowRule] = Field(default_factory=list, max_length=50)
+    # A signed-in profile's own pages (path prefixes on its site) where a plain
+    # form may be sent: the owner's own chat there (2026-10-29). Never a
+    # password, payment or commitment form (rules.commitment's other reasons).
+    submit_on: list[str] = Field(default_factory=list, max_length=5)
 
     @model_validator(mode="after")
     def _secret_unless_profile(self) -> Account:
@@ -96,11 +100,30 @@ class Account(BaseModel):
                 raise ValueError("a profile account carries no secret")
         elif not self.secret:
             raise ValueError("an account needs its secret")
+        if self.submit_on and not self.is_profile:
+            raise ValueError("only a profile account sends forms")
+        if any(not p.startswith("/") or len(p) < 2 or len(p) > 200 for p in self.submit_on):
+            raise ValueError("submit_on takes path prefixes other than /")
         return self
 
     @property
     def is_profile(self) -> bool:
         return self.browse is not None and self.browse.kind == "profile"
+
+    def submits_on(self, url: str) -> bool:
+        """`url` is one of the pages its plain forms may be sent from."""
+        try:
+            parts = urlsplit(url)
+        except ValueError:
+            return False
+        path = clean_path(parts.path or "/")
+        return (
+            self.is_profile
+            and parts.scheme == "https"
+            and self.covers((parts.hostname or "").lower().rstrip("."))
+            and path is not None
+            and any(path.startswith(p) for p in self.submit_on)
+        )
 
     def covers(self, host: str) -> bool:
         return _under(host, self.site)

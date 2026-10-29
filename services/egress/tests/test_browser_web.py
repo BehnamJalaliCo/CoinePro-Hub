@@ -52,6 +52,17 @@ document.getElementById('send').onclick = async () => {
   }, 300);
 };
 </script></body></html>"""
+# A chat whose box is a form (chatgpt.com's composer): its send is a form submit.
+CHAT_FORM = b"""<html><body>
+<form id='f'><textarea id='prompt'></textarea><button id='send' type='submit'>Send</button></form>
+<div id='out'></div>
+<script>
+document.getElementById('f').onsubmit = async (e) => {
+  e.preventDefault();
+  const r = await fetch('/api/answer', {method: 'POST', body: document.getElementById('prompt').value});
+  document.getElementById('out').innerHTML = "<p class='answer'>" + await r.text() + "</p>";
+};
+</script></body></html>"""
 LOGIN = b"<html><body><button data-testid='login-button'>Log in</button></body></html>"
 BROKEN = b"<html><body><p>a redesigned page without the prompt box</p></body></html>"
 
@@ -84,6 +95,8 @@ class Site:
         if path == "/chat":
             body = CHAT.replace(b"PORT", str(self.port).encode())
             extra = f"Set-Cookie: sess={COOKIE}; Max-Age=3600; Secure; HttpOnly; Path=/\r\n"
+        elif path.startswith("/c/"):
+            body = CHAT_FORM
         elif path == "/to-login":
             status, extra = 302, "Location: /login\r\n"
         elif path == "/login":
@@ -334,3 +347,39 @@ def test_a_stale_profile_lock_is_cleared_and_a_fresh_one_kept(tmp_path: Path) ->
     assert (tmp_path / "SingletonLock").is_symlink()
     clear_stale_lock(tmp_path, now=lstat_mtime + STALE_LOCK_S + 1)
     assert not (tmp_path / "SingletonLock").is_symlink() and (tmp_path / "Default").is_dir()
+
+
+# 2026-10-29: a profile account may send a plain form on its own listed pages
+# (the owner's chat with the site), and nowhere else.
+async def test_a_profile_sends_its_chat_form_only_on_its_listed_pages(world: Any) -> None:
+    site, d, buckets, server, _ = world
+
+    def run(path: str, submit_on: list[str]) -> RunIn:
+        key, secret = buckets.open("web.browse", "A0", 10_000_000, hosts=frozenset({"chat.test"}))
+        return RunIn(
+            profile="chatgpt-web",
+            allowed_hosts=["chat.test"],
+            steps=[
+                {"do": "goto", "url": f"https://chat.test:{site.port}{path}"},
+                {"do": "type", "target": "#prompt", "text": "hello"},
+                {"do": "click", "target": "#send"},
+                {"do": "wait", "target": ".answer"},
+                {"do": "read"},
+            ],
+            proxy={"server": server, "username": key, "password": secret},
+            account={
+                "key": "chatgpt-web",
+                "site": "chat.test",
+                "browse": {"kind": "profile"},
+                "allow": [{"methods": ["POST"], "path_prefix": "/api/"}],
+                "submit_on": submit_on,
+            },
+            time_s=10,
+        )
+
+    for path, submit_on in (("/c/one", []), ("/c/two", ["/c/one"])):
+        got = await d.run(run(path, submit_on))
+        assert got["blocked"] == {"step": 2, "code": "needs_owner", "reason": "form_submit"}, got
+    assert not [s for s in site.seen if s["path"] == "/api/answer"]
+    got = await d.run(run("/c/one", ["/c/one"]))
+    assert got["blocked"] is None and "answer to: hello" in got["steps"][4]["text"], got

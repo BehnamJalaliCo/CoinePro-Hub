@@ -17,6 +17,7 @@ from typing import Any
 
 import httpx
 import pytest
+from pydantic import ValidationError
 
 from hq_egress import extract as X
 from hq_egress.accounts import Account, scrub
@@ -795,6 +796,19 @@ def test_charsets_and_account_paths() -> None:
                 "https://challenges.cloudflare.com.evil.example/cdn-cgi/x",
                 "https://evilchallenges.cloudflare.com/cdn-cgi/x"):  # fmt: skip
         assert not prof.allows("POST", url), url
+    # a profile's own chat page may send its plain form; nothing else may
+    chat = Account(key="chatgpt-web", site="chatgpt.com", browse={"kind": "profile"},
+                   submit_on=["/c/abc"])  # fmt: skip
+    assert chat.submits_on("https://chatgpt.com/c/abc")
+    for url in ("https://chatgpt.com/c/abd", "https://chatgpt.com/", "http://chatgpt.com/c/abc",
+                "https://evil.example/c/abc", "https://chatgpt.com/c/x/../abc"):  # fmt: skip
+        assert not chat.submits_on(url), url
+    assert not prof.submits_on("https://chatgpt.com/c/abc")
+    for bad in ({"key": "crm", "site": "crm.example", "secret": SECRET, "submit_on": ["/c"]},
+                {"key": "chatgpt-web", "site": "chatgpt.com", "browse": {"kind": "profile"},
+                 "submit_on": ["/"]}):  # fmt: skip
+        with pytest.raises(ValidationError):
+            Account(**bad)
 
 
 # ------------------------------------------------ 7.1 §2.17-§2.22 and §3 --
