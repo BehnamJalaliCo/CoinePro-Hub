@@ -285,6 +285,20 @@ FileRef { id, name, mime, size, sha256 }       // content via GET /files/{id}
 | POST | `/deliverables/{ref}/rating` | `{score: 1..10, comment?}`. Re-rating within 7 days adds a new version; history is kept. |
 | GET | `/files/{id}` | streams the file; tenant-checked |
 
+⟨1.7.3⟩ **Seen and filed** (owner, 2026-10-29: «بعد از خواندن… برود توی خوانده‌شده، با دسته‌بندی درست… بعداً بشه بهش استناد کرد»):
+```
+Deliverable { …, category: "report"|"work",        // report: written by the hub's own reporting (HQ-SYS: morning report, letters); work: an agent's output for a work item
+              seen_at|null,                         // the owner opened it and marked it seen; never deleted, so agents and the digital chief keep learning from it
+              filed_as: "AR-…"|null }               // the archive record it was filed as (§23), if any
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/deliverables` | adds `?seen=true\|false&category=report\|work&from&to` (dates, owner's zone) to the filters above; newest first, a `Page` |
+| POST | `/deliverables/seen` | owner · `{refs: [ref], seen: bool}` (one or many; swipe and "mark all seen") → `{updated}`; idempotent |
+| POST | `/deliverables/{ref}/file` | owner · files it in the archive (§23): an archive draft of class `report` (or the rules' choice) with the body as a PDF and a link `about` to the deliverable; → `{record: "AR-…"}`; a second call answers the same record |
+- `GET /inbox/summary` adds `deliverables_unseen`. Rating stays separate: an unrated deliverable may be seen, and the unrated filter still works.
+- Nothing is deleted. A seen deliverable leaves the "new" list only; search, filters and the archive still find it.
+
 ### 5.3 Messages (پیام‌ها)
 ```
 Thread { id, code, kind: "advisor"|"ceo"|"manager"|"department"|"employee",
