@@ -67,11 +67,15 @@ class BrowseLogin(BaseModel):
 
 
 class AllowRule(BaseModel):
-    """A call other than GET/HEAD the owner listed as non-committing."""
+    """A call other than GET/HEAD the owner listed as non-committing. `host`:
+    on that host (and its subdomains) instead of the account's site, e.g. the
+    bot check a signed-in site puts in front of its pages (2026-10-29, the
+    owner's look at chatgpt.com); never a host the credential goes to."""
 
     model_config = ConfigDict(extra="forbid")
     methods: list[str] = Field(default_factory=list, max_length=5)
     path_prefix: str = Field(default="", max_length=500)
+    host: str | None = Field(default=None, pattern=r"^[A-Za-z0-9.-]{3,253}$")
 
 
 class Account(BaseModel):
@@ -99,9 +103,7 @@ class Account(BaseModel):
         return self.browse is not None and self.browse.kind == "profile"
 
     def covers(self, host: str) -> bool:
-        site = self.site.lower().rstrip(".")
-        host = host.lower().rstrip(".")
-        return host == site or host.endswith("." + site)
+        return _under(host, self.site)
 
     def ports_for(self, host: str) -> tuple[int, ...]:
         """The policy's extra ports: for the account's own site only (7.1),
@@ -129,7 +131,8 @@ class Account(BaseModel):
 
     def allows(self, method: str, url: str) -> bool:
         """A GET/HEAD, or a call the owner listed (method, path prefix) on the
-        account's own site: what web.browse may send while signed in."""
+        account's own site, or on the rule's own host when it names one: what
+        web.browse may send while signed in."""
         method = method.upper()
         if method in ("GET", "HEAD"):
             return True
@@ -137,13 +140,13 @@ class Account(BaseModel):
             parts = urlsplit(url)
         except ValueError:
             return False
-        if not self.covers((parts.hostname or "").lower().rstrip(".")):
-            return False
+        host = (parts.hostname or "").lower().rstrip(".")
         path = clean_path(parts.path or "/")
         return path is not None and any(
             method in (m.upper() for m in r.methods)
             and r.path_prefix.startswith("/")
             and path.startswith(r.path_prefix)
+            and (_under(host, r.host) if r.host else self.covers(host))
             for r in self.allow
         )
 
@@ -166,6 +169,13 @@ class Account(BaseModel):
         elif i.kind == "cookie":
             out["Cookie"] = f"{i.name or 'session'}={self.secret}"
         return out
+
+
+def _under(host: str, site: str) -> bool:
+    """`host` is `site` or one of its subdomains."""
+    site = site.lower().rstrip(".")
+    host = host.lower().rstrip(".")
+    return host == site or host.endswith("." + site)
 
 
 def clean_path(raw: str) -> str | None:

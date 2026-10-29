@@ -786,6 +786,15 @@ def test_charsets_and_account_paths() -> None:
                 "https://evil.example/api/search"):  # fmt: skip
         assert not acct.allows("POST", url), url
     assert not acct.allows("DELETE", "https://api.crm.example/api/search")
+    # a rule's own host: that host only, never the site's other paths
+    prof = Account(key="chatgpt-web", site="chatgpt.com", browse={"kind": "profile"},
+                   allow=[{"methods": ["POST"], "path_prefix": "/cdn-cgi/",
+                           "host": "challenges.cloudflare.com"}])  # fmt: skip
+    assert prof.allows("POST", "https://challenges.cloudflare.com/cdn-cgi/challenge-platform/x")
+    for url in ("https://chatgpt.com/cdn-cgi/x", "https://challenges.cloudflare.com/other",
+                "https://challenges.cloudflare.com.evil.example/cdn-cgi/x",
+                "https://evilchallenges.cloudflare.com/cdn-cgi/x"):  # fmt: skip
+        assert not prof.allows("POST", url), url
 
 
 # ------------------------------------------------ 7.1 §2.17-§2.22 and §3 --
