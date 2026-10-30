@@ -44,6 +44,21 @@ detect_profile() {
   esac
 }
 
+# The RAM an opt-in profile is admitted against: the profile's reference
+# (profiles/<p>.env HQ_BUDGET_REF_RAM_MB, the smallest server it is picked
+# for), or this server's own MemTotal when that is larger. The owner
+# (2026-10-30): the room above the reference is the server's to give
+# (browser-web's +300 MiB), not taken from another service. The quality gate
+# still checks every profile+opt-in against the reference, and the active set
+# against this server (scripts/quality/memory-budget.sh).
+budget_ref() {
+  local ref ram
+  ref="$(sed -n 's/^HQ_BUDGET_REF_RAM_MB=//p' "$COMPOSE_DIR/profiles/$profile.env")"
+  ram="$(awk '/^MemTotal:/ {print int($2 / 1024)}' /proc/meminfo 2>/dev/null || true)"
+  if [[ "$ram" =~ ^[0-9]+$ ]] && ((ram > ref)); then ref="$ram"; fi
+  printf '%s\n' "$ref"
+}
+
 profile="$(detect_profile)"
 if [[ "${1:-}" == "--print-profile" ]]; then
   printf '%s\n' "$profile"
@@ -139,7 +154,7 @@ subcommand() {
 stt="${HQ_STT:-$(sed -n 's/^HQ_STT=//p' "$ENV_FILE" | tail -n1)}"
 export STT_URL=""
 if [[ "$stt" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
-  ref="$(sed -n 's/^HQ_BUDGET_REF_RAM_MB=//p' "$COMPOSE_DIR/profiles/$profile.env")"
+  ref="$(budget_ref)"
   # backup-tools (its own profile, run hourly by infra/backup) counts too.
   sum="$(compose "${profile_args[@]}" --profile stt --profile backup-tools config --format json |
     jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
@@ -169,7 +184,7 @@ fi
 provisioning="${HQ_PROVISIONING:-$(sed -n 's/^HQ_PROVISIONING=//p' "$ENV_FILE" | tail -n1)}"
 export PROVISIONER_URL=""
 if [[ "$provisioning" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
-  ref="$(sed -n 's/^HQ_BUDGET_REF_RAM_MB=//p' "$COMPOSE_DIR/profiles/$profile.env")"
+  ref="$(budget_ref)"
   sum="$(compose "${profile_args[@]}" --profile provisioning config --format json |
     jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
   budget=$((ref * 80 / 100))
@@ -196,7 +211,7 @@ fi
 tracing="${HQ_TRACING:-$(sed -n 's/^HQ_TRACING=//p' "$ENV_FILE" | tail -n1)}"
 export HQ_TRACING_SCRAPE=off
 if [[ "$tracing" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
-  ref="$(sed -n 's/^HQ_BUDGET_REF_RAM_MB=//p' "$COMPOSE_DIR/profiles/$profile.env")"
+  ref="$(budget_ref)"
   sum="$(compose "${profile_args[@]}" --profile tracing config --format json |
     jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
   budget=$((ref * 80 / 100))
@@ -223,7 +238,7 @@ fi
 mcp="${HQ_MCP:-$(sed -n 's/^HQ_MCP=//p' "$ENV_FILE" | tail -n1)}"
 export MCP_CONTAINERS=off
 if [[ "$mcp" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
-  ref="$(sed -n 's/^HQ_BUDGET_REF_RAM_MB=//p' "$COMPOSE_DIR/profiles/$profile.env")"
+  ref="$(budget_ref)"
   sum="$(compose "${profile_args[@]}" --profile mcp --profile backup-tools config --format json |
     jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
   budget=$((ref * 80 / 100))
@@ -255,7 +270,7 @@ for opt in substitutes substitutes-web; do
   var="HQ_$(tr '[:lower:]-' '[:upper:]_' <<<"$opt")"
   value="${!var:-$(sed -n "s/^$var=//p" "$ENV_FILE" | tail -n1)}"
   [[ "$value" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]] || continue
-  ref="$(sed -n 's/^HQ_BUDGET_REF_RAM_MB=//p' "$COMPOSE_DIR/profiles/$profile.env")"
+  ref="$(budget_ref)"
   sum="$(compose "${profile_args[@]}" --profile "$opt" --profile backup-tools config --format json |
     jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
   budget=$((ref * 80 / 100))
@@ -290,7 +305,7 @@ fi
 tts="${HQ_TTS:-$(sed -n 's/^HQ_TTS=//p' "$ENV_FILE" | tail -n1)}"
 export HQ_TTS_ACTIVE=off
 if [[ "$tts" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
-  ref="$(sed -n 's/^HQ_BUDGET_REF_RAM_MB=//p' "$COMPOSE_DIR/profiles/$profile.env")"
+  ref="$(budget_ref)"
   sum="$(compose "${profile_args[@]}" --profile tts --profile backup-tools config --format json |
     jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
   budget=$((ref * 80 / 100))
@@ -318,7 +333,7 @@ fi
 media="${HQ_MEDIA:-$(sed -n 's/^HQ_MEDIA=//p' "$ENV_FILE" | tail -n1)}"
 export HQ_MEDIA_ACTIVE=off
 if [[ "$media" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
-  ref="$(sed -n 's/^HQ_BUDGET_REF_RAM_MB=//p' "$COMPOSE_DIR/profiles/$profile.env")"
+  ref="$(budget_ref)"
   sum="$(compose "${profile_args[@]}" --profile media --profile backup-tools config --format json |
     jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
   budget=$((ref * 80 / 100))
@@ -349,7 +364,7 @@ fi
 ocr="${HQ_OCR:-$(sed -n 's/^HQ_OCR=//p' "$ENV_FILE" | tail -n1)}"
 export HQ_OCR_URL=""
 if [[ "$ocr" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
-  ref="$(sed -n 's/^HQ_BUDGET_REF_RAM_MB=//p' "$COMPOSE_DIR/profiles/$profile.env")"
+  ref="$(budget_ref)"
   sum="$(compose "${profile_args[@]}" --profile ocr --profile backup-tools config --format json |
     jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
   budget=$((ref * 80 / 100))
