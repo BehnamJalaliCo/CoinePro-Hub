@@ -116,10 +116,22 @@
    - **هشدار دیسک ۸۰٪:** در ۱۵.۱ انجام شد (`host.rules.yml` و PR-062). پاک‌سازی هفتگی (`coinepro-hq-disk-hygiene.timer`، یکشنبه 04:30Z) image‌های کهنه، volume‌های رهاشده و cache بالای ۷ روز را میبرد.
 
 ## پرسش از مالک
-1. **journal سیستم (۹۱۵M):** پیشنهاد سقف ۵۰۰M است (`SystemMaxUse=500M` در journald). این تغییر تنظیم سیستم است و با اجازه‌ی شما انجام میشود.
+1. **journal سیستم (۹۱۵M):** ✅ با اجازه‌ی مالک انجام شد (۲۰۲۶-۱۰-۳۰). `SystemMaxUse=500M` در `/etc/systemd/journald.conf.d/99-coinepro.conf` و journald از نو راه افتاد: ۹۱۵M ← ۴۷۹M. نسخه‌ی قبلی فایل نگه داشته شده.
 2. **۷ یافته‌ی تکراری دیشب ناظر** (FI-0001 تا FI-0007، «سلامت خود هاب»): مشکلشان از دیشب رفع شده ولی بازند. پیشنهاد این است که با یادداشت «رفع شد؛ تکراری» بسته شوند: یا خودتان در اپ، یا با اجازه‌تان من.
-3. **شرکت‌های فعلی:** شرکت‌های `IG` و `PC` در هاب هستند. اگر یکی همان شرکت اشتباهی است، حالا از اپ حذف‌شدنی است (step-up). من به هیچ‌کدام دست نزدم.
+3. **شرکت IG:** ✅ به دستور مالک در چت («شرکت IG رو هم حذف کن») بعد از deploy حذف شد. اول آزمایشی اجرا شد و بعد واقعی (`core.purge_company`، همان مسیر `DELETE /companies/{code}`):
+   - **سابقه:** نداشت (`core.company_history` خالی).
+   - **۸۷ ردیف ساختار خالی پاک شد:** msg.threads ۱۹، governance.kpis ۱۸، governance.kpi_values ۱۲، core.employees ۱۰، core.departments ۹، archive.folders ۶، growth.templates ۴، owner.interactions ۴، growth.rules ۲، و از هر کدام یکی: governance.kpi_sets، oversight.compliance، control.kill_switches.
+   - **ردپا:** یک ردیف `company.delete` در audit روی هلدینگ ثبت شد.
+   - **شرکت‌های باقی‌مانده:** FX، HQ، PC، TY. شرکت PC دست‌نخورده است.
 
 ## §۶. پایان
-- **`make check` کامل:** RESULT_CHECK
-- **deploy:** RESULT_DEPLOY
+- **`make check` کامل:**
+  - **python test:** دو آزمون (`test_p12f_join`، `test_p13f_join`) شماره‌ی آخرین مهاجرت را ثابت `0030` نوشته بودند. به `0031` رسیدند (5ece311) و دوباره سبز شدند: ۱۰ passed. بقیه: 1154 + 852 passed.
+  - **lint، audit و provisioning:** سبز.
+  - **live:** یک FAIL بود: «media-render: the sandbox probe failed (no answer)». این از نسخه‌ی تست بود، نه کد این پرامپت. روی سرور زنده `verify-live` همین سنجش را سبز گذراند («media-render has no network at all»).
+- **deploy (۲۰۲۶-۱۰-۳۰، 03:47 تا 04:00Z):**
+  - **شاخه:** `server/p15-2-companies` 5ece311.
+  - **ترتیب:** `make backup` (`/home/Hub/backups/20261030T034708Z`)، بعد `make up`، بعد `make verify-live`: rc=0.
+  - **نتیجه:** مهاجرت 0031 روی دیتابیس است و ۲۳ از ۲۳ سرویس سالم‌اند.
+  - **GAPها:** همان GAPهای قبلی DOCKER-USER در خروجی هست؛ تصمیمشان با مالک است.
+- **browser-web:** حافظه‌اش 880m شد (با اجازه‌ی مالک). کش مرورگر هم پاک شد؛ کوکی‌ها و ورودها ماندند.
