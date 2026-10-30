@@ -12,10 +12,11 @@ import { Md, MdInline } from '@/components/ui/md';
 import { Dialog } from '@/components/ui/overlay';
 import { Bar, Card, ErrorState, Pill, Skeleton, budgetTone } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
-import { APPROVAL_FA, StatePill, companyOfWorkspace, isOpen } from '@/components/workshop/parts';
+import { APPROVAL_FA, ServerLabel, StatePill, companyOfWorkspace, isOpen } from '@/components/workshop/parts';
 import { ApiError } from '@/lib/api/client';
 import { answerApproval, sendToSession, stopSession, useCodeSession, useGrants, useSessionEvents, useWorkspaces, type SessionEvent } from '@/lib/api/v13';
 import { stepUp } from '@/lib/auth';
+import { onServer, type ServerSession } from '@/lib/api/v26';
 import { ACTOR_FA } from '@/lib/labels';
 import { cx, jDateTime, jTime, modelLabel, usd } from '@/lib/format';
 
@@ -132,6 +133,8 @@ export default function SessionPage({ params }: { params: Promise<{ ref: string 
   const grant = grants?.find((g) => g.ref === s.grant);
   const pct = grant ? Math.min(100, (s.usage.usd / grant.budget_usd) * 100) : null;
   const active = isOpen(s.state);
+  // ⟨1.8⟩ Claude Code on a company's own server (§26.5 runtime company_server).
+  const srv = onServer(s) ? (s as unknown as ServerSession) : null;
 
   const answer = async (id: string, allow: boolean) => {
     try {
@@ -168,11 +171,11 @@ export default function SessionPage({ params }: { params: Promise<{ ref: string 
       <Link href="/workshop" className="inline-flex items-center gap-1 self-start text-[13px] text-sec hover:text-ink"><Icon name="back" size={16} mirror />کارگاه کد</Link>
       <Card className="flex flex-col gap-3 p-4 md:p-5">
         <div className="flex flex-wrap items-start gap-3">
-          <span className="mt-1 text-sec"><CompanyMark code={companyOfWorkspace(workspaces, s.workspace)} height={18} mono /></span>
+          <span className="mt-1 text-sec"><CompanyMark code={srv ? srv.company ?? '' : companyOfWorkspace(workspaces, s.workspace)} height={18} mono /></span>
           <div className="flex min-w-0 flex-[1_1_16rem] flex-col gap-0.5">
             <h1 className="text-h2 font-semibold text-ink">{s.title}</h1>
             <span className="flex flex-wrap items-center gap-x-2 text-[12px] text-muted">
-              <span className="fig">{s.ref}</span><span className="fig">{ws?.repo ?? s.workspace}</span>{s.branch ? <span className="fig">{s.branch}</span> : null}
+              <span className="fig">{s.ref}</span>{srv ? <ServerLabel s={srv} /> : <span className="fig">{ws?.repo ?? s.workspace}</span>}{s.branch ? <span className="fig">{s.branch}</span> : null}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -183,13 +186,21 @@ export default function SessionPage({ params }: { params: Promise<{ ref: string 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] text-sec">
           <span className="flex items-center gap-1.5"><Avatar kind={s.driver.kind} size={22} state={s.state === 'working' ? 'working' : 'idle'} />{ACTOR_FA(s.driver)}</span>
           <span className="fig">{modelLabel(s.model)} · {s.effort}</span>
-          <span>{s.runtime === 'subscription' ? 'اشتراک Claude، روی هاب' : s.runtime === 'managed' ? 'Managed Agents' : 'میزبانی خودمان'}</span>
+          <span>{s.runtime === 'subscription' ? 'اشتراک Claude، روی هاب' : s.runtime === 'managed' ? 'Managed Agents' : srv ? 'Claude Code خود سرور شرکت' : 'میزبانی خودمان'}</span>
           {grant ? <span>زیر مجوز <span className="fig">{grant.ref}</span></span> : null}
           {s.pr_url ? <a href={s.pr_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 font-semibold text-gold-ink hover:underline"><Icon name="share" size={14} />PR در GitHub</a> : null}
           <span className="flex-1" />
           <span className="fig">{usd(s.usage.usd)}{grant ? <span className="text-muted"> / {usd(grant.budget_usd, 0)}</span> : null}</span>
         </div>
         {pct != null ? <Bar pct={pct} tone={budgetTone(pct)} height={4} label="بودجه‌ی جلسه" /> : null}
+        {/* ⟨1.8⟩ §26: what it may do there; only the destructive categories stop and wait for the owner's seal. */}
+        {srv?.server ? (
+          <Link href={`/servers/${srv.server}`} className="flex items-center gap-2 rounded-[10px] bg-tile p-2.5 text-[12px] text-sec hover:bg-hover">
+            <span className="text-gold-ink"><Icon name="server" size={16} /></span>
+            <span className="flex-1">روی سرور میخواند، میسازد، commit و push و deploy میکند؛ فقط کارهای ویرانگر منتظر مُهر تو میمانند.</span>
+            <span className="text-muted"><Icon name="next" size={14} mirror /></span>
+          </Link>
+        ) : null}
         {s.brief ? <p className="border-t border-div pt-3 text-[13px] leading-6 text-sec"><MdInline text={s.brief} /></p> : null}
       </Card>
 

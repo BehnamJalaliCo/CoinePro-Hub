@@ -12,6 +12,7 @@ import { DepartmentRanks, HrRoundLine } from '@/components/v18/people';
 import { DepartmentSheet, RoleDraftSheet, RolesOnDemand } from '@/components/v19/org';
 import { useCompany, useEmployees, useOrgChart, useWorkList } from '@/lib/api/hooks';
 import { useDepartments19 } from '@/lib/api/v19';
+import { CompanyServers } from '@/components/v26/company';
 import { ACTIVITY, DEPT_ICON, WORK_STATUS } from '@/lib/labels';
 import { ago, cx, jDate, modelLabel } from '@/lib/format';
 import type { Schemas } from '@/lib/api/client';
@@ -44,7 +45,7 @@ function CompanyInner({ code }: { code: string }) {
   const chart = useOrgChart(code);
   const emps = useEmployees({ company: [code] });
   const work = useWorkList({ company: [code] });
-  const [tab, setTab] = useState<'overview' | 'people' | 'work' | 'brand'>(search.get('role') ? 'people' : 'overview');
+  const [tab, setTab] = useState<'overview' | 'people' | 'work' | 'brand' | 'servers'>(search.get('role') ? 'people' : search.get('tab') === 'servers' ? 'servers' : 'overview');
   const dept = search.get('dept');
   const role = search.get('role');
   const go = (q: { dept?: string | null; role?: string | null }) => {
@@ -72,7 +73,7 @@ function CompanyInner({ code }: { code: string }) {
         <Link href="/control" className="text-[13px] text-sec hover:text-ink"><span className="inline-flex items-center gap-1.5"><Icon name="lock" size={16} />کنترل</span></Link>
       </div>
       {/* ⟨1.4.6⟩ the company's brand and seal are data (§18.14); the holding's own seal is fixed and is not. */}
-      <div className="max-w-xl"><Segmented label="بخش" value={tab} onChange={setTab} options={[{ value: 'overview', label: 'دپارتمان‌ها' }, { value: 'people', label: 'کارمندها' }, { value: 'work', label: 'کارها' }, ...(c && c.kind !== 'holding' ? [{ value: 'brand' as const, label: 'نشان و مُهر' }] : [])]} /></div>
+      <div className="max-w-xl"><Segmented label="بخش" value={tab} onChange={setTab} options={[{ value: 'overview', label: 'دپارتمان‌ها' }, { value: 'people', label: 'کارمندها' }, { value: 'work', label: 'کارها' }, ...(c && c.kind !== 'holding' ? [{ value: 'servers' as const, label: 'سرورها' }, { value: 'brand' as const, label: 'نشان و مُهر' }] : [])]} /></div>
 
       {tab === 'overview' ? (
         <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
@@ -106,6 +107,9 @@ function CompanyInner({ code }: { code: string }) {
             </Card>
           </div>
         </div>
+      ) : tab === 'servers' ? (
+        // ⟨1.8⟩ §26: the company's own servers under the holding's control.
+        <CompanyServers code={code} />
       ) : tab === 'brand' && c ? (
         <Card className="p-4"><BrandBlock code={c.code} nameFa={c.name_fa ?? c.code} nameEn={c.name_en ?? c.code} /></Card>
       ) : tab === 'people' ? (

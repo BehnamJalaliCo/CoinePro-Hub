@@ -69,6 +69,10 @@ export const NAV_TOOLS: NavItem[] = [
   { href: '/resolutions', label: 'دفتر مصوبات', icon: 'seal' },
   { href: '/runs', label: 'اجرای ایجنت‌ها', icon: 'agent' },
   { href: '/sites', label: 'پایش سایت‌ها', icon: 'server' },
+  // ⟨1.8⟩ §26: the companies' servers, the holding's network map and the few things that wait for the owner's seal there.
+  { href: '/servers', label: 'همه‌ی سرورها', icon: 'server' },
+  { href: '/network', label: 'شبکه‌ی هلدینگ', icon: 'globe' },
+  { href: '/server-policy', label: 'قوانین سرورها', icon: 'seal' },
   { href: '/control', label: 'کنترل', icon: 'lock' },
   { href: '/audit', label: 'دفتر Audit', icon: 'report' },
   { href: '/settings', label: 'تنظیمات', icon: 'settings' },

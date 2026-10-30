@@ -9,6 +9,8 @@ import { Card, Empty, ErrorState, FilterChip, PageHeader, Segmented, Skeleton } 
 import { Sheet } from '@/components/ui/overlay';
 import { useDecision, useDecisions } from '@/lib/api/hooks';
 import { useScope } from '@/lib/scope';
+import { SealCards, useServerSeals } from '@/components/v26/bits';
+import { SERVER_DESTRUCTIVE } from '@/lib/api/v26';
 
 type Tab = 'pending' | 'approved' | 'rejected' | 'returned';
 
@@ -35,12 +37,14 @@ function CartableInner() {
   // Cartable age (M8): what expires first, what has waited longest, or the newest.
   const [sort, setSort] = useState<'expiry' | 'oldest' | 'newest'>('expiry');
   const items = useMemo(() => {
-    const xs = [...(q.data?.items ?? [])];
+    // ⟨1.8⟩ §26.3: a server's destructive command stands above as its own card, with its command and its seal.
+    const xs = (q.data?.items ?? []).filter((d) => tab !== 'pending' || d.kind !== SERVER_DESTRUCTIVE);
     const t = (s: string | null | undefined, empty: number) => (s ? new Date(s).getTime() : empty);
     if (sort === 'expiry') xs.sort((a, b) => t(a.expires_at, Infinity) - t(b.expires_at, Infinity) || t(a.created_at, 0) - t(b.created_at, 0));
     else xs.sort((a, b) => (sort === 'oldest' ? 1 : -1) * (t(a.created_at, 0) - t(b.created_at, 0)));
     return xs;
-  }, [q.data, sort]);
+  }, [q.data, sort, tab]);
+  const serverSeals = useServerSeals(company);
   const selected = params.get('ref') ?? (wide ? items[0]?.ref ?? null : null);
   const detail = useDecision(selected);
   const select = (ref: string | null) => router.replace(ref ? `/cartable?ref=${ref}` : '/cartable', { scroll: false });
@@ -83,6 +87,7 @@ function CartableInner() {
           ) : null}
         </div>
       </PageHeader>
+      {tab === 'pending' && serverSeals.length ? <SealCards cards={serverSeals} /> : null}
       {wide ? (
         <div className="grid items-start gap-4 lg:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
           <div className="lg:sticky lg:top-20">{list}</div>

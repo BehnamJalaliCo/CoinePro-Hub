@@ -22,7 +22,7 @@ import { ACTION_FA, companyOfWorkspace } from './parts';
 const field = 'w-full rounded-[10px] border border-strong bg-tile px-3 text-[15px] text-ink outline-none focus:border-gold-ink';
 
 /** A text field the owner can also speak into: the exact text is appended for them to read and fix. */
-function SpokenField({ value, onChange, rows, placeholder, label }: { value: string; onChange: (v: string) => void; rows: number; placeholder?: string; label: string }) {
+export function SpokenField({ value, onChange, rows, placeholder, label }: { value: string; onChange: (v: string) => void; rows: number; placeholder?: string; label: string }) {
   const v = useVoiceInput({ purpose: 'note', onText: (r) => onChange(value.trim() ? `${value.trimEnd()} ${r.text}` : r.text) });
   const recording = v.state === 'recording' || v.state === 'asking';
   return (

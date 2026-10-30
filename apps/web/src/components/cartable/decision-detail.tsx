@@ -25,6 +25,8 @@ import { ArchiveDecisionPayload, SchemaSealGate } from '@/components/v20/decisio
 import type { Decision18 } from '@/lib/api/v18';
 import { MEDIA_KINDS, sealTarget } from '@/lib/api/v19';
 import { ARCHIVE_KINDS } from '@/lib/api/v20';
+import { SealPayload } from '@/components/v26/bits';
+import { SERVER_DESTRUCTIVE, sealCardOf } from '@/lib/api/v26';
 import { ACTOR_FA, DECISION_KIND, DECISION_STATUS, RISK } from '@/lib/labels';
 import { ago, cx, jDateTime, modelLabel, tokens, until, usd } from '@/lib/format';
 
@@ -179,6 +181,8 @@ function Payload({ d }: { d: Decision }) {
       </Section>
     );
   }
+  // ⟨1.8⟩ §26.3: a destructive command on a company server, exactly as it will run.
+  if (d.kind === SERVER_DESTRUCTIVE) return <SealPayload d={d} />;
   // ⟨1.6⟩ the media studio and the legal counsel (§22.6)
   if ((MEDIA_KINDS as readonly string[]).includes(d.kind)) return <MediaDecisionPayload d={d} />;
   // ⟨1.7⟩ the archive (§23.11): a schema change read against the current row, and the week's disposal batch
@@ -210,7 +214,9 @@ export function DecisionDetail({ d, onDone }: { d: Decision; onDone?: () => void
   const seal = async () => {
     setBusy(true);
     try {
-      const token = needsStepUp(d) ? await stepUp('decision.approve', sealTarget(d)) : undefined;
+      // ⟨1.8⟩ §26.3: a server_destructive card is sealed with 🔏 server.destructive on <CODE>:<server>.
+      const server = d.kind === SERVER_DESTRUCTIVE ? sealCardOf(d) : null;
+      const token = server ? await stepUp('server.destructive', server.target) : needsStepUp(d) ? await stepUp('decision.approve', sealTarget(d)) : undefined;
       const out = await decide.mutateAsync({ ref: d.ref, verdict: 'approve', stepUpToken: token });
       toast({ tone: 'ok', text: <>مُهر خورد. {out.resolution ? <span className="fig">{out.resolution}</span> : null} به {ACTOR_FA(d.proposer)} خبر داده شد.</> });
       onDone?.();

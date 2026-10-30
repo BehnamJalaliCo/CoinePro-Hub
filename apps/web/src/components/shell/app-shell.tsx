@@ -17,6 +17,7 @@ import { LiveContext } from '@/lib/live';
 import { useTheme } from '@/lib/theme';
 import { cx } from '@/lib/format';
 import { VoiceOrder, VoiceOrderContext } from '@/components/work/voice-order';
+import { ServersWatcher } from '@/components/v26/watcher';
 import { CommandPalette } from './command-palette';
 import { NotificationsSheet } from './notifications';
 import { NAV_ARCHIVE, NAV_GOVERNANCE, NAV_MAIN, NAV_MANAGEMENT, NAV_MEDIA, NAV_MOBILE, NAV_TOOLS, isActive } from './nav';
@@ -134,6 +135,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       <CommandPalette open={palette} onOpenChange={setPalette} onVoice={() => setVoice(true)} />
       <VoiceOrder open={voice} onOpenChange={setVoice} />
       <NotificationsSheet open={bell} onOpenChange={setBell} />
+      {/* ⟨1.8⟩ §26.3: a destructive command held for the seal on a company server says so at once. */}
+      <ServersWatcher />
       <Sheet open={more} onOpenChange={setMore} title="بیشتر" width={360}>
         <div className="flex flex-col gap-3">
           <ScopeSwitcher />

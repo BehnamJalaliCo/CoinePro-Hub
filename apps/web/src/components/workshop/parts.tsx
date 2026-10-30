@@ -9,6 +9,15 @@ import { Bar, Pill, budgetTone } from '@/components/ui/primitives';
 import type { CodeSession, Grant, SessionState, Workspace } from '@/lib/api/v13';
 import { ACTOR_FA } from '@/lib/labels';
 import { ago, cx, usd } from '@/lib/format';
+import { onServer, useServers, type ServerSession } from '@/lib/api/v26';
+import { useServerName } from '@/components/v26/bits';
+
+/** «روی سرور تریدیار»: where a company_server session runs, named by its company (the owner's rule). */
+export function ServerLabel({ s }: { s: ServerSession }) {
+  const server = useServers().data?.find((x) => x.id === s.server);
+  const name = useServerName(server?.company ?? s.company ?? '', server?.name);
+  return <span className="text-gold-ink">روی سرور {name.text || 'شرکت'}</span>;
+}
 
 type Tone = ComponentProps<typeof Pill>['tone'];
 
@@ -50,12 +59,13 @@ export function SessionRow({ s, workspaces, grant }: { s: CodeSession; workspace
       className={cx('flex flex-col gap-2.5 rounded-[14px] px-4 py-3.5 transition-colors hover:bg-hover', s.state === 'waiting_approval' ? 'bg-gold-soft/60 ring-1 ring-[var(--hq-gold-ink)]/40' : 'bg-tile')}
     >
       <div className="flex items-start gap-3">
-        <span className="mt-0.5 text-sec"><CompanyMark code={companyOfWorkspace(workspaces, s.workspace)} height={16} mono /></span>
+        <span className="mt-0.5 text-sec"><CompanyMark code={onServer(s) ? (s as ServerSession).company ?? '' : companyOfWorkspace(workspaces, s.workspace)} height={16} mono /></span>
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="truncate text-[14px] font-semibold text-ink">{s.title}</span>
           <span className="flex flex-wrap items-center gap-x-2 text-[12px] text-muted">
             <span className="fig">{s.ref}</span>
-            <span className="fig truncate">{ws?.repo.split('/')[1] ?? s.workspace}</span>
+            {/* ⟨1.8⟩ Claude Code on the company's own server, in its repository there. */}
+            {onServer(s) ? <ServerLabel s={s as ServerSession} /> : <span className="fig truncate">{ws?.repo.split('/')[1] ?? s.workspace}</span>}
             {s.branch ? <span className="fig">{s.branch}</span> : null}
           </span>
         </div>
