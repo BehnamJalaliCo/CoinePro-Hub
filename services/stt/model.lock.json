@@ -1,5 +1,5 @@
 {
-  "_comment": "Pinned speech models for services/stt (prompt 06 \u00a73). The stt-fetch job downloads exactly these bytes; stt refuses to serve anything else. large-v3-turbo is the production model; small and medium are pinned for comparison.",
+  "_comment": "Pinned speech models for services/stt (prompt 06 \u00a73). The stt-fetch job downloads exactly these bytes; stt refuses to serve anything else. small is the production model since prompt 18 (contract \u00a727.3: it fits the hub's memory budget); large-v3-turbo and medium are pinned for comparison.",
   "models": {
     "large-v3-turbo": {
       "repo": "dropbox-dash/faster-whisper-large-v3-turbo",

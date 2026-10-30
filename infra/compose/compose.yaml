@@ -1250,7 +1250,7 @@ services:
     command: ["python", "-m", "hq_stt.fetch"]
     environment:
       HF_HUB_OFFLINE: "0"
-      STT_MODEL: ${STT_MODEL:-large-v3-turbo}
+      STT_MODEL: ${STT_MODEL:-small}
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=16m,mode=1777"]
@@ -1352,7 +1352,7 @@ services:
       stt-fetch:
         condition: service_completed_successfully
     environment:
-      STT_MODEL: ${STT_MODEL:-large-v3-turbo}
+      STT_MODEL: ${STT_MODEL:-small}
       STT_IDLE_UNLOAD_S: ${STT_IDLE_UNLOAD_S:-300}
       STT_CPU_THREADS: ${STT_CPU_THREADS:-4}
     user: "10001:10001"

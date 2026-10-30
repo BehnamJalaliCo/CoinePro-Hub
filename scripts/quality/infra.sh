@@ -415,11 +415,19 @@ if over_budget full; then
     pass "stt: over the budget it is shown while off, fails the gate and 'up' is refused while on"
   fi
 else
+  # ⟨1.9⟩ prompt 18: Whisper small fits the full profile (the hub's); lean has
+  # no room for it, so switched on there the gate fails and 'up' is refused.
   url="$(HQ_PROFILE=full HQ_STT=on "$HQ" config --format json | jq -r '.services.worker.environment.STT_URL')"
-  if ((off_rc != 0 || on_rc != 0)) || [[ "$url" != "http://stt:8000" ]]; then
-    fail "stt: within the budget, the gate (off $off_rc, on $on_rc) or STT_URL ($url) is wrong"
+  lean_refusal="$(HQ_PROFILE=lean HQ_STT=on "$HQ" --dry-run up --no-start 2>&1)" &&
+    lean_rc=0 || lean_rc=$?
+  if ((off_rc != 0)) || [[ "$url" != "http://stt:8000" ]] ||
+    ! grep -q 'full+stt ok' <<<"$gate_on"; then
+    fail "stt: within the full budget, the gate (off $off_rc) or STT_URL ($url) is wrong"
+  elif over_budget lean && { ((on_rc == 0)) || ! grep -q 'lean+stt OVER (' <<<"$gate_on" ||
+    ((lean_rc != 3)) || ! grep -q 'HQ_STT=on refused' <<<"$lean_refusal"; }; then
+    fail "stt: lean over the budget, but the gate (on $on_rc) or hq.sh (exit $lean_rc) took it"
   else
-    pass "stt: within the budget, switched on with STT_URL set"
+    pass "stt: within the full budget, switched on with STT_URL set; refused where it does not fit"
   fi
 fi
 off_url="$(HQ_PROFILE=full HQ_STT=off "$HQ" config --format json | jq -r '.services.worker.environment.STT_URL')"

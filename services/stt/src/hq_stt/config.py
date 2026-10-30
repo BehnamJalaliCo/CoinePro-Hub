@@ -31,8 +31,9 @@ class Settings:
     listen_port: int = field(default_factory=lambda: _int("PORT", 8000))
     # "whisper" in production; "fake" for tests and CI (never a model download).
     engine: str = field(default_factory=lambda: os.environ.get("STT_ENGINE", "whisper"))
-    # A model named in model.lock.json (pinned repo, revision and sha256 of every file).
-    model: str = field(default_factory=lambda: os.environ.get("STT_MODEL", "large-v3-turbo"))
+    # A model named in model.lock.json (pinned repo, revision and sha256 of every file);
+    # ⟨1.9⟩ small on the hub (contract §27.3: it fits the memory budget).
+    model: str = field(default_factory=lambda: os.environ.get("STT_MODEL", "small"))
     models_dir: str = field(default_factory=lambda: os.environ.get("STT_MODELS_DIR", "/models"))
     lock_file: str = field(default_factory=lambda: os.environ.get("STT_LOCK_FILE", str(LOCK_FILE)))
     compute_type: str = field(default_factory=lambda: os.environ.get("STT_COMPUTE_TYPE", "int8"))

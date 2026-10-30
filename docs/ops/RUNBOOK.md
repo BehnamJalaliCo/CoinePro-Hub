@@ -477,7 +477,8 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
 ## ۱۶. گفتار به متن فارسی، STT (پرامپت ۶ §۳، قرارداد §۱۷.۲)
 - **سرویس `stt`** (`services/stt`):
   - faster-whisper ‏1.2.1 روی CTranslate2 ‏4.8.2، با int8 روی CPU، زبان `fa`، beam 5 و VAD ‏Silero.
-  - مدل پیش‌فرض `large-v3-turbo` است.
+  - مدل پیش‌فرض `small` است (از پرامپت ۱۸، قرارداد §۲۷.۳: با پروفایل full در بودجه‌ی حافظه جا میشود). `large-v3-turbo` و `medium` برای مقایسه پین مانده‌اند.
+  - worker صدای بلندتر از ۵ دقیقه را تکه‌تکه (هر تکه حداکثر ۵ دقیقه، پشت سر هم) میفرستد و متن‌ها را به هم وصل میکند؛ پس اوج حافظه همان اوج اندازه‌گیری‌شده‌ی ۵ دقیقه است.
   - **هیچ صدایی از هاب بیرون نمیرود:** سرویس آفلاین است (`HF_HUB_OFFLINE=1`) و مدل را فقط‌خواندنی از volume ‏`stt-models` میخواند.
 - **شبکه:**
   - `hq-stt` شبکه‌ی internal است و فقط `worker` و `stt` رویش هستند (`compose-rules`). `stt` پورت منتشرشده ندارد.
@@ -524,7 +525,7 @@ echo | openssl s_client -connect hq.coinepro.com:443 -servername hq.coinepro.com
 | بعد از آزاد شدن | 177 | 137 | 157 |
 | WER روی ۵ نمونه‌ی مصنوعی | 82.9% | 63.4% | 92.7% |
 
-- `MEM_STT=2048m` اوج turbo به‌علاوه‌ی ۲۵٪ است. `MEM_STT_FETCH=128m`.
+- `MEM_STT=1264m`: اوج `small` هنگام رونویسی ۵ دقیقه (1225) با کمی جا. `MEM_STT_FETCH=128m`. (برای `large-v3-turbo` دست‌کم `2048m` لازم است و با پروفایل full در بودجه جا نمیشود.)
 - **WER بالا مال صدای رباتیک espeak-ng است، نه گفتار واقعی.** نمونه‌های `services/stt/tests/samples` برای تست‌اند و دقت واقعی را نشان نمیدهند. هدف (دقت کلمه ≥ ۹۵٪) را فقط با صدای واقعی میشود سنجید:
   - `make stt-eval dir=<پوشه>` با `<name>.ogg` و متن درستش در `<name>.txt`.
   - `model=…` مدل را عوض میکند. `write=1` گزارش را در `docs/ops/reports/stt-eval-<تاریخ>.md` مینویسد.

@@ -197,14 +197,14 @@ ocr-test: ## The OCR's tests with real Tesseract and the pinned traineddata (nee
 	docker run --rm $(OCR_SANDBOX_FLAGS) -v "$(abspath services/ocr/tests):/app/ocr/tests:ro" \
 	  coinepro-hq/ocr:0.1.0 python -m unittest discover -s tests -v
 
-stt-fetch: ## Download the pinned speech model into the stt-models volume (sha256-checked; model=large-v3-turbo)
+stt-fetch: ## Download the pinned speech model into the stt-models volume (sha256-checked; model=small)
 	HQ_STT=off $(HQ) --profile stt build stt-fetch
-	HQ_STT=off $(HQ) --profile stt run --rm -e STT_MODEL="$(or $(model),large-v3-turbo)" stt-fetch
+	HQ_STT=off $(HQ) --profile stt run --rm -e STT_MODEL="$(or $(model),small)" stt-fetch
 
 stt-eval: ## WER of the speech model on dir=<samples> (<name>.<audio> + <name>.txt), offline; write=1 saves a report
-	@[[ -d "$(dir)" ]] || { echo "usage: make stt-eval dir=<samples folder> [model=large-v3-turbo] [write=1]" >&2; exit 2; }
+	@[[ -d "$(dir)" ]] || { echo "usage: make stt-eval dir=<samples folder> [model=small] [write=1]" >&2; exit 2; }
 	@out="$$(docker run --rm --network none --read-only --tmpfs /tmp --cap-drop ALL --user 10001:10001 \
-	  --memory 2304m -e STT_MODEL="$(or $(model),large-v3-turbo)" -v coinepro-hq_stt-models:/models:ro \
+	  --memory 2304m -e STT_MODEL="$(or $(model),small)" -v coinepro-hq_stt-models:/models:ro \
 	  -v "$(abspath $(dir)):/samples:ro" coinepro-hq/stt:0.1.0 python -m hq_stt.eval /samples \
 	  $(if $(write),--markdown))"; printf '%s\n' "$$out"; \
 	if [[ -n "$(write)" ]]; then f="docs/ops/reports/stt-eval-$$(date -u +%Y-%m-%d).md"; \
