@@ -2622,3 +2622,69 @@ from the sections above, the server is right and this list is the contract; both
 - `POST /notifications/read {ids: [...]}` marks several read. An open overseer finding with the same key is updated, not raised again; a new notification only when its severity rises or it reopens.
 - `GET /stream`: `topics` up to 1000 characters, and `topics=all`. Until then clients split topics into groups of at most 200 characters, one connection each.
 
+
+## 26. Full holding access to the companies' servers ⟨1.8⟩ (2026-10-30, prompt 17)
+Owner, 2026-10-30: «همه چیز رو باز کن و تحت کنترل ستاد و هلدینگ مرکزی باشه… کد بزنن و پوش کامیت بکنن و هر کاری که من از شرکت دستور میدم انجام بشه…
+هر کاری که دلم خواست با سرورها… انجام بدم.» This replaces the earlier stance that the companies' servers are untouched and that the Workshop
+never touches production (§17.3 rule 1 and its runtime note no longer bind company servers). The hub's own server keeps its rules.
+
+### 26.1 How the hub reaches a company server
+- **One path:** agent → Tool Gateway → **`company-ops`** (a new hub service) → SSH over the Hetzner private network → the company server.
+  - Agents still have no network of their own.
+  - `company-ops` is the only hub component that may reach private addresses, and only the attached servers' `private_ip:22`.
+  - The egress guard still refuses private addresses for every other component.
+- **Login:** the hub logs in as the server's existing work user (`forex` on FX, and so on). That user is set up on the server, by that server's own
+  Claude with the owner, as follows:
+  - **Login rights:** an ed25519 key `from="10.10.1.4"` with sudo, `docker` and the repository's git remote.
+  - **What it already holds:** this user already holds the server's logged-in Claude Code and its push access.
+  - **Where the hub's key lives:** the hub's private key per server lives only in OpenBao (`kv/company-ops/<CODE>/<server>`).
+  - **Host key pinning:** the host key fingerprint is pinned at attach time; a changed host key is refused (`409 host_key_changed`) until the owner re-pins.
+- **Encryption:** the private network is unencrypted, and SSH encrypts it.
+
+### 26.2 What agents can do
+Tools (Tool Gateway, recorded like every tool call):
+
+| Tool | What |
+|---|---|
+| `server.exec` | `{server, cmd, cwd?, timeout_s ≤ 3600, sudo?}`, streamed stdout/stderr, `exit_code` |
+| `server.read` / `server.write` | files (≤ 20 MB per call); `write` keeps a `.hq-bak` of what it replaced |
+| `server.claude` | starts **Claude Code on the company server** (`claude -p … --output-format stream-json`) as a `CodeSession` with `runtime: "company_server"`; it reads, edits, runs, commits, pushes and deploys like the server's own Claude, and its events stream as `SessionEvent` (§17.3) |
+| `server.map` | the server's inventory: OS, disk, memory, containers and compose projects, systemd units and timers, cron, listening ports, repositories and their remotes, n8n/automations found, sites served |
+
+**Every role can be given these tools in its charter.** Defaults:
+- **The company's CEO, CTO / Lead Developer, DevOps and SRE:** all four tools.
+- **SEO, content and analysts:** `read`, `map` and `exec` (read-only commands are not enforced, they are trusted to the charter).
+- **The holding's platform SRE and the overseer:** all servers.
+
+### 26.3 Control without friction
+- **Free by default:** everything runs without a card, including code, commits, pushes, merges, deploys, restarts, config changes, packages and new automations.
+- **Only these wait for the owner's seal:** a decision card `server_destructive` (🔏 `server.destructive`, target `<CODE>:<server>`) for each of these:
+  - dropping or truncating a database
+  - deleting a data volume or a backup
+  - wiping or repartitioning a disk
+  - changing that server's SSH, users or Hetzner firewall
+  - deleting the server
+
+  The gateway detects them by pattern and by tool, and on detection the call returns `202 awaiting_seal`.
+  The owner may lift this list from the app (`PUT /control/server-policy`, 🔏).
+- **Kill switch and deploy freeze:**
+  - The company's kill switch stops its sessions at once and refuses `server.*` with `423 company_locked`.
+  - A deploy freeze refuses commands the gateway classes as deploys.
+- **Recording:** every call is in the Audit ledger.
+  - **Ledger row:** the actor, server, command (secrets masked by name and pattern), exit code, duration and output digest.
+  - **Full transcripts:** stored in object storage and readable by the owner.
+- **Budget:** `server.claude` sessions draw on the company's envelope and the Token Treasury like every run.
+
+### 26.4 API
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/infra/servers` | ⟨1.8⟩ also attached servers: `{id, company, name, origin: "provisioned"\|"attached", private_ip, user, host_key_sha256, state: "pending"\|"reachable"\|"unreachable"\|"host_key_changed", last_seen_at, map_at}` |
+| POST | `/infra/servers/attach` 🔏 | `server.attach`, target `company:<CODE>` · `{company, name, private_ip, user, host_key_sha256}` → `201` with `public_key` (the line to add on the server); the hub tries to reach it and moves to `reachable` |
+| POST | `/infra/servers/{id}/repin` 🔏 | `server.repin` · `{host_key_sha256}` |
+| DELETE | `/infra/servers/{id}` 🔏 | `server.detach` · forgets the key; never touches the server |
+| GET | `/infra/servers/{id}/map` | the latest `server.map`, and `POST …/map` refreshes it |
+| GET | `/infra/servers/{id}/activity` | `?actor&from&to`, `Page` of calls: `{at, actor, tool, summary_fa, cmd_masked, exit_code, duration_ms, session_ref\|null, transcript_url}` |
+| POST | `/infra/servers/{id}/exec` 🔏 | the owner's own command from the app, `server.exec`, streamed as SSE |
+| GET / PUT | `/control/server-policy` | `{seal_required: ["db_drop", "volume_delete", "backup_delete", "disk_wipe", "access_change", "server_delete"]}`; PUT 🔏 |
+
+**Stream:** topic `servers` carries `server.state`, `server.call` (one per call, summary only) and `server.awaiting_seal`.
