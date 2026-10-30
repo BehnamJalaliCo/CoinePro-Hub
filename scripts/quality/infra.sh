@@ -366,6 +366,22 @@ else
   pass "systemd: container-metrics unit sandboxed (read-only system, only the textfile dir writable)"
 fi
 
+# ------------------------------------------- the RAM hq.sh sizes against ----
+# hq.sh admits an opt-in profile against the larger of the profile's reference
+# and the server's MemTotal (the owner, 2026-10-30: 478a4b7). The gate tests
+# below size the smallest server of each profile (HQ_MEMTOTAL_MB=0: the
+# reference alone), whatever machine runs them; this one sizes a larger one.
+export HQ_MEMTOTAL_MB=0
+big_up="$(HQ_MEMTOTAL_MB=65536 HQ_PROFILE=lean HQ_MCP=on "$HQ" --dry-run up --no-start 2>&1)" || true
+small_up="$(HQ_PROFILE=lean HQ_MCP=on "$HQ" --dry-run up --no-start 2>&1)" && small_rc=0 || small_rc=$?
+if ((small_rc != 3)) || ! grep -q 'HQ_MCP=on refused' <<<"$small_up"; then
+  fail "ram: lean+mcp on a server of lean's reference size was not refused (exit $small_rc)"
+elif grep -q 'HQ_MCP=on refused' <<<"$big_up"; then
+  fail "ram: lean+mcp was refused on a 64 GiB server (hq.sh sizes against the reference only)"
+else
+  pass "ram: hq.sh sizes an opt-in against this server's RAM when it is larger than the reference"
+fi
+
 # ---------------------------------------------------------- stt (opt-in) ----
 # Prompt 06 §3: an opt-in profile over the memory budget is shown but does not
 # fail the gate while it is off; switched on, the gate fails and hq.sh refuses
@@ -456,7 +472,9 @@ else
 fi
 # ------------------------------------ the substitute players (prompt 12 §9.1) --
 # Both profiles off by default; switched on, the lean profile (no room) refuses
-# them and the full one takes them (and tells the api SUBSTITUTES_RUNNER=on).
+# them and the full one takes them (and tells the api SUBSTITUTES_RUNNER=on):
+# both together fit the hub's own server (MemTotal 15608 MiB, the owner's
+# browser-web +300 MiB of 2026-10-30), not the full profile's bare reference.
 subs_off="$(HQ_PROFILE=full HQ_SUBSTITUTES=off HQ_SUBSTITUTES_WEB=off "$HQ" config --services)"
 if grep -qxE 'substitute-runner|browser-web|browser-web-login|web-login-relay' <<<"$subs_off"; then
   fail "substitutes: a substitute service is on by default"
@@ -466,7 +484,7 @@ fi
 refusal="$(HQ_PROFILE=lean HQ_SUBSTITUTES=on "$HQ" --dry-run up --no-start 2>&1)" && sub_rc=0 || sub_rc=$?
 web_refusal="$(HQ_PROFILE=lean HQ_SUBSTITUTES_WEB=on "$HQ" --dry-run up --no-start 2>&1)" &&
   web_rc=0 || web_rc=$?
-on_services="$(HQ_PROFILE=full HQ_SUBSTITUTES=on HQ_SUBSTITUTES_WEB=on "$HQ" config --services)"
+on_services="$(HQ_MEMTOTAL_MB=15608 HQ_PROFILE=full HQ_SUBSTITUTES=on HQ_SUBSTITUTES_WEB=on "$HQ" config --services)"
 if ((sub_rc != 3)) || ! grep -q 'HQ_SUBSTITUTES=on refused' <<<"$refusal"; then
   fail "substitutes: lean accepted HQ_SUBSTITUTES=on over the memory budget (exit $sub_rc)"
 elif ((web_rc != 3)) || ! grep -q 'HQ_SUBSTITUTES_WEB=on refused' <<<"$web_refusal"; then

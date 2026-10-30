@@ -51,10 +51,12 @@ detect_profile() {
 # (browser-web's +300 MiB), not taken from another service. The quality gate
 # still checks every profile+opt-in against the reference, and the active set
 # against this server (scripts/quality/memory-budget.sh).
+# HQ_MEMTOTAL_MB stands in for MemTotal (the quality gate's tests size a
+# smaller or a larger server with it; 0 = the reference alone).
 budget_ref() {
   local ref ram
   ref="$(sed -n 's/^HQ_BUDGET_REF_RAM_MB=//p' "$COMPOSE_DIR/profiles/$profile.env")"
-  ram="$(awk '/^MemTotal:/ {print int($2 / 1024)}' /proc/meminfo 2>/dev/null || true)"
+  ram="${HQ_MEMTOTAL_MB:-$(awk '/^MemTotal:/ {print int($2 / 1024)}' /proc/meminfo 2>/dev/null || true)}"
   if [[ "$ram" =~ ^[0-9]+$ ]] && ((ram > ref)); then ref="$ram"; fi
   printf '%s\n' "$ref"
 }

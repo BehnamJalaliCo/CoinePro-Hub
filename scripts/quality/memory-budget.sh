@@ -7,8 +7,15 @@
 #   - the profile plus each opt-in profile (e.g. cadvisor, stt) still fits:
 #     enforced when that opt-in profile is switched on here (HQ_<NAME>=on),
 #     else an over-budget combination is printed but does not fail (hq.sh
-#     refuses to switch it on while it is over; prompt 06 §3);
-# and on the server the active profile is also checked against the real MemTotal.
+#     refuses to switch it on while it is over; prompt 06 §3). On a server
+#     (outside CI) only the profile hq.sh picks there is enforced with the
+#     opt-ins switched on: the other profile never runs on that server, so
+#     its combinations are printed as "not enabled" like an opt-in that is off
+#     (prompt 17.1: the full server runs substitutes, which lean has no room
+#     for since browser-web's +300 MiB of 15.2). CI (no server) enforces every
+#     profile with every opt-in it switches on;
+# and on the server the active profile is also checked against the real
+# MemTotal (HQ_MEMTOTAL_MB stands in for it, as in hq.sh).
 # tmpfs mounts are charged to their container's memory, so they live inside
 # its limit (they are not added on top).
 set -euo pipefail
@@ -40,6 +47,11 @@ check() { # check LABEL SUM_MB RAM_MB WHERE [HEADROOM_PERCENT [ENFORCED]]
   fi
   if ((sum <= limit)); then
     echo "memory-budget: $label ok ($sum MiB <= $limit MiB; $rule)"
+  elif [[ "$enforced" == other ]]; then
+    # On for this server's own profile, but this profile is not the one hq.sh
+    # picks here: it never runs here; a server of this size enforces it.
+    echo "memory-budget: $label OVER by $((sum - limit)) MiB ($sum MiB > $limit MiB; $rule;" \
+      "not enabled: this server runs the $active profile)"
   elif [[ "$enforced" == no ]]; then
     # An opt-in profile that is off here: shown, never hidden, but not a failure;
     # hq.sh refuses to switch it on while it is over (prompt 06 §3).
@@ -60,19 +72,28 @@ if [[ "$full_ref" != "$threshold" ]]; then
   failed=1
 fi
 
+on_server=no
+active=""
+if [[ -z "${CI:-}" && -r /proc/meminfo ]]; then
+  on_server=yes
+  active="$("$HQ" --print-profile)"
+fi
+
 mapfile -t OPT_IN < <(opt_in_profiles)
 for profile in "${PROFILES[@]}"; do
   ref="$(sed -n 's/^HQ_BUDGET_REF_RAM_MB=//p' "$REPO_DIR/infra/compose/profiles/$profile.env")"
   check "$profile" "$(limit_sum_mb "$profile")" "$ref" "reference" "$HEADROOM_PERCENT"
   for extra in "${OPT_IN[@]}"; do
     enforced=no
-    if opt_in_enabled "$extra"; then enforced=yes; fi
+    if opt_in_enabled "$extra"; then
+      enforced=yes
+      if [[ "$on_server" == yes && "$profile" != "$active" ]]; then enforced=other; fi
+    fi
     check "$profile+$extra" "$(limit_sum_mb "$profile" "$extra")" "$ref" "reference" 0 "$enforced"
   done
 done
 
-if [[ -z "${CI:-}" && -r /proc/meminfo ]]; then
-  active="$("$HQ" --print-profile)"
+if [[ "$on_server" == yes ]]; then
   enabled=()
   for extra in "${OPT_IN[@]}"; do
     if opt_in_enabled "$extra"; then enabled+=("$extra"); fi
@@ -80,6 +101,6 @@ if [[ -z "${CI:-}" && -r /proc/meminfo ]]; then
   label="$active"
   for extra in "${enabled[@]}"; do label+="+$extra"; done
   check "$label" "$(limit_sum_mb "$active" "${enabled[@]}")" \
-    "$(awk '/^MemTotal:/ {print int($2 / 1024)}' /proc/meminfo)" "this server"
+    "${HQ_MEMTOTAL_MB:-$(awk '/^MemTotal:/ {print int($2 / 1024)}' /proc/meminfo)}" "this server"
 fi
 exit "$failed"
