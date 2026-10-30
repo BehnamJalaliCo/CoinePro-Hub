@@ -503,7 +503,9 @@ class Runner:
             before_charter=charter_text,
             # ⟨1.8⟩ a meeting turn: its turn's tool in full, its reads in one
             # line each (17.1: the reads must never crowd out the statement)
-            full_tools=(rc.meeting.get("tool"),) if run["trigger"] == "meeting" else None,
+            full_tools=(str(rc.meeting.get("tool") or ""),)
+            if run["trigger"] == "meeting"
+            else None,
         )
         # The owner's sealed standing orders (prompt 08 §2.7): the overseer's own
         # and those for every role, after the charter; a proposed one never.
