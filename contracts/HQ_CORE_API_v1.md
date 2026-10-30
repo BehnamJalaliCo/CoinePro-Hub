@@ -2616,3 +2616,9 @@ from the sections above, the server is right and this list is the contract; both
   - `/transcribe` answers `503 channel_not_configured` at once while speech-to-text is off, and `/meta.speech.enabled` says so.
 - **Clients are tolerant:** an unknown enum value falls back, and a field the server omits takes its default. A decode failure is logged with its field path (the Android «خطاخوان»), never with the body.
 
+## 25. Companies, founding, notifications and the stream ⟨1.7.5⟩ (2026-10-30, prompt 15.2)
+- `DELETE /companies/{code}` 🔏 `company.delete` on `{code}`, `Idempotency-Key`: `204`; `409 company_has_history` when any work was done or any deliverable, archive record, revenue or non-zero treasury row exists (archive it instead with `PATCH /companies/{code} {status: "archived"}` 🔏 `company.archive`); `422` for the holding; `404`. An Audit row summarises what was removed first; a provisioned server is deleted only on the owner's separate approval.
+- `FoundingIn { source: {kind: "idea"|"repo"|"blank", repo?, brief_md?}, name_fa?, code?, tagline?, color_index?, logo_file_id? }`. `blank` registers a `draft` company without audit or proposal. `code` is unique across companies and open foundings (`409 code_taken`). The proposer keeps the owner's name and code. At `sealed`, a given logo and colour become the company's brand.
+- `POST /notifications/read {ids: [...]}` marks several read. An open overseer finding with the same key is updated, not raised again; a new notification only when its severity rises or it reopens.
+- `GET /stream`: `topics` up to 1000 characters, and `topics=all`. Until then clients split topics into groups of at most 200 characters, one connection each.
+
