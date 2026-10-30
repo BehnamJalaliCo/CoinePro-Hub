@@ -85,6 +85,7 @@ async def list_decisions(
         "email_send",
         "archive_schema",
         "archive_disposal",
+        "server_destructive",
     ]
     | None = None,
     risk: Literal["low", "medium", "high"] | None = None,
@@ -185,8 +186,18 @@ async def _decide(
                 )
             await legal.check_seal(tx, ctx.hub, d)
             target = str((d["payload"] or {}).get("digest") or "")
+        action = "decision.approve"
+        if d["kind"] == "server_destructive":
+            # ⟨1.8⟩ contract §26.3: 🔏 server.destructive on <CODE>:<server>,
+            # sealed as it is (exactly the command it shows)
+            if amendments:
+                raise ApiError(
+                    422, "validation_failed", fields={"amendments": "this card is sealed as it is"}
+                )
+            p = d["payload"] or {}
+            action, target = "server.destructive", f"{p.get('company')}:{p.get('server_name')}"
         if verdict == "approved" and needs_step_up(d):
-            step_up_id = await stepup.consume(tx, request, ctx.who, "decision.approve", target)
+            step_up_id = await stepup.consume(tx, request, ctx.who, action, target)
         await ctx.hub.policy.require("decisions", D.opa_input(ctx.who, d, quota_ok=False))
         out = await D.decide(
             tx,

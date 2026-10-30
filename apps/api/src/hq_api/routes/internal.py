@@ -331,6 +331,9 @@ OP_CLASS: dict[str, str] = {
     "archive.file": "A1",
     "archive.link": "A1",
     "archive.hold": "A2",
+    # prompt 17 (contract §26.2): server.map/read (A0); server.exec/write/claude (A2)
+    "server.read": "A0",
+    "server.run": "A2",
 }
 
 

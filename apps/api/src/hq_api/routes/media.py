@@ -84,9 +84,16 @@ OUTPUT_TYPES = {
 
 # ------------------------------------------------------------------ models --
 class SeriesTarget(Model):
-    channel: Literal["telegram", "instagram"]
-    account: str = Field(pattern=ACCOUNT)
+    """⟨1.8⟩ `channel: "runner"`: published by the company's own product API
+    on one of its paired servers (contract §26.1b): `server` (its name) and
+    `command` (set up by that server's own Claude, sealed with the series);
+    its account is the server's (`runner-<server>`)."""
+
+    channel: Literal["telegram", "instagram", "runner"]
+    account: str | None = Field(default=None, pattern=ACCOUNT)
     placement: Placement
+    server: str | None = Field(default=None, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$")
+    command: str | None = Field(default=None, min_length=1, max_length=2000)
 
 
 class SeriesTopics(Model):

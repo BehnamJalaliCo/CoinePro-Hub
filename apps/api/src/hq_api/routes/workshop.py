@@ -21,7 +21,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, Query, Request
 from fastapi.responses import Response, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from hq_api import idempotency, pagination
 from hq_api.context import Ctx, internal_ctx, owner_ctx
@@ -31,7 +31,7 @@ from hq_api.routes.internal import allow
 from hq_api.schemas import EMPLOYEE_CODE, Model, Page
 from hq_api.security import stepup
 from hq_api.workshop import domain as D
-from hq_api.workshop import service
+from hq_api.workshop import server_sessions, service
 from hq_common.redact import scrub
 
 router = APIRouter(tags=["workshop"])
@@ -71,7 +71,11 @@ class GrantIn(Model):
 
 
 class SessionIn(Model):
-    grant: str = Field(pattern=r"^G-[0-9]{4,}$")
+    """A session under a grant; ⟨1.8⟩ or, with `runtime: "company_server"`, on
+    a company's own server (contract §26.5): `{server, company, driver|null,
+    title, brief, cwd?}` and no grant."""
+
+    grant: str | None = Field(default=None, pattern=r"^G-[0-9]{4,}$")
     title: str = Field(min_length=1, max_length=300)
     brief: str = Field(default="", max_length=20000)
     attachments: list[UUID] = Field(default_factory=list, max_length=10)
@@ -79,6 +83,24 @@ class SessionIn(Model):
     effort: Effort | None = None
     # ⟨additive⟩ the part of the repository the session writes (a path prefix; "" = all)
     area: str = Field(default="", max_length=300, pattern=r"^[A-Za-z0-9._/-]*$")
+    runtime: Literal["company_server"] | None = None
+    server: str | None = Field(default=None, min_length=1, max_length=63)
+    company: str | None = Field(default=None, pattern=r"^[A-Z][A-Z0-9]{1,9}$")
+    driver: str | None = Field(default=None, pattern=EMPLOYEE_CODE)
+    cwd: str | None = Field(default=None, min_length=1, max_length=500, pattern=r"^[^\x00\n]+$")
+
+    @model_validator(mode="after")
+    def _shape(self) -> SessionIn:
+        if self.runtime == "company_server":
+            if not self.server or not self.company:
+                raise ValueError("a company_server session names its server and company")
+            if not self.brief.strip():
+                raise ValueError("a company_server session needs a brief")
+        elif not self.grant:
+            raise ValueError("a session opens under a grant")
+        elif self.server or self.company or self.driver or self.cwd:
+            raise ValueError("server, company, driver and cwd are for runtime company_server")
+        return self
 
 
 class SessionMessageIn(Model):
@@ -260,7 +282,47 @@ async def list_sessions(
     return Page(items=[D.render_session(r) for r in items], next_cursor=nxt)
 
 
+async def _open_on_server(ctx: Ctx, request: Request, body: SessionIn) -> Any:
+    """⟨1.8⟩ The owner's session on a company server: the record and its first
+    `claude` job on the server's runner (423 while the company is locked)."""
+    from hq_api.domain import servers as SV
+
+    async with ctx.tx() as tx:
+        idem = await idempotency.claim(tx, request, ctx.who, required=True)
+        if idem and idem.replay:
+            return idem.replay
+        server = await SV.load_server(tx, str(body.server), company=body.company)
+        s, job = await server_sessions.open_session(
+            tx,
+            ctx.who,
+            server=server,
+            driver=body.driver,
+            title=body.title,
+            brief=body.brief,
+            cwd=body.cwd,
+            attachments=[str(a) for a in body.attachments],
+            request_id=ctx.request_id,
+        )
+        await ctx.interaction(
+            tx,
+            company_id=server["company_id"],
+            kind="order",
+            action="workshop.session",
+            target_kind="code_session",
+            target_ref=s["ref"],
+            data={"server": str(server["id"]), "driver": body.driver, "job": str(job["id"])},
+        )
+        result = D.render_session(await D.load(tx, s["id"]))
+        if idem:
+            await idem.store(tx, 201, result.model_dump(mode="json"))
+    return result
+
+
 async def _open(ctx: Ctx, request: Request, background: BackgroundTasks, body: SessionIn) -> Any:
+    if body.runtime == "company_server":
+        if not ctx.who.is_owner:  # agents use the server.claude tool
+            raise ApiError(403, "policy_denied", "an agent opens one with server.claude")
+        return await _open_on_server(ctx, request, body)
     rt = service.runtime(ctx.hub)  # 503 runtime_not_configured until the owner chooses
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
@@ -282,7 +344,7 @@ async def _open(ctx: Ctx, request: Request, background: BackgroundTasks, body: S
             tx,
             ctx.who,
             ctx.audit,
-            grant_ref=body.grant,
+            grant_ref=str(body.grant),
             title=body.title,
             brief=body.brief,
             area=body.area,
@@ -429,9 +491,59 @@ async def session_transcript(ref: str, ctx: Ctx = Depends(owner_ctx)) -> Respons
     )
 
 
+async def _steer_on_server(ctx: Ctx, request: Request, ref: str, body: SessionMessageIn) -> Any:
+    """⟨1.8⟩ A message to a company-server session: the next turn, a `claude`
+    job that resumes the server's Claude session (409 while a turn runs)."""
+    async with ctx.tx() as tx:
+        idem = await idempotency.claim(tx, request, ctx.who, required=True)
+        if idem and idem.replay:
+            return idem.replay
+        s = await D.by_ref(tx, ref, lock=True)
+        if ctx.who.is_agent:
+            await allow(
+                ctx,
+                "workshop.message",
+                {"company": s["company"], "driver": s["driver_code"], "session": ref},
+            )
+            if s["company_id"] != ctx.who.company_id or s["driver_code"] != ctx.who.code:
+                raise ApiError(403, "policy_denied", "only the session's driver steers it")
+        await oversight.require_not_held(tx, "session", ref)
+        text = scrub(body.body)
+        job = await server_sessions.steer(tx, ctx.who, s, body.body, ctx.request_id)
+        seq = await D.append(
+            tx,
+            s,
+            "message",
+            text[:300],
+            {"chars": len(body.body), "attachments": [str(a) for a in body.attachments] or None},
+            actor=(ctx.who.kind, ctx.who.code),
+        )
+        await ctx.audit(
+            tx,
+            company_id=s["company_id"],
+            action="workshop.message",
+            action_class="A1",
+            target_kind="code_session",
+            target_ref=ref,
+            summary=f"{len(body.body)} chars; job {job['id']}",
+        )
+        ev = D.render_event(
+            await tx.one(
+                "SELECT * FROM workshop.events WHERE session_id = :s AND seq = :q", s=s["id"], q=seq
+            )
+        )
+        if idem:
+            await idem.store(tx, 201, ev.model_dump(mode="json"))
+    return ev
+
+
 async def _steer(
     ctx: Ctx, request: Request, background: BackgroundTasks, ref: str, body: SessionMessageIn
 ) -> Any:
+    async with ctx.tx() as tx:
+        on_server = (await D.by_ref(tx, ref))["runtime"] == "company_server"
+    if on_server:
+        return await _steer_on_server(ctx, request, ref, body)
     rt = service.runtime(ctx.hub)
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
@@ -582,6 +694,8 @@ async def stop_session(
         was_running = s["state"] not in D.FINAL
         if was_running:
             s = await D.finish(tx, s, "stopped", None, "مدیر کل سشن را متوقف کرد")
+            if s["runtime"] == "company_server":  # ⟨1.8⟩ its turn on the server is cancelled
+                await server_sessions.stop(tx, s)
             await ctx.audit(
                 tx,
                 company_id=s["company_id"],
@@ -594,7 +708,7 @@ async def stop_session(
         result = D.render_session(s)
         if idem:
             await idem.store(tx, 200, result.model_dump(mode="json"))
-    if was_running:
+    if was_running and s["runtime"] != "company_server":
         background.add_task(service.stopped, ctx.hub, [s])
     return result
 
@@ -670,6 +784,8 @@ async def agent_create_session(
     Requires `Idempotency-Key`."""
     if not ctx.who.is_agent:
         raise ApiError(403, "policy_denied", "only a grant's driver opens a session")
+    if body.runtime == "company_server":
+        raise ApiError(403, "policy_denied", "an agent opens one with server.claude")
     return await _open(ctx, request, background, body)
 
 

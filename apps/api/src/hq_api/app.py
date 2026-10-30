@@ -74,6 +74,7 @@ from hq_api.routes import legal as legal_routes  # prompt 13: the legal counsel
 from hq_api.routes import media as media_routes  # prompt 13, the media half
 from hq_api.routes import reviews as review_routes
 from hq_api.routes import role_drafts as role_draft_routes  # prompt 13 §1.1
+from hq_api.routes import servers as server_routes  # prompt 17: company server runners
 from hq_api.routes import substitutes as substitute_routes  # prompt 12 part A
 from hq_api.routes import voices as voice_routes  # prompt 13: the voice registry
 
@@ -81,6 +82,8 @@ log = logging.getLogger("hq_api.access")
 _REQUEST_ID = re.compile(r"^[A-Za-z0-9-]{8,64}$")
 # Raw-body uploads and their own size caps (checked again while streaming).
 UPLOAD_PATHS = ("/internal/v1/files", "/api/v1/files", "/api/v1/transcribe")
+RUNNER_RESULT_BYTES = 32 * 1024 * 1024  # 20 MB as base64 and its JSON
+RUNNER_EVENTS_BYTES = 8 * 1024 * 1024
 
 
 def upload_limit(path: str, max_file: int, max_body: int) -> int:
@@ -92,6 +95,9 @@ def upload_limit(path: str, max_file: int, max_body: int) -> int:
         return media.VIDEO.max_bytes  # the largest kind; each kind is held to its own
     if path == "/api/v1/transcribe":
         return media.AUDIO.max_bytes
+    if path.startswith("/api/v1/runners/jobs/"):
+        # ⟨1.8⟩ a runner's output batch, or a read's ≤ 20 MB file in its result
+        return RUNNER_RESULT_BYTES if path.endswith("/result") else RUNNER_EVENTS_BYTES
     return max_file if path in UPLOAD_PATHS else max_body
 
 
@@ -246,6 +252,9 @@ def create_app(
     app.include_router(media_routes.router, prefix="/api/v1")
     app.include_router(media_routes.internal_router, prefix="/internal/v1")
     app.include_router(media_routes.public_router, prefix="/public/v1")
+    # ⟨1.8⟩ prompt 17 (contract §26): company server runners; their agent tools.
+    app.include_router(server_routes.router, prefix="/api/v1")
+    app.include_router(server_routes.internal_router, prefix="/internal/v1")
     # ⟨1.7⟩ prompt 14 (contract §23): the archive of record and its agent tools.
     app.include_router(archive_routes.router, prefix="/api/v1")
     app.include_router(archive_agent_routes.internal_router, prefix="/internal/v1")

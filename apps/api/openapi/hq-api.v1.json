@@ -838,6 +838,120 @@
         "title": "AgentHealth",
         "type": "object"
       },
+      "AgentJob": {
+        "properties": {
+          "hint_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hint Fa"
+          },
+          "job": {
+            "$ref": "#/components/schemas/Job"
+          },
+          "map": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Map"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output"
+          }
+        },
+        "required": [
+          "job"
+        ],
+        "title": "AgentJob",
+        "type": "object"
+      },
+      "AgentJobIn": {
+        "additionalProperties": false,
+        "description": "server.map / exec / read / write / claude (contract §26.2).",
+        "properties": {
+          "args": {
+            "additionalProperties": true,
+            "title": "Args",
+            "type": "object"
+          },
+          "company": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "kind": {
+            "enum": [
+              "map",
+              "exec",
+              "read",
+              "write",
+              "claude"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "server": {
+            "maxLength": 63,
+            "minLength": 1,
+            "title": "Server",
+            "type": "string"
+          },
+          "via_work": {
+            "anyOf": [
+              {
+                "pattern": "^W-[0-9]{6,}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Via Work"
+          },
+          "wait_s": {
+            "default": 20,
+            "maximum": 25.0,
+            "minimum": 0.0,
+            "title": "Wait S",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "server"
+        ],
+        "title": "AgentJobIn",
+        "type": "object"
+      },
       "AgentMessage": {
         "additionalProperties": false,
         "properties": {
@@ -1231,6 +1345,34 @@
           }
         },
         "title": "Approve",
+        "type": "object"
+      },
+      "ApproveIn": {
+        "additionalProperties": false,
+        "properties": {
+          "user_code": {
+            "maxLength": 20,
+            "minLength": 8,
+            "title": "User Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_code"
+        ],
+        "title": "ApproveIn",
+        "type": "object"
+      },
+      "Approved": {
+        "properties": {
+          "server": {
+            "$ref": "#/components/schemas/ServerOut"
+          }
+        },
+        "required": [
+          "server"
+        ],
+        "title": "Approved",
         "type": "object"
       },
       "ArchiveAgentFileIn": {
@@ -6069,6 +6211,46 @@
         "title": "ClaimIn",
         "type": "object"
       },
+      "ClassifyIn": {
+        "additionalProperties": false,
+        "properties": {
+          "cmd": {
+            "maxLength": 100000,
+            "minLength": 1,
+            "title": "Cmd",
+            "type": "string"
+          },
+          "cwd": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cwd"
+          },
+          "job": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job"
+          }
+        },
+        "required": [
+          "cmd"
+        ],
+        "title": "ClassifyIn",
+        "type": "object"
+      },
       "CloseIn": {
         "additionalProperties": false,
         "properties": {
@@ -6110,10 +6292,32 @@
             "title": "Brief",
             "type": "string"
           },
+          "company": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "cwd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cwd"
           },
           "driver": {
             "$ref": "#/components/schemas/Actor"
@@ -6173,6 +6377,17 @@
           "runtime": {
             "title": "Runtime",
             "type": "string"
+          },
+          "server": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server"
           },
           "state": {
             "enum": [
@@ -8840,7 +9055,8 @@
               "role_new",
               "email_send",
               "archive_schema",
-              "archive_disposal"
+              "archive_disposal",
+              "server_destructive"
             ],
             "title": "Kind",
             "type": "string"
@@ -15193,85 +15409,6 @@
         "title": "IncidentBrief",
         "type": "object"
       },
-      "InfraServer": {
-        "additionalProperties": false,
-        "properties": {
-          "company": {
-            "title": "Company",
-            "type": "string"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "hetzner_id": {
-            "title": "Hetzner Id",
-            "type": "integer"
-          },
-          "ipv4": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ipv4"
-          },
-          "ipv6": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ipv6"
-          },
-          "labels": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "title": "Labels",
-            "type": "object"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "plan": {
-            "title": "Plan",
-            "type": "string"
-          },
-          "private_ip": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Private Ip"
-          }
-        },
-        "required": [
-          "hetzner_id",
-          "company",
-          "plan",
-          "name",
-          "ipv4",
-          "ipv6",
-          "private_ip",
-          "labels",
-          "created_at"
-        ],
-        "title": "InfraServer",
-        "type": "object"
-      },
       "InfraServers": {
         "additionalProperties": false,
         "properties": {
@@ -15280,7 +15417,7 @@
           },
           "items": {
             "items": {
-              "$ref": "#/components/schemas/InfraServer"
+              "$ref": "#/components/schemas/ServerOut"
             },
             "title": "Items",
             "type": "array"
@@ -15872,6 +16009,206 @@
         "title": "ItemPatch",
         "type": "object"
       },
+      "Job": {
+        "description": "§26.2 (plus the company, the card, the session and the result).",
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/Actor"
+          },
+          "args": {
+            "additionalProperties": true,
+            "title": "Args",
+            "type": "object"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "decision_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Ref"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "exit_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Code"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "on_behalf": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "On Behalf"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "server": {
+            "format": "uuid",
+            "title": "Server",
+            "type": "string"
+          },
+          "session_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Ref"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "running",
+              "awaiting_seal",
+              "done",
+              "failed",
+              "cancelled"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "summary_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Fa"
+          },
+          "transcript_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcript Url"
+          }
+        },
+        "required": [
+          "id",
+          "server",
+          "company",
+          "kind",
+          "actor",
+          "args",
+          "state",
+          "created_at",
+          "started_at",
+          "finished_at",
+          "exit_code",
+          "summary_fa",
+          "transcript_url"
+        ],
+        "title": "Job",
+        "type": "object"
+      },
       "JobDone": {
         "properties": {
           "file": {
@@ -15910,6 +16247,18 @@
           "error"
         ],
         "title": "JobFail",
+        "type": "object"
+      },
+      "JobQueued": {
+        "properties": {
+          "job": {
+            "$ref": "#/components/schemas/Job"
+          }
+        },
+        "required": [
+          "job"
+        ],
+        "title": "JobQueued",
         "type": "object"
       },
       "KbApproveIn": {
@@ -18811,6 +19160,26 @@
         "title": "MandateIn",
         "type": "object"
       },
+      "MapOut": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "map": {
+            "additionalProperties": true,
+            "title": "Map",
+            "type": "object"
+          }
+        },
+        "required": [
+          "at",
+          "map"
+        ],
+        "title": "MapOut",
+        "type": "object"
+      },
       "McpServer": {
         "properties": {
           "added_at": {
@@ -21614,6 +21983,186 @@
           "spoken_chars"
         ],
         "title": "Narration",
+        "type": "object"
+      },
+      "Network": {
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/NetworkLink"
+            },
+            "title": "Links",
+            "type": "array"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/NetworkNode"
+            },
+            "title": "Nodes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "at",
+          "nodes",
+          "links"
+        ],
+        "title": "Network",
+        "type": "object"
+      },
+      "NetworkCheck": {
+        "properties": {
+          "jobs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Jobs",
+            "type": "array"
+          },
+          "queued": {
+            "title": "Queued",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "queued",
+          "jobs"
+        ],
+        "title": "NetworkCheck",
+        "type": "object"
+      },
+      "NetworkLink": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "from": {
+            "title": "From",
+            "type": "string"
+          },
+          "ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ms"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "port": {
+            "title": "Port",
+            "type": "integer"
+          },
+          "to": {
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "port",
+          "ok",
+          "ms",
+          "error",
+          "at"
+        ],
+        "title": "NetworkLink",
+        "type": "object"
+      },
+      "NetworkNode": {
+        "properties": {
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "hub_rtt_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hub Rtt Ms"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "private_ip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Private Ip"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "via": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Via"
+          }
+        },
+        "required": [
+          "id",
+          "company",
+          "name",
+          "private_ip",
+          "via",
+          "state",
+          "hub_rtt_ms"
+        ],
+        "title": "NetworkNode",
         "type": "object"
       },
       "NoteIn": {
@@ -24727,6 +25276,33 @@
         "title": "Page[Series]",
         "type": "object"
       },
+      "Page_ServerCall_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ServerCall"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[ServerCall]",
+        "type": "object"
+      },
       "Page_SessionEvent_": {
         "properties": {
           "items": {
@@ -24941,6 +25517,116 @@
           "items"
         ],
         "title": "Page[Work]",
+        "type": "object"
+      },
+      "PairIn": {
+        "additionalProperties": false,
+        "properties": {
+          "company": {
+            "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+            "title": "Company",
+            "type": "string"
+          },
+          "hostname": {
+            "anyOf": [
+              {
+                "maxLength": 253,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hostname"
+          },
+          "name": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$",
+            "title": "Name",
+            "type": "string"
+          },
+          "os": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Os"
+          },
+          "private_ip": {
+            "anyOf": [
+              {
+                "maxLength": 45,
+                "pattern": "^[0-9a-fA-F:.]{2,45}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Private Ip"
+          },
+          "runner_version": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runner Version"
+          },
+          "user": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z_][a-z0-9_.-]{0,31}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User"
+          }
+        },
+        "required": [
+          "company",
+          "name"
+        ],
+        "title": "PairIn",
+        "type": "object"
+      },
+      "Paired": {
+        "properties": {
+          "device_code": {
+            "title": "Device Code",
+            "type": "string"
+          },
+          "expires_in": {
+            "title": "Expires In",
+            "type": "integer"
+          },
+          "interval": {
+            "title": "Interval",
+            "type": "integer"
+          },
+          "user_code": {
+            "title": "User Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "device_code",
+          "user_code",
+          "expires_in",
+          "interval"
+        ],
+        "title": "Paired",
         "type": "object"
       },
       "PaletteShare": {
@@ -28157,6 +28843,86 @@
         "title": "RestoreTest",
         "type": "object"
       },
+      "ResultIn": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "exit_code": {
+            "anyOf": [
+              {
+                "maximum": 1024.0,
+                "minimum": -1024.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Code"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "summary_fa": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Fa"
+          },
+          "usage": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usage"
+          }
+        },
+        "title": "ResultIn",
+        "type": "object"
+      },
       "Retention": {
         "properties": {
           "daily": {
@@ -30776,6 +31542,36 @@
         "title": "RunServer",
         "type": "object"
       },
+      "RunnerToken": {
+        "properties": {
+          "rotate_after_s": {
+            "default": 86400,
+            "title": "Rotate After S",
+            "type": "integer"
+          },
+          "runner_token": {
+            "title": "Runner Token",
+            "type": "string"
+          },
+          "server_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Id"
+          }
+        },
+        "required": [
+          "runner_token"
+        ],
+        "title": "RunnerToken",
+        "type": "object"
+      },
       "Schedule": {
         "properties": {
           "next_at": {
@@ -31858,19 +32654,41 @@
       },
       "SeriesTarget": {
         "additionalProperties": false,
+        "description": "⟨1.8⟩ `channel: \"runner\"`: published by the company's own product API\non one of its paired servers (contract §26.1b): `server` (its name) and\n`command` (set up by that server's own Claude, sealed with the series);\nits account is the server's (`runner-<server>`).",
         "properties": {
           "account": {
-            "pattern": "^[a-z0-9][a-z0-9_.-]{1,40}$",
-            "title": "Account",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^[a-z0-9][a-z0-9_.-]{1,40}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account"
           },
           "channel": {
             "enum": [
               "telegram",
-              "instagram"
+              "instagram",
+              "runner"
             ],
             "title": "Channel",
             "type": "string"
+          },
+          "command": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command"
           },
           "placement": {
             "enum": [
@@ -31882,11 +32700,22 @@
             ],
             "title": "Placement",
             "type": "string"
+          },
+          "server": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server"
           }
         },
         "required": [
           "channel",
-          "account",
           "placement"
         ],
         "title": "SeriesTarget",
@@ -31917,6 +32746,176 @@
           }
         },
         "title": "SeriesTopics",
+        "type": "object"
+      },
+      "ServerCall": {
+        "description": "One row of a server's activity (§26.4): a job, or a command inside a\n`claude` job (tool server.exec, the job's session).",
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/Actor"
+          },
+          "args": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Args"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "cmd_masked": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cmd Masked"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "exit_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Code"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "server": {
+            "title": "Server",
+            "type": "string"
+          },
+          "session_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Ref"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "summary_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Fa"
+          },
+          "tool": {
+            "title": "Tool",
+            "type": "string"
+          },
+          "transcript_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcript Url"
+          }
+        },
+        "required": [
+          "id",
+          "at",
+          "actor",
+          "tool",
+          "server"
+        ],
+        "title": "ServerCall",
         "type": "object"
       },
       "ServerIn": {
@@ -31981,6 +32980,218 @@
           "name"
         ],
         "title": "ServerIn",
+        "type": "object"
+      },
+      "ServerOut": {
+        "description": "§26.4 GET /infra/servers (the provisioner's fields kept, ⟨1.8⟩ extended).",
+        "properties": {
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "hetzner_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hetzner Id"
+          },
+          "hostname": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hostname"
+          },
+          "hub_rtt_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hub Rtt Ms"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "ipv4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ipv4"
+          },
+          "ipv6": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ipv6"
+          },
+          "labels": {
+            "additionalProperties": true,
+            "title": "Labels",
+            "type": "object"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "map_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Map At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "provisioned",
+              "attached"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "os": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Os"
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan"
+          },
+          "private_ip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Private Ip"
+          },
+          "runner_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runner Version"
+          },
+          "state": {
+            "enum": [
+              "pending",
+              "online",
+              "offline",
+              "revoked"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "user": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User"
+          },
+          "via": {
+            "anyOf": [
+              {
+                "enum": [
+                  "private",
+                  "public"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Via"
+          }
+        },
+        "required": [
+          "id",
+          "company",
+          "name",
+          "origin",
+          "private_ip",
+          "user",
+          "hostname",
+          "runner_version",
+          "via",
+          "state",
+          "last_seen_at",
+          "map_at",
+          "created_at"
+        ],
+        "title": "ServerOut",
         "type": "object"
       },
       "ServerPlan": {
@@ -32159,6 +33370,32 @@
         "title": "ServerPlan",
         "type": "object"
       },
+      "ServerPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "seal_required": {
+            "items": {
+              "enum": [
+                "db_drop",
+                "volume_delete",
+                "backup_delete",
+                "disk_wipe",
+                "access_change",
+                "server_delete"
+              ],
+              "type": "string"
+            },
+            "maxItems": 6,
+            "title": "Seal Required",
+            "type": "array"
+          }
+        },
+        "required": [
+          "seal_required"
+        ],
+        "title": "ServerPolicy",
+        "type": "object"
+      },
       "ServiceAccount": {
         "additionalProperties": false,
         "properties": {
@@ -32278,6 +33515,7 @@
       },
       "SessionIn": {
         "additionalProperties": false,
+        "description": "A session under a grant; ⟨1.8⟩ or, with `runtime: \"company_server\"`, on\na company's own server (contract §26.5): `{server, company, driver|null,\ntitle, brief, cwd?}` and no grant.",
         "properties": {
           "area": {
             "default": "",
@@ -32301,6 +33539,44 @@
             "title": "Brief",
             "type": "string"
           },
+          "company": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "cwd": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "pattern": "^[^\\x00\\n]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cwd"
+          },
+          "driver": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driver"
+          },
           "effort": {
             "anyOf": [
               {
@@ -32320,9 +33596,16 @@
             "title": "Effort"
           },
           "grant": {
-            "pattern": "^G-[0-9]{4,}$",
-            "title": "Grant",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^G-[0-9]{4,}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grant"
           },
           "model": {
             "anyOf": [
@@ -32337,6 +33620,31 @@
             ],
             "title": "Model"
           },
+          "runtime": {
+            "anyOf": [
+              {
+                "const": "company_server",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runtime"
+          },
+          "server": {
+            "anyOf": [
+              {
+                "maxLength": 63,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server"
+          },
           "title": {
             "maxLength": 300,
             "minLength": 1,
@@ -32345,7 +33653,6 @@
           }
         },
         "required": [
-          "grant",
           "title"
         ],
         "title": "SessionIn",
@@ -35877,6 +37184,22 @@
           "published"
         ],
         "title": "Today",
+        "type": "object"
+      },
+      "TokenIn": {
+        "additionalProperties": false,
+        "properties": {
+          "device_code": {
+            "maxLength": 200,
+            "minLength": 20,
+            "title": "Device Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "device_code"
+        ],
+        "title": "TokenIn",
         "type": "object"
       },
       "ToolCallIn": {
@@ -53472,6 +54795,183 @@
         ]
       }
     },
+    "/api/v1/control/server-policy": {
+      "get": {
+        "description": "The destructive categories that wait for the owner's seal; everything\nelse runs free (contract §26.3).",
+        "operationId": "get_server_policy",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "seal_required": [
+                    "db_drop"
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ServerPolicy"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Server Policy",
+        "tags": [
+          "servers"
+        ]
+      },
+      "put": {
+        "description": "🔏 `server.policy`, target = SHA-256 of the exact body.",
+        "operationId": "put_server_policy",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "seal_required": [
+                  "db_drop"
+                ]
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ServerPolicy"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "seal_required": [
+                    "db_drop"
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ServerPolicy"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Put Server Policy",
+        "tags": [
+          "servers"
+        ]
+      }
+    },
     "/api/v1/control/state": {
       "get": {
         "description": "Kill switches and deploy freezes of the holding and every company.",
@@ -54573,7 +56073,8 @@
                     "role_new",
                     "email_send",
                     "archive_schema",
-                    "archive_disposal"
+                    "archive_disposal",
+                    "server_destructive"
                   ],
                   "type": "string"
                 },
@@ -63458,9 +64959,194 @@
         ]
       }
     },
+    "/api/v1/infra/network": {
+      "get": {
+        "description": "Can every server reach the hub and the others (contract §26.1a)? The\nnodes (the hub and every paired server, with its route and round trip\nto the hub) and the latest result of each link a `netcheck` measured:\nfrom a server to the hub (443) and to each other server's private\naddress (22, 443, 80).",
+        "operationId": "infra_network",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "at": "2026-10-17T05:42:00Z",
+                  "links": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "error": "x",
+                      "from": "x",
+                      "ms": 1.0,
+                      "ok": false,
+                      "port": 1,
+                      "to": "TY-GROWTH-MGR"
+                    }
+                  ],
+                  "nodes": [
+                    {
+                      "company": "TY",
+                      "hub_rtt_ms": 1.0,
+                      "id": "x",
+                      "name": "report.pdf",
+                      "private_ip": "x",
+                      "state": "x",
+                      "via": "x"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Network"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Infra Network",
+        "tags": [
+          "servers"
+        ]
+      }
+    },
+    "/api/v1/infra/network/check": {
+      "post": {
+        "description": "A `netcheck` job on every online runner now (read-only, free); the\nresults arrive with each job's server.call and in GET /infra/network.",
+        "operationId": "infra_network_check",
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "jobs": [
+                    "x"
+                  ],
+                  "queued": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/NetworkCheck"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Infra Network Check",
+        "tags": [
+          "servers"
+        ]
+      }
+    },
     "/api/v1/infra/servers": {
       "get": {
-        "description": "Read-only: the servers the provisioner made, and the latest listing of\nthe Hetzner project (refreshed here while the provisioner is on). There is\nno delete: the owner removes a server in the Hetzner console.",
+        "description": "Every server: the ones the provisioner made and ⟨1.8⟩ the companies'\nown servers paired through their runner (§26.4: origin, state, the\nrunner's route and version, the last poll, the latest map); and the\nlatest listing of the Hetzner project (refreshed here while the\nprovisioner is on). Detaching a paired server is DELETE /infra/servers/{id}\n🔏; a provisioned one is removed in the Hetzner console.",
         "operationId": "infra_servers",
         "responses": {
           "200": {
@@ -63480,12 +65166,23 @@
                       "company": "TY",
                       "created_at": "2026-10-17T05:42:00Z",
                       "hetzner_id": 1,
+                      "hostname": "x",
+                      "hub_rtt_ms": 1.0,
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                       "ipv4": "x",
                       "ipv6": "x",
                       "labels": {},
+                      "last_seen_at": "2026-10-17T05:42:00Z",
+                      "map_at": "2026-10-17T05:42:00Z",
                       "name": "report.pdf",
+                      "origin": "provisioned",
+                      "os": "x",
                       "plan": "x",
-                      "private_ip": "x"
+                      "private_ip": "x",
+                      "runner_version": "x",
+                      "state": "pending",
+                      "user": "x",
+                      "via": "private"
                     }
                   ]
                 },
@@ -63555,6 +65252,861 @@
         "summary": "Infra Servers",
         "tags": [
           "founding"
+        ]
+      }
+    },
+    "/api/v1/infra/servers/{id}": {
+      "delete": {
+        "description": "🔏 `server.detach`, target `<CODE>:<server>`: the runner's credential\nis revoked at once (it stops on its next poll) and the server's open jobs\nare cancelled. The row and its history stay. Requires `Idempotency-Key`.",
+        "operationId": "detach_server",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "company": "TY",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "hetzner_id": 1,
+                  "hostname": "x",
+                  "hub_rtt_ms": 1.0,
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "ipv4": "x",
+                  "ipv6": "x",
+                  "labels": {},
+                  "last_seen_at": "2026-10-17T05:42:00Z",
+                  "map_at": "2026-10-17T05:42:00Z",
+                  "name": "report.pdf",
+                  "origin": "provisioned",
+                  "os": "x",
+                  "plan": "x",
+                  "private_ip": "x",
+                  "runner_version": "x",
+                  "state": "pending",
+                  "user": "x",
+                  "via": "private"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ServerOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Detach Server",
+        "tags": [
+          "servers"
+        ]
+      }
+    },
+    "/api/v1/infra/servers/{id}/activity": {
+      "get": {
+        "description": "Who did what on the server, newest first: its jobs and every command\ninside its `claude` jobs (masked). `actor`: an employee code or `owner`.",
+        "operationId": "server_activity",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Actor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "actor": {
+                        "code": "TY-CEO",
+                        "display_fa": "x",
+                        "kind": "agent"
+                      },
+                      "args": {},
+                      "at": "2026-10-17T05:42:00Z",
+                      "cmd_masked": "x",
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "duration_ms": 1,
+                      "exit_code": 1,
+                      "finished_at": "2026-10-17T05:42:00Z",
+                      "id": "x",
+                      "kind": "one_off",
+                      "server": "x",
+                      "session_ref": "x",
+                      "started_at": "2026-10-17T05:42:00Z",
+                      "state": "x",
+                      "summary_fa": "x",
+                      "tool": "x",
+                      "transcript_url": "x"
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ServerCall_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Server Activity",
+        "tags": [
+          "servers"
+        ]
+      }
+    },
+    "/api/v1/infra/servers/{id}/exec": {
+      "post": {
+        "description": "🔏 `server.exec`, target = SHA-256 of the exact body `{cmd, cwd?,\ntimeout_s, sudo}`: the owner's own command, as an `exec` job, streamed as\nSSE: `stdout` / `stderr` `{text}`, then `exit` `{code, duration_ms}` (or\n`error` `{code, message}`). A destructive command the policy holds\nanswers `202 {decision_ref, message_fa, job}` (the card waits for the\nseal); `423 company_locked` / `deploy_frozen`. Requires `Idempotency-Key`.",
+        "operationId": "server_exec",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": null,
+                "schema": {
+                  "title": "Response Server Exec"
+                }
+              },
+              "text/event-stream": {}
+            },
+            "description": "SSE"
+          },
+          "202": {
+            "description": "awaiting_seal: {decision_ref, message_fa, job}"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Server Exec",
+        "tags": [
+          "servers"
+        ]
+      }
+    },
+    "/api/v1/infra/servers/{id}/jobs/{job}": {
+      "get": {
+        "operationId": "server_job",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "job",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "actor": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
+                  "args": {},
+                  "category": "x",
+                  "company": "TY",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "decision_ref": "x",
+                  "duration_ms": 1,
+                  "error_code": "x",
+                  "exit_code": 1,
+                  "finished_at": "2026-10-17T05:42:00Z",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "one_off",
+                  "on_behalf": "x",
+                  "result": {},
+                  "server": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "session_ref": "x",
+                  "started_at": "2026-10-17T05:42:00Z",
+                  "state": "queued",
+                  "summary_fa": "x",
+                  "transcript_url": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Server Job",
+        "tags": [
+          "servers"
+        ]
+      }
+    },
+    "/api/v1/infra/servers/{id}/jobs/{job}/transcript": {
+      "get": {
+        "description": "Owner only: the job's whole record (JSON lines, masked), stored when it ended.",
+        "operationId": "server_job_transcript",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "job",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Server Job Transcript",
+        "tags": [
+          "servers"
+        ]
+      }
+    },
+    "/api/v1/infra/servers/{id}/map": {
+      "get": {
+        "description": "The latest `server.map` (§26.5 shape); 404 before the first.",
+        "operationId": "server_map",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "at": "2026-10-17T05:42:00Z",
+                  "map": {}
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/MapOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Server Map",
+        "tags": [
+          "servers"
+        ]
+      },
+      "post": {
+        "description": "Queues a `map` job: the map when the runner answers within 15 s,\nelse `202 {job}` (the map arrives with the job's server.call).",
+        "operationId": "refresh_server_map",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "at": "2026-10-17T05:42:00Z",
+                  "map": {}
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/MapOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "job": {
+                    "actor": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "args": {},
+                    "category": "x",
+                    "company": "TY",
+                    "created_at": "2026-10-17T05:42:00Z",
+                    "decision_ref": "x",
+                    "duration_ms": 1,
+                    "error_code": "x",
+                    "exit_code": 1,
+                    "finished_at": "2026-10-17T05:42:00Z",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "kind": "one_off",
+                    "on_behalf": "x",
+                    "result": {},
+                    "server": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "session_ref": "x",
+                    "started_at": "2026-10-17T05:42:00Z",
+                    "state": "queued",
+                    "summary_fa": "x",
+                    "transcript_url": "x"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/JobQueued"
+                }
+              }
+            },
+            "description": "queued; server.state follows"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Refresh Server Map",
+        "tags": [
+          "servers"
         ]
       }
     },
@@ -68026,7 +70578,9 @@
                   {
                     "account": "x",
                     "channel": "telegram",
-                    "placement": "telegram_post"
+                    "command": "x",
+                    "placement": "telegram_post",
+                    "server": "x"
                   }
                 ],
                 "title_fa": "گزارش هفتگی رشد",
@@ -68369,7 +70923,9 @@
                   {
                     "account": "x",
                     "channel": "telegram",
-                    "placement": "telegram_post"
+                    "command": "x",
+                    "placement": "telegram_post",
+                    "server": "x"
                   }
                 ],
                 "title_fa": "گزارش هفتگی رشد",
@@ -82128,6 +84684,1211 @@
         ]
       }
     },
+    "/api/v1/runners/approve": {
+      "post": {
+        "description": "🔏 `server.attach`, target `company:<CODE>` (the company the runner\nnamed): the server joins the holding; the runner takes its credential on\nits next poll. `404 invalid_user_code` · `410 expired_token` ·\n`409 code_used`. Requires `Idempotency-Key`.",
+        "operationId": "runner_approve",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "user_code": "xxxxxxxx"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ApproveIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "server": {
+                    "company": "TY",
+                    "created_at": "2026-10-17T05:42:00Z",
+                    "hetzner_id": 1,
+                    "hostname": "x",
+                    "hub_rtt_ms": 1.0,
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "ipv4": "x",
+                    "ipv6": "x",
+                    "labels": {},
+                    "last_seen_at": "2026-10-17T05:42:00Z",
+                    "map_at": "2026-10-17T05:42:00Z",
+                    "name": "report.pdf",
+                    "origin": "provisioned",
+                    "os": "x",
+                    "plan": "x",
+                    "private_ip": "x",
+                    "runner_version": "x",
+                    "state": "pending",
+                    "user": "x",
+                    "via": "private"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Approved"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Runner Approve",
+        "tags": [
+          "servers"
+        ]
+      }
+    },
+    "/api/v1/runners/classify": {
+      "post": {
+        "description": "The runner's Claude Code hook asks before each Bash command (§26.3),\nthe job in `X-HQ-Runner-Job`: `{category|null, …}`. `category` is set\nonly when the command must not run now: its category is in the policy\nand the owner has not sealed it (the `server_destructive` card is raised\nonce per server and command; the job waits in `awaiting_seal`). A sealed\ncommand (within 24 h), a free one or one the policy does not list: null.\n`423 company_locked` under a kill switch, `423 deploy_frozen` for a\ndeploy under a freeze (the hook blocks on any error).",
+        "operationId": "runner_classify",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-hq-runner-job",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Hq-Runner-Job"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "cmd": "x",
+                "cwd": "x",
+                "job": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ClassifyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {},
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Runner Classify",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Runner Classify",
+        "tags": [
+          "servers"
+        ]
+      }
+    },
+    "/api/v1/runners/jobs/next": {
+      "get": {
+        "description": "Long-poll ≤ 30 s: `{job, cancels: [job ids]}` (the jobs it was given\nthat were cancelled since: it kills their process group), or 204.\n`slots`: how many more jobs it can run now (0: only cancels). `via` and\n`hub_rtt_ms` (also the X-HQ-Runner-* headers) are stored on the server.\nNothing new starts while the company is locked.",
+        "operationId": "runner_next",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "wait",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 30,
+              "minimum": 0,
+              "title": "Wait",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "via",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "private",
+                    "public"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Via"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hub_rtt_ms",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 20,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hub Rtt Ms"
+            }
+          },
+          {
+            "in": "query",
+            "name": "slots",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "maximum": 16,
+              "minimum": 0,
+              "title": "Slots",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": null,
+                "schema": {
+                  "title": "Response Runner Next"
+                }
+              }
+            },
+            "description": "{job, cancels}"
+          },
+          "204": {
+            "description": "nothing to do"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Runner Next",
+        "tags": [
+          "servers"
+        ]
+      }
+    },
+    "/api/v1/runners/jobs/{id}/events": {
+      "post": {
+        "description": "A batch `{events: [{seq, type, data}]}` (or the bare list): stdout and\nstderr `{text}`, a Claude Code `session_event` (a SessionEvent), progress.\nMasked before stored; a seq already stored is ignored. `cancel: true`\nwhen the job was cancelled meanwhile (kill it).",
+        "operationId": "runner_events",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {},
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Runner Events",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Runner Events",
+        "tags": [
+          "servers"
+        ]
+      }
+    },
+    "/api/v1/runners/jobs/{id}/result": {
+      "post": {
+        "description": "The end of a job: `{exit_code, summary_fa?, usage?, data?, error?}`\n(idempotent). `usage` of a claude job goes into the Token Treasury.",
+        "operationId": "runner_result",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "data": {},
+                "error": "x",
+                "exit_code": -1024,
+                "result": {},
+                "summary_fa": "x",
+                "usage": {}
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ResultIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {},
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Runner Result",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Runner Result",
+        "tags": [
+          "servers"
+        ]
+      }
+    },
+    "/api/v1/runners/pair": {
+      "post": {
+        "description": "Unauthenticated (contract §26.1 step 1), rate-limited per address: a\npairing of `company` with a short `user_code` (`ABCD-1234`) the runner\nshows on the server, valid 15 minutes; the owner approves it in the app.\nNothing secret is shown: the `device_code` is the runner's own.",
+        "operationId": "runner_pair",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "company": "TY",
+                "hostname": "x",
+                "name": "report.pdf",
+                "os": "x",
+                "private_ip": "x",
+                "runner_version": "x",
+                "user": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/PairIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "device_code": "x",
+                  "expires_in": 1,
+                  "interval": 1,
+                  "user_code": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Paired"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Runner Pair",
+        "tags": [
+          "servers"
+        ]
+      }
+    },
+    "/api/v1/runners/rotate": {
+      "post": {
+        "description": "A fresh credential (the runner rotates every 24 h); the previous one\nkeeps working for ten minutes, so a lost answer locks nobody out.",
+        "operationId": "runner_rotate",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "rotate_after_s": 1,
+                  "runner_token": "x",
+                  "server_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/RunnerToken"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Runner Rotate",
+        "tags": [
+          "servers"
+        ]
+      }
+    },
+    "/api/v1/runners/token": {
+      "post": {
+        "description": "The runner polls with its device code every `interval` seconds:\n`428 authorization_pending` until the owner approved, then its credential\n`{runner_token, server_id}` exactly once (`410 expired_token` after that,\nor after 15 minutes). Only the credential's SHA-256 is kept.",
+        "operationId": "runner_token",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "device_code": "xxxxxxxxxxxxxxxxxxxx"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/TokenIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "rotate_after_s": 1,
+                  "runner_token": "x",
+                  "server_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/RunnerToken"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Runner Token",
+        "tags": [
+          "servers"
+        ]
+      }
+    },
     "/api/v1/runs": {
       "get": {
         "description": "Agent runs, newest first.",
@@ -93880,7 +97641,9 @@
                       "area": "x",
                       "branch": "x",
                       "brief": "x",
+                      "company": "TY",
                       "created_at": "2026-10-17T05:42:00Z",
+                      "cwd": "x",
                       "driver": {
                         "code": "TY-CEO",
                         "display_fa": "x",
@@ -93899,6 +97662,7 @@
                       "pr_url": "x",
                       "ref": "W-000789",
                       "runtime": "x",
+                      "server": "x",
                       "state": "starting",
                       "title": "گزارش هفتگی رشد",
                       "transcript_file": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
@@ -93993,9 +97757,14 @@
                   "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
                 ],
                 "brief": "x",
+                "company": "TY",
+                "cwd": "x",
+                "driver": "x",
                 "effort": "low",
                 "grant": "x",
                 "model": "claude-sonnet-5-5",
+                "runtime": "company_server",
+                "server": "x",
                 "title": "گزارش هفتگی رشد"
               },
               "schema": {
@@ -94013,7 +97782,9 @@
                   "area": "x",
                   "branch": "x",
                   "brief": "x",
+                  "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
+                  "cwd": "x",
                   "driver": {
                     "code": "TY-CEO",
                     "display_fa": "x",
@@ -94032,6 +97803,7 @@
                   "pr_url": "x",
                   "ref": "W-000789",
                   "runtime": "x",
+                  "server": "x",
                   "state": "starting",
                   "title": "گزارش هفتگی رشد",
                   "transcript_file": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
@@ -94157,7 +97929,9 @@
                   "area": "x",
                   "branch": "x",
                   "brief": "x",
+                  "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
+                  "cwd": "x",
                   "driver": {
                     "code": "TY-CEO",
                     "display_fa": "x",
@@ -94176,6 +97950,7 @@
                   "pr_url": "x",
                   "ref": "W-000789",
                   "runtime": "x",
+                  "server": "x",
                   "state": "starting",
                   "title": "گزارش هفتگی رشد",
                   "transcript_file": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
@@ -94813,7 +98588,9 @@
                   "area": "x",
                   "branch": "x",
                   "brief": "x",
+                  "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
+                  "cwd": "x",
                   "driver": {
                     "code": "TY-CEO",
                     "display_fa": "x",
@@ -94832,6 +98609,7 @@
                   "pr_url": "x",
                   "ref": "W-000789",
                   "runtime": "x",
+                  "server": "x",
                   "state": "starting",
                   "title": "گزارش هفتگی رشد",
                   "transcript_file": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
@@ -105169,7 +108947,9 @@
                   {
                     "account": "x",
                     "channel": "telegram",
-                    "placement": "telegram_post"
+                    "command": "x",
+                    "placement": "telegram_post",
+                    "server": "x"
                   }
                 ],
                 "title_fa": "گزارش هفتگی رشد",
@@ -109268,6 +113048,476 @@
           }
         },
         "summary": "Run Record Tool Call",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/servers": {
+      "get": {
+        "description": "server.map without a server: the servers the agent may work on.",
+        "operationId": "agent_servers",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "company": "TY",
+                    "created_at": "2026-10-17T05:42:00Z",
+                    "hetzner_id": 1,
+                    "hostname": "x",
+                    "hub_rtt_ms": 1.0,
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "ipv4": "x",
+                    "ipv6": "x",
+                    "labels": {},
+                    "last_seen_at": "2026-10-17T05:42:00Z",
+                    "map_at": "2026-10-17T05:42:00Z",
+                    "name": "report.pdf",
+                    "origin": "provisioned",
+                    "os": "x",
+                    "plan": "x",
+                    "private_ip": "x",
+                    "runner_version": "x",
+                    "state": "pending",
+                    "user": "x",
+                    "via": "private"
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ServerOut"
+                  },
+                  "title": "Response Agent Servers",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Agent Servers",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/servers/jobs": {
+      "post": {
+        "description": "A job on a company server for the calling agent, then waits up to\n`wait_s` (≤ 25) for it: finished, waiting for the seal, or still running\n(ask again with GET /servers/jobs/{id}). A `claude` job opens a\nCodeSession (`runtime: company_server`). Requires `Idempotency-Key`.",
+        "operationId": "agent_job",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "args": {},
+                "company": "TY",
+                "kind": "map",
+                "server": "x",
+                "via_work": "x",
+                "wait_s": 0
+              },
+              "schema": {
+                "$ref": "#/components/schemas/AgentJobIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "hint_fa": "x",
+                  "job": {
+                    "actor": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "args": {},
+                    "category": "x",
+                    "company": "TY",
+                    "created_at": "2026-10-17T05:42:00Z",
+                    "decision_ref": "x",
+                    "duration_ms": 1,
+                    "error_code": "x",
+                    "exit_code": 1,
+                    "finished_at": "2026-10-17T05:42:00Z",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "kind": "one_off",
+                    "on_behalf": "x",
+                    "result": {},
+                    "server": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "session_ref": "x",
+                    "started_at": "2026-10-17T05:42:00Z",
+                    "state": "queued",
+                    "summary_fa": "x",
+                    "transcript_url": "x"
+                  },
+                  "map": {},
+                  "output": {}
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/AgentJob"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Agent Job",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/servers/jobs/{id}": {
+      "get": {
+        "description": "A job the agent started (or of its company), waiting up to `wait_s`.",
+        "operationId": "agent_get_job",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "wait_s",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 25,
+              "minimum": 0,
+              "title": "Wait S",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "hint_fa": "x",
+                  "job": {
+                    "actor": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "args": {},
+                    "category": "x",
+                    "company": "TY",
+                    "created_at": "2026-10-17T05:42:00Z",
+                    "decision_ref": "x",
+                    "duration_ms": 1,
+                    "error_code": "x",
+                    "exit_code": 1,
+                    "finished_at": "2026-10-17T05:42:00Z",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "kind": "one_off",
+                    "on_behalf": "x",
+                    "result": {},
+                    "server": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "session_ref": "x",
+                    "started_at": "2026-10-17T05:42:00Z",
+                    "state": "queued",
+                    "summary_fa": "x",
+                    "transcript_url": "x"
+                  },
+                  "map": {},
+                  "output": {}
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/AgentJob"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Agent Get Job",
         "tags": [
           "internal"
         ]
@@ -114266,7 +118516,9 @@
                       "area": "x",
                       "branch": "x",
                       "brief": "x",
+                      "company": "TY",
                       "created_at": "2026-10-17T05:42:00Z",
+                      "cwd": "x",
                       "driver": {
                         "code": "TY-CEO",
                         "display_fa": "x",
@@ -114285,6 +118537,7 @@
                       "pr_url": "x",
                       "ref": "W-000789",
                       "runtime": "x",
+                      "server": "x",
                       "state": "starting",
                       "title": "گزارش هفتگی رشد",
                       "transcript_file": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
@@ -114379,9 +118632,14 @@
                   "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
                 ],
                 "brief": "x",
+                "company": "TY",
+                "cwd": "x",
+                "driver": "x",
                 "effort": "low",
                 "grant": "x",
                 "model": "claude-sonnet-5-5",
+                "runtime": "company_server",
+                "server": "x",
                 "title": "گزارش هفتگی رشد"
               },
               "schema": {
@@ -114399,7 +118657,9 @@
                   "area": "x",
                   "branch": "x",
                   "brief": "x",
+                  "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
+                  "cwd": "x",
                   "driver": {
                     "code": "TY-CEO",
                     "display_fa": "x",
@@ -114418,6 +118678,7 @@
                   "pr_url": "x",
                   "ref": "W-000789",
                   "runtime": "x",
+                  "server": "x",
                   "state": "starting",
                   "title": "گزارش هفتگی رشد",
                   "transcript_file": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
@@ -114569,7 +118830,9 @@
                     "area": "x",
                     "branch": "x",
                     "brief": "x",
+                    "company": "TY",
                     "created_at": "2026-10-17T05:42:00Z",
+                    "cwd": "x",
                     "driver": {
                       "code": "TY-CEO",
                       "display_fa": "x",
@@ -114588,6 +118851,7 @@
                     "pr_url": "x",
                     "ref": "W-000789",
                     "runtime": "x",
+                    "server": "x",
                     "state": "starting",
                     "title": "گزارش هفتگی رشد",
                     "transcript_file": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",

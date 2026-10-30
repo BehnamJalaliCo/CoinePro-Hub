@@ -40,11 +40,12 @@ departments:
         - گزارش حادثه، علت ریشه‌ای و اقدام پیشگیرانه
         - پایش سلامت سایت‌ها و سرویس‌ها با عدد و منبع
       boundaries_fa:
-        - هیچ تغییری مستقیم روی تولید نیست؛ merge و deploy همیشه کارت مالک است
+        - تغییر روی سرورهای خود شرکت فقط با ابزارهای server.* و با Audit است؛ کار ویرانگر مُهر مالک میخواهد
         - به SSH، کاربرهای سرور، رمزها، فایروال و سرورهای همسایه دست زده نمیشود
         - هیچ رمز یا داده‌ی کاربر در کد، لاگ یا پیام نمیآید
     tool_ceiling: [*base_tools, health.sites, github.read, workshop.read, web.browse, http.request, mcp.call,
-                   substitute.call, risk.raise, kpi.record, knowledge.propose]
+                   substitute.call, risk.raise, kpi.record, knowledge.propose,
+                   server.map, server.read, server.exec, server.write, server.claude]
     model_ceiling: claude-sonnet-5-5
     identity_md: |
       **فنی: آرام، دقیق، محافظه‌کار در تولید.**
@@ -78,7 +79,7 @@ departments:
         - درباره‌ی رقبا حرف بد زده نمیشود
         - انتشار بیرون از برنامه‌ی مُهرشده کارت مالک است
     tool_ceiling: [*base_tools, web.browse, substitute.call, kpi.record, funnel.read, feedback.tag, outcome.note,
-                   knowledge.propose]
+                   knowledge.propose, server.map, server.read, server.exec]
     model_ceiling: claude-sonnet-5-5
     identity_md: |
       **رشد: آموزگار، صادق، کنجکاو.**
@@ -171,7 +172,8 @@ departments:
       boundaries_fa:
         - هیچ پرداخت یا تعهد مالی بدون کارت مالک نیست
         - هیچ عددی بی‌منبع گزارش نمیشود
-    tool_ceiling: [*base_tools, revenue.read, funnel.read, treasury.usage, kpi.record, outcome.note]
+    tool_ceiling: [*base_tools, revenue.read, funnel.read, treasury.usage, kpi.record, outcome.note,
+                   server.map, server.read, server.exec]
     model_ceiling: claude-sonnet-5-5
     identity_md: |
       **مالی: دقیق، محتاط، شفاف.**
@@ -292,7 +294,7 @@ departments:
         - هر عدد منبع دارد؛ فقط فایل خود شرکت، دارایی ساخته‌شده یا موسیقی با مجوز
         - تنها قلم IRANYekanX و پالت و نشان خود شرکت؛ هیچ چهره‌ی واقعی یا نشان برند دیگر
     tool_ceiling: [*base_tools, web.browse, substitute.call, media.item, media.render, media.voice,
-                   knowledge.propose, kpi.record]
+                   knowledge.propose, kpi.record, server.map, server.read, server.exec]
     model_ceiling: claude-opus-5-5
     identity_md: |
       **رسانه و طراحی: آموزگار خوش‌سلیقه، دقیق و صادق.**

@@ -7,7 +7,8 @@ Public:  POST /provisioning/callback, the new server's one report (its
 Agents:  POST /internal/v1/provisioning/plans (server.plan)
 Service: /internal/v1/provisioning/runs/* (the provisioner only)
 There is no delete and no rebuild anywhere: the owner removes a server in
-the Hetzner console.
+the Hetzner console. ⟨1.8⟩ GET /infra/servers also lists the companies' own
+servers paired through their runner (routes/servers.py, contract §26).
 """
 
 from __future__ import annotations
@@ -28,6 +29,7 @@ from pydantic import Field, model_validator
 from hq_api import idempotency, pagination
 from hq_api.context import Ctx, internal_ctx, owner_ctx
 from hq_api.domain import founding as F
+from hq_api.domain import servers as SV
 from hq_api.errors import ApiError, responses
 from hq_api.routes.internal import allow
 from hq_api.schemas import Model, Page
@@ -134,18 +136,6 @@ class FinishIn(Model):
     error: dict[str, Any] | None = None
 
 
-class InfraServer(Model):
-    hetzner_id: int
-    company: str
-    plan: str
-    name: str
-    ipv4: str | None
-    ipv6: str | None
-    private_ip: str | None
-    labels: dict[str, str]
-    created_at: datetime
-
-
 class Inventory(Model):
     fetched_at: datetime | None
     ok: bool | None
@@ -154,7 +144,9 @@ class Inventory(Model):
 
 
 class InfraServers(Model):
-    items: list[InfraServer]
+    # ⟨1.8⟩ contract §26.4: every server of the holding, provisioned or paired
+    # through its runner (routes/servers.py has the rest of §26)
+    items: list[SV.ServerOut]
     # ⟨additive⟩ the latest listing of the Hetzner project (PR-063 reads it)
     inventory: Inventory
 
@@ -418,31 +410,18 @@ async def run_live(
 # ------------------------------------------------------------------ infra --
 @router.get("/infra/servers", response_model=InfraServers, responses=E)
 async def infra_servers(ctx: Ctx = Depends(owner_ctx)) -> InfraServers:
-    """Read-only: the servers the provisioner made, and the latest listing of
-    the Hetzner project (refreshed here while the provisioner is on). There is
-    no delete: the owner removes a server in the Hetzner console."""
+    """Every server: the ones the provisioner made and ⟨1.8⟩ the companies'
+    own servers paired through their runner (§26.4: origin, state, the
+    runner's route and version, the last poll, the latest map); and the
+    latest listing of the Hetzner project (refreshed here while the
+    provisioner is on). Detaching a paired server is DELETE /infra/servers/{id}
+    🔏; a provisioned one is removed in the Hetzner console."""
     async with ctx.tx() as tx:
         await F.refresh_inventory(tx, ctx.hub.settings.provisioner_url, _transport(ctx))
-        rows = await tx.all(
-            """SELECT s.*, p.ref AS plan_ref, p.company_code FROM infra.servers s
-               JOIN provisioning.plans p ON p.id = s.plan_id ORDER BY s.created_at DESC LIMIT 500"""
-        )
+        rows = await tx.all(SV.SERVER_SQL + " ORDER BY s.created_at DESC LIMIT 500")
         inv = await tx.first("SELECT * FROM infra.inventory ORDER BY fetched_at DESC LIMIT 1")
     return InfraServers(
-        items=[
-            InfraServer(
-                hetzner_id=r["hetzner_id"],
-                company=r["company_code"],
-                plan=r["plan_ref"],
-                name=r["name"],
-                ipv4=r["ipv4"],
-                ipv6=r["ipv6"],
-                private_ip=r["private_ip"],
-                labels=r["labels"] or {},
-                created_at=r["created_at"],
-            )
-            for r in rows
-        ],
+        items=[SV.render_server(r) for r in rows],
         inventory=Inventory(
             fetched_at=inv["fetched_at"] if inv else None,
             ok=inv["ok"] if inv else None,

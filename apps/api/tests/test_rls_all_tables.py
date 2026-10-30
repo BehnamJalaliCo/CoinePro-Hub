@@ -1206,6 +1206,53 @@ async def _fill_p13a_media(su: Any, co: dict[str, Any]) -> None:
     )
 
 
+async def _fill_p17(su: Any, co: dict[str, Any]) -> None:
+    """Prompt 17 (migration 0032): one row of company `co` in each new table of infra."""
+    import secrets as _s
+
+    c = co["id"]
+    server = await su.fetchval(
+        """INSERT INTO infra.servers (company_id, origin, name, state) VALUES ($1, 'attached', $2, 'online')
+           RETURNING id""",
+        c,
+        f"rls-{_s.token_hex(3)}",
+    )
+    pairing = await su.fetchval(
+        """INSERT INTO infra.runner_pairings (company_id, device_sha256, user_code, payload, expires_at,
+               state, server_id)
+           VALUES ($1, $2, 'ABCD-2345', '{}', now(), 'claimed', $3) RETURNING id""",
+        c,
+        _s.token_hex(32),
+        server,
+    )
+    await su.execute(
+        """INSERT INTO infra.runners (company_id, server_id, pairing_id, token_sha256)
+           VALUES ($1, $2, $3, $4)""",
+        c,
+        server,
+        pairing,
+        _s.token_hex(32),
+    )
+    job = await su.fetchval(
+        """INSERT INTO infra.server_jobs (company_id, server_id, kind, actor_kind, actor_code, args,
+               args_sha256) VALUES ($1, $2, 'map', 'owner', 'owner', '{}', repeat('a', 64)) RETURNING id""",
+        c,
+        server,
+    )
+    await su.execute(
+        """INSERT INTO infra.server_job_events (job_id, company_id, seq, type, data)
+           VALUES ($1, $2, 1, 'stdout', '{"text": "x"}')""",
+        job,
+        c,
+    )
+    await su.execute(
+        """INSERT INTO infra.network_links (company_id, from_server_id, to_key, to_ip, port, ok, at)
+           VALUES ($1, $2, 'hub', '10.10.1.4', 443, true, now())""",
+        c,
+        server,
+    )
+
+
 @pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
 async def test_no_table_leaks_between_companies(
     client: httpx.AsyncClient,
@@ -1227,6 +1274,7 @@ async def test_no_table_leaks_between_companies(
     await _fill_p13a_media(su, b)
     await _fill_p13b(su, b)
     await _fill_p14(su, b)
+    await _fill_p17(su, b)
     tables = await su.fetch(
         """SELECT c.table_schema AS s, c.table_name AS t FROM information_schema.columns c
            JOIN information_schema.tables x ON x.table_schema = c.table_schema AND x.table_name = c.table_name
