@@ -439,6 +439,13 @@ async def test_no_endpoint_works_without_authentication(
         ("POST", "/api/v1/auth/passkey/login/options"): {200},
         ("POST", "/api/v1/auth/passkey/login/verify"): {422},
         ("POST", "/api/v1/auth/passkey/register/verify"): {422},
+        # ⟨1.8⟩ contract §26.1: a company server's runner pairs without a
+        # credential (it has none yet): the body is checked first (422 here),
+        # a pairing gives only a short code the owner must approve with the
+        # passkey, and the token route hands a credential to an approved
+        # device code only (below)
+        ("POST", "/api/v1/runners/pair"): {422},
+        ("POST", "/api/v1/runners/token"): {422},
     }
     checked = 0
     # Every published operation (the OpenAPI document lists them all).
@@ -450,6 +457,17 @@ async def test_no_endpoint_works_without_authentication(
             assert r.status_code in allowed, (method, path, r.status_code, r.text[:200])
             checked += 1
     assert checked >= 13
+    # The runner's two open routes give nothing without the owner: an unknown
+    # device code is 401, an unknown company is 422 (no pairing is made).
+    r = await client.post("/api/v1/runners/token", json={"device_code": "x" * 43})
+    assert r.status_code == 401
+    r = await client.post(
+        "/api/v1/runners/pair",
+        json={"company": "NOSUCH", "name": "x", "hostname": "x", "private_ip": "10.0.0.1",
+              "os": "x", "runner_version": "0"},
+        headers={"X-Forwarded-For": "10.250.0.1"},
+    )  # fmt: skip
+    assert r.status_code == 422
 
 
 # ------------------------------------------------------------------ enroll --
