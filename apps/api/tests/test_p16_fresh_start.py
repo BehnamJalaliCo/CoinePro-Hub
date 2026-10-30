@@ -6,6 +6,7 @@ stops it, and the audit chain starts again from its genesis."""
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Callable
 from typing import Any
 
@@ -36,6 +37,41 @@ async def _ran(client: httpx.AsyncClient, owner: dict[str, str], co: str) -> Non
         "/api/v1/threads/N/messages", headers={**owner, **idem()}, json={"body": "سلام"}
     )
     assert r.status_code == 201, r.text
+
+
+async def _voice_sample(conn: asyncpg.Connection) -> Any:
+    """A voice bake-off sample (prompt 13 §4): its speech job, its audio and the
+    sample row the owner listens to; plus a narration job, which goes."""
+    holding, voice = await conn.fetchrow(
+        """SELECT c.id, v.id FROM core.companies c, media.voices v
+           WHERE c.kind = 'holding' ORDER BY v.id LIMIT 1"""
+    )
+    key = f"fresh-start/{uuid.uuid4().hex}.ogg"
+    file_id = await conn.fetchval(
+        """INSERT INTO files.files (company_id, name, mime, size, sha256, storage_key,
+               created_by_kind, created_by_code)
+           VALUES ($1, 'sample.ogg', 'audio/ogg', 10, $2, $3, 'service', 'tts') RETURNING id""",
+        holding, "0" * 64, key,
+    )  # fmt: skip
+    job = await conn.fetchval(
+        """INSERT INTO media.speech_jobs (company_id, kind, voice_id, script_key, script, state, file_id,
+               created_by_kind, created_by_code)
+           VALUES ($1, 'sample', $2, 'fresh_start', 'نمونه‌ی صدا برای شروع تازه', 'done', $3,
+                   'service', 'tts') RETURNING id""",
+        holding, voice, file_id,
+    )  # fmt: skip
+    await conn.execute(
+        """INSERT INTO media.speech_jobs (company_id, kind, voice_id, subject_ref, script,
+               created_by_kind, created_by_code)
+           VALUES ($1, 'narration', $2, 'MI-0001', 'روایتی که میرود', 'service', 'tts')""",
+        holding, voice,
+    )  # fmt: skip
+    return await conn.fetchval(
+        """INSERT INTO media.voice_samples (company_id, voice_id, script_key, round, job_id, file_id,
+               duration_s, synth_s)
+           VALUES ($1, $2, 'fresh_start', 1, $3, $4, 2.5, 1.0) RETURNING id""",
+        holding, voice, job, file_id,
+    )  # fmt: skip
 
 
 def test_every_list_is_disjoint_and_the_arguments_are_checked() -> None:
@@ -76,10 +112,22 @@ async def test_what_ran_goes_what_the_hub_is_made_of_stays(
         tx = conn.transaction()
         await tx.start()
         try:
+            sample = await _voice_sample(conn)
             await conn.execute(FS.body(SNAP, head["last_seq"], head["last_hash"]))
             for t in FS.WIPE:
-                if t != "audit.entries":
+                if t != "audit.entries" and t not in FS.SPARE:
                     assert await _count(conn, t) == 0, t
+            # ⟨1.9⟩ the bake-off's sample stays with the job that spoke it and its file
+            assert await conn.fetchval("SELECT count(*) FROM media.speech_jobs") == (
+                await conn.fetchval("SELECT count(*) FROM media.voice_samples")
+            )
+            spared = await conn.fetchrow(
+                """SELECT j.script, f.id AS file FROM media.voice_samples s
+                   JOIN media.speech_jobs j ON j.id = s.job_id JOIN files.files f ON f.id = s.file_id
+                   WHERE s.id = $1""",
+                sample,
+            )
+            assert spared is not None and spared["script"] == "نمونه‌ی صدا برای شروع تازه"
             for t, n in kept.items():
                 assert await _count(conn, t) == n, t
             assert (

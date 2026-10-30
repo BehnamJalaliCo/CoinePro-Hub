@@ -15,6 +15,10 @@ three. What ran goes; what the hub is made of stays:
   the authority matrix, the calendar, connections, sign-ins, settings and the
   archive's scheme. RESET clears what a kept row remembers of the wiped data.
 - ASK: in neither list of the prompt: kept, and listed in the report.
+- SPARE: the rows of a wiped table that something the owner made (kept)
+  stands on: the voice bake-off's samples keep the speech jobs that spoke
+  them (⟨1.9⟩: a fresh start never stops on them, nothing the owner heard
+  and scored is lost).
 
 A table in no list stops the script (a later migration's table is never
 wiped unread), as does a ref sequence in no list. After the deletes, every
@@ -86,6 +90,12 @@ WIPE: tuple[str, ...] = (
     "work.councils", "work.escrows", "work.schedules", "work.work", "work.work_events",
     "workshop.approvals", "workshop.events", "workshop.grants", "workshop.sessions",
 )  # fmt: skip
+
+# Rows of a WIPE table that stay: the condition (on the row as `x`) keeps them
+# (a kept row needs them).
+SPARE: dict[str, str] = {
+    "media.speech_jobs": "x.id IN (SELECT s.job_id FROM media.voice_samples s)",
+}
 
 KEEP: tuple[str, ...] = (
     "academy.addenda", "academy.curricula", "academy.eval_suites",
@@ -246,8 +256,26 @@ def body(snapshot: str, previous_seq: int, previous_hash: str) -> str:
     if previous_seq < 0 or not HASH.match(previous_hash):
         raise ValueError("previous head: a seq and a sha256")
     wipe, kept = _array(WIPE), _array(KEEP + ASK)
-    deletes = "\n".join(f"DELETE FROM {t};" for t in WIPE)  # noqa: S608 - the listed names
+    # the listed names and conditions (module constants), never input
+    deletes = "\n".join(
+        f"DELETE FROM {t} x WHERE NOT ({SPARE[t]});"  # noqa: S608
+        if t in SPARE
+        else f"DELETE FROM {t};"  # noqa: S608
+        for t in WIPE
+    )
     resets = "\n".join(f"{s};" for s in RESET)
+    # a spared row's files stay with it
+    spared_files = "\n".join(
+        f"""    FOR k IN SELECT a.attname AS col FROM pg_constraint c
+               JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+              WHERE c.contype = 'f' AND c.confrelid = 'files.files'::regclass
+                AND cardinality(c.conkey) = 1 AND c.conrelid = {_quote(t)}::regclass
+    LOOP
+        EXECUTE format('DELETE FROM fresh_start_files f USING {t} x WHERE x.%I = f.id AND (%s)',
+                       k.col, {_quote(cond)});
+    END LOOP;"""  # noqa: S608 - module constants
+        for t, cond in SPARE.items()
+    )
     restarts = "\n".join(f"ALTER SEQUENCE {s} RESTART;" for s in REF_RESET)
     return f"""
 SET LOCAL lock_timeout = '30s';
@@ -309,6 +337,7 @@ BEGIN
     LOOP
         EXECUTE format('DELETE FROM fresh_start_files f USING %s x WHERE x.%I = f.id', k.child, k.col);
     END LOOP;
+{spared_files}
     INSERT INTO fresh_start_files SELECT id FROM files.files
      WHERE parent_id IN (SELECT id FROM fresh_start_files) ON CONFLICT DO NOTHING;
 END $files$;
