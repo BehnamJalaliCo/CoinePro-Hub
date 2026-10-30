@@ -36,7 +36,6 @@ import com.coinepro.hq.core.format.Tone
 import com.coinepro.hq.core.format.ago
 import com.coinepro.hq.core.format.instant
 import com.coinepro.hq.core.format.until
-import com.coinepro.hq.core.net.AttachRules
 import com.coinepro.hq.core.net.HubServer
 import com.coinepro.hq.core.net.SERVER_DESTRUCTIVE
 import com.coinepro.hq.core.net.ServerMap
@@ -54,7 +53,6 @@ import com.coinepro.hq.designsystem.Fig
 import com.coinepro.hq.designsystem.FilterChip
 import com.coinepro.hq.designsystem.HqButton
 import com.coinepro.hq.designsystem.HqCard
-import com.coinepro.hq.designsystem.HqTextField
 import com.coinepro.hq.designsystem.IconBtn
 import com.coinepro.hq.designsystem.Pill
 import com.coinepro.hq.designsystem.SegOption
@@ -78,7 +76,8 @@ import com.coinepro.hq.ui.workshop.rememberGrants
 import com.coinepro.hq.ui.workshop.rememberSessions
 import com.coinepro.hq.ui.workshop.rememberWorkspaces
 
-/** One company server (§26): its state and its map, who did what on it live, Claude Code sessions on it, the owner's terminal, its seals. */
+/** One company server (§26): its runner's state and its map, the jobs on it live, Claude Code sessions on it, the owner's terminal, its
+ *  seals. */
 @Composable
 fun ServerScreen(id: String, tab0: String = "map") {
     val env = LocalEnv.current
@@ -91,7 +90,6 @@ fun ServerScreen(id: String, tab0: String = "map") {
     val companies = rememberCompanies()
     var tab by rememberSaveable { mutableStateOf(tab0) }
     var task by remember { mutableStateOf(false) }
-    var repin by remember { mutableStateOf(false) }
     var detach by remember { mutableStateOf(false) }
     var transcript by remember { mutableStateOf<String?>(null) }
     val map = rememberServerMap(id)
@@ -109,8 +107,8 @@ fun ServerScreen(id: String, tab0: String = "map") {
         item(key = "head") {
             HqCard(Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Box(Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(if (s.reachable && !locked) c.softGold else c.tile), contentAlignment = Alignment.Center) {
-                        DIcon(DivanIcon.SERVER, size = 24.dp, tint = if (s.reachable && !locked) c.goldInk else c.textSecondary)
+                    Box(Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(if (s.online && !locked) c.softGold else c.tile), contentAlignment = Alignment.Center) {
+                        DIcon(DivanIcon.SERVER, size = 24.dp, tint = if (s.online && !locked) c.goldInk else c.textSecondary)
                     }
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -124,7 +122,7 @@ fun ServerScreen(id: String, tab0: String = "map") {
                         var menu by remember { mutableStateOf(false) }
                         IconBtn(DivanIcon.MORE, "کارهای این سرور", { menu = true })
                         DropdownMenu(menu, { menu = false }, containerColor = c.overlay) {
-                            DropdownMenuItem({ Text("نقشه‌ی تازه بگیر", style = Divan.type.small) }, {
+                            if (s.online) DropdownMenuItem({ Text("نقشه‌ی تازه بگیر", style = Divan.type.small) }, {
                                 menu = false
                                 refresh.run(onError = { toasts.error(serverError(it)) }) {
                                     val m = env.api.refreshMap(s.id)
@@ -132,46 +130,45 @@ fun ServerScreen(id: String, tab0: String = "map") {
                                     env.cache.invalidate("servers")
                                 }
                             }, leadingIcon = { DIcon(DivanIcon.REFRESH, size = 18.dp) })
-                            DropdownMenuItem({ Text("pin دوباره‌ی کلید میزبان", style = Divan.type.small) }, { menu = false; repin = true }, leadingIcon = { DIcon(DivanIcon.LOCK, size = 18.dp) })
                             DropdownMenuItem({ Text("قوانین سرورها", style = Divan.type.small) }, { menu = false; nav.go("server-policy") }, leadingIcon = { DIcon(DivanIcon.SEAL, size = 18.dp) })
-                            DropdownMenuItem({ Text("جدا کردن از هاب", style = Divan.type.small, color = c.negative) }, { menu = false; detach = true }, leadingIcon = { DIcon(DivanIcon.CLOSE, size = 18.dp, tint = c.negative) })
+                            if (!s.revoked) DropdownMenuItem({ Text("جدا کردن از هاب", style = Divan.type.small, color = c.negative) }, { menu = false; detach = true }, leadingIcon = { DIcon(DivanIcon.CLOSE, size = 18.dp, tint = c.negative) })
                         }
                     }
                 }
                 FlowRow(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                     ServerStatePill(s.state, locked)
                     OriginPill(s.origin)
-                    Text(s.lastSeenAt?.let { "آخرین تماس " + ago(it) } ?: "هنوز تماسی نبوده", style = Divan.type.micro, color = c.textMuted)
+                    RunnerFacts(s)
                 }
-                Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("کلید میزبان", style = Divan.type.micro, color = c.textMuted)
-                    Fig(s.hostKeySha256.ifBlank { "—" }, Modifier.weight(1f), style = Divan.type.figureSmall, color = c.textSecondary)
+                FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+                    Fact("میزبان", s.hostname)
+                    Fact("کاربر کاری", s.user.ifBlank { null })
+                    Fact("آدرس خصوصی", s.privateIp.ifBlank { null })
                 }
                 Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    HqButton("یک کار بسپار", { task = true }, Modifier.weight(1f), variant = BtnVariant.PRIMARY, icon = DivanIcon.CODE, enabled = s.reachable && !locked)
-                    HqButton("ترمینال", { nav.go("servers/${s.id}/terminal") }, Modifier.weight(1f), icon = DivanIcon.COMMAND, enabled = s.reachable && !locked)
+                    HqButton("یک کار بسپار", { task = true }, Modifier.weight(1f), variant = BtnVariant.PRIMARY, icon = DivanIcon.CODE, enabled = s.online && !locked)
+                    HqButton("ترمینال", { nav.go("servers/${s.id}/terminal") }, Modifier.weight(1f), icon = DivanIcon.COMMAND, enabled = s.online && !locked)
                 }
             }
         }
         if (locked) item(key = "locked") { LockedBanner(s.company) }
         when (s.state) {
-            "host_key_changed" -> item(key = "hostkey") {
-                com.coinepro.hq.ui.v16.Notice(DivanIcon.LOCK, c.softNegative, c.negative) {
-                    Text("کلید میزبان این سرور با آنچه pin شده نمیخواند", style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
-                    Text("هاب تا تأیید تو هیچ فرمانی روی آن اجرا نمیکند. اگر سرور را خودت دوباره ساخته‌ای، اثر تازه را از خود سرور بگیر (ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub) و دوباره pin کن؛ وگرنه این میتواند جعل سرور باشد.", style = Divan.type.caption, color = c.textSecondary)
-                    HqButton("pin دوباره", { repin = true }, variant = BtnVariant.DANGER, size = BtnSize.SM, icon = DivanIcon.LOCK)
-                }
-            }
             "pending" -> item(key = "pending") {
                 com.coinepro.hq.ui.v16.Notice(DivanIcon.TIME, c.softGold, c.goldInk) {
-                    Text("منتظر وصل شدن", style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
-                    Text("کلید عمومی هاب هنوز روی سرور نشسته یا هاب هنوز به آن نرسیده. وقتی Claude همان سرور با فایل COMPANY_SERVER_ACCESS_SETUP.md کار را تمام کند، خودش «در دسترس» میشود و اولین نقشه گرفته میشود.", style = Divan.type.caption, color = c.textSecondary)
+                    Text("کد تأیید شد؛ منتظر runner", style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
+                    Text(isolated("runner در تماس بعدی‌اش اعتبار خودش را میگیرد و سرور «آنلاین» میشود، معمولاً در چند ثانیه. اگر نشد، Claude همان سرور با hq-runner status وضعش را ببیند."), style = Divan.type.caption, color = c.textSecondary)
                 }
             }
-            "unreachable" -> item(key = "unreachable") {
+            "offline" -> item(key = "offline") {
                 com.coinepro.hq.ui.v16.Notice(DivanIcon.OFFLINE, c.softWarning, c.warning) {
-                    Text("هاب الان به این سرور نمیرسد", style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
-                    Text("سرور خاموش است، شبکه‌ی خصوصی قطع است یا کاربر کاری کلید هاب را ندارد. ایجنت‌ها تا برگشتنش کاری روی آن نمیکنند.", style = Divan.type.caption, color = c.textSecondary)
+                    Text("runner این سرور تماس نمیگیرد", style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
+                    Text(isolated("سرور خاموش است، سرویس hq-runner ایستاده یا سرور به اینترنت نمیرسد. تا runner برنگردد، هیچ کاری رویش اجرا نمیشود؛ Claude همان سرور با hq-runner status علتش را میبیند."), style = Divan.type.caption, color = c.textSecondary)
+                }
+            }
+            "revoked" -> item(key = "revoked") {
+                com.coinepro.hq.ui.v16.Notice(DivanIcon.CLOSE, c.tile, c.textSecondary) {
+                    Text("runner این سرور باطل شده", style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
+                    Text(isolated("هاب دیگر هیچ کاری به این سرور نمیدهد. تاریخچه‌ی کارها در Audit میماند. برای وصل دوباره، روی سرور hq-runner pair را از نو اجرا کن و کد تازه را در «وصل کردن سرور» تأیید کن."), style = Divan.type.caption, color = c.textSecondary)
                 }
             }
         }
@@ -187,8 +184,8 @@ fun ServerScreen(id: String, tab0: String = "map") {
                 when {
                     m == null && map.loading -> Skeleton(Modifier.fillMaxWidth().height(320.dp), radius = 16.dp)
                     m == null && map.error != null -> ErrorBlock(map.error, { map.refresh() })
-                    m == null -> Empty("هنوز نقشه‌ای گرفته نشده", icon = DivanIcon.SERVER, body = if (s.reachable) "با «نقشه‌ی تازه بگیر» هاب سرور را میگردد: سیستم، دیسک، کانتینرها، سرویس‌ها، ریپوها و سایت‌ها." else "وقتی سرور در دسترس شد، اولین نقشه خودکار گرفته میشود.") {
-                        if (s.reachable) HqButton("نقشه‌ی تازه بگیر", { refresh.run { env.api.refreshMap(s.id)?.let(map::set); env.cache.invalidate("servers") } }, icon = DivanIcon.REFRESH, loading = refresh.busy)
+                    m == null -> Empty("هنوز نقشه‌ای گرفته نشده", icon = DivanIcon.SERVER, body = if (s.online) "با «نقشه‌ی تازه بگیر» runner سرور را میگردد: سیستم، دیسک، کانتینرها، سرویس‌ها، ریپوها و سایت‌ها." else "وقتی runner آنلاین شد، اولین نقشه خودکار گرفته میشود.") {
+                        if (s.online) HqButton("نقشه‌ی تازه بگیر", { refresh.run { env.api.refreshMap(s.id)?.let(map::set); env.cache.invalidate("servers") } }, icon = DivanIcon.REFRESH, loading = refresh.busy)
                     }
                     else -> MapView(m, refreshing = refresh.busy) {
                         refresh.run(onError = { toasts.error(serverError(it)) }) {
@@ -202,7 +199,6 @@ fun ServerScreen(id: String, tab0: String = "map") {
         }
     }
     if (task && s != null) ServerTaskSheet(listOf(s), s) { task = false }
-    if (repin && s != null) RepinDialog(s) { repin = false }
     if (detach && s != null) DetachDialog(s) { detach = false }
     transcript?.let { TranscriptSheet(it) { transcript = null } }
 }
@@ -225,7 +221,7 @@ private fun ActivityTab(s: HubServer, onTranscript: (String) -> Unit) {
         when {
             rows == null && q.error != null -> ErrorBlock(q.error, { q.refresh() })
             rows == null -> Skeleton(Modifier.fillMaxWidth().height(260.dp), radius = 16.dp)
-            rows.isEmpty() -> Empty("هنوز کاری روی این سرور ثبت نشده", icon = DivanIcon.AGENT, body = "هر فرمان، خواندن و نوشتن فایل و هر جلسه‌ی Claude اینجا با فرمان ماسک‌شده‌اش میاید.")
+            rows.isEmpty() -> Empty("هنوز کاری روی این سرور ثبت نشده", icon = DivanIcon.AGENT, body = "هر کار روی سرور — فرمان، خواندن و نوشتن فایل، نقشه و جلسه‌ی Claude — با فرمان ماسک‌شده‌اش و وضعیتش اینجا میاید: در صف، در جریان، منتظر مُهر، تمام، ناموفق یا لغو.")
             else -> HqCard(Modifier.fillMaxWidth(), padding = PaddingValues(horizontal = 14.dp, vertical = 4.dp)) {
                 rows.forEachIndexed { i, x ->
                     if (i > 0) HorizontalDivider(color = c.lineDivider)
@@ -233,7 +229,7 @@ private fun ActivityTab(s: HubServer, onTranscript: (String) -> Unit) {
                 }
             }
         }
-        Text("رمزها پیش از ثبت با نام و الگو ماسک میشوند؛ متن کامل هر فراخوانی برای تو میماند.", style = Divan.type.micro, color = c.textMuted)
+        Text("رمزها پیش از ثبت با نام و الگو ماسک میشوند؛ متن کامل هر کار برای تو میماند. کلید توقف شرکت کارهای در صف و در جریان را لغو میکند.", style = Divan.type.micro, color = c.textMuted)
     }
 }
 
@@ -246,7 +242,7 @@ private fun SessionsTab(s: HubServer, locked: Boolean, onNew: () -> Unit) {
     val grants = rememberGrants()
     val list = sessions.data?.filter { it.onServer && it.server == s.id }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        HqButton("یک کار روی این سرور بسپار", onNew, Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, icon = DivanIcon.CODE, enabled = s.reachable && !locked)
+        HqButton("یک کار روی این سرور بسپار", onNew, Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, icon = DivanIcon.CODE, enabled = s.online && !locked)
         when {
             list == null -> Skeleton(Modifier.fillMaxWidth().height(120.dp), radius = 14.dp)
             list.isEmpty() -> Text("هنوز جلسه‌ای روی این سرور نبوده.", style = Divan.type.caption, color = c.textMuted)
@@ -327,7 +323,7 @@ fun MapView(m: ServerMap, refreshing: Boolean = false, onRefresh: (() -> Unit)? 
                         x.image?.let { Fig(it, style = Divan.type.figureSmall, color = c.textMuted) }
                     }
                     x.project?.let { Fig(it, Modifier.clip(RoundedCornerShape(6.dp)).background(c.tile).padding(horizontal = 6.dp, vertical = 1.dp), style = Divan.type.figureSmall, color = c.textSecondary) }
-                    x.status?.let { Fig(it, style = Divan.type.figureSmall, color = c.textMuted) }
+                    (x.status ?: x.health)?.let { Fig(it, style = Divan.type.figureSmall, color = if (x.health == "unhealthy") c.negative else c.textMuted) }
                 }
             }
         }
@@ -337,7 +333,9 @@ fun MapView(m: ServerMap, refreshing: Boolean = false, onRefresh: (() -> Unit)? 
                     Fig(p.project, style = Divan.type.figureSmall.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
                     p.dir?.let { Fig(it, style = Divan.type.figureSmall, color = c.textMuted) }
                 }
-                if (p.services != null) Fig("${p.running ?: "?"}/${p.services}", style = Divan.type.figureSmall, color = if (p.running == p.services) c.positive else c.warning)
+                // §26.5 lists a project's services, not how many run: counted from the containers of the same project.
+                val running = p.running ?: m.containers.filter { it.project == p.project }.takeIf { it.isNotEmpty() }?.count { it.state == "running" }
+                if (p.services != null) Fig("${running ?: "?"}/${p.services}", style = Divan.type.figureSmall, color = if (running == p.services) c.positive else c.warning)
             }
         }
         if (m.timers.isNotEmpty() || m.units.isNotEmpty()) MapSection("systemd", m.timers.size + m.units.size, total = m.timers.size) { all ->
@@ -373,7 +371,7 @@ fun MapView(m: ServerMap, refreshing: Boolean = false, onRefresh: (() -> Unit)? 
         if (m.ports.isNotEmpty()) MapSection("پورت‌های باز", m.ports.size) { _ ->
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 for (p in m.ports) {
-                    val public = p.address == null || p.address == "0.0.0.0" || p.address == "*" || p.address == "[::]" || p.address == "::"
+                    val public = p.public ?: (p.address == null || p.address == "0.0.0.0" || p.address == "*" || p.address == "[::]" || p.address == "::")
                     Fig(
                         "${p.port}/${p.proto}" + (p.process?.let { " $it" } ?: "") + (if (!public) " · ${p.address}" else ""),
                         Modifier.clip(RoundedCornerShape(8.dp)).background(if (public) c.softWarning else c.tile).padding(horizontal = 8.dp, vertical = 3.dp),
@@ -388,10 +386,13 @@ fun MapView(m: ServerMap, refreshing: Boolean = false, onRefresh: (() -> Unit)? 
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     DIcon(DivanIcon.CODE, size = 14.dp, tint = c.textSecondary)
                     Fig(x.path, Modifier.weight(1f), style = Divan.type.figureSmall.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
-                    if (x.dirty == true) Pill("تغییر commit‌نشده", Tone.WARN)
+                    if (x.dirty == true) Pill("تغییر ثبت‌نشده", Tone.WARN)
                 }
                 x.remote?.let { Fig(it, style = Divan.type.figureSmall, color = c.textMuted) }
-                if (x.branch != null || x.head != null) Fig(listOfNotNull(x.branch, x.head).joinToString(" @ "), style = Divan.type.figureSmall, color = c.textSecondary)
+                if (x.branch != null || x.head != null || x.lastCommitAt != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (x.branch != null || x.head != null) Fig(listOfNotNull(x.branch, x.head).joinToString(" @ "), style = Divan.type.figureSmall, color = c.textSecondary)
+                    whenFa(x.lastCommitAt, false)?.let { Text("آخرین commit " + it, style = Divan.type.micro, color = c.textMuted) }
+                }
             }
         }
         if (m.automations.isNotEmpty()) MapSection("n8n و اتوماسیون‌ها", m.automations.size) { all ->
@@ -417,43 +418,17 @@ fun MapView(m: ServerMap, refreshing: Boolean = false, onRefresh: (() -> Unit)? 
     }
 }
 
-// ------------------------------------------------------------------ ⋮ actions --
 @Composable
-private fun RepinDialog(s: HubServer, onDone: () -> Unit) {
-    val env = LocalEnv.current
-    val toasts = LocalToasts.current
-    val act = activity()
+private fun Fact(label: String, value: String?) {
+    value ?: return
     val c = Divan.colors
-    val action = rememberAction()
-    var key by rememberSaveable { mutableStateOf("") }
-    val fp = AttachRules.hostKey(key)
-    AlertDialog(
-        onDismissRequest = onDone,
-        containerColor = c.overlay,
-        title = { Text("pin دوباره‌ی کلید میزبان", style = Divan.type.h3) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("اثر کلید را از خود سرور بگیر، نه از پیامی که کسی فرستاده:", style = Divan.type.small, color = c.textSecondary)
-                CodeBlock("ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub", prefix = "$ ")
-                Text(buildAnnotatedString { append("الان pin شده: "); fig(s.hostKeySha256.ifBlank { "—" }) }, style = Divan.type.caption, color = c.textMuted)
-                HqTextField(key, { key = it }, "SHA256:…", Modifier.fillMaxWidth(), figure = true)
-                if (key.isNotBlank() && fp == null) Text("باید به شکل SHA256: و ۴۳ نویسه باشد.", style = Divan.type.caption, color = c.negative)
-            }
-        },
-        confirmButton = {
-            HqButton("با گذرکلید pin کن", {
-                action.run(onError = { toasts.error(serverError(it)) }) {
-                    env.api.repinServer(s, fp!!) { a, t -> env.auth.stepUp(act, a, t) }
-                    env.cache.invalidate("servers")
-                    toasts.ok("کلید تازه‌ی ${s.name} pin شد.")
-                    onDone()
-                }
-            }, variant = BtnVariant.PRIMARY, icon = DivanIcon.SEAL, enabled = fp != null, loading = action.busy)
-        },
-        dismissButton = { HqButton("انصراف", onDone, variant = BtnVariant.GHOST) },
-    )
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        Text(label, style = Divan.type.micro, color = c.textMuted)
+        Fig(value, style = Divan.type.figureSmall, color = c.textSecondary)
+    }
 }
 
+// ------------------------------------------------------------------ ⋮ actions --
 @Composable
 private fun DetachDialog(s: HubServer, onDone: () -> Unit) {
     val env = LocalEnv.current
@@ -467,14 +442,14 @@ private fun DetachDialog(s: HubServer, onDone: () -> Unit) {
         containerColor = c.overlay,
         title = { Text("جدا کردن ${s.name} از هاب؟", style = Divan.type.h3) },
         text = {
-            Text("هاب کلیدش را فراموش میکند و دیگر هیچ ایجنتی به این سرور نمیرسد. خود سرور دست نمیخورد: کاربر کاری، فایل‌ها و سرویس‌ها همان‌طور میمانند؛ خط کلید هاب را بعداً روی خود سرور پاک کن. تاریخچه‌ی کارها در Audit میماند.", style = Divan.type.small, color = c.textSecondary)
+            Text(isolated("اعتبار runner همین لحظه باطل میشود و runner در تماس بعدی‌اش میایستد؛ کارهای در صف لغو میشوند و دیگر هیچ ایجنتی کاری روی این سرور نمیکند. خود سرور دست نمیخورد: کاربر کاری، فایل‌ها و سرویس‌ها همان‌طور میمانند. تاریخچه‌ی کارها در Audit میماند."), style = Divan.type.small, color = c.textSecondary)
         },
         confirmButton = {
             HqButton("با گذرکلید جدا کن", {
                 action.run(onError = { toasts.error(serverError(it)) }) {
                     env.api.detachServer(s) { a, t -> env.auth.stepUp(act, a, t) }
                     env.cache.invalidate("servers")
-                    toasts.ok("${s.name} از هاب جدا شد.")
+                    toasts.ok("runner ${s.name} باطل شد.")
                     onDone()
                     nav.back()
                 }

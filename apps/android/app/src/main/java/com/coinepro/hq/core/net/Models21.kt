@@ -13,13 +13,15 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
 
 // ------------------------------------------------------------------ v1.8 --
-// Contract §26 (prompt 17): the holding's full access to the companies' servers. The hub reaches each attached server over SSH through
-// `company-ops`; agents (and the owner from this app) run commands, read and write files, start Claude Code on the server and map it.
-// Everything runs free except six destructive categories, which wait for the owner's seal (`server_destructive`, 🔏 `server.destructive`
-// on `<CODE>:<server>`). Same rules as Models.kt: camelCase here, snake_case on the wire. Servers and companies are data: nothing here
-// counts them.
+// Contract §26 (prompt 17, revised): the holding works on the companies' own servers through a pull runner. Each company server runs
+// `hq-runner` under its work user; the runner opens outbound HTTPS to the hub, long-polls for jobs, streams their events and posts results.
+// The hub never connects into a company server: no SSH key, no inbound port. A server joins by device-code pairing (the runner shows a
+// short code, the owner approves it here with the passkey); detaching revokes the runner's token. Agents (and the owner from this app)
+// run commands, read and write files, start Claude Code on the server and map it. Everything runs free except six destructive
+// categories, which wait for the owner's seal (`server_destructive`, 🔏 `server.destructive` on `<CODE>:<server>`). Same rules as
+// Models.kt: camelCase here, snake_case on the wire. Servers and companies are data: nothing here counts them.
 
-/** One server the hub can reach (§26.4 `GET /infra/servers`): made by the provisioner, or an existing company server attached. */
+/** One server of the holding (§26.4 `GET /infra/servers`): made by the provisioner, or a company server paired through its runner. */
 @Serializable
 data class HubServer(
     val id: String,
@@ -28,41 +30,97 @@ data class HubServer(
     /** `provisioned` · `attached` */
     val origin: String = "attached",
     val privateIp: String = "",
-    /** The server's own work user the hub logs in as (`forex` on FX), never root. */
+    /** The server's own work user the runner runs as (`forex` on FX), never root. */
     val user: String = "",
-    /** `SHA256:…`, pinned at attach time; a different key is `409 host_key_changed` until the owner re-pins. */
-    val hostKeySha256: String = "",
-    /** `pending` · `reachable` · `unreachable` · `host_key_changed` */
+    /** What the runner reported at pairing (`coinepro-fx`). */
+    val hostname: String? = null,
+    /** The `hq-runner` version on the server (`0.1.0`). */
+    val runnerVersion: String? = null,
+    /** `pending` (approved, the runner has not taken its token yet) · `online` · `offline` · `revoked` */
     val state: String = "pending",
+    /** The runner's last poll. */
     val lastSeenAt: String? = null,
     /** When the latest `server.map` was taken; null before the first. */
     val mapAt: String? = null,
 ) {
-    val reachable: Boolean get() = state == "reachable"
+    /** The runner polls: jobs run on it. */
+    val online: Boolean get() = state == "online"
 
-    /** The step-up target of every seal scoped to this server (§26.3 writes `<CODE>:<server>` for `server.destructive`; the app uses the
-     *  same target for re-pinning and detaching, which §26.4 leaves unnamed). */
+    val revoked: Boolean get() = state == "revoked"
+
+    /** The step-up target of every seal scoped to this server (§26.3 `server.destructive`, §26.4 `server.detach`: `<CODE>:<server>`). */
     val target: String get() = "$company:$name"
 
-    /** `forex@10.10.1.2`, as the owner would type it. */
-    val login: String get() = if (user.isBlank()) privateIp else "$user@$privateIp"
+    /** `forex@coinepro-fx`, as the server's own shell prompt writes it (the private address when the runner sent no hostname). */
+    val login: String get() {
+        val host = hostname?.takeIf { it.isNotBlank() } ?: privateIp
+        return if (user.isBlank()) host else "$user@$host"
+    }
 }
 
-/** `201` of `POST /infra/servers/attach`: the server (pending) and the one line to add to the work user's `authorized_keys`. */
-data class AttachOut(val server: HubServer?, val publicKey: String)
-
+/** §26.4 `POST /runners/approve {user_code}` 🔏 `server.attach` on `company:<CODE>`. */
 @Serializable
-data class AttachIn(val company: String, val name: String, val privateIp: String, val user: String, val hostKeySha256: String)
+data class ApproveIn(val userCode: String)
 
-/** One call of a server tool, as the activity page and the Audit ledger keep it (§26.3: secrets masked by name and pattern). */
+/**
+ * The short code `hq-runner pair` prints on the server (§26.1, `ABCD-1234`): Latin letters and digits, two groups of four. The field
+ * formats as the owner types — Persian or Arabic digits become Latin, letters upper case, anything else dropped, the dash put in after
+ * the fourth character — so whatever the owner copies or reads off the server lands in the one shape the hub knows.
+ */
+object PairCode {
+    const val LENGTH = 8
+    private val VALID = Regex("^[A-Z0-9]{4}-[A-Z0-9]{4}$")
+
+    /** The code as typed so far, formatted: `abcd12` → `ABCD-12`. */
+    fun format(raw: String): String {
+        val chars = raw.mapNotNull { ch ->
+            when (ch) {
+                in '0'..'9', in 'A'..'Z' -> ch
+                in 'a'..'z' -> ch.uppercaseChar()
+                in '۰'..'۹' -> '0' + (ch - '۰')
+                in '٠'..'٩' -> '0' + (ch - '٠')
+                else -> null
+            }
+        }.take(LENGTH).joinToString("")
+        return if (chars.length > 4) chars.substring(0, 4) + "-" + chars.substring(4) else chars
+    }
+
+    fun valid(code: String): Boolean = VALID.matches(code)
+
+    /** Why the hub refused the code, in Persian, from the Problem's code (and its status when the code is not one of these). */
+    fun refusal(e: ApiException): String? = when {
+        e.code in EXPIRED || e.status == 410 -> "این کد منقضی شده؛ هر کد فقط ۱۵ دقیقه اعتبار دارد. روی سرور دوباره hq-runner pair را اجرا کن و کد تازه را بنویس."
+        e.code in UNKNOWN || e.status == 404 -> "این کد پیدا نشد. همان کدی را بنویس که hq-runner pair روی سرور نشان داد."
+        e.code in USED -> "این کد یک بار تأیید شده است؛ سرورش در فهرست هست."
+        e.code == "company_mismatch" -> "این کد برای شرکت دیگری ساخته شده؛ شرکت درست را انتخاب کن."
+        else -> null
+    }
+
+    private val EXPIRED = setOf("expired_token", "code_expired", "user_code_expired", "expired")
+    private val UNKNOWN = setOf("invalid_user_code", "unknown_user_code", "user_code_unknown", "invalid_code", "not_found")
+    private val USED = setOf("code_used", "already_approved", "user_code_used")
+
+    /** The command the server's own Claude runs (§26.1 step 1), the company's code filled in. */
+    fun pairCommand(company: String?): String = "hq-runner pair --company ${company?.takeIf { it.isNotBlank() } ?: "<CODE>"} --name <name>"
+}
+
+/**
+ * One row of a server's activity (§26.4 `GET …/activity`: a Page of jobs and their commands). A job (§26.2) carries `kind`, `args`,
+ * `state` and its times; a command inside a job (or the stream's `server.call`) carries `tool`, `cmd_masked` and `duration_ms`. Both are
+ * read into this one row; secrets are masked by name and pattern before the hub stores either (§26.3).
+ */
 @Serializable
 data class ServerCall(
     val id: String? = null,
     val at: String = "",
     val actor: Actor = Actor(),
-    /** `server.exec` · `server.read` · `server.write` · `server.claude` · `server.map` */
-    val tool: String = "server.exec",
-    val summaryFa: String = "",
+    /** `server.exec` · `server.read` · `server.write` · `server.claude` · `server.map`; a job names its `kind` instead. */
+    val tool: String? = null,
+    /** A job's kind: `map` · `exec` · `read` · `write` · `claude`. */
+    val kind: String? = null,
+    /** A job's arguments (`{cmd, cwd?, timeout_s, sudo?}` for `exec`, `{path}` for a file, `{cwd, brief}` for `claude`). */
+    val args: JsonObject? = null,
+    val summaryFa: String? = null,
     val cmdMasked: String? = null,
     /** Null while the call runs (and for a call waiting for the seal). */
     val exitCode: Int? = null,
@@ -72,8 +130,11 @@ data class ServerCall(
     /** The full transcript, owner-readable (§26.3). */
     val transcriptUrl: String? = null,
     val server: String? = null,
-    /** Not in §26.4's row; read when the hub sends it: `awaiting_seal` · `refused`. */
+    /** A job's `queued` · `running` · `awaiting_seal` · `done` · `failed` · `cancelled` (§26.2); a refused call may say `refused`. */
     val state: String? = null,
+    val createdAt: String? = null,
+    val startedAt: String? = null,
+    val finishedAt: String? = null,
 )
 
 /** §26.4 `GET/PUT /control/server-policy`: the categories that wait for the owner's seal; everything else runs free. */
@@ -104,7 +165,7 @@ val SEAL_CATEGORIES = listOf(
     SealCategory("volume_delete", "پاک کردن volume داده", "docker volume rm · docker compose down -v", "هر چه کانتینرها نگه داشته‌اند با volume میرود."),
     SealCategory("backup_delete", "پاک کردن پشتیبان", "rm -rf …/backups · restic forget --prune", "آخرین راه برگشت است."),
     SealCategory("disk_wipe", "پاک کردن یا پارتیشن کردن دیسک", "mkfs · fdisk · parted · wipefs", "کل دیسک و هر چه رویش است."),
-    SealCategory("access_change", "تغییر SSH، کاربرها یا فایروال همین سرور", "sshd_config · authorized_keys · userdel · passwd · ufw · iptables", "ممکن است راه ورود تو و هاب به سرور بسته شود."),
+    SealCategory("access_change", "تغییر SSH، کاربرها یا فایروال همین سرور", "sshd_config · authorized_keys · userdel · passwd · ufw · iptables", "ممکن است راه ورود خودت به سرور بسته شود."),
     SealCategory("server_delete", "حذف سرور", "Hetzner API · delete server", "سرور و هر چه رویش است میرود."),
 )
 
@@ -122,7 +183,8 @@ val SERVER_TOOL_FA = linkedMapOf(
     "server.map" to "نقشه",
 )
 
-enum class CallOutcome { OK, FAILED, RUNNING, AWAITING_SEAL, REFUSED }
+/** How a job or call stands (§26.2's job states, plus a refusal the hub answered before queueing). */
+enum class CallOutcome { QUEUED, RUNNING, AWAITING_SEAL, OK, FAILED, CANCELLED, REFUSED }
 
 /** One line of a server's activity as the app draws it, from the activity page or from the stream's `server.call` (summary only). */
 data class ServerCallRow(
@@ -139,23 +201,46 @@ data class ServerCallRow(
     val sessionRef: String?,
     val transcriptUrl: String?,
     val server: String?,
+    /** The folder the job runs in (`args.cwd`: a `claude` job's repository, an `exec`'s working directory). */
+    val cwd: String? = null,
 ) {
     val byOwner: Boolean get() = actor.kind == "owner"
+    /** Still to finish: in the queue, running, or held for the seal. */
+    val open: Boolean get() = outcome == CallOutcome.QUEUED || outcome == CallOutcome.RUNNING || outcome == CallOutcome.AWAITING_SEAL
 }
 
 private fun outcomeOf(exit: Int?, durationMs: Long?, state: String?, code: String?): CallOutcome = when {
     state == "awaiting_seal" || code == "awaiting_seal" -> CallOutcome.AWAITING_SEAL
-    state == "refused" || code == "company_locked" || code == "host_key_changed" || code == "deploy_frozen" -> CallOutcome.REFUSED
+    state == "refused" || code == "company_locked" || code == "deploy_frozen" -> CallOutcome.REFUSED
+    state == "queued" -> CallOutcome.QUEUED
+    state == "running" -> CallOutcome.RUNNING
+    state == "cancelled" -> CallOutcome.CANCELLED
+    state == "failed" -> CallOutcome.FAILED
+    state == "done" -> if (exit != null && exit != 0) CallOutcome.FAILED else CallOutcome.OK
     exit == null && durationMs == null -> CallOutcome.RUNNING
-    exit == 0 -> CallOutcome.OK
-    exit == null -> CallOutcome.OK
+    exit == null || exit == 0 -> CallOutcome.OK
     else -> CallOutcome.FAILED
 }
 
-fun callRow(c: ServerCall): ServerCallRow = ServerCallRow(
-    c.at, c.actor, c.tool, SERVER_TOOL_FA[c.tool] ?: c.tool, c.summaryFa, c.cmdMasked?.takeIf { it.isNotBlank() },
-    outcomeOf(c.exitCode, c.durationMs, c.state, null), c.exitCode, duration(c.durationMs), c.sessionRef, c.transcriptUrl, c.server,
-)
+private fun argStr(a: JsonObject?, k: String): String? = (a?.get(k) as? JsonPrimitive)?.takeIf { it !is JsonNull }?.contentOrNull?.takeIf { it.isNotBlank() }
+
+/** A job's duration from its times when the hub sent no `duration_ms`. */
+private fun spanMs(from: String?, to: String?): Long? {
+    val a = from?.let { runCatching { java.time.Instant.parse(it) }.getOrNull() } ?: return null
+    val b = to?.let { runCatching { java.time.Instant.parse(it) }.getOrNull() } ?: return null
+    return java.time.Duration.between(a, b).toMillis().takeIf { it >= 0 }
+}
+
+fun callRow(c: ServerCall): ServerCallRow {
+    val tool = c.tool ?: c.kind?.let { "server.$it" } ?: "server.exec"
+    val cmd = c.cmdMasked?.takeIf { it.isNotBlank() } ?: argStr(c.args, "cmd") ?: argStr(c.args, "path")
+    return ServerCallRow(
+        c.at.ifBlank { c.startedAt ?: c.createdAt.orEmpty() }, c.actor, tool, SERVER_TOOL_FA[tool] ?: tool,
+        c.summaryFa ?: argStr(c.args, "title") ?: "", cmd,
+        outcomeOf(c.exitCode, c.durationMs ?: spanMs(c.startedAt, c.finishedAt), c.state, null), c.exitCode,
+        duration(c.durationMs ?: spanMs(c.startedAt, c.finishedAt)), c.sessionRef, c.transcriptUrl, c.server, argStr(c.args, "cwd"),
+    )
+}
 
 /** The stream's `server.call` (§26.4: one per call, summary only); null for any other event. `actor` may be an Actor or its code. */
 fun callRow(e: StreamEvent): ServerCallRow? {
@@ -172,6 +257,7 @@ fun callRow(e: StreamEvent): ServerCallRow? {
     return ServerCallRow(
         e.at, actor, tool, SERVER_TOOL_FA[tool] ?: tool, d.str("summary_fa").orEmpty(), d.str("cmd_masked")?.takeIf { it.isNotBlank() },
         outcomeOf(exit, ms, d.str("state"), d.str("code")), exit, duration(ms), d.str("session_ref"), d.str("transcript_url"), d.str("server") ?: e.ref,
+        d.str("cwd"),
     )
 }
 
@@ -234,80 +320,6 @@ fun sealCardOf(d: Decision): SealCard? {
         p.str("cmd") ?: p.str("cmd_masked") ?: p.str("command") ?: "", p.str("cwd"), p.str("tool") ?: "server.exec", actor,
         p.str("session_ref"), p.str("detected_by"), p.str("pattern"), d.status == "pending", d.createdAt, d.expiresAt,
     )
-}
-
-// ------------------------------------------------------------------ attaching a server (§26.4) --
-/** The checks the app makes before `POST /infra/servers/attach`; the hub checks again. Keys are the wire names, so a `422`'s `fields`
- *  land on the same fields. */
-object AttachRules {
-    /** The hub's own private address: never attached to itself. */
-    const val HUB_IP = "10.10.1.4"
-
-    private val NAME = Regex("^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$")
-    private val USER = Regex("^[a-z_][a-z0-9_-]{0,31}$")
-    private val FINGERPRINT = Regex("SHA256:([A-Za-z0-9+/]{43})=?")
-
-    fun ipv4(s: String): IntArray? {
-        val parts = s.trim().split('.')
-        if (parts.size != 4) return null
-        val out = IntArray(4)
-        for ((i, p) in parts.withIndex()) {
-            if (p.isEmpty() || p.length > 3 || !p.all(Char::isDigit) || (p.length > 1 && p[0] == '0')) return null
-            out[i] = p.toInt().takeIf { it in 0..255 } ?: return null
-        }
-        return out
-    }
-
-    /** RFC 1918: 10/8, 172.16/12, 192.168/16 (the Hetzner private network is one of them). */
-    fun isPrivate(ip: String): Boolean {
-        val a = ipv4(ip) ?: return false
-        return a[0] == 10 || (a[0] == 172 && a[1] in 16..31) || (a[0] == 192 && a[1] == 168)
-    }
-
-    /** The `SHA256:…` fingerprint inside whatever the owner pasted (`ssh-keygen -lf` prints `256 SHA256:… root@fx (ED25519)`); null when
-     *  there is none. The base64 of 32 bytes is 43 characters without its padding. */
-    fun hostKey(raw: String): String? = FINGERPRINT.find(raw.trim())?.let { "SHA256:" + it.groupValues[1] }
-
-    /** Every field's problem in Persian; empty when the form can be sent. */
-    fun validate(f: AttachIn, existing: List<HubServer> = emptyList()): Map<String, String> {
-        val e = linkedMapOf<String, String>()
-        if (f.company.isBlank()) e["company"] = "شرکت را انتخاب کن."
-        val name = f.name.trim()
-        when {
-            name.isEmpty() -> e["name"] = "یک نام کوتاه لاتین بده؛ مثلاً fx-main."
-            !NAME.matches(name) -> e["name"] = "فقط حروف کوچک لاتین، عدد و خط تیره؛ ۳ تا ۳۲ نویسه."
-            existing.any { it.company == f.company && it.name == name } -> e["name"] = "این شرکت سروری با همین نام دارد."
-        }
-        val ip = f.privateIp.trim()
-        when {
-            ip.isEmpty() -> e["private_ip"] = "آدرس خصوصی سرور را بنویس؛ مثلاً 10.10.1.2."
-            ipv4(ip) == null -> e["private_ip"] = "این یک آدرس IPv4 درست نیست."
-            !isPrivate(ip) -> e["private_ip"] = "فقط آدرس شبکه‌ی خصوصی (10.x، 172.16–31.x، 192.168.x)؛ هاب از اینترنت به سرور شرکت وصل نمیشود."
-            ip == HUB_IP -> e["private_ip"] = "این آدرس خود هاب است."
-            existing.any { it.privateIp == ip } -> e["private_ip"] = "سروری با همین آدرس از قبل وصل است."
-        }
-        val user = f.user.trim()
-        when {
-            user.isEmpty() -> e["user"] = "کاربر کاری سرور را بنویس؛ مثلاً forex."
-            user == "root" -> e["user"] = "هاب با root وارد نمیشود؛ کاربر کاری همان سرور را بده."
-            !USER.matches(user) -> e["user"] = "نام کاربر لینوکس: حروف کوچک لاتین، عدد، _ و -."
-        }
-        when {
-            f.hostKeySha256.isBlank() -> e["host_key_sha256"] = "اثر کلید میزبان را بچسبان؛ خروجی ssh-keygen -lf روی همان سرور."
-            hostKey(f.hostKeySha256) == null -> e["host_key_sha256"] = "باید به شکل SHA256: و ۴۳ نویسه باشد."
-        }
-        return e
-    }
-
-    /** The line the server's work user adds to `~/.ssh/authorized_keys`, with the restrictions of COMPANY_SERVER_ACCESS_SETUP.md: the
-     *  hub's `public_key` as sent when it already carries its options, else those options in front of it. */
-    fun authorizedLine(publicKey: String): String {
-        val k = publicKey.trim()
-        return if (k.startsWith("ssh-") || k.startsWith("ecdsa-")) "from=\"$HUB_IP\",no-agent-forwarding,no-X11-forwarding,no-port-forwarding $k" else k
-    }
-
-    /** The body as sent: trimmed, the fingerprint normalised. */
-    fun body(f: AttachIn): AttachIn = AttachIn(f.company.trim(), f.name.trim(), f.privateIp.trim(), f.user.trim(), hostKey(f.hostKeySha256) ?: f.hostKeySha256.trim())
 }
 
 // ------------------------------------------------------------------ the owner's terminal (§26.4 exec) --
@@ -497,13 +509,14 @@ data class DiskUsage(val label: String, val usedBytes: Long, val totalBytes: Lon
     val pct: Double get() = if (totalBytes <= 0) 0.0 else (usedBytes * 100.0 / totalBytes).coerceIn(0.0, 100.0)
 }
 
-data class MapContainer(val name: String, val image: String?, val state: String, val status: String?, val project: String?)
+data class MapContainer(val name: String, val image: String?, val state: String, val status: String?, val project: String?, val health: String? = null)
 data class MapCompose(val project: String, val dir: String?, val services: Int?, val running: Int?)
 data class MapUnit(val name: String, val state: String?, val description: String?)
 data class MapTimer(val unit: String, val next: String?, val last: String?, val activates: String?)
 data class MapCron(val schedule: String, val command: String, val user: String?)
-data class MapPort(val port: Int, val proto: String, val address: String?, val process: String?)
-data class MapRepo(val path: String, val remote: String?, val branch: String?, val head: String?, val dirty: Boolean?)
+/** [public]: §26.5 says whether the port is open beyond the machine; null when the map did not say (the address decides). */
+data class MapPort(val port: Int, val proto: String, val address: String?, val process: String?, val public: Boolean? = null)
+data class MapRepo(val path: String, val remote: String?, val branch: String?, val head: String?, val dirty: Boolean?, val lastCommitAt: String? = null)
 data class MapAutomation(val kind: String, val name: String, val active: Boolean?, val detail: String?)
 data class MapSite(val domain: String, val upstream: String?, val tls: Boolean?, val server: String?)
 
@@ -576,6 +589,11 @@ object ServerMaps {
         }
         val kernel = (osEl as? JsonObject)?.s("kernel") ?: o.s("kernel")
         val systemd = o["systemd"] as? JsonObject
+        // §26.5: `systemd` is one list, each entry a unit or (`timer: true`) a timer.
+        val systemdList = (o["systemd"] as? JsonArray).orEmpty()
+        val isTimer = { e: JsonElement -> ((e as? JsonObject)?.get("timer") as? JsonPrimitive)?.booleanOrNull == true }
+        val cpu = o["cpu"] as? JsonObject
+        val mem = (o["memory"] ?: o["mem"] ?: o["ram"]) as? JsonObject
         val n8n = o["n8n"]
         return ServerMap(
             at = at,
@@ -584,7 +602,8 @@ object ServerMaps {
             kernel = kernel,
             cpus = (o["cpus"] as? JsonPrimitive)?.intOrNull ?: (o["cpu"] as? JsonObject)?.let { (it["cores"] as? JsonPrimitive)?.intOrNull ?: (it["count"] as? JsonPrimitive)?.intOrNull },
             uptimeS = (o["uptime_s"] as? JsonPrimitive)?.longOrNull ?: (o["uptime"] as? JsonPrimitive)?.longOrNull,
-            load = (o["load"] as? JsonPrimitive)?.doubleOrNull ?: ((o["load"] as? JsonArray)?.firstOrNull() as? JsonPrimitive)?.doubleOrNull,
+            load = (o["load"] as? JsonPrimitive)?.doubleOrNull ?: ((o["load"] as? JsonArray)?.firstOrNull() as? JsonPrimitive)?.doubleOrNull
+                ?: (cpu?.get("load1") as? JsonPrimitive)?.doubleOrNull,
             disks = (o["disks"] ?: o["disk"]).let { d ->
                 when (d) {
                     is JsonArray -> d.mapNotNull { usage(it as? JsonObject, "/") }
@@ -592,12 +611,17 @@ object ServerMaps {
                     else -> emptyList()
                 }
             },
-            memory = usage((o["memory"] ?: o["mem"] ?: o["ram"]) as? JsonObject, "RAM"),
-            swap = usage(o["swap"] as? JsonObject ?: (o["memory"] as? JsonObject)?.get("swap") as? JsonObject, "swap")?.takeIf { it.totalBytes > 0 },
+            memory = usage(mem, "RAM"),
+            swap = (usage(o["swap"] as? JsonObject ?: mem?.get("swap") as? JsonObject, "swap") ?: mem?.let { m ->
+                // §26.5 writes swap beside the memory: `swap_total_mb`, `swap_used_mb`.
+                val total = m.mb("swap_total_mb") ?: return@let null
+                DiskUsage("swap", (m.mb("swap_used_mb") ?: 0L).coerceAtLeast(0), total)
+            })?.takeIf { it.totalBytes > 0 },
             containers = list(o["containers"] ?: (o["docker"] as? JsonObject)?.get("containers")).mapNotNull(::container),
             compose = list(o["compose"] ?: o["compose_projects"] ?: (o["docker"] as? JsonObject)?.get("compose")).mapNotNull(::compose),
-            units = list(systemd?.get("units") ?: systemd?.get("services") ?: o["units"] ?: o["services"]).mapNotNull(::unit),
-            timers = list(systemd?.get("timers") ?: o["timers"]).mapNotNull(::timer),
+            units = list(systemd?.get("units") ?: systemd?.get("services") ?: o["units"] ?: o["services"]).mapNotNull(::unit) +
+                systemdList.filterNot(isTimer).mapNotNull(::unit),
+            timers = list(systemd?.get("timers") ?: o["timers"]).mapNotNull(::timer) + systemdList.filter(isTimer).mapNotNull(::timer),
             cron = list(o["cron"] ?: o["crontab"]).mapNotNull(::cron),
             ports = list(o["ports"] ?: o["listening"]).mapNotNull(::port).distinctBy { "${it.port}/${it.proto}/${it.address}" }.sortedBy { it.port },
             repos = list(o["repos"] ?: o["repositories"]).mapNotNull(::repo),
@@ -638,7 +662,7 @@ object ServerMaps {
         val labels = o["labels"] as? JsonObject
         val status = o.s("status")
         val state = o.s("state") ?: status?.let { if (it.startsWith("Up", true)) "running" else "exited" } ?: "unknown"
-        return MapContainer(name.removePrefix("/"), o.s("image"), state.lowercase(), status, o.s("compose_project") ?: o.s("project") ?: labels?.s("com.docker.compose.project"))
+        return MapContainer(name.removePrefix("/"), o.s("image"), state.lowercase(), status, o.s("compose_project") ?: o.s("project") ?: labels?.s("com.docker.compose.project"), o.s("health"))
     }
 
     private fun compose(e: JsonElement): MapCompose? {
@@ -675,7 +699,7 @@ object ServerMaps {
             else if (parts.size > 5) MapCron(parts.take(5).joinToString(" "), parts.drop(5).joinToString(" "), null) else null
         }
         val o = e as? JsonObject ?: return null
-        val cmd = o.s("command") ?: o.s("cmd") ?: return null
+        val cmd = o.s("cmd_masked") ?: o.s("command") ?: o.s("cmd") ?: return null
         return MapCron(o.s("schedule") ?: o.s("when") ?: "?", cmd, o.s("user"))
     }
 
@@ -691,7 +715,7 @@ object ServerMaps {
         }
         val o = e as? JsonObject ?: return null
         val port = o.i("port") ?: return null
-        return MapPort(port, o.s("proto") ?: o.s("protocol") ?: "tcp", o.s("address") ?: o.s("bind") ?: o.s("host"), o.s("process") ?: o.s("program") ?: o.s("service"))
+        return MapPort(port, o.s("proto") ?: o.s("protocol") ?: "tcp", o.s("address") ?: o.s("bind") ?: o.s("host"), o.s("process") ?: o.s("program") ?: o.s("service"), o.b("public"))
     }
 
     private fun repo(e: JsonElement): MapRepo? {
@@ -703,7 +727,7 @@ object ServerMaps {
             is JsonObject -> r.s("origin") ?: r.values.firstOrNull()?.text()
             else -> null
         }
-        return MapRepo(path, remote, o.s("branch"), (o.s("head") ?: o.s("commit"))?.take(12), o.b("dirty"))
+        return MapRepo(path, remote, o.s("branch"), (o.s("head") ?: o.s("commit"))?.take(12), o.b("dirty"), o.s("last_commit_at"))
     }
 
     private fun automation(e: JsonElement, kind: String?): MapAutomation? {
@@ -723,11 +747,12 @@ object ServerMaps {
 
 // ------------------------------------------------------------------ codes (§26, §14) --
 private val CODE_FA_21 = mapOf(
-    "host_key_changed" to "کلید میزبان این سرور عوض شده؛ تا دوباره pin نکنی هیچ فرمانی اجرا نمیشود.",
     "company_locked" to "کلید توقف این شرکت زده شده؛ هر کاری روی سرورهایش ایستاده است.",
     "deploy_frozen" to "deploy این شرکت بسته است؛ فرمان‌های انتشار رد میشوند.",
     "awaiting_seal" to "این کار ویرانگر است و منتظر مُهر تو ماند.",
-    "server_unreachable" to "هاب الان به این سرور نمیرسد.",
+    "server_offline" to "runner این سرور الان آفلاین است؛ تا دوباره تماس نگیرد کاری رویش اجرا نمیشود.",
+    "server_unreachable" to "runner این سرور الان آفلاین است؛ تا دوباره تماس نگیرد کاری رویش اجرا نمیشود.",
+    "runner_revoked" to "runner این سرور باطل شده؛ برای کار دوباره، روی سرور از نو جفتش کن.",
 )
 
 /** A §26 refusal in Persian (the hub's sentence for any other code). */

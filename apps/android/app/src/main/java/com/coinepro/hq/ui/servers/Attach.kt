@@ -4,6 +4,10 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,7 +17,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,15 +32,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.coinepro.hq.core.net.ApiException
-import com.coinepro.hq.core.net.AttachIn
-import com.coinepro.hq.core.net.AttachOut
-import com.coinepro.hq.core.net.AttachRules
 import com.coinepro.hq.core.net.HubServer
+import com.coinepro.hq.core.net.PairCode
 import com.coinepro.hq.core.net.serverError
 import com.coinepro.hq.designsystem.BtnSize
 import com.coinepro.hq.designsystem.BtnVariant
@@ -43,7 +57,6 @@ import com.coinepro.hq.designsystem.Divan
 import com.coinepro.hq.designsystem.FilterChip
 import com.coinepro.hq.designsystem.HqButton
 import com.coinepro.hq.designsystem.HqCard
-import com.coinepro.hq.designsystem.HqTextField
 import com.coinepro.hq.designsystem.PageHeader
 import com.coinepro.hq.designsystem.fig
 import com.coinepro.hq.designsystem.generated.DivanIcon
@@ -56,136 +69,169 @@ import com.coinepro.hq.ui.rememberAction
 import com.coinepro.hq.ui.rememberCompanies
 import kotlinx.coroutines.delay
 
-/** «وصل کردن سرور» (§26.4 `POST /infra/servers/attach`, 🔏 `server.attach` on `company:<CODE>`): who, where, as whom and its host key; then
- *  the hub's public key line to hand to that server's own Claude; then the wait until the hub reaches it. */
+/**
+ * «وصل کردن سرور» (§26.1, device-authorisation pairing): on the server, its own Claude installs `hq-runner` and runs `hq-runner pair`,
+ * which prints a short code; the owner types that code here and approves it with the passkey (`POST /runners/approve {user_code}`,
+ * 🔏 `server.attach` on `company:<CODE>`). Then the new server, waiting until its runner takes its token and turns `online`. Nothing secret
+ * is shown: no key, no token, no address to open.
+ */
 @Composable
-fun AttachScreen(company0: String? = null, form0: AttachIn? = null, out0: AttachOut? = null, tried0: Boolean = false) {
+fun AttachScreen(company0: String? = null, code0: String = "", error0: String? = null, out0: HubServer? = null) {
     var out by remember { mutableStateOf(out0) }
-    val servers = rememberServers()
-    val reached = out?.server?.id?.let { id -> servers.data?.firstOrNull { it.id == id }?.reachable } == true
     Page {
         item(key = "header") { PageHeader("وصل کردن سرور", eyebrow = "سرور یک شرکت، زیر کنترل ستاد") }
-        item(key = "steps") { Steps(if (out == null) 1 else if (reached) 3 else 2) }
         item(key = "body") {
             val o = out
-            if (o == null) AttachForm(company0, form0, tried0) { out = it } else KeyStep(o)
+            if (o == null) PairForm(company0, code0, error0) { out = it } else WaitStep(o)
         }
     }
 }
 
+/** One numbered step of the three: done ones gold. */
 @Composable
-private fun Steps(at: Int) {
+private fun StepRow(n: Int, done: Boolean, content: @Composable () -> Unit) {
     val c = Divan.colors
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        listOf("نشانی و کلید میزبان", "کلید هاب روی سرور", "در دسترس").forEachIndexed { i, t ->
-            val n = i + 1
-            Box(Modifier.size(22.dp).clip(CircleShape).background(if (n <= at) c.goldFill else c.tile), contentAlignment = Alignment.Center) {
-                Text("$n", style = Divan.type.micro.copy(fontWeight = FontWeight.Bold), color = if (n <= at) c.onGold else c.textMuted)
-            }
-            Text(t, style = Divan.type.micro, color = if (n == at) c.textPrimary else c.textMuted, maxLines = 1)
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+        Box(Modifier.padding(top = 1.dp).size(22.dp).clip(CircleShape).background(if (done) c.goldFill else c.tile), contentAlignment = Alignment.Center) {
+            Text("$n", style = Divan.type.micro.copy(fontWeight = FontWeight.Bold), color = if (done) c.onGold else c.textMuted)
         }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) { content() }
     }
 }
 
 @Composable
-private fun AttachForm(company0: String?, form0: AttachIn?, tried0: Boolean, onDone: (AttachOut) -> Unit) {
+private fun PairForm(company0: String?, code0: String, error0: String?, onDone: (HubServer) -> Unit) {
     val env = LocalEnv.current
     val toasts = LocalToasts.current
     val act = activity()
+    val ctx = LocalContext.current
     val c = Divan.colors
     val companies = rememberCompanies().filter { it.kind != "holding" && it.status != "archived" }
-    val existing = rememberServers().data.orEmpty()
     val action = rememberAction()
-    var company by rememberSaveable { mutableStateOf(form0?.company ?: company0) }
-    var name by rememberSaveable { mutableStateOf(form0?.name.orEmpty()) }
-    var ip by rememberSaveable { mutableStateOf(form0?.privateIp.orEmpty()) }
-    var user by rememberSaveable { mutableStateOf(form0?.user.orEmpty()) }
-    var key by rememberSaveable { mutableStateOf(form0?.hostKeySha256.orEmpty()) }
-    var tried by rememberSaveable { mutableStateOf(tried0) }
-    var server by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
-    val form = AttachIn(company.orEmpty(), name, ip, user, key)
-    val errors = AttachRules.validate(form, existing) + server
-    fun err(k: String) = if (tried || (k != "company" && fieldOf(form, k).isNotBlank())) errors[k] else null
+    var company by rememberSaveable { mutableStateOf(company0) }
+    var code by rememberSaveable { mutableStateOf(PairCode.format(code0)) }
+    var error by rememberSaveable { mutableStateOf(error0) }
+    val cmd = PairCode.pairCommand(company)
+    val ready = company != null && PairCode.valid(code)
 
     HqCard(Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("کدام شرکت", style = Divan.type.caption, color = c.textMuted)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (co in companies) FilterChip(co.nameFa ?: co.code, company == co.code, { company = co.code; server = server - "company" })
+                for (co in companies) FilterChip(co.nameFa ?: co.code, company == co.code, { company = co.code; error = null })
             }
-            err("company")?.let { FieldError(it) }
-            Field("نام سرور", name, { name = it.lowercase(); server = server - "name" }, "fx-main", err("name"))
-            Field("آدرس خصوصی", ip, { ip = it; server = server - "private_ip" }, "10.10.1.2", err("private_ip"))
-            Field("کاربر کاری", user, { user = it; server = server - "user" }, "forex", err("user"))
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("اثر کلید میزبان", style = Divan.type.caption, color = c.textMuted)
-                Text("روی خود سرور، خروجی این را بچسبان (کل خط هم قبول است):", style = Divan.type.micro, color = c.textMuted)
-                CopyBox("ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub", prefix = "$ ")
-                Ltr { HqTextField(key, { key = it; server = server - "host_key_sha256" }, "SHA256:…", Modifier.fillMaxWidth(), singleLine = false, minLines = 2, figure = true) }
-                AttachRules.hostKey(key)?.let { Text(buildAnnotatedString { append("خوانده شد: "); fig(it) }, style = Divan.type.micro, color = c.positive) }
-                err("host_key_sha256")?.let { FieldError(it) }
+            StepRow(1, done = true) {
+                Text(isolated("روی سرور: Claude همان سرور hq-runner را طبق COMPANY_SERVER_ACCESS_SETUP.md با کاربر کاری‌اش نصب میکند."), style = Divan.type.small, color = c.textPrimary)
+                HqButton("فرستادن به Claude سرور", {
+                    val text = "طبق COMPANY_SERVER_ACCESS_SETUP.md از ریپوی ستاد، hq-runner را با کاربر کاری همین سرور نصب کن و بعد این را اجرا کن؛ کدی را که نشان میدهد به من بگو:\n\n$cmd"
+                    ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), "فرستادن به Claude سرور"))
+                }, variant = BtnVariant.SECONDARY, size = BtnSize.SM, icon = DivanIcon.SHARE)
+            }
+            StepRow(2, done = true) {
+                Text("همان‌جا جفت میکند و یک کد کوتاه نشان میدهد:", style = Divan.type.small, color = c.textPrimary)
+                CopyBox(cmd, prefix = "$ ", wrap = true)
+            }
+            StepRow(3, done = ready) {
+                Text("کد را اینجا بنویس و با گذرکلید تأیید کن.", style = Divan.type.small, color = c.textPrimary)
+                CodeField(code, { code = it; error = null }, error != null)
+                when {
+                    error != null -> FieldError(error!!)
+                    code.isNotEmpty() && !PairCode.valid(code) -> Text(isolated("هشت حرف و رقم لاتین، مثل ABCD-1234"), style = Divan.type.caption, color = c.textMuted)
+                    company == null && code.isNotEmpty() -> Text("شرکتی را که کد برایش ساخته شده انتخاب کن.", style = Divan.type.caption, color = c.textMuted)
+                }
             }
         }
     }
     HqButton(
-        "با گذرکلید وصل کن", {
-            tried = true
-            if (AttachRules.validate(form, existing).isEmpty()) action.run(onError = { e: ApiException ->
-                if (e.fields.isNotEmpty()) server = e.fields
-                toasts.error(serverError(e))
+        "تأیید با گذرکلید", {
+            val co = company ?: return@HqButton
+            action.run(onError = { e: ApiException ->
+                val why = PairCode.refusal(e)
+                if (why != null) error = why else toasts.error(serverError(e))
             }) {
-                val o = env.api.attachServer(AttachRules.body(form)) { a, t -> env.auth.stepUp(act, a, t) }
+                val s = env.api.approveRunner(co, code) { a, t -> env.auth.stepUp(act, a, t) }
                 env.cache.invalidate("servers")
-                onDone(o)
+                onDone(s)
             }
         },
-        Modifier.fillMaxWidth().padding(top = 14.dp), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.SEAL, loading = action.busy,
+        Modifier.fillMaxWidth().padding(top = 14.dp), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.SEAL, enabled = ready, loading = action.busy,
     )
-    Text("هاب فقط از شبکه‌ی خصوصی و با کاربر کاری همان سرور وارد میشود؛ کلید میزبان همین حالا pin میشود و اگر روزی عوض شود هیچ فرمانی اجرا نمیشود.", Modifier.padding(top = 10.dp), style = Divan.type.micro, color = c.textMuted)
+    Text(
+        isolated("runner خودش با HTTPS به هاب وصل میشود؛ هاب به سرور وارد نمیشود، پورتی باز نمیشود و هیچ رمز یا کلیدی از اینجا رد نمیشود. هر کد ۱۵ دقیقه اعتبار دارد."),
+        Modifier.padding(top = 10.dp), style = Divan.type.micro, color = c.textMuted,
+    )
 }
 
-private fun fieldOf(f: AttachIn, k: String): String = when (k) {
-    "name" -> f.name; "private_ip" -> f.privateIp; "user" -> f.user; "host_key_sha256" -> f.hostKeySha256; else -> f.company
-}
-
+/** The code, typed as the server shows it: Latin, upper case, the dash put in after the fourth character, the cursor kept at the end. */
 @Composable
-private fun Field(label: String, value: String, onChange: (String) -> Unit, example: String, error: String?) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(label, style = Divan.type.caption, color = Divan.colors.textMuted)
-        Ltr { HqTextField(value, { onChange(it.trim()) }, example, Modifier.fillMaxWidth(), figure = true, maxLength = 64) }
-        error?.let { FieldError(it) }
+private fun CodeField(code: String, onChange: (String) -> Unit, bad: Boolean) {
+    val c = Divan.colors
+    val src = remember { MutableInteractionSource() }
+    val focused by src.collectIsFocusedAsState()
+    val shape = RoundedCornerShape(12.dp)
+    var tfv by remember { mutableStateOf(TextFieldValue(code, TextRange(code.length))) }
+    if (tfv.text != code) tfv = TextFieldValue(code, TextRange(code.length))
+    val style = Divan.type.figureM.copy(color = c.textPrimary, textAlign = TextAlign.Center, letterSpacing = 3.sp)
+    Ltr {
+        BasicTextField(
+            value = tfv,
+            onValueChange = {
+                val f = PairCode.format(it.text)
+                // As typed when nothing changed; formatted (a dash in, a letter up), the cursor goes to the end.
+                tfv = if (f == it.text) it else TextFieldValue(f, TextRange(f.length))
+                if (f != code) onChange(f)
+            },
+            modifier = Modifier.fillMaxWidth().semantics { contentDescription = "کد جفت‌سازی" },
+            singleLine = true,
+            interactionSource = src,
+            textStyle = style,
+            cursorBrush = SolidColor(c.goldInk),
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, autoCorrectEnabled = false, keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Done),
+            decorationBox = { inner ->
+                Box(
+                    Modifier.fillMaxWidth().clip(shape).background(c.tile)
+                        .border(if (focused || bad) 1.5.dp else 1.dp, if (bad) c.negative else if (focused) c.goldInk else c.lineStrong, shape)
+                        .padding(horizontal = 12.dp, vertical = 14.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (code.isEmpty()) Text("ABCD-1234", style = style.copy(color = c.textMuted))
+                    inner()
+                }
+            },
+        )
     }
 }
 
 @Composable
 private fun FieldError(text: String) = Text(isolated(text), style = Divan.type.caption, color = Divan.colors.negative)
 
-private val LATIN_RUN = Regex("[A-Za-z0-9][A-Za-z0-9.:/_\\-–]*")
+private const val LATIN_WORD = "[A-Za-z0-9](?:[A-Za-z0-9.:/_\\-–]*[A-Za-z0-9])?"
+private val LATIN_RUN = Regex("$LATIN_WORD(?: $LATIN_WORD)*")
 
-/** A Persian sentence with addresses and keys in it ("10.x", "SHA256:"): each Latin run set Latin and isolated left to right, so the
- *  bidi algorithm never turns `SHA256:` into `256:SHA`. */
+/** A Persian sentence with commands and file names in it ("hq-runner status", "SETUP.md"): each Latin run — several words of a command
+ *  together, a sentence's full stop left out — set Latin and isolated left to right, so the bidi algorithm never reorders it. */
 internal fun isolated(text: String): androidx.compose.ui.text.AnnotatedString = buildAnnotatedString {
     var last = 0
     for (m in LATIN_RUN.findAll(text)) {
         append(text.substring(last, m.range.first))
-        fig("\u2066${m.value}\u2069")
+        fig("⁦${m.value}⁩")
         last = m.range.last + 1
     }
     append(text.substring(last))
 }
 
-/** An address, a user or a key: typed and read left to right inside the right-to-left form. */
+/** A command or a code: typed and read left to right inside the right-to-left form. */
 @Composable
 private fun Ltr(content: @Composable () -> Unit) =
     androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Ltr, content = content)
 
 /** Text the owner copies to hand on: left to right, monospace, wrapped, one tap copies it. */
 @Composable
-fun CopyBox(text: String, prefix: String? = null) {
+fun CopyBox(text: String, prefix: String? = null, wrap: Boolean = prefix == null) {
     val ctx = LocalContext.current
     val toasts = LocalToasts.current
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        CodeBlock(text, prefix = prefix, wrap = prefix == null)
+        CodeBlock(text, prefix = prefix, wrap = wrap)
         HqButton("کپی", {
             (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("hq", text))
             toasts.ok("کپی شد.")
@@ -193,44 +239,42 @@ fun CopyBox(text: String, prefix: String? = null) {
     }
 }
 
+/** After the approval: the new server as the hub now lists it, and the wait until its runner polls and turns `online`. */
 @Composable
-private fun KeyStep(o: AttachOut) {
+private fun WaitStep(o: HubServer) {
     val env = LocalEnv.current
     val nav = LocalNav.current
-    val ctx = LocalContext.current
     val c = Divan.colors
     val servers = rememberServers()
-    val line = AttachRules.authorizedLine(o.publicKey)
-    val now: HubServer? = servers.data?.firstOrNull { it.id == o.server?.id } ?: o.server
-    val reachable = now?.reachable == true
-    // The hub tries to reach the server on its own; the app asks again every few seconds until it can.
-    LaunchedEffect(reachable) {
-        while (!reachable) { delay(3_000); env.cache.invalidate("servers") }
+    val now: HubServer = servers.data?.firstOrNull { it.id == o.id } ?: o
+    val online = now.online
+    // The runner takes its token on its next poll (every few seconds); the app asks again until the server is online.
+    LaunchedEffect(online) {
+        while (!online) { delay(3_000); env.cache.invalidate("servers") }
     }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        HqCard(Modifier.fillMaxWidth()) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("کلید هاب برای ${now?.name ?: "این سرور"}", style = Divan.type.bodyStrong)
-                Text("این را به Claude همان سرور بده همراه فایل COMPANY_SERVER_ACCESS_SETUP.md", style = Divan.type.small, color = c.textPrimary)
-                CopyBox(line)
-                Text("این کلید عمومی است، نه رمز؛ کلید خصوصی‌اش فقط در OpenBao هاب میماند. Claude آن سرور آن را به authorized_keys کاربر ${now?.user ?: "کاری"} اضافه میکند و گزارش میدهد.", style = Divan.type.micro, color = c.textMuted)
-                HqButton("فرستادن به Claude", {
-                    val text = "این کلید هاب ستاد است؛ طبق COMPANY_SERVER_ACCESS_SETUP.md به authorized_keys کاربر ${now?.user.orEmpty()} اضافه کن:\n\n$line"
-                    ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), "فرستادن کلید"))
-                }, variant = BtnVariant.SECONDARY, size = BtnSize.SM, icon = DivanIcon.SHARE)
+        HqCard(Modifier.fillMaxWidth(), color = c.softPositive) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                DIcon(DivanIcon.SEAL, size = 20.dp, tint = c.positive)
+                Text(buildAnnotatedString { append("کد تأیید شد؛ "); fig(now.name); append(" به ستاد پیوست.") }, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
             }
         }
-        HqCard(Modifier.fillMaxWidth(), color = if (reachable) c.softPositive else c.card) {
+        ServerCard(now, locked = rememberLocked(now.company), showCompany = true) { nav.go("servers/${now.id}") }
+        HqCard(Modifier.fillMaxWidth(), color = if (online) c.softPositive else c.card) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (reachable) DIcon(DivanIcon.SEAL, size = 22.dp, tint = c.positive)
+                if (online) DIcon(DivanIcon.SEAL, size = 22.dp, tint = c.positive)
                 else if (!com.coinepro.hq.designsystem.LocalReducedMotion.current) CircularProgressIndicator(Modifier.size(20.dp), color = c.goldInk, strokeWidth = 2.dp)
                 else DIcon(DivanIcon.TIME, size = 20.dp, tint = c.goldInk)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(if (reachable) "وصل شد؛ ${now?.name} در دسترس است" else "منتظرم هاب به سرور برسد…", style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold))
-                    Text(if (reachable) "اولین نقشه گرفته شد؛ ایجنت‌ها از همین حالا میتوانند رویش کار کنند." else "همین که کلید روی سرور نشست، اینجا خودش «در دسترس» میشود. لازم نیست صفحه باز بماند.", style = Divan.type.caption, color = c.textSecondary)
+                    Text(if (online) "آنلاین شد" else "منتظرم runner تماس بگیرد…", style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold))
+                    Text(
+                        if (online) "runner کار میگیرد و اولین نقشه گرفته میشود؛ ایجنت‌ها از همین حالا میتوانند رویش کار کنند."
+                        else "runner در تماس بعدی‌اش اعتبار خودش را میگیرد و سرور «آنلاین» میشود، معمولاً در چند ثانیه. لازم نیست صفحه باز بماند.",
+                        style = Divan.type.caption, color = c.textSecondary,
+                    )
                 }
             }
-            if (reachable && now != null) HqButton("باز کردن سرور", { nav.go("servers/${now.id}") }, Modifier.fillMaxWidth().padding(top = 12.dp), variant = BtnVariant.PRIMARY, icon = DivanIcon.SERVER)
+            if (online) HqButton("باز کردن سرور", { nav.go("servers/${now.id}") }, Modifier.fillMaxWidth().padding(top = 12.dp), variant = BtnVariant.PRIMARY, icon = DivanIcon.SERVER)
         }
     }
 }

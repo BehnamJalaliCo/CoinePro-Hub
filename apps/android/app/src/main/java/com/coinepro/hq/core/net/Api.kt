@@ -1189,7 +1189,7 @@ class Api(
     suspend fun auditVerify(): AuditVerify = get("/audit/verify")
 
     // ------------------------------------------- company servers ⟨1.8⟩ (§26) --
-    /** Every server the hub reaches, provisioned or attached; [company] narrows on the phone (§26.4 names no filter). A bare list or a Page. */
+    /** Every server of the holding, provisioned or paired through its runner; [company] narrows on the phone (§26.4 names no filter). A bare list or a Page. */
     suspend fun servers(company: String? = null): List<HubServer> =
         listAny("/infra/servers", emptyMap(), HubServer.serializer()).filter { company == null || it.company == company }
 
@@ -1198,7 +1198,7 @@ class Api(
         ServerMaps.parse(get<JsonElement>("/infra/servers/${seg(id)}/map"))
     }
 
-    /** Takes a fresh map. A hub that answers `202` (mapping in the background) gives no map yet: null, and `server.state` follows. */
+    /** Queues a `map` job (§26.4). A hub that answers `202` (the runner maps in the background) gives no map yet: null, and `server.state` follows. */
     suspend fun refreshMap(id: String): ServerMap? {
         val req = write("POST", "/infra/servers/${seg(id)}/map", JsonObject(emptyMap()), null)
         return execute(req).use { r ->
@@ -1212,23 +1212,19 @@ class Api(
     suspend fun serverActivity(id: String, actor: String? = null, from: String? = null, to: String? = null, cursor: String? = null, limit: Int = 50): Page<ServerCall> =
         get("/infra/servers/${seg(id)}/activity", mapOf("actor" to actor, "from" to from, "to" to to, "cursor" to cursor, "limit" to limit))
 
-    /** 🔏 `server.attach` on `company:<CODE>`: `201` with `public_key`, the line the server's work user adds. The hub answers the server
-     *  with `public_key` beside its fields, or `{server, public_key}`; both are read. */
-    suspend fun attachServer(body: AttachIn, stepUp: StepUp): AttachOut {
-        val token = stepUp("server.attach", "company:${body.company}")
-        val out: JsonObject = post("/infra/servers/attach", json.encodeToJsonElement(AttachIn.serializer(), body), token)
+    /**
+     * Pairing a company server (§26.1, device-authorisation flow): the runner printed [userCode] on the server; the owner approves it,
+     * 🔏 `server.attach` on `company:<CODE>`. The answer is `{server}` (read bare too); the runner then takes its own token on its next
+     * poll and the server turns `online`. Nothing secret passes through the app.
+     */
+    suspend fun approveRunner(company: String, userCode: String, stepUp: StepUp): HubServer {
+        val token = stepUp("server.attach", "company:$company")
+        val out: JsonObject = post("/runners/approve", json.encodeToJsonElement(ApproveIn.serializer(), ApproveIn(userCode)), token)
         val inner = out["server"] as? JsonObject ?: out
-        val server = runCatching { json.decodeFromJsonElement(HubServer.serializer(), inner) }.getOrNull()
-        val key = (out["public_key"] as? JsonPrimitive)?.contentOrNull ?: (inner["public_key"] as? JsonPrimitive)?.contentOrNull
-            ?: throw mismatch(201, "POST", "/infra/servers/attach", IllegalArgumentException("missing public_key"))
-        return AttachOut(server, key)
+        return runCatching { json.decodeFromJsonElement(HubServer.serializer(), inner) }.getOrElse { throw mismatch(200, "POST", "/runners/approve", it) }
     }
 
-    /** 🔏 `server.repin` on `<CODE>:<server>`: the new host key fingerprint, after the owner checked it on the server itself. */
-    suspend fun repinServer(s: HubServer, hostKey: String, stepUp: StepUp): HubServer =
-        post("/infra/servers/${seg(s.id)}/repin", buildJsonObject { put("host_key_sha256", hostKey) }, stepUp("server.repin", s.target))
-
-    /** 🔏 `server.detach` on `<CODE>:<server>`: the hub forgets its key; the server itself is never touched. */
+    /** 🔏 `server.detach` on `<CODE>:<server>`: revokes the runner's token at once; the runner stops on its next poll (§26.1). */
     suspend fun detachServer(s: HubServer, stepUp: StepUp) {
         val token = stepUp("server.detach", s.target)
         val req = Request.Builder().url(url("/infra/servers/${seg(s.id)}")).delete().header("X-Step-Up", token).header("Idempotency-Key", UUID.randomUUID().toString()).build()
@@ -1238,7 +1234,7 @@ class Api(
     /**
      * The owner's own command, 🔏 `server.exec` bound to the SHA-256 of the exact body (§26.4 names no target; a passkey per command, for
      * exactly that command), streamed as SSE: stdout and stderr as they come, then the exit. A `202 awaiting_seal` (a destructive command
-     * the policy holds) is one [TermEvent.AwaitingSeal]; a refusal (`423 company_locked`, `409 host_key_changed`) throws.
+     * the policy holds) is one [TermEvent.AwaitingSeal]; a refusal (`423 company_locked`) throws.
      */
     fun exec(server: HubServer, body: ExecIn, stepUp: StepUp): kotlinx.coroutines.flow.Flow<TermEvent> = kotlinx.coroutines.flow.flow {
         val text = jsonBody.encodeToString(ExecIn.serializer(), body)
@@ -1277,14 +1273,15 @@ class Api(
     }
 
     /**
-     * Claude Code on the company's server (§26.2 `server.claude`, `runtime: "company_server"`): the owner gives it a brief and a driver (an
-     * agent of the company, or the owner when [driver] is null). §26 names the tool, not the owner's route; the app opens it where the
-     * Workshop opens sessions, with the server instead of a grant, and the session is then the Workshop's own (events, steering, stop).
+     * Claude Code on the company's server (§26.2 `server.claude`, §26.5 `runtime: "company_server"`): the owner gives it a brief, a driver
+     * (an agent of the company, or the owner when [driver] is null) and the repository folder it runs in ([cwd], one of the map's `repos`;
+     * left out when null, and the hub picks). The session is then the Workshop's own (events, steering, stop).
      */
-    suspend fun startServerSession(server: HubServer, driver: String?, title: String, brief: String, attachments: List<String>): CodeSession =
+    suspend fun startServerSession(server: HubServer, driver: String?, title: String, brief: String, attachments: List<String>, cwd: String? = null): CodeSession =
         post("/workshop/sessions", buildJsonObject {
             put("runtime", "company_server"); put("server", server.id); put("company", server.company)
             put("driver", driver?.let(::JsonPrimitive) ?: JsonNull); put("title", title); put("brief", brief); put("attachments", ids(attachments))
+            if (!cwd.isNullOrBlank()) put("cwd", cwd)
         })
 
     /** A transcript the hub stores (§26.3: owner-readable): an API path (relative or on the hub's origin) read with the session. */

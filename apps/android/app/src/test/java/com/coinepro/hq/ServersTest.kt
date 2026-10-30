@@ -3,12 +3,11 @@ package com.coinepro.hq
 import com.coinepro.hq.core.net.Actor
 import com.coinepro.hq.core.net.Api
 import com.coinepro.hq.core.net.ApiException
-import com.coinepro.hq.core.net.AttachIn
-import com.coinepro.hq.core.net.AttachRules
 import com.coinepro.hq.core.net.CallOutcome
 import com.coinepro.hq.core.net.Decision
 import com.coinepro.hq.core.net.ExecIn
 import com.coinepro.hq.core.net.HubServer
+import com.coinepro.hq.core.net.PairCode
 import com.coinepro.hq.core.net.SEAL_CATEGORIES
 import com.coinepro.hq.core.net.ServerCall
 import com.coinepro.hq.core.net.ServerMaps
@@ -46,8 +45,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
-/** ⟨1.8⟩ Contract §26: the companies' servers — the map read whatever shape it comes in, the activity rows, the seal card, the server
- *  rules, attaching a server, and the owner's terminal from the SSE bytes to the lines on screen. */
+/** ⟨1.8⟩ Contract §26: the companies' servers through their runners — the map read in §26.5's shape and whatever else it comes in, the
+ *  jobs on the activity page, the seal card, the server rules, pairing a runner and detaching it, a task in a repository, and the owner's
+ *  terminal from the SSE bytes to the lines on screen. */
 @RunWith(RobolectricTestRunner::class)
 class ServersTest {
     private val server = MockWebServer()
@@ -67,6 +67,40 @@ class ServersTest {
     private fun obj(s: String) = Api.json.parseToJsonElement(s)
 
     // ------------------------------------------------------------------ server.map --
+    @Test
+    fun aMapInTheContractsBindingShapeIsReadWhole() {
+        // §26.5 exactly: `{at, map}`, sizes in MB and GB, one systemd list with timers flagged, cron's masked command, ports' `public`.
+        val m = ServerMaps.parse(obj("""{"at":"2026-10-30T08:18:00Z","map":{"os":"Ubuntu 24.04.1 LTS","kernel":"6.8.0-47-generic","uptime_s":1900800,
+            "cpu":{"cores":8,"load1":0.84},"memory":{"total_mb":16384,"used_mb":12288,"swap_total_mb":8192,"swap_used_mb":1024},
+            "disks":[{"mount":"/","total_gb":150,"used_gb":62}],
+            "containers":[{"name":"api-1","image":"fx-api:a41","state":"running","health":"healthy","project":"coinepro-fx"},{"name":"bt-1","image":"x","state":"exited","health":null,"project":null}],
+            "compose":[{"project":"coinepro-fx","path":"/home/forex/CoinePro-FX","services":["api","bt"]}],
+            "systemd":[{"unit":"docker.service","state":"active","timer":false,"next_at":null},{"unit":"fx-backup.timer","state":"active","timer":true,"next_at":"2026-10-30T10:05:00Z"}],
+            "cron":[{"user":"forex","schedule":"*/5 * * * *","cmd_masked":"TOKEN=*** scripts/healthcheck.sh"}],
+            "ports":[{"port":443,"proto":"tcp","bind":"0.0.0.0","process":"caddy","public":true},{"port":5432,"proto":"tcp","bind":"127.0.0.1","process":"docker-proxy","public":false}],
+            "repos":[{"path":"/home/forex/CoinePro-FX","remote":"git@github.com:o/CoineProFx.git","branch":"main","dirty":false,"last_commit_at":"2026-10-30T08:00:00Z"}],
+            "automations":[{"kind":"n8n","name":"daily","active":true,"detail":"cron 08:00"}],"sites":[{"host":"coineprofx.com","upstream":"website:80"}]}}"""))!!
+        assertEquals("2026-10-30T08:18:00Z", m.at)
+        assertEquals("Ubuntu 24.04.1 LTS", m.os)
+        assertEquals("6.8.0-47-generic", m.kernel)
+        assertEquals(8, m.cpus)
+        assertEquals(0.84, m.load!!, 0.001)
+        assertEquals(75.0, m.memory!!.pct, 0.01)
+        assertEquals(1024L * 1024 * 1024, m.swap!!.usedBytes)
+        assertEquals(62 * GIB, m.disks.single().usedBytes)
+        assertEquals("healthy", m.containers.first().health)
+        assertEquals(1, m.runningContainers)
+        assertEquals(2, m.compose.single().services)
+        assertEquals("/home/forex/CoinePro-FX", m.compose.single().dir)
+        assertEquals(listOf("docker.service"), m.units.map { it.name })
+        assertEquals(listOf("fx-backup.timer" to "2026-10-30T10:05:00Z"), m.timers.map { it.unit to it.next })
+        assertEquals("TOKEN=*** scripts/healthcheck.sh", m.cron.single().command)
+        assertEquals(listOf(true, false), m.ports.map { it.public })
+        assertEquals("2026-10-30T08:00:00Z", m.repos.single().lastCommitAt)
+        assertEquals("n8n", m.automations.single().kind)
+        assertEquals("coineprofx.com", m.sites.single().domain)
+    }
+
     @Test
     fun aMapInTheCanonicalShapeIsReadWhole() {
         val m = ServerMaps.parse(obj("""{"taken_at":"2026-10-17T08:18:00Z","hostname":"coinepro-fx",
@@ -184,6 +218,43 @@ class ServersTest {
     }
 
     @Test
+    fun aJobsStateIsItsRowsState() {
+        // §26.2: queued · running · awaiting_seal · done · failed · cancelled.
+        fun st(state: String, exit: Int? = null) = callRow(ServerCall(kind = "exec", state = state, exitCode = exit)).outcome
+        assertEquals(CallOutcome.QUEUED, st("queued"))
+        assertEquals(CallOutcome.RUNNING, st("running"))
+        assertEquals(CallOutcome.AWAITING_SEAL, st("awaiting_seal"))
+        assertEquals(CallOutcome.OK, st("done", 0))
+        assertEquals(CallOutcome.OK, st("done"))
+        assertEquals("a done job that exited non-zero failed", CallOutcome.FAILED, st("done", 2))
+        assertEquals(CallOutcome.FAILED, st("failed"))
+        assertEquals(CallOutcome.CANCELLED, st("cancelled"))
+        assertTrue(callRow(ServerCall(state = "queued")).open)
+        assertFalse(callRow(ServerCall(state = "cancelled")).open)
+    }
+
+    @Test
+    fun aJobReadsItsKindArgsAndTimes() {
+        val job = Api.json.decodeFromString(ServerCall.serializer(), """{"id":"j1","server":"srv-ty-1","kind":"claude","actor":{"kind":"manager","code":"TY-TECH-MGR"},
+            "args":{"cwd":"/home/tradeyar/TradeYar","brief":"cache /market"},"state":"done","created_at":"2026-10-30T08:00:00Z","started_at":"2026-10-30T08:00:05Z",
+            "finished_at":"2026-10-30T08:03:17Z","exit_code":0,"summary_fa":"کش فعال شد","transcript_url":"/api/v1/t/j1"}""")
+        val r = callRow(job)
+        assertEquals("server.claude", r.tool)
+        assertEquals("Claude Code", r.toolFa)
+        assertEquals("2026-10-30T08:00:05Z", r.at)
+        assertEquals("/home/tradeyar/TradeYar", r.cwd)
+        assertNull("a claude job has no command of its own", r.cmd)
+        assertEquals("3m 12s", r.duration)
+        assertEquals(CallOutcome.OK, r.outcome)
+        val exec = callRow(Api.json.decodeFromString(ServerCall.serializer(), """{"kind":"exec","args":{"cmd":"df -h","cwd":"/srv"},"state":"queued","created_at":"2026-10-30T08:00:00Z"}"""))
+        assertEquals("df -h", exec.cmd)
+        assertEquals("/srv", exec.cwd)
+        assertEquals("2026-10-30T08:00:00Z", exec.at)
+        assertNull(exec.duration)
+        assertEquals(CallOutcome.QUEUED, exec.outcome)
+    }
+
+    @Test
     fun theStreamsCallIsARowAndNothingElseIs() {
         fun e(type: String, data: String) = StreamEvent("1", type, "2026-10-17T08:30:00Z", "FX", "srv-fx-1", obj(data).jsonObject)
         val a = callRow(e("server.call", """{"server":"srv-fx-1","actor":"owner","tool":"server.exec","summary_fa":"ok","exit_code":0,"duration_ms":120}"""))!!
@@ -195,8 +266,12 @@ class ServersTest {
         assertEquals("TY-GROWTH-01", b.actor.code)
         assertEquals(CallOutcome.REFUSED, b.outcome)
         assertEquals("srv-fx-1", b.server)
-        assertNull(callRow(e("server.state", """{"state":"reachable"}""")))
+        assertNull(callRow(e("server.state", """{"state":"online"}""")))
         assertNull(callRow(e("run.started", "{}")))
+        // §26.5: `state` arrives once at the start and once at the end; a failure may come without an exit code.
+        assertEquals(CallOutcome.RUNNING, callRow(e("server.call", """{"tool":"server.exec","state":"running","exit_code":null}"""))!!.outcome)
+        assertEquals(CallOutcome.FAILED, callRow(e("server.call", """{"tool":"server.exec","state":"failed","exit_code":null,"duration_ms":40}"""))!!.outcome)
+        assertEquals(CallOutcome.OK, callRow(e("server.call", """{"tool":"server.map","state":"done","exit_code":0,"duration_ms":40}"""))!!.outcome)
     }
 
     @Test
@@ -283,85 +358,89 @@ class ServersTest {
         assertEquals("step", r.headers["X-Step-Up"])
     }
 
-    // ------------------------------------------------------------------ attaching --
-    private val key = "SHA256:q3XmF0b8Zk1v7R2pTnYw4cJdL6eUa9sHgVxQ5oNiB0M"
-    private fun form(ip: String = "10.10.1.2", name: String = "fx-main", user: String = "forex", host: String = key, co: String = "FX") = AttachIn(co, name, ip, user, host)
-
+    // ------------------------------------------------------------------ pairing a runner --
     @Test
-    fun onlyAPrivateIpv4OfAnotherServerIsAttached() {
-        for (ip in listOf("10.10.1.2", "10.0.0.1", "172.16.0.5", "172.31.255.254", "192.168.1.20")) assertTrue(ip, AttachRules.isPrivate(ip))
-        for (ip in listOf("8.8.8.8", "172.15.0.1", "172.32.0.1", "192.169.0.1", "11.0.0.1", "100.64.0.1")) assertFalse(ip, AttachRules.isPrivate(ip))
-        for (ip in listOf("10.10.1", "10.10.1.256", "10.010.1.2", "10.10.1.2.3", "a.b.c.d", "", " 10.1.1.1x")) assertNull(ip, AttachRules.ipv4(ip))
-        assertTrue(AttachRules.validate(form()).isEmpty())
-        assertTrue(AttachRules.validate(form(ip = "8.8.8.8")).containsKey("private_ip"))
-        assertTrue(AttachRules.validate(form(ip = "10.10.1.300")).containsKey("private_ip"))
-        assertTrue("the hub itself", AttachRules.validate(form(ip = AttachRules.HUB_IP)).containsKey("private_ip"))
-        val existing = listOf(HubServer("s1", "FX", "fx-main", privateIp = "10.10.1.2"))
-        val dup = AttachRules.validate(form(), existing)
-        assertEquals(setOf("name", "private_ip"), dup.keys)
-        assertTrue(AttachRules.validate(form(name = "fx-main", ip = "10.10.1.9", co = "TY"), existing).isEmpty())
+    fun theCodeIsFormattedAsTyped() {
+        assertEquals("ABCD-1234", PairCode.format("abcd1234"))
+        assertEquals("ABCD-12", PairCode.format("ab cd-12"))
+        assertEquals("ABCD", PairCode.format("abcd"))
+        assertEquals("ABCD-1234", PairCode.format("ABCD-1234-XYZ"))
+        assertEquals("Persian and Arabic digits are Latin", "K7QD-2490", PairCode.format("k7qd-۲۴٩٠"))
+        assertEquals("letters outside Latin are dropped", "AB", PairCode.format("aبb"))
+        assertEquals("", PairCode.format("— "))
+        assertTrue(PairCode.valid("ABCD-1234"))
+        assertFalse(PairCode.valid("ABCD-123"))
+        assertFalse(PairCode.valid("abcd-1234"))
+        assertFalse(PairCode.valid("ABCD1234"))
+        assertEquals("hq-runner pair --company TY --name <name>", PairCode.pairCommand("TY"))
+        assertEquals("hq-runner pair --company <CODE> --name <name>", PairCode.pairCommand(null))
     }
 
     @Test
-    fun nameUserAndHostKeyAreChecked() {
-        assertTrue(AttachRules.validate(form(name = "FX Main")).containsKey("name"))
-        assertTrue(AttachRules.validate(form(name = "f")).containsKey("name"))
-        assertTrue(AttachRules.validate(form(name = "fx-")).containsKey("name"))
-        assertTrue("never root", AttachRules.validate(form(user = "root")).containsKey("user"))
-        assertTrue(AttachRules.validate(form(user = "Forex!")).containsKey("user"))
-        assertTrue(AttachRules.validate(form(co = "")).containsKey("company"))
-        assertTrue(AttachRules.validate(form(host = "")).containsKey("host_key_sha256"))
-        assertTrue(AttachRules.validate(form(host = "SHA256:tooShort")).containsKey("host_key_sha256"))
-        assertTrue(AttachRules.validate(form(host = "MD5:aa:bb:cc")).containsKey("host_key_sha256"))
-        // What `ssh-keygen -lf` prints is accepted whole, padding or not; the body carries the fingerprint alone.
-        val line = "256 $key= root@coinepro-fx (ED25519)"
-        assertEquals(key, AttachRules.hostKey(line))
-        assertTrue(AttachRules.validate(form(host = line)).isEmpty())
-        assertEquals(form(), AttachRules.body(AttachIn(" FX ", " fx-main", "10.10.1.2 ", "forex", line)))
+    fun anExpiredOrUnknownCodeIsSaidAsSuch() {
+        assertTrue(PairCode.refusal(ApiException(410, "expired_token", "x"))!!.contains("منقضی"))
+        assertTrue(PairCode.refusal(ApiException(400, "code_expired", "x"))!!.contains("منقضی"))
+        assertTrue(PairCode.refusal(ApiException(404, "invalid_user_code", "x"))!!.contains("پیدا نشد"))
+        assertTrue(PairCode.refusal(ApiException(404, "not_found", "x"))!!.contains("پیدا نشد"))
+        assertTrue(PairCode.refusal(ApiException(409, "company_mismatch", "x"))!!.contains("شرکت"))
+        assertNull(PairCode.refusal(ApiException(423, "company_locked", "x")))
     }
 
     @Test
-    fun theKeyLineCarriesTheSetupSheetsRestrictions() {
-        val k = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHq9 hq-company-ops@FX:fx-main"
-        assertEquals("from=\"10.10.1.4\",no-agent-forwarding,no-X11-forwarding,no-port-forwarding $k", AttachRules.authorizedLine(k))
-        val already = "from=\"10.10.1.4\",no-pty $k"
-        assertEquals(already, AttachRules.authorizedLine(already))
-    }
-
-    @Test
-    fun attachIsSealedOnTheCompanyAndReadsEitherAnswer() = runTest {
-        server.enqueue(json(201, """{"id":"srv-1","company":"FX","name":"fx-main","origin":"attached","private_ip":"10.10.1.2","user":"forex","host_key_sha256":"$key","state":"pending","last_seen_at":null,"map_at":null,"public_key":"ssh-ed25519 AAAA hq"}"""))
-        server.enqueue(json(201, """{"server":{"id":"srv-2","company":"TY","name":"ty-web","state":"pending"},"public_key":"ssh-ed25519 BBBB hq"}"""))
+    fun approvingACodeIsSealedOnTheCompanyAndSendsTheCodeAlone() = runTest {
+        server.enqueue(json(200, """{"server":{"id":"srv-9","company":"TY","name":"ty-media","origin":"attached","private_ip":"10.10.1.9","user":"tradeyar","hostname":"ty-media","runner_version":"0.1.0","state":"pending","last_seen_at":null,"map_at":null}}"""))
+        server.enqueue(json(200, """{"id":"srv-10","company":"FX","name":"fx-worker","state":"pending"}"""))
+        server.enqueue(json(410, """{"type":"about:blank","title":"Gone","status":410,"code":"expired_token","message_fa":"منقضی."}"""))
         var signed: Pair<String, String>? = null
-        val a = api.attachServer(form()) { x, t -> signed = x to t; "s" }
-        assertEquals("server.attach" to "company:FX", signed)
-        assertEquals("srv-1", a.server!!.id)
-        assertEquals("pending", a.server!!.state)
-        assertEquals("ssh-ed25519 AAAA hq", a.publicKey)
-        val sent = obj(server.takeRequest().body!!.utf8()).jsonObject
-        assertEquals("10.10.1.2", sent["private_ip"]!!.jsonPrimitive.content)
-        assertEquals(key, sent["host_key_sha256"]!!.jsonPrimitive.content)
-        val b = api.attachServer(form(co = "TY", name = "ty-web", ip = "10.10.1.3", user = "tradeyar")) { _, _ -> "s" }
-        assertEquals("srv-2", b.server!!.id)
-        assertEquals("ssh-ed25519 BBBB hq", b.publicKey)
+        val s = api.approveRunner("TY", "TY7K-M4QD") { a, t -> signed = a to t; "s" }
+        assertEquals("server.attach" to "company:TY", signed)
+        assertEquals("srv-9", s.id)
+        assertEquals("pending", s.state)
+        assertEquals("0.1.0", s.runnerVersion)
+        assertEquals("tradeyar@ty-media", s.login)
+        val r = server.takeRequest()
+        assertEquals("/api/v1/runners/approve", r.url.encodedPath)
+        assertEquals("s", r.headers["X-Step-Up"])
+        val sent = obj(r.body!!.utf8()).jsonObject
+        assertEquals(setOf("user_code"), sent.keys)
+        assertEquals("TY7K-M4QD", sent["user_code"]!!.jsonPrimitive.content)
+        assertEquals("srv-10", api.approveRunner("FX", "FX3R-82NB") { _, _ -> "s" }.id)
+        try {
+            api.approveRunner("FX", "Q2WX-0000") { _, _ -> "s" }
+            fail("410 must throw")
+        } catch (e: ApiException) {
+            assertTrue(PairCode.refusal(e)!!.contains("منقضی"))
+        }
     }
 
     @Test
-    fun serversAreReadBareOrPagedAndRepinAndDetachAreSealedOnTheServer() = runTest {
-        server.enqueue(json(200, """[{"id":"a","company":"FX","name":"fx-main","state":"reachable"},{"id":"b","company":"TY","name":"ty-web"}]"""))
-        server.enqueue(json(200, """{"items":[{"id":"a","company":"FX","name":"fx-main","origin":"provisioned","private_ip":"10.10.1.2"}],"next_cursor":null}"""))
-        assertEquals(listOf("a", "b"), api.servers().map { it.id })
+    fun serversAreReadBareOrPagedWithTheirRunnersAndDetachRevokesIt() = runTest {
+        server.enqueue(json(200, """[{"id":"a","company":"FX","name":"fx-main","state":"online","user":"forex","hostname":"coinepro-fx","runner_version":"0.1.0","last_seen_at":"2026-10-30T08:29:55Z"},{"id":"b","company":"TY","name":"ty-web"}]"""))
+        server.enqueue(json(200, """{"items":[{"id":"a","company":"FX","name":"fx-main","origin":"provisioned","private_ip":"10.10.1.2","user":"forex","state":"offline"}],"next_cursor":null}"""))
+        val all = api.servers()
+        assertEquals(listOf("a", "b"), all.map { it.id })
+        assertTrue(all[0].online)
+        assertEquals("forex@coinepro-fx", all[0].login)
+        assertEquals("pending", all[1].state)
         val fx = api.servers("FX").single()
         assertEquals("provisioned", fx.origin)
+        assertFalse(fx.online)
+        assertEquals("without a hostname, the private address", "forex@10.10.1.2", fx.login)
+        assertTrue(HubServer("r", state = "revoked").revoked)
         server.takeRequest(); server.takeRequest()
-        server.enqueue(json(200, """{"id":"a","company":"FX","name":"fx-main","state":"reachable","host_key_sha256":"$key"}"""))
         server.enqueue(MockResponse.Builder().code(204).build())
         val seen = mutableListOf<Pair<String, String>>()
-        api.repinServer(fx, key) { a, t -> seen += a to t; "s" }
         api.detachServer(fx) { a, t -> seen += a to t; "s" }
-        assertEquals(listOf("server.repin" to "FX:fx-main", "server.detach" to "FX:fx-main"), seen)
-        assertEquals("/api/v1/infra/servers/a/repin", server.takeRequest().url.encodedPath)
-        assertEquals("DELETE", server.takeRequest().method)
+        assertEquals(listOf("server.detach" to "FX:fx-main"), seen)
+        val r = server.takeRequest()
+        assertEquals("DELETE", r.method)
+        assertEquals("/api/v1/infra/servers/a", r.url.encodedPath)
+    }
+
+    @Test
+    fun serverListsPutOnlineFirstAndRevokedLast() {
+        val list = listOf(HubServer("1", state = "revoked"), HubServer("2", state = "offline"), HubServer("3", state = "online"), HubServer("4", state = "pending"), HubServer("5", state = "online"))
+        assertEquals(listOf("3", "5", "4", "2", "1"), com.coinepro.hq.ui.servers.byState(list).map { it.id })
     }
 
     // ------------------------------------------------------------------ the owner's terminal --
@@ -479,9 +558,10 @@ class ServersTest {
     }
 
     @Test
-    fun aTaskOnTheServerIsAWorkshopSessionOnItsRuntime() = runTest {
+    fun aTaskOnTheServerIsAWorkshopSessionOnItsRuntimeInTheChosenRepository() = runTest {
         server.enqueue(json(201, """{"id":"s","ref":"S-0020","runtime":"company_server","server":"srv-ty-1","company":"TY","title":"cache","driver":{"kind":"manager","code":"TY-TECH-MGR"},"state":"starting","created_at":"t","updated_at":"t"}"""))
-        val out = api.startServerSession(HubServer("srv-ty-1", "TY", "ty-web"), null, "cache", "brief", listOf("f1"))
+        server.enqueue(json(201, """{"id":"s2","ref":"S-0021","runtime":"company_server","server":"srv-ty-1","company":"TY","title":"x","driver":{"kind":"manager","code":"TY-TECH-MGR"},"state":"starting","created_at":"t","updated_at":"t"}"""))
+        val out = api.startServerSession(HubServer("srv-ty-1", "TY", "ty-web"), null, "cache", "brief", listOf("f1"), cwd = "/home/tradeyar/TradeYar")
         assertTrue(out.onServer)
         assertEquals("", out.workspace)
         assertEquals("srv-ty-1", out.server)
@@ -490,6 +570,19 @@ class ServersTest {
         assertEquals("srv-ty-1", sent["server"]!!.jsonPrimitive.content)
         assertTrue("the owner drives: an explicit null", sent.containsKey("driver") && sent["driver"] is kotlinx.serialization.json.JsonNull)
         assertEquals(listOf("f1"), sent["attachments"]!!.jsonArray.map { it.jsonPrimitive.content })
+        assertEquals("/home/tradeyar/TradeYar", sent["cwd"]!!.jsonPrimitive.content)
+        api.startServerSession(HubServer("srv-ty-1", "TY", "ty-web"), "TY-TECH-MGR", "x", "y", emptyList())
+        assertFalse("no repository chosen: `cwd` is left out", obj(server.takeRequest().body!!.utf8()).jsonObject.containsKey("cwd"))
+    }
+
+    @Test
+    fun theRepositoryIsThePickedOneOrTheOnlyOne() {
+        val two = listOf("/home/ty/TradeYar", "/home/ty/blog")
+        assertEquals("/home/ty/blog", com.coinepro.hq.ui.servers.defaultRepo(two, "/home/ty/blog"))
+        assertNull("two and none picked: the hub picks", com.coinepro.hq.ui.servers.defaultRepo(two, null))
+        assertNull("a pick the map no longer has", com.coinepro.hq.ui.servers.defaultRepo(two, "/gone"))
+        assertEquals("/home/ty/TradeYar", com.coinepro.hq.ui.servers.defaultRepo(listOf("/home/ty/TradeYar"), null))
+        assertNull(com.coinepro.hq.ui.servers.defaultRepo(emptyList(), null))
     }
 
     @Test

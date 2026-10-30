@@ -2,7 +2,6 @@ package com.coinepro.hq
 
 import com.coinepro.hq.core.format.HqClock
 import com.coinepro.hq.core.net.Api
-import com.coinepro.hq.core.net.AttachRules
 import com.coinepro.hq.core.net.StreamEvent
 import java.time.temporal.ChronoUnit
 import kotlinx.serialization.json.JsonArray
@@ -32,15 +31,18 @@ import okio.Timeout
 import okio.buffer
 
 /**
- * Debug builds only: the holding's servers (contract §26 ⟨1.8⟩) as `company-ops` would answer, so every server screen works offline.
+ * Debug builds only: the holding's servers (contract §26 ⟨1.8⟩, each with its `hq-runner`) as the hub would answer, so every server
+ * screen works offline.
  *
- * - CoinePro FX's server (`fx-main`, 10.10.1.2, user `forex`) reachable with a rich map; TradeYar's (`ty-web`) reachable; Pro-Chart's
- *   (`pc-app`) attached and still pending (and locked: Pro-Chart is stopped in the demo).
- * - Activity: FX's CTO deploying (one call still running), TradeYar's SEO analyst reading the nginx config, a Claude Code session on TY's
- *   server (`runtime: company_server`) working live; one destructive command (`DROP TABLE`) waiting for the seal as a `server_destructive`
- *   card.
+ * - CoinePro FX's server (`fx-main`, user `forex`) online with a rich map in §26.5's shape; TradeYar's (`ty-web`) online with a map written
+ *   as the shell prints it; Pro-Chart's (`pc-app`) approved, its runner not yet polling (and locked: Pro-Chart is stopped in the demo).
+ * - FX's `fx-gpu` offline (its runner stopped polling three hours ago); TradeYar's `ty-staging` detached (revoked).
+ * - Activity (jobs, §26.2): FX's CTO deploying (one job running, one queued), TradeYar's SEO analyst reading the nginx config, a Claude
+ *   Code session on TY's server (`runtime: company_server`) working live; one destructive command (`DROP TABLE`) waiting for the seal as a
+ *   `server_destructive` card.
  * - The owner's terminal answers a few commands as a server would, streamed line by line as SSE; a destructive one becomes a card (202),
- *   a stopped company refuses (423). Attach, re-pin, detach and the policy check the step-up header like the hub.
+ *   a stopped company refuses (423). Pairing (`POST /runners/approve`), detach and the policy check the step-up header like the hub; a
+ *   code ending in `0000` has expired, one starting `ZZZZ` is unknown.
  *
  * The world wakes the first time anything asks for `/infra/servers` (the owner opens a server page), so screens that never show servers,
  * and their screenshots, see the holding exactly as before.
@@ -59,7 +61,7 @@ internal class ServersDemo(private val store: MutableMap<String, Pair<Int, JsonE
     private var policy = listOf("db_drop", "volume_delete", "backup_delete", "disk_wipe", "access_change", "server_delete")
     private val scripts = mutableMapOf<String, MutableList<JsonObject>>()
     private val mine = mutableSetOf<String>()
-    /** Polls of the server list since an attach, so a new server turns reachable a few seconds later. */
+    /** Polls of the server list since a pairing, so a new server's runner turns online a few seconds later. */
     private val attaching = mutableMapOf<String, Int>()
     private val queue = java.util.concurrent.ConcurrentLinkedQueue<StreamEvent>()
     private var nextCard = 202
@@ -74,17 +76,22 @@ internal class ServersDemo(private val store: MutableMap<String, Pair<Int, JsonE
     fun wake() {
         if (awake) return
         awake = true
-        servers += server("srv-fx-1", "FX", "fx-main", "10.10.1.2", "forex", "SHA256:q3XmF0b8Zk1v7R2pTnYw4cJdL6eUa9sHgVxQ5oNiB0M", "reachable", at(-1), at(-12))
-        servers += server("srv-ty-1", "TY", "ty-web", "10.10.1.3", "tradeyar", "SHA256:Lr8Yk2dWq5NfT0xHb3VzCm7Pj9aEs4GuK1oRiD6tXcQ", "reachable", at(-2), at(-40))
-        servers += server("srv-pc-1", "PC", "pc-app", "10.10.1.1", "prochart", "SHA256:Ze4Tn8Qa1LmW6xVb0RkJy3Ps9DfGh5Uc2oNiE7tKsHw", "pending", null, null)
+        servers += server("srv-fx-1", "FX", "fx-main", "10.10.1.2", "forex", "coinepro-fx", "online", at(0), at(-12))
+        servers += server("srv-ty-1", "TY", "ty-web", "10.10.1.3", "tradeyar", "tradeyar-web", "online", at(0), at(-40))
+        servers += server("srv-pc-1", "PC", "pc-app", "10.10.1.1", "prochart", "pro-chart", "pending", null, null)
+        // FX's GPU box is switched off at night (its runner stopped polling); TradeYar's old staging server was detached.
+        servers += server("srv-fx-2", "FX", "fx-gpu", "10.10.1.12", "forex", "fx-gpu", "offline", at(-190), null)
+        servers += server("srv-ty-2", "TY", "ty-staging", "10.10.1.13", "tradeyar", "ty-staging", "revoked", at(-60 * 50), null)
         maps["srv-fx-1"] = fxMap(at(-12))
         maps["srv-ty-1"] = tyMap(at(-40))
         activity["srv-fx-1"] = mutableListOf(
-            call("FX-TECH-MGR", "مدیر فنی FX", "server.exec", "انتشار API: ساخت و بالا آوردن کانتینر تازه", "docker compose up -d --build api", null, null, -1),
-            call("FX-TECH-MGR", "مدیر فنی FX", "server.exec", "migration پایگاه داده اجرا شد", "docker compose exec -T api alembic upgrade head", 0, 6_420, -3),
+            call("FX-TECH-MGR", "مدیر فنی FX", "server.exec", "سلامت API بعد از انتشار", "curl -fsS http://127.0.0.1:8000/health", null, null, 0, state = "queued"),
+            call("FX-TECH-MGR", "مدیر فنی FX", "server.exec", "انتشار API: ساخت و بالا آوردن کانتینر تازه", "docker compose up -d --build api", null, null, -1, state = "running", cwd = "/home/forex/CoinePro-FX"),
+            call("FX-TECH-MGR", "مدیر فنی FX", "server.exec", "migration پایگاه داده اجرا شد", "docker compose exec -T api alembic upgrade head", 0, 6_420, -3, cwd = "/home/forex/CoinePro-FX"),
             call("FX-TECH-MGR", "مدیر فنی FX", "server.exec", "آخرین کد از GitHub", "git pull --ff-only origin claude/wizardly-edison-zyWyW", 0, 2_310, -4),
             call("FX-TECH-MGR", "مدیر فنی FX", "server.exec", "تست‌های فاز ۱۵ پیش از انتشار سبز", "python -m pytest tests/test_phase15*.py -q", 0, 48_900, -9, transcript = true),
             call("FX-QUANT-02", "پایشگر سیگنال", "server.read", "خواندن لاگ موتور سیگنال", "tail -n 200 logs/signals.log", 0, 140, -18),
+            call("FX-QUANT-02", "پایشگر سیگنال", "server.exec", "بک‌تست بلند؛ با کلید توقف دیروز لغو شد", "docker compose run --rm backtest --days 365", null, 41_000, -20, state = "cancelled"),
             call("HQ-SYS", "سیستم", "server.map", "نقشه‌ی سرور گرفته شد", null, 0, 3_870, -12),
         ).also { it.sortByDescending { r -> r.s("at") } }
         // A Claude Code session on TradeYar's server, run by its CTO, live; and its SEO analyst reading the nginx config.
@@ -92,10 +99,11 @@ internal class ServersDemo(private val store: MutableMap<String, Pair<Int, JsonE
         mine += ref
         val tech = actor("TY-TECH-MGR", "مدیر فنی تریدیار", "manager")
         activity["srv-ty-1"] = mutableListOf(
-            call("TY-TECH-MGR", "مدیر فنی تریدیار", "server.claude", "Claude Code روی سرور: کش nginx صفحه‌های بازار", null, null, null, -6, session = ref),
+            call("TY-TECH-MGR", "مدیر فنی تریدیار", "server.claude", "Claude Code روی سرور: کش nginx صفحه‌های بازار", null, null, null, -6, session = ref, state = "running", cwd = "/home/tradeyar/TradeYar"),
             call("TY-TECH-MGR", "مدیر فنی تریدیار", "server.exec", "پیکربندی nginx سالم است", "sudo nginx -t", 0, 210, -3, session = ref),
             call("TY-GROWTH-01", "تحلیلگر سئوی فنی", "server.read", "خواندن پیکربندی nginx برای canonical و redirectها", "cat /etc/nginx/sites-enabled/tradeyar.conf", 0, 90, -2),
             call("TY-GROWTH-01", "تحلیلگر سئوی فنی", "server.exec", "سرعت پاسخ صفحه‌ی اصلی", "curl -s -o /dev/null -w '%{time_total}' https://tradeyar.com/", 0, 1_180, -7),
+            call("TY-GROWTH-01", "تحلیلگر سئوی فنی", "server.exec", "بررسی لینک‌های شکسته؛ یک صفحه 404 داد", "npx linkinator https://tradeyar.com --recurse", 1, 38_400, -15, state = "failed"),
         ).also { it.sortByDescending { r -> r.s("at") } }
         val session = buildJsonObject {
             put("id", "s-$ref"); put("ref", ref); put("workspace", ""); put("grant", ""); put("runtime", "company_server"); put("server", "srv-ty-1"); put("company", "TY")
@@ -207,18 +215,18 @@ internal class ServersDemo(private val store: MutableMap<String, Pair<Int, JsonE
             val text = transcript(t.groupValues[1]) ?: return json(req, 404, problem(404, "not_found", "این متن پیدا نشد."))
             return Response.Builder().request(req).protocol(Protocol.HTTP_1_1).code(200).message("demo").body(text.toResponseBody("text/plain; charset=utf-8".toMediaType())).build()
         }
+        if (path == "/runners/approve" && m == "POST") { wake(); return approve(req, body, stepUp) }
         if (!path.startsWith("/infra/servers")) return null
         wake()
         if (path == "/infra/servers" && m == "GET") {
-            // An attached server is reached after a few looks (the hub tries on its own).
+            // A paired runner takes its token after a few looks (its next poll) and turns online; its first map follows.
             for ((id, n) in attaching.toMap()) {
-                if (n >= 2) { attaching.remove(id); edit(id) { it + mapOf("state" to JsonPrimitive("reachable"), "last_seen_at" to JsonPrimitive(now), "map_at" to JsonPrimitive(now)) }; maps[id] = smallMap(now) }
+                if (n >= 2) { attaching.remove(id); edit(id) { it + mapOf("state" to JsonPrimitive("online"), "last_seen_at" to JsonPrimitive(now), "map_at" to JsonPrimitive(now)) }; maps[id] = smallMap(now) }
                 else attaching[id] = n + 1
             }
             return json(req, 200, JsonArray(servers))
         }
-        if (path == "/infra/servers/attach" && m == "POST") return attach(req, body, stepUp)
-        val x = Regex("^/infra/servers/([^/]+)(?:/(map|activity|exec|repin))?$").find(path) ?: return null
+        val x = Regex("^/infra/servers/([^/]+)(?:/(map|activity|exec))?$").find(path) ?: return null
         val id = x.groupValues[1]
         val s = servers.firstOrNull { it.s("id") == id } ?: return json(req, 404, problem(404, "not_found", "این سرور پیدا نشد."))
         val company = s.s("company")!!
@@ -226,9 +234,10 @@ internal class ServersDemo(private val store: MutableMap<String, Pair<Int, JsonE
             "map" -> when {
                 m == "GET" -> maps[id]?.let { json(req, 200, it) } ?: json(req, 404, problem(404, "not_found", "هنوز نقشه‌ای گرفته نشده."))
                 company in DemoLive.stopped -> json(req, 423, problem(423, "company_locked", "کلید توقف این شرکت زده شده."))
-                s.s("state") != "reachable" -> json(req, 409, problem(409, "server_unreachable", "هاب الان به این سرور نمیرسد."))
+                s.s("state") != "online" -> json(req, 409, problem(409, "server_offline", "runner این سرور الان آفلاین است."))
                 else -> {
-                    val fresh = JsonObject((maps[id] ?: smallMap(now)) + ("taken_at" to JsonPrimitive(now)))
+                    val m0 = maps[id] ?: smallMap(now)
+                    val fresh = JsonObject(m0 + ((if (m0.containsKey("map")) "at" else "taken_at") to JsonPrimitive(now)))
                     maps[id] = fresh
                     edit(id) { it + ("map_at" to JsonPrimitive(now)) }
                     activity.getOrPut(id) { mutableListOf() }.add(0, call("owner", "مدیر کل", "server.map", "نقشه‌ی تازه به خواست تو", null, 0, 3_400, 0, kind = "owner"))
@@ -239,34 +248,33 @@ internal class ServersDemo(private val store: MutableMap<String, Pair<Int, JsonE
                 val rows = activity[id].orEmpty().filter { r -> query["actor"] == null || (r["actor"] as? JsonObject)?.s("code") == query["actor"] }
                 json(req, 200, page(rows.take(query["limit"]?.toIntOrNull() ?: 50)))
             }
-            "repin" -> {
-                if (stepUp == null) return json(req, 403, problem(403, "step_up_required", "این کار تأیید با گذرکلید لازم دارد."))
-                val key = body?.s("host_key_sha256")?.let(AttachRules::hostKey) ?: return json(req, 422, problem(422, "validation_failed", "اثر کلید درست نیست."))
-                json(req, 200, edit(id) { it + mapOf("host_key_sha256" to JsonPrimitive(key), "state" to JsonPrimitive(if (it.s("state") == "host_key_changed") "reachable" else it.s("state")!!)) })
-            }
             "exec" -> exec(req, s, body, stepUp)
             else -> if (m == "DELETE") {
                 if (stepUp == null) return json(req, 403, problem(403, "step_up_required", "این کار تأیید با گذرکلید لازم دارد."))
-                servers.removeAll { it.s("id") == id }
+                // The runner's token is revoked at once; the server stays listed, revoked, with its history.
+                edit(id) { it + ("state" to JsonPrimitive("revoked")) }
+                activity[id]?.replaceAll { r -> if (r.s("state") == "queued" || r.s("state") == "running") JsonObject(r + ("state" to JsonPrimitive("cancelled"))) else r }
                 Response.Builder().request(req).protocol(Protocol.HTTP_1_1).code(204).message("demo").body("".toResponseBody(null)).build()
             } else null
         }
     }
 
-    private fun attach(req: Request, body: JsonObject?, stepUp: String?): Response {
+    /** `POST /runners/approve {user_code}`: the code `hq-runner pair` printed on a server of the company the seal names. */
+    private fun approve(req: Request, body: JsonObject?, stepUp: String?): Response {
         if (stepUp == null) return json(req, 403, problem(403, "step_up_required", "این کار تأیید با گذرکلید لازم دارد."))
-        val b = body ?: JsonObject(emptyMap())
-        val form = com.coinepro.hq.core.net.AttachIn(b.s("company").orEmpty(), b.s("name").orEmpty(), b.s("private_ip").orEmpty(), b.s("user").orEmpty(), b.s("host_key_sha256").orEmpty())
-        val errors = AttachRules.validate(form, servers.map { Api.json.decodeFromJsonElement(com.coinepro.hq.core.net.HubServer.serializer(), it) })
-        if (errors.isNotEmpty()) return json(req, 422, buildJsonObject {
-            put("code", "validation_failed"); put("message_fa", "چند خانه درست نیست."); put("status", 422); put("title", "validation_failed"); put("type", "about:blank")
-            putJsonObject("fields") { for ((k, v) in errors) put(k, v) }
-        })
-        val id = "srv-${form.company.lowercase()}-${servers.size + 1}"
-        val s = server(id, form.company, form.name, form.privateIp, form.user, AttachRules.hostKey(form.hostKeySha256)!!, "pending", null, null)
+        val code = body?.s("user_code").orEmpty()
+        if (!com.coinepro.hq.core.net.PairCode.valid(code)) return json(req, 422, problem(422, "validation_failed", "کد باید به شکل ABCD-1234 باشد."))
+        if (code.endsWith("0000")) return json(req, 410, problem(410, "expired_token", "این کد منقضی شده است."))
+        if (code.startsWith("ZZZZ")) return json(req, 404, problem(404, "invalid_user_code", "این کد پیدا نشد."))
+        // The runners that called `/runners/pair` (as the hub keeps them); the demo's step-up token names no target, so any other
+        // well-formed code is TradeYar's media server.
+        val (company, base) = PAIRS[code] ?: ("TY" to "ty-media")
+        val name = generateSequence(1) { it + 1 }.map { if (it == 1) base else "$base-$it" }.first { n -> servers.none { it.s("company") == company && it.s("name") == n } }
+        val id = "srv-${company.lowercase()}-${servers.size + 1}"
+        val s = server(id, company, name, "10.10.1.${20 + servers.size}", "deploy", "$name.internal", "pending", null, null)
         servers += s
         attaching[id] = 0
-        return json(req, 201, JsonObject(s + ("public_key" to JsonPrimitive("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHq9dm0Hn4pXr2vT8kLw3sB6yZcJ1fGe5uQ7aN0oRiPx hq-company-ops@${form.company}:${form.name}"))))
+        return json(req, 200, buildJsonObject { put("server", s) })
     }
 
     // -------------------------------------------------------------------------------------------- exec --
@@ -282,7 +290,7 @@ internal class ServersDemo(private val store: MutableMap<String, Pair<Int, JsonE
         if (stepUp == null) return json(req, 403, problem(403, "step_up_required", "این کار تأیید با گذرکلید لازم دارد."))
         val company = s.s("company")!!
         if (company in DemoLive.stopped) return json(req, 423, problem(423, "company_locked", "کلید توقف این شرکت زده شده؛ هر کاری روی سرورهایش ایستاده است."))
-        if (s.s("state") != "reachable") return json(req, 409, problem(409, "server_unreachable", "هاب الان به این سرور نمیرسد."))
+        if (s.s("state") != "online") return json(req, 409, problem(409, "server_offline", "runner این سرور الان آفلاین است."))
         val cmd = body?.s("cmd").orEmpty().trim()
         val id = s.s("id")!!
         val cat = destructive.firstOrNull { it.first.containsMatchIn(cmd) }?.second
@@ -336,9 +344,10 @@ internal class ServersDemo(private val store: MutableMap<String, Pair<Int, JsonE
         val map = maps[s.s("id")]
         return when {
             cmd.startsWith("docker ps") -> {
-                val rows = map?.get("containers")?.jsonArray.orEmpty().map { it.jsonObject }
+                val rows = ((map?.get("map") as? JsonObject ?: map)?.get("containers")?.jsonArray).orEmpty().map { it.jsonObject }
                 (out("CONTAINER ID   IMAGE                                STATUS                    NAMES") + rows.mapIndexed { i, c ->
-                    false to "%-14s %-36s %-25s %s".format("%012x".format(0x3fa91c2b7d00L + i * 7919), c.s("image").orEmpty(), c.s("status").orEmpty(), c.s("name"))
+                    val status = c.s("status") ?: if (c.s("state") == "running") "Up 3 minutes" + (c.s("health")?.let { " ($it)" } ?: "") else "Exited (0) 6 hours ago"
+                    false to "%-14s %-36s %-25s %s".format("%012x".format(0x3fa91c2b7d00L + i * 7919), c.s("image").orEmpty(), status, c.s("name"))
                 }) to 0
             }
             cmd.startsWith("df") -> out(
@@ -479,18 +488,24 @@ internal class ServersDemo(private val store: MutableMap<String, Pair<Int, JsonE
         return servers[i]
     }
 
-    private fun server(id: String, co: String, name: String, ip: String, user: String, key: String, state: String, seen: String?, mapAt: String?) = buildJsonObject {
-        put("id", id); put("company", co); put("name", name); put("origin", "attached"); put("private_ip", ip); put("user", user); put("host_key_sha256", key)
+    private fun server(id: String, co: String, name: String, ip: String, user: String, host: String, state: String, seen: String?, mapAt: String?) = buildJsonObject {
+        put("id", id); put("company", co); put("name", name); put("origin", "attached"); put("private_ip", ip); put("user", user)
+        put("hostname", host); put("runner_version", RUNNER_VERSION)
         put("state", state); put("last_seen_at", seen?.let(::JsonPrimitive) ?: JsonNull); put("map_at", mapAt?.let(::JsonPrimitive) ?: JsonNull)
     }
 
-    private fun call(code: String, fa: String, tool: String, summary: String, cmd: String?, exit: Int?, ms: Long?, minutes: Long, session: String? = null, kind: String = "agent", state: String? = null, transcript: Boolean = false) = buildJsonObject {
+    /** One job of §26.2 (`kind`, `args`, `state`, its times) carrying its command's row fields too, as `…/activity` pages them. */
+    private fun call(code: String, fa: String, tool: String, summary: String, cmd: String?, exit: Int?, ms: Long?, minutes: Long, session: String? = null, kind: String = "agent", state: String? = null, transcript: Boolean = false, cwd: String? = null) = buildJsonObject {
         val n = seq++
-        put("id", "call-$n"); put("at", at(minutes)); put("actor", actor(code, fa, if (code == "owner") "owner" else kind)); put("tool", tool); put("summary_fa", summary)
+        val st = state ?: if (exit == null && ms == null) "running" else if (exit == null || exit == 0) "done" else "failed"
+        put("id", "job-$n"); put("at", at(minutes)); put("actor", actor(code, fa, if (code == "owner") "owner" else kind)); put("tool", tool); put("kind", tool.removePrefix("server."))
+        putJsonObject("args") { if (cmd != null) put("cmd", cmd); if (cwd != null) put("cwd", cwd) }
+        put("summary_fa", summary); put("state", st)
+        put("created_at", at(minutes)); put("started_at", if (st == "queued") JsonNull else JsonPrimitive(at(minutes)))
+        put("finished_at", if (st in setOf("done", "failed", "cancelled")) JsonPrimitive(at(minutes)) else JsonNull)
         put("cmd_masked", cmd?.let(::JsonPrimitive) ?: JsonNull); put("exit_code", exit?.let(::JsonPrimitive) ?: JsonNull); put("duration_ms", ms?.let(::JsonPrimitive) ?: JsonNull)
         put("session_ref", session?.let(::JsonPrimitive) ?: JsonNull)
-        put("transcript_url", if (transcript || cmd != null) JsonPrimitive("/api/v1/audit/transcripts/call-$n") else JsonNull)
-        if (state != null) put("state", state)
+        put("transcript_url", if (transcript || cmd != null) JsonPrimitive("/api/v1/audit/transcripts/job-$n") else JsonNull)
     }
 
     private fun ev(seq: Long, minutes: Long, type: String, actor: JsonObject, summary: String, data: JsonObject = JsonObject(emptyMap())) = buildJsonObject {
@@ -522,70 +537,75 @@ internal class ServersDemo(private val store: MutableMap<String, Pair<Int, JsonE
     }
 
     private companion object {
+        const val RUNNER_VERSION = "0.1.0"
+        /** Codes `hq-runner pair` printed on servers waiting for the owner (§26.1): the company and the `--name` each was run with. */
+        val PAIRS = mapOf("FX3R-82NB" to ("FX" to "fx-worker"), "TY7K-M4QD" to ("TY" to "ty-media"))
         val OWNER = buildJsonObject { put("kind", "owner"); put("code", "owner"); put("display_fa", "مدیر کل") }
         fun actor(code: String, fa: String, kind: String) = buildJsonObject { put("kind", kind); put("code", code); put("display_fa", fa) }
 
         const val GIB = 1024L * 1024 * 1024
 
+        /** FX's map exactly in §26.5's binding shape (`GET …/map` → `{at, map}`). */
         fun fxMap(at: String) = buildJsonObject {
-            put("taken_at", at); put("hostname", "coinepro-fx")
-            putJsonObject("os") { put("name", "Ubuntu"); put("version", "24.04.1 LTS"); put("kernel", "6.8.0-47-generic") }
-            put("cpus", 8); put("uptime_s", 1_900_800); putJsonArray("load") { add(JsonPrimitive(0.84)); add(JsonPrimitive(0.92)); add(JsonPrimitive(0.88)) }
-            putJsonArray("disks") { add(buildJsonObject { put("mount", "/"); put("total_bytes", 150 * GIB); put("used_bytes", 62 * GIB) }) }
-            putJsonObject("memory") { put("total_bytes", 15 * GIB + GIB / 2); put("used_bytes", 11 * GIB + GIB / 5) }
-            putJsonObject("swap") { put("total_bytes", 8 * GIB); put("used_bytes", GIB + GIB / 10) }
-            putJsonArray("containers") {
-                for ((n, img, st) in listOf(
-                    Triple("coinepro-fx-api-1", "coinepro-fx-api:a41c09e", "Up 3 minutes (healthy)"),
-                    Triple("coinepro-fx-celery-worker-1", "coinepro-fx-api:a41c09e", "Up 3 minutes"),
-                    Triple("coinepro-fx-celery-beat-1", "coinepro-fx-api:a41c09e", "Up 3 minutes"),
-                    Triple("coinepro-fx-timescaledb-1", "timescale/timescaledb:2.17.2-pg16", "Up 22 days (healthy)"),
-                    Triple("coinepro-fx-redis-1", "redis:7.4-alpine", "Up 22 days (healthy)"),
-                    Triple("coinepro-fx-bot-1", "coinepro-fx-bot:a41c09e", "Up 3 minutes"),
-                    Triple("coinepro-fx-website-1", "coinepro-fx-website:7d20f13", "Up 2 days"),
-                    Triple("coinepro-fx-admin-1", "coinepro-fx-admin:7d20f13", "Up 2 days"),
-                    Triple("coinepro-fx-n8n-1", "n8nio/n8n:1.68.0", "Up 9 days"),
-                    Triple("coinepro-fx-backtest-1", "coinepro-fx-api:c9b81aa", "Exited (0) 6 hours ago"),
-                )) add(buildJsonObject { put("name", n); put("image", img); put("state", if (st.startsWith("Up")) "running" else "exited"); put("status", st); put("compose_project", "coinepro-fx") })
-            }
-            putJsonArray("compose") { add(buildJsonObject { put("project", "coinepro-fx"); put("dir", "/home/forex/CoinePro-FX"); put("services", 10); put("running", 9) }) }
-            putJsonObject("systemd") {
-                putJsonArray("units") {
-                    for ((n, st) in listOf("docker.service" to "active", "ssh.service" to "active", "caddy.service" to "active", "unattended-upgrades.service" to "active", "fx-healthcheck.service" to "inactive"))
-                        add(buildJsonObject { put("name", n); put("state", st) })
+            put("at", at)
+            putJsonObject("map") {
+                put("os", "Ubuntu 24.04.1 LTS"); put("kernel", "6.8.0-47-generic"); put("uptime_s", 1_900_800)
+                putJsonObject("cpu") { put("cores", 8); put("load1", 0.84) }
+                putJsonObject("memory") { put("total_mb", 15_872); put("used_mb", 11_468); put("swap_total_mb", 8_192); put("swap_used_mb", 1_126) }
+                putJsonArray("disks") { add(buildJsonObject { put("mount", "/"); put("total_gb", 150); put("used_gb", 62) }) }
+                putJsonArray("containers") {
+                    for ((n, img, st) in listOf(
+                        Triple("coinepro-fx-api-1", "coinepro-fx-api:a41c09e", "healthy"),
+                        Triple("coinepro-fx-celery-worker-1", "coinepro-fx-api:a41c09e", null),
+                        Triple("coinepro-fx-celery-beat-1", "coinepro-fx-api:a41c09e", null),
+                        Triple("coinepro-fx-timescaledb-1", "timescale/timescaledb:2.17.2-pg16", "healthy"),
+                        Triple("coinepro-fx-redis-1", "redis:7.4-alpine", "healthy"),
+                        Triple("coinepro-fx-bot-1", "coinepro-fx-bot:a41c09e", null),
+                        Triple("coinepro-fx-website-1", "coinepro-fx-website:7d20f13", null),
+                        Triple("coinepro-fx-admin-1", "coinepro-fx-admin:7d20f13", null),
+                        Triple("coinepro-fx-n8n-1", "n8nio/n8n:1.68.0", null),
+                        Triple("coinepro-fx-backtest-1", "coinepro-fx-api:c9b81aa", "exited"),
+                    )) add(buildJsonObject {
+                        put("name", n); put("image", img); put("state", if (st == "exited") "exited" else "running")
+                        put("health", if (st == "healthy") JsonPrimitive(st) else JsonNull); put("project", "coinepro-fx")
+                    })
                 }
-                putJsonArray("timers") {
-                    add(buildJsonObject { put("unit", "fx-backup.timer"); put("next", HqClock.now().plus(95, ChronoUnit.MINUTES).toString()); put("activates", "fx-backup.service") })
-                    add(buildJsonObject { put("unit", "certbot.timer"); put("next", HqClock.now().plus(210, ChronoUnit.MINUTES).toString()); put("activates", "certbot.service") })
-                    add(buildJsonObject { put("unit", "apt-daily-upgrade.timer"); put("next", HqClock.now().plus(21, ChronoUnit.HOURS).toString()); put("activates", "apt-daily-upgrade.service") })
+                putJsonArray("compose") {
+                    add(buildJsonObject {
+                        put("project", "coinepro-fx"); put("path", "/home/forex/CoinePro-FX")
+                        putJsonArray("services") { for (x in listOf("api", "celery-worker", "celery-beat", "timescaledb", "redis", "bot", "website", "admin", "n8n", "backtest")) add(JsonPrimitive(x)) }
+                    })
                 }
-            }
-            putJsonArray("cron") {
-                add(buildJsonObject { put("schedule", "*/5 * * * *"); put("command", "/home/forex/CoinePro-FX/scripts/healthcheck.sh"); put("user", "forex") })
-                add(buildJsonObject { put("schedule", "30 2 * * *"); put("command", "cd /home/forex/CoinePro-FX && bash scripts/backup.sh"); put("user", "forex") })
-            }
-            putJsonArray("ports") {
-                for ((p, a, proc) in listOf(Triple(22, "10.10.1.2", "sshd"), Triple(80, "0.0.0.0", "caddy"), Triple(443, "0.0.0.0", "caddy"), Triple(8000, "127.0.0.1", "docker-proxy"), Triple(5432, "127.0.0.1", "docker-proxy"), Triple(6379, "127.0.0.1", "docker-proxy"), Triple(5678, "127.0.0.1", "n8n")))
-                    add(buildJsonObject { put("port", p); put("proto", "tcp"); put("address", a); put("process", proc) })
-            }
-            putJsonArray("repos") {
-                add(buildJsonObject { put("path", "/home/forex/CoinePro-FX"); put("remote", "git@github.com:behnamjalalico/CoineProFx.git"); put("branch", "claude/wizardly-edison-zyWyW"); put("head", "a41c09e"); put("dirty", false) })
-            }
-            putJsonObject("n8n") {
-                putJsonArray("workflows") {
-                    add(buildJsonObject { put("name", "گزارش روزانه‌ی سیگنال‌ها به تلگرام"); put("active", true); put("trigger", "cron 08:00") })
-                    add(buildJsonObject { put("name", "هشدار افت دقت مدل"); put("active", true); put("trigger", "webhook") })
-                    add(buildJsonObject { put("name", "بک‌تست هفتگی"); put("active", false); put("trigger", "cron Fri 22:00") })
+                putJsonArray("systemd") {
+                    for ((n, st) in listOf("docker.service" to "active", "ssh.service" to "active", "caddy.service" to "active", "hq-runner.service" to "active", "unattended-upgrades.service" to "active", "fx-healthcheck.service" to "inactive"))
+                        add(buildJsonObject { put("unit", n); put("state", st); put("timer", false); put("next_at", JsonNull) })
+                    for ((n, m) in listOf("fx-backup.timer" to 95L, "certbot.timer" to 210L, "apt-daily-upgrade.timer" to 21 * 60L))
+                        add(buildJsonObject { put("unit", n); put("state", "active"); put("timer", true); put("next_at", HqClock.now().plus(m, ChronoUnit.MINUTES).toString()) })
                 }
-            }
-            putJsonArray("automations") {
-                add(buildJsonObject { put("kind", "celery-beat"); put("name", "به‌روزرسانی کندل‌ها"); put("active", true); put("detail", "refresh_candles · every 1m") })
-                add(buildJsonObject { put("kind", "celery-beat"); put("name", "پایش drift مدل‌ها"); put("active", true); put("detail", "drift_check · every 1h") })
-            }
-            putJsonArray("sites") {
-                add(buildJsonObject { put("domain", "coineprofx.com"); put("upstream", "website:80"); put("tls", true); put("server", "caddy") })
-                add(buildJsonObject { put("domain", "api.coineprofx.com"); put("upstream", "api:8000"); put("tls", true); put("server", "caddy") })
-                add(buildJsonObject { put("domain", "admin.coineprofx.com"); put("upstream", "admin:80"); put("tls", true); put("server", "caddy") })
+                putJsonArray("cron") {
+                    add(buildJsonObject { put("user", "forex"); put("schedule", "*/5 * * * *"); put("cmd_masked", "/home/forex/CoinePro-FX/scripts/healthcheck.sh") })
+                    add(buildJsonObject { put("user", "forex"); put("schedule", "30 2 * * *"); put("cmd_masked", "cd /home/forex/CoinePro-FX && BACKUP_KEY=*** bash scripts/backup.sh") })
+                }
+                putJsonArray("ports") {
+                    for ((p, a, proc) in listOf(Triple(22, "10.10.1.2", "sshd"), Triple(80, "0.0.0.0", "caddy"), Triple(443, "0.0.0.0", "caddy"), Triple(8000, "127.0.0.1", "docker-proxy"), Triple(5432, "127.0.0.1", "docker-proxy"), Triple(6379, "127.0.0.1", "docker-proxy"), Triple(5678, "127.0.0.1", "n8n")))
+                        add(buildJsonObject { put("port", p); put("proto", "tcp"); put("bind", a); put("process", proc); put("public", a == "0.0.0.0") })
+                }
+                putJsonArray("repos") {
+                    add(buildJsonObject { put("path", "/home/forex/CoinePro-FX"); put("remote", "git@github.com:behnamjalalico/CoineProFx.git"); put("branch", "claude/wizardly-edison-zyWyW"); put("dirty", false); put("last_commit_at", HqClock.now().minus(4, ChronoUnit.MINUTES).toString()) })
+                    add(buildJsonObject { put("path", "/home/forex/fx-landing"); put("remote", "git@github.com:behnamjalalico/fx-landing.git"); put("branch", "main"); put("dirty", true); put("last_commit_at", HqClock.now().minus(3, ChronoUnit.DAYS).toString()) })
+                }
+                putJsonArray("automations") {
+                    add(buildJsonObject { put("kind", "n8n"); put("name", "گزارش روزانه‌ی سیگنال‌ها به تلگرام"); put("active", true); put("detail", "cron 08:00") })
+                    add(buildJsonObject { put("kind", "n8n"); put("name", "هشدار افت دقت مدل"); put("active", true); put("detail", "webhook") })
+                    add(buildJsonObject { put("kind", "n8n"); put("name", "بک‌تست هفتگی"); put("active", false); put("detail", "cron Fri 22:00") })
+                    add(buildJsonObject { put("kind", "other"); put("name", "به‌روزرسانی کندل‌ها"); put("active", true); put("detail", "celery-beat · refresh_candles · every 1m") })
+                    add(buildJsonObject { put("kind", "other"); put("name", "پایش drift مدل‌ها"); put("active", true); put("detail", "celery-beat · drift_check · every 1h") })
+                }
+                putJsonArray("sites") {
+                    add(buildJsonObject { put("host", "coineprofx.com"); put("upstream", "website:80") })
+                    add(buildJsonObject { put("host", "api.coineprofx.com"); put("upstream", "api:8000") })
+                    add(buildJsonObject { put("host", "admin.coineprofx.com"); put("upstream", "admin:80") })
+                }
             }
         }
 
@@ -602,7 +622,9 @@ internal class ServersDemo(private val store: MutableMap<String, Pair<Int, JsonE
             putJsonArray("timers") { add(buildJsonObject { put("unit", "ty-sitemap.timer"); put("next", HqClock.now().plus(50, ChronoUnit.MINUTES).toString()); put("activates", "ty-sitemap.service") }) }
             putJsonArray("cron") { add(JsonPrimitive("0 3 * * * /home/tradeyar/TradeYar/scripts/backup.sh")) }
             putJsonArray("listening") { add(JsonPrimitive("0.0.0.0:443")); add(JsonPrimitive("0.0.0.0:80")); add(JsonPrimitive("10.10.1.3:22")); add(JsonPrimitive("127.0.0.1:3000")); add(JsonPrimitive("127.0.0.1:5432")) }
-            putJsonArray("repos") { add(buildJsonObject { put("path", "/home/tradeyar/TradeYar"); putJsonArray("remotes") { add(buildJsonObject { put("name", "origin"); put("url", "git@github.com:behnamjalalico/TradeYar.git") }) }; put("branch", "main"); put("commit", "5be0a7d91c3e") }) }
+            putJsonArray("repos") { add(buildJsonObject { put("path", "/home/tradeyar/TradeYar"); putJsonArray("remotes") { add(buildJsonObject { put("name", "origin"); put("url", "git@github.com:behnamjalalico/TradeYar.git") }) }; put("branch", "main"); put("commit", "5be0a7d91c3e") })
+                add(buildJsonObject { put("path", "/home/tradeyar/ty-blog"); putJsonArray("remotes") { add(buildJsonObject { put("name", "origin"); put("url", "git@github.com:behnamjalalico/ty-blog.git") }) }; put("branch", "main"); put("commit", "e41f2c7a90b3"); put("dirty", true) })
+            }
             putJsonArray("sites") {
                 add(buildJsonObject { put("server_name", "tradeyar.com"); put("proxy_pass", "http://127.0.0.1:3000"); put("https", true); put("via", "nginx") })
                 add(buildJsonObject { put("server_name", "www.tradeyar.com"); put("proxy_pass", "301 → tradeyar.com"); put("https", true); put("via", "nginx") })

@@ -14,7 +14,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.dp
 import com.coinepro.hq.core.net.HubServer
 import com.coinepro.hq.core.net.SERVER_DESTRUCTIVE
@@ -30,7 +29,6 @@ import com.coinepro.hq.designsystem.SectionTitle
 import com.coinepro.hq.designsystem.Skeleton
 import com.coinepro.hq.designsystem.StatRow
 import com.coinepro.hq.designsystem.StatTile
-import com.coinepro.hq.designsystem.fig
 import com.coinepro.hq.designsystem.generated.DivanIcon
 import com.coinepro.hq.ui.LocalNav
 import com.coinepro.hq.ui.Page
@@ -80,7 +78,7 @@ fun ServersScreen() {
         if (list != null && list.isNotEmpty()) item(key = "stats") {
             StatRow {
                 StatTile("سرور", list.size.toString(), Modifier.weight(1f), figure = false)
-                StatTile("در دسترس", list.count { it.reachable }.toString(), Modifier.weight(1f), figure = false, tone = com.coinepro.hq.core.format.Tone.POS)
+                StatTile("آنلاین", list.count { it.online }.toString(), Modifier.weight(1f), figure = false, tone = com.coinepro.hq.core.format.Tone.POS)
                 StatTile("منتظر مُهر", seals.size.toString(), Modifier.weight(1f), figure = false, tone = if (seals.isNotEmpty()) com.coinepro.hq.core.format.Tone.GOLD else null)
             }
         }
@@ -89,14 +87,14 @@ fun ServersScreen() {
             list == null && q.error == null -> items(3, key = { "sk$it" }) { Skeleton(Modifier.fillMaxWidth().height(150.dp), radius = 16.dp) }
             list == null -> item(key = "error") { ErrorBlock(q.error, { q.refresh() }) }
             list.isEmpty() -> item(key = "empty") {
-                Empty("هنوز سروری وصل نیست", icon = DivanIcon.SERVER, body = "سرور هر شرکت را با «وصل کردن» به هاب بده؛ Claude همان سرور با فایل راهنما آماده‌اش میکند.") {
+                Empty("هنوز سروری وصل نیست", icon = DivanIcon.SERVER, body = "Claude هر سرور runner ستاد را نصب میکند و یک کد کوتاه میدهد؛ با «وصل کردن» همان کد را اینجا تأیید کن.") {
                     HqButton("وصل کردن سرور", { nav.go("servers-attach") }, variant = BtnVariant.PRIMARY, icon = DivanIcon.ADD)
                 }
             }
             else -> {
                 // Companies are data: one group per company that has servers, in the companies' own order.
                 val order = companies.map { it.code }
-                val groups = list.groupBy { it.company }.toList().sortedBy { (co, _) -> order.indexOf(co).let { if (it < 0) Int.MAX_VALUE else it } }
+                val groups = byState(list).groupBy { it.company }.toList().sortedBy { (co, _) -> order.indexOf(co).let { if (it < 0) Int.MAX_VALUE else it } }
                 for ((co, servers) in groups) {
                     item(key = "co-$co") {
                         SectionTitle(companyOf(companies, co).nameFa, note = "${servers.size} سرور") {
@@ -127,24 +125,24 @@ fun CompanyServers(code: String) {
         if (locked) LockedBanner(code)
         ServersIntro()
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            HqButton("یک کار بسپار", { task = true }, Modifier.weight(1f), variant = BtnVariant.PRIMARY, icon = DivanIcon.CODE, enabled = !locked && list.orEmpty().any { it.reachable })
+            HqButton("یک کار بسپار", { task = true }, Modifier.weight(1f), variant = BtnVariant.PRIMARY, icon = DivanIcon.CODE, enabled = !locked && list.orEmpty().any { it.online })
             HqButton("وصل کردن سرور", { nav.go("servers-attach/$code") }, icon = DivanIcon.ADD)
         }
         if (seals.isNotEmpty()) SealCards(seals)
         when {
             list == null && q.error == null -> Skeleton(Modifier.fillMaxWidth().height(160.dp), radius = 16.dp)
             list == null -> ErrorBlock(q.error, { q.refresh() })
-            list.isEmpty() -> Empty("این شرکت هنوز سروری به هاب نداده", icon = DivanIcon.SERVER, body = "با «وصل کردن سرور» آدرس خصوصی و کاربر کاری را بده؛ کلید عمومی هاب را به Claude همان سرور میدهی.")
-            else -> for (s in list) ServerCard(s, locked) { nav.go("servers/${s.id}") }
+            list.isEmpty() -> Empty("این شرکت هنوز سروری به هاب نداده", icon = DivanIcon.SERVER, body = "Claude سرور این شرکت runner ستاد را نصب میکند و یک کد کوتاه میدهد؛ با «وصل کردن سرور» همان کد را تأیید کن.")
+            else -> for (s in byState(list)) ServerCard(s, locked) { nav.go("servers/${s.id}") }
         }
-        Text(buildAnnotatedString {
-            append("هر سرور با کاربر کاری خودش و یک کلید جدا از شبکه‌ی خصوصی وصل است؛ کلید خصوصی فقط در OpenBao میماند. ")
-            fig("SSH")
-            append(" روی شبکه‌ی خصوصی رمز شده است.")
-        }, style = Divan.type.micro, color = c.textMuted)
+        Text(isolated("روی هر سرور runner ستاد با کاربر کاری همان سرور کار میکند و خودش با HTTPS به هاب وصل میشود؛ هاب به هیچ سروری وارد نمیشود، پورتی باز نمیشود و کلیدی از سرور دست هاب نیست. اعتبار هر runner هر ۲۴ ساعت عوض میشود و با «جدا کردن» همان لحظه باطل میشود."), style = Divan.type.micro, color = c.textMuted)
     }
-    if (task && list != null) ServerTaskSheet(list.filter { it.reachable }, null) { task = false }
+    if (task && list != null) ServerTaskSheet(list.filter { it.online }, null) { task = false }
 }
 
-/** Which server of a list a task goes to, when the owner has not chosen yet: the only reachable one, else none. */
+/** Which server of a list a task goes to, when the owner has not chosen yet: the only online one, else none. */
 internal fun defaultServer(list: List<HubServer>, chosen: String?): HubServer? = list.firstOrNull { it.id == chosen } ?: list.singleOrNull()
+
+/** Servers as a list shows them: online first, then pending, offline, and the revoked last; the hub's order inside each. */
+internal fun byState(list: List<HubServer>): List<HubServer> =
+    list.sortedBy { listOf("online", "pending", "offline", "revoked").indexOf(it.state).let { i -> if (i < 0) 3 else i } }

@@ -77,15 +77,17 @@ import com.coinepro.hq.ui.rememberAction
 import com.coinepro.hq.ui.rememberCompanies
 import com.coinepro.hq.ui.rememberQuery
 
-// ⟨1.8⟩ Contract §26: the companies' servers under the holding's control. The pieces every server page shares.
+// ⟨1.8⟩ Contract §26: the companies' servers under the holding's control, each through its own `hq-runner`. The pieces every server page
+// shares.
 
 data class ServerStateFa(val fa: String, val tone: Tone, val icon: DivanIcon? = null, val live: Boolean = false)
 
+/** §26.4's runner states. */
 val SERVER_STATE = mapOf(
-    "reachable" to ServerStateFa("در دسترس", Tone.POS, live = true),
-    "unreachable" to ServerStateFa("در دسترس نیست", Tone.NEG, DivanIcon.OFFLINE),
-    "pending" to ServerStateFa("منتظر وصل شدن", Tone.GOLD, DivanIcon.TIME),
-    "host_key_changed" to ServerStateFa("کلید میزبان عوض شده", Tone.NEG, DivanIcon.LOCK),
+    "pending" to ServerStateFa("منتظر runner", Tone.GOLD, DivanIcon.TIME),
+    "online" to ServerStateFa("آنلاین", Tone.POS, live = true),
+    "offline" to ServerStateFa("آفلاین", Tone.NEG, DivanIcon.OFFLINE),
+    "revoked" to ServerStateFa("باطل‌شده", Tone.NEUTRAL, DivanIcon.CLOSE),
 )
 
 /** The owner's monospace for a server's own text (commands, output): columns line up, Latin stays Latin, left to right. */
@@ -151,16 +153,16 @@ fun UsageBar(u: DiskUsage, label: String = u.label, modifier: Modifier = Modifie
     }
 }
 
-/** One server at a glance: its name and company, where and as whom the hub logs in, its state, and from its map disk, memory and what
- *  runs on it. */
+/** One server at a glance: its name and company, its work user and host, its runner's state, version and last poll, and from its map
+ *  disk, memory and what runs on it. */
 @Composable
 fun ServerCard(s: HubServer, locked: Boolean, modifier: Modifier = Modifier, showCompany: Boolean = false, onClick: () -> Unit) {
     val c = Divan.colors
     val map = if (s.mapAt != null) rememberServerMap(s.id).data else null
-    HqCard(modifier.fillMaxWidth(), onClick = onClick, onClickLabel = "باز کردن سرور ${s.name}", tahrir = s.state == "host_key_changed") {
+    HqCard(modifier.fillMaxWidth(), onClick = onClick, onClickLabel = "باز کردن سرور ${s.name}") {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(Modifier.size(42.dp).clip(RoundedCornerShape(12.dp)).background(if (s.reachable && !locked) c.softGold else c.tile), contentAlignment = Alignment.Center) {
-                DIcon(DivanIcon.SERVER, size = 21.dp, tint = if (s.reachable && !locked) c.goldInk else c.textSecondary)
+            Box(Modifier.size(42.dp).clip(RoundedCornerShape(12.dp)).background(if (s.online && !locked) c.softGold else c.tile), contentAlignment = Alignment.Center) {
+                DIcon(DivanIcon.SERVER, size = 21.dp, tint = if (s.online && !locked) c.goldInk else c.textSecondary)
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -174,7 +176,7 @@ fun ServerCard(s: HubServer, locked: Boolean, modifier: Modifier = Modifier, sho
         FlowRow(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp), itemVerticalAlignment = Alignment.CenterVertically) {
             ServerStatePill(s.state, locked)
             OriginPill(s.origin)
-            Text(s.lastSeenAt?.let { "آخرین تماس " + ago(it) } ?: "هنوز تماسی نبوده", style = Divan.type.micro, color = c.textMuted)
+            RunnerFacts(s)
         }
         if (map != null && !map.empty) {
             Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -191,6 +193,14 @@ fun ServerCard(s: HubServer, locked: Boolean, modifier: Modifier = Modifier, sho
     }
 }
 
+/** The runner's version and its last poll ("آخرین تماس ۲ دقیقه پیش"). */
+@Composable
+fun RunnerFacts(s: HubServer) {
+    val c = Divan.colors
+    s.runnerVersion?.let { Fig("runner $it", style = Divan.type.figureSmall, color = c.textSecondary) }
+    Text(s.lastSeenAt?.let { "آخرین تماس " + ago(it) } ?: "runner هنوز تماس نگرفته", style = Divan.type.micro, color = c.textMuted)
+}
+
 @Composable
 private fun Count(label: String, value: String) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -200,16 +210,19 @@ private fun Count(label: String, value: String) {
 }
 
 // ------------------------------------------------------------------ activity --
-private fun outcomePill(o: CallOutcome, exit: Int?): Pair<String, Tone> = when (o) {
-    CallOutcome.OK -> (if (exit != null) "exit $exit" else "انجام شد") to Tone.POS
-    CallOutcome.FAILED -> "exit ${exit ?: "?"}" to Tone.NEG
+/** A job's state (§26.2) as a pill: in the queue, running, held for the seal, done (with its exit), failed, cancelled; or refused. */
+internal fun outcomePill(o: CallOutcome, exit: Int?): Pair<String, Tone> = when (o) {
+    CallOutcome.QUEUED -> "در صف" to Tone.SILVER
     CallOutcome.RUNNING -> "در جریان" to Tone.LAPIS
     CallOutcome.AWAITING_SEAL -> "منتظر مُهر" to Tone.GOLD
+    CallOutcome.OK -> (if (exit != null) "exit $exit" else "انجام شد") to Tone.POS
+    CallOutcome.FAILED -> (if (exit != null) "exit $exit" else "ناموفق") to Tone.NEG
+    CallOutcome.CANCELLED -> "لغو شد" to Tone.NEUTRAL
     CallOutcome.REFUSED -> "رد شد" to Tone.WARN
 }
 
-/** One call on a server: who, with which tool, what (the masked command), how it ended and how long it took; its Claude session and its
- *  full transcript a tap away. */
+/** One job (or command) on a server: who, with which tool, what (the masked command, in its folder), its state and how long it took; its
+ *  Claude session and its full transcript a tap away. */
 @Composable
 fun CallLine(r: ServerCallRow, serverName: String? = null, onTranscript: ((String) -> Unit)? = null) {
     val c = Divan.colors
@@ -227,7 +240,13 @@ fun CallLine(r: ServerCallRow, serverName: String? = null, onTranscript: ((Strin
             }
             Text(jTime(r.at), style = Divan.type.micro, color = c.textMuted)
         }
-        r.cmd?.let { CodeBlock(it, prefix = "$ ") }
+        when {
+            r.cmd != null -> CodeBlock(r.cmd, prefix = (r.cwd?.let { "$it " } ?: "") + "$ ")
+            r.cwd != null -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                DIcon(DivanIcon.CODE, size = 14.dp, tint = c.textMuted)
+                Fig(r.cwd, style = Divan.type.figureSmall, color = c.textSecondary)
+            }
+        }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val (t, tone) = outcomePill(r.outcome, r.exitCode)
             Pill(t, tone, dot = r.outcome != CallOutcome.RUNNING, live = r.outcome == CallOutcome.RUNNING, figure = t.startsWith("exit"))
@@ -367,8 +386,8 @@ fun ServersControlCard(company: String?, stopped: Boolean, onOpen: () -> Unit) {
     val c = Divan.colors
     val q = rememberServers()
     val list = q.data?.filter { company == null || it.company == company } ?: return
-    // The last calls on every reachable server (a handful of servers per company), newest first.
-    val calls = list.filter { it.reachable }.take(6).flatMap { s ->
+    // The last jobs on every online server (a handful of servers per company), newest first.
+    val calls = list.filter { it.online }.take(6).flatMap { s ->
         androidx.compose.runtime.key(s.id) {
             rememberQuery("server:activity:${s.id}::", "servers", maxAgeMs = 15_000) { serverActivity(s.id, limit = 3) }.data?.items.orEmpty().map { s.name to it }
         }
@@ -379,8 +398,9 @@ fun ServersControlCard(company: String?, stopped: Boolean, onOpen: () -> Unit) {
             Column(Modifier.weight(1f)) {
                 Text("سرورها", style = Divan.type.bodyStrong)
                 Text(
-                    if (list.isEmpty()) "هنوز سروری وصل نیست" else "${list.size} سرور، ${list.count { it.reachable }} در دسترس" +
-                        list.count { it.state == "pending" }.takeIf { it > 0 }?.let { "، $it منتظر وصل شدن" }.orEmpty(),
+                    if (list.isEmpty()) "هنوز سروری وصل نیست" else "${list.size} سرور، ${list.count { it.online }} آنلاین" +
+                        list.count { it.state == "offline" }.takeIf { it > 0 }?.let { "، $it آفلاین" }.orEmpty() +
+                        list.count { it.state == "pending" }.takeIf { it > 0 }?.let { "، $it منتظر runner" }.orEmpty(),
                     style = Divan.type.caption, color = c.textMuted,
                 )
             }
@@ -393,7 +413,7 @@ fun ServersControlCard(company: String?, stopped: Boolean, onOpen: () -> Unit) {
                 if (i > 0) HorizontalDivider(color = c.lineDivider)
                 val r = callRow(x)
                 Row(Modifier.padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(Modifier.size(6.dp).clip(CircleShape).background(when (r.outcome) { CallOutcome.OK -> c.positive; CallOutcome.FAILED -> c.negative; CallOutcome.RUNNING -> c.lapis; else -> c.warning }))
+                    Box(Modifier.size(6.dp).clip(CircleShape).background(when (r.outcome) { CallOutcome.OK -> c.positive; CallOutcome.FAILED -> c.negative; CallOutcome.RUNNING -> c.lapis; CallOutcome.QUEUED, CallOutcome.CANCELLED -> c.textMuted; else -> c.warning }))
                     Text(buildAnnotatedString { append(if (r.byOwner) "تو" else actorFa(r.actor)); append(": "); append(r.summaryFa.ifBlank { r.toolFa }) }, style = Divan.type.caption, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                     Fig(server, style = Divan.type.figureSmall, color = c.textMuted)
                     Text(ago(r.at), style = Divan.type.micro, color = c.textMuted)

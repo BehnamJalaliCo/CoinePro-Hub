@@ -249,7 +249,7 @@ private fun Terminal(s: HubServer, run0: String?) {
                     },
                 )
                 if (running) HqButton(null, { term.job?.cancel() }, variant = BtnVariant.DANGER, size = BtnSize.MD, icon = DivanIcon.STOP, label = "توقف")
-                else HqButton(null, { run(cmd) }, variant = BtnVariant.PRIMARY, size = BtnSize.MD, icon = DivanIcon.SEND, enabled = cmd.isNotBlank() && !locked && s.reachable, label = "اجرا با اثر انگشت")
+                else HqButton(null, { run(cmd) }, variant = BtnVariant.PRIMARY, size = BtnSize.MD, icon = DivanIcon.SEND, enabled = cmd.isNotBlank() && !locked && s.online, label = "اجرا با اثر انگشت")
             }
         }
     }

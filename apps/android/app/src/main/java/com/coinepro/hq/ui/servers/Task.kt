@@ -22,16 +22,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.coinepro.hq.core.format.Tone
 import com.coinepro.hq.core.net.HubServer
 import com.coinepro.hq.designsystem.BtnSize
 import com.coinepro.hq.designsystem.BtnVariant
 import com.coinepro.hq.designsystem.CompanyMark
+import com.coinepro.hq.designsystem.DIcon
 import com.coinepro.hq.designsystem.Divan
 import com.coinepro.hq.designsystem.Fig
 import com.coinepro.hq.designsystem.FilterChip
 import com.coinepro.hq.designsystem.HqButton
 import com.coinepro.hq.designsystem.HqTextField
+import com.coinepro.hq.designsystem.Pill
 import com.coinepro.hq.designsystem.generated.DivanIcon
 import com.coinepro.hq.ui.LocalEnv
 import com.coinepro.hq.ui.LocalNav
@@ -56,7 +60,7 @@ fun ServerTaskSheet(servers: List<HubServer>, initial: HubServer?, onDismiss: ()
 }
 
 @Composable
-fun ServerTaskContent(servers: List<HubServer>, initial: HubServer?, onDone: () -> Unit, title0: String = "", brief0: String = "", driver0: String? = null) {
+fun ServerTaskContent(servers: List<HubServer>, initial: HubServer?, onDone: () -> Unit, title0: String = "", brief0: String = "", driver0: String? = null, cwd0: String? = null) {
     val env = LocalEnv.current
     val nav = LocalNav.current
     val toasts = LocalToasts.current
@@ -71,6 +75,10 @@ fun ServerTaskContent(servers: List<HubServer>, initial: HubServer?, onDone: () 
     var title by rememberSaveable { mutableStateOf(title0) }
     var brief by rememberSaveable { mutableStateOf(brief0) }
     val server = defaultServer(servers, chosen) ?: initial
+    // §26.5: the repository folder the session runs in, from the server's own map; the only one is taken unless the owner says otherwise.
+    val repos = server?.let { rememberServerMap(it.id).data?.repos }.orEmpty()
+    var cwdPicked by rememberSaveable(server?.id) { mutableStateOf(cwd0) }
+    val cwd = defaultRepo(repos.map { it.path }, cwdPicked)
     val drivers = employees.data.orEmpty().filter { it.status == "active" && server != null && canDrive(it.kind, server.company, it.company) }
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -81,7 +89,7 @@ fun ServerTaskContent(servers: List<HubServer>, initial: HubServer?, onDone: () 
                 val shape = RoundedCornerShape(12.dp)
                 Row(
                     Modifier.fillMaxWidth().clip(shape).background(if (on) c.softGold else c.tile).then(if (on) Modifier.border(1.dp, c.goldInk, shape) else Modifier)
-                        .clickable(role = Role.RadioButton) { chosen = s.id; driver = null }.padding(horizontal = 12.dp, vertical = 10.dp),
+                        .clickable(role = Role.RadioButton) { chosen = s.id; driver = null; cwdPicked = null }.padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     CompanyMark(s.company, height = 14.dp, mono = true, ink = c.textSecondary)
@@ -108,6 +116,28 @@ fun ServerTaskContent(servers: List<HubServer>, initial: HubServer?, onDone: () 
                 style = Divan.type.micro, color = c.textMuted,
             )
         }
+        if (server != null && repos.isNotEmpty()) {
+            Text("در کدام ریپو", style = Divan.type.caption, color = c.textMuted)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (r in repos) {
+                    val on = cwd == r.path
+                    val shape = RoundedCornerShape(12.dp)
+                    Row(
+                        Modifier.fillMaxWidth().clip(shape).background(if (on) c.softGold else c.tile).then(if (on) Modifier.border(1.dp, c.goldInk, shape) else Modifier)
+                            .clickable(role = Role.RadioButton, onClickLabel = r.path) { cwdPicked = r.path }.padding(horizontal = 12.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        DIcon(DivanIcon.CODE, size = 16.dp, tint = if (on) c.goldInk else c.textSecondary)
+                        Column(Modifier.weight(1f)) {
+                            Fig(r.path, style = Divan.type.figureSmall.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
+                            r.branch?.let { Fig(it, style = Divan.type.figureSmall, color = c.textMuted) }
+                        }
+                        if (r.dirty == true) Pill("تغییر ثبت‌نشده", Tone.WARN)
+                    }
+                }
+            }
+            Text("Claude در همین پوشه و زیر CLAUDE.md همان ریپو کار میکند.", style = Divan.type.micro, color = c.textMuted)
+        }
         HqTextField(title, { title = it }, "عنوان؛ مثلاً: انتشار نسخه‌ی تازه‌ی API", Modifier.fillMaxWidth(), maxLength = 200)
         SpokenField("چه باید بشود و کی تمام است", brief, { brief = it }, "هدف، محدودیت‌ها، معیار تمام شدن؛ مثلاً «تست‌ها سبز، deploy، سلامت سایت را بسنج»")
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -122,7 +152,7 @@ fun ServerTaskContent(servers: List<HubServer>, initial: HubServer?, onDone: () 
         HqButton(
             "شروع کن", {
                 action.run(onError = { toasts.error(com.coinepro.hq.core.net.serverError(it)) }) {
-                    val s = env.api.startServerSession(server!!, driver, title.trim(), brief.trim(), files.ids)
+                    val s = env.api.startServerSession(server!!, driver, title.trim(), brief.trim(), files.ids, cwd)
                     env.cache.invalidate("workshop", "servers")
                     onDone()
                     nav.go("workshop/${s.ref}")
@@ -133,3 +163,6 @@ fun ServerTaskContent(servers: List<HubServer>, initial: HubServer?, onDone: () 
         )
     }
 }
+
+/** The repository a task runs in: the one picked if the map still has it, else the only one, else none (the hub picks). */
+internal fun defaultRepo(paths: List<String>, picked: String?): String? = paths.firstOrNull { it == picked } ?: paths.singleOrNull()
