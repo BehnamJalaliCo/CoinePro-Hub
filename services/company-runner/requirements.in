@@ -1,0 +1,3 @@
+# hq-runner dependencies (exact pins; resolved + hashed in requirements.lock)
+# Standard library plus httpx (BSD-3-Clause) and what httpx needs.
+httpx==0.28.1

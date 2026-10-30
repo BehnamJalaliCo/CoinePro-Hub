@@ -1,0 +1,31 @@
+# hq-runner as a system service under the server's existing work user.
+# The instance name is that user:  sudo systemctl enable --now hq-runner@forex
+# Installed with pipx the program is at ~/.local/bin/hq-runner; if the user's home
+# is not /home/<user>, or it lives in a venv, change ExecStart (see README).
+[Unit]
+Description=CoinePro HQ runner (%i)
+Documentation=https://github.com/BehnamJalaliCo/CoinePro-Hub/tree/claude/coinepro-hub-setup-hsvnw7/services/company-runner
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=~
+Environment=PYTHONUNBUFFERED=1
+Environment=PATH=/home/%i/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/home/%i/.local/bin/hq-runner run
+Restart=always
+RestartSec=10
+# 3: the hub no longer accepts the token (pair again); 4: the server was detached in HQ.
+RestartPreventExitStatus=3 4
+# Stopping the service stops the jobs it is running (the whole control group).
+KillMode=control-group
+TimeoutStopSec=45
+# No extra privileges: no capabilities, no root. The runner is the work user and
+# nothing more. NoNewPrivileges is left off only because an `exec` job may ask for
+# `sudo -n` when that user has sudo; on a server without sudo for this user, uncomment:
+#NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

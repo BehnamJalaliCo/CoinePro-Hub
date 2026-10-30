@@ -1,0 +1,47 @@
+# hq-runner: the holding's job runner on a company server (contract §26).
+# Runtime: Python 3.12 standard library + httpx (BSD). Licence: MIT.
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hq-runner"
+version = "0.1.0"
+description = "CoinePro HQ job runner for a company server: outbound HTTPS only, like a self-hosted CI runner"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+dependencies = ["httpx>=0.28.1,<0.29"]
+
+[project.scripts]
+hq-runner = "hq_runner.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# Lint: the services/ rules, plus this package's own names and Persian strings.
+[tool.ruff]
+extend = "../pyproject.toml"
+src = ["src", "testing"]
+
+[tool.ruff.lint.extend-per-file-ignores]
+# Persian summaries and messages for the owner.
+"src/hq_runner/*.py" = ["RUF001", "RUF003"]
+# Fixed read-only commands and the job's own command, run without a shell or with bash -lc on purpose.
+"src/hq_runner/{proc,inventory,jobs,claude_job}.py" = ["S603", "S607"]
+"testing/*" = ["S603", "S607", "T201"]
+# httpcore's network backend interface names its parameter `timeout`.
+"src/hq_runner/net.py" = ["ASYNC109"]
+"tests/test_net.py" = ["ASYNC109"]
+# Tests wait on files and fake hubs by polling, and call openssl/git from PATH.
+"tests/*" = ["ASYNC110", "S607"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["hq_runner"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-p no:cacheprovider -q"
