@@ -206,6 +206,11 @@ def roles_for(kind: str, fmt: dict[str, Any] | None, step: str) -> tuple[str, ..
     }.get(step, ())
 
 
+def runner_account(server: str) -> str:
+    """⟨1.8⟩ the publishing "account" of a runner target: the server it runs on."""
+    return f"runner-{server.lower()}"[:41]
+
+
 def account_key(channel: str, company: str) -> str:
     """The publishing account of a company on a channel (contract §22.7)."""
     return f"{channel}-{company.lower()}"
@@ -236,8 +241,30 @@ def check_series(company: str, s: dict[str, Any]) -> dict[str, Any]:
     if fmt.get("voice") and not is_video(kind, fmt):
         bad["format.voice"] = "only a video has a voice"
     seen = set()
-    for i, t in enumerate(s.get("targets") or []):
+    # ⟨1.8⟩ a target through a company's own product API (contract §26.1b):
+    # `channel: "runner"` with `{server, command}`; its account is the server's.
+    s["targets"] = [
+        {k: v for k, v in t.items() if v is not None or k == "account"}
+        for t in s.get("targets") or []
+    ]
+    for i, t in enumerate(s["targets"]):
         p = t["placement"]
+        if t["channel"] == "runner":
+            server, command = str(t.get("server") or ""), str(t.get("command") or "")
+            if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,62}", server):
+                bad[f"targets.{i}.server"] = "the name of one of the company's paired servers"
+            if not command.strip() or len(command) > 2000:
+                bad[f"targets.{i}.command"] = "the server's own publish command (≤ 2000)"
+            t["account"] = runner_account(server)
+            if p not in PLACEMENTS_OF_KIND[kind]:
+                bad[f"targets.{i}.placement"] = f"a {kind} is not published as {p}"
+            if (p, t["account"]) in seen:
+                bad[f"targets.{i}"] = "twice"
+            seen.add((p, t["account"]))
+            continue
+        for extra in ("server", "command"):
+            if t.get(extra) is not None:
+                bad[f"targets.{i}.{extra}"] = "only a runner target names a server"
         if PLACEMENT_CHANNEL[p] != t["channel"]:
             bad[f"targets.{i}.placement"] = f"{p} is not on {t['channel']}"
         if p not in PLACEMENTS_OF_KIND[kind]:
@@ -404,7 +431,7 @@ async def unconfigured_accounts(tx: Tx, bao: Any, targets: list[dict[str, Any]])
     from hq_api.domain import egress as G
 
     out = []
-    for key in sorted({t["account"] for t in targets}):
+    for key in sorted({t["account"] for t in targets if t.get("channel") != "runner"}):
         row = await tx.first("SELECT key FROM tools.accounts WHERE key = :k", k=key)
         if row is None or not await G.has_secret(bao, key):
             out.append(key)

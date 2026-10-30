@@ -52,8 +52,9 @@ async def test_the_chain_runs_through_prompt_11_then_prompt_12(su: Any) -> None:
     assert rev["0030"] == "0029_1"
     heads = set(rev) - {d for d in rev.values() if d}
     assert rev["0031"] == "0030"  # 15.2: delete a company, the simple founding
-    assert heads == {"0031"}
-    assert await su.fetchval("SELECT version_num FROM alembic_version_api") == "0031"
+    assert rev["0032"] == "0031"  # 17: company server runners
+    assert heads == {"0032"}
+    assert await su.fetchval("SELECT version_num FROM alembic_version_api") == "0032"
 
 
 async def test_the_kind_check_holds_every_kind_and_is_validated(su: Any) -> None:

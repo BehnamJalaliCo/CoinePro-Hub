@@ -46,6 +46,32 @@ CODES: dict[str, tuple[int, str, str]] = {
         "این کلید تکرار قبلاً با درخواست دیگری استفاده شده است.",
     ),
     "validation_failed": (422, "Validation failed", "اطلاعات ارسال‌شده درست نیست."),
+    # ⟨1.8⟩ prompt 17 (contract §26): company server runners
+    "authorization_pending": (
+        428,
+        "Authorization pending",
+        "مدیر کل هنوز کد این سرور را تأیید نکرده است.",
+    ),
+    "slow_down": (429, "Slow down", "کمتر بپرس؛ هر چند ثانیه یک بار کافی است."),
+    "expired_token": (
+        410,
+        "Expired",
+        "این کد منقضی شده؛ روی سرور دوباره hq-runner pair را اجرا کن.",
+    ),
+    "invalid_user_code": (
+        404,
+        "Unknown code",
+        "این کد پیدا نشد؛ همان کدی را بنویس که روی سرور آمد.",
+    ),
+    "code_used": (409, "Code used", "این کد یک بار تأیید شده است."),
+    "runner_revoked": (410, "Runner revoked", "این سرور از ستاد جدا شده است."),
+    "job_cancelled": (409, "Job cancelled", "این کار لغو شده است."),
+    "job_finished": (409, "Job finished", "این کار تمام شده است."),
+    "deploy_frozen": (
+        423,
+        "Deploy frozen",
+        "توقف deploy این شرکت روشن است؛ این فرمان deploy حساب میشود و اجرا نمیشود.",
+    ),
     # ⟨1.7.5⟩ contract §25: a company with history is archived, never deleted
     "company_has_history": (
         409,

@@ -76,6 +76,9 @@ KINDS = (
     # archive (payload = the exact PUT body), the weekly disposal card
     "archive_schema",
     "archive_disposal",
+    # ⟨1.8⟩ prompt 17 (contract §26.3): a destructive command on a company
+    # server waits for the owner's seal (🔏 server.destructive on <CODE>:<server>)
+    "server_destructive",
 )
 ACTION_CLASS = {
     "hire": "A2",
@@ -116,6 +119,7 @@ ACTION_CLASS = {
     # ⟨1.7⟩ the schema is the owner's change; a disposal destroys files (irreversible)
     "archive_schema": "A2",
     "archive_disposal": "A3",
+    "server_destructive": "A3",
 }
 # Kinds whose approval needs the owner's step-up (🔏) besides every A3.
 # code_session: its seal is the grant (contract §17.3), so it is sealed like one.
@@ -151,7 +155,13 @@ STEP_UP_KINDS = (
 )
 # ⟨1.6⟩ cards only code writes (series.propose, the media pipeline, a role
 # draft's gates); an agent's or the owner's `propose` of one is refused.
-SYSTEM_CARD_KINDS = ("media_series", "media_publish", "role_new", "archive_disposal")
+SYSTEM_CARD_KINDS = (
+    "media_series",
+    "media_publish",
+    "role_new",
+    "archive_disposal",
+    "server_destructive",  # ⟨1.8⟩ only the hub's classification raises it
+)
 # ⟨1.7⟩ applied in the deciding transaction, bound to what they show (§23.11)
 ARCHIVE_CARD_KINDS = ("archive_schema", "archive_disposal")
 # ⟨1.5⟩ applied in the deciding transaction, bound to their payload (§19.9)
@@ -489,13 +499,16 @@ class MediaSeriesPayload(Model):
 
 
 class MediaPlacement(Model):
-    channel: Literal["telegram", "instagram"]
+    channel: Literal["telegram", "instagram", "runner"]
     placement: Literal[
         "telegram_post", "telegram_story", "instagram_reel", "instagram_story", "instagram_post"
     ]
     account: str = Field(pattern=r"^[a-z0-9][a-z0-9_.-]{1,40}$")
-    via: Literal["api", "manual"]
+    via: Literal["api", "manual", "runner"]
     blocked: str | None = Field(default=None, max_length=40)
+    # ⟨1.8⟩ a runner target (contract §26.1b): the server and its sealed command
+    server: str | None = Field(default=None, max_length=63)
+    command: str | None = Field(default=None, max_length=2000)
 
 
 class MediaPublishPayload(Model):
@@ -510,6 +523,33 @@ class MediaPublishPayload(Model):
     placements: list[MediaPlacement] = Field(default_factory=list, max_length=10)
     render: dict[str, Any] | None = None
     checks: list[dict[str, Any]] = Field(default_factory=list, max_length=10)
+
+
+class ServerRef(Model):
+    id: str = Field(min_length=1, max_length=64)
+    name: str = Field(min_length=1, max_length=63)
+
+
+class ServerDestructivePayload(Model):
+    """⟨1.8⟩ A destructive command held for the owner's seal (contract §26.3):
+    exactly what will run (secrets masked), where, the category and who
+    asked; sealing it releases the job (🔏 server.destructive on <CODE>:<server>)."""
+
+    server: ServerRef
+    server_name: str = Field(min_length=1, max_length=63)
+    company: str = Field(pattern=r"^[A-Z][A-Z0-9]{1,9}$")
+    category: Literal[
+        "db_drop", "volume_delete", "backup_delete", "disk_wipe", "access_change", "server_delete"
+    ]
+    cmd: str = Field(min_length=1, max_length=4000)
+    cmd_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    cwd: str | None = Field(default=None, max_length=500)
+    tool: Literal["server.exec", "server.write", "server.claude", "server.publish"]
+    actor: Actor
+    session_ref: str | None = Field(default=None, max_length=40)
+    job: str = Field(min_length=36, max_length=36)
+    detected_by: Literal["pattern", "tool"]
+    pattern: str | None = Field(default=None, max_length=120)
 
 
 class RoleNewPayload(Model):
@@ -613,6 +653,7 @@ PAYLOADS: dict[str, type[Model]] = {
     "email_send": EmailSendPayload,
     "archive_schema": ArchiveSchemaPayload,
     "archive_disposal": ArchiveDisposalPayload,
+    "server_destructive": ServerDestructivePayload,
 }
 
 
@@ -649,6 +690,7 @@ class DecisionIn(Model):
         "email_send",
         "archive_schema",
         "archive_disposal",
+        "server_destructive",
     ]
     title: str = Field(min_length=1, max_length=300)
     what: str = Field(default="", max_length=20000)
@@ -1311,9 +1353,12 @@ async def decide(
         await hiring.close_decide_items(tx, [d["ref"]], f"{d['ref']}: مالک خودش تصمیم گرفت")
     effect = "pending" if verdict == "approved" and d["kind"] in EFFECT_KINDS else "none"
     server = None
-    sealed_as_is = d["kind"] in ("tool_enable", "email_send", *ARCHIVE_CARD_KINDS) or (
-        d["kind"] == "a3_action" and (d["payload"] or {}).get("action") == "mcp_call"
-    )
+    sealed_as_is = d["kind"] in (
+        "tool_enable",
+        "email_send",
+        "server_destructive",
+        *ARCHIVE_CARD_KINDS,
+    ) or (d["kind"] == "a3_action" and (d["payload"] or {}).get("action") == "mcp_call")
     if verdict == "approved" and amendments and sealed_as_is:
         # Bound to exactly what it shows (a listing; a call's arguments and their hash).
         raise ApiError(
@@ -1433,6 +1478,10 @@ async def decide(
         from hq_api.archive import retention as RT
 
         await RT.card_declined(tx, d, verdict)
+    if d["kind"] == "server_destructive":  # ⟨1.8⟩ the held job goes on, or it does not run
+        from hq_api.domain import servers
+
+        await servers.on_decided(tx, d, verdict)
     if d["kind"] == "role_new" and verdict in ("rejected", "returned"):
         from hq_api.domain import role_drafts
 

@@ -36,6 +36,9 @@ kinds := {
 	# ⟨1.7⟩ prompt 14 (contract §23.11): an agent's proposed schema change, the
 	# weekly disposal card; both the owner's seal only
 	"archive_schema", "archive_disposal",
+	# ⟨1.8⟩ prompt 17 (contract §26.3): a destructive command on a company
+	# server, raised by the hub's classification; the owner's seal only
+	"server_destructive",
 }
 
 # Kinds a CEO may decide for its own company (each with its own condition below).

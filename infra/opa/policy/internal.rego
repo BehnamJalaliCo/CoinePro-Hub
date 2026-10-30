@@ -69,6 +69,8 @@ ops := {
 	"media.voice", "voices.claim", "voices.done",
 	# prompt 14 (archive.rego): the archive's tools (the archivist, the counsel)
 	"archive.search", "archive.read", "archive.file", "archive.link", "archive.hold",
+	# prompt 17 (servers.rego): jobs on the companies' own servers (contract §26.2)
+	"server.read", "server.run",
 }
 
 # The oversight roles of the holding: the overseer, QC (the inspector) and

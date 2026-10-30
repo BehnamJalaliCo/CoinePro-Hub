@@ -145,6 +145,11 @@ async def set_kill_switch(
         await events.emit(tx, company["code"], "control.changed", scope_of(company), data)
     if state_ == "engaged":
         await workshop.pause_locked(tx)
+        # ⟨1.8⟩ contract §26.3: the company's server jobs are cancelled (its
+        # runners kill them on their next poll)
+        from hq_api.domain import servers
+
+        await servers.cancel_locked(tx)
     return True
 
 

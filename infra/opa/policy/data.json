@@ -40,7 +40,11 @@
           "okr.checkin",
           "risk.update",
           "calendar.add",
-          "role.decide"
+          "role.decide",
+          "server.exec",
+          "server.write",
+          "server.claude",
+          "server.run"
         ],
         "manager": [
           "work.delegate",
@@ -63,7 +67,11 @@
           "okr.checkin",
           "risk.update",
           "calendar.add",
-          "media.review"
+          "media.review",
+          "server.exec",
+          "server.write",
+          "server.claude",
+          "server.run"
         ],
         "inspector": [
           "work.delegate",
@@ -106,7 +114,11 @@
           "claim.verdict",
           "media.render",
           "media.voice",
-          "archive.hold"
+          "archive.hold",
+          "server.exec",
+          "server.write",
+          "server.claude",
+          "server.run"
         ],
         "assistant": [
           "errand.step",
@@ -144,7 +156,11 @@
           "deploy_freeze.set",
           "support.mystery",
           "knowledge.review",
-          "claim.verdict"
+          "claim.verdict",
+          "server.exec",
+          "server.write",
+          "server.claude",
+          "server.run"
         ]
       },
       "authority_bounds": {

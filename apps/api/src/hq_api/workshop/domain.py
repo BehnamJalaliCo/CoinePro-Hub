@@ -141,6 +141,11 @@ class CodeSession(BaseModel):
     # `hold`: the Chief Overseer's hold (contract §18.15), until the owner decides
     held: Literal["work_lock", "company_locked", "budget", "hold"] | None = None
     transcript_file: UUID | None = None
+    # ⟨1.8⟩ contract §26.5: the server a `company_server` session runs on (its
+    # id) and the company; the repository folder it runs in
+    server: str | None = None
+    company: str | None = None
+    cwd: str | None = None
 
 
 class SessionEvent(BaseModel):
@@ -167,13 +172,15 @@ GRANT_SQL = """
     LEFT JOIN cartable.decisions d ON d.id = g.decision_id
     LEFT JOIN core.employees de ON g.driver_kind = 'agent' AND de.code = g.driver_code
 """
+# ⟨1.8⟩ a session on a company server (runtime company_server, contract
+# §26.2) has no workspace or grant: hence the outer joins.
 SESSION_SQL = """
     SELECT s.*, w.code AS workspace, w.repo, w.default_branch, w.policy, c.code AS company,
            g.ref AS grant_ref, g.actions, g.budget_usd, g.expires_at AS grant_expires_at,
            g.revoked_at AS grant_revoked_at,
            de.title_fa AS driver_title_fa, oe.title_fa AS opened_by_title_fa
-    FROM workshop.sessions s JOIN workshop.workspaces w ON w.id = s.workspace_id
-    JOIN workshop.grants g ON g.id = s.grant_id JOIN core.companies c ON c.id = s.company_id
+    FROM workshop.sessions s LEFT JOIN workshop.workspaces w ON w.id = s.workspace_id
+    LEFT JOIN workshop.grants g ON g.id = s.grant_id JOIN core.companies c ON c.id = s.company_id
     LEFT JOIN core.employees de ON s.driver_kind = 'agent' AND de.code = s.driver_code
     LEFT JOIN core.employees oe ON s.opened_by_kind = 'agent' AND oe.code = s.opened_by_code
 """
@@ -227,8 +234,8 @@ def render_session(r: dict[str, Any]) -> CodeSession:
     return CodeSession(
         id=r["id"],
         ref=r["ref"],
-        workspace=r["workspace"],
-        grant=r["grant_ref"],
+        workspace=r["workspace"] or "",
+        grant=r["grant_ref"] or "",
         title=r["title"],
         brief=r["brief"],
         opened_by=_actor(r["opened_by_kind"], r["opened_by_code"], r.get("opened_by_title_fa")),
@@ -249,6 +256,9 @@ def render_session(r: dict[str, Any]) -> CodeSession:
         area=r["area"],
         held=r["held"],
         transcript_file=r["transcript_file_id"],
+        server=str(r["server_id"]) if r.get("server_id") else None,
+        company=r["company"],
+        cwd=r.get("cwd"),
     )
 
 
@@ -950,6 +960,7 @@ async def resume_unlocked(tx: Tx) -> list[dict[str, Any]]:
         SESSION_SQL
         + """ WHERE s.held = 'company_locked' AND s.external_id IS NULL
               AND s.state <> ALL(:final) AND control.lock_state(s.company_id) IS NULL
+              AND s.runtime <> 'company_server'
               ORDER BY s.created_at""",
         final=list(FINAL),
     )
@@ -978,6 +989,7 @@ async def pause_locked(tx: Tx) -> list[dict[str, Any]]:
         SESSION_SQL
         + """ WHERE s.state = ANY(:active) AND s.held IS NULL
               AND control.lock_state(s.company_id) IS NOT NULL
+              AND s.runtime <> 'company_server'  -- ⟨1.8⟩ its job is cancelled instead
               ORDER BY s.created_at""",
         active=list(ACTIVE),
     )

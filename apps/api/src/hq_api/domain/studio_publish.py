@@ -153,7 +153,19 @@ async def placements(tx: Tx, hub: Any, item: dict[str, Any]) -> list[dict[str, A
             "via": "manual" if t["placement"] in S.MANUAL_PLACEMENTS else "api",
             "blocked": None,
         }
-        if row["via"] == "api":
+        if t["channel"] == "runner":
+            # ⟨1.8⟩ the company's own product API on its paired server (§26.1b)
+            row["via"] = "runner"
+            row["server"], row["command"] = t.get("server"), t.get("command")
+            srv = await tx.first(
+                """SELECT state FROM infra.servers WHERE company_id = :co AND origin = 'attached'
+                     AND lower(name) = lower(:n)""",
+                co=item["company_id"],
+                n=t.get("server") or "",
+            )
+            if srv is None or srv["state"] == "revoked":
+                row["blocked"] = "server_unavailable"
+        elif row["via"] == "api":
             acct = await tx.first("SELECT key FROM tools.accounts WHERE key = :k", k=t["account"])
             if acct is None or not await G.has_secret(getattr(hub, "bao", None), t["account"]):
                 row["blocked"] = "account_not_configured"
@@ -473,6 +485,12 @@ async def _publish_one(hub: Any, item: dict[str, Any], rows: list[dict[str, Any]
                 {**r, "outcome": "error", "external_id": None, "url": None, "error": r["blocked"]}
             )
             continue
+        if r["via"] == "runner":
+            # ⟨1.8⟩ queued below as a `publish` job; its result comes back later
+            results.append(
+                {**r, "outcome": "queued", "external_id": None, "url": None, "error": None}
+            )
+            continue
         try:
             out = await _send(hub, item, r)
         except Exception:
@@ -484,6 +502,11 @@ async def _publish_one(hub: Any, item: dict[str, Any], rows: list[dict[str, Any]
         decision = cur.get("decision_id")
         now = datetime.now(UTC)
         for x in results:
+            if x["outcome"] == "queued":
+                x["job"] = await _queue_runner(tx, item, x)
+                if x["job"] is not None:
+                    continue
+                x.update(outcome="error", error=x.get("error") or "server_unavailable")
             await tx.exec(
                 """INSERT INTO media.publish_log (company_id, item_id, series_id, action, channel, placement,
                        account, via, outcome, external_id, url, error, by_kind, by_code, decision_id)
@@ -511,9 +534,27 @@ async def _publish_one(hub: Any, item: dict[str, Any], rows: list[dict[str, Any]
                 "external_id": x.get("external_id"),
                 "url": x.get("url"),
                 "error": x.get("error"),
+                **({"job": x["job"]} if x.get("job") else {}),
             }
             for x in results
         ]
+        if any(x["outcome"] == "queued" for x in results):
+            # ⟨1.8⟩ waiting for the runners' answers (runner_published finishes it);
+            # the lease keeps the publisher from taking it again meanwhile.
+            await tx.exec(
+                """UPDATE media.items SET publish = CAST(:p AS jsonb),
+                       publish_at = now() + interval '7 days' WHERE id = :id""",
+                id=item["id"],
+                p=S.canonical(publish),
+            )
+            await events.emit(
+                tx,
+                item["company"],
+                "media.item",
+                item["ref"],
+                {"state": "scheduled", "waiting": "runner"},
+            )
+            return
         ok = all(x["outcome"] == "ok" for x in results)
         limited = [x for x in results if x.get("error") == "platform_limit"]
         if ok:
@@ -575,6 +616,146 @@ async def _publish_one(hub: Any, item: dict[str, Any], rows: list[dict[str, Any]
             n=note,
         )
         await events.emit(tx, item["company"], "media.item", item["ref"], {"state": state})
+
+
+async def _queue_runner(tx: Tx, item: dict[str, Any], x: dict[str, Any]) -> str | None:
+    """⟨1.8⟩ A `publish` job on the target server's runner (contract §26.1b):
+    the rendered files (the runner fetches them from signed hub URLs, minted
+    when it takes the job), the caption and the sealed command. None (with
+    x["error"]) when the server cannot take it now."""
+    from hq_api.domain import servers as SV
+
+    outs = [o for o in item.get("outputs") or [] if o.get("placement") == x["placement"]]
+    if not outs:
+        x["error"] = "no_render"
+        return None
+    try:
+        server = await SV.load_server(tx, str(x.get("server") or ""), company=item["company"])
+        j = await SV.create_job(
+            tx,
+            server=server,
+            kind="publish",
+            args={
+                "item": item["ref"],
+                "kind": item["kind"],
+                "placement": x["placement"],
+                "command": x.get("command") or "",
+                "caption": caption_of(item, "instagram"),
+                "title_fa": item["title_fa"],
+                "files": [
+                    {
+                        "file_id": str(o["file_id"]),
+                        "name": o.get("name"),
+                        "mime": _mime(o),
+                        "kind": o.get("kind"),
+                    }
+                    for o in outs[:10]
+                ],
+            },
+            actor_kind="service",
+            actor_code="media",
+            summary=f"انتشار {item['ref']} ({x['placement']})",
+            timeout_s=900,
+        )
+    except ApiError as exc:
+        x["error"] = (
+            exc.code if exc.code in ("company_locked", "not_found") else "server_unavailable"
+        )
+        if x["error"] == "not_found":
+            x["error"] = "server_unavailable"
+        return None
+    return str(j["id"])
+
+
+async def runner_published(
+    tx: Tx, j: dict[str, Any], ok: bool, external_id: str | None, url: str | None,
+    error: str | None,
+) -> None:  # fmt: skip
+    """⟨1.8⟩ A publish job ended: its row of the item and of the publish log;
+    once no runner is pending, the item is published (or its card raised)."""
+    ref = (j["args"] or {}).get("item")
+    if not ref:
+        return
+    item = await S.load_item(tx, str(ref), lock=True)
+    entries = list(item.get("publish") or [])
+    mine = next((e for e in entries if e.get("job") == str(j["id"])), None)
+    if mine is None or mine.get("at") or mine.get("error"):
+        return
+    mine.update(
+        at=datetime.now(UTC).isoformat() if ok else None,
+        external_id=external_id,
+        url=url,
+        error=None if ok else (error or "publish_error")[:40],
+    )
+    by_card = (item.get("render_meta") or {}).get(BY_CARD)
+    await tx.exec(
+        """INSERT INTO media.publish_log (company_id, item_id, series_id, action, channel, placement,
+               account, via, outcome, external_id, url, error, by_kind, by_code, decision_id)
+           VALUES (:co, :i, :s, 'publish', 'runner', :pl, :a, 'runner', :o, :x, :u, :e, :bk, :bc, :d)""",
+        co=item["company_id"],
+        i=item["id"],
+        s=item.get("series_id"),
+        pl=mine["placement"],
+        a=next(
+            (
+                t["account"]
+                for t in S.targets_of(item)
+                if t["channel"] == "runner" and t["placement"] == mine["placement"]
+            ),
+            "runner-unknown",
+        ),
+        o="ok" if ok else "error",
+        x=external_id,
+        u=url,
+        e=None if ok else re.sub(r"[^a-z_]", "_", (error or "publish_error").lower())[:40],
+        bk="owner" if by_card else "service",
+        bc="owner" if by_card else "media",
+        d=item.get("decision_id") if by_card else None,
+    )
+    pending = [e for e in entries if e.get("job") and not e.get("at") and not e.get("error")]
+    await tx.exec(
+        "UPDATE media.items SET publish = CAST(:p AS jsonb) WHERE id = :id",
+        id=item["id"],
+        p=S.canonical(entries),
+    )
+    if pending:
+        return
+    good = [e for e in entries if e.get("at")]
+    if good:
+        bad = [e for e in entries if not e.get("at")]
+        note = (
+            "آنچه راه داشت منتشر شد؛ جای دیگر: "
+            + "، ".join(f"{e['placement']} ({e.get('error')})" for e in bad)
+            if bad
+            else None
+        )
+        await tx.exec(
+            """UPDATE media.items SET state = 'published', publish_at = NULL, state_note_fa = :n
+               WHERE id = :id""",
+            id=item["id"],
+            n=note,
+        )
+        await events.emit(tx, item["company"], "media.item", item["ref"], {"state": "published"})
+        return
+    cur = await S.load_item(tx, item["ref"], lock=True)
+    await card(
+        tx,
+        cur,
+        "publish_failed",
+        [
+            {
+                "channel": e["channel"],
+                "placement": e["placement"],
+                "account": next(
+                    (t["account"] for t in S.targets_of(cur) if t["placement"] == e["placement"]),
+                    "runner-unknown",
+                ),
+                "via": "runner" if e["channel"] == "runner" else "api",
+                "blocked": e.get("error"),
+            }
+            for e in entries
+        ],
+    )
 
 
 async def _account(hub: Any, key: str) -> tuple[dict[str, Any] | None, str | None]:

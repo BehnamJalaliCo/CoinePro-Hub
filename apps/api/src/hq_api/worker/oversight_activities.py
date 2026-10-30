@@ -40,6 +40,7 @@ from hq_api.domain import oversight as O
 from hq_api.domain import oversight_checks as C
 from hq_api.domain import oversight_support as OS  # registers PR-043/101/102/103 (prompt 10)
 from hq_api.domain import recurrence
+from hq_api.domain import servers as _servers  # noqa: F401 - registers PR-130 (prompt 17)
 from hq_api.domain import work as W
 from hq_api.errors import ApiError
 from hq_api.hub import Hub

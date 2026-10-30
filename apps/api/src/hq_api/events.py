@@ -102,6 +102,9 @@ TOPICS: dict[str, tuple[str, ...]] = {
     # ⟨1.7⟩ prompt 14 (contract §23.11): record.filed, record.updated,
     # record.sealed, reminder.due, hold.changed, fixity.failed, schema.changed
     "archive": ("record.", "reminder.", "hold.", "fixity.", "schema."),
+    # ⟨1.8⟩ prompt 17 (contract §26.4): server.state, server.call (one per job
+    # start and end, and per command inside a claude job), server.awaiting_seal
+    "servers": ("server.",),
 }
 
 
