@@ -39,7 +39,7 @@ async def test_unknown_topics_are_ignored_and_named(
         served = ",".join(t for t in events.TOPICS if t in newer.split(","))
         assert await _first_comment(url, owner, newer) == f": topics {served}"
         assert await _first_comment(url, owner, "gossip") == ": topics"  # nothing served
-    for bad in ("Work!", "work,,x", "a" * 201):
+    for bad in ("Work!", "work,,x", "a" * 1001):
         r = await client.get("/api/v1/stream", headers=owner, params={"topics": bad})
         assert r.status_code == 422, bad
 

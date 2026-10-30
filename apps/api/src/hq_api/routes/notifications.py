@@ -66,6 +66,12 @@ class Count(BaseModel):
     updated: int
 
 
+class ReadManyIn(BaseModel):
+    """⟨1.7.5⟩ several notifications read in one request (contract §25)."""
+
+    ids: list[UUID] = Field(min_length=1, max_length=500)
+
+
 class AnswerIn(BaseModel):
     choice_id: str = Field(min_length=1, max_length=40)
 
@@ -249,6 +255,39 @@ async def read_notification(notification_id: UUID, ctx: Ctx = Depends(owner_ctx)
             )
         row = await _get(ctx, tx, notification_id)
     return to_notification(row)
+
+
+@router.post("/notifications/read", response_model=Count, responses=responses(401, 422))
+async def read_notifications(body: ReadManyIn, ctx: Ctx = Depends(owner_ctx)) -> Count:
+    """⟨1.7.5⟩ Marks these read (ids not found or already read are skipped);
+    one audit row and one interaction for the whole request."""
+    holding = await ctx.hub.companies.holding()
+    ids = list(dict.fromkeys(body.ids))
+    async with ctx.tx() as tx:
+        n = await tx.exec(
+            """UPDATE notify.notifications SET read_at = now()
+               WHERE read_at IS NULL AND id = ANY(CAST(:ids AS uuid[]))""",
+            ids=[str(i) for i in ids],
+        )
+        await ctx.audit(
+            tx,
+            company_id=holding.id,
+            action="notification.read_many",
+            action_class="A0",
+            target_kind="notifications",
+            target_ref=f"{len(ids)} ids",
+            summary=f"{n} marked read",
+        )
+        await ctx.interaction(
+            tx,
+            company_id=holding.id,
+            kind="edit",
+            action="notification.read_many",
+            target_kind="notifications",
+            target_ref=f"{len(ids)} ids",
+            data={"count": n},
+        )
+    return Count(updated=n)
 
 
 @router.post("/notifications/read-all", response_model=Count, responses=responses(401, 422))

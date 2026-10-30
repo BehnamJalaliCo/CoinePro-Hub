@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, Field
 
 from hq_api import idempotency, pagination
@@ -230,7 +230,7 @@ def _company(r: dict[str, Any]) -> Company:
 
 @router.get("/companies", response_model=list[Company], responses=E)
 async def list_companies(
-    status: Literal["active", "paused", "archived"] | None = None,
+    status: Literal["active", "paused", "archived", "draft"] | None = None,
     q: str | None = Query(default=None, max_length=100),
     ctx: Ctx = Depends(owner_ctx),
 ) -> list[Company]:
@@ -365,6 +365,72 @@ async def update_company(
         result = _company(await tx.one(COMPANY_SQL + " WHERE c.id = :id", id=cur["id"]))
     ctx.hub.companies.invalidate()
     return result
+
+
+@router.delete(
+    "/companies/{code}",
+    status_code=204,
+    response_class=Response,
+    responses=responses(401, 403, 404, 409, 422),
+)
+async def delete_company(code: str, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Response:
+    """⟨1.7.5⟩ 🔏 step-up `company.delete` on the code, `Idempotency-Key`: a
+    company made by mistake goes with everything keyed to it (employees,
+    charters, brand, its founding ...), never its audit rows. Only without
+    history (§25): else `409 company_has_history` with what it has (archive
+    it instead). The holding is `422`. A provisioned server is history here:
+    a Hetzner server goes only on the owner's separate approval."""
+    async with ctx.tx() as tx:
+        idem = await idempotency.claim(tx, request, ctx.who, required=True)
+        if idem and idem.replay:
+            return Response(status_code=204, headers={"Idempotent-Replay": "true"})
+        co = await tx.one(
+            "SELECT id, code, kind, name_fa, name_en, status FROM core.companies WHERE code = :c",
+            c=code,
+        )
+        if co["kind"] == "holding":
+            raise ApiError(
+                422, "validation_failed", fields={"code": "the holding is never deleted"}
+            )
+        history = list(await tx.scalar("SELECT core.company_history(:id)", id=co["id"]) or [])
+        if history:
+            raise ApiError(
+                409,
+                "company_has_history",
+                f"{code} has history: {', '.join(history)}",
+                fields={"history": history},
+            )
+        await stepup.consume(tx, request, ctx.who, "company.delete", code)
+        holding = await ctx.hub.companies.holding()
+        removed = await tx.scalar("SELECT core.purge_company(:id)", id=co["id"]) or {}
+        total = sum(int(v) for v in removed.values())
+        await ctx.audit(
+            tx,
+            company_id=holding.id,
+            action="company.delete",
+            action_class="A3",
+            target_kind="company",
+            target_ref=code,
+            summary=(
+                f"{co['name_fa'] or co['name_en']} ({co['status']}): {total} rows removed"
+                f" from {len(removed)} tables (each table's count: the interaction)"
+            ),
+            step_up=True,
+        )
+        await ctx.interaction(
+            tx,
+            company_id=holding.id,
+            kind="edit",
+            action="company.delete",
+            target_kind="company",
+            target_ref=code,
+            data={"removed": removed},
+        )
+        await ctx.emit(tx, holding.code, "control.changed", code, {"change": "company.deleted"})
+        if idem:
+            await idem.store(tx, 204, None)
+    ctx.hub.companies.invalidate()
+    return Response(status_code=204)
 
 
 @router.get("/templates", response_model=list[Template], responses=E)

@@ -62,7 +62,7 @@ async def _wake(ctx: Ctx) -> None:
 
 # ----------------------------------------------------------------- inputs --
 class Source(Model):
-    kind: Literal["repo", "idea"]
+    kind: Literal["repo", "idea", "blank"]
     repo: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$")
     brief_md: str = Field(default="", max_length=20000)
 
@@ -76,7 +76,15 @@ class Source(Model):
 
 
 class FoundingIn(Model):
+    """⟨1.7.5⟩ the owner's choices ride along (contract §25): kept by the
+    proposer; `blank` needs name_fa and code."""
+
     source: Source
+    name_fa: str | None = Field(default=None, min_length=1, max_length=200)
+    code: str | None = Field(default=None, pattern=r"^[A-Z][A-Z0-9]{1,9}$")
+    tagline: str | None = Field(default=None, max_length=200)
+    color_index: int | None = Field(default=None, ge=1, le=8)
+    logo_file_id: UUID | None = None
 
 
 class PlanIn(Model):
@@ -182,8 +190,9 @@ async def list_foundings(
 async def create_founding(body: FoundingIn, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
     """Opens the read-only audit of the repository (a workshop session under an
     automatic read-only grant once a runtime exists; else github.read and
-    reading, no execution), or for an idea the proposal straight away.
-    Requires `Idempotency-Key`."""
+    reading, no execution), or for an idea the proposal straight away;
+    ⟨1.7.5⟩ `blank` registers a `draft` company at once. A taken `code` is
+    `409 code_taken`. Requires `Idempotency-Key`."""
     from hq_api.workshop import service as workshop
 
     async with ctx.tx() as tx:
@@ -196,10 +205,13 @@ async def create_founding(body: FoundingIn, request: Request, ctx: Ctx = Depends
             body.source.model_dump(exclude_none=True),
             runtime_on=workshop.meta_runtime(ctx.hub) is not None
             or getattr(ctx.hub, "workshop", None) is not None,
+            chosen=body.model_dump(exclude={"source"}),
         )
         out = await F.render(tx, f)
         if idem:
             await idem.store(tx, 201, out.model_dump(mode="json"))
+    if out.company:
+        ctx.hub.companies.invalidate()  # a blank founding made its company
     return out
 
 

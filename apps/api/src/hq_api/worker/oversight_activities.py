@@ -389,7 +389,7 @@ class OversightActivities:
                 tx,
                 company_id=pr.company_id,
                 company_code=pr.company,
-                severity=p["severity"],
+                severity=pr.severity or p["severity"],
                 title_fa=pr.title_fa,
                 body_md=pr.body_md,
                 evidence=pr.evidence,
