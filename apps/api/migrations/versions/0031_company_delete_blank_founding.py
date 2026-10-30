@@ -200,6 +200,50 @@ DROP FUNCTION core.company_history(uuid);
 DROP POLICY calls_company_purge ON llm.calls;
 DROP POLICY usage_company_purge ON llm.usage;
 DROP POLICY budgets_company_purge ON llm.budgets;
+
+CREATE OR REPLACE FUNCTION core.reject_change() RETURNS trigger
+    LANGUAGE plpgsql AS $$
+BEGIN
+    RAISE EXCEPTION '%.% is append-only (% rejected)', TG_TABLE_SCHEMA, TG_TABLE_NAME, TG_OP
+        USING ERRCODE = 'HQA01';
+END $$;
+
+CREATE OR REPLACE FUNCTION files.guard_change() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+BEGIN
+    IF TG_OP = 'UPDATE'
+       AND (to_jsonb(NEW) - 'company_id') = (to_jsonb(OLD) - 'company_id')
+       AND OLD.company_id IS DISTINCT FROM NEW.company_id
+       AND EXISTS (SELECT 1 FROM core.companies WHERE id = OLD.company_id AND kind = 'holding')
+       AND EXISTS (SELECT 1 FROM core.companies WHERE id = NEW.company_id AND kind = 'company')
+       AND ((OLD.variant = 'original' AND OLD.created_by_kind = 'owner')
+            OR (OLD.variant <> 'original' AND OLD.created_by_kind = 'service'
+                AND EXISTS (SELECT 1 FROM files.files p
+                            WHERE p.id = OLD.parent_id AND p.created_by_kind = 'owner')))
+    THEN
+        RETURN NEW;
+    END IF;
+    RAISE EXCEPTION 'files.files is append-only (% rejected)', TG_OP USING ERRCODE = 'HQA01';
+END $$;
+
+-- (not re-validated: audit rows of a deleted company keep its id)
+ALTER TABLE audit.entries ADD CONSTRAINT entries_company_id_fkey
+    FOREIGN KEY (company_id) REFERENCES core.companies (id) NOT VALID;
+
+ALTER TABLE core.foundings DROP COLUMN tagline, DROP COLUMN color_index,
+    DROP COLUMN logo_file_id;
+ALTER TABLE core.foundings DISABLE TRIGGER foundings_immutable;
+UPDATE core.foundings SET source = jsonb_set(source, '{kind}', '"idea"')
+    WHERE source ->> 'kind' = 'blank';
+ALTER TABLE core.foundings ENABLE TRIGGER foundings_immutable;
+ALTER TABLE core.foundings DROP CONSTRAINT foundings_source_check;
+ALTER TABLE core.foundings ADD CONSTRAINT foundings_source_check
+    CHECK ((source ->> 'kind') IN ('repo', 'idea'));
+
+UPDATE core.companies SET status = 'paused' WHERE status = 'draft';
+ALTER TABLE core.companies DROP CONSTRAINT companies_status_check;
+ALTER TABLE core.companies ADD CONSTRAINT companies_status_check
+    CHECK (status IN ('active', 'paused', 'archived'));
 """
 
 
