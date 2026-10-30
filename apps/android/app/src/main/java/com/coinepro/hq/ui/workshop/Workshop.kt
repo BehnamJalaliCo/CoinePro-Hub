@@ -125,7 +125,7 @@ fun SessionRow(s: CodeSession, workspaces: List<Workspace>?, grant: Grant?, serv
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Fig(s.ref, style = Divan.type.figureSmall, color = c.textMuted)
                     // ⟨1.8⟩ Claude Code on the company's own server, in its repository there.
-                    if (s.onServer) Text("روی سرور " + (serverName ?: "شرکت"), style = Divan.type.micro, color = c.goldInk)
+                    if (s.onServer) Text("روی سرور " + (serverName ?: com.coinepro.hq.ui.companyOf(com.coinepro.hq.ui.rememberCompanies(), s.company).nameFa.ifBlank { "شرکت" }), style = Divan.type.micro, color = c.goldInk)
                     else Fig(ws?.repo?.substringAfter('/') ?: s.workspace, style = Divan.type.figureSmall, color = c.textMuted)
                 }
             }

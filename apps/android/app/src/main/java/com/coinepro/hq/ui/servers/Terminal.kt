@@ -171,10 +171,9 @@ private fun Terminal(s: HubServer, run0: String?) {
 
     Column(Modifier.fillMaxSize().imePadding().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            CompanyMark(s.company, height = 14.dp, mono = true, ink = c.textSecondary)
-            Column(Modifier.weight(1f)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("ترمینال", style = Divan.type.h2)
-                Fig(s.login, style = Divan.type.figureSmall, color = c.textMuted)
+                ServerTitle(rememberServerName(s.company, s.name), style = Divan.type.caption, color = c.textSecondary)
             }
             ServerStatePill(s.state, locked)
         }

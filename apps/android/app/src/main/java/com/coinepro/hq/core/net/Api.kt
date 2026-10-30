@@ -1264,6 +1264,15 @@ class Api(
         }
     }.flowOn(kotlinx.coroutines.Dispatchers.IO)
 
+    /** The holding's network map (§26.6): the hub, each server with its road to the hub, and every link the latest checks tried. */
+    suspend fun network(): NetworkMap = get("/infra/network")
+
+    /** The owner asks every online runner to check its roads now (§26.6 `netcheck`); results follow on `GET /infra/network`. */
+    suspend fun checkNetwork() {
+        val req = write("POST", "/infra/network/check", JsonObject(emptyMap()), null)
+        execute(req).use { check(it) }
+    }
+
     suspend fun serverPolicy(): ServerPolicy = get("/control/server-policy")
 
     /** 🔏 PUT on the SHA-256 of the exact body (§26.4 names no action; the app signs `server.policy`, like every body-bound seal). */

@@ -286,7 +286,7 @@ fun SessionScreen(ref: String) {
                             Text(s.title, style = Divan.type.h2)
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Fig(s.ref, style = Divan.type.figureSmall, color = c.textMuted)
-                                if (s.onServer) Fig(server?.let { "${it.name} · ${it.login}" } ?: s.server.orEmpty(), style = Divan.type.figureSmall, color = c.textMuted)
+                                if (s.onServer) Text("روی سرور " + (server?.let { com.coinepro.hq.ui.servers.rememberServerName(it.company, it.name).text } ?: com.coinepro.hq.ui.companyOf(com.coinepro.hq.ui.rememberCompanies(), s.company).nameFa), style = Divan.type.caption, color = c.textMuted)
                                 else Fig(ws?.repo ?: s.workspace, style = Divan.type.figureSmall, color = c.textMuted)
                                 s.branch?.let { Fig(it, style = Divan.type.figureSmall, color = c.textMuted) }
                             }

@@ -42,6 +42,10 @@ data class HubServer(
     val lastSeenAt: String? = null,
     /** When the latest `server.map` was taken; null before the first. */
     val mapAt: String? = null,
+    /** How the runner reached the hub on its last poll (§26.1a): `private` · `public` (the fallback); null before the first. */
+    val via: String? = null,
+    /** The round trip of that poll (§26.6). */
+    val hubRttMs: Double? = null,
 ) {
     /** The runner polls: jobs run on it. */
     val online: Boolean get() = state == "online"
@@ -757,3 +761,194 @@ private val CODE_FA_21 = mapOf(
 
 /** A §26 refusal in Persian (the hub's sentence for any other code). */
 fun serverError(e: ApiException): String = CODE_FA_21[e.code] ?: e.messageFa
+
+// ------------------------------------------------------------------ the holding's network map (§26.6) --
+/** One machine on the holding's network map (§26.6 `GET /infra/network`): the hub (`hub`, `10.10.1.4`) or a company server, with how its
+ *  runner reaches the hub (`via`) and how long that takes (`hub_rtt_ms`), both from its last poll. */
+@Serializable
+data class NetNode(
+    val id: String,
+    val company: String = "",
+    val name: String = "",
+    val privateIp: String? = null,
+    /** `private` · `public` (the runner fell back to the hub's public address) · null for the hub, or before the first poll. */
+    val via: String? = null,
+    /** The runner's state (§26.4): `online` · `offline` · `pending` · `revoked`. */
+    val state: String = "online",
+    val hubRttMs: Double? = null,
+) {
+    val isHub: Boolean get() = id == NetworkMap.HUB
+    val online: Boolean get() = isHub || state == "online"
+    /** Not on the holding's private network at all: no private address (it reaches the hub over the internet until the owner adds it). */
+    val outside: Boolean get() = !isHub && privateIp.isNullOrBlank()
+    /** On the private network, but its runner came over the public address this time (the private one did not answer). */
+    val fellBack: Boolean get() = !isHub && !outside && via == "public"
+}
+
+/** One TCP connect of a `netcheck` (§26.6): [from] tried [to] on [port]; `ok`, `ms` (null when it failed) and the error it met. */
+@Serializable
+data class NetLink(
+    val from: String,
+    val to: String,
+    val port: Int = 0,
+    val ok: Boolean? = null,
+    val ms: Double? = null,
+    val error: String? = null,
+    val at: String? = null,
+)
+
+/** §26.6 `GET /infra/network`: the nodes and every link the latest checks tried. */
+@Serializable
+data class NetworkMap(val at: String? = null, val nodes: List<NetNode> = emptyList(), val links: List<NetLink> = emptyList()) {
+    /** The hub first (made up from the contract when the hub leaves itself out), then the servers that are attached; the revoked are gone. */
+    val all: List<NetNode> get() = listOf(nodes.firstOrNull { it.isHub } ?: NetNode(HUB, "HQ", "hub", HUB_IP)) + servers
+    val servers: List<NetNode> get() = nodes.filter { !it.isHub && it.state != "revoked" }
+
+    fun node(id: String): NetNode? = all.firstOrNull { it.id == id }
+
+    /** What [from] found when it tried [to] on [port]; null when that was never checked. */
+    fun link(from: String, to: String, port: Int): NetLink? = links.lastOrNull { it.from == from && it.to == to && it.port == port }
+
+    /** When the latest result came in. */
+    val lastAt: String? get() = links.mapNotNull { it.at }.maxByOrNull { instantOrMin(it) } ?: at
+
+    companion object {
+        const val HUB = "hub"
+        const val HUB_IP = "10.10.1.4"
+        /** The ports every runner tries on every other server (§26.6); the hub is tried on 443. */
+        val PORTS = listOf(22, 80, 443)
+    }
+}
+
+private fun instantOrMin(s: String?): java.time.Instant = s?.let { runCatching { java.time.Instant.parse(it) }.getOrNull() } ?: java.time.Instant.MIN
+
+/** How a line on the map is drawn: green, amber (slower than [Network.SLOW_MS]), red, or grey when nothing is known. */
+enum class LinkHealth { OK, SLOW, FAIL, UNKNOWN }
+
+/** The line between the hub and one server: its health, the road (`private`/`public`), the round trip and why it failed. */
+data class HubLine(val node: NetNode, val health: LinkHealth, val via: String?, val rttMs: Double?, val error: String?)
+
+/** A broken road between two machines, every port that failed on it together. */
+data class NetPath(val from: NetNode, val to: NetNode, val ports: List<Int>, val error: String?, val toHub: Boolean)
+
+/** What the map says in words: what is broken, what is slow, who is outside the private network or came over the public road. */
+data class NetSummary(
+    val servers: Int,
+    val failed: List<NetPath>,
+    val slow: List<HubLine>,
+    val outside: List<NetNode>,
+    val fellBack: List<NetNode>,
+    /** The servers whose runner has never reported a road (pending), so nothing is known about them yet. */
+    val unknown: List<NetNode>,
+    /** The private address the next server should take (§26.1a: the owner adds it in the Hetzner console). */
+    val nextFreeIp: String?,
+) {
+    /** Every server reaches the hub, over the private network, and the servers reach each other. */
+    val allOk: Boolean get() = failed.isEmpty() && slow.isEmpty() && outside.isEmpty() && fellBack.isEmpty() && unknown.isEmpty()
+    val hubOk: Boolean get() = failed.none { it.toHub }
+}
+
+/** Where a check stands: which online runners have answered since it was queued. */
+data class CheckProgress(val expected: Set<String>, val reported: Set<String>) {
+    val done: Boolean get() = expected.isNotEmpty() && reported.containsAll(expected)
+    val fraction: Float get() = if (expected.isEmpty()) 0f else reported.intersect(expected).size.toFloat() / expected.size
+}
+
+object Network {
+    /** Slower than this (ms) is amber on the map. */
+    const val SLOW_MS = 150.0
+    /** A check is followed every few seconds, for at most a minute. */
+    const val POLL_MS = 3_000L
+    const val MAX_WAIT_MS = 60_000L
+
+    fun health(ok: Boolean?, ms: Double?): LinkHealth = when {
+        ok == null -> LinkHealth.UNKNOWN
+        !ok -> LinkHealth.FAIL
+        ms != null && ms > SLOW_MS -> LinkHealth.SLOW
+        else -> LinkHealth.OK
+    }
+
+    /** `3 ms`, `0.4 ms`, `41 ms`, `1.2 s` — a figure, Latin. */
+    fun ms(v: Double?): String? = when {
+        v == null || v < 0 -> null
+        v < 10 -> String.format(java.util.Locale.US, "%.1f", v).removeSuffix(".0") + " ms"
+        v < 1_000 -> "${Math.round(v)} ms"
+        else -> String.format(java.util.Locale.US, "%.1f", v / 1000).removeSuffix(".0") + " s"
+    }
+
+    /** The hub ↔ [n] line: a runner that stopped polling is a broken line; one that never polled is unknown; otherwise its own check of the
+     *  hub (443) if there is one, else the round trip its polls report. */
+    fun hubLine(m: NetworkMap, n: NetNode): HubLine {
+        val l = NetworkMap.PORTS.reversed().firstNotNullOfOrNull { m.link(n.id, NetworkMap.HUB, it) }
+        val rtt = n.hubRttMs ?: l?.takeIf { it.ok == true }?.ms
+        val h = when {
+            n.state == "offline" -> LinkHealth.FAIL
+            n.state != "online" -> LinkHealth.UNKNOWN
+            l?.ok == false -> LinkHealth.FAIL
+            rtt != null || l?.ok == true -> health(true, rtt)
+            else -> LinkHealth.UNKNOWN
+        }
+        val err = when {
+            n.state == "offline" -> "offline"
+            l?.ok == false -> l.error ?: "failed"
+            else -> null
+        }
+        return HubLine(n, h, n.via, rtt.takeIf { h != LinkHealth.FAIL }, err)
+    }
+
+    /** The map in words. A server outside the private network cannot reach the others' private addresses: that is one issue (add it to
+     *  the network), not a broken road per address. */
+    fun summary(m: NetworkMap): NetSummary {
+        val servers = m.servers
+        val lines = servers.map { hubLine(m, it) }
+        val failed = mutableListOf<NetPath>()
+        val hub = m.all.first()
+        for (l in lines) if (l.health == LinkHealth.FAIL) failed += NetPath(l.node, hub, listOf(443), l.error, toHub = true)
+        val byId = servers.associateBy { it.id }
+        m.links.filter { it.ok == false && it.to != NetworkMap.HUB && it.from != NetworkMap.HUB }
+            .groupBy { it.from to it.to }
+            .forEach { (k, ls) ->
+                val from = byId[k.first] ?: return@forEach
+                val to = byId[k.second] ?: return@forEach
+                if (from.outside || to.outside || from.state == "offline" || to.state == "offline") return@forEach
+                // The latest result of each port decides: a port that answered since is not broken.
+                val ports = ls.map { it.port }.distinct().filter { p -> m.link(from.id, to.id, p)?.ok == false }.sorted()
+                if (ports.isNotEmpty()) failed += NetPath(from, to, ports, ls.last().error, toHub = false)
+            }
+        return NetSummary(
+            servers.size, failed,
+            lines.filter { it.health == LinkHealth.SLOW },
+            servers.filter { it.outside },
+            servers.filter { it.fellBack && it.online },
+            servers.filter { it.state == "pending" },
+            nextFreeIp(m),
+        )
+    }
+
+    /** The lowest free address in the hub's /24 (the hub's own and every server's taken). */
+    fun nextFreeIp(m: NetworkMap): String? {
+        val hubIp = m.all.first().privateIp?.takeIf { it.isNotBlank() } ?: NetworkMap.HUB_IP
+        val prefix = hubIp.substringBeforeLast('.', "").ifBlank { return null }
+        val taken = m.all.mapNotNull { n -> n.privateIp?.takeIf { it.startsWith("$prefix.") }?.substringAfterLast('.')?.toIntOrNull() }.toSet()
+        return (1..254).firstOrNull { it !in taken }?.let { "$prefix.$it" }
+    }
+
+    /** Which online runners have reported since [before] (the map as it was when the check was queued): a link from them newer than
+     *  anything [before] held. The check is done when every online server has. */
+    fun progress(before: NetworkMap?, now: NetworkMap): CheckProgress {
+        val base = instantOrMin(before?.lastAt)
+        val expected = now.servers.filter { it.online }.map { it.id }.toSet()
+        val reported = now.links.filter { instantOrMin(it.at) > base }.map { it.from }.toSet()
+        return CheckProgress(expected, reported)
+    }
+
+    /** A connect error in Persian (the runner's word kept beside it, Latin). */
+    fun errorFa(e: String?): String = when {
+        e == null -> "وصل نشد"
+        e == "offline" -> "runner تماس نمیگیرد"
+        e.contains("refused", true) -> "پورت بسته است"
+        e.contains("timeout", true) || e.contains("timed out", true) -> "پاسخی نیامد"
+        e.contains("unreachable", true) || e.contains("no route", true) -> "راهی به مقصد نیست"
+        else -> "وصل نشد"
+    }
+}

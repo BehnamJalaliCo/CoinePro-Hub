@@ -302,6 +302,18 @@ class HoldingStream(
         eventsFlow.tryEmit(e)
     }
 
+    /**
+     * The screenshot tests' stream: the demo's first [ticks] beats played at once, and nothing after them — no clock drives it, so a
+     * screen that shows the stream (its live feed, the agents' rings) looks the same however fast the machine runs or in what order the
+     * tests run. Debug builds only (the release build has no demo).
+     */
+    fun demoSeed(ticks: Int) {
+        if (!demo) return
+        modeFlow.value = StreamMode.FULL
+        stateFlow.value = StreamState.LIVE
+        for (t in 0 until ticks) for (e in com.coinepro.hq.Demo.next(t)) dispatch(e)
+    }
+
     /** The demo holding's stream (debug builds): the demo's own script of runs, outputs and cards, and what the owner's actions
      *  there cause (a stopped company's runs end). Release builds have no demo. */
     private suspend fun demoPulse() {
@@ -398,6 +410,8 @@ class HoldingStream(
             // ⟨1.8⟩ §26.4: a server's state, each call on it (its activity, the control room's live calls) and a destructive call held
             // for the owner's seal (its `server_destructive` card in the cartable).
             "server.awaiting_seal" to arrayOf("servers", "decisions", "inbox"),
+            // ⟨1.8⟩ §26.6: a runner's state carries its road to the hub (`via`, `hub_rtt_ms`), so the network map reads again.
+            "server.state" to arrayOf("servers", "network"),
             "server." to arrayOf("servers"),
         )
     }

@@ -92,16 +92,12 @@ fun ServerTaskContent(servers: List<HubServer>, initial: HubServer?, onDone: () 
                         .clickable(role = Role.RadioButton) { chosen = s.id; driver = null; cwdPicked = null }.padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    CompanyMark(s.company, height = 14.dp, mono = true, ink = c.textSecondary)
-                    Fig(s.name, Modifier.weight(1f), style = Divan.type.figure, color = c.textPrimary)
-                    Fig(s.login, style = Divan.type.figureSmall, color = c.textMuted)
+                    ServerTitle(rememberServerName(s.company, s.name), Modifier.weight(1f), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold))
                 }
             }
         } else if (server != null) {
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                CompanyMark(server.company, height = 14.dp, mono = true, ink = c.textSecondary)
-                Fig(server.name, Modifier.weight(1f), style = Divan.type.figure, color = c.textPrimary)
-                Fig(server.login, style = Divan.type.figureSmall, color = c.textMuted)
+                ServerTitle(rememberServerName(server.company, server.name), Modifier.weight(1f), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold))
             }
         }
         if (server != null) {

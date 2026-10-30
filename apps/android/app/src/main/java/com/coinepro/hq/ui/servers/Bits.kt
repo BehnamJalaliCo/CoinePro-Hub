@@ -99,6 +99,48 @@ fun rememberServers(): QueryHandle<List<com.coinepro.hq.core.net.HubServer>> = r
 @Composable
 fun rememberServerMap(id: String): QueryHandle<ServerMap?> = rememberQuery("server:map:$id", "servers", maxAgeMs = 60_000) { serverMap(id) }
 
+/**
+ * The owner's rule (2026-10-30): a server is called by its company — «تریدیار», «کوینه‌پرو FX» — never by its hostname or address. When the
+ * company has more than one server, the server's own name follows, small: «تریدیار · ty-web». Hostname and address are details of the
+ * server's own page.
+ */
+data class ServerName(val company: String, val companyFa: String, val server: String?) {
+    val text: String get() = if (server == null) companyFa else "$companyFa · $server"
+}
+
+/** [siblings]: how many servers the company has (the revoked count too: their history is still listed). */
+fun serverNameOf(company: String, companyFa: String?, server: String?, siblings: Int): ServerName =
+    ServerName(company, companyFa?.takeIf { it.isNotBlank() } ?: company, server?.takeIf { siblings > 1 && it.isNotBlank() })
+
+/** The name of [company]'s server [server], from the companies and the servers the app already reads. */
+@Composable
+fun rememberServerName(company: String, server: String?): ServerName {
+    val companies = rememberCompanies()
+    val list = rememberServers().data
+    return serverNameOf(company, com.coinepro.hq.ui.companyOf(companies, company).nameFa, server, list?.count { it.company == company } ?: 1)
+}
+
+/** A server's name as a title: its company's mark and name, the server's own name after it, small, when the company has several. */
+@Composable
+fun ServerTitle(
+    name: ServerName,
+    modifier: Modifier = Modifier,
+    style: TextStyle = Divan.type.bodyStrong,
+    color: Color = Divan.colors.textPrimary,
+    markHeight: androidx.compose.ui.unit.Dp = 14.dp,
+    mark: Boolean = true,
+) {
+    val c = Divan.colors
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (mark) CompanyMark(name.company, height = markHeight, mono = true, ink = c.textSecondary)
+        Text(name.companyFa, style = style, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        name.server?.let {
+            Text("·", style = Divan.type.caption, color = c.textMuted)
+            Fig(it, style = Divan.type.figureSmall, color = c.textMuted)
+        }
+    }
+}
+
 /** Whether the company's kill switch (or the holding's) stands: then its servers are locked (§26.3 `423 company_locked`). */
 @Composable
 fun rememberLocked(company: String?): Boolean {
@@ -153,29 +195,25 @@ fun UsageBar(u: DiskUsage, label: String = u.label, modifier: Modifier = Modifie
     }
 }
 
-/** One server at a glance: its name and company, its work user and host, its runner's state, version and last poll, and from its map
- *  disk, memory and what runs on it. */
+/** One server at a glance: its company (the server's own name too when the company has several), its runner's state, version and last
+ *  poll, a road to the hub over the public address, and from its map disk, memory and what runs on it. */
 @Composable
-fun ServerCard(s: HubServer, locked: Boolean, modifier: Modifier = Modifier, showCompany: Boolean = false, onClick: () -> Unit) {
+fun ServerCard(s: HubServer, locked: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val c = Divan.colors
     val map = if (s.mapAt != null) rememberServerMap(s.id).data else null
-    HqCard(modifier.fillMaxWidth(), onClick = onClick, onClickLabel = "باز کردن سرور ${s.name}") {
+    val name = rememberServerName(s.company, s.name)
+    HqCard(modifier.fillMaxWidth(), onClick = onClick, onClickLabel = "باز کردن سرور ${name.text}") {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(Modifier.size(42.dp).clip(RoundedCornerShape(12.dp)).background(if (s.online && !locked) c.softGold else c.tile), contentAlignment = Alignment.Center) {
                 DIcon(DivanIcon.SERVER, size = 21.dp, tint = if (s.online && !locked) c.goldInk else c.textSecondary)
             }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (showCompany) CompanyMark(s.company, height = 13.dp, mono = true, ink = c.textSecondary)
-                    Fig(s.name, style = Divan.type.figure.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
-                }
-                Fig(s.login, style = Divan.type.figureSmall, color = c.textMuted)
-            }
+            ServerTitle(name, Modifier.weight(1f))
             DIcon(DivanIcon.NEXT, size = 16.dp, tint = c.textMuted)
         }
         FlowRow(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp), itemVerticalAlignment = Alignment.CenterVertically) {
             ServerStatePill(s.state, locked)
             OriginPill(s.origin)
+            if (s.via == "public" && s.online) Pill("از راه عمومی", Tone.WARN, icon = DivanIcon.GLOBE)
             RunnerFacts(s)
         }
         if (map != null && !map.empty) {
@@ -291,6 +329,7 @@ fun ServerSealCard(card: SealCard, modifier: Modifier = Modifier, compact: Boole
     val no = rememberAction()
     var reject by remember { mutableStateOf(false) }
     var done by remember(card.ref) { mutableStateOf<Boolean?>(null) }
+    val where = rememberServerName(card.company, card.serverName)
     val shape = RoundedCornerShape(16.dp)
     Column(
         modifier.fillMaxWidth().clip(shape).background(c.card).border(1.dp, c.negative.copy(alpha = 0.55f), shape).padding(14.dp),
@@ -301,8 +340,8 @@ fun ServerSealCard(card: SealCard, modifier: Modifier = Modifier, compact: Boole
             Column(Modifier.weight(1f)) {
                 Text("کار ویرانگر منتظر مُهر تو", style = Divan.type.bodyStrong, color = c.textPrimary)
                 Text(buildAnnotatedString {
-                    append(card.category?.titleFa ?: "دسته‌ی ویرانگر"); append(" · ")
-                    fig(card.serverName); append(" · "); fig(card.ref)
+                    append(where.text); append(" · ")
+                    append(card.category?.titleFa ?: "دسته‌ی ویرانگر"); append(" · "); fig(card.ref)
                 }, style = Divan.type.caption, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             CompanyMark(card.company, height = 14.dp, mono = true, ink = c.textSecondary)
@@ -330,7 +369,7 @@ fun ServerSealCard(card: SealCard, modifier: Modifier = Modifier, compact: Boole
                         env.api.approve(card.ref, null, token)
                         env.cache.invalidate("decisions", "inbox", "servers", "resolutions")
                         done = true
-                        toasts.ok("مُهر خورد؛ فرمان روی ${card.serverName} اجرا میشود.")
+                        toasts.ok("مُهر خورد؛ فرمان روی سرور ${where.text} اجرا میشود.")
                     }
                 }, variant = BtnVariant.PRIMARY, icon = DivanIcon.SEAL, loading = seal.busy)
                 HqButton("نه", { reject = true }, variant = BtnVariant.DANGER, icon = DivanIcon.REJECT, enabled = !seal.busy)
@@ -344,7 +383,7 @@ fun ServerSealCard(card: SealCard, modifier: Modifier = Modifier, compact: Boole
         onDismissRequest = { reject = false },
         containerColor = c.overlay,
         title = { Text("اجرا نشود؟", style = Divan.type.h3) },
-        text = { Text("فرمان روی ${card.serverName} اجرا نمیشود و ${if (card.actor.kind == "owner") "" else actorFa(card.actor) + " "}خبردار میشود؛ میتواند راه دیگری پیشنهاد بدهد.", style = Divan.type.small, color = c.textSecondary) },
+        text = { Text("فرمان روی سرور ${where.text} اجرا نمیشود و ${if (card.actor.kind == "owner") "" else actorFa(card.actor) + " "}خبردار میشود؛ میتواند راه دیگری پیشنهاد بدهد.", style = Divan.type.small, color = c.textSecondary) },
         confirmButton = {
             HqButton("اجرا نشود", {
                 no.run {
@@ -364,11 +403,12 @@ fun ServerSealCard(card: SealCard, modifier: Modifier = Modifier, compact: Boole
 fun SealPayload(d: Decision) {
     val c = Divan.colors
     val card = sealCardOf(d) ?: return
+    val where = rememberServerName(card.company, card.serverName)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("فرمانی که اجرا میشود", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
         CodeBlock(card.cmd.ifBlank { "—" }, prefix = (card.cwd?.let { "$it " } ?: "") + "$ ", bg = c.softNegative, wrap = true)
         Text(buildAnnotatedString {
-            append("سرور "); fig(card.serverName); append(" · ")
+            append("سرور "); append(where.text); append(" · ")
             append(card.category?.titleFa ?: "ویرانگر")
             card.sessionRef?.let { append(" · جلسه‌ی "); fig(it) }
         }, style = Divan.type.small, color = c.textSecondary)
@@ -385,11 +425,13 @@ fun SealPayload(d: Decision) {
 fun ServersControlCard(company: String?, stopped: Boolean, onOpen: () -> Unit) {
     val c = Divan.colors
     val q = rememberServers()
-    val list = q.data?.filter { company == null || it.company == company } ?: return
+    val companies = rememberCompanies()
+    val all = q.data ?: return
+    val list = all.filter { company == null || it.company == company }
     // The last jobs on every online server (a handful of servers per company), newest first.
     val calls = list.filter { it.online }.take(6).flatMap { s ->
         androidx.compose.runtime.key(s.id) {
-            rememberQuery("server:activity:${s.id}::", "servers", maxAgeMs = 15_000) { serverActivity(s.id, limit = 3) }.data?.items.orEmpty().map { s.name to it }
+            rememberQuery("server:activity:${s.id}::", "servers", maxAgeMs = 15_000) { serverActivity(s.id, limit = 3) }.data?.items.orEmpty().map { serverNameOf(s.company, com.coinepro.hq.ui.companyOf(companies, s.company).nameFa, s.name, list.count { it.company == s.company }).text to it }
         }
     }.sortedByDescending { it.second.at }.take(3)
     HqCard(Modifier.fillMaxWidth(), onClick = onOpen, onClickLabel = "سرورها") {
@@ -415,10 +457,15 @@ fun ServersControlCard(company: String?, stopped: Boolean, onOpen: () -> Unit) {
                 Row(Modifier.padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box(Modifier.size(6.dp).clip(CircleShape).background(when (r.outcome) { CallOutcome.OK -> c.positive; CallOutcome.FAILED -> c.negative; CallOutcome.RUNNING -> c.lapis; CallOutcome.QUEUED, CallOutcome.CANCELLED -> c.textMuted; else -> c.warning }))
                     Text(buildAnnotatedString { append(if (r.byOwner) "تو" else actorFa(r.actor)); append(": "); append(r.summaryFa.ifBlank { r.toolFa }) }, style = Divan.type.caption, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    Fig(server, style = Divan.type.figureSmall, color = c.textMuted)
+                    Text(server, style = Divan.type.micro, color = c.textMuted, maxLines = 1)
                     Text(ago(r.at), style = Divan.type.micro, color = c.textMuted)
                 }
             }
+        }
+        // The holding's control room: the network map (§26.6) one tap away.
+        if (company == null && list.isNotEmpty()) {
+            val nav = LocalNav.current
+            HqButton("شبکه‌ی هلدینگ", { nav.go("network") }, Modifier.padding(top = 4.dp), variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.GLOBE)
         }
     }
 }

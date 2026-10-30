@@ -505,9 +505,20 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
 
         @Composable
         private fun Live(g: AppGraph, content: @Composable () -> Unit) {
-            androidx.compose.runtime.remember { g.env.value.stream.start() }
+            // The stream's first beats, played at once and nothing after them: the live feed and the agents' rings are the same on any
+            // machine and in any test order (a real-time stream made these images differ in CI).
+            androidx.compose.runtime.remember { g.env.value.stream.demoSeed(SEED_TICKS) }
             content()
         }
+
+        /** How many of the demo stream's ticks (about 600 ms each in the app) the live screens are drawn after. */
+        private const val SEED_TICKS = 6
+
+        /** Screens drawn with animations held still (the system's «remove animations»): the agents' orbiting rings, breathing pulses and
+         *  counters stop where they rest, so no frame of a loop is caught mid-way. */
+        private val STILL = setOf(
+            "companies", "companies-list", "company-control", "company-control-live", "company-control-stopped", "company-control-holding", "holding-card",
+        )
 
         /** A sheet's title as [com.coinepro.hq.ui.v14.HqSheet] sets it. */
         @Composable
@@ -730,6 +741,9 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
         // notification permission, the link opens nothing, also when the demo session starts.
         graph.link.setForeground(false)
         graph.enterDemo()
+        // The demo's servers (§26) wake when a screen first asks for them (the control room's servers card); asleep or awake, nothing
+        // of theirs moves on its own under the camera: no agents' calls on the stream, no card raised a few seconds later.
+        DemoLive.servers?.still = true
     }
 
     @Test
@@ -741,7 +755,10 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
         compose.mainClock.autoAdvance = false
         compose.setContent {
             DivanTheme(night) {
-                CompositionLocalProvider(LocalEnv provides graph.env.value, LocalToasts provides Toasts(), LocalNav provides nav) {
+                CompositionLocalProvider(
+                    LocalEnv provides graph.env.value, LocalToasts provides Toasts(), LocalNav provides nav,
+                    com.coinepro.hq.designsystem.LocalReducedMotion provides (name in STILL || com.coinepro.hq.designsystem.LocalReducedMotion.current),
+                ) {
                     Box(Modifier.fillMaxSize().background(Divan.colors.page)) { SCREENS.getValue(name)(graph) }
                 }
             }

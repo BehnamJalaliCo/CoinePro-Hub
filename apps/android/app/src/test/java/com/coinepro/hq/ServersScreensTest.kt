@@ -46,7 +46,9 @@ import org.robolectric.annotation.GraphicsMode
  * map in §26.5's shape (and its lower sections, and TradeYar's map written as the shell prints it), its jobs live, its Claude Code
  * sessions, a pending and locked one and an offline one; a Claude session on TradeYar's server; the owner's terminal after `docker ps`;
  * pairing a server (a code typed, an expired one, then the wait for its runner); the server rules with one change; the seal card in the
- * cartable and on its own page; a task for the server in one of its repositories; the control room's servers card.
+ * cartable and on its own page; a task for the server in one of its repositories; the control room's servers card. ⟨§26.6⟩ The holding's
+ * network map: the demo's (one road broken, one server outside the private network), a server tapped, a check under way, a healthy one.
+ * Every server is named by its company (the owner's rule), its own name after it only when the company has several.
  */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -112,6 +114,22 @@ class ServersScreensTest(private val name: String, private val night: Boolean) {
                     )
                 }
             },
+            // ⟨1.8⟩ §26.6 the holding's network: the demo's map (Pro-Chart cannot open FX's SSH port, IG-Hub outside the private network),
+            // Pro-Chart tapped (its roads port by port), a check half answered, and a healthy network.
+            "network" to { _ -> com.coinepro.hq.ui.servers.NetworkScreen() },
+            // A tapped server's card (below the map on the page): Pro-Chart, whose SSH to FX is refused; IG-Hub, outside the network.
+            "network-node" to { _ -> NetNode("srv-pc-1") },
+            "network-node-outside" to { _ -> NetNode("srv-ig-1") },
+            "network-checking" to { _ ->
+                val m = com.coinepro.hq.ui.servers.rememberNetwork().data
+                if (m != null) com.coinepro.hq.ui.servers.NetworkScreen(
+                    check0 = com.coinepro.hq.ui.servers.NetCheckRun(m, com.coinepro.hq.core.net.CheckProgress(m.servers.map { it.id }.toSet(), setOf("srv-fx-1", "srv-ty-1")), waitedMs = 6_000),
+                )
+            },
+            "network-all-ok" to { _ ->
+                val m = com.coinepro.hq.ui.servers.rememberNetwork().data
+                if (m != null) com.coinepro.hq.ui.servers.NetworkScreen(map0 = healthy(m))
+            },
             "server-control-cards" to { _ ->
                 Cardlike {
                     com.coinepro.hq.ui.servers.ServersControlCard("FX", stopped = false) {}
@@ -120,6 +138,30 @@ class ServersScreensTest(private val name: String, private val night: Boolean) {
                 }
             },
         )
+
+        /** The demo's network as it is once IG-Hub joins the private network (at 10.10.1.5) and FX opens its SSH port to Pro-Chart. */
+        private fun healthy(m: com.coinepro.hq.core.net.NetworkMap): com.coinepro.hq.core.net.NetworkMap {
+            val nodes = m.nodes.map { if (it.outside) it.copy(privateIp = "10.10.1.5", via = "private", hubRttMs = 2.6) else it }
+            val servers = nodes.filter { !it.isHub }
+            val at = m.links.mapNotNull { it.at }.max()
+            val links = servers.flatMap { f ->
+                listOf(com.coinepro.hq.core.net.NetLink(f.id, "hub", 443, true, (f.hubRttMs ?: 2.0) + 0.6, null, at)) +
+                    servers.filter { it.id != f.id }.flatMap { t -> listOf(22, 80, 443).map { p -> com.coinepro.hq.core.net.NetLink(f.id, t.id, p, true, 0.4 + (p % 7) / 10.0, null, at) } }
+            }
+            return m.copy(nodes = nodes, links = links)
+        }
+
+        @Composable
+        private fun NetNode(id: String) {
+            Cardlike {
+                val m = com.coinepro.hq.ui.servers.rememberNetwork().data
+                val names = com.coinepro.hq.ui.servers.rememberNetNames(m)
+                m?.node(id)?.let { com.coinepro.hq.ui.servers.NodeDetail(m, it, names) {} }
+            }
+        }
+
+        /** Screens drawn with animations held still: the check's sparks and the live dots stop where they rest. */
+        private val STILL = setOf("network", "network-node", "network-node-outside", "network-checking", "network-all-ok")
 
         @JvmStatic
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0}-{1}")
@@ -165,7 +207,10 @@ class ServersScreensTest(private val name: String, private val night: Boolean) {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             DivanTheme(night) {
-                CompositionLocalProvider(LocalEnv provides graph.env.value, LocalToasts provides Toasts(), LocalNav provides nav) {
+                CompositionLocalProvider(
+                    LocalEnv provides graph.env.value, LocalToasts provides Toasts(), LocalNav provides nav,
+                    com.coinepro.hq.designsystem.LocalReducedMotion provides (name in STILL || com.coinepro.hq.designsystem.LocalReducedMotion.current),
+                ) {
                     Box(Modifier.fillMaxSize().background(Divan.colors.page)) { SCREENS.getValue(name)(graph) }
                 }
             }

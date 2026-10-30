@@ -203,6 +203,7 @@ private val GROUPS = listOf(
         Tool("control", "کنترل", DivanIcon.LOCK, "توقف و ادامه‌ی شرکت‌ها و انتشارها"),
         // ⟨1.8⟩ §26: the companies' servers under the holding's control, and the few things that wait for the owner's seal there.
         Tool("servers", "همه‌ی سرورها", DivanIcon.SERVER, "نقشه، کارهای زنده، ترمینال و Claude روی سرور شرکت‌ها"),
+        Tool("network", "شبکه‌ی هلدینگ", DivanIcon.GLOBE, "راه هر سرور به هاب و به سرورهای دیگر"),
         Tool("server-policy", "قوانین سرورها", DivanIcon.SEAL, "شش کار ویرانگری که مُهر تو را میخواهند"),
         Tool("sites", "پایش سایت‌ها", DivanIcon.SERVER, "سالم بودن سایت‌ها و رخدادهایشان"),
         Tool("audit", "دفتر Audit", DivanIcon.REPORT, "ردّ تغییرناپذیر هر اقدام در هاب"),
@@ -286,11 +287,14 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
         }
     }
     // ⟨1.8⟩ §26.3: a destructive command on a company server was held for the seal; with the app on screen it says so at once.
+    val sealCompanies = androidx.compose.runtime.rememberUpdatedState(com.coinepro.hq.ui.rememberCompanies())
     LaunchedEffect(env) {
         env.stream.events.collect { e ->
             if (e.type == "server.awaiting_seal") {
                 val ref = (e.data["decision_ref"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: e.ref?.takeIf { it.startsWith("D-") }
-                toasts.info("کار ویرانگر روی سرور منتظر مُهر توست.", "ببین") { navApi.go(ref?.let { "cartable/$it" } ?: "cartable") }
+                // The owner's rule: a server is named by its company.
+                val co = e.company?.let { code -> sealCompanies.value.firstOrNull { it.code == code }?.nameFa ?: code }
+                toasts.info("کار ویرانگر روی سرور ${co ?: "شرکت"} منتظر مُهر توست.", "ببین") { navApi.go(ref?.let { "cartable/$it" } ?: "cartable") }
             }
         }
     }
@@ -413,6 +417,8 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     composable("servers-attach") { com.coinepro.hq.ui.servers.AttachScreen() }
                     composable("servers-attach/{company}") { com.coinepro.hq.ui.servers.AttachScreen(company0 = it.arguments?.getString("company")) }
                     composable("server-policy") { com.coinepro.hq.ui.servers.ServerPolicyScreen() }
+                    // ⟨1.8⟩ §26.6 the holding's network map
+                    composable("network") { com.coinepro.hq.ui.servers.NetworkScreen() }
                     composable("errors") { com.coinepro.hq.ui.settings.ErrorLogScreen(graph.errors) }
                     // ⟨1.5⟩ §19
                     composable("revenue") { com.coinepro.hq.ui.revenue.RevenueScreen() }

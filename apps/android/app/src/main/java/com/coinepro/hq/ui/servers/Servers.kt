@@ -74,6 +74,8 @@ fun ServersScreen() {
             }
         }
         item(key = "intro") { ServersIntro() }
+        // §26.6: how every server reaches the hub and the others, in one line, and the map a tap away.
+        item(key = "network") { NetworkLink() }
         val list = q.data
         if (list != null && list.isNotEmpty()) item(key = "stats") {
             StatRow {

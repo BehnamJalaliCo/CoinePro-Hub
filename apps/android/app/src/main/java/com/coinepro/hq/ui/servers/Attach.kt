@@ -256,10 +256,10 @@ private fun WaitStep(o: HubServer) {
         HqCard(Modifier.fillMaxWidth(), color = c.softPositive) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 DIcon(DivanIcon.SEAL, size = 20.dp, tint = c.positive)
-                Text(buildAnnotatedString { append("کد تأیید شد؛ "); fig(now.name); append(" به ستاد پیوست.") }, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
+                Text("کد تأیید شد؛ سرور ${rememberServerName(now.company, now.name).text} به ستاد پیوست.", style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
             }
         }
-        ServerCard(now, locked = rememberLocked(now.company), showCompany = true) { nav.go("servers/${now.id}") }
+        ServerCard(now, locked = rememberLocked(now.company)) { nav.go("servers/${now.id}") }
         HqCard(Modifier.fillMaxWidth(), color = if (online) c.softPositive else c.card) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (online) DIcon(DivanIcon.SEAL, size = 22.dp, tint = c.positive)

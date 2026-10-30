@@ -87,7 +87,7 @@ fun ServerScreen(id: String, tab0: String = "map") {
     val q = rememberServers()
     val s = q.data?.firstOrNull { it.id == id }
     val locked = rememberLocked(s?.company)
-    val companies = rememberCompanies()
+    val name = rememberServerName(s?.company.orEmpty(), s?.name)
     var tab by rememberSaveable { mutableStateOf(tab0) }
     var task by remember { mutableStateOf(false) }
     var detach by remember { mutableStateOf(false) }
@@ -111,12 +111,12 @@ fun ServerScreen(id: String, tab0: String = "map") {
                         DIcon(DivanIcon.SERVER, size = 24.dp, tint = if (s.online && !locked) c.goldInk else c.textSecondary)
                     }
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        // The owner's rule: the company is the server's name; the server's own name follows only when the company has several.
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            CompanyMark(s.company, height = 14.dp, mono = true, ink = c.textSecondary)
-                            Text(companyOf(companies, s.company).nameFa, style = Divan.type.caption, color = c.textMuted)
+                            CompanyMark(s.company, height = 16.dp, mono = true, ink = c.textSecondary)
+                            Text(name.companyFa, style = Divan.type.h2, color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
-                        Fig(s.name, style = Divan.type.figureM, color = c.textPrimary)
-                        Fig(s.login, style = Divan.type.figureSmall, color = c.textSecondary)
+                        name.server?.let { Fig(it, style = Divan.type.figureSmall, color = c.textSecondary) }
                     }
                     Box {
                         var menu by remember { mutableStateOf(false) }
@@ -144,6 +144,8 @@ fun ServerScreen(id: String, tab0: String = "map") {
                     Fact("میزبان", s.hostname)
                     Fact("کاربر کاری", s.user.ifBlank { null })
                     Fact("آدرس خصوصی", s.privateIp.ifBlank { null })
+                    // §26.1a / §26.6: how the runner reached the hub on its last poll.
+                    s.via?.let { v -> Fact(if (v == "public") "به هاب از راه عمومی" else "به هاب از شبکه‌ی خصوصی", com.coinepro.hq.core.net.Network.ms(s.hubRttMs) ?: "—") }
                 }
                 Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     HqButton("یک کار بسپار", { task = true }, Modifier.weight(1f), variant = BtnVariant.PRIMARY, icon = DivanIcon.CODE, enabled = s.online && !locked)
@@ -241,13 +243,14 @@ private fun SessionsTab(s: HubServer, locked: Boolean, onNew: () -> Unit) {
     val workspaces = rememberWorkspaces()
     val grants = rememberGrants()
     val list = sessions.data?.filter { it.onServer && it.server == s.id }
+    val name = rememberServerName(s.company, s.name)
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         HqButton("یک کار روی این سرور بسپار", onNew, Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, icon = DivanIcon.CODE, enabled = s.online && !locked)
         when {
             list == null -> Skeleton(Modifier.fillMaxWidth().height(120.dp), radius = 14.dp)
             list.isEmpty() -> Text("هنوز جلسه‌ای روی این سرور نبوده.", style = Divan.type.caption, color = c.textMuted)
             else -> for (x in list.sortedWith(compareByDescending<com.coinepro.hq.core.net.CodeSession> { it.open }.thenByDescending { it.updatedAt })) {
-                SessionRow(x, workspaces.data, grants.data?.firstOrNull { it.ref == x.grant }, serverName = s.name) { nav.go("workshop/${x.ref}") }
+                SessionRow(x, workspaces.data, grants.data?.firstOrNull { it.ref == x.grant }, serverName = name.text) { nav.go("workshop/${x.ref}") }
             }
         }
         Text("Claude Code خود سرور با login همان سرور کار میکند؛ مصرفش از پاکت شرکت و خزانه‌ی توکن کم میشود.", style = Divan.type.micro, color = c.textMuted)
@@ -437,10 +440,11 @@ private fun DetachDialog(s: HubServer, onDone: () -> Unit) {
     val act = activity()
     val c = Divan.colors
     val action = rememberAction()
+    val label = rememberServerName(s.company, s.name).text
     AlertDialog(
         onDismissRequest = onDone,
         containerColor = c.overlay,
-        title = { Text("جدا کردن ${s.name} از هاب؟", style = Divan.type.h3) },
+        title = { Text("جدا کردن سرور $label از هاب؟", style = Divan.type.h3) },
         text = {
             Text(isolated("اعتبار runner همین لحظه باطل میشود و runner در تماس بعدی‌اش میایستد؛ کارهای در صف لغو میشوند و دیگر هیچ ایجنتی کاری روی این سرور نمیکند. خود سرور دست نمیخورد: کاربر کاری، فایل‌ها و سرویس‌ها همان‌طور میمانند. تاریخچه‌ی کارها در Audit میماند."), style = Divan.type.small, color = c.textSecondary)
         },
@@ -449,7 +453,7 @@ private fun DetachDialog(s: HubServer, onDone: () -> Unit) {
                 action.run(onError = { toasts.error(serverError(it)) }) {
                     env.api.detachServer(s) { a, t -> env.auth.stepUp(act, a, t) }
                     env.cache.invalidate("servers")
-                    toasts.ok("runner ${s.name} باطل شد.")
+                    toasts.ok("runner سرور ${label} باطل شد.")
                     onDone()
                     nav.back()
                 }

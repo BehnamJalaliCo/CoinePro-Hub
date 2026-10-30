@@ -215,6 +215,9 @@ internal class ServersDemo(private val store: MutableMap<String, Pair<Int, JsonE
             val text = transcript(t.groupValues[1]) ?: return json(req, 404, problem(404, "not_found", "این متن پیدا نشد."))
             return Response.Builder().request(req).protocol(Protocol.HTTP_1_1).code(200).message("demo").body(text.toResponseBody("text/plain; charset=utf-8".toMediaType())).build()
         }
+        // §26.6 the holding's network map: its own small world (it does not wake the servers' screens).
+        if (path == "/infra/network" && m == "GET") return json(req, 200, network())
+        if (path == "/infra/network/check" && m == "POST") { startCheck(); return json(req, 202, buildJsonObject { put("queued", NET.size); put("at", now) }) }
         if (path == "/runners/approve" && m == "POST") { wake(); return approve(req, body, stepUp) }
         if (!path.startsWith("/infra/servers")) return null
         wake()
@@ -447,10 +450,100 @@ internal class ServersDemo(private val store: MutableMap<String, Pair<Int, JsonE
         return ev
     }
 
+    // ---------------------------------------------------------------------------------------- network --
+    /** One runner of the network map: its company, name, private address (none: outside the private network), road and round trip. */
+    private data class NetRunner(val id: String, val company: String, val name: String, val ip: String?, val via: String, val rtt: Double)
+
+    /**
+     * The holding's network (§26.6) as the demo has it: FX, TradeYar and Pro-Chart on the private network a few milliseconds from the hub;
+     * Pro-Chart's runner cannot open FX's SSH port (refused); IG-Hub not on the private network yet, so it comes over the public address
+     * and cannot reach the others' private addresses. «بررسی دوباره» queues a check; each runner answers a few seconds apart, as runners do
+     * on their next poll, and says so on the stream (`server.state`).
+     */
+    private val NET = listOf(
+        NetRunner("srv-fx-1", "FX", "fx-main", "10.10.1.2", "private", 3.0),
+        NetRunner("srv-ty-1", "TY", "ty-web", "10.10.1.3", "private", 2.0),
+        NetRunner("srv-pc-1", "PC", "pc-app", "10.10.1.1", "private", 2.4),
+        NetRunner("srv-ig-1", "IG", "IG-Hub", null, "public", 41.0),
+    )
+    /** When each runner last checked (it starts with the daily check two hours ago). */
+    private val netAt = mutableMapOf<String, java.time.Instant>()
+    private var netRound = 0
+    /** The check each runner's results come from (0: the daily one). */
+    private val roundOf = mutableMapOf<String, Int>()
+    private var checkFrom: Long? = null
+    private val answered = mutableSetOf<String>()
+
+    @Synchronized
+    private fun startCheck() {
+        advanceNet()
+        if (checkFrom != null) return
+        checkFrom = System.currentTimeMillis()
+        netRound++
+        answered.clear()
+    }
+
+    /** The runners whose turn has come answer: a new check of their roads, stamped later than anything before it. */
+    @Synchronized
+    private fun advanceNet() {
+        val from = checkFrom ?: return
+        val waited = System.currentTimeMillis() - from
+        NET.forEachIndexed { i, r ->
+            if (r.id in answered || waited < 1_800L + i * 2_200L) return@forEachIndexed
+            answered += r.id
+            val last = netAt.values.maxOrNull() ?: HqClock.now()
+            val t = HqClock.now().let { n -> if (n.isAfter(last)) n else last.plusSeconds(1) }
+            netAt[r.id] = t
+            roundOf[r.id] = netRound
+            queue += event(r.company, "server.state", r.id, mapOf("server" to r.id, "state" to "online", "via" to r.via, "hub_rtt_ms" to rtt(r).toString()))
+        }
+        if (answered.size == NET.size) checkFrom = null
+    }
+
+    /** A round trip that moves a little from one check to the next. */
+    private fun rtt(r: NetRunner): Double = Math.round((r.rtt + listOf(0.0, 0.3, -0.2, 0.5)[(roundOf[r.id] ?: 0) % 4] * (if (r.via == "public") 6 else 1)) * 10) / 10.0
+
+    @Synchronized
+    private fun network(): JsonObject {
+        advanceNet()
+        val first = HqClock.now().minus(2, ChronoUnit.HOURS)
+        return buildJsonObject {
+            put("at", now)
+            putJsonArray("nodes") {
+                add(buildJsonObject { put("id", "hub"); put("company", "HQ"); put("name", "hub"); put("private_ip", "10.10.1.4"); put("via", JsonNull); put("state", "online"); put("hub_rtt_ms", JsonNull) })
+                for (r in NET) add(buildJsonObject {
+                    put("id", r.id); put("company", r.company); put("name", r.name); put("private_ip", r.ip?.let(::JsonPrimitive) ?: JsonNull)
+                    put("via", r.via); put("state", "online"); put("hub_rtt_ms", rtt(r))
+                })
+            }
+            putJsonArray("links") {
+                for (r in NET) {
+                    val at = (netAt[r.id] ?: first).toString()
+                    add(link(r.id, "hub", 443, true, rtt(r) + 0.6, null, at))
+                    for (t in NET) {
+                        if (t.id == r.id || t.ip == null) continue
+                        for (port in listOf(22, 80, 443)) when {
+                            // Outside the private network, the others' private addresses do not answer at all.
+                            r.ip == null -> add(link(r.id, t.id, port, false, null, "timeout", at))
+                            r.id == "srv-pc-1" && t.id == "srv-fx-1" && port == 22 -> add(link(r.id, t.id, port, false, null, "connection refused", at))
+                            else -> add(link(r.id, t.id, port, true, 0.4 + ((r.id.length * 7 + t.id.length * 3 + port + (roundOf[r.id] ?: 0)) % 6) / 10.0, null, at))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun link(from: String, to: String, port: Int, ok: Boolean, ms: Double?, error: String?, at: String) = buildJsonObject {
+        put("from", from); put("to", to); put("port", port); put("ok", ok)
+        put("ms", ms?.let { JsonPrimitive(Math.round(it * 10) / 10.0) } ?: JsonNull); put("error", error?.let(::JsonPrimitive) ?: JsonNull); put("at", at)
+    }
+
     // ------------------------------------------------------------------------------------------- live --
     /** The stream's server events: what the owner's calls caused, then (well after waking) the agents' calls one by one. */
     fun tick(tick: Int): List<StreamEvent> {
         val out = mutableListOf<StreamEvent>()
+        if (checkFrom != null) advanceNet()
         while (true) out += queue.poll() ?: break
         if (!awake || still) return out
         val start = wokeTick ?: tick.also { wokeTick = it }
