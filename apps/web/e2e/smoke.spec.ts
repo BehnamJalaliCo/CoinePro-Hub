@@ -67,9 +67,9 @@ test('cancels a work item with a reason', async ({ page }) => {
 test('freezes and lifts deploys of a company', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/control');
-    await page.getByRole('button', { name: 'توقف deploy', exact: true }).first().click();
-    await page.getByRole('button', { name: 'متوقف کن', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'برداشتن توقف deploy' }).first()).toBeVisible();
+    await page.getByRole('button', { name: 'بستن deploy', exact: true }).first().click();
+    await page.getByRole('dialog').getByRole('button', { name: 'ببند', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'باز کردن deploy' }).nth(1)).toBeVisible();
   });
 });
 
