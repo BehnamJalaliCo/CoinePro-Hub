@@ -252,6 +252,8 @@ class Api(
     /** Work by id, or by its ref ("W-000104") as planner items and messages carry it: the API addresses work
      *  by UUID, so a ref is resolved through the list search first. */
     suspend fun workOne(idOrRef: String): Work {
+        // Only a work ref or an id is a work: a meeting's MT-… (0.4.0) or any other ref never reaches the hub as one (its 422).
+        if (com.coinepro.hq.core.data.Refs.prefix(idOrRef) != null && !REF.matches(idOrRef)) throw ApiException(404, "not_found", "این مورد کار نیست؛ از صفحه‌ی خودش باز کن.")
         if (!REF.matches(idOrRef)) return get("/work/${seg(idOrRef)}")
         val hit = work(q = idOrRef, limit = 5).items.firstOrNull { it.ref == idOrRef }
             ?: throw ApiException(404, "not_found", "این کار پیدا نشد.")
@@ -274,9 +276,11 @@ class Api(
     suspend fun markRead(code: String, upToRef: String): Thread = post("/threads/${seg(code)}/read", buildJsonObject { put("up_to_ref", upToRef) })
 
     // ------------------------------------------------------ notifications --
-    suspend fun notifications(unread: Boolean? = null, level: String? = null, limit: Int = 50): NotificationPage =
-        get("/notifications", mapOf("unread" to unread, "level" to level, "limit" to limit))
-    suspend fun readAll(): JsonObject = post("/notifications/read-all", JsonObject(emptyMap()))
+    suspend fun notifications(unread: Boolean? = null, level: String? = null, limit: Int = 50, cursor: String? = null): NotificationPage =
+        get("/notifications", mapOf("unread" to unread, "level" to level, "limit" to limit, "cursor" to cursor))
+    /** Everything unread up to [before] (the newest the owner saw, so what arrives meanwhile stays unread), of one [level] or all. */
+    suspend fun readAll(before: String? = null, level: String? = null): JsonObject =
+        post("/notifications/read-all", buildJsonObject { before?.let { put("before", it) }; level?.let { put("level", it) } })
     suspend fun readNotification(id: String): Notification = post("/notifications/${seg(id)}/read", JsonObject(emptyMap()))
     suspend fun answer(id: String, choiceId: String): Notification = post("/notifications/${seg(id)}/answer", buildJsonObject { put("choice_id", choiceId) })
 
@@ -546,6 +550,31 @@ class Api(
     /** A new company (§3.1), sealed on its code. */
     suspend fun createCompany(body: CompanyIn, stepUp: StepUp): Company =
         post("/companies", json.encodeToJsonElement(CompanyIn.serializer(), body), stepUp("company.create", body.code))
+    /**
+     * Removing a company made by mistake. The hub has no such call yet (a server gap): this is the shape the app proposes,
+     * `DELETE /companies/{code}` 🔏 `company.delete` on the code, `204` when the company has no work done, no outputs and no revenue,
+     * `409 company_has_history` otherwise. A hub without it answers 404 or 405, and the app offers archiving instead.
+     */
+    suspend fun deleteCompany(code: String, stepUp: StepUp) {
+        fun req(token: String?) = Request.Builder().url(url("/companies/${seg(code)}")).delete()
+            .header("Idempotency-Key", UUID.randomUUID().toString()).apply { if (token != null) header("X-Step-Up", token) }.build()
+        // Asked first without the passkey: a hub that has no delete answers 405 at once, and the owner is not asked for a seal it
+        // cannot use; a hub that has it answers `403 step_up_required`, and the call is sealed and sent again.
+        try {
+            execute(req(null)).use { check(it) }
+        } catch (e: ApiException) {
+            if (e.status != 403 || e.code != "step_up_required") throw e
+            e.logged?.let { failures?.forget(it) }
+            execute(req(stepUp("company.delete", code))).use { check(it) }
+        }
+    }
+    /** `PATCH /companies/{code}` with If-Match (§3.1); `status: archived` takes 🔏 `company.archive` on the code. */
+    suspend fun patchCompany(co: Company, nameFa: String? = null, colorIndex: Int? = null, archive: Boolean = false, stepUp: StepUp? = null): Company {
+        val text = json.encodeToString(JsonElement.serializer(), buildJsonObject {
+            nameFa?.let { put("name_fa", it) }; colorIndex?.let { put("color_index", it) }; if (archive) put("status", "archived")
+        })
+        return send("PATCH", "/companies/${seg(co.code)}", text, ifMatch = co.version, stepUp = if (archive) stepUp?.invoke("company.archive", co.code) else null)
+    }
 
     // ------------------------------------------- brand and seal ⟨1.4.6⟩ --
     /** Every active brand (§18.14); marks and seals draw from it. OkHttp has no cache here, so the app keeps it in its query cache. */

@@ -441,6 +441,10 @@ data class PlannerItem(
     val priority: String = "P3",
     val assignee: String? = null,
     val recurring: Boolean = false,
+    /** ⟨1.4⟩/⟨1.5⟩ work, the owner's own `reminder` (PL-), a `meeting` (MT-, its state as status) or a change-`calendar` event (CE-). */
+    val kind: String = "work",
+    /** A reminder's note; a meeting's type. */
+    val note: String? = null,
 )
 
 @Serializable

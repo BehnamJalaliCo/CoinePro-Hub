@@ -33,7 +33,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.coinepro.hq.core.format.OWNER_TZ
-import com.coinepro.hq.core.format.WORK_STATUS
 import com.coinepro.hq.core.format.jDate
 import com.coinepro.hq.core.format.jTime
 import com.coinepro.hq.core.format.jWeekday
@@ -120,7 +119,7 @@ fun PlannerScreen(onNewOrder: () -> Unit) {
                     }
                     if (d.items.isEmpty()) Text("کاری ثبت نشده.", style = Divan.type.caption, color = c.textMuted, modifier = Modifier.padding(top = 6.dp))
                     else Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        d.items.sortedBy { it.at }.forEach { PlanRow(it) { nav.go("work/${it.ref}") } }
+                        d.items.sortedBy { it.at }.forEach { PlanRow(it) { com.coinepro.hq.core.data.Refs.forPlanner(it.kind, it.ref)?.let(nav::go) } }
                     }
                 }
             }
@@ -176,7 +175,7 @@ private fun PlanRow(i: PlannerItem, onClick: () -> Unit) {
     val c = Divan.colors
     val bar = when { i.status == "done" -> c.positive; com.coinepro.hq.core.format.isUrgentPriority(i.priority) -> c.negative; else -> c.silverInk }
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.tile).clickable(role = Role.Button, onClick = onClick).padding(10.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.tile).then(if (com.coinepro.hq.core.data.Refs.forPlanner(i.kind, i.ref) != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier).padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -185,11 +184,13 @@ private fun PlanRow(i: PlannerItem, onClick: () -> Unit) {
             Text(i.title, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis, color = if (i.status == "done") c.textMuted else c.textPrimary)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(jTime(i.at), style = Divan.type.micro, color = c.textMuted)
+                if (i.kind == "meeting") DIcon(DivanIcon.MEETING, size = 12.dp, tint = c.textMuted)
                 if (i.recurring) DIcon(DivanIcon.REFRESH, size = 12.dp, tint = c.textMuted)
-                Text(WORK_STATUS[i.status] ?: i.status, style = Divan.type.micro, color = c.textMuted)
+                Text(listOfNotNull(com.coinepro.hq.core.format.PLAN_KIND[i.kind], com.coinepro.hq.core.format.PLAN_STATUS[i.status] ?: i.status).distinct().joinToString("، "), style = Divan.type.micro, color = c.textMuted)
             }
         }
         CompanyMark(i.company, height = 12.dp, mono = true, ink = c.textSecondary)
-        com.coinepro.hq.ui.work.PriorityTag(i.priority, compact = true)
+        // An owner's reminder has no priority of its own (the hub sends P3 for it).
+        if (i.kind != "reminder") com.coinepro.hq.ui.work.PriorityTag(i.priority, compact = true)
     }
 }

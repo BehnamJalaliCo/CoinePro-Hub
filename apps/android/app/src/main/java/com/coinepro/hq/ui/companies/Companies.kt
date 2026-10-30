@@ -93,12 +93,11 @@ fun CompaniesScreen() {
     val d = rememberControlData()
     val ui = rememberControlUi()
     val r = refresher(q)
-    var adding by rememberSaveable { mutableStateOf(false) }
     Page(onRefresh = { r.refresh(); env.cache.invalidate("control", "runs", "treasury") }, refreshing = r.refreshing) {
         item(key = "header") {
             PageHeader("شرکت‌ها", eyebrow = "هلدینگ و شرکت‌هایش، زنده") {
-                com.coinepro.hq.designsystem.HqButton("شرکت تازه", { adding = true }, size = com.coinepro.hq.designsystem.BtnSize.SM, icon = DivanIcon.ADD)
-                com.coinepro.hq.designsystem.HqButton("تأسیس از ریپو یا ایده", { nav.go("founding") }, size = com.coinepro.hq.designsystem.BtnSize.SM, variant = com.coinepro.hq.designsystem.BtnVariant.TEXT, icon = DivanIcon.FOUND)
+                // One way to a new company: the founding wizard (an idea, a repository, or registered only).
+                com.coinepro.hq.designsystem.HqButton("تأسیس شرکت", { nav.go("founding/new") }, size = com.coinepro.hq.designsystem.BtnSize.SM, icon = DivanIcon.FOUND)
             }
         }
         val list = q.data
@@ -110,14 +109,30 @@ fun CompaniesScreen() {
                 if (holding != null) item(key = holding.code) {
                     HoldingControlCard(holding, list, d, ui, itemMotion()) { nav.go("companies/${holding.code}") }
                 }
-                items(list.filter { it.kind != "holding" }, key = { it.code }) { co ->
+                items(list.filter { it.kind != "holding" && it.status != "archived" }, key = { it.code }) { co ->
                     CompanyControlCard(co, d, ui, holding?.nameFa, itemMotion()) { nav.go("companies/${co.code}") }
+                }
+                // An archived company (one with a history the owner no longer runs) stays reachable, apart, without its switches.
+                val archived = list.filter { it.status == "archived" }
+                if (archived.isNotEmpty()) item(key = "archived") {
+                    HqCard(Modifier.fillMaxWidth()) {
+                        SectionTitle("بایگانی‌شده", note = "سوابقشان میماند؛ در گزارش‌ها و ستاره‌ها نیستند")
+                        Column(Modifier.padding(top = 6.dp)) {
+                            for (co in archived) Row(
+                                Modifier.fillMaxWidth().clickable(role = Role.Button) { nav.go("companies/${co.code}") }.padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                com.coinepro.hq.designsystem.CompanyMark(co.code, height = 14.dp, mono = true, ink = Divan.colors.textMuted)
+                                Text(co.nameFa ?: co.code, style = Divan.type.small, color = Divan.colors.textSecondary, modifier = Modifier.weight(1f))
+                                Fig(co.code, style = Divan.type.figureSmall, color = Divan.colors.textMuted)
+                            }
+                        }
+                    }
                 }
             }
         }
     }
     ControlSheets(ui)
-    if (adding) com.coinepro.hq.ui.owner.NewCompanySheet { adding = false }
 }
 
 /** One company: departments, people (org chart), its open work and ⟨1.4.6⟩ its brand and seal (not the holding's: fixed).

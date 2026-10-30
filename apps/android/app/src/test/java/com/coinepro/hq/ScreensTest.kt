@@ -169,7 +169,11 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
             "treasury" to { _ -> TreasuryScreen() },
             "planner" to { _ -> PlannerScreen(onNewOrder = {}) },
             "control" to { _ -> ControlScreen() },
+            // 0.4.1 notifications: «خوانده‌نشده» with the overseer's hourly finding folded into one row (its count and last time), a meeting and
+            // a founding; that row opened on every time it was raised; «خوانده‌شده» with a budget alert raised three times.
             "notifications" to { _ -> NotificationsScreen() },
+            "notifications-group" to { _ -> NotificationsScreen(open0 = setOf("*")) },
+            "notifications-read" to { _ -> NotificationsScreen(tab0 = "read") },
             "audit" to { _ -> AuditScreen() },
             "settings" to { g -> SettingsScreen(g) },
             // «خطاخوان»: a contract mismatch with its field path (opened), an HTTP error counted twice, a network failure, a crash.
@@ -198,6 +202,29 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
             "skills" to { _ -> SkillsScreen() },
             "academy" to { _ -> AcademyScreen() },
             "foundings" to { _ -> FoundingsScreen() },
+            // 0.4.1 the one way to found a company, four steps: who (the errors once the owner tried to go on empty, then filled), how it
+            // starts (an idea chosen and told), the brand (the logo in its circle and a colour), the review with what happens next; an idea's
+            // founding at its first stage (no audit: the proposal being written, in plain words).
+            "founding-new-errors" to { _ -> com.coinepro.hq.ui.founding.FoundingWizard(tried0 = true) },
+            "founding-new-who" to { _ -> com.coinepro.hq.ui.founding.FoundingWizard(draft0 = WIZARD.copy(path = null, idea = "")) },
+            "founding-new-how" to { _ -> com.coinepro.hq.ui.founding.FoundingWizard(step0 = 2, draft0 = WIZARD) },
+            "founding-new-brand" to { _ -> com.coinepro.hq.ui.founding.FoundingWizard(step0 = 3, draft0 = WIZARD.copy(logoFileId = LOGO, colorIndex = 6)) },
+            "founding-new-review" to { _ -> com.coinepro.hq.ui.founding.FoundingWizard(step0 = 4, draft0 = WIZARD.copy(logoFileId = LOGO, colorIndex = 6)) },
+            "founding-new-register" to { _ -> com.coinepro.hq.ui.founding.FoundingWizard(step0 = 2, draft0 = WIZARD.copy(path = com.coinepro.hq.core.data.FoundingPath.REGISTER, nameEn = "Smart Direct")) },
+            "founding-idea" to { _ -> FoundingScreen("C-0003") },
+            // «حذف شرکت»: a company made by mistake with its code typed, and one with a history (archive instead).
+            "company-delete" to { _ ->
+                Sheetlike {
+                    SheetTitle("حذف دایرکت هوشمند")
+                    com.coinepro.hq.ui.companies.DeleteContent(com.coinepro.hq.ui.companies.CoTarget("IG", "دایرکت هوشمند", false), com.coinepro.hq.core.net.Company("co-IG", "IG", "company", "دایرکت هوشمند"), onDone = {}, onCancel = {}, typed0 = "IG")
+                }
+            },
+            "company-delete-history" to { _ ->
+                Sheetlike {
+                    SheetTitle("حذف تریدیار")
+                    com.coinepro.hq.ui.companies.DeleteContent(com.coinepro.hq.ui.companies.CoTarget("TY", "تریدیار", false), null, onDone = {}, onCancel = {}, outcome0 = com.coinepro.hq.core.data.DeleteOutcome.HAS_HISTORY)
+                }
+            },
             "founding-proposed" to { _ -> FoundingScreen("C-0002") },
             "founding-ready" to { _ -> FoundingScreen("C-0001") },
             "founding-plan" to { _ -> FoundingScreen("PV-0003") },
@@ -397,6 +424,15 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
 
         /** The demo's orders (OrdersDemo): at work under a manager, delivered with its output, failed with its reason. */
         private const val ORDER_WORKING = "0193b1c2-0001-7d4f-8a2e-0000005a1001"
+        /** The demo company's logo as a data: URL (an upload's id in the demo), drawn in its circle. */
+        private val LOGO: String by lazy { "data:image/png;base64," + java.util.Base64.getEncoder().encodeToString(java.io.File("src/debug/assets/demo/ig-logo.png").readBytes()) }
+
+        /** The wizard filled in: an Instagram direct-message company started from an idea. */
+        private val WIZARD = com.coinepro.hq.core.data.FoundingDraft(
+            "دایرکت هوشمند", "IG", "پاسخ خودکار و فروش در دایرکت اینستاگرام", com.coinepro.hq.core.data.FoundingPath.IDEA,
+            idea = "دستیار دایرکت برای فروشگاه‌های اینستاگرامی: پاسخ به پرسش‌ها، پیگیری سفارش و پیشنهاد محصول؛ درآمد از اشتراک ماهانه.",
+        )
+
         private const val ORDER_DELIVERED = "0193b1c2-0005-7d4f-8a2e-0000005a1005"
         private const val ORDER_FAILED = "0193b1c2-0007-7d4f-8a2e-0000005a1007"
 

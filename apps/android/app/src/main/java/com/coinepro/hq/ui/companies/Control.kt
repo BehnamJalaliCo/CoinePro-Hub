@@ -141,6 +141,8 @@ sealed interface ControlSheet {
     data class Freeze(override val t: CoTarget) : ControlSheet
     data class Unfreeze(override val t: CoTarget) : ControlSheet
     data class Order(override val t: CoTarget) : ControlSheet
+    /** Removing a company made by mistake (never the holding). */
+    data class Delete(override val t: CoTarget) : ControlSheet
 }
 
 /**
@@ -520,6 +522,10 @@ fun ControlSheets(ui: ControlUi) {
             UnfreezeContent(s.t, st, busy = ui.busy, onOpen = { ui.unfreeze(s.t, it) }, onCancel = ui::close)
         }
         is ControlSheet.Order -> NewOrderSheet(onDismiss = ui::close, company0 = s.t.code)
+        is ControlSheet.Delete -> HqSheet(ui::close, "حذف ${s.t.nameFa}", sub = "برای شرکتی که اشتباهی ساخته شده", ref = s.t.code) {
+            val companies = rememberQuery("companies", "companies") { companies() }
+            DeleteContent(s.t, companies.data?.firstOrNull { it.code == s.t.code }, onDone = { ui.close(); nav.go("companies") }, onCancel = ui::close)
+        }
     }
 }
 
@@ -545,6 +551,7 @@ fun ActionsContent(t: CoTarget, s: CoState, ui: ControlUi, go: (String) -> Unit)
         ActionRow(DivanIcon.COMMAND, if (t.holding) "فرمان به هلدینگ" else "فرمان به مدیرعامل", "کار تازه؛ مدیرعامل آن را به دپارتمان درست میسپارد", c.goldInk) { ui.open(ControlSheet.Order(t)) }
         if (!t.holding) ActionRow(DivanIcon.MESSAGES, "پیام به مدیرعامل", "گفت‌وگوی ${t.code}-CEO", c.textSecondary) { go("messages/${t.code}-CEO") }
         ActionRow(DivanIcon.SETTINGS, "اتاق کنترل", "وضعیت و تاریخچه، بودجه، استخدام، فعالیت زنده", c.textSecondary) { go("companies/${t.code}") }
+        if (!t.holding) ActionRow(DivanIcon.DISMISS, "حذف شرکت", "برای شرکتی که اشتباهی ساخته شده؛ با کد و گذرکلید", c.negative) { ui.open(ControlSheet.Delete(t)) }
     }
 }
 
@@ -567,7 +574,7 @@ private fun ActionRow(icon: DivanIcon, title: String, note: String, tint: Color,
 
 /** What will happen, line by line, with an icon each: the confirmation says exactly what the owner is about to do. */
 @Composable
-private fun Consequences(lines: List<Pair<DivanIcon, String>>, tint: Color) {
+internal fun Consequences(lines: List<Pair<DivanIcon, String>>, tint: Color) {
     val c = Divan.colors
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.tile)).background(c.tile).padding(Space.sm), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
         for ((icon, text) in lines) Row(horizontalArrangement = Arrangement.spacedBy(Space.xs)) {
@@ -746,6 +753,7 @@ fun androidx.compose.foundation.lazy.LazyListScope.controlRoom(co: Company?, d: 
     item(key = "control-live") { LiveFeedCard(co.code, holding, d) }
     item(key = "control-hiring") { HiringCard(co.code, holding) }
     if (!holding) item(key = "control-sites") { SitesCard(co.code) }
+    if (!holding) item(key = "control-delete") { DeleteCard(t, ui) }
 }
 
 @Composable

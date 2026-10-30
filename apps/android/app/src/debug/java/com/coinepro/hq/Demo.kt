@@ -122,6 +122,9 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
         outputs.handle(req.method, path, query, body)?.let { return respond(req, it) }
         // §9: kill switches and deploy freezes, their history and the owner's reasons.
         control.handle(req.method, path, query, body, req.header("X-Step-Up"))?.let { return respond(req, it) }
+        // 0.4.1: notifications read and grouped, removing a company, the planner's meetings, the founding's work refs.
+        notifications.handle(req.method, path, query, body)?.let { return respond(req, it) }
+        companies.handle(req.method, path, query, body, version, req.header("X-Step-Up"))?.let { return respond(req, it) }
         // ⟨1.7⟩ §23: the archive, and the step-up and staleness check on approving its two cards.
         archive.handle(req, path, raw, query)?.let { return it }
         if (req.method == "GET") {
@@ -258,6 +261,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     private val outputs by lazy { OutputsDemo(store) }
     /** Eager: the holding's mixed states are there from the first read. */
     private val control = ControlDemo(store)
+    private val notifications = NotificationsDemo(store)
+    private val companies = CompaniesDemo(store)
     /** Eager too: the owner's orders in every stage, and their live progress on the stream. */
     private val orders = OrdersDemo(store)
     private val scripts = mutableMapOf<String, MutableList<JsonObject>>().apply {
@@ -508,6 +513,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             val f = buildJsonObject {
                 put("id", "fo${System.nanoTime()}"); put("ref", ref); put("name_fa", JsonNull); put("name_en", JsonNull); put("code", JsonNull)
                 put("source", src ?: JsonNull); put("state", "auditing"); put("audit", JsonNull); put("proposal", JsonNull); put("decision_ref", JsonNull); put("plan", JsonNull); put("company", JsonNull)
+                // §18.8: a repository's audit is a work item of the platform SRE; an idea goes straight to the proposal's.
+                if (src?.str("kind") == "repo") put("audit_work", "W-000241") else put("proposal_work", "W-000241")
                 put("created_at", stamp); put("updated_at", stamp)
             }
             prepend("/foundings", f)
@@ -960,7 +967,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             val code = body?.str("code") ?: return 422 to problem("validation_failed", "کد لازم است.")
             if (list("/companies").any { it.jsonObject.str("code") == code }) return 409 to problem("conflict", "این کد قبلاً گرفته شده.")
             val c = buildJsonObject {
-                put("id", "co-$code"); put("code", code); put("kind", "company"); put("name_fa", body["name_fa"]!!); put("name_en", body["name_en"]!!); put("color_index", 4)
+                put("id", "co-$code"); put("code", code); put("kind", "company"); put("name_fa", body["name_fa"]!!); put("name_en", body["name_en"]!!); put("color_index", body["color_index"] ?: JsonPrimitive(5))
                 put("status", "active"); put("template", "standard"); put("kill_switch", "released"); put("deploy_freeze_until", JsonNull); put("version", 1); put("created_at", stamp)
                 put("counts", buildJsonObject { put("decisions_pending", 0); put("employees_active", 0); put("work_open", 0) })
             }
@@ -2931,7 +2938,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
         if (!id.startsWith("/demo/")) return null
         val name = id.removePrefix("/").let { if (variant == "poster") it.replace(Regex("\\.[a-z0-9]+$", RegexOption.IGNORE_CASE), "-poster.webp") else it }
         val bytes = runCatching { context.assets.open(name).use { it.readBytes() } }.getOrNull() ?: return null
-        val mime = when (name.substringAfterLast('.').lowercase()) { "mp4" -> "video/mp4"; "m4a" -> "audio/mp4"; "webp" -> "image/webp"; else -> "application/octet-stream" }
+        val mime = when (name.substringAfterLast('.').lowercase()) { "mp4" -> "video/mp4"; "m4a" -> "audio/mp4"; "webp" -> "image/webp"; "png" -> "image/png"; else -> "application/octet-stream" }
         return Response.Builder().request(req).protocol(Protocol.HTTP_1_1).code(200).message("demo")
             .body(okio.ByteString.of(*bytes).toResponseBody(mime.toMediaType())).build()
     }

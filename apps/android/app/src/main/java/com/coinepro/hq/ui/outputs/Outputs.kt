@@ -171,7 +171,7 @@ suspend fun markSeen(env: Env, toasts: Toasts, refs: List<String>, seen: Boolean
 }
 
 /** An undo the owner has a few seconds for: what was marked and how. */
-private data class Undo(val id: Long, val refs: List<String>, val seen: Boolean, val text: String)
+internal data class Undo(val id: Long, val refs: List<String>, val seen: Boolean, val text: String)
 
 /** Outputs: «تازه», «خوانده‌شده» and «همه», with the unrated filter, category, company, producer, date range and search, by day. */
 @Composable
@@ -394,7 +394,7 @@ fun OutputFilters(
 /** A row the owner swipes either way to mark it seen (or new again); the background says which. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SwipeToSee(seen: Boolean, onSwipe: () -> Unit, content: @Composable () -> Unit) {
+internal fun SwipeToSee(seen: Boolean, onSwipe: () -> Unit, content: @Composable () -> Unit) {
     val c = Divan.colors
     val state = rememberSwipeToDismissBoxState()
     LaunchedEffect(seen) { state.snapTo(SwipeToDismissBoxValue.Settled) }
@@ -441,7 +441,7 @@ private fun OutputRow(d: Deliverable, seen: Boolean, companyFa: String, onOpen: 
 
 /** "Marked · برگردان" for five seconds at the bottom of the list. */
 @Composable
-private fun UndoBar(u: Undo?, modifier: Modifier, onTimeout: (Long) -> Unit, onUndo: (Undo) -> Unit) {
+internal fun UndoBar(u: Undo?, modifier: Modifier, onTimeout: (Long) -> Unit, onUndo: (Undo) -> Unit) {
     val c = Divan.colors
     var last by remember { mutableStateOf(u) }
     if (u != null) last = u

@@ -39,6 +39,8 @@ class Env(
     val seen: com.coinepro.hq.core.data.SeenStore = com.coinepro.hq.core.data.SeenStore.memory(),
     /** Whether the hub answers (a restart's burst of 502s turns into one banner and a quiet wait). */
     val hub: com.coinepro.hq.core.net.HubHealth = com.coinepro.hq.core.net.HubHealth(),
+    /** The logo and colour the founding wizard kept for a company the hub has not made yet. */
+    val foundingBrand: com.coinepro.hq.core.data.FoundingBrandStore = com.coinepro.hq.core.data.FoundingBrandStore.memory(),
 ) {
     /** Work refs and titles for lines that carry only an id (the live stream). */
     val works = com.coinepro.hq.core.data.WorkTitles(scope) { key ->
@@ -48,6 +50,14 @@ class Env(
             if (e.status == 404) { e.logged?.let { api.failures?.forget(it) }; null } else throw e
         }
     }
+
+    /** Notifications marked read: sent to the hub after a short grace (undo), at once when opened. */
+    val reads = com.coinepro.hq.core.data.NotificationReads(
+        scope,
+        readOne = { id -> api.readNotification(id) },
+        readAll = { before, level -> api.readAll(before, level) },
+        onSent = { cache.invalidate("notifications", "inbox") },
+    )
 
     /** The owner's orders, watched on the stream for a change of stage. */
     val orders = com.coinepro.hq.core.data.OrderWatcher(api, stream.events, scope, works)
@@ -71,6 +81,7 @@ class AppGraph(context: Context) {
     val errors = com.coinepro.hq.core.diag.ErrorLog(app).also { it.installCrashHandler() }
     /** ⟨1.7.3⟩ outputs the owner marked seen while the hub could not keep it (before ⟨1.7.3⟩). */
     val seen = com.coinepro.hq.core.data.SeenStore(app)
+    private val foundingBrand = com.coinepro.hq.core.data.FoundingBrandStore(app)
 
     private val envFlow = MutableStateFlow(build(VaultTokens(vault), demo = false))
     val env: StateFlow<Env> = envFlow.asStateFlow()
@@ -105,6 +116,7 @@ class AppGraph(context: Context) {
             if (demo) MutableStateFlow(null) else offline.since,
             seen = if (demo) com.coinepro.hq.core.data.SeenStore.memory() else seen,
             hub = hub,
+            foundingBrand = if (demo) com.coinepro.hq.core.data.FoundingBrandStore.memory() else foundingBrand,
         )
     }
 }

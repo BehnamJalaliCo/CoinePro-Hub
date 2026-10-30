@@ -208,4 +208,4 @@ data class Incident(
 )
 
 @Serializable
-data class CompanyIn(val code: String, val nameFa: String, val nameEn: String, val template: String = "standard")
+data class CompanyIn(val code: String, val nameFa: String, val nameEn: String, val template: String = "standard", val colorIndex: Int? = null)

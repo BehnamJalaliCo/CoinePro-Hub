@@ -22,8 +22,9 @@ import okhttp3.sse.EventSources
 
 enum class StreamState { CONNECTING, LIVE, OFFLINE }
 
-/** The one SSE connection to `/api/v1/stream` (contract §7, §16). Each event refreshes the queries it
- *  touches; reconnects back off from 1 s to 30 s and resume with Last-Event-ID. Runs only in the foreground. */
+/** The SSE connection to `/api/v1/stream` (contract §7, §16): one per lane of topics, since the hub takes at most 200 characters of
+ *  `topics` ([StreamTopics]). Each event refreshes the queries it touches; reconnects back off from 1 s to 30 s and resume with
+ *  Last-Event-ID. Runs only in the foreground. */
 class HoldingStream(
     private val api: Api,
     private val cache: QueryCache,
@@ -39,61 +40,91 @@ class HoldingStream(
     /** Who is working right now, per company, and each company's recent events (the companies' live indicators and feeds). */
     val activity = LiveActivity()
 
-    private var source: EventSource? = null
-    private var loop: Job? = null
-    private var lastId: String? = null
+    /** One connection per lane of topics ([StreamTopics.lanes]): the hub takes at most 200 characters of `topics` per connection. */
+    private inner class Lane(val index: Int, var topics: String) {
+        var source: EventSource? = null
+        var lastId: String? = null
+        @Volatile var state = StreamState.CONNECTING
+        /** The hub refused this lane's topics (an older hub): it is not asked again this session. */
+        @Volatile var refused = false
+    }
+
+    private val lanes = StreamTopics.lanes().mapIndexed { i, t -> Lane(i, t) }
+    private var loops: List<Job> = emptyList()
     /** When the connection last dropped (elapsed ms), so the reconnect can say after how long. */
     @Volatile private var droppedAt: Long? = null
     /** The app is going to the background: the connection is closed on purpose, not dropped. */
     @Volatile private var stopping = false
-    /** A server older than contract v1.4.2 refuses topics it does not know (422); then only the core topics are asked for. */
-    private var coreOnly = false
+
+    /** The URLs the stream opens, one per lane (what the hub must accept: [StreamTopics.accepted]). */
+    fun urls(): List<okhttp3.HttpUrl> = lanes.map { api.url("/stream", StreamTopics.query(it.topics)) }
 
     fun start() {
-        if (loop?.isActive == true) return
+        if (loops.any { it.isActive }) return
         stopping = false
-        loop = scope.launch {
-            if (demo) return@launch demoPulse()
-            var retry = 0
-            while (isActive) {
-                stateFlow.value = if (retry == 0) StreamState.CONNECTING else StreamState.OFFLINE
-                val closed = kotlinx.coroutines.CompletableDeferred<Unit>()
-                source = open { closed.complete(Unit) }
-                closed.await()
-                retry = if (stateFlow.value == StreamState.LIVE) 1 else retry + 1
-                stateFlow.value = StreamState.OFFLINE
-                delay(min(30_000L, 1_000L shl min(retry - 1, 5)))
+        if (demo) {
+            loops = listOf(scope.launch { demoPulse() })
+            return
+        }
+        loops = lanes.map { lane ->
+            scope.launch {
+                var retry = 0
+                while (isActive && !lane.refused) {
+                    lane.state = if (retry == 0) StreamState.CONNECTING else StreamState.OFFLINE
+                    publish()
+                    val closed = kotlinx.coroutines.CompletableDeferred<Unit>()
+                    lane.source = open(lane) { closed.complete(Unit) }
+                    closed.await()
+                    retry = if (lane.state == StreamState.LIVE) 1 else retry + 1
+                    lane.state = StreamState.OFFLINE
+                    publish()
+                    if (lane.refused) break
+                    delay(min(30_000L, 1_000L shl min(retry - 1, 5)))
+                }
+                publish()
             }
         }
     }
 
     fun stop() {
         stopping = true
-        loop?.cancel()
-        source?.cancel()
-        source = null
+        loops.forEach { it.cancel() }
+        loops = emptyList()
+        for (l in lanes) { l.source?.cancel(); l.source = null }
     }
 
-    private fun open(onClosed: () -> Unit): EventSource {
+    /** One state for the top bar: live when every lane the hub serves is, offline when one dropped, connecting otherwise. */
+    private fun publish() {
+        val asked = lanes.filter { !it.refused }
+        stateFlow.value = when {
+            asked.isEmpty() -> StreamState.OFFLINE
+            asked.all { it.state == StreamState.LIVE } -> StreamState.LIVE
+            asked.any { it.state == StreamState.OFFLINE } -> StreamState.OFFLINE
+            else -> StreamState.CONNECTING
+        }
+    }
+
+    private fun open(lane: Lane, onClosed: () -> Unit): EventSource {
         val req = Request.Builder()
-            .url(api.url("/stream", mapOf("topics" to if (coreOnly) CORE_TOPICS else TOPICS)))
+            .url(api.url("/stream", StreamTopics.query(lane.topics)))
             .header("Accept", "text/event-stream")
-            .apply { lastId?.let { header("Last-Event-ID", it) } }
+            .apply { lane.lastId?.let { header("Last-Event-ID", it) } }
             .build()
         return EventSources.createFactory(api.streamClient).newEventSource(req, object : EventSourceListener() {
             override fun onOpen(eventSource: EventSource, response: Response) {
-                stateFlow.value = StreamState.LIVE
+                lane.state = StreamState.LIVE
+                publish()
                 api.hub?.ok()
-                droppedAt?.let { t ->
+                if (stateFlow.value == StreamState.LIVE) droppedAt?.let { t ->
                     val s = (android.os.SystemClock.elapsedRealtime() - t + 500) / 1000
-                    log?.note("stream", com.coinepro.hq.core.diag.LEVEL_INFO, "reconnected", "the live stream is back after $s s" + (lastId?.let { " (resumed from the last event)" } ?: ""))
+                    log?.note("stream", com.coinepro.hq.core.diag.LEVEL_INFO, "reconnected", "the live stream is back after $s s" + (lane.lastId?.let { " (resumed from the last event)" } ?: ""))
                     log?.crumb("stream live")
+                    droppedAt = null
                 }
-                droppedAt = null
             }
 
             override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
-                if (id != null) lastId = id
+                if (id != null) lane.lastId = id
                 val parsed = runCatching { Api.json.decodeFromString(StreamEvent.serializer(), data) }.getOrNull()
                 val event = (parsed ?: StreamEvent()).copy(id = id ?: parsed?.id.orEmpty(), type = type ?: parsed?.type.orEmpty())
                 dispatch(event)
@@ -106,7 +137,10 @@ class HoldingStream(
 
             override fun onFailure(eventSource: EventSource, t: Throwable?, response: Response?) {
                 if (response?.code == 401) api.unauthorized()
-                if (response?.code == 422) coreOnly = true
+                if (response?.code == 422) {
+                    // An older hub refusing a topic it does not know (before ⟨1.4.2⟩): the first lane keeps the core topics, the others stop.
+                    if (lane.index == 0 && lane.topics != CORE_TOPICS) lane.topics = CORE_TOPICS else lane.refused = true
+                }
                 if (response == null || response.code in 502..504) api.hub?.transient()
                 dropped(response?.code, if (response == null) "no answer" else "refused", t?.let { it::class.simpleName })
                 response?.close()
@@ -149,10 +183,7 @@ class HoldingStream(
     }
 
     private companion object {
-        const val CORE_TOPICS = "work,decisions,deliverables,messages,notifications,activity,llm,control"
-
-        // Unknown topics are ignored from contract v1.4.2 on, so the app names every topic it can use, the newer ones too.
-        const val TOPICS = "$CORE_TOPICS,runs,files,workshop,orders,oversight,inquiries,errands,stars,skills,academy,founding,backups,stories,companies,revenue,support,growth,feedback,meetings,governance,knowledge,advisor,ask,reviews,briefings,people,notes,quality,dceo,treasury,creatives,media,legal,archive"
+        val CORE_TOPICS = StreamTopics.CORE.joinToString(",")
 
         // Event type prefix -> query tags to refresh (mirrors apps/web/src/lib/stream.ts).
         val INVALIDATE: List<Pair<String, Array<String>>> = listOf(

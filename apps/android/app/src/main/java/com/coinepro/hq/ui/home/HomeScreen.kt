@@ -40,7 +40,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.coinepro.hq.core.format.Tone
-import com.coinepro.hq.core.format.WORK_STATUS
 import com.coinepro.hq.core.format.ago
 import com.coinepro.hq.core.format.jTime
 import com.coinepro.hq.core.format.jWeekday
@@ -210,13 +209,17 @@ fun HomeScreen(onNewOrder: () -> Unit, onVoiceOrder: () -> Unit = {}) {
                     else -> Column(Modifier.padding(top = 6.dp)) {
                         items.forEachIndexed { idx, it ->
                             if (idx > 0) HorizontalDivider(color = c.lineDivider)
-                            Row(Modifier.fillMaxWidth().clickable { nav.go("work/${it.ref}") }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            // A planner row is a work item, a meeting, a reminder or a calendar event: each opens its own page (0.4.0 sent a
+                            // meeting's MT-… to the work page).
+                            val to = com.coinepro.hq.core.data.Refs.forPlanner(it.kind, it.ref)
+                            Row(Modifier.fillMaxWidth().then(if (to != null) Modifier.clickable { nav.go(to) } else Modifier).padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Text(jTime(it.at), style = Divan.type.caption, color = c.textMuted, modifier = Modifier.width(40.dp))
                                 Box(Modifier.size(8.dp).clip(CircleShape).background(if (it.status == "done") c.positive else if (com.coinepro.hq.core.format.isUrgentPriority(it.priority)) c.negative else c.silverInk))
                                 Text(it.title, style = Divan.type.small, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                                if (it.kind == "meeting") DIcon(DivanIcon.MEETING, size = 14.dp, tint = c.textMuted)
                                 if (it.recurring) DIcon(DivanIcon.REFRESH, size = 14.dp, tint = c.textMuted)
                                 CompanyMark(it.company, height = 12.dp, mono = true, ink = c.textSecondary)
-                                Text(WORK_STATUS[it.status] ?: it.status, style = Divan.type.micro, color = c.textMuted)
+                                Text(com.coinepro.hq.core.format.PLAN_STATUS[it.status] ?: it.status, style = Divan.type.micro, color = c.textMuted)
                             }
                         }
                     }

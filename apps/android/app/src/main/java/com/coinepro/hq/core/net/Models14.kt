@@ -495,7 +495,7 @@ data class ToolInfo(val name: String, val `class`: String, val roles: List<Strin
 data class FoundingSource(val kind: String, val repo: String? = null, val briefMd: String = "")
 
 @Serializable
-data class FoundingAudit(val sessionRef: String? = null, val reportMd: String = "", val scores: Map<String, Double?> = emptyMap())
+data class FoundingAudit(val sessionRef: String? = null, val reportMd: String = "", val scores: Map<String, Double?> = emptyMap(), val deliverable: String? = null)
 
 @Serializable
 data class Kpi(val nameFa: String, val target: String)
@@ -531,9 +531,14 @@ data class Founding(
     val updatedAt: String,
     /** ⟨1.4.6⟩ the step «مُهر شرکت» (§18.14), open once the company exists; `missing` until prompt 9.1. */
     val brand: FoundingBrand = FoundingBrand(),
+    /** The audit's work item (W-…, §18.8) and the proposal's; the audit's workshop workspace when a runtime ran it. */
+    val auditWork: String? = null,
+    val proposalWork: String? = null,
+    val workspace: String? = null,
 ) {
-    /** The name as far as it is known: the proposal names it; before that, its repository or «ایده‌ی تازه». */
-    val title: String get() = nameFa ?: source.repo?.substringAfter('/') ?: "ایده‌ی تازه"
+    /** The name as far as it is known: the proposal names it; before that, the name the owner gave in the founding's brief, its
+     *  repository, or «ایده‌ی تازه». */
+    val title: String get() = nameFa ?: com.coinepro.hq.core.data.FoundingBrief.parse(source.briefMd).nameFa ?: source.repo?.substringAfter('/') ?: "ایده‌ی تازه"
 }
 
 /** `port` is null for icmp. */

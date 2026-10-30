@@ -92,7 +92,9 @@ import com.coinepro.hq.ui.workshop.SpokenField
 import java.util.Locale
 import kotlinx.coroutines.delay
 
-private val STAGES = listOf("auditing" to "ممیزی", "proposed" to "پیشنهاد", "sealed" to "مُهر", "provisioning" to "ساخت سرور", "ready_for_login" to "ورود تو", "active" to "فعال")
+/** A founding's state as a pill; an idea has no audit, so its first state reads as the proposal being written. */
+private fun stateLabel(f: Founding) =
+    if (f.state == "auditing" && f.source.kind != "repo") com.coinepro.hq.ui.v14.Label("در حال نوشتن پیشنهاد", Tone.LAPIS, live = true) else FOUNDING_STATE[f.state]
 /** ⟨1.4.6⟩ the step «مُهر شرکت» (§18.8, §18.14): open once the company exists, i.e. from the seal of `company_found` on. */
 private val BRAND_OPEN = setOf("sealed", "provisioning", "ready_for_login", "active")
 private val BRAND_STATE = mapOf(
@@ -106,7 +108,7 @@ private val SOFTWARE_FA = mapOf(
     "hetzner-firewall" to "فایروال هتزنر", "node-exporter" to "پایش (فقط روی IP خصوصی)",
 )
 private val PATH = listOf(
-    Triple("ممیزی", "جلسه‌ی فقط‌خواندنی کارگاه روی ریپو: کد، وابستگی‌ها، ریسک‌ها، هزینه.", false),
+    Triple("ممیزی (فقط از ریپو)", "جلسه‌ی فقط‌خواندنی کارگاه روی ریپو: کد، وابستگی‌ها، ریسک‌ها، هزینه. ایده ممیزی ندارد.", false),
     Triple("پیشنهاد", "نام، رسالت، تیم و نقش‌ها، KPI، بودجه‌ی توکن و نقشه‌ی راه ۹۰ روزه.", false),
     Triple("مُهر شرکت", "تو تأیید یا اصلاح میکنی؛ بدون مُهر هیچ شرکتی ساخته نمیشود.", true),
     Triple("نقشه‌ی سرور", "نوع و منطقه‌ی سرور، دیسک، فایروال هتزنر و هزینه‌ی ماهانه.", false),
@@ -124,18 +126,17 @@ fun FoundingsScreen() {
     val env = LocalEnv.current
     val q = rememberQuery("founding:list", "founding", maxAgeMs = 15_000) { foundings() }
     val r = refresher(q)
-    var start by rememberSaveable { mutableStateOf(false) }
     // §18.16: a Page, newest first; later pages are appended on «بیشتر».
     var more by remember(q.data) { mutableStateOf(emptyList<Founding>()) }
     var cursor by remember(q.data) { mutableStateOf(q.data?.nextCursor) }
     val loadMore = rememberAction()
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
         item {
-            PageHeader("تأسیس شرکت", eyebrow = "از ریپو یا ایده تا شرکت فعال و سرور آماده") {
-                HqButton("تأسیس تازه", { start = true }, variant = BtnVariant.PRIMARY, icon = DivanIcon.ADD)
+            PageHeader("تأسیس شرکت", eyebrow = "از ایده، ریپو یا فقط با نام؛ تا شرکت فعال و سرور آماده") {
+                HqButton("تأسیس تازه", { nav.go("founding/new") }, variant = BtnVariant.PRIMARY, icon = DivanIcon.ADD)
             }
         }
-        item { Text("ممیزی، پیشنهاد ساختار و تیم و نقشه‌ی راه، مُهر تو، و ساخت کامل سرور با API هتزنر (به‌روزرسانی، نصب و Claude Code آماده). بعد خودت وارد میشوی و ادامه میدهیم. رمز سرور هیچ‌وقت به ایجنت نمیرسد.", style = Divan.type.small, color = c.textSecondary) }
+        item { Text("هر شرکت تازه از همین‌جا: از یک ایده، از یک ریپوی GitHub، یا فقط با نام و کد که بعداً کاملش کنی. پیشنهاد و ممیزی به کارتابلت میاید؛ شرکت فقط با مُهر تو ساخته میشود و سرور با مُهر جدا. رمز سرور هیچ‌وقت به ایجنت نمیرسد.", style = Divan.type.small, color = c.textSecondary) }
         val list = q.data?.let { it.items + more }
         when {
             list == null && q.error != null -> item { ErrorBlock(q.error, { q.refresh() }) }
@@ -151,7 +152,7 @@ fun FoundingsScreen() {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         DIcon(DivanIcon.FOUND, size = 18.dp, tint = c.goldInk)
                         Text(f.title, style = Divan.type.bodyStrong, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        LabelPill(FOUNDING_STATE[f.state], f.state)
+                        LabelPill(stateLabel(f), f.state)
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Fig(f.ref, style = Divan.type.figureSmall, color = c.textMuted)
@@ -173,7 +174,7 @@ fun FoundingsScreen() {
                 }, variant = BtnVariant.SECONDARY, size = BtnSize.SM, loading = loadMore.busy)
             }
         }
-        item { SectionTitle("مسیر تأسیس", note = "سه نقطه با توست؛ بقیه را ایجنت‌ها انجام میدهند و همه در دفتر Audit ثبت میشود") }
+        item { SectionTitle("مسیر تأسیس از ایده یا ریپو", note = "سه نقطه با توست؛ بقیه را ایجنت‌ها انجام میدهند و همه در دفتر Audit ثبت میشود") }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 PATH.forEachIndexed { i, (t, d, you) ->
@@ -194,34 +195,6 @@ fun FoundingsScreen() {
             }
         }
     }
-    if (start) StartSheet { start = false }
-}
-
-@Composable
-private fun StartSheet(onClose: () -> Unit) {
-    val env = LocalEnv.current
-    val nav = LocalNav.current
-    val c = Divan.colors
-    val action = rememberAction()
-    var kind by rememberSaveable { mutableStateOf("repo") }
-    var repo by rememberSaveable { mutableStateOf("") }
-    var brief by rememberSaveable { mutableStateOf("") }
-    val clean = repo.trim().removePrefix("https://github.com/").removeSuffix(".git")
-    val ok = if (kind == "repo") Regex("^[\\w.-]+/[\\w.-]+$").matches(clean) else brief.trim().length >= 10
-    HqSheet(onClose, "تأسیس شرکت تازه", sub = "از روی یک ریپو یا یک ایده؛ ممیزی و پیشنهاد کامل به کارتابلت میاید.") {
-        Segmented(listOf(SegOption("repo", "ریپوی GitHub"), SegOption("idea", "ایده")), kind, { kind = it }, Modifier.fillMaxWidth())
-        if (kind == "repo") HqTextField(repo, { repo = it }, "owner/name", Modifier.fillMaxWidth(), maxLength = 200, figure = true)
-        SpokenField(if (kind == "repo") "چه میخواهی از این شرکت (اختیاری)" else "ایده و هدف", brief, { brief = it }, "هدف، مشتری، درآمد، محدودیت‌ها")
-        Text("ممیزی فقط‌خواندنی است. شرکت فقط با مُهر تو ساخته میشود و سرور با مُهر جدا (هزینه‌ی واقعی).", style = Divan.type.caption, color = c.textMuted)
-        HqButton("شروع کن", {
-            action.run {
-                val f = env.api.startFounding(kind, if (kind == "repo") clean else null, brief.trim())
-                env.cache.invalidate("founding")
-                onClose()
-                nav.go("founding/${f.ref}")
-            }
-        }, Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.FOUND, enabled = ok, loading = action.busy)
-    }
 }
 
 /** One founding, from audit to an active company (contract §18.8). The server plan is sealed on its digest; the build
@@ -229,7 +202,11 @@ private fun StartSheet(onClose: () -> Unit) {
 @Composable
 fun FoundingScreen(ref: String) {
     // A server plan with no founding (a company's CTO wrote it, §18.16): the cartable's server_plan card lands here.
-    if (ref.startsWith("PV-")) PlanScreen(ref) else FoundingDetail(ref)
+    when {
+        ref == "new" -> FoundingWizard()
+        ref.startsWith("PV-") -> PlanScreen(ref)
+        else -> FoundingDetail(ref)
+    }
 }
 
 @Composable
@@ -273,8 +250,11 @@ private fun FoundingDetail(ref: String) {
                 // §18.16: cancel closes everything, so it is offered until a build runs; a failed build returns the founding to `sealed`.
                 val cancellable = f.state == "auditing" || f.state == "proposed" || (f.state == "sealed" && !building)
                 item { Header(f, if (cancellable) ({ cancel = true }) else null) }
-                item { Stepper(f.state) }
+                item { Stepper(f) }
                 val login = run?.data?.login
+                // The login card below says it itself when the server is ready.
+                if (!(f.state == "ready_for_login" && login != null)) item { NowCard(f) }
+                item { PendingBrand(f) }
                 if (f.state == "ready_for_login" && login != null) item {
                     HqCard(Modifier.fillMaxWidth(), tahrir = true) {
                         SectionTitle("سرور آماده است؛ نوبت توست", note = "در ترمینال خودت وارد شو و Claude Code را با حساب خودت باز کن")
@@ -300,7 +280,11 @@ private fun FoundingDetail(ref: String) {
                 f.audit?.let { a ->
                     item {
                         HqCard(Modifier.fillMaxWidth()) {
-                            SectionTitle("ممیزی", note = if (a.sessionRef != null) "جلسه‌ی فقط‌خواندنی کارگاه" else "امتیاز هر محور از ۱۰") { a.sessionRef?.let { Fig(it, style = Divan.type.figureSmall, color = c.goldInk) } }
+                            SectionTitle("ممیزی", note = if (a.sessionRef != null) "جلسه‌ی فقط‌خواندنی کارگاه" else "امتیاز هر محور از ۱۰") {
+                                // The audit is a work item (W-…) with its read-only workshop session (S-…) and its report (O-…): each opens its own page.
+                                a.sessionRef?.let { com.coinepro.hq.ui.v17.RefChip(it) }
+                                a.deliverable?.let { com.coinepro.hq.ui.v17.RefChip(it, tone = com.coinepro.hq.ui.v17.RefTone.NEUTRAL) }
+                            }
                             Column(Modifier.padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 for (pair in a.scores.entries.chunked(2)) Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                                     for ((k, v) in pair) Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -314,14 +298,7 @@ private fun FoundingDetail(ref: String) {
                         }
                     }
                 }
-                if (f.audit == null && f.state == "auditing") item {
-                    HqCard(Modifier.fillMaxWidth()) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            CircularProgressIndicator(Modifier.size(16.dp), color = c.goldInk, strokeWidth = 2.dp)
-                            Text("ممیزی در جریان است؛ نتیجه و پیشنهاد به کارتابلت میاید.", style = Divan.type.small, color = c.textSecondary)
-                        }
-                    }
-                }
+                // While it audits (a repository) or writes the proposal (an idea), the «الان» card above says so in plain words.
                 f.proposal?.let { p -> item { Proposal(f, p) } }
                 plan?.let { pq ->
                     item {
@@ -382,7 +359,7 @@ private fun Header(f: Founding, onCancel: (() -> Unit)?) {
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            LabelPill(FOUNDING_STATE[f.state], f.state)
+            LabelPill(stateLabel(f), f.state)
             Box(Modifier.weight(1f))
             // Cancelling withdraws the cards, returns an unrun sealed plan and stops the audit (§18.16); only the owner removes servers, in Hetzner.
             if (onCancel != null) HqButton("لغو تأسیس", onCancel, variant = BtnVariant.GHOST, size = BtnSize.SM)
@@ -391,17 +368,19 @@ private fun Header(f: Founding, onCancel: (() -> Unit)?) {
 }
 
 @Composable
-private fun Stepper(state: String) {
+private fun Stepper(f: Founding) {
     val c = Divan.colors
-    val at = STAGES.indexOfFirst { it.first == state }
+    val stages = com.coinepro.hq.core.data.FoundingStages.of(f.source.kind)
+    val at = stages.indexOfFirst { it.state == f.state }
     Row(Modifier.horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        STAGES.forEachIndexed { i, (_, fa) ->
+        stages.forEachIndexed { i, st ->
+            val fa = st.fa
             val (bg, fg) = when { i < at -> c.softPositive to c.positive; i == at -> c.softGold to c.goldInk; else -> c.tile to c.textMuted }
             Row(Modifier.height(28.dp).clip(CircleShape).background(bg).padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 if (i < at) DIcon(DivanIcon.SEAL, size = 12.dp, tint = fg, active = true) else Text("${i + 1}", style = Divan.type.micro, color = fg)
                 Text(fa, style = Divan.type.caption.copy(fontWeight = if (i == at) FontWeight.SemiBold else FontWeight.Normal), color = fg)
             }
-            if (i < STAGES.lastIndex) Box(Modifier.width(8.dp).height(1.dp).background(c.lineDivider))
+            if (i < stages.lastIndex) Box(Modifier.width(8.dp).height(1.dp).background(c.lineDivider))
         }
     }
 }
@@ -618,6 +597,78 @@ private fun CopyLine(text: String) {
                 (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("command", text))
                 toasts.ok("کپی شد.")
             }.padding(horizontal = 6.dp, vertical = 2.dp))
+        }
+    }
+}
+
+/** Where the founding is now, in plain words, whose turn it is, and the way to what it waits on. */
+@Composable
+private fun NowCard(f: Founding) {
+    val nav = LocalNav.current
+    val env = LocalEnv.current
+    val c = Divan.colors
+    val now = com.coinepro.hq.core.data.FoundingStages.now(f.state, f.source.kind, f.audit != null)
+    HqCard(Modifier.fillMaxWidth(), color = if (now.ownersTurn) c.softGold else c.card) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(Modifier.size(36.dp).clip(CircleShape).background(if (now.ownersTurn) c.goldFill else c.tile), contentAlignment = Alignment.Center) {
+                if (f.state in setOf("auditing", "provisioning")) CircularProgressIndicator(Modifier.size(16.dp), color = c.goldInk, strokeWidth = 2.dp)
+                else DIcon(if (now.ownersTurn) DivanIcon.SEAL else DivanIcon.INFO, size = 18.dp, tint = if (now.ownersTurn) c.onGold else c.textSecondary)
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(if (now.ownersTurn) "الان، نوبت توست" else "الان", style = Divan.type.micro, color = if (now.ownersTurn) c.goldInk else c.textMuted)
+                Text(now.title, style = Divan.type.bodyStrong)
+                if (now.body.isNotBlank()) Text(now.body, style = Divan.type.small, color = c.textSecondary)
+                if (f.company == null && env.foundingBrand.get(f.ref) != null && f.state != "cancelled")
+                    Text("لوگو و رنگی که دادی روی همین گوشی نگه داشته شده تا شرکت ساخته شود.", style = Divan.type.caption, color = c.textMuted)
+            }
+        }
+        FlowRow(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            when (f.state) {
+                // The audit and the proposal are work items (W-…): they open on the work page, never a meeting or a session ref.
+                "auditing" -> if (f.source.kind == "repo" && f.audit == null) f.auditWork?.let { w -> HqButton("ممیزی را ببین", { nav.go("work/$w") }, size = BtnSize.SM, icon = DivanIcon.TASK) }
+                    else f.proposalWork?.let { w -> HqButton("کار پیشنهاد را ببین", { nav.go("work/$w") }, size = BtnSize.SM, icon = DivanIcon.TASK) }
+                "proposed" -> f.decisionRef?.let { d -> HqButton("مُهر در کارتابل", { nav.go("cartable/$d") }, size = BtnSize.SM, variant = BtnVariant.PRIMARY, icon = DivanIcon.SEAL) }
+                "active" -> f.company?.let { co -> HqButton("صفحه‌ی شرکت", { nav.go("companies/$co") }, size = BtnSize.SM, icon = DivanIcon.NEXT) }
+            }
+        }
+    }
+}
+
+/** The logo and colour the owner gave in the wizard, used once the company exists (the hub makes it at the seal, §18.8). */
+@Composable
+private fun PendingBrand(f: Founding) {
+    val env = LocalEnv.current
+    val toasts = LocalToasts.current
+    val c = Divan.colors
+    val co = f.company ?: return
+    var pending by remember(f.ref) { mutableStateOf(env.foundingBrand.get(f.ref)) }
+    val p = pending ?: return
+    if (f.brand.state != "missing" || f.state == "cancelled") return
+    val action = rememberAction()
+    HqCard(Modifier.fillMaxWidth(), tahrir = true) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            val slot = p.colorIndex?.let { c.chart.getOrNull(it - 1) }
+            Box(Modifier.size(56.dp).clip(CircleShape).background(c.tile).border(2.dp, slot ?: c.lineStrong, CircleShape), contentAlignment = Alignment.Center) {
+                p.fileId?.let { coil3.compose.AsyncImage(env.media.imageModel(it), "لوگو", env.media.images, Modifier.size(56.dp).clip(CircleShape), contentScale = androidx.compose.ui.layout.ContentScale.Crop) }
+                    ?: Fig(co, style = Divan.type.figure, color = slot ?: c.textSecondary)
+            }
+            Column(Modifier.weight(1f)) {
+                Text("لوگو و رنگی که هنگام تأسیس دادی", style = Divan.type.bodyStrong)
+                Text("شرکت ساخته شد؛ نشانش را از همین لوگو بساز و رنگش را بگذار. پیش از مُهر آن را در همه‌ی اندازه‌ها می‌بینی.", style = Divan.type.caption, color = c.textSecondary)
+            }
+        }
+        Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            HqButton("از همین بساز", {
+                action.run {
+                    p.colorIndex?.let { ci -> env.api.patchCompany(env.api.company(co), colorIndex = ci) }
+                    p.fileId?.let { id -> env.api.uploadBrand(co, id, "mark", com.coinepro.hq.core.net.BrandOptions(null, 3)) }
+                    env.foundingBrand.forget(f.ref)
+                    pending = null
+                    env.cache.invalidate("brand", "brands", "companies", "founding")
+                    toasts.ok("نشان در حال ساخت است؛ همین پایین مُهرش کن.")
+                }
+            }, variant = BtnVariant.PRIMARY, size = BtnSize.SM, icon = DivanIcon.EDIT, loading = action.busy)
+            HqButton("نه، لوگوی دیگری میدهم", { env.foundingBrand.forget(f.ref); pending = null }, variant = BtnVariant.TEXT, size = BtnSize.SM)
         }
     }
 }

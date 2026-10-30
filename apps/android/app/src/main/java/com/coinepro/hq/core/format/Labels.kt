@@ -77,6 +77,15 @@ val WORK_STATUS = mapOf(
     "failed" to "ناموفق",
 )
 
+/** A planner row's state: work, a recurring occurrence, the owner's reminder, a meeting's state or a change-calendar event's (§1.9). */
+val PLAN_STATUS = WORK_STATUS + mapOf(
+    "scheduled" to "زمان‌بندی‌شده", "reminder" to "یادآور", "prep" to "آماده‌سازی", "live" to "در جریان", "closing" to "جمع‌بندی",
+    "ended" to "تمام شد", "planned" to "برنامه‌ریزی‌شده",
+)
+
+/** What a planner row is, when it is not a work item. */
+val PLAN_KIND = mapOf("meeting" to "جلسه", "reminder" to "یادآور", "calendar" to "تقویم تغییرات")
+
 val WORK_KIND = mapOf("one_off" to "یک‌باره", "recurring" to "دائمی", "event" to "رویدادمحور", "project" to "پروژه")
 
 data class Level(val fa: String, val icon: DivanIcon, val tone: Tone)

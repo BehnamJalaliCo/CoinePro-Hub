@@ -261,33 +261,3 @@ fun ExportButton(onClick: () -> Unit) = HqButton("Excel", onClick, size = BtnSiz
 
 internal fun nowIso(offsetMs: Long = 0): String = Instant.now().plusMillis(offsetMs).toString()
 
-/** A new company straight away (§3.1), sealed on its code; founding from a repo or an idea stays in its own flow. */
-@Composable
-fun NewCompanySheet(onDismiss: () -> Unit) {
-    val env = LocalEnv.current
-    val toasts = LocalToasts.current
-    val act = activity()
-    val action = rememberAction()
-    var code by rememberSaveable { mutableStateOf("") }
-    var nameFa by rememberSaveable { mutableStateOf("") }
-    var nameEn by rememberSaveable { mutableStateOf("") }
-    val codeOk = Regex("^[A-Z][A-Z0-9]{1,5}$").matches(code)
-    HqSheet(onDismiss, "شرکت تازه", sub = "کد شرکت یک بار داده میشود و عوض نمیشود. نشانش بعداً اضافه میشود؛ تا آن موقع کد جای نشان را میگیرد.") {
-        Text("کد (۲ تا ۶ حرف لاتین بزرگ)", style = Divan.type.caption, color = Divan.colors.textSecondary)
-        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-            HqTextField(code, { code = it.uppercase().filter { ch -> ch.isLetterOrDigit() } }, "NW", Modifier.fillMaxWidth(), maxLength = 6, figure = true)
-        }
-        HqTextField(nameFa, { nameFa = it }, "نام فارسی", Modifier.fillMaxWidth(), maxLength = 80)
-        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-            HqTextField(nameEn, { nameEn = it }, "English name", Modifier.fillMaxWidth(), maxLength = 80)
-        }
-        HqButton("بساز با گذرکلید", {
-            action.run {
-                val co = env.api.createCompany(com.coinepro.hq.core.net.CompanyIn(code, nameFa.trim(), nameEn.trim())) { a, t -> env.auth.stepUp(act, a, t) }
-                env.cache.invalidate("companies")
-                toasts.ok("${co.nameFa ?: co.code} ساخته شد.")
-                onDismiss()
-            }
-        }, Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.SEAL, enabled = codeOk && nameFa.isNotBlank() && nameEn.isNotBlank(), loading = action.busy)
-    }
-}

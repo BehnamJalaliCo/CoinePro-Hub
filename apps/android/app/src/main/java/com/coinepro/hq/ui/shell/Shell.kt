@@ -152,7 +152,7 @@ private val GROUPS = listOf(
         Tool("oversight", "ناظر کل", DivanIcon.OVERSEER, "چه کسی کجا خطا کرد و چه نگه داشته شد"),
         Tool("assistant", "دستیار", DivanIcon.ASSISTANT, "کارهای بیرونی تو را در اینترنت پیگیری میکند"),
         Tool("stars", "ستاره‌ها", DivanIcon.STAR, "بهترین شرکت و کارمندهای هفته و ماه"),
-        Tool("founding", "تأسیس شرکت", DivanIcon.FOUND, "از یک ریپو یا یک ایده، شرکت تازه بساز"),
+        Tool("founding", "تأسیس شرکت", DivanIcon.FOUND, "شرکت تازه قدم‌به‌قدم: از ایده، ریپو یا فقط با نام"),
         Tool("skills", "مهارت‌ها", DivanIcon.SKILL, "مهارت تازه به ایجنت‌ها یاد بده و فعالش کن"),
         Tool("academy", "آکادمی", DivanIcon.ACADEMY, "آموزش، آزمون و پیشرفت هر نقش"),
         Tool("tools", "ابزارها و اینترنت", DivanIcon.GLOBE, "ایجنت‌ها به کجا وصل میشوند و چه میفرستند"),
@@ -212,14 +212,16 @@ private val TOP = TABS.map { it.route }.toSet() + GROUPS.flatMap { g -> g.tools.
 
 private class NavImpl(private val nav: NavHostController) : Nav {
     override fun go(route: String) {
-        if (route in TOP) {
-            nav.navigate(route) {
+        // A ref of something else on its way to the work page goes to its own page (0.4.0 sent `MT-0077` there: a 422).
+        val to = com.coinepro.hq.core.data.Refs.normalize(route) ?: return
+        if (to in TOP) {
+            nav.navigate(to) {
                 popUpTo("home") { saveState = true }
                 launchSingleTop = true
                 restoreState = true
             }
         } else {
-            nav.navigate(route)
+            nav.navigate(to)
         }
     }
 

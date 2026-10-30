@@ -48,8 +48,12 @@ Every library is free and open source and pinned to an exact version (`gradle/li
     best company and each CEO's rubric. The owner's 1–10 rating stays separate.
   - **Skills** and **Academy** — new skills (spoken, with files), the overseer's four checks, the golden eval, and
     activation sealed on `ref@version`; direct teaching to a role, its diff and score, curricula and eval trends.
-  - **Founding** — from a repository or an idea: audit, proposal, the server plan sealed on its digest, the build live
-    step by step, then the owner's own login (commands to copy) and activation.
+  - **Founding** ⟨0.4.1⟩ — the one way to a new company («تأسیس شرکت», from the companies list and the tools sheet), four steps:
+    who (Persian name, a 2–4 letter code checked against every company and open founding, one line), how it starts (an idea, a
+    GitHub repository, or «فقط ثبت کن» — `POST /companies` with the passkey), the brand (a logo seen in its circle and a palette
+    colour, optional; kept on the phone until a founded company exists), and a review that says what happens next. A founding
+    shows its stages (an idea has no audit) and «الان» in plain words; then the audit, proposal, the server plan sealed on its
+    digest, the build live step by step, the owner's own login (commands to copy) and activation.
   - **Tools and internet** — egress totals and log, MCP servers enabled by the owner's seal, service accounts, the
     tool catalogue.
   - The **advisor** gains its formal inquiries; **home** gains the overseer's card; **control** gains backups.
@@ -58,7 +62,8 @@ Every library is free and open source and pinned to an exact version (`gradle/li
   - **Agent runs**: every run, live, with its steps and tools, and a health board per employee; runs on each work
     item and each employee.
   - **Work**: edit (If-Match), complete with evidence, cancel with a reason. **Employees**: pause, resume, dismiss
-    with the passkey and a work transfer. **New company** straight from the companies list.
+    with the passkey and a work transfer. **Removing a company** made by mistake ⟨0.4.1⟩ (its ⋯ actions and the control
+    room): the code typed exactly, then the passkey; one with a history is archived instead (`company.archive`).
   - **Site checks and incidents**, with the site list editor sealed on the body.
   - **Treasury**: subscription quota, what-if per model, budget editor (holding, company month and day, dollars),
     connection name, on/off and write-only key, the calls list with paging and Excel export.
@@ -158,8 +163,15 @@ Every library is free and open source and pinned to an exact version (`gradle/li
     `archive_disposal` (its records; a held one is skipped); refs `AR-`, `LH-`, `PT-`, `FP-`, `RR-`, `RM-`, `AU-` open
     their pages; stream topic `archive`; the §23 codes (`clearance`, `sealed_record`, `schema_invalid`,
     `secret_in_document`, `held`) in Persian.
-- **Live** — one SSE connection to `/api/v1/stream` while the app is in the foreground; events refresh the
-  screens that show the touched data (the same invalidation map as the web).
+- **Live** — `/api/v1/stream` while the app is in the foreground, one connection per lane of topics (the hub takes at most 200
+  characters of `topics`; `core/data/StreamTopics.kt`); events refresh the screens that show the touched data (the same invalidation
+  map as the web).
+- **Notifications** ⟨0.4.1⟩ — «خوانده‌نشده» holds only what is unread: a tap opens it and it leaves the list, a swipe or «خوانده شد»
+  marks it read (five seconds to undo, since the hub cannot mark one unread again), «همه خوانده شد» moves everything up to the newest
+  shown; «خوانده‌شده» keeps the rest. The same alert raised again (the overseer's hourly finding) is one row with its count, opened on
+  every time; each row is labelled by what it is about (its link), not its level.
+- **One ref router** ⟨0.4.1⟩ (`core/data/Refs.kt`) — every ref, notification link and planner row opens its own page by prefix (`W-`
+  work, `MT-` meeting room, `D-` cartable, `O-` output, `AR-` archive, `C-` founding…); only a work item reaches the work page.
 - **Outputs read and filed** ⟨1.7.3⟩ (contract §5.2) — «تازه» / «خوانده‌شده» / «همه» and «بی‌امتیاز», filters (category, company,
   producer, date range, search), grouped by Jalali day; a swipe (with undo), the page's «خوانده شد» or «همه را خوانده‌شده کن» marks
   seen, «بایگانی کن» files it as an `AR-` draft. Until the hub serves ⟨1.7.3⟩ (`POST /deliverables/seen` answers 404/405), «seen» is

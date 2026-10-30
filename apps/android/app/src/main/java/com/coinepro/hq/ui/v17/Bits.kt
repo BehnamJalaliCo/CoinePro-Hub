@@ -216,43 +216,8 @@ fun ActorAvatar(a: Actor?, size: Dp = 32.dp) {
     } else Avatar(kind, dept = a?.code?.let(::deptOf), size = size, label = a?.displayFa ?: a?.code)
 }
 
-/** Where a reference opens in the app, when it has a page. */
-fun refRoute(ref: String): String? = when {
-    Regex("^D-\\d+$").matches(ref) -> "cartable/$ref"
-    Regex("^O-\\d+$").matches(ref) -> "outputs/$ref"
-    Regex("^W-\\d+$").matches(ref) -> "work/$ref"
-    Regex("^S-\\d+$").matches(ref) -> "workshop/$ref"
-    Regex("^SC-\\d+$").matches(ref) -> "support/$ref"
-    Regex("^MT-\\d+$").matches(ref) -> "meetings/$ref"
-    Regex("^(?:K|KB)-\\d+$").matches(ref) -> "knowledge/$ref"
-    Regex("^(?:OB|KR)-\\d+$").matches(ref) -> "okr"
-    Regex("^RK-\\d+$").matches(ref) -> "risks/$ref"
-    Regex("^CE-\\d+$").matches(ref) -> "calendar"
-    Regex("^M-\\d+$").matches(ref) -> "resolutions"
-    Regex("^(?:[A-Z]{2,5}|holding)@\\d+$").matches(ref) -> "charter"
-    // ⟨1.5⟩ §21
-    Regex("^NT-\\d+$").matches(ref) -> "notes/$ref"
-    Regex("^BR-\\d+$").matches(ref) -> "letter/$ref"
-    Regex("^CR-\\d+$").matches(ref) -> "substitutes/$ref"
-    Regex("^(?:DM|WR)-\\d+$").matches(ref) -> "advisor"
-    Regex("^DP-\\d+$").matches(ref) -> "digital-ceo"
-    Regex("^CL-\\d+$").matches(ref) -> "runs"
-    // ⟨1.6⟩ §22
-    Regex("^SR-\\d+$").matches(ref) -> "series/$ref"
-    Regex("^MI-\\d+$").matches(ref) -> "studio/$ref"
-    Regex("^LC-\\d+$").matches(ref) -> "legal/$ref"
-    Regex("^RD-\\d+$").matches(ref) -> "roles/$ref"
-    Regex("^L-\\d+$").matches(ref) -> "messages/L"
-    // ⟨1.7⟩ §23: a record, a hold, a party (its records), a folder (its records), and the open layer's rows (their editor).
-    Regex("^AR-\\d+$").matches(ref) -> "archive/$ref"
-    Regex("^LH-\\d+$").matches(ref) -> "archive-holds/$ref"
-    Regex("^PT-\\d+$").matches(ref) -> "archive-in/party/$ref"
-    Regex("^FP-\\d+$").matches(ref) -> "archive-in/folder/$ref"
-    Regex("^RR-\\d+$").matches(ref) -> "archive-settings/retention/$ref"
-    Regex("^RM-\\d+$").matches(ref) -> "archive-settings/reminders/$ref"
-    Regex("^AU-\\d+$").matches(ref) -> "archive-settings/automations/$ref"
-    else -> null
-}
+/** Where a reference opens in the app, when it has a page (one router for the whole app: [com.coinepro.hq.core.data.Refs]). */
+fun refRoute(ref: String): String? = com.coinepro.hq.core.data.Refs.route(ref)
 
 enum class RefTone { GOLD, NEUTRAL, NEG }
 
