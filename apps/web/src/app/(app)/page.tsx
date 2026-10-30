@@ -18,6 +18,11 @@ import { AskBox } from '@/components/v18/ask';
 import { Sentinel } from '@/components/brand/avatar';
 import { MdInline } from '@/components/ui/md';
 import { useLive } from '@/lib/live';
+import { FeedLine, feedRowOf } from '@/components/v21/feed';
+import { HomeOrdersCard } from '@/components/v21/orders';
+import { PriorityTag } from '@/components/v21/priority';
+import type { Inbox21 } from '@/lib/api/v21';
+import { isUrgentPriority } from '@/lib/priority';
 import { useScope } from '@/lib/scope';
 import { WORK_STATUS } from '@/lib/labels';
 import { ago, cx, jTime, jWeekday, tokens, usd } from '@/lib/format';
@@ -67,14 +72,19 @@ function AwayBanner() {
 function Stats() {
   const { data: inbox, isLoading } = useInbox();
   const { data: t } = useTreasury({ period: 'day' });
-  if (isLoading || !inbox) return <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-[104px] rounded-[14px]" />)}</div>;
+  if (isLoading || !inbox) return <div className="grid auto-rows-fr grid-cols-2 gap-3 lg:grid-cols-4">{Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-[104px] rounded-[14px]" />)}</div>;
   const r = inbox.decisions_by_risk;
+  const unseen = (inbox as Inbox21).deliverables_unseen;
+  // 0.3.0: the four tiles are the same size, whatever their lines say.
+  const tile = 'h-full rounded-[14px] focus-visible:outline-2 [&>div]:h-full';
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <Link href="/cartable" className="rounded-[14px] focus-visible:outline-2"><StatTile label="منتظر مُهر تو" value={inbox.decisions_pending} sub={r.high ? <span className="text-neg">{r.high} با ریسک بالا</span> : 'بدون ریسک بالا'} /></Link>
-      <Link href="/outputs" className="rounded-[14px]"><StatTile label="خروجی بی‌امتیاز" value={inbox.deliverables_unrated} sub="امتیاز تو ۴۰٪ نمره‌ی کارمند است" /></Link>
-      <Link href="/messages" className="rounded-[14px]"><StatTile label="پیام نخوانده" value={inbox.messages_unread} sub="از مدیرعامل‌ها و مشاور" /></Link>
-      <Link href="/treasury" className="rounded-[14px]"><StatTile label="مصرف امروز (معادل)" value={<span className="fig">{usd(t?.totals.equiv_cost_usd)}</span>} sub={<span><span className="fig">{tokens((t?.totals.input_tokens ?? 0) + (t?.totals.output_tokens ?? 0))}</span> توکن، {t?.totals.calls ?? 0} فراخوانی</span>} /></Link>
+    <div className="grid auto-rows-fr grid-cols-2 gap-3 lg:grid-cols-4">
+      <Link href="/cartable" className={tile}><StatTile label="منتظر مُهر تو" value={inbox.decisions_pending} sub={r.high ? <span className="text-neg">{r.high} با ریسک بالا</span> : 'بدون ریسک بالا'} /></Link>
+      {unseen != null
+        ? <Link href="/outputs" className={tile}><StatTile label="خروجی تازه" value={unseen} sub={`${inbox.deliverables_unrated} بی‌امتیاز؛ امتیاز تو ۴۰٪ نمره‌ی کارمند است`} /></Link>
+        : <Link href="/outputs" className={tile}><StatTile label="خروجی بی‌امتیاز" value={inbox.deliverables_unrated} sub="امتیاز تو ۴۰٪ نمره‌ی کارمند است" /></Link>}
+      <Link href="/messages" className={tile}><StatTile label="پیام نخوانده" value={inbox.messages_unread} sub="از مدیرعامل‌ها و مشاور" /></Link>
+      <Link href="/treasury" className={tile}><StatTile label="مصرف امروز (معادل)" value={<span className="fig">{usd(t?.totals.equiv_cost_usd)}</span>} sub={<span><span className="fig">{tokens((t?.totals.input_tokens ?? 0) + (t?.totals.output_tokens ?? 0))}</span> توکن، {t?.totals.calls ?? 0} فراخوانی</span>} /></Link>
     </div>
   );
 }
@@ -101,17 +111,15 @@ function Live() {
     <Card className="flex flex-col gap-3 p-4">
       <SectionTitle title="استریم زنده‌ی هلدینگ" note="ذره‌ی طلایی فرمان تو، نقره‌ای تحویل ایجنت‌ها" action={<Pill tone={state === 'live' ? 'pos' : 'warn'} live={state === 'live'}>{state === 'live' ? 'زنده' : 'در حال اتصال'}</Pill>} />
       {companies ? <Orbit companies={companies} lastEvent={last} size={460} /> : <Skeleton className="mx-auto aspect-square w-full max-w-[520px] rounded-full" />}
-      <ul className="flex flex-col gap-1 border-t border-div pt-3" aria-label="آخرین رویدادها">
-        {feed.slice(0, 4).map((e) => (
-          <li key={e.id} className="flex items-center gap-2 text-[12px] text-sec">
-            <span className="size-1.5 rounded-full bg-silver-ink" />
-            {e.company ? <CompanyMark code={e.company} height={12} mono /> : null}
-            <span className="fig text-muted">{e.type}</span>
-            <span className="flex-1" />
-            <span className="text-muted">{ago(e.at)}</span>
+      {/* 0.4.0: each line in words — who did what to which work, by its ref and title; never an id. */}
+      <ul className="flex flex-col border-t border-div pt-2" aria-label="آخرین رویدادها">
+        {feed.filter((e) => e.type !== 'activity.changed' && e.type !== 'run.step').slice(0, 4).map((e) => (
+          <li key={e.id} className="flex items-center gap-2">
+            {e.company ? <span className="text-sec"><CompanyMark code={e.company} height={12} mono /></span> : null}
+            <span className="min-w-0 flex-1"><FeedLine r={feedRowOf(e)} compact /></span>
           </li>
         ))}
-        {!feed.length ? <li className="text-[12px] text-muted">هنوز رویدادی نرسیده؛ ایجنت‌ها تا رسیدن کار خواب‌اند.</li> : null}
+        {!feed.some((e) => e.type !== 'activity.changed' && e.type !== 'run.step') ? <li className="py-1 text-[12px] text-muted">هنوز رویدادی نرسیده؛ ایجنت‌ها تا رسیدن کار خواب‌اند.</li> : null}
       </ul>
     </Card>
   );
@@ -168,11 +176,11 @@ function Today() {
           {items.map((i) => (
             <li key={i.ref} className="flex items-center gap-3 border-b border-div py-2.5 last:border-0">
               <span className="w-11 text-[12px] text-muted">{jTime(i.at)}</span>
-              <span className={cx('size-2 rounded-full', i.status === 'done' ? 'bg-pos' : i.priority <= 'P1' ? 'bg-neg' : 'bg-silver-ink')} />
+              {i.status === 'done' ? <span className="size-2 rounded-full bg-pos" /> : isUrgentPriority(i.priority) ? <PriorityTag code={i.priority} compact /> : <span className="size-2 rounded-full bg-silver-ink" />}
               <span className="flex-1 truncate text-[13px]">{i.title}</span>
               {i.recurring ? <span className="text-muted" title="دائمی"><Icon name="refresh" size={14} /></span> : null}
               <span className="text-sec"><CompanyMark code={i.company} height={12} mono /></span>
-              <span className="text-[11px] text-muted">{WORK_STATUS[i.status] ?? i.status}</span>
+              <span className="text-[11px] text-muted">{WORK_STATUS[i.status] ?? (i.status === 'live' ? 'زنده' : i.status === 'reminder' ? 'یادآوری' : i.status)}</span>
             </li>
           ))}
         </ol>
@@ -204,6 +212,7 @@ function Budgets() {
 }
 
 export default function CommandCenter() {
+  const voice = useVoiceOrder();
   return (
     <>
       <Greeting />
@@ -211,9 +220,10 @@ export default function CommandCenter() {
       <AwayBanner />
       <Stats />
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-        {/* ⟨1.5⟩ §21.2: ask the hub, above the cartable. */}
-        <div className="flex min-w-0 flex-col gap-4"><AskBox /><Cartable /><Live /></div>
-        <div className="flex min-w-0 flex-col gap-4"><Overseer /><Workshop /><Today /><Budgets /></div>
+        {/* ⟨1.5⟩ §21.2: ask the hub, above the cartable. 0.3.0: the two columns end together. */}
+        <div className="flex min-w-0 flex-col gap-4 [&>*:last-child]:flex-1"><AskBox /><Cartable /><Live /></div>
+        {/* 0.4.0: the owner's orders, live, first in the second column. */}
+        <div className="flex min-w-0 flex-col gap-4 [&>*:last-child]:flex-1"><HomeOrdersCard onNewOrder={voice} /><Overseer /><Workshop /><Today /><Budgets /></div>
       </div>
     </>
   );

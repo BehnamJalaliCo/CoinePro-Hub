@@ -8,7 +8,6 @@ import { Orb } from '@/components/brand/avatar';
 import { Monogram } from '@/components/brand/marks';
 import { IconButton } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/primitives';
-import { Sheet } from '@/components/ui/overlay';
 import { ApiError } from '@/lib/api/client';
 import { useInbox, useSession } from '@/lib/api/hooks';
 import { ScopeProvider } from '@/lib/scope';
@@ -18,9 +17,11 @@ import { useTheme } from '@/lib/theme';
 import { cx } from '@/lib/format';
 import { VoiceOrder, VoiceOrderContext } from '@/components/work/voice-order';
 import { ServersWatcher } from '@/components/v26/watcher';
+import { PulsesProvider } from '@/lib/pulses';
+import { HubBanner, ShellExtras, ToolsSheet } from '@/components/v21/shell';
 import { CommandPalette } from './command-palette';
 import { NotificationsSheet } from './notifications';
-import { NAV_ARCHIVE, NAV_GOVERNANCE, NAV_MAIN, NAV_MANAGEMENT, NAV_MEDIA, NAV_MOBILE, NAV_TOOLS, isActive } from './nav';
+import { NAV_MOBILE, isActive } from './nav';
 import { ScopeSwitcher, Sidebar } from './sidebar';
 
 function LiveDot({ state }: { state: StreamState }) {
@@ -56,7 +57,7 @@ function TopBar({ onPalette, onBell, onMore, onVoice, stream, urgent }: { onPale
       </span>
       {/* Phones: the theme lives in settings and the palette, so the bar keeps room for voice. */}
       <span className="hidden sm:inline-flex"><ThemeToggle /></span>
-      <IconButton icon="more" label="بیشتر" onClick={onMore} className="lg:hidden" />
+      <IconButton icon="more" label="همه‌ی بخش‌ها" onClick={onMore} />
     </div>
   );
 }
@@ -118,16 +119,20 @@ export function AppShell({ children }: { children: ReactNode }) {
   if (session.isLoading || (session.error instanceof ApiError && session.error.status === 401)) return <Splash />;
 
   const counts = { decisions: inbox?.decisions_pending ?? 0, deliverables: inbox?.deliverables_unrated ?? 0, messages: inbox?.messages_unread ?? 0 };
-  const urgent = (inbox?.notifications as Record<string, number> | undefined)?.urgent ?? 0;
+  const levels = inbox?.notifications as Record<string, number> | undefined;
+  const urgent = (levels?.urgent ?? 0) + (levels?.decision ?? 0);
 
   return (
     <ScopeProvider>
       <LiveContext.Provider value={{ state: stream, last: feed[0] ?? null, feed }}>
+      <PulsesProvider feed={feed}>
       <VoiceOrderContext.Provider value={() => setVoice(true)}>
       <div className="flex min-h-dvh">
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">
           <TopBar onPalette={() => setPalette(true)} onBell={() => setBell(true)} onMore={() => setMore(true)} onVoice={() => setVoice(true)} stream={stream} urgent={urgent} />
+          {/* 0.4.0: a hub restart is one calm line, not an error on every card. */}
+          <HubBanner />
           <main id="main" className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col gap-6 px-4 pb-28 pt-5 md:px-6 lg:pb-10">{children}</main>
         </div>
       </div>
@@ -135,22 +140,13 @@ export function AppShell({ children }: { children: ReactNode }) {
       <CommandPalette open={palette} onOpenChange={setPalette} onVoice={() => setVoice(true)} />
       <VoiceOrder open={voice} onOpenChange={setVoice} />
       <NotificationsSheet open={bell} onOpenChange={setBell} />
+      {/* 0.3.0–0.6.0: «خطاخوان», the hub's health and the alerts (toasts on screen, the browser's notifications otherwise). */}
+      <ShellExtras feed={feed} stream={stream} />
       {/* ⟨1.8⟩ §26.3: a destructive command held for the seal on a company server says so at once. */}
       <ServersWatcher />
-      <Sheet open={more} onOpenChange={setMore} title="بیشتر" width={360}>
-        <div className="flex flex-col gap-3">
-          <ScopeSwitcher />
-          <nav className="flex flex-col gap-1">
-            {/* Everything the bottom bar has no room for: the rest of the main pages, management tools, media and legal, the archive, governance, then the tools. */}
-            {[...NAV_MAIN.filter((n) => !NAV_MOBILE.some((m) => m.href === n.href)), ...NAV_MANAGEMENT, ...NAV_MEDIA, ...NAV_ARCHIVE, ...NAV_GOVERNANCE, ...NAV_TOOLS].map((n) => (
-              <Link key={n.href} href={n.href} onClick={() => setMore(false)} className="flex h-12 items-center gap-3 rounded-[10px] px-3 text-[15px] text-ink hover:bg-hover">
-                <span className="text-sec"><Icon name={n.icon} size={20} /></span>{n.label}
-              </Link>
-            ))}
-          </nav>
-        </div>
-      </Sheet>
+      <ToolsSheet open={more} onOpenChange={setMore} extra={<ScopeSwitcher />} />
       </VoiceOrderContext.Provider>
+      </PulsesProvider>
       </LiveContext.Provider>
     </ScopeProvider>
   );

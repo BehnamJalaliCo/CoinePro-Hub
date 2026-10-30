@@ -5,6 +5,8 @@ import { Icon } from '@/components/icon';
 import { HiringCard } from '@/components/v14/hiring';
 import { NotificationMatrix } from '@/components/v15/notification-matrix';
 import { ManagementSettingsCard } from '@/components/v18/settings';
+import { BrowserNotificationsCard } from '@/components/v21/push';
+import { ErrorLogCard } from '@/components/v21/shell';
 import { Button } from '@/components/ui/button';
 import { Card, PageHeader, Pill, SectionTitle, Segmented, Skeleton, Switch } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
@@ -98,7 +100,11 @@ export default function SettingsPage() {
               {meta.data ? Object.entries(meta.data.channels).filter(([k]) => k !== 'fcm').map(([k, on]) => <Pill key={k} tone={on ? 'pos' : 'neutral'} dot><span className={cx(k !== 'in_app' && 'fig')}>{k === 'in_app' ? 'داخل اپ' : k === 'web_push' ? 'Web Push' : 'Telegram'}</span></Pill>) : null}
             </div>
           </Card>
+          {/* 0.6.0: this browser's notifications (toasts on screen; the browser's own otherwise; Web Push when the hub has it). */}
+          <BrowserNotificationsCard />
           <NotificationMatrix />
+          {/* 0.3.0: «خطاخوان», the panel's own log of failures for this version. */}
+          <ErrorLogCard />
           <p className="px-1 text-[11px] text-muted">نسخه‌ی پنل <span className="fig">{process.env.NEXT_PUBLIC_APP_VERSION}</span></p>
         </div>
       </div>

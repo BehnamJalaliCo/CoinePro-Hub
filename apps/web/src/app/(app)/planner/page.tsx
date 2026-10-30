@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { PriorityTag } from '@/components/v21/priority';
+import { plannerRoute } from '@/lib/refs';
 import { useMemo, useState } from 'react';
 import { Icon } from '@/components/icon';
 import { CompanyMark } from '@/components/brand/marks';
@@ -35,16 +37,24 @@ function jMonth(offset: number) {
   return { first, last: addDays(jStart(addDays(first, 32)), -1) };
 }
 
-type Item = { ref: string; title: string; company: string; priority: string; status: string; at: string; recurring: boolean };
+type Item = { ref: string; title: string; company: string; priority: string; status: string; at: string; recurring: boolean; kind?: string | null };
+
+/** ⟨0.5.0⟩ A planner row's status in Persian: work statuses, and a meeting's or a reminder's own. */
+const ROW_STATUS: Record<string, string> = { ...WORK_STATUS, live: 'زنده', scheduled: 'زمان‌بندی‌شده', prep: 'دستور آماده', closing: 'جمع‌بندی', ended: 'تمام شد', reminder: 'یادآوری', planned: 'برنامه‌ریزی‌شده' };
 
 function Chip({ it, companies }: { it: Item; companies: ReturnType<typeof useCompanies>['data'] }) {
-  return (
-    <Link href={`/work/${it.ref}`} className="flex flex-col gap-1 rounded-[10px] bg-tile p-2.5 hover:bg-hover" style={{ boxShadow: `inset -3px 0 0 ${companyColor(companies, it.company)}` }}>
+  // ⟨0.5.0⟩ Each row opens its own page (the ref router): a meeting its room, a reminder nowhere, a work item its page.
+  const href = plannerRoute(it.kind, it.ref);
+  const body = (
+    <>
       <span className="flex items-center gap-1.5 text-[11px] text-muted">{jTime(it.at)}{it.recurring ? <Icon name="refresh" size={12} /> : null}<span className="flex-1" /><CompanyMark code={it.company} height={11} mono /></span>
       <span className={cx('text-[13px] leading-5', it.status === 'done' ? 'text-muted line-through' : 'text-ink')}>{it.title}</span>
-      <span className="flex items-center gap-1.5 text-[11px]"><span className={cx('fig rounded-[4px] px-1', it.priority <= 'P1' ? 'bg-neg-soft text-neg' : 'text-muted')}>{it.priority}</span><span className="text-muted">{WORK_STATUS[it.status] ?? it.status}</span></span>
-    </Link>
+      <span className="flex items-center gap-1.5 text-[11px]"><PriorityTag code={it.priority} compact /><span className="text-muted">{ROW_STATUS[it.status] ?? it.status}</span></span>
+    </>
   );
+  const cls = 'flex flex-col gap-1 rounded-[10px] bg-tile p-2.5 hover:bg-hover';
+  const style = { boxShadow: `inset -3px 0 0 ${companyColor(companies, it.company)}` };
+  return href ? <Link href={href} className={cls} style={style}>{body}</Link> : <div className={cls} style={style}>{body}</div>;
 }
 
 /** The three-level planner (§1.9): the owner's, a company's or a department's; a view over work, by week, month or list. */
@@ -129,12 +139,13 @@ export default function PlannerPage() {
             <section key={d.key} className="flex flex-col">
               <h2 className={cx('px-3 pb-1 pt-4 text-[13px] font-semibold', d.key === todayKey ? 'text-gold-ink' : 'text-sec')}>{fmtDay.format(d.date)}</h2>
               {d.items.map((it) => (
-                <Link key={it.ref} href={`/work/${it.ref}`} className="flex items-center gap-3 rounded-[12px] px-3 py-2.5 hover:bg-hover">
+                <Link key={it.ref} href={plannerRoute(it.kind, it.ref) ?? '/planner'} className="flex items-center gap-3 rounded-[12px] px-3 py-2.5 hover:bg-hover">
                   <span className="w-12 text-[12px] text-muted">{jTime(it.at)}</span>
                   <span className="h-6 w-1 rounded-full" style={{ background: companyColor(companies, it.company) }} />
                   <span className="flex-1 truncate text-[14px]">{it.title}</span>
+                  <PriorityTag code={it.priority} compact />
                   <CompanyMark code={it.company} height={12} mono />
-                  <span className="text-[12px] text-muted">{WORK_STATUS[it.status] ?? it.status}</span>
+                  <span className="text-[12px] text-muted">{ROW_STATUS[it.status] ?? it.status}</span>
                 </Link>
               ))}
             </section>

@@ -29,7 +29,10 @@ function useWide() {
 function CartableInner() {
   const router = useRouter();
   const params = useSearchParams();
-  const { company } = useScope();
+  // 0.3.0: a company's own cartable (its control actions open `?company=`); otherwise the scope switch.
+  const { company: scoped } = useScope();
+  const only = params.get('company');
+  const company = only ?? scoped;
   const wide = useWide();
   const [tab, setTab] = useState<Tab>('pending');
   const [risk, setRisk] = useState<string | null>(null);
@@ -47,7 +50,12 @@ function CartableInner() {
   const serverSeals = useServerSeals(company);
   const selected = params.get('ref') ?? (wide ? items[0]?.ref ?? null : null);
   const detail = useDecision(selected);
-  const select = (ref: string | null) => router.replace(ref ? `/cartable?ref=${ref}` : '/cartable', { scroll: false });
+  const select = (ref: string | null) => {
+    const q = new URLSearchParams();
+    if (ref) q.set('ref', ref);
+    if (only) q.set('company', only);
+    router.replace(q.size ? `/cartable?${q}` : '/cartable', { scroll: false });
+  };
 
   const next = () => {
     const i = items.findIndex((d) => d.ref === selected);

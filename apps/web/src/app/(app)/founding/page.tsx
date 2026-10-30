@@ -2,51 +2,21 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
 import { Icon } from '@/components/icon';
 import { Button } from '@/components/ui/button';
-import { Sheet } from '@/components/ui/overlay';
-import { Card, Empty, ErrorState, PageHeader, Pill, Segmented, Skeleton } from '@/components/ui/primitives';
-import { useToast } from '@/components/ui/toast';
-import { ApiError } from '@/lib/api/client';
+import { Card, Empty, ErrorState, PageHeader, Pill, Skeleton } from '@/components/ui/primitives';
 import { FOUNDING_STATE } from '@/components/v14/bits';
-import { foundingName, useFoundingAction, useFoundings } from '@/lib/api/v14';
+import { foundingName, useFoundings } from '@/lib/api/v14';
 import { ago, cx } from '@/lib/format';
-
-
-function Start({ onClose }: { onClose: () => void }) {
-  const act = useFoundingAction();
-  const toast = useToast();
-  const router = useRouter();
-  const [kind, setKind] = useState<'repo' | 'idea'>('repo');
-  const [repo, setRepo] = useState('');
-  const [brief, setBrief] = useState('');
-  const ok = kind === 'repo' ? /^[\w.-]+\/[\w.-]+$/.test(repo.trim().replace(/^https:\/\/github\.com\//, '')) : brief.trim().length >= 10;
-  const go = () => act.start.mutateAsync({ kind, repo: kind === 'repo' ? repo.trim().replace(/^https:\/\/github\.com\//, '').replace(/\.git$/, '') : null, brief_md: brief.trim() })
-    .then((f) => { onClose(); router.push(`/founding/${f.ref}`); })
-    .catch((e) => toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : 'شروع نشد.' }));
-  const field = 'w-full rounded-[10px] border border-strong bg-tile px-3 text-[15px] text-ink outline-none focus:border-gold-ink';
-  return (
-    <Sheet open onOpenChange={(o) => !o && onClose()} title="تأسیس شرکت تازه" description="از روی یک ریپو یا یک ایده؛ ممیزی و پیشنهاد کامل به کارتابلت میاید." width={520}
-      footer={<Button variant="primary" icon="found" className="w-full" disabled={!ok} loading={act.start.isPending} onClick={go}>شروع کن</Button>}>
-      <div className="flex flex-col gap-4">
-        <Segmented label="منبع" value={kind} onChange={setKind} options={[{ value: 'repo', label: 'ریپوی GitHub' }, { value: 'idea', label: 'ایده' }]} />
-        {kind === 'repo' ? <label className="flex flex-col gap-1.5"><span className="text-[13px] text-sec">ریپو</span><input dir="ltr" value={repo} onChange={(e) => setRepo(e.target.value)} placeholder="owner/name" className={cx(field, 'fig h-12 text-left')} /></label> : null}
-        <label className="flex flex-col gap-1.5"><span className="text-[13px] text-sec">{kind === 'repo' ? 'چه میخواهی از این شرکت (اختیاری)' : 'ایده و هدف'}</span><textarea value={brief} onChange={(e) => setBrief(e.target.value)} rows={4} className={cx(field, 'py-3 leading-7')} /></label>
-        <p className="text-[12px] leading-6 text-muted">ممیزی فقط‌خواندنی است. شرکت فقط با مُهر تو ساخته میشود و سرور با مُهر جدا (هزینه‌ی واقعی).</p>
-      </div>
-    </Sheet>
-  );
-}
 
 /** تأسیس شرکت (contract §18.8): from a repository or an idea to a sealed company and a server ready for the owner's own login. */
 export default function FoundingPage() {
   const q = useFoundings();
-  const [start, setStart] = useState(false);
+  const router = useRouter();
   const items = q.data?.pages.flatMap((pg) => pg.items) ?? [];
   return (
     <>
-      <PageHeader eyebrow="از ریپو یا ایده تا شرکت فعال و سرور آماده" title="تأسیس شرکت" actions={<Button variant="primary" icon="add" onClick={() => setStart(true)}>تأسیس تازه</Button>}>
+      <PageHeader eyebrow="از ریپو یا ایده تا شرکت فعال و سرور آماده" title="تأسیس شرکت" actions={<Button variant="primary" icon="found" onClick={() => router.push('/founding/new')}>تأسیس شرکت</Button>}>
         <p className="max-w-3xl text-[13px] leading-6 text-sec">ممیزی، پیشنهاد ساختار و تیم و نقشه‌ی راه، مُهر تو، و ساخت کامل سرور با API هتزنر (به‌روزرسانی، نصب و Claude Code آماده). بعد خودت وارد میشوی و ادامه میدهیم. رمز سرور هیچ‌وقت به ایجنت نمیرسد.</p>
       </PageHeader>
       {q.isLoading ? <Skeleton className="h-40" /> : q.error ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : !items.length ? <Empty icon="found" title="هنوز تأسیسی نیست" /> : (
@@ -61,7 +31,6 @@ export default function FoundingPage() {
         </div>
       )}
       <Path />
-      {start ? <Start onClose={() => setStart(false)} /> : null}
     </>
   );
 }

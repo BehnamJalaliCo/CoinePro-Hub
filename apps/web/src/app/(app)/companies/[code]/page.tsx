@@ -10,11 +10,13 @@ import { Seal } from '@/components/brand/seal';
 import { Card, Empty, ErrorState, PageHeader, Pill, Segmented, Skeleton } from '@/components/ui/primitives';
 import { DepartmentRanks, HrRoundLine } from '@/components/v18/people';
 import { DepartmentSheet, RoleDraftSheet, RolesOnDemand } from '@/components/v19/org';
+import { ControlRoom, ControlSheets, StateChip, useControlData, useControlUi } from '@/components/v21/control';
+import { PriorityTag } from '@/components/v21/priority';
 import { useCompany, useEmployees, useOrgChart, useWorkList } from '@/lib/api/hooks';
 import { useDepartments19 } from '@/lib/api/v19';
 import { CompanyServers } from '@/components/v26/company';
 import { ACTIVITY, DEPT_ICON, WORK_STATUS } from '@/lib/labels';
-import { ago, cx, jDate, modelLabel } from '@/lib/format';
+import { ago, cx, jDate, modelLabel, until } from '@/lib/format';
 import type { Schemas } from '@/lib/api/client';
 
 type Node = Schemas['ChartNode'];
@@ -45,7 +47,7 @@ function CompanyInner({ code }: { code: string }) {
   const chart = useOrgChart(code);
   const emps = useEmployees({ company: [code] });
   const work = useWorkList({ company: [code] });
-  const [tab, setTab] = useState<'overview' | 'people' | 'work' | 'brand' | 'servers'>(search.get('role') ? 'people' : search.get('tab') === 'servers' ? 'servers' : 'overview');
+  const [tab, setTab] = useState<'control' | 'overview' | 'people' | 'work' | 'brand' | 'servers'>(search.get('role') ? 'people' : search.get('tab') === 'servers' ? 'servers' : search.get('tab') === 'overview' ? 'overview' : 'control');
   const dept = search.get('dept');
   const role = search.get('role');
   const go = (q: { dept?: string | null; role?: string | null }) => {
@@ -57,6 +59,8 @@ function CompanyInner({ code }: { code: string }) {
     router.replace(`/companies/${code}${next.size ? `?${next}` : ''}`, { scroll: false });
   };
   const c = company.data;
+  const d = useControlData();
+  const ui = useControlUi();
   if (company.error) return <ErrorState error={company.error} onRetry={() => company.refetch()} />;
   return (
     <>
@@ -66,16 +70,18 @@ function CompanyInner({ code }: { code: string }) {
           <PageHeader eyebrow={<Link href="/companies" className="hover:text-ink">شرکت‌ها</Link>} title={c?.name_fa ?? '…'} />
           <div className="flex flex-wrap items-center gap-2">
             <span className="fig text-[12px] text-muted">{c?.name_en} · {code}</span>
-            {c?.kill_switch === 'engaged' ? <Pill tone="neg" icon="lock">کلید توقف روشن</Pill> : <Pill tone="pos" dot>فعال</Pill>}
-            {c?.deploy_freeze_until && new Date(c.deploy_freeze_until) > new Date() ? <Pill tone="warn" icon="pause">توقف deploy</Pill> : null}
+            {/* Running or stopped, and the deploys on their own chip when they are closed. */}
+            {c ? (() => { const st = d.state(c.code, c.kind === 'holding', c); return <><StateChip s={{ ...st, freeze: null, frozen: false }} busy={d.busy(c.code)} />{st.freeze ? <Pill tone="warn" icon="lock">deploy بسته، {until(st.freeze.until)}</Pill> : null}</>; })() : null}
           </div>
         </div>
         <Link href="/control" className="text-[13px] text-sec hover:text-ink"><span className="inline-flex items-center gap-1.5"><Icon name="lock" size={16} />کنترل</span></Link>
       </div>
       {/* ⟨1.4.6⟩ the company's brand and seal are data (§18.14); the holding's own seal is fixed and is not. */}
-      <div className="max-w-xl"><Segmented label="بخش" value={tab} onChange={setTab} options={[{ value: 'overview', label: 'دپارتمان‌ها' }, { value: 'people', label: 'کارمندها' }, { value: 'work', label: 'کارها' }, ...(c && c.kind !== 'holding' ? [{ value: 'servers' as const, label: 'سرورها' }, { value: 'brand' as const, label: 'نشان و مُهر' }] : [])]} /></div>
+      <div className="max-w-xl"><Segmented label="بخش" value={tab} onChange={setTab} options={[{ value: 'control', label: 'اتاق کنترل' }, { value: 'overview', label: 'دپارتمان‌ها' }, { value: 'people', label: 'کارمندها' }, { value: 'work', label: 'کارها' }, ...(c && c.kind !== 'holding' ? [{ value: 'servers' as const, label: 'سرورها' }, { value: 'brand' as const, label: 'نشان و مُهر' }] : [])]} /></div>
 
-      {tab === 'overview' ? (
+      {tab === 'control' ? (
+        c ? <ControlRoom co={c} d={d} ui={ui} /> : <Skeleton className="h-64 rounded-[16px]" />
+      ) : tab === 'overview' ? (
         <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
           <div className="grid gap-3 sm:grid-cols-2">
             {deps.isLoading ? Array.from({ length: 8 }, (_, i) => <Skeleton key={i} className="h-24 rounded-[16px]" />)
@@ -137,7 +143,7 @@ function CompanyInner({ code }: { code: string }) {
         <Card className="flex flex-col gap-1 p-2">
           {(work.data?.items ?? []).length ? (work.data?.items ?? []).map((w) => (
             <Link key={w.id} href={`/work/${w.id}`} className="flex items-center gap-3 rounded-[12px] p-3 hover:bg-hover">
-              <span className={cx('fig flex h-6 w-9 items-center justify-center rounded-[6px] text-[11px] font-bold', w.priority <= 'P1' ? 'bg-neg-soft text-neg' : 'bg-tile text-sec')}>{w.priority}</span>
+              <PriorityTag code={w.priority} compact />
               <div className="flex min-w-0 flex-1 flex-col"><span className="truncate text-[14px] font-semibold">{w.title}</span><span className="text-[11px] text-muted"><span className="fig">{w.ref}</span>، {w.assignee?.title_fa ?? 'بدون مسئول'}، {ago(w.updated_at)}</span></div>
               {w.overdue ? <Pill tone="neg">عقب‌افتاده</Pill> : null}
               <span className="text-[12px] text-sec">{WORK_STATUS[w.status] ?? w.status}</span>
@@ -148,6 +154,7 @@ function CompanyInner({ code }: { code: string }) {
       )}
       {dept ? <DepartmentSheet company={code} code={dept} onClose={() => go({ dept: null })} onRole={(r) => go({ role: r })} /> : null}
       {role ? <RoleDraftSheet refId={role} onClose={() => go({ role: null })} /> : null}
+      <ControlSheets ui={ui} companies={c ? [c] : []} />
     </>
   );
 }

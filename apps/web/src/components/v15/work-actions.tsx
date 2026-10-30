@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, Sheet } from '@/components/ui/overlay';
 import { FilterChip } from '@/components/ui/primitives';
+import { PriorityPicker } from '@/components/v21/priority';
 import { useToast } from '@/components/ui/toast';
 import { ApiError } from '@/lib/api/client';
 import { useWorkAction, type EvidenceIn } from '@/lib/api/v15';
@@ -62,7 +63,8 @@ export function WorkActions({ w }: { w: W }) {
           <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-sec">عنوان<input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={300} className={`${field} h-11`} /></label>
           <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-sec">شرح<textarea value={brief} onChange={(e) => setBrief(e.target.value)} rows={6} maxLength={20000} className={`${field} py-3 leading-7`} /></label>
           <div className="flex flex-col gap-1.5 text-[13px] font-semibold text-sec">اولویت
-            <div className="flex flex-wrap gap-2">{['P0', 'P1', 'P2', 'P3', 'P4'].map((p) => <FilterChip key={p} selected={priority === p} onClick={() => setPriority(p)}><span className="fig">{p}</span></FilterChip>)}</div>
+            {/* 0.4.0: priorities in words, each with its one-line meaning. */}
+            <PriorityPicker value={priority} onChange={setPriority} />
           </div>
           <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-sec">موعد<input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} dir="ltr" className={`${field} fig h-11`} /></label>
         </div>

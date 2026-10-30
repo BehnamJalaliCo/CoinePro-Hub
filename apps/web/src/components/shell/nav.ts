@@ -5,6 +5,7 @@ export type NavItem = { href: string; label: string; icon: IconName; badge?: 'de
 
 export const NAV_MAIN: NavItem[] = [
   { href: '/', label: 'فرمان', icon: 'command' },
+  { href: '/orders', label: 'فرمان‌های من', icon: 'delegate' },
   { href: '/cartable', label: 'کارتابل', icon: 'cartable', badge: 'decisions' },
   { href: '/outputs', label: 'خروجی‌ها', icon: 'deliverable', badge: 'deliverables' },
   { href: '/advisor', label: 'مشاور کل', icon: 'advisor' },
@@ -75,7 +76,9 @@ export const NAV_TOOLS: NavItem[] = [
   { href: '/server-policy', label: 'قوانین سرورها', icon: 'seal' },
   { href: '/control', label: 'کنترل', icon: 'lock' },
   { href: '/audit', label: 'دفتر Audit', icon: 'report' },
+  { href: '/notifications', label: 'اعلان‌ها', icon: 'bell' },
   { href: '/settings', label: 'تنظیمات', icon: 'settings' },
+  { href: '/errors', label: 'خطاخوان', icon: 'urgent' },
 ];
 
 /** Android-style bottom bar (D1 shell): the advisor orb sits in the middle. */

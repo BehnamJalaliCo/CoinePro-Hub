@@ -9,6 +9,7 @@ import type { IconName } from '@/generated/icons';
 import { useCompanies } from '@/lib/api/hooks';
 import type { Actor } from '@/lib/api/v13';
 import { cx, tokens, usd } from '@/lib/format';
+import { refRoute } from '@/lib/refs';
 
 type Tone = ComponentProps<typeof Pill>['tone'];
 type Label = { fa: string; tone: Tone };
@@ -87,41 +88,9 @@ export function ActorAvatar({ a, size = 32 }: { a: Actor | null | undefined; siz
   return <Avatar kind={k} dept={a?.code.split('-')[1]} size={size} label={a?.display_fa ?? a?.code} />;
 }
 
-/** Where a reference opens in the panel, when it has a page. */
+/** Where a reference opens in the panel, when it has a page: the ref router (0.5.0, lib/refs), one table for the whole panel. */
 export function refHref(ref: string): string | null {
-  if (/^D-\d+$/.test(ref)) return `/cartable?ref=${ref}`;
-  if (/^O-\d+$/.test(ref)) return `/outputs?ref=${ref}`;
-  if (/^W-\d+$/.test(ref)) return `/work/${ref}`;
-  if (/^S-\d+$/.test(ref)) return `/workshop/${ref}`;
-  if (/^SC-\d+$/.test(ref)) return `/support/${ref}`;
-  if (/^MT-\d+$/.test(ref)) return `/meetings/${ref}`;
-  if (/^(?:K|KB)-\d+$/.test(ref)) return `/knowledge?ref=${ref}`;
-  if (/^(?:OB|KR)-\d+$/.test(ref)) return '/okr';
-  if (/^RK-\d+$/.test(ref)) return `/risks?ref=${ref}`;
-  if (/^CE-\d+$/.test(ref)) return '/calendar';
-  if (/^M-\d+$/.test(ref)) return '/resolutions';
-  if (/^(?:TY|FX|PC|HQ)@\d+$|^holding@\d+$/.test(ref)) return '/charter';
-  // ⟨1.5⟩ §21
-  if (/^NT-\d+$/.test(ref)) return `/notes?ref=${ref}`;
-  if (/^BR-\d+$/.test(ref)) return `/letter?ref=${ref}`;
-  if (/^CR-\d+$/.test(ref)) return `/substitutes?creative=${ref}`;
-  if (/^(?:DM|WR)-\d+$/.test(ref)) return '/advisor';
-  if (/^DP-\d+$/.test(ref)) return '/digital-ceo';
-  if (/^CL-\d+$/.test(ref)) return '/runs';
-  // ⟨1.6⟩ §22
-  if (/^SR-\d+$/.test(ref)) return `/media/series?ref=${ref}`;
-  if (/^MI-\d+$/.test(ref)) return `/media?item=${ref}`;
-  if (/^LC-\d+$/.test(ref)) return `/legal?case=${ref}`;
-  if (/^L-\d+$/.test(ref)) return '/messages?thread=L';
-  // ⟨1.7⟩ §23: a record, a hold, a party (its records), a folder (its records), and the open layer's rows (their editor).
-  if (/^AR-\d+$/.test(ref)) return `/archive/${ref}`;
-  if (/^LH-\d+$/.test(ref)) return `/archive/holds?ref=${ref}`;
-  if (/^PT-\d+$/.test(ref)) return `/archive?party=${ref}`;
-  if (/^FP-\d+$/.test(ref)) return `/archive?folder=${ref}`;
-  if (/^RR-\d+$/.test(ref)) return `/archive/settings?tab=retention&ref=${ref}`;
-  if (/^RM-\d+$/.test(ref)) return `/archive/settings?tab=reminders&ref=${ref}`;
-  if (/^AU-\d+$/.test(ref)) return `/archive/settings?tab=automations&ref=${ref}`;
-  return null;
+  return refRoute(ref);
 }
 
 /** A source or reference as a small Latin chip; a ref with a page is a link. */
