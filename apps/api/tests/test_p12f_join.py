@@ -51,8 +51,9 @@ async def test_the_chain_runs_through_prompt_11_then_prompt_12(su: Any) -> None:
     # prompt 15: 0029_1 -> 0030 (deliverables seen, category, filed)
     assert rev["0030"] == "0029_1"
     heads = set(rev) - {d for d in rev.values() if d}
-    assert heads == {"0030"}
-    assert await su.fetchval("SELECT version_num FROM alembic_version_api") == "0030"
+    assert rev["0031"] == "0030"  # 15.2: delete a company, the simple founding
+    assert heads == {"0031"}
+    assert await su.fetchval("SELECT version_num FROM alembic_version_api") == "0031"
 
 
 async def test_the_kind_check_holds_every_kind_and_is_validated(su: Any) -> None:
