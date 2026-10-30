@@ -211,6 +211,14 @@ internal class OrdersDemo(private val store: MutableMap<String, Pair<Int, JsonEl
     // -------------------------------------------------------------- live --
     private fun at(tick: Int, beat: () -> List<StreamEvent>) { beats += tick to beat }
 
+    /** What is still to come happens at the next tick (the background link's script: the owner's orders move while the app is closed). */
+    @Synchronized
+    fun rush() {
+        val next = beats.map { (lastTick + 1) to it.second }
+        beats.clear()
+        beats += next
+    }
+
     @Synchronized
     fun tick(tick: Int): List<StreamEvent> {
         lastTick = tick
@@ -272,9 +280,10 @@ internal class OrdersDemo(private val store: MutableMap<String, Pair<Int, JsonEl
         root.events += Ev(t, "delivered", root.assignee.code, "agent", mapOf("deliverable" to out))
         k.status = "done"
         return listOf(
-            ev(k.company, "deliverable.created", kidOut, "work" to k.ref, "producer" to k.assignee.code),
+            // ⟨1.7.4⟩ the hub names the owner's order each output belongs to (`root_ref`).
+            ev(k.company, "deliverable.created", kidOut, "work" to k.ref, "producer" to k.assignee.code, "root_ref" to root.ref),
             ev(k.company, "work.updated", k.ref, "status" to "delivered"),
-            ev(root.company, "deliverable.created", out, "work" to root.ref, "producer" to root.assignee.code),
+            ev(root.company, "deliverable.created", out, "work" to root.ref, "producer" to root.assignee.code, "root_ref" to root.ref),
             ev(root.company, "work.updated", root.ref, "status" to "delivered"),
             ev(k.company, "work.completed", k.ref, "by" to root.assignee.code),
         )

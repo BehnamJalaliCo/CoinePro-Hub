@@ -21,6 +21,17 @@ object StreamTopics {
         "reviews", "briefings", "people", "notes", "quality", "dceo", "treasury", "creatives", "media", "legal", "archive",
     )
 
+    /**
+     * What the phone must hear even with the app closed (the background link, `device/HubLinkService`): urgent notifications and cards
+     * waiting for the seal (`notification.*`), cards decided elsewhere (`decision.*`), the owner's orders moving (`work.*` and
+     * `deliverable.created`, the orders tracker's own events), new outputs, and the kill switches (`control.*`). Nothing chatty: no
+     * `activity`, `llm` or `runs`, which would wake the phone for every model call.
+     */
+    val ALERTS = listOf("work", "decisions", "deliverables", "notifications", "control")
+
+    /** The event types the [ALERTS] topics carry (events.py TOPICS: `control` also carries `presence.` and `hiring.`). */
+    val ALERT_PREFIXES = listOf("work.", "decision.", "deliverable.", "notification.", "control.", "presence.", "hiring.")
+
     private val VALID = Regex("^[a-z]+(,[a-z]+)*$")
 
     /** Whether the hub accepts [value] as `topics`. */
@@ -39,6 +50,13 @@ object StreamTopics {
         if (cur.isNotEmpty()) out += cur.toString()
         return out
     }
+
+    /**
+     * The lanes the stream opens: the first is [ALERTS] alone (the connection that stays open in the background, so opening or closing the
+     * app never reconnects it), then every other topic of [topics] packed into as few lanes as fit. Each topic is asked for exactly once.
+     */
+    fun split(topics: List<String> = ALL, max: Int = MAX): List<String> =
+        listOf(ALERTS.joinToString(",")) + lanes(topics.filter { it !in ALERTS }, max)
 
     /** The query of one lane's connection. */
     fun query(lane: String): Map<String, String> = mapOf("topics" to lane)

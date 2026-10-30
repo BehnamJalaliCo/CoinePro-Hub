@@ -6,4 +6,14 @@
     <string name="tile_voice">فرمان صوتی</string>
     <string name="channel_orders">فرمان‌ها</string>
     <string name="channel_orders_description">وقتی فرمانی که دادی واگذار، تحویل، ناموفق یا تمام شد</string>
+    <string name="channel_urgent">فوری</string>
+    <string name="channel_urgent_description">هشدارهای فوری ستاد و کلید توقفی که کس دیگری زد</string>
+    <string name="channel_cartable">منتظر تو</string>
+    <string name="channel_cartable_description">کارت‌های منتظر مُهر، نگه‌داشت‌های ناظر و یافته‌های جدی</string>
+    <string name="channel_outputs">خروجی‌ها و گزارش‌ها</string>
+    <string name="channel_outputs_description">خروجی‌ها و گزارش‌های تازه، بی‌صدا</string>
+    <string name="channel_link">اتصال به ستاد</string>
+    <string name="channel_link_description">اعلان آرامی که اعلان‌ها را با اپ بسته هم میرساند</string>
+    <string name="channel_account">ورود به ستاد</string>
+    <string name="channel_account_description">وقتی نشست تمام شود و اعلان‌ها تا ورود دوباره نرسند</string>
 </resources>

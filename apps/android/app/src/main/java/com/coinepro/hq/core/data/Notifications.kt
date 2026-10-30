@@ -89,6 +89,8 @@ class NotificationReads(
     private val onSent: () -> Unit = {},
     private val graceMs: Long = 5_000,
     private val now: () -> String = { java.time.Instant.now().toString() },
+    /** Marked read here (opened, swiped, all): their alerts leave the phone's notifications at once. */
+    private val onMarked: (Collection<String>) -> Unit = {},
 ) {
     private val state = MutableStateFlow<Map<String, String>>(emptyMap())
     private val failed = kotlinx.coroutines.flow.MutableSharedFlow<String>(extraBufferCapacity = 4)
@@ -105,6 +107,7 @@ class NotificationReads(
     fun open(id: String) {
         if (id in state.value) return
         state.value = state.value + (id to now())
+        onMarked(listOf(id))
         scope.launch { send(listOf(id), null) }
     }
 
@@ -114,6 +117,7 @@ class NotificationReads(
         val fresh = ids.filter { it !in state.value }
         val at = now()
         state.value = state.value + fresh.associateWith { at }
+        onMarked(fresh)
         val token = ++seq
         val job = scope.launch {
             delay(graceMs)

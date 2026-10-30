@@ -38,8 +38,9 @@ fun HqRoot(graph: AppGraph, night: Boolean, enrolToken: String?, onEnrolConsumed
         }
     }
     LaunchedEffect(env, signedIn) {
-        if (signedIn) env.stream.start() else {
-            env.stream.stop()
+        // What the stream keeps open is the background link's to decide (every lane on screen, the alert lane with the app closed).
+        graph.link.reconcile()
+        if (!signedIn) {
             env.cache.clear()
             graph.offline.clear()
         }

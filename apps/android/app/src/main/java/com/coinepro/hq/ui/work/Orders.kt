@@ -182,12 +182,17 @@ fun OrdersScreen(onNewOrder: () -> Unit = {}, tab0: String = "active") {
     }
 }
 
-/** Android 13+ asks before an app may notify; until the owner says yes, the orders' changes are told in the app only. */
+/** Android 13+ asks before an app may notify; until the owner says yes, the orders' changes are told in the app only (and the background
+ *  link, which tells them with the app closed, stays off). */
 @Composable
 private fun NotifyCard() {
     val ctx = LocalContext.current
-    var allowed by remember { mutableStateOf(com.coinepro.hq.device.OrderNotify.allowed(ctx)) }
-    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { allowed = com.coinepro.hq.device.OrderNotify.allowed(ctx) }
+    var allowed by remember { mutableStateOf(com.coinepro.hq.device.AlertNotifier.allowed(ctx)) }
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        allowed = com.coinepro.hq.device.AlertNotifier.allowed(ctx)
+        // The background link follows the permission (on by default once it is granted).
+        (ctx.applicationContext as? com.coinepro.hq.HqApp)?.graph?.link?.refresh()
+    }
     if (allowed) return
     val c = Divan.colors
     HqCard(Modifier.fillMaxWidth(), color = c.softLapis) {
@@ -195,7 +200,7 @@ private fun NotifyCard() {
             DIcon(DivanIcon.BELL, size = 20.dp, tint = c.lapis)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("اعلان فرمان‌ها روی گوشی خاموش است", style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold))
-                Text("تا اپ باز است، واگذاری، تحویل، شکست یا پایان هر فرمان در اعلان‌های گوشی هم گفته میشود.", style = Divan.type.caption, color = c.textSecondary)
+                Text("واگذاری، تحویل، شکست یا پایان هر فرمان، حتی با اپ بسته، در اعلان‌های گوشی گفته میشود.", style = Divan.type.caption, color = c.textSecondary)
             }
             HqButton("روشن کن", {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) ask.launch(Manifest.permission.POST_NOTIFICATIONS)

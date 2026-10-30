@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Divan "cartable" icon (design/icons) for the «منتظر تو» notifications: their status-bar mark. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:pathData="M5.5 5H18.5L21 7.5V16.5L18.5 19H5.5L3 16.5V7.5ZM3 13H8L9.5 15.5H14.5L16 13H21"
+        android:strokeWidth="1.6" android:strokeColor="#FFFFFFFF" android:strokeLineCap="round" android:strokeLineJoin="round" />
+</vector>

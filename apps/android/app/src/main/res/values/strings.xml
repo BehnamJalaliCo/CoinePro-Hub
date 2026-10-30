@@ -6,4 +6,14 @@
     <string name="tile_voice">Voice order</string>
     <string name="channel_orders">Orders</string>
     <string name="channel_orders_description">When an order you gave is delegated, delivered, fails or is done</string>
+    <string name="channel_urgent">Urgent</string>
+    <string name="channel_urgent_description">Urgent alerts from the hub and a kill switch someone else moved</string>
+    <string name="channel_cartable">Waiting for you</string>
+    <string name="channel_cartable_description">Cards waiting for your seal, the overseer\'s holds and serious findings</string>
+    <string name="channel_outputs">Outputs and reports</string>
+    <string name="channel_outputs_description">New outputs and the hub\'s reports, quietly</string>
+    <string name="channel_link">Connection to the hub</string>
+    <string name="channel_link_description">The quiet notice that keeps alerts coming while the app is closed</string>
+    <string name="channel_account">Sign-in</string>
+    <string name="channel_account_description">When the session ends and alerts stop until you sign in again</string>
 </resources>

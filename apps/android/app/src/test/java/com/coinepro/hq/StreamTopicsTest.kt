@@ -51,6 +51,23 @@ class StreamTopicsTest {
     }
 
     @Test
+    fun theAlertLaneComesFirstAndNoTopicIsAskedTwice() {
+        val lanes = StreamTopics.split()
+        // The lane the background link keeps open with the app closed: the alert topics alone, nothing chatty.
+        assertEquals("work,decisions,deliverables,notifications,control", lanes.first())
+        for (chatty in listOf("activity", "llm", "runs", "messages")) assertTrue(chatty !in lanes.first().split(','))
+        for (l in lanes) assertTrue(l, StreamTopics.accepted(l))
+        val asked = lanes.flatMap { it.split(',') }
+        assertEquals(asked.size, asked.toSet().size)
+        assertEquals(served, asked.toSet())
+        // The events those topics carry (events.py TOPICS: control also carries presence and hiring).
+        for (t in listOf("notification.created", "decision.decided", "deliverable.created", "work.delegated", "control.changed")) {
+            assertTrue(t, StreamTopics.ALERT_PREFIXES.any { t.startsWith(it) })
+        }
+        assertTrue(StreamTopics.ALERT_PREFIXES.none { "llm.call".startsWith(it) || "run.step".startsWith(it) })
+    }
+
+    @Test
     fun lanesPackToTheLimit() {
         assertEquals(listOf("aaaa,bbbb", "cccc"), StreamTopics.lanes(listOf("aaaa", "bbbb", "cccc"), max = 9))
         assertEquals(listOf("a,b,c"), StreamTopics.lanes(listOf("a", "b", "c", "a"), max = 200))
@@ -62,7 +79,7 @@ class StreamTopicsTest {
         val scope = CoroutineScope(Dispatchers.Unconfined)
         val stream = HoldingStream(api, QueryCache(scope, HubHealth()), scope, demo = false)
         val urls = stream.urls()
-        assertEquals(StreamTopics.lanes().size, urls.size)
+        assertEquals(StreamTopics.split().size, urls.size)
         for (u in urls) {
             assertEquals("/api/v1/stream", u.encodedPath)
             assertEquals(setOf("topics"), u.queryParameterNames)

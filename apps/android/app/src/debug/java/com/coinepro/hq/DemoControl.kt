@@ -164,6 +164,12 @@ internal object DemoLive {
     @Volatile var stopped: Set<String> = emptySet()
     /** The owner's orders moving on their own ([OrdersDemo]). */
     @Volatile var orders: OrdersDemo? = null
+    /** The notifications the hub raises ([NotificationsDemo]), for the background link's script. */
+    @Volatile var notifications: NotificationsDemo? = null
+    /** The background link's script, by tick; played once per demo session. */
+    private val later = mutableListOf<Pair<Int, () -> List<StreamEvent>>>()
+    @Volatile private var lastTick = 0
+    @Volatile private var linkPlayed = false
     private val queue = ConcurrentLinkedQueue<StreamEvent>()
     private var seq = 0
     private var step = 0
@@ -191,19 +197,56 @@ internal object DemoLive {
     fun reset(stopped: Set<String>) {
         this.stopped = stopped
         queue.clear()
+        synchronized(later) { later.clear() }
+        linkPlayed = false
         step = 0
         synchronized(running) { running.clear() }
     }
 
     fun next(tick: Int): List<StreamEvent> {
+        lastTick = tick
         val out = mutableListOf<StreamEvent>()
         while (true) out += queue.poll() ?: break
+        synchronized(later) {
+            val due = later.filter { it.first <= tick }
+            later.removeAll(due)
+            due
+        }.forEach { out += it.second() }
         if (tick % 4 == 0) beat()?.let { out += it }
         out += orders?.tick(tick).orEmpty()
         // Two lines an older hub sends with an id where a ref belongs: the feed resolves the first and names the second's topic.
         if (tick == 2) out += event("FX", "work.updated", "0193b1c2-0003-7d4f-8a2e-0000005a1003", mapOf("status" to "in_progress"))
         if (tick == 3) out += event("HQ", "file.ready", "01a187f8-e3e9-7b4f-8dd2-3c4e5f607182", emptyMap())
         return out
+    }
+
+    /**
+     * What the background link hears with the app closed, in the demo: a card waiting for the seal (D-000085, the legal counsel's second
+     * e-mail), the owner's orders moving on (the delegated one delivered), then an urgent alert. Each notification is raised in the demo's
+     * store first, so the alerts read it back as they would from the hub.
+     */
+    fun linkScript() {
+        if (linkPlayed) return
+        linkPlayed = true
+        val t = lastTick
+        synchronized(later) {
+            later += (t + 3) to fun(): List<StreamEvent> {
+                val n = notifications ?: return emptyList()
+                val id = n.raise(
+                    "decision", "FX", "تصمیم تازه D-000085: ایمیل دوم به پشتیبانی تجاری اینستاگرام", "پیشنهاد HQ-LGL · ریسک medium · برگشت‌ناپذیر",
+                    "decision", "D-000085",
+                )
+                return listOf(event("FX", "notification.created", id, mapOf("level" to "decision", "link_kind" to "decision", "link_ref" to "D-000085")))
+            }
+            later += (t + 6) to { orders?.rush(); emptyList() }
+            later += (t + 14) to fun(): List<StreamEvent> {
+                val n = notifications ?: return emptyList()
+                val id = n.raise(
+                    "urgent", "HQ", "دیسک سرور هاب از ۹۵٪ گذشت", "پایش ساعتی: ۹۵٫۲٪ پر؛ پشتیبان ساعتی در خطر است. مسئول: مهندس پلتفرم هلدینگ.", null, null,
+                )
+                return listOf(event("HQ", "notification.created", id, mapOf("level" to "urgent")))
+            }
+        }
     }
 
     /** A hub restart: what the screens on show watch changes, so they ask again and meet the 502s ([Demo.simulateRestart]). */

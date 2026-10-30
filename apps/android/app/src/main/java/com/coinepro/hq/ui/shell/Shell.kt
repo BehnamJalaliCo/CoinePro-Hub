@@ -259,30 +259,27 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
     var newSession by remember { mutableStateOf(false) }
     var grantFor by remember { mutableStateOf<String?>(null) }
     var granting by remember { mutableStateOf(false) }
-    // The quick-settings tile and the widget open the app on a place (voice order, cartable).
+    // The quick-settings tile and the widget open the app on a place (voice order, cartable); an alert on the phone's notifications opens
+    // its own page (a route from the ref router: a card, an order, an output, the control room…).
     LaunchedEffect(launch) {
         when {
             launch == "voice" -> voice = true
-            launch == "cartable" || launch == "orders" -> navApi.go(launch)
-            // A notification on the «فرمان‌ها» channel opens its order or its output.
-            launch != null && (launch.startsWith("work/") || launch.startsWith("outputs/")) -> navApi.go(launch)
+            launch != null -> navApi.go(launch)
         }
         if (launch != null) onLaunchConsumed()
     }
-    // The owner's orders: a change of stage while the app is open is a toast with a way in, and a notification when the phone allows it.
+    // While the app is on screen the alerts speak here, as a toast with a way in, and not on the phone's notifications too
+    // (core/link/AlertCenter): an urgent notification, a card waiting for the seal, a kill switch someone else moved, an order's stage.
     val toasts = com.coinepro.hq.ui.LocalToasts.current
     LaunchedEffect(env) {
-        env.orders.start()
-        env.orders.notices.collect { n ->
-            val route = com.coinepro.hq.device.OrderNotify.routeOf(n)
-            val action = if (n.kind == com.coinepro.hq.core.data.NoticeKind.DELIVERED && n.deliverable != null) "خروجی" else "باز کن"
-            when (n.kind) {
-                com.coinepro.hq.core.data.NoticeKind.FAILED -> toasts.error(n.text, action) { navApi.go(route) }
-                com.coinepro.hq.core.data.NoticeKind.DELEGATED -> toasts.info(n.text, action) { navApi.go(route) }
-                else -> toasts.ok(n.text, action) { navApi.go(route) }
+        env.alerts.inApp.collect { a ->
+            val go = { a.route?.let(navApi::go) ?: Unit }
+            val text = if (a.channel == com.coinepro.hq.core.link.AlertChannel.ORDERS) a.text else "${a.title}؛ ${a.text}"
+            when (a.tone) {
+                com.coinepro.hq.core.link.AlertTone.ERROR -> toasts.error(text, a.action) { go() }
+                com.coinepro.hq.core.link.AlertTone.OK -> toasts.ok(text, a.action) { go() }
+                com.coinepro.hq.core.link.AlertTone.INFO -> toasts.info(text, a.action) { go() }
             }
-            com.coinepro.hq.device.OrderNotify.post(ctx, n)
-            env.cache.invalidate("work", "orders")
         }
     }
     val hubState by env.hub.state.collectAsStateWithLifecycle()

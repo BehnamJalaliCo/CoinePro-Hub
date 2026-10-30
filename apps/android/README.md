@@ -163,9 +163,29 @@ Every library is free and open source and pinned to an exact version (`gradle/li
     `archive_disposal` (its records; a held one is skipped); refs `AR-`, `LH-`, `PT-`, `FP-`, `RR-`, `RM-`, `AU-` open
     their pages; stream topic `archive`; the §23 codes (`clearance`, `sealed_record`, `schema_invalid`,
     `secret_in_document`, `held`) in Persian.
-- **Live** — `/api/v1/stream` while the app is in the foreground, one connection per lane of topics (the hub takes at most 200
-  characters of `topics`; `core/data/StreamTopics.kt`); events refresh the screens that show the touched data (the same invalidation
-  map as the web).
+- **Live** — `/api/v1/stream`, one connection per lane of topics (the hub takes at most 200 characters of `topics`;
+  `core/data/StreamTopics.kt`); events refresh the screens that show the touched data (the same invalidation map as the web). The first
+  lane is the alert lane (`work,decisions,deliverables,notifications,control`); the others open only while the app is on screen.
+- **Alerts with the app closed** (the background link; owner's decision: no FCM, no Google, no second app) — a foreground service
+  (`device/HubLinkService`, type `specialUse` with its reason in the manifest; `dataSync` is capped at six hours a day from Android 15)
+  keeps the process in the foreground so the stream's alert lane stays open: the same connection the app uses, never a second one. One
+  quiet notification «اتصال به ستاد» says «وصل به ستاد · زنده» (or why it is down); a tap opens the app; «قطع تا بازگشت» stops it until
+  the app is opened again. `core/link/AlertCenter` turns events into alerts on five channels — «فوری» (urgent notifications, a kill
+  switch someone else moved; high), «منتظر تو» (cards waiting for the seal, holds, serious findings), «فرمان‌ها» (the orders tracker),
+  «خروجی‌ها و گزارش‌ها» (low, silent) and «ورود به ستاد» — after reading from the hub what each one is and whether it still stands: a
+  notification already read (here or on the web), a card already decided, an output already seen or an order's own output is not told.
+  Every event is told once (event ids kept across restarts), the same alert raised again updates its count, a burst sounds once, a
+  channel with several alerts gets an InboxStyle summary, a tap opens the page through the ref router and marks the hub's notification
+  read, and reading it in the app takes it out of the shade. With the app on screen the app's toast speaks instead, never both. With the
+  app lock on, the lock screen shows only «پیام تازه از ستاد». Reconnects back off (1 s doubling, with jitter; 30 s cap on screen,
+  5 min in the background) and resume with Last-Event-ID (kept for six hours across process restarts); with no network the link waits for
+  the system's network callback instead of retrying blind, and a new network reconnects at once; a connection silent for 50 s (the hub
+  beats every 15 s) is taken for dead. A WorkManager watchdog every 15 minutes starts the service again if the system stopped it, and
+  `BOOT_COMPLETED` / `MY_PACKAGE_REPLACED` start it after a reboot or an update; when Android refuses a background start, one quiet
+  notice offers a tap to reconnect. A session that expires with the app closed posts «برای ادامه‌ی اعلان‌ها وارد شو» once and stops the
+  link. Connects, drops and restarts go to «خطاخوان» at info level, repeats folded. Settings → «اعلان‌ها وقتی اپ بسته است»: the switch
+  (on by default once notifications are allowed), the state, the permission, the battery-optimisation exemption and, on Samsung, the
+  «Never sleeping apps» tip. In the demo, closing the app plays what the link would hear: a card, an order delivered, an urgent alert.
 - **Notifications** ⟨0.4.1⟩ — «خوانده‌نشده» holds only what is unread: a tap opens it and it leaves the list, a swipe or «خوانده شد»
   marks it read (five seconds to undo, since the hub cannot mark one unread again), «همه خوانده شد» moves everything up to the newest
   shown; «خوانده‌شده» keeps the rest. The same alert raised again (the overseer's hourly finding) is one row with its count, opened on
@@ -210,8 +230,8 @@ Every library is free and open source and pinned to an exact version (`gradle/li
   stage on a stepper (ثبت شد → مدیرعامل گرفت → واگذار شد → در حال انجام → تحویل شد → تمام), an estimate in steps of 5 that moves only when
   something happens (stage weight plus the share of the children done; `core/data/Orders.kt`), who holds it now down the delegation, when it
   last moved, and its output. An order's page adds the timeline of its events, its children's and its runs' step summaries, live from the
-  stream. While the app is open, an order delegated, delivered, failed or done is a toast with a way in and a notification on the «فرمان‌ها»
-  channel (Android 13+ asks first; no push service). The live feeds name works by ref and title, never by id: an id is looked up once
+  stream. An order delegated, delivered, failed or done is a toast with a way in while the app is open, and a notification on the «فرمان‌ها»
+  channel while it is closed (the background link below; Android 13+ asks first; no push service). The live feeds name works by ref and title, never by id: an id is looked up once
   (`core/data/WorkTitles.kt`) behind a skeleton.
 - **A hub restart** ⟨0.4⟩ — a read that meets 502/503/504 or no answer is retried twice quietly; four such failures within 15 s mean the
   hub is away (`core/net/HubHealth.kt`): one calm banner «هاب در حال راه‌اندازی دوباره است؛ خودکار وصل میشوم», screens keep what they had (or
@@ -232,6 +252,8 @@ app/src/main/java/com/coinepro/hq/
   core/auth/       Auth (sign-in, enrolment, step-up), Passkeys, TokenVault
   core/data/       QueryCache (shared cached queries), HoldingStream (SSE), LiveActivity (who works now), Control (switches, optimistic),
                    Orders (stage, estimate, holders, timeline, notices), OrderWatcher, WorkTitles (ids to refs and titles)
+  core/link/       the background link: HubLink (what runs when), AlertCenter and AlertRules (events to alerts), Backoff, LinkJournal,
+                   NetworkWatch, LinkStore
   core/diag/       ErrorLog («خطاخوان», per version), Diag
   core/format/     Jalali dates, figures, Persian labels
   designsystem/    Theme, motion and spacing, icons and marks, components, seal, avatar and orb, charts, Markdown subset
@@ -287,5 +309,6 @@ The app shows both values under **تنظیمات → این اپ** with copy but
 Until then the app installs and runs, the demo works in the debug build, and sign-in reports that the app is not
 yet linked to the domain.
 
-Push notifications through FCM are dropped (owner's decision, 2026-10-17: one user, the GitHub release is enough, no Firebase project). Notifications arrive in the app over the live stream.
-The in-app stream covers notifications while the app is open.
+Push notifications through FCM are dropped (owner's decision, 2026-10-17: one user, the GitHub release is enough, no Firebase project).
+Notifications arrive over the app's own live stream: in the app while it is open, and through the background link's foreground service
+while it is closed (see **Alerts with the app closed** above).

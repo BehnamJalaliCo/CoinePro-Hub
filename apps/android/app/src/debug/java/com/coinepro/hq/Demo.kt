@@ -56,6 +56,10 @@ object Demo {
     /** The demo stream's events for this tick (about every 600 ms): what the owner's actions caused, and the script's next beat. */
     fun next(tick: Int): List<com.coinepro.hq.core.net.StreamEvent> = DemoLive.next(tick)
 
+    /** The app went to the background with the background link on: the demo plays what the link would hear with the app closed (a card
+     *  waiting for the seal, an order delivered, an urgent alert), once per demo session, so its notifications can be seen offline. */
+    fun background() = DemoLive.linkScript()
+
     /** Until when (wall clock) every call answers 502, as the hub's proxy does while the API container restarts during a deploy. */
     @Volatile var restartUntil: Long = 0
 

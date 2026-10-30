@@ -45,8 +45,18 @@ internal class NotificationsDemo(private val store: MutableMap<String, Pair<Int,
         }
         rows += n("k1", "info", "HQ", "پشتیبان ساعتی انجام شد", "۱۲ پایگاه داده، ۴۱۰ مگابایت", "backup", "BK-0091", at(1500), read = at(1490))
         rows.sortByDescending { it.str("created_at") }
+        DemoLive.notifications = this
     }
 
+    /** A notification the hub raises now (the background link's script): stored unread, newest first; returns its id. */
+    @Synchronized
+    fun raise(level: String, co: String, title: String, body: String, kind: String?, ref: String?): String {
+        val id = "live-${rows.size + 1}"
+        rows.add(0, n(id, level, co, title, body, kind, ref, HqClock.now().toString()))
+        return id
+    }
+
+    @Synchronized
     fun handle(method: String, path: String, query: Map<String, String?>, body: JsonObject?): Pair<Int, JsonElement>? {
         if (method == "GET" && path == "/notifications") {
             val unread = query["unread"]?.toBooleanStrictOrNull()

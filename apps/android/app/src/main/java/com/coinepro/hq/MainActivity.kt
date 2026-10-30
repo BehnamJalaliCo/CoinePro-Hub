@@ -27,6 +27,7 @@ class MainActivity : ComponentActivity() {
         enrolToken = tokenOf(intent)
         launch = intent?.getStringExtra(EXTRA_OPEN)
         val graph = (application as HqApp).graph
+        markRead(intent)
         // Recents show no content (M11); screenshots stay possible on Android 13+, older phones get FLAG_SECURE with the lock on.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) setRecentsScreenshotEnabled(false)
         else if (graph.lock.enabled()) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
@@ -43,10 +44,21 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         tokenOf(intent)?.let { enrolToken = it }
         intent.getStringExtra(EXTRA_OPEN)?.let { launch = it }
+        markRead(intent)
+    }
+
+    /** A tap on an alert that came from a hub notification opens it, as a tap in the app's list does: it is read. */
+    private fun markRead(i: Intent?) {
+        val id = i?.getStringExtra(EXTRA_READ) ?: return
+        i.removeExtra(EXTRA_READ)
+        val env = (application as HqApp).graph.env.value
+        if (env.auth.signedIn.value) env.reads.open(id)
     }
 
     companion object {
         const val EXTRA_OPEN = "com.coinepro.hq.OPEN"
+        /** The hub notification an alert came from (marked read when the alert is tapped). */
+        const val EXTRA_READ = "com.coinepro.hq.READ"
     }
 
     private fun tokenOf(i: Intent?): String? {

@@ -176,6 +176,28 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
             "notifications-read" to { _ -> NotificationsScreen(tab0 = "read") },
             "audit" to { _ -> AuditScreen() },
             "settings" to { g -> SettingsScreen(g) },
+            // The background link (alerts with the app closed): on and live, battery optimisation off, on a Samsung (its own sleeping-apps
+            // list); then a phone where nothing is set yet (no notification permission) and one switched on, offline and still optimised.
+            "settings-link" to { _ ->
+                Cardlike {
+                    com.coinepro.hq.ui.settings.BackgroundLinkContent(
+                        com.coinepro.hq.ui.settings.LinkUi(true, com.coinepro.hq.core.link.LinkView(com.coinepro.hq.core.link.LinkShown.LIVE), allowed = true, batteryFree = true, samsung = true),
+                        {}, {}, {}, {},
+                    )
+                }
+            },
+            "settings-link-setup" to { _ ->
+                Cardlike {
+                    com.coinepro.hq.ui.settings.BackgroundLinkContent(
+                        com.coinepro.hq.ui.settings.LinkUi(false, com.coinepro.hq.core.link.LinkView(com.coinepro.hq.core.link.LinkShown.NO_PERMISSION), allowed = false, batteryFree = false, samsung = true),
+                        {}, {}, {}, {},
+                    )
+                    com.coinepro.hq.ui.settings.BackgroundLinkContent(
+                        com.coinepro.hq.ui.settings.LinkUi(true, com.coinepro.hq.core.link.LinkView(com.coinepro.hq.core.link.LinkShown.DOWN, "no network"), allowed = true, batteryFree = false, samsung = false),
+                        {}, {}, {}, {},
+                    )
+                }
+            },
             // «خطاخوان»: a contract mismatch with its field path (opened), an HTTP error counted twice, a network failure, a crash.
             "errors" to { g -> androidx.compose.runtime.remember { sampleErrors(g) }; com.coinepro.hq.ui.settings.ErrorLogScreen(g.errors) },
             "errors-open" to { g ->
@@ -703,6 +725,10 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
         // so CI can compare the images with the recorded ones (the visual gate).
         com.coinepro.hq.core.format.HqClock.fixed = java.time.Instant.parse("2026-10-17T08:30:00Z")
         graph = (ApplicationProvider.getApplicationContext<HqApp>()).graph
+        // A screen is drawn without the live stream and without the orders tracker's reads (as before the background link), so nothing
+        // moves or loads under the camera; the screens that show the stream start it themselves ([Live]). Off screen and without the
+        // notification permission, the link opens nothing, also when the demo session starts.
+        graph.link.setForeground(false)
         graph.enterDemo()
     }
 

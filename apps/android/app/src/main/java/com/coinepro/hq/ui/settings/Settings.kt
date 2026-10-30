@@ -54,7 +54,7 @@ import com.coinepro.hq.ui.rememberAction
 import com.coinepro.hq.ui.rememberQuery
 import com.coinepro.hq.ui.refresher
 
-/** Settings: devices and passkeys, hiring, theme, Khalvat, the owner's working settings, and this app's identity
+/** Settings: devices and passkeys, hiring, theme, Khalvat, alerts with the app closed, the owner's working settings, and this app's identity
  *  (the signing fingerprint the server needs for passkeys on Android). */
 @Composable
 fun SettingsScreen(graph: AppGraph) {
@@ -141,6 +141,8 @@ fun SettingsScreen(graph: AppGraph) {
                 }
             }
         }
+        // The background link: alerts with the app closed (no push service), its state, the permission and the battery.
+        item { BackgroundLinkCard(graph) }
         item {
             HqCard(Modifier.fillMaxWidth()) {
                 SectionTitle("تنظیمات کار", note = "از سرور")

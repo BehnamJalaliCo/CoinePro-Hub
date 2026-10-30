@@ -147,7 +147,16 @@ class Api(
     private val transferClient: OkHttpClient = client.newBuilder().writeTimeout(120, TimeUnit.SECONDS).readTimeout(120, TimeUnit.SECONDS).callTimeout(0, TimeUnit.SECONDS).build()
 
     /** The session is gone (401 outside a normal call, e.g. on the stream). */
-    fun unauthorized() = tokens.clear()
+    fun unauthorized() = expire()
+
+    /** Told when a session the app held is refused (401): the background link tells the owner once and stops. */
+    @Volatile var onExpired: (() -> Unit)? = null
+
+    private fun expire() {
+        val had = tokens.token() != null
+        tokens.clear()
+        if (had) onExpired?.invoke()
+    }
 
     /** The app's error log for a real session; the demo and the tests leave it null. */
     @Volatile var failures: FailureSink? = null
@@ -1224,7 +1233,7 @@ class Api(
 
     private fun check(r: Response) {
         if (r.isSuccessful) return
-        if (r.code == 401) tokens.clear()
+        if (r.code == 401) expire()
         val p = runCatching { json.decodeFromString(Problem.serializer(), r.body.string()) }.getOrNull()
         val rid = p?.requestId ?: r.header("X-Request-Id") ?: r.request.header(REQUEST_ID)
         val logged = failures?.record(
