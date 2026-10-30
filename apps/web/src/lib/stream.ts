@@ -37,6 +37,18 @@ const EVENT_TYPES = [
 const CORE_TOPICS = 'work,decisions,deliverables,messages,notifications,activity,llm,control';
 // Unknown topics are ignored from contract v1.4.2 on, so the app names every topic it can use, the newer ones too.
 const TOPICS = `${CORE_TOPICS},runs,files,workshop,orders,oversight,inquiries,errands,stars,skills,academy,founding,backups,stories,companies,revenue,support,growth,feedback,meetings,governance,knowledge,advisor,ask,reviews,briefings,people,notes,quality,dceo,treasury,creatives,media,legal,archive`;
+// The hub refuses a `topics` longer than 200 characters (422), so the topics are split into disjoint groups, one connection each.
+const TOPICS_MAX = 200;
+export function topicGroups(all: string = TOPICS, max: number = TOPICS_MAX): string[] {
+  const groups: string[] = [];
+  let cur = '';
+  for (const t of all.split(',')) {
+    const next = cur ? `${cur},${t}` : t;
+    if (next.length > max && cur) { groups.push(cur); cur = t; } else cur = next;
+  }
+  if (cur) groups.push(cur);
+  return groups;
+}
 
 // Event type prefix -> query keys to refresh (contract §7, §16).
 const INVALIDATE: Array<[string, string[]]> = [
@@ -115,7 +127,7 @@ const INVALIDATE: Array<[string, string[]]> = [
 
 export type StreamState = 'connecting' | 'live' | 'offline';
 
-/** One SSE connection for the whole app; resumes with Last-Event-ID (the browser does it). */
+/** The app's SSE connections (one per topic group); each resumes with Last-Event-ID (the browser does it). */
 export function useHoldingStream(onEvent?: (e: StreamEvent) => void): StreamState {
   const qc = useQueryClient();
   const [state, setState] = useState<StreamState>(isMock ? 'live' : 'connecting');
@@ -131,24 +143,28 @@ export function useHoldingStream(onEvent?: (e: StreamEvent) => void): StreamStat
       }, 2400);
       return () => clearInterval(t);
     }
-    let es: EventSource | null = null;
-    let retry = 0;
-    let timer: ReturnType<typeof setTimeout> | undefined;
+    const groups = topicGroups();
+    const sources: Array<EventSource | null> = groups.map(() => null);
+    const openSet = new Set<number>();
+    const timers: Array<ReturnType<typeof setTimeout> | undefined> = groups.map(() => undefined);
     let closed = false;
     // A server older than contract v1.4.2 refuses topics it does not know (422), which EventSource only sees as an error
-    // before the stream opened; after one such failure only the core topics are asked for.
-    let opened = false;
+    // before the stream opened; after one such failure only the core topics are asked for, on the first connection alone.
     let coreOnly = false;
-    const open = () => {
-      es = new EventSource(`/api/v1/stream?topics=${coreOnly ? CORE_TOPICS : TOPICS}`, { withCredentials: true });
-      es.onopen = () => { retry = 0; opened = true; setState('live'); };
+    const open = (i: number, retry: number) => {
+      if (coreOnly && i > 0) return;
+      let opened = false;
+      const es = new EventSource(`/api/v1/stream?topics=${coreOnly ? CORE_TOPICS : groups[i]}`, { withCredentials: true });
+      sources[i] = es;
+      es.onopen = () => { opened = true; retry = 0; openSet.add(i); setState('live'); };
       es.onerror = () => {
-        if (!opened) coreOnly = true;
-        setState('offline');
-        es?.close();
+        if (!opened && i === 0 && !coreOnly && retry >= 1) coreOnly = true;
+        openSet.delete(i);
+        if (openSet.size === 0) setState('offline');
+        es.close();
         if (closed) return;
-        retry = Math.min(retry + 1, 6);
-        timer = setTimeout(open, 1000 * 2 ** retry);
+        const next = Math.min(retry + 1, 6);
+        timers[i] = setTimeout(() => open(i, next), 1000 * 2 ** next);
       };
       es.onmessage = (m) => handle(m);
       for (const t of EVENT_TYPES) es.addEventListener(t, handle as EventListener);
@@ -159,8 +175,8 @@ export function useHoldingStream(onEvent?: (e: StreamEvent) => void): StreamStat
       for (const [prefix, keys] of INVALIDATE) if (e.type.startsWith(prefix)) for (const k of keys) void qc.invalidateQueries({ queryKey: [k] });
       cb.current?.(e);
     };
-    open();
-    return () => { closed = true; if (timer) clearTimeout(timer); es?.close(); };
+    groups.forEach((_, i) => open(i, 0));
+    return () => { closed = true; for (const t of timers) if (t) clearTimeout(t); for (const es of sources) es?.close(); };
   }, [qc]);
 
   return state;
