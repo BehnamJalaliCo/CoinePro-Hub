@@ -32,11 +32,13 @@ const EVENT_TYPES = [
   'media.item', 'legal.case', 'role.updated',
   // ⟨1.7⟩ §23.11
   'record.filed', 'record.updated', 'record.sealed', 'reminder.due', 'hold.changed', 'fixity.failed', 'schema.changed',
+  // ⟨1.8⟩ §26.4: the companies' servers
+  'server.state', 'server.call', 'server.awaiting_seal',
 ] as const;
 
 const CORE_TOPICS = 'work,decisions,deliverables,messages,notifications,activity,llm,control';
 // Unknown topics are ignored from contract v1.4.2 on, so the app names every topic it can use, the newer ones too.
-const TOPICS = `${CORE_TOPICS},runs,files,workshop,orders,oversight,inquiries,errands,stars,skills,academy,founding,backups,stories,companies,revenue,support,growth,feedback,meetings,governance,knowledge,advisor,ask,reviews,briefings,people,notes,quality,dceo,treasury,creatives,media,legal,archive`;
+const TOPICS = `${CORE_TOPICS},runs,files,workshop,orders,oversight,inquiries,errands,stars,skills,academy,founding,backups,stories,companies,revenue,support,growth,feedback,meetings,governance,knowledge,advisor,ask,reviews,briefings,people,notes,quality,dceo,treasury,creatives,media,legal,archive,servers`;
 // The hub refuses a `topics` longer than 200 characters (422), so the topics are split into disjoint groups, one connection each.
 const TOPICS_MAX = 200;
 export function topicGroups(all: string = TOPICS, max: number = TOPICS_MAX): string[] {
@@ -123,6 +125,10 @@ const INVALIDATE: Array<[string, string[]]> = [
   ['hold.', ['archive', 'legal']],
   ['fixity.', ['archive']],
   ['schema.', ['archive', 'decisions']],
+  // ⟨1.8⟩ §26.4: a server's runner changed state (the network map too), a job started or ended, a destructive command waits for the seal.
+  ['server.awaiting_seal', ['decisions', 'inbox']],
+  ['server.state', ['network']],
+  ['server.', ['servers']],
 ];
 
 export type StreamState = 'connecting' | 'live' | 'offline';
@@ -140,6 +146,15 @@ export function useHoldingStream(onEvent?: (e: StreamEvent) => void): StreamStat
       const t = setInterval(() => {
         n += 1;
         cb.current?.({ id: String(n), type: 'activity.changed', at: new Date().toISOString(), company: ['TY', 'FX', 'PC'][n % 3] ?? null, ref: null, data: { pulse: n } });
+        // ⟨1.8⟩ the demo's `servers` topic: what the owner's calls caused, the agents' calls, the runners' answers to a network check.
+        if (process.env.NEXT_PUBLIC_HQ_MOCK === '1') {
+          void import('@/lib/api/mock').then((m) => {
+            for (const e of m.drainServerEvents() as StreamEvent[]) {
+              for (const [prefix, keys] of INVALIDATE) if (e.type.startsWith(prefix)) for (const k of keys) void qc.invalidateQueries({ queryKey: [k] });
+              cb.current?.(e);
+            }
+          });
+        }
       }, 2400);
       return () => clearInterval(t);
     }

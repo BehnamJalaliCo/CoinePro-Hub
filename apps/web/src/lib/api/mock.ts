@@ -11,6 +11,10 @@ import { CONNECTIONS_18, DECISIONS_18, decided18, decorate18, handle18 } from '.
 import { decided19, decorate19, departments19, handle19 } from './mock-v19';
 import { decided20, decorate20, handle20 } from './mock-v20';
 import { roles } from './mock-roles';
+import { drainServerEvents, handle26 } from './mock-v26';
+
+// ⟨1.8⟩ §26: the stream's `servers` topic in mock mode (lib/stream.ts asks every few seconds).
+export { drainServerEvents };
 
 const now = Date.now();
 const iso = (minAgo: number) => new Date(now - minAgo * 60_000).toISOString();
@@ -353,6 +357,9 @@ export async function handle(req: Request): Promise<Response> {
   const p = u.pathname.replace(/^\/api\/v1/, '');
   const m = req.method;
   await new Promise((r) => setTimeout(r, 120 + Math.random() * 180));
+  // ⟨1.8⟩ §26 first: the companies' servers, the network map, a company_server session and the seal of a server_destructive card.
+  const v26 = await handle26(req, p, u, { decisions, sessions, employees, control, sessionOut });
+  if (v26) return v26;
   const brand = await handleBrand(req, p, files);
   if (brand) return brand;
   // ⟨1.7⟩ §23 first: it also checks the step-up (and, for archive_schema, that the card is not void) before an archive card is approved.
