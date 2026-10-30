@@ -56,6 +56,7 @@ from hq_gateway import (
     people,  # noqa: F401 - registers stars, lessons, stories, hire.decide
     revenue,  # noqa: F401 - prompt 10: revenue.read, funnel.read, rescue, feedback, referral
     roles,  # noqa: F401 - prompt 13 §1.1: role.draft, role.decide
+    servers,  # noqa: F401 - prompt 17: server.map/read/exec/write/claude
     support,  # noqa: F401 - kb.*, support.draft/handoff/mystery (prompt 10)
     web,  # registers the internet tools (web.*, http.request)
 )

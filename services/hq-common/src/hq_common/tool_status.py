@@ -130,6 +130,12 @@ GATEWAY_TOOLS: frozenset[str] = frozenset(
         "archive.file",
         "archive.link",
         "archive.hold",
+        # prompt 17 (contract §26.2): jobs on the companies' own servers
+        "server.map",
+        "server.read",
+        "server.exec",
+        "server.write",
+        "server.claude",
     }
 )
 # Tools whose traffic leaves the hub through the egress service (contract §18.7).
