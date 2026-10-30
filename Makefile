@@ -10,7 +10,7 @@ ENV_FILE := infra/compose/.env
 .PHONY: help env bootstrap profile up down ps logs backup restore-test check openbao-init unseal \
 	install-systemd llm-provision claude-token llm-smoke test-services lock owner-enroll openapi \
 	audit-reanchor verify-live bootstrap-month1 prompt-check stt-fetch stt-eval tracing-on tracing-off \
-	backup-hourly restore-weekly pitr-test gdrive-auth backup-password openbao-snapshot-token mcp-secret account-secret \
+	backup-hourly restore-weekly pitr-test disk-hygiene gdrive-auth backup-password openbao-snapshot-token mcp-secret account-secret \
 	hetzner-token owner-ssh-key intake-secret telegram-bot-token connection-secret \
 	chatgpt-login gemini-login chatgpt-web-login gemini-web-login deepseek-web-login
 .PHONY: mcp-build mcp-test mcp-index
@@ -68,6 +68,10 @@ restore-test: ## Restore the latest backup into a throwaway Postgres and verify 
 backup-hourly: ## Run the hourly encrypted backup now (restic: local, Google Drive when connected)
 	@infra/backup/hourly.sh
 
+.PHONY: fresh-start
+fresh-start: ## Prompt 16: the fresh start, only on the owner's own words (HQ_FRESH_START_CONFIRM)
+	@infra/fresh-start/fresh-start.sh
+
 restore-weekly: ## Run the weekly restore test now (newest snapshot, every check, PITR to a random moment)
 	@infra/backup/restore-weekly.sh
 
@@ -91,13 +95,16 @@ prompt-check: ## One REAL call with a charter's prompt (role=advisor): schema an
 	@infra/compose/hq.sh exec -T worker python -m hq_api.agents.check_prompt "$(or $(role),advisor)" \
 	  <"$${HQ_SECRETS_DIR:-/home/Hub/.secrets}/llm-router-caller-hq-ops.token"
 
+disk-hygiene: ## The weekly clean-up now (DRY=1 lists only): orphan anonymous volumes, old test image tags, stale build cache
+	@infra/maintenance/disk-hygiene.sh $(if $(DRY),--dry-run,)
+
 tracing-on: ## Switch traces on: opt-in profile "tracing" (Tempo + otel-collector), refused over the memory budget
 	@infra/compose/set-env.sh HQ_TRACING on
 	$(HQ) up -d --wait tempo otel-collector prometheus
 
-tracing-off: ## Switch traces off again (the default): Tempo and the collector stop, Prometheus stops scraping them
+tracing-off: ## Switch traces off again (the default): Tempo and the collector go (their data stays), Prometheus stops scraping them
 	@infra/compose/set-env.sh HQ_TRACING off
-	HQ_ALL_PROFILES=1 $(HQ) stop tempo otel-collector
+	HQ_ALL_PROFILES=1 $(HQ) rm -sf tempo otel-collector
 	$(HQ) up -d --wait prometheus
 
 # Prompt 12 §4: the Persian voice (opt-in profile "tts"; a one-shot run by the

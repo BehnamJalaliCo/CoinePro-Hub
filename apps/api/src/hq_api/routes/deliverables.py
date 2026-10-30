@@ -1,10 +1,12 @@
 """The deliverables cartable (contract §5.2): outputs, owner ratings 1..10
-with history, and file downloads (tenant-checked)."""
+with history, and file downloads (tenant-checked). ⟨1.7.3⟩ seen and filed:
+the owner marks outputs seen (one or many) and files one in the archive;
+nothing is ever deleted."""
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any
+from datetime import date, datetime, timedelta
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -15,6 +17,7 @@ from hq_api.context import Ctx, owner_ctx
 from hq_api.db import Tx
 from hq_api.domain import files as F
 from hq_api.domain import org, scoring, stories
+from hq_api.domain.gov_common import owner_tz
 from hq_api.errors import ApiError, responses
 from hq_api.schemas import EmployeeRef, FileRef, Model, Page, employee_ref
 
@@ -46,6 +49,23 @@ class Deliverable(BaseModel):
     evidence: list[dict[str, Any]]
     rating: Rating | None
     created_at: datetime
+    # ⟨1.7.3⟩ report: the hub's own reporting (<CODE>-SYS); work: an agent's output
+    category: Literal["report", "work"]
+    seen_at: datetime | None
+    filed_as: str | None
+
+
+class SeenIn(Model):
+    refs: list[str] = Field(min_length=1, max_length=500)
+    seen: bool
+
+
+class SeenOut(BaseModel):
+    updated: int
+
+
+class FiledOut(BaseModel):
+    record: str
 
 
 class RatingIn(Model):
@@ -101,6 +121,9 @@ async def render(tx: Tx, rows: list[dict[str, Any]]) -> list[Deliverable]:
                 if r["r_score"] is not None
                 else None,
                 created_at=r["created_at"],
+                category=r["category"],
+                seen_at=r["seen_at"],
+                filed_as=r["filed_as"],
             )
         )
     return out
@@ -111,28 +134,59 @@ async def list_deliverables(
     company: list[str] | None = Query(default=None),
     producer: str | None = Query(default=None, max_length=40),
     unrated: bool | None = None,
+    seen: bool | None = None,
+    category: Literal["report", "work"] | None = None,
+    from_: date | None = Query(default=None, alias="from"),
+    to: date | None = None,
     q: str | None = Query(default=None, max_length=100),
+    work: str | None = Query(
+        default=None,
+        pattern=r"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|W-[0-9]{4,})$",
+    ),
     limit: int = Query(default=50, ge=1, le=pagination.MAX_LIMIT),
     cursor: str | None = None,
     ctx: Ctx = Depends(owner_ctx),
 ) -> Page[Deliverable]:
-    """Newest first."""
+    """Newest first. ⟨1.7.3⟩ `seen`, `category`, and `from`/`to` (days in the
+    owner's zone, both included). ⟨1.7.4⟩ `work`: one work's deliverables (its
+    id or its ref)."""
     after_t, after_id = pagination.time_id(cursor)
     async with ctx.tx() as tx:
+        tz = await owner_tz(tx)
+        work_id = None
+        if work is not None:
+            work_id = await tx.scalar(
+                "SELECT id FROM work.work WHERE ref = :w OR id::text = lower(:w)", w=work
+            )
+            if work_id is None:  # no such work: nothing of it
+                return Page(items=[], next_cursor=None)
         rows = await tx.all(
             DELIVERABLE_SQL
             + """ WHERE (CAST(:companies AS text[]) IS NULL OR c.code = ANY(:companies))
                     AND (CAST(:producer AS text) IS NULL OR p.code = :producer)
                     AND (CAST(:unrated AS boolean) IS NULL OR (lr.score IS NULL) = :unrated)
+                    AND (CAST(:seen AS boolean) IS NULL OR (dl.seen_at IS NOT NULL) = :seen)
+                    AND (CAST(:category AS text) IS NULL OR dl.category = :category)
+                    AND (CAST(:from_day AS date) IS NULL
+                         OR dl.created_at >= (CAST(:from_day AS date)::timestamp AT TIME ZONE :tz))
+                    AND (CAST(:to_day AS date) IS NULL
+                         OR dl.created_at < (CAST(:to_day AS date)::timestamp AT TIME ZONE :tz))
                     AND (CAST(:q AS text) IS NULL OR dl.ref = :q
                          OR core.fa_normalize(dl.title || ' ' || dl.summary)
                             LIKE '%' || core.like_escape(core.fa_normalize(:q)) || '%')
+                    AND (CAST(:work_id AS uuid) IS NULL OR dl.work_id = :work_id)
                     AND (CAST(:after_t AS timestamptz) IS NULL
                          OR (dl.created_at, dl.id) < (CAST(:after_t AS timestamptz), CAST(:after_id AS uuid)))
                   ORDER BY dl.created_at DESC, dl.id DESC LIMIT :lim""",
             companies=company,
+            work_id=work_id,
             producer=producer,
             unrated=unrated,
+            seen=seen,
+            category=category,
+            from_day=from_,
+            to_day=(to + timedelta(days=1)) if to else None,
+            tz=tz,
             q=q,
             after_t=after_t,
             after_id=after_id,
@@ -140,6 +194,60 @@ async def list_deliverables(
         )
         items, nxt = pagination.page(rows, limit, ("created_at", "id"))
         return Page(items=await render(tx, items), next_cursor=nxt)
+
+
+# ⟨1.7.3⟩ registered before /deliverables/{ref}, which would otherwise take the
+# path (and answer 405 to a POST).
+@router.post("/deliverables/seen", response_model=SeenOut, responses=E)
+async def mark_seen(body: SeenIn, ctx: Ctx = Depends(owner_ctx)) -> SeenOut:
+    """Owner: mark one or many deliverables seen (`seen: true`) or new again;
+    idempotent (a deliverable already in that state is not counted)."""
+    refs = sorted(set(body.refs))
+    async with ctx.tx() as tx:
+        rows = await tx.all(
+            """UPDATE cartable.deliverables
+                  SET seen_at = CASE WHEN :seen THEN now() ELSE NULL END
+                WHERE ref = ANY(:refs) AND (seen_at IS NOT NULL) <> :seen
+            RETURNING ref, company_id""",
+            refs=refs,
+            seen=body.seen,
+        )
+        if rows:
+            holding = await ctx.hub.companies.holding()
+            await ctx.audit(
+                tx,
+                company_id=holding.id,
+                action="deliverable.seen" if body.seen else "deliverable.unseen",
+                action_class="A1",
+                target_kind="deliverable",
+                target_ref=rows[0]["ref"] if len(rows) == 1 else f"{len(rows)} deliverables",
+                summary=", ".join(r["ref"] for r in rows[:20]),
+            )
+    return SeenOut(updated=len(rows))
+
+
+@router.post("/deliverables/{ref}/file", response_model=FiledOut, responses=E)
+async def file_deliverable(ref: str, ctx: Ctx = Depends(owner_ctx)) -> FiledOut:
+    """Owner: file the deliverable in the archive (§23): a draft of class
+    `report` with the body as a PDF and a link `about` the deliverable. A
+    second call answers the same record."""
+    from hq_api.archive import deliverables as AD
+
+    async with ctx.tx() as tx:
+        dl = await tx.one(DELIVERABLE_SQL + " WHERE dl.ref = :ref", ref=ref)
+    record = await AD.file(ctx.hub, ctx.tx, ctx.who, dict(dl))
+    if record != dl["filed_as"]:
+        async with ctx.tx() as tx:
+            await ctx.audit(
+                tx,
+                company_id=dl["company_id"],
+                action="deliverable.file",
+                action_class="A1",
+                target_kind="deliverable",
+                target_ref=ref,
+                summary=record,
+            )
+    return FiledOut(record=record)
 
 
 @router.get("/deliverables/{ref}", response_model=Deliverable, responses=E)

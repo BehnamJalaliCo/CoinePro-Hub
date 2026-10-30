@@ -90,6 +90,13 @@ async def resolve_scope(tx: Tx, scope: str) -> dict[str, Any]:
     return row
 
 
+def with_reason(summary: str, reason: str | None) -> str:
+    """⟨1.7.3⟩ a control audit row's summary carries why (`<summary>: <reason>`),
+    so the control history shows it (GET /audit?company=&action=)."""
+    reason = (reason or "").strip()
+    return f"{summary}: {reason}"[:500] if reason else summary
+
+
 async def set_kill_switch(
     tx: Tx, who: Principal, company: dict[str, Any], state_: str, reason: str
 ) -> bool:

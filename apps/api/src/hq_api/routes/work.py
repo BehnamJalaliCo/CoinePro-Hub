@@ -29,6 +29,8 @@ router = APIRouter(tags=["work"])
 E = responses(401, 403, 404, 409, 422)
 
 Priority = Literal["P0", "P1", "P2", "P3", "P4"]
+# ⟨1.7.4⟩ `owner`, or an agent's employee code
+CREATED_BY = r"^(owner|[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?)$"
 Status = Literal["queued", "in_progress", "waiting", "delivered", "done", "cancelled", "failed"]
 
 
@@ -76,9 +78,39 @@ class ChainStep(BaseModel):
     usd_used: float
 
 
+class ChildWork(ChainStep):
+    """⟨1.7.4⟩ prompt 15.1: a sub-work as the owner's order tracker shows it,
+    with its own sub-works (two levels below the work at most)."""
+
+    title: str
+    updated_at: datetime
+    # the latest /progress report, 0..1, or null (none yet)
+    progress: float | None
+    deliverable_refs: list[str]
+    children: list[ChildWork] = Field(default_factory=list)
+
+
+ChildWork.model_rebuild()
+
+
 class WorkDetail(W.Work):
     chain: list[ChainStep]
-    children: list[ChainStep]
+    children: list[ChildWork]
+
+
+class TreeEvent(BaseModel):
+    """⟨1.7.4⟩ one event of a work's tree: a work event (`work.<kind>`) or an
+    agent run's step (`run.step`, its summary and tool metadata only, §16)."""
+
+    id: str
+    at: datetime
+    kind: str
+    work_id: UUID
+    work_ref: str
+    depth: int
+    actor_kind: str
+    actor_code: str
+    data: dict[str, Any]
 
 
 class WorkEvent(BaseModel):
@@ -134,8 +166,22 @@ async def _detail(tx: Any, w: dict[str, Any]) -> WorkDetail:
             {steps_sql} JOIN up ON up.id = w.id ORDER BY up.n DESC""",  # noqa: S608 - composed from module constants; values are bound
         id=w["id"],
     )
-    children = await tx.all(
-        steps_sql + " WHERE w.parent_id = :id ORDER BY w.created_at", id=w["id"]
+    # ⟨1.7.4⟩ the sub-works two levels down, each with its progress and
+    # deliverables (one query; the tree is built here)
+    below = await tx.all(
+        f"""WITH RECURSIVE down AS (
+                SELECT id, 1 AS lvl FROM work.work WHERE parent_id = :id
+                UNION ALL SELECT c.id, down.lvl + 1 FROM work.work c JOIN down ON c.parent_id = down.id
+                WHERE down.lvl < 2)
+            SELECT w.id, w.ref, w.depth, w.status, w.created_at, w.tokens_used, w.usd_used,
+                   w.title, w.updated_at, w.progress_pct, w.parent_id,
+                   ARRAY(SELECT dl.ref FROM cartable.deliverables dl WHERE dl.work_id = w.id
+                         ORDER BY dl.created_at) AS deliverable_refs,
+                   {org.ref_cols("a", "a_")}
+            FROM work.work w JOIN down ON down.id = w.id
+            LEFT JOIN core.employees a ON a.id = w.assignee_id
+            ORDER BY w.created_at, w.id""",  # noqa: S608 - composed from module constants; values are bound
+        id=w["id"],
     )
 
     def step(r: dict[str, Any]) -> ChainStep:
@@ -150,10 +196,21 @@ async def _detail(tx: Any, w: dict[str, Any]) -> WorkDetail:
             usd_used=float(r["usd_used"]),
         )
 
+    def child(r: dict[str, Any]) -> ChildWork:
+        pct = r["progress_pct"]
+        return ChildWork(
+            **step(r).model_dump(),
+            title=r["title"],
+            updated_at=r["updated_at"],
+            progress=None if pct is None else max(0.0, min(1.0, pct / 100)),
+            deliverable_refs=list(r["deliverable_refs"] or []),
+            children=[child(x) for x in below if x["parent_id"] == r["id"]],
+        )
+
     return WorkDetail(
         **W.render(w).model_dump(),
         chain=[step(r) for r in chain],
-        children=[step(r) for r in children],
+        children=[child(r) for r in below if r["parent_id"] == w["id"]],
     )
 
 
@@ -170,11 +227,13 @@ async def list_work(
     parent: UUID | None = None,
     q: str | None = Query(default=None, max_length=100),
     overdue: bool | None = None,
+    created_by: str | None = Query(default=None, pattern=CREATED_BY),
     limit: int = Query(default=50, ge=1, le=pagination.MAX_LIMIT),
     cursor: str | None = None,
     ctx: Ctx = Depends(owner_ctx),
 ) -> Page[W.Work]:
-    """Newest first."""
+    """Newest first. ⟨1.7.4⟩ `created_by=owner` (the owner's orders) or an
+    agent's code."""
     after_t, after_id = pagination.time_id(cursor)
     async with ctx.tx() as tx:
         rows = await tx.all(
@@ -192,6 +251,9 @@ async def list_work(
                          OR core.fa_normalize(w.title) LIKE '%' || core.like_escape(core.fa_normalize(:q)) || '%')
                     AND (CAST(:overdue AS boolean) IS NULL
                          OR (w.due_at < now() AND w.status IN ('queued', 'in_progress', 'waiting')) = :overdue)
+                    AND (CAST(:created_by AS text) IS NULL
+                         OR (CAST(:created_by AS text) = 'owner' AND w.created_by_kind = 'owner')
+                         OR (w.created_by_kind <> 'owner' AND w.created_by_code = :created_by))
                     AND (CAST(:after_t AS timestamptz) IS NULL
                          OR (w.created_at, w.id) < (CAST(:after_t AS timestamptz), CAST(:after_id AS uuid)))
                   ORDER BY w.created_at DESC, w.id DESC LIMIT :lim""",
@@ -206,6 +268,7 @@ async def list_work(
             parent=parent,
             q=q,
             overdue=overdue,
+            created_by=created_by,
             after_t=after_t,
             after_id=after_id,
             lim=limit + 1,
@@ -242,6 +305,75 @@ async def work_events(
         )
     items, nxt = pagination.page(rows, limit, ("id",))
     return Page(items=[WorkEvent(**r) for r in items], next_cursor=nxt)
+
+
+@router.get("/work/{id}/tree-events", response_model=Page[TreeEvent], responses=E)
+async def work_tree_events(
+    id: UUID,
+    limit: int = Query(default=100, ge=1, le=pagination.MAX_LIMIT),
+    cursor: str | None = None,
+    ctx: Ctx = Depends(owner_ctx),
+) -> Page[TreeEvent]:
+    """⟨1.7.4⟩ The events of the work and of its sub-works (two levels down),
+    oldest first: work events, and the steps of their agent runs as summaries
+    and tool metadata only (§16), never a prompt, an output or a payload."""
+    after = pagination.decode(cursor, 2)
+    after_t = datetime.fromisoformat(str(after[0])) if after else None
+    after_k = str(after[1]) if after else None
+    async with ctx.tx() as tx:
+        await W.load(tx, id)
+        rows = await tx.all(
+            """WITH RECURSIVE tree AS (
+                   SELECT id, 0 AS lvl FROM work.work WHERE id = :id
+                   UNION ALL SELECT c.id, tree.lvl + 1 FROM work.work c JOIN tree ON c.parent_id = tree.id
+                   WHERE tree.lvl < 2),
+               ev AS (
+                   SELECT 'e' || lpad(e.id::text, 19, '0') AS key, e.at, 'work.' || e.kind AS kind,
+                          w.id AS work_id, w.ref AS work_ref, w.depth, e.actor_kind, e.actor_code,
+                          e.data
+                   FROM work.work_events e JOIN tree ON tree.id = e.work_id
+                   JOIN work.work w ON w.id = e.work_id
+                   UNION ALL
+                   SELECT 's' || lpad(s.id::text, 19, '0'), s.at, 'run.step', w.id, w.ref, w.depth,
+                          'agent', coalesce(emp.code, ''),
+                          jsonb_build_object(
+                              'run_id', r.id, 'n', s.n, 'summary_fa', s.summary_fa,
+                              'actions', coalesce((
+                                  SELECT jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
+                                      'tool', a->'tool', 'class', a->'class',
+                                      'outcome', a->'outcome', 'ref', a->'ref')))
+                                  FROM jsonb_array_elements(s.actions) a), '[]'::jsonb))
+                   FROM agents.steps s JOIN agents.runs r ON r.id = s.run_id
+                   JOIN tree ON tree.id = r.work_id
+                   JOIN work.work w ON w.id = r.work_id
+                   LEFT JOIN core.employees emp ON emp.id = r.employee_id)
+               SELECT * FROM ev
+               WHERE CAST(:after_t AS timestamptz) IS NULL
+                  OR (at, key) > (CAST(:after_t AS timestamptz), CAST(:after_k AS text))
+               ORDER BY at, key LIMIT :lim""",
+            id=id,
+            after_t=after_t,
+            after_k=after_k,
+            lim=limit + 1,
+        )
+    items, nxt = pagination.page(rows, limit, ("at", "key"))
+    return Page(
+        items=[
+            TreeEvent(
+                id=r["key"],
+                at=r["at"],
+                kind=r["kind"],
+                work_id=r["work_id"],
+                work_ref=r["work_ref"],
+                depth=r["depth"],
+                actor_kind=r["actor_kind"],
+                actor_code=r["actor_code"],
+                data=dict(r["data"] or {}),
+            )
+            for r in items
+        ],
+        next_cursor=nxt,
+    )
 
 
 @router.post("/work", response_model=W.Work, status_code=201, responses=E)

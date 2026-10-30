@@ -29,6 +29,8 @@ class InboxSummary(BaseModel):
     decisions_pending: int
     decisions_by_risk: ByRisk
     deliverables_unrated: int
+    # ⟨1.7.3⟩ outputs the owner has not marked seen
+    deliverables_unseen: int
     messages_unread: int
     notifications: NotificationCounts
     khalvat: bool
@@ -48,6 +50,7 @@ SELECT
   (SELECT count(*) FROM cartable.deliverables d
     WHERE NOT EXISTS (SELECT 1 FROM cartable.ratings r WHERE r.deliverable_id = d.id))
     AS deliverables_unrated,
+  (SELECT count(*) FROM cartable.deliverables WHERE seen_at IS NULL) AS deliverables_unseen,
   (SELECT COALESCE(sum(last_seq - owner_read_seq), 0) FROM msg.threads) AS messages_unread,
   n.urgent, n.decision, n.report, n.info, n.learning,
   (SELECT khalvat FROM owner.presence WHERE id = 1) AS khalvat
@@ -69,6 +72,7 @@ async def get_inbox_summary(ctx: Ctx = Depends(owner_ctx)) -> InboxSummary:
         decisions_pending=r["decisions_pending"],
         decisions_by_risk=ByRisk(low=r["risk_low"], medium=r["risk_medium"], high=r["risk_high"]),
         deliverables_unrated=r["deliverables_unrated"],
+        deliverables_unseen=r["deliverables_unseen"],
         messages_unread=int(r["messages_unread"]),
         notifications=NotificationCounts(
             urgent=r["urgent"],

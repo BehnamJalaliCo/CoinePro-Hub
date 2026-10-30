@@ -5752,6 +5752,101 @@
         "title": "Check",
         "type": "object"
       },
+      "ChildWork": {
+        "description": "⟨1.7.4⟩ prompt 15.1: a sub-work as the owner's order tracker shows it,\nwith its own sub-works (two levels below the work at most).",
+        "properties": {
+          "assignee": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EmployeeRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "children": {
+            "items": {
+              "$ref": "#/components/schemas/ChildWork"
+            },
+            "title": "Children",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "deliverable_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Deliverable Refs",
+            "type": "array"
+          },
+          "depth": {
+            "title": "Depth",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "tokens_used": {
+            "title": "Tokens Used",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "usd_used": {
+            "title": "Usd Used",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "depth",
+          "status",
+          "assignee",
+          "created_at",
+          "tokens_used",
+          "usd_used",
+          "title",
+          "updated_at",
+          "progress",
+          "deliverable_refs"
+        ],
+        "title": "ChildWork",
+        "type": "object"
+      },
       "Choice": {
         "properties": {
           "id": {
@@ -9218,6 +9313,14 @@
             ],
             "title": "Body"
           },
+          "category": {
+            "enum": [
+              "report",
+              "work"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
           "company": {
             "title": "Company",
             "type": "string"
@@ -9234,6 +9337,17 @@
             },
             "title": "Evidence",
             "type": "array"
+          },
+          "filed_as": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filed As"
           },
           "id": {
             "format": "uuid",
@@ -9261,6 +9375,18 @@
           "ref": {
             "title": "Ref",
             "type": "string"
+          },
+          "seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seen At"
           },
           "summary": {
             "title": "Summary",
@@ -9300,7 +9426,10 @@
           "usage",
           "evidence",
           "rating",
-          "created_at"
+          "created_at",
+          "category",
+          "seen_at",
+          "filed_as"
         ],
         "title": "Deliverable",
         "type": "object"
@@ -12562,6 +12691,19 @@
         "title": "FileVariants",
         "type": "object"
       },
+      "FiledOut": {
+        "properties": {
+          "record": {
+            "title": "Record",
+            "type": "string"
+          }
+        },
+        "required": [
+          "record"
+        ],
+        "title": "FiledOut",
+        "type": "object"
+      },
       "Finding": {
         "properties": {
           "answerable": {
@@ -14756,6 +14898,10 @@
             "title": "Deliverables Unrated",
             "type": "integer"
           },
+          "deliverables_unseen": {
+            "title": "Deliverables Unseen",
+            "type": "integer"
+          },
           "khalvat": {
             "title": "Khalvat",
             "type": "boolean"
@@ -14772,6 +14918,7 @@
           "decisions_pending",
           "decisions_by_risk",
           "deliverables_unrated",
+          "deliverables_unseen",
           "messages_unread",
           "notifications",
           "khalvat"
@@ -21099,6 +21246,12 @@
             "title": "Service Version",
             "type": "string"
           },
+          "speech": {
+            "$ref": "#/components/schemas/SpeechMeta",
+            "default": {
+              "enabled": false
+            }
+          },
           "stream_retention_days": {
             "title": "Stream Retention Days",
             "type": "integer"
@@ -24017,6 +24170,33 @@
         "title": "Page[LegalCase]",
         "type": "object"
       },
+      "Page_Lesson_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Lesson"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[Lesson]",
+        "type": "object"
+      },
       "Page_MediaItem_": {
         "properties": {
           "items": {
@@ -24555,6 +24735,33 @@
           "items"
         ],
         "title": "Page[Story]",
+        "type": "object"
+      },
+      "Page_TreeEvent_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TreeEvent"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[TreeEvent]",
         "type": "object"
       },
       "Page_WeeklyReview_": {
@@ -31009,17 +31216,28 @@
         "title": "Seen",
         "type": "object"
       },
-      "SeenOut": {
+      "SeenIn": {
+        "additionalProperties": false,
         "properties": {
+          "refs": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Refs",
+            "type": "array"
+          },
           "seen": {
             "title": "Seen",
-            "type": "integer"
+            "type": "boolean"
           }
         },
         "required": [
+          "refs",
           "seen"
         ],
-        "title": "SeenOut",
+        "title": "SeenIn",
         "type": "object"
       },
       "Segment": {
@@ -32969,6 +33187,19 @@
         "title": "SpeechJob",
         "type": "object"
       },
+      "SpeechMeta": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "SpeechMeta",
+        "type": "object"
+      },
       "StandingOrder": {
         "properties": {
           "applies_to": {
@@ -33233,6 +33464,18 @@
             },
             "title": "Lessons",
             "type": "array"
+          },
+          "next_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next At"
           },
           "period": {
             "enum": [
@@ -35981,6 +36224,63 @@
         "title": "Transcript",
         "type": "object"
       },
+      "TreeEvent": {
+        "description": "⟨1.7.4⟩ one event of a work's tree: a work event (`work.<kind>`) or an\nagent run's step (`run.step`, its summary and tool metadata only, §16).",
+        "properties": {
+          "actor_code": {
+            "title": "Actor Code",
+            "type": "string"
+          },
+          "actor_kind": {
+            "title": "Actor Kind",
+            "type": "string"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": true,
+            "title": "Data",
+            "type": "object"
+          },
+          "depth": {
+            "title": "Depth",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "work_id": {
+            "format": "uuid",
+            "title": "Work Id",
+            "type": "string"
+          },
+          "work_ref": {
+            "title": "Work Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "at",
+          "kind",
+          "work_id",
+          "work_ref",
+          "depth",
+          "actor_kind",
+          "actor_code",
+          "data"
+        ],
+        "title": "TreeEvent",
+        "type": "object"
+      },
       "TrendPoint": {
         "additionalProperties": false,
         "properties": {
@@ -37173,6 +37473,13 @@
             "title": "Deliverable Ids",
             "type": "array"
           },
+          "deliverable_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Deliverable Refs",
+            "type": "array"
+          },
           "department": {
             "anyOf": [
               {
@@ -37600,7 +37907,7 @@
           },
           "children": {
             "items": {
-              "$ref": "#/components/schemas/ChainStep"
+              "$ref": "#/components/schemas/ChildWork"
             },
             "title": "Children",
             "type": "array"
@@ -37623,6 +37930,13 @@
               "type": "string"
             },
             "title": "Deliverable Ids",
+            "type": "array"
+          },
+          "deliverable_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Deliverable Refs",
             "type": "array"
           },
           "department": {
@@ -38834,6 +39148,19 @@
         "title": "ActivateIn",
         "type": "object"
       },
+      "hq_api__routes__deliverables__SeenOut": {
+        "properties": {
+          "updated": {
+            "title": "Updated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "updated"
+        ],
+        "title": "SeenOut",
+        "type": "object"
+      },
       "hq_api__routes__egress__ReserveIn": {
         "additionalProperties": false,
         "properties": {
@@ -39376,6 +39703,19 @@
           "ref"
         ],
         "title": "Evidence",
+        "type": "object"
+      },
+      "hq_api__routes__people__SeenOut": {
+        "properties": {
+          "seen": {
+            "title": "Seen",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "seen"
+        ],
+        "title": "SeenOut",
         "type": "object"
       },
       "hq_api__routes__runs__RunTokens": {
@@ -52718,7 +53058,7 @@
     },
     "/api/v1/control/deploy-freeze": {
       "post": {
-        "description": "Freezes agent write actions of one company until `until` (§1.5 #5); a past\n`until` lifts freezes. The owner lifts any freeze (pipeline's, CEOs'); a new\nfreeze never lifts another one.",
+        "description": "Freezes agent write actions of one company until `until` (§1.5 #5); a past\n`until` lifts freezes. The owner lifts any freeze (pipeline's, CEOs'); a new\nfreeze never lifts another one. ⟨1.7.3⟩ Lifting is 🔏 (`deploy_freeze.lift`,\ntarget `company:<CODE>`), like releasing a kill switch; closing is not.",
         "operationId": "set_deploy_freeze",
         "requestBody": {
           "content": {
@@ -55773,7 +56113,7 @@
     },
     "/api/v1/deliverables": {
       "get": {
-        "description": "Newest first.",
+        "description": "Newest first. ⟨1.7.3⟩ `seen`, `category`, and `from`/`to` (days in the\nowner's zone, both included). ⟨1.7.4⟩ `work`: one work's deliverables (its\nid or its ref).",
         "operationId": "list_deliverables",
         "parameters": [
           {
@@ -55830,6 +56170,76 @@
           },
           {
             "in": "query",
+            "name": "seen",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Seen"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "report",
+                    "work"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
             "name": "q",
             "required": false,
             "schema": {
@@ -55843,6 +56253,23 @@
                 }
               ],
               "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "work",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|W-[0-9]{4,})$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Work"
             }
           },
           {
@@ -55901,11 +56328,13 @@
                         }
                       ],
                       "body": "متن پیام",
+                      "category": "report",
                       "company": "TY",
                       "created_at": "2026-10-17T05:42:00Z",
                       "evidence": [
                         {}
                       ],
+                      "filed_as": "x",
                       "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                       "produced_with": {},
                       "producer": {
@@ -55922,6 +56351,7 @@
                         "score": 1
                       },
                       "ref": "O-000456",
+                      "seen_at": "2026-10-17T05:42:00Z",
                       "summary": "خلاصه",
                       "title": "گزارش هفتگی رشد",
                       "usage": {},
@@ -56000,6 +56430,102 @@
         ]
       }
     },
+    "/api/v1/deliverables/seen": {
+      "post": {
+        "description": "Owner: mark one or many deliverables seen (`seen: true`) or new again;\nidempotent (a deliverable already in that state is not counted).",
+        "operationId": "mark_seen",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "refs": [
+                  "W-000789"
+                ],
+                "seen": false
+              },
+              "schema": {
+                "$ref": "#/components/schemas/SeenIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "updated": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/hq_api__routes__deliverables__SeenOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Mark Seen",
+        "tags": [
+          "deliverables"
+        ]
+      }
+    },
     "/api/v1/deliverables/{ref}": {
       "get": {
         "description": "One deliverable with its attachments, usage, model label and latest rating.",
@@ -56040,11 +56566,13 @@
                     }
                   ],
                   "body": "متن پیام",
+                  "category": "report",
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
                   "evidence": [
                     {}
                   ],
+                  "filed_as": "x",
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "produced_with": {},
                   "producer": {
@@ -56061,6 +56589,7 @@
                     "score": 1
                   },
                   "ref": "O-000456",
+                  "seen_at": "2026-10-17T05:42:00Z",
                   "summary": "خلاصه",
                   "title": "گزارش هفتگی رشد",
                   "usage": {},
@@ -56136,6 +56665,97 @@
         ]
       }
     },
+    "/api/v1/deliverables/{ref}/file": {
+      "post": {
+        "description": "Owner: file the deliverable in the archive (§23): a draft of class\n`report` with the body as a PDF and a link `about` the deliverable. A\nsecond call answers the same record.",
+        "operationId": "file_deliverable",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "record": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/FiledOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "File Deliverable",
+        "tags": [
+          "deliverables"
+        ]
+      }
+    },
     "/api/v1/deliverables/{ref}/rating": {
       "post": {
         "description": "Owner rating 1..10 (+ optional comment). Re-rating within 7 days of the\nfirst rating adds a new version; the history is kept. The producer's score\nis recomputed. A delivered work becomes done. Requires `Idempotency-Key`.",
@@ -56190,11 +56810,13 @@
                     }
                   ],
                   "body": "متن پیام",
+                  "category": "report",
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
                   "evidence": [
                     {}
                   ],
+                  "filed_as": "x",
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "produced_with": {},
                   "producer": {
@@ -56211,6 +56833,7 @@
                     "score": 1
                   },
                   "ref": "O-000456",
+                  "seen_at": "2026-10-17T05:42:00Z",
                   "summary": "خلاصه",
                   "title": "گزارش هفتگی رشد",
                   "usage": {},
@@ -62580,6 +63203,7 @@
                   },
                   "decisions_pending": 1,
                   "deliverables_unrated": 1,
+                  "deliverables_unseen": 1,
                   "khalvat": false,
                   "messages_unread": 1,
                   "notifications": {
@@ -65363,7 +65987,7 @@
     },
     "/api/v1/lessons": {
       "get": {
-        "description": "Lessons from the best companies with each other company's adoption.",
+        "description": "Lessons from the best companies with each other company's adoption;\nnewest first, a `Page` (contract §1, ⟨1.7.3⟩).",
         "operationId": "list_lessons",
         "parameters": [
           {
@@ -65399,40 +66023,67 @@
               ],
               "title": "Period"
             }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
           }
         ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
-                "example": [
-                  {
-                    "adoption": [
-                      {
-                        "company": "TY",
-                        "decision_ref": "x",
-                        "status": "proposed",
-                        "work_ref": "x"
-                      }
-                    ],
-                    "body_md": "x",
-                    "created_at": "2026-10-17T05:42:00Z",
-                    "evidence": [
-                      {}
-                    ],
-                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                    "period": "x",
-                    "ref": "W-000789",
-                    "source_company": "x",
-                    "title_fa": "گزارش هفتگی رشد"
-                  }
-                ],
+                "example": {
+                  "items": [
+                    {
+                      "adoption": [
+                        {
+                          "company": "TY",
+                          "decision_ref": "x",
+                          "status": "proposed",
+                          "work_ref": "x"
+                        }
+                      ],
+                      "body_md": "x",
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "evidence": [
+                        {}
+                      ],
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "period": "x",
+                      "ref": "W-000789",
+                      "source_company": "x",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/Lesson"
-                  },
-                  "title": "Response List Lessons",
-                  "type": "array"
+                  "$ref": "#/components/schemas/Page_Lesson_"
                 }
               }
             },
@@ -70491,6 +71142,9 @@
                   ],
                   "public_origin": "x",
                   "service_version": "x",
+                  "speech": {
+                    "enabled": false
+                  },
                   "stream_retention_days": 1,
                   "tts": {
                     "enabled": false,
@@ -83500,6 +84154,7 @@
                   "lessons": [
                     "x"
                   ],
+                  "next_at": "2026-10-17T05:42:00Z",
                   "period": "week"
                 },
                 "schema": {
@@ -84094,7 +84749,7 @@
                   "seen": 1
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/SeenOut"
+                  "$ref": "#/components/schemas/hq_api__routes__people__SeenOut"
                 }
               }
             },
@@ -90702,7 +91357,7 @@
     },
     "/api/v1/work": {
       "get": {
-        "description": "Newest first.",
+        "description": "Newest first. ⟨1.7.4⟩ `created_by=owner` (the owner's orders) or an\nagent's code.",
         "operationId": "list_work",
         "parameters": [
           {
@@ -90917,6 +91572,23 @@
           },
           {
             "in": "query",
+            "name": "created_by",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(owner|[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Created By"
+            }
+          },
+          {
+            "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
@@ -90974,6 +91646,9 @@
                       },
                       "deliverable_ids": [
                         "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                      ],
+                      "deliverable_refs": [
+                        "x"
                       ],
                       "department": "GROWTH",
                       "depth": 1,
@@ -91144,6 +91819,9 @@
                   },
                   "deliverable_ids": [
                     "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  ],
+                  "deliverable_refs": [
+                    "x"
                   ],
                   "department": "GROWTH",
                   "depth": 1,
@@ -91320,12 +91998,59 @@
                         "kind": "employee",
                         "title_fa": "گزارش هفتگی رشد"
                       },
+                      "children": [
+                        {
+                          "assignee": {
+                            "code": "TY-GROWTH-01",
+                            "company": null,
+                            "department": null,
+                            "kind": "employee",
+                            "title_fa": null
+                          },
+                          "children": [
+                            {
+                              "assignee": null,
+                              "children": null,
+                              "created_at": null,
+                              "deliverable_refs": null,
+                              "depth": null,
+                              "id": null,
+                              "progress": null,
+                              "ref": null,
+                              "status": null,
+                              "title": null,
+                              "tokens_used": null,
+                              "updated_at": null,
+                              "usd_used": null
+                            }
+                          ],
+                          "created_at": "2026-10-17T05:42:00Z",
+                          "deliverable_refs": [
+                            "x"
+                          ],
+                          "depth": 1,
+                          "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                          "progress": 1.0,
+                          "ref": "W-000789",
+                          "status": "active",
+                          "title": "گزارش هفتگی رشد",
+                          "tokens_used": 1,
+                          "updated_at": "2026-10-17T05:42:00Z",
+                          "usd_used": 1.0
+                        }
+                      ],
                       "created_at": "2026-10-17T05:42:00Z",
+                      "deliverable_refs": [
+                        "x"
+                      ],
                       "depth": 1,
                       "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "progress": 1.0,
                       "ref": "W-000789",
-                      "status": "in_progress",
+                      "status": "active",
+                      "title": "گزارش هفتگی رشد",
                       "tokens_used": 1,
+                      "updated_at": "2026-10-17T05:42:00Z",
                       "usd_used": 1.0
                     }
                   ],
@@ -91338,6 +92063,9 @@
                   },
                   "deliverable_ids": [
                     "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  ],
+                  "deliverable_refs": [
+                    "x"
                   ],
                   "department": "GROWTH",
                   "depth": 1,
@@ -91510,6 +92238,9 @@
                   },
                   "deliverable_ids": [
                     "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  ],
+                  "deliverable_refs": [
+                    "x"
                   ],
                   "department": "GROWTH",
                   "depth": 1,
@@ -91693,6 +92424,9 @@
                   "deliverable_ids": [
                     "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
                   ],
+                  "deliverable_refs": [
+                    "x"
+                  ],
                   "department": "GROWTH",
                   "depth": 1,
                   "due_at": "2026-10-17T05:42:00Z",
@@ -91869,6 +92603,9 @@
                   },
                   "deliverable_ids": [
                     "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  ],
+                  "deliverable_refs": [
+                    "x"
                   ],
                   "department": "GROWTH",
                   "depth": 1,
@@ -92257,6 +92994,139 @@
         "summary": "Work Runs",
         "tags": [
           "agents"
+        ]
+      }
+    },
+    "/api/v1/work/{id}/tree-events": {
+      "get": {
+        "description": "⟨1.7.4⟩ The events of the work and of its sub-works (two levels down),\noldest first: work events, and the steps of their agent runs as summaries\nand tool metadata only (§16), never a prompt, an output or a payload.",
+        "operationId": "work_tree_events",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "actor_code": "x",
+                      "actor_kind": "x",
+                      "at": "2026-10-17T05:42:00Z",
+                      "data": {},
+                      "depth": 1,
+                      "id": "x",
+                      "kind": "one_off",
+                      "work_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "work_ref": "x"
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Page_TreeEvent_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Work Tree Events",
+        "tags": [
+          "work"
         ]
       }
     },
@@ -96845,6 +97715,9 @@
                       },
                       "deliverable_ids": [
                         "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                      ],
+                      "deliverable_refs": [
+                        "x"
                       ],
                       "department": "GROWTH",
                       "depth": 1,
@@ -111820,6 +112693,9 @@
                     "deliverable_ids": [
                       "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
                     ],
+                    "deliverable_refs": [
+                      "x"
+                    ],
                     "department": "GROWTH",
                     "depth": 1,
                     "due_at": "2026-10-17T05:42:00Z",
@@ -112157,6 +113033,9 @@
                   "deliverable_ids": [
                     "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
                   ],
+                  "deliverable_refs": [
+                    "x"
+                  ],
                   "department": "GROWTH",
                   "depth": 1,
                   "due_at": "2026-10-17T05:42:00Z",
@@ -112342,6 +113221,9 @@
                   },
                   "deliverable_ids": [
                     "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  ],
+                  "deliverable_refs": [
+                    "x"
                   ],
                   "department": "GROWTH",
                   "depth": 1,
@@ -112552,6 +113434,9 @@
                     "deliverable_ids": [
                       "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
                     ],
+                    "deliverable_refs": [
+                      "x"
+                    ],
                     "department": "GROWTH",
                     "depth": 1,
                     "due_at": "2026-10-17T05:42:00Z",
@@ -112736,6 +113621,9 @@
                   "deliverable_ids": [
                     "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
                   ],
+                  "deliverable_refs": [
+                    "x"
+                  ],
                   "department": "GROWTH",
                   "depth": 1,
                   "due_at": "2026-10-17T05:42:00Z",
@@ -112918,6 +113806,9 @@
                   },
                   "deliverable_ids": [
                     "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  ],
+                  "deliverable_refs": [
+                    "x"
                   ],
                   "department": "GROWTH",
                   "depth": 1,

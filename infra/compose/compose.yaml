@@ -649,6 +649,9 @@ services:
       # Prompt 12 part B: the Persian voice is on only while the opt-in profile
       # "tts" runs (hq.sh sets HQ_TTS_ACTIVE); else briefings are text only.
       HQ_TTS: ${HQ_TTS_ACTIVE:-off}
+      # 15 §2.3: /transcribe answers 503 at once and /meta says speech is off
+      # while hq.sh leaves this empty (HQ_STT off).
+      STT_URL: ${STT_URL:-}
       HQ_TTS_VOICE: ${HQ_TTS_VOICE:-fa_IR-amir-medium}
       # Prompt 13 §2.3: renders are queued only while the opt-in profile
       # "media" runs (hq.sh sets HQ_MEDIA_ACTIVE); else media.render answers
@@ -1466,6 +1469,9 @@ services:
       BROWSER_SANDBOX: "1"
       # 14.1 §1.2: the signed-in sites' apps need more than the read tool's 192.
       BROWSER_JS_HEAP_MB: ${BROWSER_WEB_JS_HEAP_MB:-384}
+      # 2026-10-29 (the owner): jobs in a real window on the image's Xvfb;
+      # chatgpt.com's Cloudflare check turns the headless shell away.
+      BROWSER_WEB_HEADED: ${BROWSER_WEB_HEADED:-1}
       BROWSER_WEB_PROFILES: /profiles
       PORT: "8096"
     user: "10001:10001"

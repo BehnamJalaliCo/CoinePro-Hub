@@ -1,0 +1,11 @@
+[Unit]
+Description=CoinePro HQ: disk clean-up every Sunday at 04:30 UTC (after the weekly restore test)
+
+[Timer]
+OnCalendar=Sun *-*-* 04:30:00 UTC
+Persistent=true
+RandomizedDelaySec=10m
+Unit=coinepro-hq-disk-hygiene.service
+
+[Install]
+WantedBy=timers.target

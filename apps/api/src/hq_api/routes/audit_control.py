@@ -168,7 +168,9 @@ async def set_kill_switch(
             action_class="A2",
             target_kind="kill_switch",
             target_ref=body.scope,
-            summary=("changed" if changed else "unchanged") + f": {body.state}",
+            summary=control.with_reason(
+                ("changed" if changed else "unchanged") + f": {body.state}", body.reason
+            ),
             step_up=step,
         )
         await ctx.interaction(
@@ -188,15 +190,23 @@ async def set_kill_switch(
 
 
 @router.post("/control/deploy-freeze", response_model=FreezeOut, responses=E)
-async def set_deploy_freeze(body: FreezeIn, ctx: Ctx = Depends(owner_ctx)) -> FreezeOut:
+async def set_deploy_freeze(
+    body: FreezeIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+) -> FreezeOut:
     """Freezes agent write actions of one company until `until` (§1.5 #5); a past
     `until` lifts freezes. The owner lifts any freeze (pipeline's, CEOs'); a new
-    freeze never lifts another one."""
+    freeze never lifts another one. ⟨1.7.3⟩ Lifting is 🔏 (`deploy_freeze.lift`,
+    target `company:<CODE>`), like releasing a kill switch; closing is not."""
+    lifted = False
     async with ctx.tx() as tx:
         company = await control.resolve_scope(tx, f"company:{body.company}")
         if await tx.scalar("SELECT :u > now()", u=body.until):
             await control.add_deploy_freeze(tx, ctx.who, company, body.until, body.reason)
         else:
+            await stepup.consume(
+                tx, request, ctx.who, "deploy_freeze.lift", f"company:{body.company}"
+            )
+            lifted = True
             ids = [f["id"] for f in await control.active_freezes(tx, company["id"])]
             await control.lift_deploy_freezes(tx, ctx.who, company, ids)
         r = {"active": bool(await control.active_freezes(tx, company["id"]))}
@@ -207,7 +217,8 @@ async def set_deploy_freeze(body: FreezeIn, ctx: Ctx = Depends(owner_ctx)) -> Fr
             action_class="A2",
             target_kind="company",
             target_ref=body.company,
-            summary="active" if r["active"] else "lifted",
+            summary=control.with_reason("active" if r["active"] else "lifted", body.reason),
+            step_up=lifted,
         )
         await ctx.interaction(
             tx,

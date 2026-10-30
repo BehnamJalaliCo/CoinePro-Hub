@@ -45,7 +45,7 @@ result() { # result OK ERROR [extra json]
     '{target: $t, ok: $ok, error: (if $err == "" then null else $err end), duration_s: $dur} + $x'
 }
 cleanup() {
-  docker rm -f "$name" >/dev/null 2>&1 || true
+  docker rm -fv "$name" >/dev/null 2>&1 || true  # -v: its anonymous data volume too
   docker volume rm -f "$vol" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT

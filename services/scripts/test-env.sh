@@ -113,7 +113,8 @@ run() {
 }
 
 down() {
-  docker rm -f "$NAME-pg" "$NAME-nats" "$NAME-temporal" "$NAME-opa" >/dev/null 2>&1 || true
+  # -v: their anonymous volumes (a Postgres data dir each) go with them
+  docker rm -fv "$NAME-pg" "$NAME-nats" "$NAME-temporal" "$NAME-opa" >/dev/null 2>&1 || true
   docker network rm "$NET" >/dev/null 2>&1 || true
   rm -f "$STATE"
 }

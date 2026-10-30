@@ -53,7 +53,8 @@ SOURCES = (
     "backup_restore_test",
 )
 # What a record may be linked to (a link kind names a subset).
-LINK_TO_KINDS = (*REF_KINDS, "party", "company")
+# ⟨1.7.3⟩ a deliverable filed in the archive is linked `about` itself
+LINK_TO_KINDS = (*REF_KINDS, "party", "company", "deliverable")
 MIMES = tuple(sorted(media.ALLOWED))
 TRIGGERS_FIXED = ("filed", "case_closed", "superseded")
 THEN = ("review", "dispose_card")
@@ -85,6 +86,7 @@ REF_PATTERNS = {
     "revenue_account": re.compile(r"^[A-Za-z0-9_.:-]{2,80}$"),
     "party": re.compile(r"^PT-[0-9]{4,}$"),
     "company": CODE,
+    "deliverable": re.compile(r"^O-[0-9]{6,}$"),
 }
 AMOUNT = re.compile(r"^-?[0-9]{1,18}(\.[0-9]{1,8})?$")
 EMAIL = re.compile(r"^[A-Za-z0-9._%+'-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}$")

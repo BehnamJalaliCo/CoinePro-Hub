@@ -10,6 +10,7 @@ import io
 import json
 import uuid
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -37,6 +38,16 @@ pytestmark = pytest.mark.usefixtures("relay")
 
 # An ID3 tag in front of an ffconcat script: plain ffprobe opens the concat
 # demuxer, which reads other files (here a relative one).
+
+
+@pytest.fixture(autouse=True)
+def _speech_on(hub: Hub, monkeypatch: pytest.MonkeyPatch) -> None:
+    """⟨1.7.3⟩ /transcribe answers 503 at once while speech is off: these tests
+    exercise the recogniser's path (the worker is faked), so speech is on."""
+    if not hub.settings.stt_url:
+        monkeypatch.setattr(hub, "settings", replace(hub.settings, stt_url="http://stt.test"))
+
+
 FFCONCAT = (
     b"ID3\x04\x00\x00\x00\x00\x00\x14" + b"\x00" * 20
     + b"ffconcat version 1.0\nfile inner.wav\n" + b"#" * 3000 + b"\n"

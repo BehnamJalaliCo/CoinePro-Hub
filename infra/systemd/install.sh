@@ -12,7 +12,8 @@ UNITS=(coinepro-hq-backup.service coinepro-hq-backup.timer
   coinepro-hq-mcp-index.service coinepro-hq-mcp-index.timer coinepro-hq-mcp-index.path
   coinepro-hq-substitutes.service coinepro-hq-substitutes.timer
   coinepro-hq-tts.service coinepro-hq-tts.timer
-  coinepro-hq-media.service coinepro-hq-media.timer)
+  coinepro-hq-media.service coinepro-hq-media.timer
+  coinepro-hq-disk-hygiene.service coinepro-hq-disk-hygiene.timer)
 
 # node-exporter's textfile directory (container metrics without a Docker socket).
 sudo install -d -o Hub -g Hub -m 0755 /var/lib/coinepro-hq /var/lib/coinepro-hq/textfile
@@ -28,6 +29,8 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now coinepro-hq-backup.timer coinepro-hq-openbao-unseal.timer \
   coinepro-hq-container-metrics.timer coinepro-hq-backup-hourly.timer coinepro-hq-restore-weekly.timer \
   coinepro-hq-substitutes.timer
+# 2026-10-29: the weekly disk clean-up of test and build leftovers.
+sudo systemctl enable --now coinepro-hq-disk-hygiene.timer
 # Prompt 12 §14.6: CodeCortex's index (does nothing while HQ_MCP is off).
 sudo systemctl enable --now coinepro-hq-mcp-index.timer coinepro-hq-mcp-index.path
 # coinepro-hq-tts.timer is installed, not enabled: `make tts-on` enables it (opt-in).

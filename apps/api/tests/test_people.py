@@ -286,7 +286,7 @@ async def test_a_lesson_goes_to_the_other_ceos_for_adoption(
     async with hub.db.tx(await hub.companies.ids()) as tx:
         await D.apply_effect(tx, ref, SYSTEM)
     lessons = (await client.get("/api/v1/lessons", headers=h, params={"company": src})).json()
-    got = next(a for a in lessons[0]["adoption"] if a["company"] == other)
+    got = next(a for a in lessons["items"][0]["adoption"] if a["company"] == other)
     assert (got["status"], got["decision_ref"]) == ("adopted", ref)
     # A lesson not offered (or already decided) cannot be proposed again.
     r = await client.post(

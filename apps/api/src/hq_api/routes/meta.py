@@ -46,6 +46,12 @@ class TtsMeta(BaseModel):
     license: str
 
 
+class SpeechMeta(BaseModel):
+    # ⟨1.7.3⟩ the hub's speech-to-text (the opt-in stt profile): off -> the app
+    # transcribes on the phone (fa-IR) and /transcribe answers 503 at once
+    enabled: bool
+
+
 class Meta(BaseModel):
     api_version: str
     service_version: str
@@ -60,6 +66,7 @@ class Meta(BaseModel):
     # ⟨1.5⟩ the hub's Persian voice (§21.4): engine, voice, its licence; `enabled`
     # is the opt-in TTS profile (off: briefings are text, audio_state "off")
     tts: TtsMeta | None = None
+    speech: SpeechMeta = SpeechMeta(enabled=False)
 
 
 @router.get("/health", response_model=Health)
@@ -90,4 +97,5 @@ async def get_meta(ctx: Ctx = Depends(owner_ctx)) -> Meta:
             Precedence(rank=r, kinds=list(kinds), note_fa=note) for r, kinds, note in org.PRECEDENCE
         ],
         tts=TtsMeta(enabled=s.tts, **briefings.voice(s)),
+        speech=SpeechMeta(enabled=bool(s.stt_url)),
     )

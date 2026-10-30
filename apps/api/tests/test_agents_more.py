@@ -384,6 +384,10 @@ async def test_checker_results() -> None:
     assert (await check("/offsite")).error_code == "unexpected_status"
     off = await check("/offsite", status=301)
     assert off.ok and off.status == 301  # a redirect to another domain is reported, not followed
+    # ... and, with expect.location, counts only where the list says it goes (prompt 16)
+    assert (await check("/offsite", status=301, location="https://elsewhere.test")).ok
+    wrong = await check("/offsite", status=301, location="https://coineprofx.test/")
+    assert not wrong.ok and wrong.error_code == "wrong_redirect"
     assert (await check("/loop")).error_code == "too_many_redirects"
     assert (await check("/text", status=200, contains="ok")).error_code == "missing_text"
     assert (await check("/dns")).error_code == "dns_error"
@@ -534,13 +538,18 @@ async def test_roles_runs_sites_incidents_and_quota_endpoints(
         True,
         False,
     ]  # off, not deleted
-    bad = {
-        "company": co,
-        "sites": [{"url": f"https://a-{co.lower()}.test/", "expect": {"status": 999}}],
-    }
-    assert (
-        await signed_put(client, hub, owner_session, "/api/v1/ops/sites", bad, "sites.update")
-    ).status_code == 422
+    for expect in ({"status": 999}, {"status": 301, "location": "not a url"}):
+        bad = {"company": co, "sites": [{"url": f"https://a-{co.lower()}.test/", "expect": expect}]}
+        assert (
+            await signed_put(client, hub, owner_session, "/api/v1/ops/sites", bad, "sites.update")
+        ).status_code == 422
+    # a redirect to another domain, healthy only where it points (prompt 16)
+    moved = {"status": 301, "location": "https://c.test/"}
+    fwd = {"company": co, "sites": [{"url": f"https://a-{co.lower()}.test/", "expect": moved}]}
+    r = await signed_put(client, hub, owner_session, "/api/v1/ops/sites", fwd, "sites.update")
+    assert r.status_code == 200 and r.json()[0]["expect"] == moved, r.text
+    r = await signed_put(client, hub, owner_session, "/api/v1/ops/sites", body2, "sites.update")
+    assert r.status_code == 200
     for url in ("http://10.10.1.2/", "http://postgres:5432/", "https://x.internal/"):
         inner = {"company": co, "sites": [body["sites"][0], {"url": url}]}
         r = await signed_put(client, hub, owner_session, "/api/v1/ops/sites", inner, "sites.update")

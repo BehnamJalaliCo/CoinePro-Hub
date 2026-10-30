@@ -59,7 +59,7 @@ pass() { echo "backup: ok   $*"; }
 fail() { echo "backup: FAIL $*" >&2; failed=1; }
 # shellcheck disable=SC2329 # invoked by the EXIT trap below
 cleanup() {
-  docker rm -f "$N-pg" "$N-bao" "$N-proxy" "$N-locker" >/dev/null 2>&1 || true
+  docker rm -fv "$N-pg" "$N-bao" "$N-proxy" "$N-locker" >/dev/null 2>&1 || true
   docker volume rm -f "$N-files" "$N-bao-data" >/dev/null 2>&1 || true
   docker network rm "$N-net" >/dev/null 2>&1 || true
   # Root-, postgres- and api-owned leftovers go through a container.
@@ -633,7 +633,7 @@ for _ in $(seq 30); do
 done
 want "$(jq -n --arg a "$snap_accessor" '{accessor: $a}' | api POST "$bao/v1/auth/token/revoke-accessor")" revoke
 run hourly.sh >/dev/null && frc=0 || frc=$?
-docker rm -f "$N-locker" >/dev/null 2>&1 || true
+docker rm -fv "$N-locker" >/dev/null 2>&1 || true
 docker run --rm --network none -v "$T/dest:/d" -v "$T/locker:/p:ro" -e RESTIC_PASSWORD_FILE=/p/restic.pass \
   "$BK_IMAGE_T" restic -r "/d/CoinePro HQ Backup" unlock --remove-all >/dev/null 2>&1 || true
 if ((frc == 0)) && [[ "$(dest gdrive .ok)" == true && "$(dest gdrive .retention_ok)" == false &&

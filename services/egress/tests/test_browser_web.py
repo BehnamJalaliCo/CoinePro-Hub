@@ -16,6 +16,7 @@ import asyncio
 import contextlib
 import ipaddress
 import json
+import os
 import ssl
 import subprocess
 from collections.abc import AsyncIterator
@@ -51,6 +52,17 @@ document.getElementById('send').onclick = async () => {
   }, 300);
 };
 </script></body></html>"""
+# A chat whose box is a form (chatgpt.com's composer): its send is a form submit.
+CHAT_FORM = b"""<html><body>
+<form id='f'><textarea id='prompt'></textarea><button id='send' type='submit'>Send</button></form>
+<div id='out'></div>
+<script>
+document.getElementById('f').onsubmit = async (e) => {
+  e.preventDefault();
+  const r = await fetch('/api/answer', {method: 'POST', body: document.getElementById('prompt').value});
+  document.getElementById('out').innerHTML = "<p class='answer'>" + await r.text() + "</p>";
+};
+</script></body></html>"""
 LOGIN = b"<html><body><button data-testid='login-button'>Log in</button></body></html>"
 BROKEN = b"<html><body><p>a redesigned page without the prompt box</p></body></html>"
 
@@ -83,6 +95,8 @@ class Site:
         if path == "/chat":
             body = CHAT.replace(b"PORT", str(self.port).encode())
             extra = f"Set-Cookie: sess={COOKIE}; Max-Age=3600; Secure; HttpOnly; Path=/\r\n"
+        elif path.startswith("/c/"):
+            body = CHAT_FORM
         elif path == "/to-login":
             status, extra = 302, "Location: /login\r\n"
         elif path == "/login":
@@ -265,6 +279,61 @@ async def test_profile_jobs_hide_the_automation_flag(tmp_path: Path) -> None:
     assert seen["ignore_default_args"] == ["--enable-automation"]
     assert "--disable-blink-features=AutomationControlled" in seen["args"]
     assert seen["user_data_dir"] == str(tmp_path / "chatgpt-web")
+    assert seen["headless"] is True
+
+
+# 2026-10-29: a headed profile browser runs its jobs in a window on its own
+# Xvfb (started once, stopped with it); the sign-in window stays as it is.
+async def test_a_headed_profile_browser_opens_windows_on_its_own_display(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import hq_egress.browser_web as BW
+
+    seen: list[dict[str, Any]] = []
+    spawned: list[tuple[str, ...]] = []
+
+    class Chromium:
+        async def launch_persistent_context(self, user_data_dir: str, **kw: Any) -> object:
+            seen.append(kw)
+            return object()
+
+    class PW:
+        chromium = Chromium()
+
+        async def start(self) -> PW:
+            return self
+
+        async def stop(self) -> None:
+            pass
+
+    class Proc:
+        returncode: int | None = None
+
+        def terminate(self) -> None:
+            self.returncode = -15
+
+        async def wait(self) -> int:
+            return -15
+
+    proc = Proc()
+
+    async def spawn(*args: str, **_: Any) -> Proc:
+        spawned.append(args)
+        return proc
+
+    monkeypatch.setenv("DISPLAY", "")  # restored after the test, whatever start() sets
+    monkeypatch.delenv("DISPLAY")
+    monkeypatch.setattr(BW.asyncio, "create_subprocess_exec", spawn)
+    monkeypatch.setattr(BW, "async_playwright", PW)
+    d = Webd(profiles=tmp_path, headed=True)
+    await d.start()
+    assert spawned and spawned[0][:2] == ("Xvfb", BW.XVFB_DISPLAY)
+    assert os.environ["DISPLAY"] == BW.XVFB_DISPLAY
+    await d.open("chatgpt-web", Proxy(server="http://egress:3132"))
+    await d.open("chatgpt-web", Proxy(server="http://egress:3132"), headless=True)
+    assert [k["headless"] for k in seen] == [False, True]
+    await d.stop()
+    assert proc.returncode == -15
 
 
 # A dead window's or job's Chromium lock is cleared once it is stale (20 min).
@@ -278,3 +347,39 @@ def test_a_stale_profile_lock_is_cleared_and_a_fresh_one_kept(tmp_path: Path) ->
     assert (tmp_path / "SingletonLock").is_symlink()
     clear_stale_lock(tmp_path, now=lstat_mtime + STALE_LOCK_S + 1)
     assert not (tmp_path / "SingletonLock").is_symlink() and (tmp_path / "Default").is_dir()
+
+
+# 2026-10-29: a profile account may send a plain form on its own listed pages
+# (the owner's chat with the site), and nowhere else.
+async def test_a_profile_sends_its_chat_form_only_on_its_listed_pages(world: Any) -> None:
+    site, d, buckets, server, _ = world
+
+    def run(path: str, submit_on: list[str]) -> RunIn:
+        key, secret = buckets.open("web.browse", "A0", 10_000_000, hosts=frozenset({"chat.test"}))
+        return RunIn(
+            profile="chatgpt-web",
+            allowed_hosts=["chat.test"],
+            steps=[
+                {"do": "goto", "url": f"https://chat.test:{site.port}{path}"},
+                {"do": "type", "target": "#prompt", "text": "hello"},
+                {"do": "click", "target": "#send"},
+                {"do": "wait", "target": ".answer"},
+                {"do": "read"},
+            ],
+            proxy={"server": server, "username": key, "password": secret},
+            account={
+                "key": "chatgpt-web",
+                "site": "chat.test",
+                "browse": {"kind": "profile"},
+                "allow": [{"methods": ["POST"], "path_prefix": "/api/"}],
+                "submit_on": submit_on,
+            },
+            time_s=10,
+        )
+
+    for path, submit_on in (("/c/one", []), ("/c/two", ["/c/one"])):
+        got = await d.run(run(path, submit_on))
+        assert got["blocked"] == {"step": 2, "code": "needs_owner", "reason": "form_submit"}, got
+    assert not [s for s in site.seen if s["path"] == "/api/answer"]
+    got = await d.run(run("/c/one", ["/c/one"]))
+    assert got["blocked"] is None and "answer to: hello" in got["steps"][4]["text"], got

@@ -32,6 +32,7 @@ async def test_inbox_summary_is_cheap_and_counts(
         "decisions_pending",
         "decisions_by_risk",
         "deliverables_unrated",
+        "deliverables_unseen",
         "messages_unread",
         "notifications",
         "khalvat",

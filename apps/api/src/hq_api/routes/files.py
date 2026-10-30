@@ -471,6 +471,11 @@ async def transcribe(
     changes no more than 8% of the words. The audio is kept as a file
     (`file_id`); attach it to a message and the message is a voice transcript."""
     name = file_name(request.headers.get("x-file-name")) or "voice"
+    off = ApiError(503, "channel_not_configured", "speech recognition is off on this hub")
+    if not ctx.hub.settings.stt_url and purpose != "note":
+        # ⟨1.7.3⟩ speech-to-text is off: answer at once, keep no audio (the app
+        # transcribes on the phone; this route is only its fallback)
+        raise off
     up = await Upload.receive(request, ctx.hub.storage.scratch(), only={"audio"})
     try:
         probed = (await prepare_upload(ctx, up)).info
@@ -481,6 +486,13 @@ async def transcribe(
             fid, _ = await store_upload(ctx, tx, up, name, Prepared(probed), purpose=purpose)
     finally:
         up.discard()
+    if not ctx.hub.settings.stt_url:  # a voice note keeps its audio (a file), no text
+        if idem:  # a retry with the same key gets the same answer
+            async with ctx.tx() as tx:
+                await idem.store(
+                    tx, off.status, json.loads(bytes(problem_response(request, off).body))
+                )
+        raise off
     try:
         out = await workflows_client.transcribe(
             ctx.hub, str(fid), ctx.hub.settings.transcribe_wait_s

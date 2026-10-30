@@ -45,6 +45,8 @@ WORK_SQL = f"""
            sc.status AS sc_status,
            ARRAY(SELECT dl.id FROM cartable.deliverables dl WHERE dl.work_id = w.id ORDER BY dl.created_at)
                AS deliverable_ids,
+           ARRAY(SELECT dl.ref FROM cartable.deliverables dl WHERE dl.work_id = w.id
+                 ORDER BY dl.created_at) AS deliverable_refs,
            (SELECT kr.ref FROM governance.key_results kr WHERE kr.id = w.key_result_id) AS key_result_ref
     FROM work.work w
     JOIN core.companies c ON c.id = w.company_id
@@ -78,6 +80,8 @@ class Work(BaseModel):
     escrow: Escrow | None
     schedule: Schedule | None
     deliverable_ids: list[UUID]
+    # ⟨1.7.4⟩ prompt 15.1: the same deliverables by ref (/deliverables/{ref})
+    deliverable_refs: list[str] = Field(default_factory=list)
     evidence: list[dict[str, Any]]
     progress_note: str | None
     progress_pct: int | None
@@ -156,6 +160,7 @@ def render(r: dict[str, Any]) -> Work:
         escrow=escrow,
         schedule=schedule,
         deliverable_ids=list(r["deliverable_ids"] or []),
+        deliverable_refs=list(r.get("deliverable_refs") or []),
         evidence=list(r["evidence"] or []),
         progress_note=r["progress_note"],
         progress_pct=r["progress_pct"],

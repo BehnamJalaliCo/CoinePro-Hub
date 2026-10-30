@@ -41,6 +41,7 @@ from hq_api.routes.messages import (
 )
 from hq_api.schemas import EMPLOYEE_CODE, Evidence, FileRef, Model
 from hq_api.workshop import service as workshop_service
+from hq_common.redact import scrub_async
 
 log = logging.getLogger("hq_api.routes.internal")
 
@@ -1279,7 +1280,10 @@ async def agent_kill_switch(
             action_class="A2",
             target_kind="kill_switch",
             target_ref=body.scope,
-            summary=("changed" if changed else "unchanged") + f" by {ctx.who.code}",
+            summary=control.with_reason(
+                ("changed" if changed else "unchanged") + f" by {ctx.who.code}",
+                await scrub_async(body.reason),
+            ),
         )
         result = await control.state(tx)
         if idem:
@@ -1343,7 +1347,7 @@ async def agent_deploy_freeze(
             action_class="A2",
             target_kind="company",
             target_ref=body.company,
-            summary=summary,
+            summary=control.with_reason(summary, await scrub_async(body.reason)),
         )
         result = await control.state(tx)
     await workshop_service.paused(ctx.hub)  # the paused sessions stop on their runtime too

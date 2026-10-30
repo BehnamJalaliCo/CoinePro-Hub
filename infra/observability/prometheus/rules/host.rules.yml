@@ -1,0 +1,32 @@
+# The hub host's own disk (2026-10-29: the disk reached 92% with test and build
+# leftovers). The weekly clean-up (infra/maintenance/disk-hygiene.sh) keeps it
+# down; these are the alarms when it is not enough. The owner hears of it
+# through PR-062 (the hub's health, above 80%); this is the second line.
+groups:
+  - name: hq-host
+    rules:
+      - alert: HqDiskFilling
+        expr: 100 * (1 - node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) > 80
+        for: 15m
+        labels:
+          severity: warning
+          category: capacity
+        annotations:
+          summary: "The hub's disk is more than 80% full"
+          description: "make disk-hygiene DRY=1 lists what the clean-up would remove; docker system df shows the rest"
+      - alert: HqDiskAlmostFull
+        expr: 100 * (1 - node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) > 90
+        for: 5m
+        labels:
+          severity: urgent
+          category: capacity
+        annotations:
+          summary: "The hub's disk is more than 90% full: Postgres and the backups need room"
+      - alert: HqDiskHygieneStale
+        expr: time() - hq_disk_hygiene_last_run_timestamp_seconds > 9 * 86400
+        for: 1h
+        labels:
+          severity: warning
+          category: capacity
+        annotations:
+          summary: "The weekly disk clean-up has not run for 9 days"

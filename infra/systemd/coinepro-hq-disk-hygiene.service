@@ -1,0 +1,24 @@
+[Unit]
+Description=CoinePro HQ: weekly disk clean-up of test and build leftovers (never a named volume)
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=Hub
+Group=Hub
+ExecStart=/home/Hub/CoinePro-Hub/infra/maintenance/disk-hygiene.sh
+TimeoutStartSec=1800
+Nice=15
+IOSchedulingClass=idle
+NoNewPrivileges=yes
+ProtectSystem=strict
+# the docker CLI keeps its buildx state under ~/.docker (the builder prune)
+ReadWritePaths=/var/lib/coinepro-hq/textfile /home/Hub/.docker
+PrivateTmp=yes
+CapabilityBoundingSet=
+RestrictSUIDSGID=yes
+LockPersonality=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes

@@ -53,6 +53,11 @@ from hq_egress.hosts import covered
 log = logging.getLogger("hq_egress.browser_web")
 ACCOUNTS = ("chatgpt-web", "gemini-web", "deepseek-web")
 SANDBOX = os.environ.get("BROWSER_SANDBOX", "1") != "0"
+# 2026-10-29 (the owner): jobs in a real window on the image's Xvfb, as the
+# owner's sign-in window, not the headless shell the sites' bot check turns
+# away (chatgpt.com's Cloudflare check never passed headless).
+HEADED = os.environ.get("BROWSER_WEB_HEADED", "0") == "1"
+XVFB_DISPLAY = ":99"
 PROFILES = Path(os.environ.get("BROWSER_WEB_PROFILES", "/profiles"))
 LOGIN_S = 15 * 60
 STEP_S = 30.0
@@ -131,21 +136,34 @@ class Webd:
         profiles: Path = PROFILES,
         sandbox: bool = SANDBOX,
         insecure_tls: bool = False,
+        headed: bool = HEADED,
     ) -> None:
         """`insecure_tls`: tests only (their fake sites' own certificate)."""
         self.profiles = profiles
         self.sandbox = sandbox
         self.insecure_tls = insecure_tls
+        self.headed = headed
         self.locks = {a: asyncio.Lock() for a in ACCOUNTS}
         self._pw: Any = None
+        self._xvfb: asyncio.subprocess.Process | None = None
 
     async def start(self) -> None:
         os.umask(0o077)  # every file of every profile is 600
+        if self.headed and not os.environ.get("DISPLAY"):
+            self._xvfb = await asyncio.create_subprocess_exec(
+                "Xvfb", XVFB_DISPLAY, "-screen", "0", "1280x900x24", "-nolisten", "tcp",
+                stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+            )  # fmt: skip
+            os.environ["DISPLAY"] = XVFB_DISPLAY
         self._pw = await async_playwright().start()
 
     async def stop(self) -> None:
         if self._pw is not None:
             await self._pw.stop()
+        if self._xvfb is not None and self._xvfb.returncode is None:
+            self._xvfb.terminate()
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(self._xvfb.wait(), 5)
 
     def ready(self) -> bool:
         return self._pw is not None
@@ -157,12 +175,15 @@ class Webd:
         d.mkdir(mode=0o700, parents=True, exist_ok=True)
         return d
 
-    async def open(self, account: str, proxy: Proxy, *, headless: bool = True) -> BrowserContext:
+    async def open(
+        self, account: str, proxy: Proxy, *, headless: bool | None = None
+    ) -> BrowserContext:
+        """`headless`: None for a job's (headless unless `headed`)."""
         profile = self.profile_dir(account)
         clear_stale_lock(profile)
         ctx: BrowserContext = await self._pw.chromium.launch_persistent_context(
             str(profile),
-            headless=headless,
+            headless=not self.headed if headless is None else headless,
             # 14.1 §1.5: no automation banner or flag the sites can see.
             ignore_default_args=["--enable-automation"],
             args=[*B.ARGS, "--disable-blink-features=AutomationControlled"],
