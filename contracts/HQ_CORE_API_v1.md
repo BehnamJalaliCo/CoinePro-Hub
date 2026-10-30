@@ -2744,3 +2744,22 @@ Agent tools (Tool Gateway, recorded like every tool call) create jobs and wait f
   - `CodeSession` adds `server|null, company`.
 - **Stream `server.call`:** `{server, company, actor: Actor, tool, summary_fa, cmd_masked, exit_code|null, duration_ms|null, session_ref|null, state: "running"|"done"|"failed"}`.
 - **`transcript_url`:** a hub path read with the owner's session.
+
+### 26.6 The holding's network map ⟨1.8⟩ (owner, 2026-10-30: «عمیقاً بررسی بکن… که همه‌ی سرورها به هم دسترسی داشته باشند یا همه به هاب»)
+- **Job kind `netcheck` (read-only):** `args: {targets: [{name, ip, ports}]}`.
+  - The runner TCP-connects each port (3 s timeout) and pings each target where it can.
+  - It returns `{from, via, results: [{name, ip, port, ok, ms, error}]}`.
+- **What every poll carries:** each runner reports `via` and `hub_rtt_ms`, stored on its server row.
+- **`GET /infra/network`:**
+  ```
+  {at, nodes: [{id, company, name, private_ip, via, state, hub_rtt_ms}], links: [{from, to, port, ok, ms, error, at}]}
+  ```
+  - The hub is node `hub` at `10.10.1.4`.
+- **`POST /infra/network/check`** (owner): queues a `netcheck` on every online runner. Its targets are the hub (443) and every other attached server's private IP (22, 80, 443).
+- **A daily protocol runs it:** the overseer raises a finding when a link that worked now fails.
+- **Cross-company work:** a `server.*` tool on another company's server is allowed in only two cases:
+  - **Holding-wide roles:** for the holding's platform SRE and the overseer.
+  - **Cross-company request:** through a cross-company work request (§4) that the other company's CEO accepted. The job then runs as that company's actor.
+
+  Servers never call each other directly; the hub carries every cross-server task.
+
