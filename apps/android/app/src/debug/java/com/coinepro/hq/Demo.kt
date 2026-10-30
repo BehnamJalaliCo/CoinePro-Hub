@@ -115,6 +115,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
         if (req.method == "POST" && (path == "/files" || path == "/transcribe")) return respond(req, binary(req, path))
         // ⟨1.6⟩ the studio's renders, posters and voice clips (assets/demo), as the web serves them from public/demo.
         if (req.method == "GET" && path.startsWith("/files/")) demoFile(req, path.removePrefix("/files/"), req.url.queryParameter("variant"))?.let { return it }
+        // ⟨1.9⟩ §27: a media council's Creatives (pick, animate) and the hub's transcripts (`/files/{id}/meta`).
+        council.handle(req.method, path)?.let { return respond(req, it) }
         // ⟨1.5⟩ a body may be a list (§21.13 seats), not only an object.
         val raw = req.body?.let { b -> Buffer().also { b.writeTo(it) }.readUtf8() }?.takeIf { it.isNotBlank() }?.let { Api.json.parseToJsonElement(it) }
         val body = raw as? JsonObject
@@ -264,6 +266,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     /** Uploaded files by id (a file:// URL in the app's cache), so a sent message can show what was attached. */
     private val files = mutableMapOf<String, JsonObject>()
     private val archive by lazy { ArchiveDemo(context, store, files) }
+    /** ⟨1.9⟩ eager: `/meta.speech` and the voice message's hub transcript are there from the first read. */
+    private val council = CouncilDemo(context, store, files)
     private val outputs by lazy { OutputsDemo(store) }
     /** Eager: the holding's mixed states are there from the first read. */
     private val control = ControlDemo(store)
@@ -273,6 +277,11 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     private val orders = OrdersDemo(store)
     /** ⟨1.8⟩ before [scripts]: wakes on the first look at a server, so other screens see the holding as before. */
     private val servers = ServersDemo(store)
+
+    init {
+        // ⟨1.9⟩ a live media council's versions are drawn and served beside the fixture ones.
+        orders.mediaMaker = council::make
+    }
     private val scripts = mutableMapOf<String, MutableList<JsonObject>>().apply {
         for ((k, v) in store) if (k.startsWith("#script:")) put(k.removePrefix("#script:"), v.second.jsonObject["items"]!!.jsonArray.map { it.jsonObject }.toMutableList())
     }
@@ -298,6 +307,11 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             transcript?.let { put("transcript", it) }
         }
         files[id] = ref
+        // ⟨1.9⟩ §27.3: an uploaded voice is transcribed on the hub a few seconds later; `file.transcribed` refreshes what shows it.
+        if (path == "/files" && kind == "audio") {
+            val words = TRANSCRIPTS.getValue("message").let { it[said++ % it.size] }
+            DemoLive.after(8) { council.transcribed(id, words) }
+        }
         if (path == "/files") return 201 to ref
         return 200 to buildJsonObject {
             put("text", transcript); put("language", "fa"); put("duration_s", seconds ?: 6.4); put("confidence", 0.94); put("file_id", id)
@@ -825,6 +839,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             "order" to listOf(
                 "به مدیر فنی کوینه‌پرو FX بگو کندی صفحه‌ی ثبت‌نام را تا فردا ظهر بررسی کند و اصلاحش را در کارگاه کد روی شاخه‌ی جدا آماده کند.",
                 "برای پنجشنبه یک جلسه با مدیرعامل‌های تریدیار و پرو-چارت بگذار؛ موضوع: برنامه‌ی رشد سه ماه آینده.",
+                // ⟨1.9⟩ §27.1: an order that names its player.
+                "با جمنای سه تصویر استوری برای دوره‌ی رایگان طلای FX بساز تا عصر.",
             ),
             "note" to listOf("یادداشت: از مشاور کل بپرس هزینه‌ی کارگاه کد در ماه اول چقدر شد."),
         )

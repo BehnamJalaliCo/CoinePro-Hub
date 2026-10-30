@@ -62,7 +62,7 @@ data class FreezeOut(val company: String, val active: Boolean, val until: String
 data class EvidenceIn(val kind: String, val ref: String, val note: String? = null)
 
 @Serializable
-data class WorkPatch(val title: String? = null, val brief: String? = null, val priority: String? = null, val dueAt: String? = null)
+data class WorkPatch(val title: String? = null, val brief: String? = null, val priority: String? = null, val dueAt: String? = null, val player: String? = null, val mode: String? = null)
 
 @Serializable
 data class DismissOut(val workReturned: Int = 0, val transferWork: String? = null)

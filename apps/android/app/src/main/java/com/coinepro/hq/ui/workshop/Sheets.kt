@@ -100,7 +100,7 @@ fun SpokenField(label: String, value: String, onChange: (String) -> Unit, placeh
                 }
                 v.transcribing -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     CircularProgressIndicator(Modifier.height(14.dp), color = c.goldInk, strokeWidth = 2.dp)
-                    Text("در حال تشخیص گفتار…", style = Divan.type.caption, color = c.textSecondary)
+                    Text(if (v.engine == "hub") com.coinepro.hq.core.media.HUB_TRANSCRIBING else "در حال تشخیص گفتار…", style = Divan.type.caption, color = c.textSecondary)
                 }
                 else -> HqButton("بگو", vh.start, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.MIC)
             }

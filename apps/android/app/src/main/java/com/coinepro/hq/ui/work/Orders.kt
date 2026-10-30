@@ -226,6 +226,8 @@ fun OrderCard(w: Work) {
             Text(companyOf(companies, w.company).let { if (it.holding) "هلدینگ" else it.nameFa }, style = Divan.type.caption, color = c.textSecondary, maxLines = 1)
             Text(buildAnnotatedString { append("· "); fig(w.ref) }, style = Divan.type.caption, color = c.textMuted)
             Spacer(Modifier.weight(1f))
+            // ⟨1.9⟩ §27: who plays it, when the owner named a player or called the council.
+            PlayerTag(w.player, w.mode)
             PriorityTag(w.priority, compact = true)
         }
         Spacer(Modifier.height(6.dp))
@@ -406,6 +408,8 @@ fun OrderTrackerCard(t: OrderTrack) {
             OrderStepper(t)
             OrderMeter(t)
             HolderLine(t)
+            // ⟨1.9⟩ §27: who plays it (the router, a named player, or the council).
+            PlayerLine(t.root)
             OutputsRow(t)
         }
     }
@@ -513,6 +517,7 @@ private fun HomeOrderRow(w: Work, onClick: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             CompanyMark(w.company, height = 12.dp, mono = true, ink = c.textSecondary)
             Text(w.title, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            PlayerTag(w.player, w.mode)
             if (t == null) Skeleton(Modifier.size(width = 64.dp, height = 14.dp))
             else {
                 val end = endOf(t.root)

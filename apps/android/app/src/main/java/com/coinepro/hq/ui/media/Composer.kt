@@ -212,11 +212,11 @@ data class VoiceResult(val text: String, val fileId: String?, val seconds: Doubl
 }
 
 /**
- * Speak → Persian text. The phone's own speech recognition (fa-IR) hears it first: it works while the hub's speech-to-text is off
- * (the hub has not the memory for it), shows the words as they come and leaves them in the caller's field to read and fix. The hub's
- * `/transcribe` (contract §17.2) is used only where it answers: when the phone has no recogniser, or after the hub answered once in
- * this session; it keeps the original recording, and when it cannot help [onFallback] gets the audio file itself. When neither can
- * hear, [unavailable] says so in plain words and the screen offers to type.
+ * Speak → Persian text. The phone's own speech recognition (fa-IR) hears it first, for live dictation: it shows the words as they come
+ * and leaves them in the caller's field to read and fix. ⟨1.9⟩ §27.3: the hub's `/transcribe` (its own faster-whisper; the audio never
+ * leaves the hub) hears when the phone cannot: the phone has no recogniser or no Persian, or its recogniser failed ([fellBack] says so
+ * and the hub records the owner saying it again). It keeps the original recording, and when it cannot help [onFallback] gets the audio
+ * file itself. When neither can hear, [unavailable] says so in plain words and the screen offers to type.
  */
 @Stable
 class VoiceInput(
@@ -255,14 +255,19 @@ class VoiceInput(
     private var level = 0f
     val active: Boolean get() = recording || transcribing
 
+    /** ⟨1.9⟩ The phone's recogniser failed and the hub is listening instead: the sentence that says so (cleared on the next start). */
+    var fellBack by mutableStateOf<String?>(null)
+        private set
+
+    private val hubOk: Boolean get() = com.coinepro.hq.core.media.hubUsable(env.media.speechEnabled, env.media.hubSpeech)
+
     internal fun begin() {
-        unavailable = null; settings = false; partial = ""
+        unavailable = null; settings = false; partial = ""; fellBack = null
         val media = env.media
-        when {
-            media.hubSpeech == true -> beginHub()
-            media.phoneSpeech != false && PhoneSpeech.available(media.context) && beginPhone() -> Unit
-            media.hubSpeech == false -> unavailable = NOTHING_HEARS
-            else -> beginHub()
+        when (com.coinepro.hq.core.media.firstEngine(PhoneSpeech.available(media.context), media.phoneSpeech, media.speechEnabled, media.hubSpeech)) {
+            com.coinepro.hq.core.media.SpeechEngine.PHONE -> if (!beginPhone()) { if (hubOk) beginHub() else unavailable = NOTHING_HEARS }
+            com.coinepro.hq.core.media.SpeechEngine.HUB -> beginHub()
+            com.coinepro.hq.core.media.SpeechEngine.NONE -> unavailable = NOTHING_HEARS
         }
     }
 
@@ -281,18 +286,22 @@ class VoiceInput(
                 stopTicker(); transcribing = false; recording = false; engine = null; this@VoiceInput.partial = ""; reset()
                 onText()(VoiceResult(text.trim(), null, seconds, "phone"))
             }
-            override fun failed(messageFa: String, unavailable: Boolean) {
+            override fun failed(messageFa: String, unavailable: Boolean, code: Int) {
                 stopTicker(); transcribing = false; recording = false; engine = null; reset()
-                if (unavailable) {
-                    // The phone cannot do Persian: next time the hub is asked (where it answers).
-                    env.media.phoneSpeech = false
-                    this@VoiceInput.unavailable = messageFa
-                } else if (this@VoiceInput.partial.isNotBlank()) {
+                // The phone cannot do Persian: from now on the hub is asked first (where it answers).
+                if (unavailable) env.media.phoneSpeech = false
+                val words = this@VoiceInput.partial
+                when (com.coinepro.hq.core.media.afterPhoneFailure(code, unavailable, words.isNotBlank(), hubOk)) {
                     // The recogniser gave up after words were heard: they are what the owner said; keep them.
-                    val words = this@VoiceInput.partial
-                    this@VoiceInput.partial = ""
-                    onText()(VoiceResult(words.trim(), null, (android.os.SystemClock.elapsedRealtime() - t0) / 1000.0, "phone"))
-                } else toasts.info(messageFa)
+                    com.coinepro.hq.core.media.PhoneFallback.KEEP_WORDS -> {
+                        this@VoiceInput.partial = ""
+                        onText()(VoiceResult(words.trim(), null, (android.os.SystemClock.elapsedRealtime() - t0) / 1000.0, "phone"))
+                    }
+                    // ⟨1.9⟩ §27.3: the hub hears instead; the owner says it again into the recording.
+                    com.coinepro.hq.core.media.PhoneFallback.HUB -> { fellBack = com.coinepro.hq.core.media.HUB_TAKES_OVER; beginHub() }
+                    com.coinepro.hq.core.media.PhoneFallback.TYPE -> this@VoiceInput.unavailable = messageFa
+                    com.coinepro.hq.core.media.PhoneFallback.TELL -> toasts.info(messageFa)
+                }
             }
         })
         if (!ok) return false
@@ -353,6 +362,7 @@ class VoiceInput(
             } finally {
                 transcribing = false
                 engine = null
+                fellBack = null
             }
         }
     }
@@ -361,7 +371,7 @@ class VoiceInput(
         stopTicker(); work?.cancel()
         speech.cancel()
         rec.cancel()
-        recording = false; transcribing = false; engine = null; partial = ""
+        recording = false; transcribing = false; engine = null; partial = ""; fellBack = null
         reset()
     }
 
@@ -388,6 +398,8 @@ fun rememberVoiceInput(purpose: String, onFallback: ((File) -> Unit)? = null, on
     val context = LocalContext.current
     val text by rememberUpdatedState(onText)
     val fallback by rememberUpdatedState(onFallback)
+    // ⟨1.9⟩ §27.3: whether the hub may transcribe, from `/meta.speech.enabled` (the voice input reads it at each start).
+    rememberSpeechEnabled()
     val v = remember(env, purpose) { VoiceInput(env, scope, toasts, purpose, { text }, { fallback }) }
     DisposableEffect(v) { onDispose { v.cancel() } }
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> if (ok) v.begin() else v.refused() }
@@ -525,6 +537,8 @@ fun Composer(
                         }
                         // The phone's words as they come (its own recogniser, fa-IR).
                         if (v.partial.isNotBlank()) Text(v.partial, style = Divan.type.small, color = c.textSecondary, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        // ⟨1.9⟩ §27.3: the phone's recogniser failed; this recording goes to the hub.
+                        v.fellBack?.let { Text(it, style = Divan.type.micro, color = c.warning, maxLines = 2) }
                     }
                     RoundAction(DivanIcon.STOP, "تمام؛ به متن تبدیل کن", true, v::finish)
                 }
@@ -532,7 +546,7 @@ fun Composer(
                     IconBtn(DivanIcon.CLOSE, "لغو", v::cancel)
                     Row(Modifier.weight(1f).height(44.dp).padding(horizontal = 4.dp).semantics { contentDescription = "در حال تبدیل به متن" }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         CircularProgressIndicator(Modifier.size(16.dp), color = c.goldInk, strokeWidth = 2.dp)
-                        Text(v.partial.ifBlank { "در حال تشخیص گفتار…" }, style = Divan.type.small, color = c.textSecondary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        Text(v.partial.ifBlank { if (v.engine == "hub") com.coinepro.hq.core.media.HUB_TRANSCRIBING else "در حال تشخیص گفتار…" }, style = Divan.type.small, color = c.textSecondary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     }
                 }
                 else -> {

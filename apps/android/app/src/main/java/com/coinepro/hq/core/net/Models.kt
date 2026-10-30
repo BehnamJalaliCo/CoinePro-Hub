@@ -62,6 +62,8 @@ data class Meta(
     val channels: Channels = Channels(),
     /** ⟨1.3⟩ §17.7: null until the owner chooses where the Code Workshop runs. */
     val workshop: WorkshopMeta? = null,
+    /** ⟨1.9⟩ §27.3: the hub's speech to text; null from a hub before it (off). */
+    val speech: SpeechMeta? = null,
 )
 
 @Serializable
@@ -179,7 +181,12 @@ data class FileRef(
     val durationS: Double? = null,
     val variants: FileVariants = FileVariants(),
     val transcript: String? = null,
-)
+    /** ⟨1.9⟩ §27.3: the hub's own transcript of an audio file (faster-whisper on the hub); `file.transcribed` announces it. */
+    val transcriptFa: String? = null,
+) {
+    /** The hub's words for this audio, the ⟨1.9⟩ field first. */
+    val hubText: String? get() = (transcriptFa ?: transcript)?.takeIf { it.isNotBlank() }
+}
 
 @Serializable
 data class FileVariants(val thumb: String? = null, val poster: String? = null)
@@ -406,6 +413,14 @@ data class Work(
     val chain: List<ChainStep> = emptyList(),
     val children: List<ChainStep> = emptyList(),
     val version: Int = 1,
+    /** ⟨1.9⟩ §27.1 who plays it: auto (the router) · claude · gpt · gemini · deepseek; every child inherits it. */
+    val player: String = "auto",
+    /** ⟨1.9⟩ §27.2 single · council (the same brief on every available player, Claude writes the synthesis). */
+    val mode: String = "single",
+    /** ⟨1.9⟩ a media council: image · video (each player makes its own Creative); null for words. */
+    val media: String? = null,
+    /** ⟨1.9⟩ §27.1: the named player was unavailable for 30 minutes and the router plays since. */
+    val playerFallback: Boolean = false,
 )
 
 @Serializable
@@ -429,6 +444,11 @@ data class WorkCreate(
     val dueAt: String? = null,
     val budget: BudgetIn? = null,
     val schedule: ScheduleIn? = null,
+    /** ⟨1.9⟩ §27.1: sent whenever the owner chose (the hub's defaults are `auto` and `single`). */
+    val player: String? = null,
+    val mode: String? = null,
+    /** ⟨1.9⟩ a council that makes images or a video (`image` · `video`). */
+    val media: String? = null,
 )
 
 @Serializable

@@ -758,6 +758,8 @@ data class Creative(
     val files: List<FileRef> = emptyList(),
     /** ⟨1.5.1⟩ a failed creative carries its reason here. */
     val reviewMd: String? = null,
+    /** ⟨1.9⟩ §27.2: when the owner picked this version among a media council's (`POST /creatives/{ref}/pick`). */
+    val pickedAt: String? = null,
     val source: CreativeSource? = null,
     val aiGenerated: Boolean = true,
     val createdAt: String = "",

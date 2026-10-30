@@ -55,6 +55,11 @@ internal class OrdersDemo(private val store: MutableMap<String, Pair<Int, JsonEl
         var note: String? = null,
         var deliverable: String? = null,
         var reason: String? = null,
+        /** ⟨1.9⟩ §27.1 who plays it, and the model its runs used; a media council's kind. */
+        var player: String = "auto",
+        var mode: String = "single",
+        val model: String = "claude-sonnet-5-5",
+        val media: String? = null,
     ) {
         val events = mutableListOf<Ev>()
         val runs = mutableListOf<RunRec>()
@@ -62,6 +67,14 @@ internal class OrdersDemo(private val store: MutableMap<String, Pair<Int, JsonEl
     }
 
     private val nodes = mutableListOf<Node>()
+
+    /** ⟨1.9⟩ §27.2: one player of a council and the council itself, by its work's id. */
+    private class Member(val player: String, val model: String, var state: String, var runId: String? = null, var ref: String? = null, var reason: String? = null, var creative: String? = null)
+
+    /** A media council's version by a player (player, work ref, kind) → its Creative's ref ([CouncilDemo] draws and serves it). */
+    var mediaMaker: ((String, String, String) -> String)? = null
+    private class CouncilRec(val node: Node, val members: MutableList<Member>, var synthesis: String? = null, var state: String = "running")
+    private val councils = mutableMapOf<String, CouncilRec>()
     private val now: Instant = HqClock.now()
     private var seq = 219
     private var outSeq = 47
@@ -135,6 +148,44 @@ internal class OrdersDemo(private val store: MutableMap<String, Pair<Int, JsonEl
         agentWork("W-000108", pcTech, "PC-CEO", "رفع خطای نمایش قیمت در ترمینال", "P1", "in_progress", 300)
         agentWork("W-000130", hqAi, "HQ-AIOPS-MGR", "بازبینی مصرف توکن هفته", "P3", "in_progress", 90)
 
+        // ⟨1.9⟩ §27.1: an order the owner left to the router, done; one given to GPT, delivered with GPT's answer.
+        val o8 = order("W-000196", 8, fxCeo, "برنامه‌ی محتوای هفته‌ی کانال تلگرام", "P3", "done", 5800, "هفت پست برای هفته‌ی آینده، با موضوع و زمان هر کدام.")
+        accepted(o8, 5790); run(o8, 5790, 5700, "done", "تقویم انتشار هفته را خواند" to "media.calendar", "برنامه را تحویل داد" to "work.deliver")
+        delivered(o8, 5700, deliverable(o8, "O-000150", "برنامه‌ی محتوای هفته‌ی کانال", "هفت پست: سه آموزشی، دو تحلیلی و دو اطلاع‌رسانی، با زمان هر کدام.", 5700))
+        o8.events += Ev(ago(5000), "completed", "owner", "owner", mapOf("evidence" to "1"))
+        o8.updated = ago(5000)
+        val o9 = order("W-000197", 9, tyCeo, "بازبینی متن‌های صفحه‌ی ثبت‌نام", "P3", "delivered", 420,
+            "متن دکمه‌ها و پیام‌های خطای ثبت‌نام را روان و یکدست کن؛ فهرست تغییرها با دلیل هر کدام.", player = "gpt", model = "gpt-5.5")
+        accepted(o9, 415)
+        run(o9, 415, 330, "done", "متن‌های فعلی صفحه را خواند" to "web.fetch", "پیشنهادها را با GPT نوشت" to "substitute.call", "فهرست تغییرها را تحویل داد" to "work.deliver")
+        delivered(o9, 330, deliverable(o9, "O-000151", "بازبینی متن‌های ثبت‌نام", "۱۴ متن روان‌تر شد؛ سه پیام خطا حالا میگوید کاربر چه کند.", 330, model = "gpt-5.5"))
+
+        // ⟨1.9⟩ §27.2: a council of four (Gemini kept out by its daily cap) with Claude's synthesis, and a media council of two images.
+        val o10 = order("W-000198", 10, tyCeo, "پشتیبانی زنده‌ی ۲۴ ساعته: ارزش هزینه‌اش را دارد؟", "P2", "delivered", 900,
+            "هزینه و اثر پشتیبانی زنده‌ی شبانه‌روزی برای تریدیار را بسنج؛ با عدد و ریسک، و یک پیشنهاد روشن.", mode = "council")
+        accepted(o10, 895)
+        run(o10, 890, 760, "done", "شرح را برای بازیکن‌های شورا یکسان کرد" to "work.read", "پاسخ سه بازیکن را خواند" to "work.read", "جمع‌بندی را نوشت و تحویل داد" to "work.deliver")
+        val a1 = deliverable(o10, "O-000152", "پاسخ Claude: پشتیبانی زنده‌ی ۲۴ ساعته", "شب‌ها با پاسخ خودکار و یک نفر آنکال؛ ۲۴ ساعته بعد از سه ماه سنجش.", 820, body = CLAUDE_ANSWER)
+        val a2 = deliverable(o10, "O-000153", "پاسخ GPT: پشتیبانی زنده‌ی ۲۴ ساعته", "۲۴ ساعته از همین ماه؛ ریزش شبانه گران‌تر از هزینه است.", 815, model = "gpt-5.5", body = GPT_ANSWER)
+        val a3 = deliverable(o10, "O-000154", "پاسخ DeepSeek: پشتیبانی زنده‌ی ۲۴ ساعته", "پشتیبانی شب برون‌سپاری شود؛ هزینه نصف، با ریسک کیفیت.", 810, model = "deepseek-v3.2", body = DEEPSEEK_ANSWER)
+        val syn = deliverable(o10, "O-000155", "جمع‌بندی شورا: پشتیبانی زنده‌ی ۲۴ ساعته", "هر سه شب را نیازمند پاسخ میدانند؛ درباره‌ی چگونگی و زمان اختلاف دارند. پیشنهاد: آزمون سه‌ماهه.", 760, body = SYNTHESIS_MD)
+        delivered(o10, 760, syn)
+        councils[o10.id] = CouncilRec(o10, mutableListOf(
+            Member("claude", "claude-sonnet-5-5", "done", idOf(700), a1),
+            Member("gpt", "gpt-5.5", "done", idOf(701), a2),
+            Member("gemini", "gemini-3.8", "skipped", reason = "سقف روزانه‌ی Gemini پر شده بود؛ شورا بی آن ادامه داد و در یک پاکت ماند."),
+            Member("deepseek", "deepseek-v3.2", "done", idOf(702), a3),
+        ), synthesis = syn, state = "done")
+        val o11 = order("W-000199", 11, fxCeo, "تصویر استوری برای دوره‌ی رایگان طلا", "P3", "delivered", 240,
+            "استوری اینستاگرام برای جلسه‌ی دوم دوره‌ی رایگان تحلیل طلا؛ هر بازیکن نسخه‌ی خودش را بسازد.", mode = "council", media = "image")
+        accepted(o11, 236)
+        run(o11, 236, 180, "done", "prompt بی‌متن را از روی برند نوشت" to "brand.read", "از دو بازیکن تصویر خواست" to "substitute.call", "دو نسخه را با brief سنجید" to "vision.check")
+        delivered(o11, 180, null)
+        councils[o11.id] = CouncilRec(o11, mutableListOf(
+            Member("gpt", "gpt-5.5", "done", idOf(703), creative = "CR-0101"),
+            Member("gemini", "gemini-3.8", "done", idOf(704), creative = "CR-0102"),
+        ), state = "done")
+
         // Live: the delegated order's manager starts, then delivers; the queued one is taken and delegated (DemoLive's ticks).
         at(9) { take(o4) }
         at(19) { delegate(o4, tyGrowth, "پیش‌نویس سیاست بازگشت وجه", "W-000216") }
@@ -146,8 +197,11 @@ internal class OrdersDemo(private val store: MutableMap<String, Pair<Int, JsonEl
     // ------------------------------------------------------------- build --
     private fun idOf(n: Int): String = "0193b1c2-%04x-7d4f-8a2e-%012x".format(n, 0x5a1000L + n)
 
-    private fun order(ref: String, n: Int, ceo: Emp, title: String, priority: String, status: String, min: Long, brief: String): Node {
-        val node = Node(idOf(n), ref, ceo.company, title, brief, priority, status, ceo, owner = true, parent = null, created = ago(min))
+    private fun order(
+        ref: String, n: Int, ceo: Emp, title: String, priority: String, status: String, min: Long, brief: String,
+        player: String = "auto", mode: String = "single", model: String = "claude-sonnet-5-5", media: String? = null,
+    ): Node {
+        val node = Node(idOf(n), ref, ceo.company, title, brief, priority, status, ceo, owner = true, parent = null, created = ago(min), player = player, mode = mode, model = model, media = media)
         node.events += Ev(ago(min), "created", "owner", "owner", mapOf("assignee" to ceo.code))
         nodes += node
         return node
@@ -197,12 +251,18 @@ internal class OrdersDemo(private val store: MutableMap<String, Pair<Int, JsonEl
     }
 
     /** An output of [n] as the outputs' page serves it (its own page only, so the outputs list stays as the web's fixtures have it). */
-    private fun deliverable(n: Node, ref: String, title: String, summary: String, min: Long, at: Instant = ago(min)): String {
+    private fun deliverable(
+        n: Node, ref: String, title: String, summary: String, min: Long, at: Instant = ago(min), model: String = "claude-sonnet-5-5", body: String? = null,
+    ): String {
         store["/deliverables/$ref"] = 200 to buildJsonObject {
             put("id", "o-${ref.lowercase()}"); put("ref", ref); put("company", n.company); put("work_id", n.id); put("work_ref", n.ref)
-            put("producer", emp(n.assignee)); put("title", title); put("summary", summary); put("body", "## خلاصه\n$summary\n\n## منبع‌ها\n- پایش ۳۰ روزه\n- گزارش‌های عمومی")
+            put("producer", emp(n.assignee)); put("title", title); put("summary", summary)
+            put("body", body ?: "## خلاصه\n$summary\n\n## منبع‌ها\n- پایش ۳۰ روزه\n- گزارش‌های عمومی")
             put("attachments", JsonArray(emptyList())); put("evidence", JsonArray(emptyList()))
-            put("produced_with", buildJsonObject { put("model", "claude-sonnet-5-5"); put("effort", "medium"); put("label_fa", "Sonnet 5.5 · medium") })
+            put("produced_with", buildJsonObject {
+                put("model", model); put("effort", "medium")
+                put("label_fa", if (model.startsWith("claude")) "Sonnet 5.5 · medium" else "${com.coinepro.hq.ui.v18.subModel(model)} · بازیکن ذخیره")
+            })
             put("usage", JsonObject(emptyMap())); put("rating", JsonNull); put("created_at", at.toString())
         }
         return ref
@@ -295,7 +355,15 @@ internal class OrdersDemo(private val store: MutableMap<String, Pair<Int, JsonEl
     fun handle(method: String, path: String, query: Map<String, String?>, body: JsonObject?): Pair<Int, JsonElement>? {
         if (method == "GET" && path == "/work") return 200 to page(filtered(query))
         if (method == "POST" && path == "/work") return create(body ?: JsonObject(emptyMap()))
-        val m = Regex("^/work/([^/]+)(/events|/runs)?$").find(path) ?: return null
+        // ⟨1.9⟩ §27.1: the owner changes who plays a work (a voice order's choice set on the work it made).
+        if (method == "PATCH") Regex("^/work/([^/]+)$").find(path)?.let { p ->
+            val n = nodes.firstOrNull { it.id == p.groupValues[1] || it.ref == p.groupValues[1] } ?: return null
+            body?.str("player")?.let { n.player = it }
+            body?.str("mode")?.let { n.mode = it }
+            n.updated = HqClock.now()
+            return 200 to detail(n)
+        }
+        val m = Regex("^/work/([^/]+)(/events|/runs|/council)?$").find(path) ?: return null
         if (method != "GET") return null
         val key = m.groupValues[1]
         val n = nodes.firstOrNull { it.id == key || it.ref == key }
@@ -306,6 +374,9 @@ internal class OrdersDemo(private val store: MutableMap<String, Pair<Int, JsonEl
         return when (m.groupValues[2]) {
             "/events" -> 200 to page(n.events.mapIndexed { i, e -> event(e, i + 1) }.sortedBy { it.jsonObject["at"].toString() })
             "/runs" -> 200 to JsonArray(n.runs.map { runJson(n, it) })
+            // ⟨1.9⟩ §27.2: a work given with `mode: "council"` has one; any other answers 404.
+            "/council" -> councils[n.id]?.let { 200 to councilJson(it) }
+                ?: (404 to buildJsonObject { put("code", "not_found"); put("message_fa", "این کار شورا ندارد."); put("status", 404); put("title", "Not Found"); put("type", "about:blank") })
             else -> 200 to detail(n)
         }
     }
@@ -327,9 +398,14 @@ internal class OrdersDemo(private val store: MutableMap<String, Pair<Int, JsonEl
         val ceo = Emp("$co-CEO", co, "ceo", null, "مدیرعامل")
         val t = HqClock.now()
         val ref = "W-%06d".format(++seq)
-        val n = Node(idOf(400 + seq), ref, co, b.str("title").orEmpty(), b.str("brief").orEmpty(), b.str("priority") ?: "P3", "queued", ceo, owner = true, parent = null, created = t)
+        val player = b.str("player") ?: "auto"
+        val mode = b.str("mode") ?: "single"
+        val model = when (player) { "gpt" -> "gpt-5.5"; "gemini" -> "gemini-3.8"; "deepseek" -> "deepseek-v3.2"; else -> "claude-sonnet-5-5" }
+        val media = b.str("media")?.takeIf { mode == "council" }
+        val n = Node(idOf(400 + seq), ref, co, b.str("title").orEmpty(), b.str("brief").orEmpty(), b.str("priority") ?: "P3", "queued", ceo, owner = true, parent = null, created = t, player = player, mode = mode, model = model, media = media)
         n.events += Ev(t, "created", "owner", "owner", mapOf("assignee" to ceo.code))
         nodes += n
+        if (mode == "council") return 201 to work(n).also { council(n) }
         // It moves on its own: taken in ~5 s, delegated in ~11 s, started in ~18 s, delivered in ~27 s.
         val mgr = Emp("$co-GROWTH-MGR", co, "manager", "GROWTH", "مدیر رشد")
         val k = "W-%06d".format(++seq)
@@ -338,6 +414,57 @@ internal class OrdersDemo(private val store: MutableMap<String, Pair<Int, JsonEl
         at(lastTick + 30) { nodes.firstOrNull { it.ref == k }?.let(::start).orEmpty() }
         at(lastTick + 45) { nodes.firstOrNull { it.ref == k }?.let { deliverUp(it, n) }.orEmpty() }
         return 201 to work(n)
+    }
+
+    /**
+     * ⟨1.9⟩ §27.2 live: the CEO takes the order; every ready player starts (one kept out shows why), they answer one by one, Claude
+     * writes the synthesis and the order is delivered; each change rides `work.council` on the stream.
+     */
+    private fun council(n: Node) {
+        val subs = (store["/substitutes"]?.second as? JsonArray).orEmpty().mapNotNull { it as? JsonObject }
+        fun seat(p: String, model: String): Member {
+            val s = subs.firstOrNull { it.str("player") == p }
+            val web = (s?.get("web") as? JsonObject)?.str("state") == "signed_in"
+            val cli = s?.str("runner") != null && ((s["login"] as? JsonObject)?.str("state") == "signed_in")
+            return when {
+                s == null -> Member(p, model, "skipped", reason = "این بازیکن روی هاب وصل نیست.")
+                s.str("status") != "ready" -> Member(p, model, "skipped", reason = s.str("status_reason") ?: "در دسترس نیست.")
+                !web && !cli -> Member(p, model, "skipped", reason = "از حسابش خارج است.")
+                else -> Member(p, model, "queued")
+            }
+        }
+        val rec = if (n.media != null) {
+            // A media council: every player that makes the kind (ChatGPT and Gemini images, Gemini videos) makes its own version.
+            val makers = if (n.media == "video") listOf("gemini" to "gemini-3.8") else listOf("gpt" to "gpt-5.5", "gemini" to "gemini-3.8")
+            CouncilRec(n, makers.map { (p, m) -> seat(p, m) }.toMutableList())
+        } else CouncilRec(n, mutableListOf(Member("claude", "claude-sonnet-5-5", "queued"), seat("gpt", "gpt-5.5"), seat("gemini", "gemini-3.8"), seat("deepseek", "deepseek-v3.2")))
+        councils[n.id] = rec
+        fun changed(vararg data: Pair<String, String>) = ev(n.company, "work.council", n.ref, "state" to rec.state, *data)
+        at(lastTick + 5) { take(n) + rec.members.filter { it.state == "queued" }.map { it.state = "working"; it.runId = idOf(980 + seq + rec.members.indexOf(it)); changed("player" to it.player, "member" to "working") } }
+        rec.members.filter { it.state == "queued" }.forEachIndexed { i, m ->
+            at(lastTick + 12 + i * 5) {
+                m.state = "done"
+                val maker = mediaMaker
+                if (n.media != null && maker != null) m.creative = maker(m.player, n.ref, n.media)
+                else m.ref = deliverable(n, "O-%06d".format(outSeq++), "پاسخ ${com.coinepro.hq.core.data.playerFa(m.player)}: ${n.title}", "پاسخ مستقل ${com.coinepro.hq.core.data.playerFa(m.player)} به همان شرح.", 0, HqClock.now(), model = m.model)
+                if (rec.members.none { it.state == "working" || it.state == "queued" }) rec.state = "synthesising"
+                listOf(changed("player" to m.player, "member" to "done"))
+            }
+        }
+        at(lastTick + 12 + rec.members.count { it.state == "queued" } * 5 + 8) {
+            val t = HqClock.now()
+            rec.state = "done"
+            // Words: Claude's synthesis is the output; media: the versions wait for the owner's pick.
+            if (n.media == null) rec.synthesis = deliverable(n, "O-%06d".format(outSeq++), "جمع‌بندی شورا: ${n.title}", "جمع‌بندی Claude از پاسخ بازیکن‌ها.", 0, t, body = SYNTHESIS_MD)
+            n.status = "delivered"; n.updated = t; n.deliverable = rec.synthesis
+            n.events += Ev(t, "delivered", n.assignee.code, "agent", rec.synthesis?.let { mapOf("deliverable" to it) }.orEmpty())
+            n.runs.lastOrNull()?.let { it.state = "done"; it.finished = t; it.steps += Step(t, "جمع‌بندی شورا را نوشت و تحویل داد", "work.deliver", n.ref) }
+            listOfNotNull(
+                changed(),
+                rec.synthesis?.let { ev(n.company, "deliverable.created", it, "work" to n.ref, "producer" to n.assignee.code, "root_ref" to n.ref) },
+                ev(n.company, "work.updated", n.ref, "status" to "delivered"),
+            )
+        }
     }
 
     // ------------------------------------------------------------- shapes --
@@ -354,6 +481,17 @@ internal class OrdersDemo(private val store: MutableMap<String, Pair<Int, JsonEl
         put("schedule", JsonNull); put("depth", n.depth); put("parent_id", n.parent?.id); put("root_id", root(n).id)
         put("deliverable_ids", buildJsonArray { n.deliverable?.let { add(JsonPrimitive("o-${it.lowercase()}")) } })
         put("evidence", JsonArray(emptyList())); put("version", 1 + n.events.size)
+        put("player", n.player); put("mode", n.mode); put("media", n.media); put("player_fallback", false)
+    }
+
+    private fun councilJson(c: CouncilRec) = buildJsonObject {
+        put("work_ref", c.node.ref); put("synthesis_ref", c.synthesis); put("state", c.state); put("media", c.node.media)
+        put("members", JsonArray(c.members.map { m ->
+            buildJsonObject {
+                put("player", m.player); put("model", m.model); put("state", m.state); put("run_id", m.runId); put("deliverable_ref", m.ref); put("reason", m.reason)
+                put("creative_ref", m.creative)
+            }
+        }))
     }
 
     private fun root(n: Node): Node = n.parent?.let(::root) ?: n
@@ -378,7 +516,7 @@ internal class OrdersDemo(private val store: MutableMap<String, Pair<Int, JsonEl
 
     private fun runJson(n: Node, r: RunRec) = buildJsonObject {
         put("id", r.id); put("employee", r.employee); put("company", n.company); put("work_ref", n.ref); put("thread", JsonNull); put("state", r.state)
-        put("trigger", "work"); put("reason", "کار ${n.ref}"); put("priority", n.priority); put("model", "claude-sonnet-5-5"); put("effort", "medium")
+        put("trigger", "work"); put("reason", "کار ${n.ref}"); put("priority", n.priority); put("model", n.model); put("effort", "medium")
         put("queued_at", r.started.minusSeconds(20).toString()); put("started_at", r.started.toString()); put("finished_at", r.finished?.toString())
         put("steps", r.steps.size); put("tool_calls", r.steps.size)
         put("tokens", buildJsonObject { put("input", 21000 * r.steps.size); put("output", 1800 * r.steps.size); put("cache_read", 9000); put("cache_write", 1200) })
@@ -395,6 +533,16 @@ internal class OrdersDemo(private val store: MutableMap<String, Pair<Int, JsonEl
     private fun JsonObject.str(k: String): String? = (this[k] as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull
 
     private companion object {
+        // ⟨1.9⟩ §27.2: the council's answers and Claude's synthesis (agree, differ and why, the recommendation, each answer whole).
+        const val CLAUDE_ANSWER = "## پاسخ\nشب‌ها (۰ تا ۸) ۱۸٪ پیام‌ها میرسد و نیمی از آن درباره‌ی واریز است. پیشنهاد: پاسخ خودکار برای واریز و برداشت، و یک نفر آنکال برای موارد فوری؛ بعد از سه ماه با داده تصمیم بگیر.\n\n## ریسک\n- رضایت شبانه پایین‌تر میماند تا آزمون تمام شود."
+        const val GPT_ANSWER = "## پاسخ\nپشتیبانی ۲۴ ساعته از همین ماه. ریزش کاربرانی که شب بی‌پاسخ میمانند حدود دو برابر است و ارزش طول عمرشان از هزینه‌ی دو نیروی شیفت شب بیشتر است.\n\n## ریسک\n- هزینه‌ی ثابت ماهانه، پیش از اثبات اثر."
+        const val DEEPSEEK_ANSWER = "## پاسخ\nشیفت شب را برون‌سپاری کن: هزینه حدود نصف نیروی داخلی است. منبع‌ها: دو گزارش عمومی از صرافی‌های منطقه.\n\n## ریسک\n- کیفیت پاسخ و دسترسی بیرونی به داده‌ی کاربران."
+        const val SYNTHESIS_MD = "## کجا هم‌نظرند\n- هر سه بازیکن شب را بی‌پاسخ نمیخواهند: ۱۸٪ پیام‌ها شب میرسد.\n- واریز و برداشت بیشترین پرسش شبانه است.\n\n" +
+            "## کجا فرق دارند و چرا\n- **زمان:** GPT از همین ماه میخواهد (ریزش شبانه را گران‌تر میداند)؛ Claude سه ماه سنجش (اثر را هنوز ثابت‌نشده میداند).\n" +
+            "- **چگونه:** DeepSeek برون‌سپاری را ارزان‌تر میبیند؛ Claude و GPT آن را برای داده‌ی کاربران پرخطر میدانند.\n\n" +
+            "## پیشنهاد\nآزمون سه‌ماهه: پاسخ خودکار برای واریز و برداشت و یک نفر آنکال شب، با سنجش ریزش شبانه. اگر ریزش ۳۰٪ کم شد، ۲۴ ساعته کامل؛ برون‌سپاری نه، به‌خاطر داده‌ی کاربران.\n\n" +
+            "## پاسخ هر بازیکن، کامل\n### Claude\nشب‌ها پاسخ خودکار و یک نفر آنکال؛ بعد از سه ماه با داده تصمیم بگیر.\n### GPT\nپشتیبانی ۲۴ ساعته از همین ماه؛ ریزش شبانه گران‌تر از هزینه است.\n### DeepSeek\nشیفت شب برون‌سپاری شود؛ هزینه حدود نصف."
+
         val UUID = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
     }
 }

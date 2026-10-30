@@ -9,8 +9,8 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 
 /**
- * The phone's own speech recognition in Persian (`fa-IR`), used for every voice-to-text in the app while the hub's speech-to-text is
- * off: partial text while the owner speaks, the loudness for the waveform, and the final text. It runs on the main thread (as
+ * The phone's own speech recognition in Persian (`fa-IR`), first for every live dictation in the app (⟨1.9⟩ §27.3: the hub's
+ * speech to text hears when this cannot): partial text while the owner speaks, the loudness for the waveform, and the final text. It runs on the main thread (as
  * [SpeechRecognizer] requires) and owns the microphone while it listens, so no recording runs beside it.
  */
 class PhoneSpeech(private val context: Context) {
@@ -21,8 +21,9 @@ class PhoneSpeech(private val context: Context) {
         /** The owner stopped speaking; the phone is turning it into text. */
         fun recognising()
         fun result(text: String)
-        /** A Persian sentence the owner can act on, and whether typing is the way forward (the phone cannot do Persian at all). */
-        fun failed(messageFa: String, unavailable: Boolean)
+        /** A Persian sentence the owner can act on, whether typing is the way forward (the phone cannot do Persian at all), and the
+         *  recogniser's error code (`SpeechRecognizer.ERROR_*`; `ERROR_NO_MATCH` when it answered with no words) for the hub's fallback. */
+        fun failed(messageFa: String, unavailable: Boolean, code: Int)
     }
 
     private var rec: SpeechRecognizer? = null
@@ -47,7 +48,7 @@ class PhoneSpeech(private val context: Context) {
             override fun onResults(results: Bundle?) {
                 release()
                 val text = best(results)
-                if (text.isNullOrBlank()) l.failed("حرفی شنیده نشد؛ دوباره بگو.", unavailable = false) else l.result(text)
+                if (text.isNullOrBlank()) l.failed("حرفی شنیده نشد؛ دوباره بگو.", unavailable = false, code = SpeechRecognizer.ERROR_NO_MATCH) else l.result(text)
             }
             override fun onError(error: Int) {
                 release()
@@ -58,7 +59,7 @@ class PhoneSpeech(private val context: Context) {
                     "speech", if (quiet) com.coinepro.hq.core.diag.LEVEL_INFO else com.coinepro.hq.core.diag.LEVEL_WARNING,
                     if (quiet) "nothing heard" else "recogniser error", "SpeechRecognizer error $error ($LANGUAGE)", "speech_$error",
                 )
-                l.failed(fa, unavailable)
+                l.failed(fa, unavailable, error)
             }
         })
         return runCatching { r.startListening(intent()); true }.getOrElse { release(); false }

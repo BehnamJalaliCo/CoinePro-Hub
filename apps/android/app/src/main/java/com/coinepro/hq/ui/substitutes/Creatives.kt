@@ -85,9 +85,10 @@ import kotlinx.coroutines.delay
 private fun ratioOf(aspect: String): Float = aspect.split(':').mapNotNull { it.toFloatOrNull() }.takeIf { it.size == 2 && it[1] > 0 }?.let { it[0] / it[1] } ?: 1f
 private val STATES = listOf<String?>(null, "review", "generating", "accepted", "rejected", "failed")
 
-/** The creative's picture: the composed file (or the raw one) in its aspect, else what is happening; the aspect in a corner. */
+/** The creative's picture: the composed file (or the raw one) in its aspect, else what is happening; the aspect in a corner.
+ *  ⟨1.9⟩ also a media council's gallery (§27.2). */
 @Composable
-private fun Thumb(c: Creative, modifier: Modifier = Modifier, raw: Boolean = false) {
+internal fun Thumb(c: Creative, modifier: Modifier = Modifier, raw: Boolean = false) {
     val media = LocalEnv.current.media
     val col = Divan.colors
     val file = if (raw) c.files.firstOrNull() else c.composed ?: c.files.firstOrNull()

@@ -336,6 +336,8 @@ class HoldingStream(
         private val INVALIDATE: List<Pair<String, Array<String>>> = listOf(
             "decision." to arrayOf("decisions", "inbox", "away"),
             "deliverable." to arrayOf("deliverables", "inbox"),
+            // ⟨1.9⟩ §27.2: a council's members and its synthesis (the order's «شورا» section), before the rest of `work.`.
+            "work.council" to arrayOf("council", "work"),
             "work." to arrayOf("work", "planner", "companies"),
             "message." to arrayOf("threads", "messages", "inbox"),
             "notification." to arrayOf("notifications", "inbox"),
@@ -345,7 +347,8 @@ class HoldingStream(
             "budget." to arrayOf("treasury"),
             "llm." to arrayOf("treasury"),
             "run." to arrayOf("runs"),
-            "file." to arrayOf("messages"),
+            // ⟨1.9⟩ §27.3 `file.transcribed`: the hub's transcript of a voice message, a voice note or an audio file.
+            "file." to arrayOf("messages", "files", "notes"),
             "workshop." to arrayOf("workshop"),
             "order." to arrayOf("orders", "planner", "work"),
             // ⟨1.4⟩ §18.10 and ⟨1.4.2⟩ §18.11

@@ -373,6 +373,8 @@ fun WorkScreen(id: String) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Pill(WORK_STATUS[w.status] ?: w.status, if (w.status == "in_progress") Tone.GOLD else Tone.SILVER, live = w.status == "in_progress")
                             com.coinepro.hq.ui.work.PriorityTag(w.priority)
+                            // ⟨1.9⟩ §27: who plays it.
+                            com.coinepro.hq.ui.work.PlayerTag(w.player, w.mode)
                             if (w.overdue) Pill("دیرکرد", Tone.NEG, icon = DivanIcon.URGENT)
                             w.dueAt?.let { Pill("موعد: ${jDateTime(it)}", Tone.NEUTRAL, icon = DivanIcon.TIME) }
                         }
@@ -382,6 +384,8 @@ fun WorkScreen(id: String) {
                         null -> Skeleton(Modifier.fillMaxWidth().height(196.dp), radius = 16.dp)
                         else -> com.coinepro.hq.ui.work.OrderTrackerCard(t)
                     }
+                    // ⟨1.9⟩ §27.2: the council of models, live.
+                    if (w.mode == "council") com.coinepro.hq.ui.work.CouncilCard(w)
                     w.progressPct?.let { p ->
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Row { Text("گزارش پیشرفت مجری", style = Divan.type.caption, color = c.textMuted, modifier = Modifier.weight(1f)); Text("$p٪", style = Divan.type.caption) }

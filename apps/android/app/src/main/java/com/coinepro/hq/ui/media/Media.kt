@@ -265,9 +265,12 @@ fun AudioNote(a: FileRef, showTranscript: Boolean = true) {
             }
             Fig(clock(if (playing || pos > 0) pos else dur), Modifier.width(36.dp), style = Divan.type.figureSmall, color = c.textMuted)
         }
-        if (showTranscript && a.transcript != null) {
-            Text(if (text) "بستن متن" else "متن ویس", Modifier.clickable { text = !text }.padding(horizontal = 4.dp), style = Divan.type.micro, color = c.goldInk)
-            if (text) Text(a.transcript, Modifier.padding(horizontal = 4.dp), style = Divan.type.small, color = c.textSecondary)
+        // ⟨1.9⟩ §27.3: the hub's own transcript (`transcript_fa`) once it is on, refreshed by `file.transcribed`.
+        val speech = rememberSpeechEnabled()
+        val words = a.hubText
+        if (showTranscript && words != null) {
+            Text(if (text) "بستن متن" else if (speech) "متن هاب" else "متن ویس", Modifier.clickable { text = !text }.padding(horizontal = 4.dp), style = Divan.type.micro, color = c.goldInk)
+            if (text) Text(words, Modifier.padding(horizontal = 4.dp), style = Divan.type.small, color = c.textSecondary)
         } else if (a.status == "processing") {
             Text("در حال نوشتن متن…", Modifier.padding(horizontal = 4.dp), style = Divan.type.micro, color = c.textMuted)
         }

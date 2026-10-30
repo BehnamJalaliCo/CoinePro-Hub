@@ -32,9 +32,12 @@ class MediaKit(context: Context, private val api: Api) {
     @OptIn(UnstableApi::class)
     val dataSource: DataSource.Factory = DefaultDataSource.Factory(app, OkHttpDataSource.Factory(api.client))
 
-    /** The hub's speech-to-text this session: null until tried, false once it failed (it is off on a hub without the memory for it),
-     *  true once it answered. Voice to text uses the phone's own recogniser first and the hub only where the phone has none. */
+    /** The hub's speech-to-text this session: null until tried, false once it refused (`503`: off on a hub without the memory for it),
+     *  true once it answered. Voice to text uses the phone's own recogniser first and the hub where the phone cannot (§27.3). */
     @Volatile var hubSpeech: Boolean? = null
+
+    /** ⟨1.9⟩ `/meta.speech.enabled` as last read: null until read (or from a hub before ⟨1.9⟩). */
+    @Volatile var speechEnabled: Boolean? = null
 
     /** The phone's own recogniser this session: false once it said it cannot do Persian (then the hub is asked, where it answers). */
     @Volatile var phoneSpeech: Boolean? = null

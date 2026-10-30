@@ -353,6 +353,9 @@ class Api(
         return call(req, serializer(), transferClient)
     }
 
+    /** A file's `FileRef` (§17.1); ⟨1.9⟩ with the hub's `transcript_fa` once `file.transcribed` said so. */
+    suspend fun fileMeta(id: String): FileRef = get("/files/${seg(id)}/meta")
+
     /** Exact Persian text from the owner's voice (contract §17.2). */
     suspend fun transcribe(audio: File, mime: String, purpose: String): Transcript {
         val req = Request.Builder().url(url("/transcribe", mapOf("purpose" to purpose))).post(audio.asRequestBody(mime.toMediaType()))
@@ -536,6 +539,8 @@ class Api(
         get("/runs", mapOf("employee" to employee, "company" to company, "state" to state, "limit" to limit))
     suspend fun runDetail(id: String): Run = get("/runs/${seg(id)}")
     suspend fun workRuns(id: String): List<Run> = get("/work/${seg(id)}/runs")
+    /** ⟨1.9⟩ §27.2: the council of an order given with `mode: "council"`. */
+    suspend fun council(id: String): Council = get("/work/${seg(id)}/council")
     suspend fun quota(): QuotaView = get("/treasury/quota")
     suspend fun whatIf(model: String, from: String, to: String, company: String? = null): WhatIf =
         get("/treasury/what-if", mapOf("model" to model, "from" to from, "to" to to, "company" to company))
@@ -979,6 +984,10 @@ class Api(
             if (durationS != null) put("duration_s", durationS)
             if (player != null) put("player", player)
         }, null, key), serializer())
+    /** ⟨1.9⟩ §27.2: the owner's pick among a media council's Creatives. */
+    suspend fun pickCreative(ref: String): Creative = post("/creatives/${seg(ref)}/pick", JsonObject(emptyMap()))
+    /** ⟨1.9⟩ §27.2: a video made from the picked image (a new Creative). */
+    suspend fun animateCreative(ref: String): Creative = post("/creatives/${seg(ref)}/animate", JsonObject(emptyMap()))
     suspend fun acceptCreative(ref: String, note: String? = null): Creative = post("/creatives/${seg(ref)}/accept", buildJsonObject { if (!note.isNullOrBlank()) put("note", note) })
     suspend fun rejectCreative(ref: String, note: String? = null): Creative = post("/creatives/${seg(ref)}/reject", buildJsonObject { if (!note.isNullOrBlank()) put("note", note) })
 

@@ -235,12 +235,19 @@ private fun Bubble(m: Message, agentKind: String, onResolve: (Message) -> Unit) 
         Column(Modifier.widthIn(max = 320.dp), horizontalAlignment = if (mine) Alignment.End else Alignment.Start, verticalArrangement = Arrangement.spacedBy(6.dp)) {
             val voice = m.kind == "voice_transcript"
             MessageMedia(m.attachments, transcriptInBody = voice)
+            // ⟨1.9⟩ §27.3: the hub's transcript of a voice message, in place of the phone's words when the owner asks («متن هاب»).
+            val speech = com.coinepro.hq.ui.media.rememberSpeechEnabled()
+            val audio = if (voice && speech) m.attachments.firstOrNull { it.kind == "audio" } else null
+            var hub by androidx.compose.runtime.saveable.rememberSaveable(m.ref) { mutableStateOf(false) }
+            val hubText = audio?.hubText
+            val body = if (hub && hubText != null) hubText else m.body
             val shape = if (mine) RoundedCornerShape(16.dp, 6.dp, 16.dp, 16.dp) else RoundedCornerShape(6.dp, 16.dp, 16.dp, 16.dp)
-            if (m.body.isNotBlank()) {
+            if (body.isNotBlank()) {
                 Box(Modifier.clip(shape).background(if (mine) c.raised else c.card).padding(horizontal = 14.dp, vertical = 10.dp)) {
-                    Md(m.body, color = c.textPrimary)
+                    Md(body, color = c.textPrimary)
                 }
             }
+            if (audio != null) com.coinepro.hq.ui.media.HubTextToggle(hubText, hub, { hub = !hub }, writing = com.coinepro.hq.ui.media.hubStillWriting(m.createdAt))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                 // ⟨1.5⟩ §21.1, §21.3: the advisor's devil's-advocate replies, proactive notes and the weekly review brief carry `meta`.
                 m.meta?.let { MetaTags(it) }

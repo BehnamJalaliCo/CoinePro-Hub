@@ -135,6 +135,11 @@ private fun NoteCard(n: OwnerNote, highlight: Boolean, onPromote: () -> Unit) {
     var text by rememberSaveable(n.ref) { mutableStateOf(n.textMd) }
     var tags by rememberSaveable(n.ref) { mutableStateOf(n.tags.joinToString("، ")) }
     val muted = n.status == "archived"
+    // ⟨1.9⟩ §27.3: a voice note's recording carries the hub's transcript; «متن هاب» shows it in place of the phone's words.
+    val speech = com.coinepro.hq.ui.media.rememberSpeechEnabled()
+    val voiceFile = if (n.source == "voice" && speech) n.fileId else null
+    val hubText = com.coinepro.hq.ui.media.rememberHubTranscript(voiceFile, speech)?.hubText
+    var hub by rememberSaveable(n.ref + ":hub") { mutableStateOf(false) }
     HqCard(Modifier.fillMaxWidth().then(if (highlight) Modifier.border(2.dp, c.goldInk, RoundedCornerShape(16.dp)) else Modifier), color = if (muted) c.tile else c.card) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -155,8 +160,9 @@ private fun NoteCard(n: OwnerNote, highlight: Boolean, onPromote: () -> Unit) {
                     }, variant = BtnVariant.PRIMARY, size = BtnSize.SM, enabled = text.isNotBlank(), loading = action.busy)
                     HqButton("انصراف", { edit = false; text = n.textMd; tags = n.tags.joinToString("، ") }, variant = BtnVariant.GHOST, size = BtnSize.SM)
                 }
-            } else Md(n.textMd, style = Divan.type.body, color = c.textPrimary)
+            } else Md(if (hub && hubText != null) hubText else n.textMd, style = Divan.type.body, color = c.textPrimary)
             if (n.source == "voice" && n.fileId != null) AudioPlayer(n.fileId, "صدای اصلی ${n.ref}", compact = true)
+            if (voiceFile != null && !edit) com.coinepro.hq.ui.media.HubTextToggle(hubText, hub, { hub = !hub }, writing = com.coinepro.hq.ui.media.hubStillWriting(n.createdAt))
             if (n.tags.isNotEmpty() && !edit) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 n.tags.forEach { Text("#$it", Modifier.clip(CircleShape).background(c.tile).padding(horizontal = 8.dp, vertical = 2.dp), style = Divan.type.micro, color = c.textSecondary) }
             }

@@ -195,6 +195,11 @@ internal object DemoLive {
         Beat("FX", "run.finished", "run-d3", mapOf("employee" to "FX-QUANT-02", "state" to "done")),
     )
 
+    /** ⟨1.9⟩ [beat] plays [ticks] ticks from now (the hub's transcript of an uploaded voice, `file.transcribed`). */
+    fun after(ticks: Int, beat: () -> List<StreamEvent>) {
+        synchronized(later) { later += (lastTick + ticks) to beat }
+    }
+
     /** A new demo session starts from the script's beginning, with nothing queued. */
     fun reset(stopped: Set<String>) {
         this.stopped = stopped
