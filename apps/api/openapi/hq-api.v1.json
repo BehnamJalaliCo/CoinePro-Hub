@@ -720,6 +720,17 @@
             ],
             "title": "Transcript"
           },
+          "transcript_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcript Fa"
+          },
           "variants": {
             "$ref": "#/components/schemas/FileVariants"
           },
@@ -8048,6 +8059,65 @@
         "title": "Cost",
         "type": "object"
       },
+      "Council": {
+        "properties": {
+          "media": {
+            "anyOf": [
+              {
+                "enum": [
+                  "image",
+                  "video"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Media"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/Member"
+            },
+            "title": "Members",
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "running",
+              "synthesising",
+              "done",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "synthesis_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synthesis Ref"
+          },
+          "work_ref": {
+            "title": "Work Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "work_ref",
+          "members",
+          "synthesis_ref",
+          "state"
+        ],
+        "title": "Council",
+        "type": "object"
+      },
       "Count": {
         "properties": {
           "updated": {
@@ -8194,6 +8264,18 @@
             "title": "Path",
             "type": "string"
           },
+          "picked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Picked At"
+          },
           "placement": {
             "title": "Placement",
             "type": "string"
@@ -8239,6 +8321,17 @@
               }
             ],
             "title": "Source"
+          },
+          "source_creative": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Creative"
           },
           "state": {
             "enum": [
@@ -12851,6 +12944,17 @@
               }
             ],
             "title": "Transcript"
+          },
+          "transcript_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcript Fa"
           },
           "variants": {
             "$ref": "#/components/schemas/FileVariants"
@@ -21191,6 +21295,86 @@
           "text_md"
         ],
         "title": "MeetingWhisperIn",
+        "type": "object"
+      },
+      "Member": {
+        "properties": {
+          "creative_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Creative Ref"
+          },
+          "deliverable_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deliverable Ref"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "player": {
+            "title": "Player",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "working",
+              "done",
+              "failed",
+              "skipped"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "player",
+          "state"
+        ],
+        "title": "Member",
         "type": "object"
       },
       "MemoCitation": {
@@ -38990,6 +39174,30 @@
             "title": "Kind",
             "type": "string"
           },
+          "media": {
+            "anyOf": [
+              {
+                "enum": [
+                  "image",
+                  "video"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Media"
+          },
+          "mode": {
+            "default": "single",
+            "enum": [
+              "single",
+              "council"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
           "overdue": {
             "title": "Overdue",
             "type": "boolean"
@@ -39005,6 +39213,23 @@
               }
             ],
             "title": "Parent Id"
+          },
+          "player": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "claude",
+              "gpt",
+              "gemini",
+              "deepseek"
+            ],
+            "title": "Player",
+            "type": "string"
+          },
+          "player_fallback": {
+            "default": false,
+            "title": "Player Fallback",
+            "type": "boolean"
           },
           "priority": {
             "title": "Priority",
@@ -39260,6 +39485,42 @@
             "title": "Kind",
             "type": "string"
           },
+          "media": {
+            "anyOf": [
+              {
+                "enum": [
+                  "image",
+                  "video"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Media"
+          },
+          "mode": {
+            "default": "single",
+            "enum": [
+              "single",
+              "council"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "player": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "claude",
+              "gpt",
+              "gemini",
+              "deepseek"
+            ],
+            "title": "Player",
+            "type": "string"
+          },
           "priority": {
             "default": "P3",
             "enum": [
@@ -39449,6 +39710,30 @@
             "title": "Kind",
             "type": "string"
           },
+          "media": {
+            "anyOf": [
+              {
+                "enum": [
+                  "image",
+                  "video"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Media"
+          },
+          "mode": {
+            "default": "single",
+            "enum": [
+              "single",
+              "council"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
           "overdue": {
             "title": "Overdue",
             "type": "boolean"
@@ -39464,6 +39749,23 @@
               }
             ],
             "title": "Parent Id"
+          },
+          "player": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "claude",
+              "gpt",
+              "gemini",
+              "deepseek"
+            ],
+            "title": "Player",
+            "type": "string"
+          },
+          "player_fallback": {
+            "default": false,
+            "title": "Player Fallback",
+            "type": "boolean"
           },
           "priority": {
             "title": "Priority",
@@ -39641,6 +39943,39 @@
               }
             ],
             "title": "Due At"
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "single",
+                  "council"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
+          },
+          "player": {
+            "anyOf": [
+              {
+                "enum": [
+                  "auto",
+                  "claude",
+                  "gpt",
+                  "gemini",
+                  "deepseek"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Player"
           },
           "priority": {
             "anyOf": [
@@ -40976,6 +41311,7 @@
       },
       "hq_api__routes__orders__OrderIn": {
         "additionalProperties": false,
+        "description": "⟨1.9⟩ contract §27.3: a voice order whose phone recogniser was not\navailable comes with its audio (`file_id`) and no text: the hub\ntranscribes it (nothing leaves the hub).",
         "properties": {
           "company": {
             "anyOf": [
@@ -41011,15 +41347,12 @@
             "type": "string"
           },
           "text": {
+            "default": "",
             "maxLength": 10000,
-            "minLength": 1,
             "title": "Text",
             "type": "string"
           }
         },
-        "required": [
-          "text"
-        ],
         "title": "OrderIn",
         "type": "object"
       },
@@ -49391,6 +49724,7 @@
                         "size": 1,
                         "status": "processing",
                         "transcript": "x",
+                        "transcript_fa": "x",
                         "variants": {
                           "poster": null,
                           "thumb": null
@@ -49538,6 +49872,7 @@
                     "size": 1,
                     "status": "processing",
                     "transcript": "x",
+                    "transcript_fa": "x",
                     "variants": {
                       "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                       "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -49660,6 +49995,7 @@
                     "size": 1,
                     "status": "processing",
                     "transcript": "x",
+                    "transcript_fa": "x",
                     "variants": {
                       "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                       "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -55193,6 +55529,7 @@
                       "model": "claude-sonnet-5-5",
                       "overlay": {},
                       "path": "web",
+                      "picked_at": "2026-10-17T05:42:00Z",
                       "placement": "x",
                       "player": "gpt",
                       "prompt_md": "x",
@@ -55200,6 +55537,7 @@
                       "requested_by": null,
                       "review_md": "x",
                       "source": {},
+                      "source_creative": "x",
                       "state": "queued",
                       "updated_at": "2026-10-17T05:42:00Z",
                       "version": 1,
@@ -55366,6 +55704,7 @@
                   "model": "claude-sonnet-5-5",
                   "overlay": {},
                   "path": "web",
+                  "picked_at": "2026-10-17T05:42:00Z",
                   "placement": "x",
                   "player": "gpt",
                   "prompt_md": "x",
@@ -55373,6 +55712,7 @@
                   "requested_by": null,
                   "review_md": "x",
                   "source": {},
+                  "source_creative": "x",
                   "state": "queued",
                   "updated_at": "2026-10-17T05:42:00Z",
                   "version": 1,
@@ -55525,6 +55865,7 @@
                   "model": "claude-sonnet-5-5",
                   "overlay": {},
                   "path": "web",
+                  "picked_at": "2026-10-17T05:42:00Z",
                   "placement": "x",
                   "player": "gpt",
                   "prompt_md": "x",
@@ -55532,6 +55873,7 @@
                   "requested_by": null,
                   "review_md": "x",
                   "source": {},
+                  "source_creative": "x",
                   "state": "queued",
                   "updated_at": "2026-10-17T05:42:00Z",
                   "version": 1,
@@ -55697,6 +56039,7 @@
                   "model": "claude-sonnet-5-5",
                   "overlay": {},
                   "path": "web",
+                  "picked_at": "2026-10-17T05:42:00Z",
                   "placement": "x",
                   "player": "gpt",
                   "prompt_md": "x",
@@ -55704,6 +56047,7 @@
                   "requested_by": null,
                   "review_md": "x",
                   "source": {},
+                  "source_creative": "x",
                   "state": "queued",
                   "updated_at": "2026-10-17T05:42:00Z",
                   "version": 1,
@@ -55822,6 +56166,328 @@
         ]
       }
     },
+    "/api/v1/creatives/{ref}/animate": {
+      "post": {
+        "description": "⟨1.9⟩ contract §27.2: a short video made from a picked image by the\nplayer that makes video; a new Creative (its `source_creative` is the image).",
+        "operationId": "animate_creative",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "ai_generated": false,
+                  "aspect": "x",
+                  "brief_md": "x",
+                  "company": "TY",
+                  "composed": null,
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "duration_s": 1,
+                  "errand_ref": "x",
+                  "files": [],
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "image",
+                  "model": "claude-sonnet-5-5",
+                  "overlay": {},
+                  "path": "web",
+                  "picked_at": "2026-10-17T05:42:00Z",
+                  "placement": "x",
+                  "player": "gpt",
+                  "prompt_md": "x",
+                  "ref": "W-000789",
+                  "requested_by": null,
+                  "review_md": "x",
+                  "source": {},
+                  "source_creative": "x",
+                  "state": "queued",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1,
+                  "work_ref": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Creative"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Animate Creative",
+        "tags": [
+          "substitutes"
+        ]
+      }
+    },
+    "/api/v1/creatives/{ref}/pick": {
+      "post": {
+        "description": "⟨1.9⟩ contract §27.2: the owner picks one version (a council's media\norder makes one per player): it is accepted and picked, the others of\nthe same work are not. Picking is not publishing (an A3 card, as always).",
+        "operationId": "pick_creative",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "ai_generated": false,
+                  "aspect": "x",
+                  "brief_md": "x",
+                  "company": "TY",
+                  "composed": null,
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "duration_s": 1,
+                  "errand_ref": "x",
+                  "files": [],
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "image",
+                  "model": "claude-sonnet-5-5",
+                  "overlay": {},
+                  "path": "web",
+                  "picked_at": "2026-10-17T05:42:00Z",
+                  "placement": "x",
+                  "player": "gpt",
+                  "prompt_md": "x",
+                  "ref": "W-000789",
+                  "requested_by": null,
+                  "review_md": "x",
+                  "source": {},
+                  "source_creative": "x",
+                  "state": "queued",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1,
+                  "work_ref": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Creative"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Pick Creative",
+        "tags": [
+          "substitutes"
+        ]
+      }
+    },
     "/api/v1/creatives/{ref}/reject": {
       "post": {
         "description": "The owner turns a creative in review down (with an optional note).",
@@ -55869,6 +56535,7 @@
                   "model": "claude-sonnet-5-5",
                   "overlay": {},
                   "path": "web",
+                  "picked_at": "2026-10-17T05:42:00Z",
                   "placement": "x",
                   "player": "gpt",
                   "prompt_md": "x",
@@ -55876,6 +56543,7 @@
                   "requested_by": null,
                   "review_md": "x",
                   "source": {},
+                  "source_creative": "x",
                   "state": "queued",
                   "updated_at": "2026-10-17T05:42:00Z",
                   "version": 1,
@@ -58020,6 +58688,7 @@
                           "size": 1,
                           "status": "processing",
                           "transcript": "x",
+                          "transcript_fa": "x",
                           "variants": {
                             "poster": null,
                             "thumb": null
@@ -58258,6 +58927,7 @@
                       "size": 1,
                       "status": "processing",
                       "transcript": "x",
+                      "transcript_fa": "x",
                       "variants": {
                         "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                         "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -58502,6 +59172,7 @@
                       "size": 1,
                       "status": "processing",
                       "transcript": "x",
+                      "transcript_fa": "x",
                       "variants": {
                         "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                         "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -60926,6 +61597,7 @@
                           "size": 1,
                           "status": "processing",
                           "transcript": "x",
+                          "transcript_fa": "x",
                           "variants": {
                             "poster": null,
                             "thumb": null
@@ -61083,6 +61755,7 @@
                       "size": 1,
                       "status": "processing",
                       "transcript": "x",
+                      "transcript_fa": "x",
                       "variants": {
                         "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                         "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -61231,6 +61904,7 @@
                       "size": 1,
                       "status": "processing",
                       "transcript": "x",
+                      "transcript_fa": "x",
                       "variants": {
                         "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                         "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -61379,6 +62053,7 @@
                       "size": 1,
                       "status": "processing",
                       "transcript": "x",
+                      "transcript_fa": "x",
                       "variants": {
                         "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                         "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -61864,6 +62539,7 @@
                   "size": 1,
                   "status": "processing",
                   "transcript": "x",
+                  "transcript_fa": "x",
                   "variants": {
                     "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                     "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -62098,6 +62774,7 @@
                   "size": 1,
                   "status": "processing",
                   "transcript": "x",
+                  "transcript_fa": "x",
                   "variants": {
                     "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                     "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -69042,6 +69719,7 @@
                           "size": 1,
                           "status": "processing",
                           "transcript": "x",
+                          "transcript_fa": "x",
                           "variants": {
                             "poster": null,
                             "thumb": null
@@ -69061,6 +69739,7 @@
                         "size": 1,
                         "status": "processing",
                         "transcript": "x",
+                        "transcript_fa": "x",
                         "variants": {
                           "poster": null,
                           "thumb": null
@@ -69103,6 +69782,7 @@
                           "size": 1,
                           "status": "processing",
                           "transcript": "x",
+                          "transcript_fa": "x",
                           "variants": {
                             "poster": null,
                             "thumb": null
@@ -69127,6 +69807,7 @@
                         "size": 1,
                         "status": "processing",
                         "transcript": "x",
+                        "transcript_fa": "x",
                         "variants": {
                           "poster": null,
                           "thumb": null
@@ -69152,6 +69833,7 @@
                         "size": 1,
                         "status": "processing",
                         "transcript": "x",
+                        "transcript_fa": "x",
                         "variants": {
                           "poster": null,
                           "thumb": null
@@ -69290,6 +69972,7 @@
                       "size": 1,
                       "status": "processing",
                       "transcript": "x",
+                      "transcript_fa": "x",
                       "variants": {
                         "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                         "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -69309,6 +69992,7 @@
                     "size": 1,
                     "status": "processing",
                     "transcript": "x",
+                    "transcript_fa": "x",
                     "variants": {
                       "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                       "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -69351,6 +70035,7 @@
                       "size": 1,
                       "status": "processing",
                       "transcript": "x",
+                      "transcript_fa": "x",
                       "variants": {
                         "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                         "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -69375,6 +70060,7 @@
                     "size": 1,
                     "status": "processing",
                     "transcript": "x",
+                    "transcript_fa": "x",
                     "variants": {
                       "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                       "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -69400,6 +70086,7 @@
                     "size": 1,
                     "status": "processing",
                     "transcript": "x",
+                    "transcript_fa": "x",
                     "variants": {
                       "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                       "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -69531,6 +70218,7 @@
                       "size": 1,
                       "status": "processing",
                       "transcript": "x",
+                      "transcript_fa": "x",
                       "variants": {
                         "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                         "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -69550,6 +70238,7 @@
                     "size": 1,
                     "status": "processing",
                     "transcript": "x",
+                    "transcript_fa": "x",
                     "variants": {
                       "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                       "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -69592,6 +70281,7 @@
                       "size": 1,
                       "status": "processing",
                       "transcript": "x",
+                      "transcript_fa": "x",
                       "variants": {
                         "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                         "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -69616,6 +70306,7 @@
                     "size": 1,
                     "status": "processing",
                     "transcript": "x",
+                    "transcript_fa": "x",
                     "variants": {
                       "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                       "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -69641,6 +70332,7 @@
                     "size": 1,
                     "status": "processing",
                     "transcript": "x",
+                    "transcript_fa": "x",
                     "variants": {
                       "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                       "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -69772,6 +70464,7 @@
                       "size": 1,
                       "status": "processing",
                       "transcript": "x",
+                      "transcript_fa": "x",
                       "variants": {
                         "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                         "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -69791,6 +70484,7 @@
                     "size": 1,
                     "status": "processing",
                     "transcript": "x",
+                    "transcript_fa": "x",
                     "variants": {
                       "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                       "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -69833,6 +70527,7 @@
                       "size": 1,
                       "status": "processing",
                       "transcript": "x",
+                      "transcript_fa": "x",
                       "variants": {
                         "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                         "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -69857,6 +70552,7 @@
                     "size": 1,
                     "status": "processing",
                     "transcript": "x",
+                    "transcript_fa": "x",
                     "variants": {
                       "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                       "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -69882,6 +70578,7 @@
                     "size": 1,
                     "status": "processing",
                     "transcript": "x",
+                    "transcript_fa": "x",
                     "variants": {
                       "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                       "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -70013,6 +70710,7 @@
                       "size": 1,
                       "status": "processing",
                       "transcript": "x",
+                      "transcript_fa": "x",
                       "variants": {
                         "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                         "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -70032,6 +70730,7 @@
                     "size": 1,
                     "status": "processing",
                     "transcript": "x",
+                    "transcript_fa": "x",
                     "variants": {
                       "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                       "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -70074,6 +70773,7 @@
                       "size": 1,
                       "status": "processing",
                       "transcript": "x",
+                      "transcript_fa": "x",
                       "variants": {
                         "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                         "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -70098,6 +70798,7 @@
                     "size": 1,
                     "status": "processing",
                     "transcript": "x",
+                    "transcript_fa": "x",
                     "variants": {
                       "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                       "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -70123,6 +70824,7 @@
                     "size": 1,
                     "status": "processing",
                     "transcript": "x",
+                    "transcript_fa": "x",
                     "variants": {
                       "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                       "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -71575,6 +72277,7 @@
                           "size": 1,
                           "status": "processing",
                           "transcript": null,
+                          "transcript_fa": null,
                           "variants": {
                             "poster": null,
                             "thumb": null
@@ -71688,6 +72391,7 @@
                     "size": 1,
                     "status": "processing",
                     "transcript": "x",
+                    "transcript_fa": "x",
                     "variants": {
                       "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                       "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -71799,6 +72503,7 @@
                     "size": 1,
                     "status": "processing",
                     "transcript": "x",
+                    "transcript_fa": "x",
                     "variants": {
                       "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                       "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -71937,6 +72642,7 @@
                         "size": 1,
                         "status": "processing",
                         "transcript": "x",
+                        "transcript_fa": "x",
                         "variants": {
                           "poster": null,
                           "thumb": null
@@ -72083,6 +72789,7 @@
                         "size": 1,
                         "status": "processing",
                         "transcript": "x",
+                        "transcript_fa": "x",
                         "variants": {
                           "poster": null,
                           "thumb": null
@@ -86726,6 +87433,7 @@
                           "size": 1,
                           "status": "processing",
                           "transcript": "x",
+                          "transcript_fa": "x",
                           "variants": {
                             "poster": null,
                             "thumb": null
@@ -86909,6 +87617,7 @@
                         "size": 1,
                         "status": "processing",
                         "transcript": "x",
+                        "transcript_fa": "x",
                         "variants": {
                           "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                           "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -87078,6 +87787,7 @@
                       "size": 1,
                       "status": "processing",
                       "transcript": "x",
+                      "transcript_fa": "x",
                       "variants": {
                         "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                         "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -87226,6 +87936,7 @@
                       "size": 1,
                       "status": "processing",
                       "transcript": "x",
+                      "transcript_fa": "x",
                       "variants": {
                         "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                         "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -87401,6 +88112,7 @@
                       "size": 1,
                       "status": "processing",
                       "transcript": "x",
+                      "transcript_fa": "x",
                       "variants": {
                         "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                         "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -87562,6 +88274,7 @@
                       "size": 1,
                       "status": "processing",
                       "transcript": "x",
+                      "transcript_fa": "x",
                       "variants": {
                         "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                         "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -87710,6 +88423,7 @@
                       "size": 1,
                       "status": "processing",
                       "transcript": "x",
+                      "transcript_fa": "x",
                       "variants": {
                         "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                         "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -88509,6 +89223,7 @@
                           "size": 1,
                           "status": "processing",
                           "transcript": null,
+                          "transcript_fa": null,
                           "variants": {
                             "poster": null,
                             "thumb": null
@@ -88682,6 +89397,7 @@
                         "size": 1,
                         "status": "processing",
                         "transcript": "x",
+                        "transcript_fa": "x",
                         "variants": {
                           "poster": null,
                           "thumb": null
@@ -88906,6 +89622,7 @@
                     "size": 1,
                     "status": "processing",
                     "transcript": "x",
+                    "transcript_fa": "x",
                     "variants": {
                       "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                       "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -92932,6 +93649,7 @@
                           "size": 1,
                           "status": "processing",
                           "transcript": "x",
+                          "transcript_fa": "x",
                           "variants": {
                             "poster": null,
                             "thumb": null
@@ -93078,6 +93796,7 @@
                         "size": 1,
                         "status": "processing",
                         "transcript": "x",
+                        "transcript_fa": "x",
                         "variants": {
                           "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                           "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -95718,8 +96437,12 @@
                       "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                       "key_result": "x",
                       "kind": "one_off",
+                      "media": "image",
+                      "mode": "single",
                       "overdue": false,
                       "parent_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "player": "auto",
+                      "player_fallback": false,
                       "priority": "P2",
                       "progress_note": "x",
                       "progress_pct": 1,
@@ -95891,8 +96614,12 @@
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "key_result": "x",
                   "kind": "one_off",
+                  "media": "image",
+                  "mode": "single",
                   "overdue": false,
                   "parent_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "player": "auto",
+                  "player_fallback": false,
                   "priority": "P2",
                   "progress_note": "x",
                   "progress_pct": 1,
@@ -96135,8 +96862,12 @@
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "key_result": "x",
                   "kind": "one_off",
+                  "media": "image",
+                  "mode": "single",
                   "overdue": false,
                   "parent_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "player": "auto",
+                  "player_fallback": false,
                   "priority": "P2",
                   "progress_note": "x",
                   "progress_pct": 1,
@@ -96243,6 +96974,8 @@
               "example": {
                 "brief": "x",
                 "due_at": "2026-10-17T05:42:00Z",
+                "mode": "single",
+                "player": "auto",
                 "priority": "P0",
                 "title": "گزارش هفتگی رشد"
               },
@@ -96310,8 +97043,12 @@
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "key_result": "x",
                   "kind": "one_off",
+                  "media": "image",
+                  "mode": "single",
                   "overdue": false,
                   "parent_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "player": "auto",
+                  "player_fallback": false,
                   "priority": "P2",
                   "progress_note": "x",
                   "progress_pct": 1,
@@ -96495,8 +97232,12 @@
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "key_result": "x",
                   "kind": "one_off",
+                  "media": "image",
+                  "mode": "single",
                   "overdue": false,
                   "parent_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "player": "auto",
+                  "player_fallback": false,
                   "priority": "P2",
                   "progress_note": "x",
                   "progress_pct": 1,
@@ -96675,8 +97416,12 @@
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "key_result": "x",
                   "kind": "one_off",
+                  "media": "image",
+                  "mode": "single",
                   "overdue": false,
                   "parent_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "player": "auto",
+                  "player_fallback": false,
                   "priority": "P2",
                   "progress_note": "x",
                   "progress_pct": 1,
@@ -96758,6 +97503,112 @@
           }
         },
         "summary": "Complete Work",
+        "tags": [
+          "work"
+        ]
+      }
+    },
+    "/api/v1/work/{id}/council": {
+      "get": {
+        "description": "⟨1.9⟩ contract §27.2: the council of an order: each member (Claude and\nevery substitute player: its state, run, deliverable or creative, or why\nit was skipped), the synthesis and the council's state. 404 for a work\nthat runs alone.",
+        "operationId": "work_council",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "media": "image",
+                  "members": [
+                    {
+                      "creative_ref": "x",
+                      "deliverable_ref": "x",
+                      "model": "claude-sonnet-5-5",
+                      "player": "x",
+                      "reason": "دلیل",
+                      "run_id": "x",
+                      "state": "queued"
+                    }
+                  ],
+                  "state": "running",
+                  "synthesis_ref": "x",
+                  "work_ref": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Council"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Work Council",
         "tags": [
           "work"
         ]
@@ -101804,8 +102655,12 @@
                       "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                       "key_result": "x",
                       "kind": "one_off",
+                      "media": "image",
+                      "mode": "single",
                       "overdue": false,
                       "parent_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "player": "auto",
+                      "player_fallback": false,
                       "priority": "P2",
                       "progress_note": "x",
                       "progress_pct": 1,
@@ -103455,6 +104310,7 @@
                       "size": 1,
                       "status": "processing",
                       "transcript": "x",
+                      "transcript_fa": "x",
                       "variants": {
                         "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                         "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -103618,6 +104474,7 @@
                       "size": 1,
                       "status": "processing",
                       "transcript": "x",
+                      "transcript_fa": "x",
                       "variants": {
                         "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                         "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -103884,6 +104741,7 @@
                   "size": 1,
                   "status": "processing",
                   "transcript": "x",
+                  "transcript_fa": "x",
                   "variants": {
                     "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                     "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -104009,6 +104867,7 @@
                   "status": "processing",
                   "text": "x",
                   "transcript": "x",
+                  "transcript_fa": "x",
                   "variants": {
                     "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                     "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -114058,6 +114917,7 @@
                     "size": 1,
                     "status": "processing",
                     "transcript": "x",
+                    "transcript_fa": "x",
                     "variants": {
                       "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                       "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -115962,6 +116822,7 @@
                       "size": 1,
                       "status": "processing",
                       "transcript": "x",
+                      "transcript_fa": "x",
                       "variants": {
                         "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                         "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -116645,6 +117506,7 @@
                     "size": 1,
                     "status": "processing",
                     "transcript": "x",
+                    "transcript_fa": "x",
                     "variants": {
                       "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                       "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
@@ -117253,8 +118115,12 @@
                     "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                     "key_result": "x",
                     "kind": "one_off",
+                    "media": "image",
+                    "mode": "single",
                     "overdue": false,
                     "parent_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "player": "auto",
+                    "player_fallback": false,
                     "priority": "P2",
                     "progress_note": "x",
                     "progress_pct": 1,
@@ -117593,8 +118459,12 @@
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "key_result": "x",
                   "kind": "one_off",
+                  "media": "image",
+                  "mode": "single",
                   "overdue": false,
                   "parent_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "player": "auto",
+                  "player_fallback": false,
                   "priority": "P2",
                   "progress_note": "x",
                   "progress_pct": 1,
@@ -117782,8 +118652,12 @@
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "key_result": "x",
                   "kind": "one_off",
+                  "media": "image",
+                  "mode": "single",
                   "overdue": false,
                   "parent_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "player": "auto",
+                  "player_fallback": false,
                   "priority": "P2",
                   "progress_note": "x",
                   "progress_pct": 1,
@@ -117994,8 +118868,12 @@
                     "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                     "key_result": "x",
                     "kind": "one_off",
+                    "media": "image",
+                    "mode": "single",
                     "overdue": false,
                     "parent_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "player": "auto",
+                    "player_fallback": false,
                     "priority": "P2",
                     "progress_note": "x",
                     "progress_pct": 1,
@@ -118181,8 +119059,12 @@
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "key_result": "x",
                   "kind": "one_off",
+                  "media": "image",
+                  "mode": "single",
                   "overdue": false,
                   "parent_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "player": "auto",
+                  "player_fallback": false,
                   "priority": "P2",
                   "progress_note": "x",
                   "progress_pct": 1,
@@ -118367,8 +119249,12 @@
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "key_result": "x",
                   "kind": "one_off",
+                  "media": "image",
+                  "mode": "single",
                   "overdue": false,
                   "parent_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "player": "auto",
+                  "player_fallback": false,
                   "priority": "P2",
                   "progress_note": "x",
                   "progress_pct": 1,

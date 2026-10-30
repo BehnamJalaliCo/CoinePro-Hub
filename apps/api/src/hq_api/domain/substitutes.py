@@ -369,6 +369,10 @@ class Creative(BaseModel):
     review_md: str | None
     source: dict[str, Any] | None
     ai_generated: bool
+    # ⟨1.9⟩ §27.2: the owner's pick among a council's versions; the image a
+    # video was animated from
+    picked_at: datetime | None = None
+    source_creative: str | None = None
     created_at: datetime
     updated_at: datetime
     version: int
@@ -980,6 +984,10 @@ async def _applied(tx: Tx, hub: Any, call: dict[str, Any]) -> None:
         await apply_cross_check(tx, hub, call)
     elif call["caller_kind"] == "agent" and call["purpose_kind"] is None and call["kind"] == "call":
         await deliver_to_agent(tx, hub, call)
+    elif call["purpose_kind"] in ("work", "council"):  # ⟨1.9⟩ §27.1-§27.2
+        from hq_api.domain import players
+
+        await players.on_call(tx, hub, call)
 
 
 REPLY_TOKENS = 20_000
@@ -1340,9 +1348,11 @@ async def put_seats(tx: Tx, player: str, seats: list[SeatIn], version: int) -> N
 
 # ---------------------------------------------------------------- creatives --
 CREATIVE_SQL = """
-    SELECT r.*, c.code AS company, w.ref AS work_ref FROM substitutes.creatives r
+    SELECT r.*, c.code AS company, w.ref AS work_ref, src.ref AS source_creative_ref
+    FROM substitutes.creatives r
     JOIN core.companies c ON c.id = r.company_id
     LEFT JOIN work.work w ON w.id = r.work_id
+    LEFT JOIN substitutes.creatives src ON src.id = r.source_creative_id
 """
 NO_TEXT = (
     "Do not put any text, letters, numbers, logos or watermarks in the image; leave clean space "
@@ -1372,7 +1382,10 @@ async def create_creative(
     duration_s: int | None,
     player: str | None,
     work_id: UUID | None = None,
+    source_creative: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """⟨1.9⟩ `source_creative`: a picked image this video is made from
+    (contract §27.2 animate): its file goes with the call."""
     if kind == "video" and player == "gpt":
         raise ApiError(422, "validation_failed", fields={"player": "videos are Gemini's"})
     prompt = prompt_md if NO_TEXT in prompt_md else f"{prompt_md.rstrip()}\n{NO_TEXT}"
@@ -1381,10 +1394,12 @@ async def create_creative(
     model = found[1]["model"] if found else DEFAULT_PLAYERS[p_name]["models"][0]["id"]
     row = await tx.one(
         """INSERT INTO substitutes.creatives (company_id, kind, brief_md, prompt_md, placement, aspect,
-               duration_s, overlay, player, model, path, requested_by_kind, requested_by_code, work_id)
+               duration_s, overlay, player, model, path, requested_by_kind, requested_by_code, work_id,
+               source_creative_id)
            VALUES (:co, :kind, :brief, :prompt, :pl, :asp, :dur, CAST(:ov AS jsonb), :p, :m, 'web',
-                   :rk, :rc, :w)
+                   :rk, :rc, :w, :src)
            RETURNING *""",
+        src=source_creative["id"] if source_creative else None,
         co=company_id,
         kind=kind,
         brief=scrub(brief_md),
@@ -1410,6 +1425,7 @@ async def create_creative(
         purpose=("creative", row["ref"]),
         player=p_name,
         task=kind,
+        file_ids=_source_files(source_creative),
     )
     state = "queued" if call["state"] == "queued" else "failed"
     row = await tx.one(
@@ -1429,6 +1445,90 @@ async def create_creative(
         {"state": row["state"], "company": await hub.companies.code_of(company_id)},
     )
     return row
+
+
+def _source_files(c: dict[str, Any] | None) -> list[UUID] | None:
+    if c is None:
+        return None
+    files = list(c.get("file_ids") or [])
+    return files[:1] or ([c["composed_file_id"]] if c.get("composed_file_id") else None)
+
+
+async def pick_creative(tx: Tx, hub: Any, who: Principal, ref: str) -> dict[str, Any]:
+    """⟨1.9⟩ §27.2: the owner's pick among a council's versions (or any one
+    made): this one is picked (and accepted), its siblings of the same work
+    are not. Picking is not publishing."""
+    r = await tx.first(CREATIVE_SQL + " WHERE r.ref = :ref FOR UPDATE OF r", ref=ref)
+    if r is None:
+        raise ApiError(404, "not_found")
+    if r["state"] not in ("review", "accepted"):
+        raise ApiError(409, "version_conflict", f"{ref} is {r['state']}")
+    if r["work_id"] is not None:
+        await tx.exec(
+            """UPDATE substitutes.creatives SET picked_at = NULL, updated_at = now()
+               WHERE work_id = :w AND id <> :id AND picked_at IS NOT NULL""",
+            w=r["work_id"],
+            id=r["id"],
+        )
+    row: dict[str, Any] = await tx.one(
+        """UPDATE substitutes.creatives SET picked_at = now(), state = 'accepted', updated_at = now()
+           WHERE id = :id RETURNING *""",
+        id=r["id"],
+    )
+    await audit.record(
+        tx,
+        who,
+        company_id=r["company_id"],
+        action="creative.pick",
+        action_class="A1",
+        target_kind="creative",
+        target_ref=ref,
+        summary=f"{r['player']} {r['kind']}" + (f" of {r['work_ref']}" if r["work_ref"] else ""),
+    )
+    holding = await hub.companies.holding()
+    await events.emit(
+        tx,
+        holding.code,
+        "creative.updated",
+        ref,
+        {"state": "accepted", "picked": True, "company": r["company"]},
+    )
+    return row
+
+
+async def animate_creative(tx: Tx, hub: Any, who: Principal, ref: str) -> dict[str, Any]:
+    """⟨1.9⟩ §27.2: a video made from a picked image (the player that makes
+    video; the image's file goes with the call)."""
+    r = await tx.first(CREATIVE_SQL + " WHERE r.ref = :ref FOR UPDATE OF r", ref=ref)
+    if r is None:
+        raise ApiError(404, "not_found")
+    if r["kind"] != "image" or r["picked_at"] is None:
+        raise ApiError(409, "validation_failed", fields={"creative": "a picked image is animated"})
+    if not _source_files(r):
+        raise ApiError(409, "validation_failed", fields={"creative": "the image has no file yet"})
+    placement = (
+        "instagram_story"
+        if r["placement"] in ("instagram_story", "telegram_story")
+        else "telegram_post"
+    )
+    return await create_creative(
+        tx,
+        hub,
+        who,
+        company_id=r["company_id"],
+        kind="video",
+        brief_md=r["brief_md"],
+        prompt_md=(
+            "Animate the attached image into a short video of at most 6 seconds: gentle camera "
+            "movement, keep its composition and colours. " + (r["prompt_md"] or "")
+        )[:7000],
+        placement=placement,
+        overlay=None,
+        duration_s=6,
+        player=None,
+        work_id=r["work_id"],
+        source_creative=r,
+    )
 
 
 async def decide_creative(

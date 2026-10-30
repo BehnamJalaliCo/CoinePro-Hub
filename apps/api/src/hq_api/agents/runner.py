@@ -288,6 +288,22 @@ class Runner:
             if refuse is not None:
                 await self._finish(tx, run, emp, "refused", refuse, note=None, start=False)
                 return Claim("final", "refused", refuse)
+            if run["trigger"] == "work" and run["work_id"] is not None:
+                # ⟨1.9⟩ §27.1: a work whose player is a substitute goes to that
+                # player (or waits for it); the run itself makes no model call.
+                from hq_api.domain import players as PL
+
+                handed = await PL.player_turn(tx, self.hub, run)
+                if handed is not None:
+                    state = "done" if handed == "player_call" else "refused"
+                    if state == "done":  # queued -> running -> done: handed over
+                        await tx.exec(
+                            """UPDATE agents.runs SET state = 'running', started_at = now()
+                               WHERE id = :id""",
+                            id=run["id"],
+                        )
+                    await self._finish(tx, run, emp, state, handed, note=None, start=False)
+                    return Claim("final", state, handed)
             assert charter is not None
             model, effort = await self._model(tx, emp, charter)
             steps_cap = charter.limits.steps_per_run

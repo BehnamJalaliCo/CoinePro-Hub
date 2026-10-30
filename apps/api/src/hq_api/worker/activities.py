@@ -140,6 +140,7 @@ class Activities:
             self.run_execute,
             self.run_finalize,
             self.requeue_runs,
+            self.players_sweep,
             self.site_checks,
             self.hub_health,
             self.order_route,
@@ -932,6 +933,16 @@ class Activities:
                    WHERE state = 'queued' AND dispatched_at < now() - interval '10 minutes'"""
             )
         return {"requeued": requeued, "redispatched": stuck}
+
+    @activity.defn(name="players_sweep")
+    async def players_sweep(self) -> dict[str, Any]:
+        """⟨1.9⟩ contract §27.1-§27.2: a named player that waits is tried again
+        (every few minutes) and falls back to auto after 30 minutes; open
+        councils are brought up to date. The worker's role queues the runs."""
+        from hq_api.domain import players
+
+        async with self._tx() as tx:
+            return await players.sweep(tx, self.hub)
 
     @activity.defn(name="site_checks")
     async def site_checks(self) -> dict[str, Any]:

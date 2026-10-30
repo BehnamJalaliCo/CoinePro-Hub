@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from hq_api import idempotency, pagination
 from hq_api.context import Ctx, owner_ctx
 from hq_api.domain import org, recurrence, recurring
+from hq_api.domain import players as PL
 from hq_api.domain import work as W
 from hq_api.errors import ApiError, responses
 from hq_api.http import check_version, if_match
@@ -50,6 +51,11 @@ class WorkCreate(Model):
     schedule: W.ScheduleIn | None = None
     # ⟨1.5⟩ prompt 11 §5.3: the key result this work serves
     key_result: str | None = Field(default=None, pattern=r"^KR-[0-9]{4,}$")
+    # ⟨1.9⟩ contract §27.1-§27.2: who plays it, and alone or as a council;
+    # `media`: a council that makes images or video (each player its own)
+    player: Literal["auto", "claude", "gpt", "gemini", "deepseek"] = "auto"
+    mode: Literal["single", "council"] = "single"
+    media: Literal["image", "video"] | None = None
 
 
 class WorkPatch(Model):
@@ -57,6 +63,10 @@ class WorkPatch(Model):
     brief: str | None = Field(default=None, max_length=50000)
     priority: Priority | None = None
     due_at: datetime | None = None
+    # ⟨1.9⟩ §27.1: a new player starts afresh (no wait, no fallback); a
+    # council started on an open order runs from then on
+    player: Literal["auto", "claude", "gpt", "gemini", "deepseek"] | None = None
+    mode: Literal["single", "council"] | None = None
 
 
 class Reason(Model):
@@ -403,7 +413,13 @@ async def create_work(body: WorkCreate, request: Request, ctx: Ctx = Depends(own
             escrow=body.escrow,
             schedule=body.schedule,
             key_result=body.key_result,
+            player=body.player,
+            mode=body.mode,
+            media=body.media,
         )
+        if body.mode == "council":  # ⟨1.9⟩ §27.2: every ready player, then Claude's synthesis
+            await PL.start_council(tx, ctx.hub, w)
+            w = await W.load(tx, w["id"])
         if body.kind == "recurring":
             await recurring.activate(tx, w, ctx.who)
             w = await W.load(tx, w["id"])
@@ -414,7 +430,9 @@ async def create_work(body: WorkCreate, request: Request, ctx: Ctx = Depends(own
             action_class="A2",
             target_kind="work",
             target_ref=w["ref"],
-            summary=f"{body.kind} {body.priority} to {w['a_code']}",
+            summary=f"{body.kind} {body.priority} to {w['a_code']}"
+            + (f"; player {body.player}" if body.player != "auto" else "")
+            + (f"; {body.mode}" if body.mode != "single" else ""),
         )
         await ctx.interaction(
             tx,
@@ -450,9 +468,18 @@ async def update_work(
         check_version(w["version"], expected)
         if w["status"] in W.CLOSED:
             raise ApiError(409, "validation_failed", "the work is closed")
+        fields = {k: v for k, v in fields.items() if v is not None or k in ("due_at",)}
         if fields:
             sets = ", ".join(f"{k} = :{k}" for k in fields)
             await tx.exec(f"UPDATE work.work SET {sets} WHERE id = :id", id=id, **fields)  # noqa: S608
+        if "player" in fields and fields["player"] != w["player"]:
+            await tx.exec(
+                """UPDATE work.work SET player_wait_since = NULL, player_tried_at = NULL,
+                       player_fallback_at = NULL WHERE id = :id""",
+                id=id,
+            )
+        if fields.get("mode") == "council" and w["mode"] != "council" and w["parent_id"] is None:
+            await PL.start_council(tx, ctx.hub, await W.load(tx, id))
         await W.event(tx, w, "updated", ctx.who, {"fields": sorted(fields)})
         await ctx.audit(
             tx,
@@ -474,6 +501,22 @@ async def update_work(
         )
         await ctx.emit(tx, w["company"], "work.updated", w["ref"], {"fields": sorted(fields)})
         return W.render(await W.load(tx, id))
+
+
+@router.get("/work/{id}/council", response_model=PL.Council, responses=E)
+async def work_council(id: UUID, ctx: Ctx = Depends(owner_ctx)) -> PL.Council:
+    """⟨1.9⟩ contract §27.2: the council of an order: each member (Claude and
+    every substitute player: its state, run, deliverable or creative, or why
+    it was skipped), the synthesis and the council's state. 404 for a work
+    that runs alone."""
+    async with ctx.tx() as tx:
+        c = await PL.council_of(tx, id)
+        if c is None:
+            raise ApiError(404, "not_found", "this work has no council")
+        await PL.refresh(tx, ctx.hub, c)
+        c = await PL.council_of(tx, id)
+        assert c is not None
+        return PL.render(c)
 
 
 @router.post("/work/{id}/cancel", response_model=W.Work, responses=E)

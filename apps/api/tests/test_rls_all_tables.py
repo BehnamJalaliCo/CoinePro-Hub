@@ -1251,6 +1251,15 @@ async def _fill_p17(su: Any, co: dict[str, Any]) -> None:
         c,
         server,
     )
+    # prompt 18 (migration 0033): a council of an order
+    work = await su.fetchval(
+        """INSERT INTO work.work (company_id, kind, title, created_by_kind, created_by_code, mode)
+           VALUES ($1, 'one_off', 'p18 council', 'owner', 'owner', 'council') RETURNING id""",
+        c,
+    )
+    await su.execute(
+        "INSERT INTO work.councils (company_id, work_id, members) VALUES ($1, $2, '[]')", c, work
+    )
 
 
 @pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)

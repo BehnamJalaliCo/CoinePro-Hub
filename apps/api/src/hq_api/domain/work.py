@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -33,6 +33,9 @@ from hq_api.schemas import (
 )
 
 OPEN = ("queued", "in_progress", "waiting")
+# ⟨1.9⟩ employee kinds whose work always runs on Claude (§27.1 "unless its
+# assignee's charter forbids it"): oversight and the hub's own system roles.
+CLAUDE_ONLY_KINDS = ("overseer", "inspector", "system", "advisor")
 CLOSED = ("done", "cancelled", "failed")
 
 WORK_SQL = f"""
@@ -87,6 +90,12 @@ class Work(BaseModel):
     progress_pct: int | None
     # ⟨1.5⟩ prompt 11 §5.3 (contract §20.5): the key result this work serves
     key_result: str | None = None
+    # ⟨1.9⟩ contract §27.1-§27.2: who plays it and how; `player_fallback`
+    # once a named player was unavailable for 30 minutes (auto since)
+    player: Literal["auto", "claude", "gpt", "gemini", "deepseek"] = "auto"
+    mode: Literal["single", "council"] = "single"
+    media: Literal["image", "video"] | None = None
+    player_fallback: bool = False
     version: int
     created_at: datetime
     updated_at: datetime
@@ -165,6 +174,10 @@ def render(r: dict[str, Any]) -> Work:
         progress_note=r["progress_note"],
         progress_pct=r["progress_pct"],
         key_result=r.get("key_result_ref"),
+        player=r.get("player") or "auto",
+        mode=r.get("mode") or "single",
+        media=r.get("media"),
+        player_fallback=r.get("player_fallback_at") is not None,
         version=r["version"],
         created_at=r["created_at"],
         updated_at=r["updated_at"],
@@ -231,10 +244,17 @@ async def create(
     parent: dict[str, Any] | None = None,
     requested_by_work_id: UUID | None = None,
     key_result: str | None = None,
+    player: str | None = None,
+    mode: str | None = None,
+    media: str | None = None,
 ) -> dict[str, Any]:
     """A root work item (or a child when `parent` is given). Without an
     assignee it goes to the department's manager, else to the CEO.
-    ⟨1.5⟩ `key_result`: a KR-… of the same company (prompt 11 §5.3)."""
+    ⟨1.5⟩ `key_result`: a KR-… of the same company (prompt 11 §5.3).
+    ⟨1.9⟩ `player` and `mode` (§27.1): a child inherits its parent's unless
+    given, or unless its assignee's charter keeps it on Claude (the
+    oversight and system roles: their judgement is never handed to a
+    substitute)."""
     kr_id = None
     if key_result:
         kr_id = await tx.scalar(
@@ -297,13 +317,23 @@ async def create(
                 422, "validation_failed", fields={"escrow.expires_at": "must be in the future"}
             )
 
+    if parent is not None:
+        player = player or parent.get("player") or "auto"
+        mode = mode or parent.get("mode") or "single"
+        if parent.get("player_fallback_at") is not None:
+            player = "auto"  # the parent already fell back
+        if target["kind"] in CLAUDE_ONLY_KINDS:
+            player, mode = "auto", "single"
     row = await tx.one(
         """INSERT INTO work.work (company_id, department_id, kind, title, brief, priority,
                created_by_kind, created_by_code, assignee_id, parent_id, depth, requested_by_work_id,
-               due_at, budget_tokens, budget_usd, key_result_id)
+               due_at, budget_tokens, budget_usd, key_result_id, player, mode, media)
            VALUES (:co, :dept, :kind, :title, :brief, :prio, :ck, :cc, :assignee, :parent, :depth,
-                   :req, :due, :bt, :bu, :kr)
+                   :req, :due, :bt, :bu, :kr, :player, :mode, :media)
            RETURNING id, ref""",
+        player=player or "auto",
+        mode=mode or "single",
+        media=media,
         kr=kr_id,
         co=company_id,
         dept=dept_id,

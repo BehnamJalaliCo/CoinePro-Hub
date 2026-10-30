@@ -40,7 +40,7 @@ from hq_api.audit import GENESIS
 DECISION = "شروع تازه را اجرا کن"
 
 WIPE: tuple[str, ...] = (
-    "academy.eval_runs", "academy.teachings",
+    "academy.eval_runs",
     "advisor.memos", "advisor.triggers",
     "agents.runs", "agents.steps",
     "archive.access_log", "archive.automation_runs", "archive.destroy_queue", "archive.fixity_runs",
@@ -83,12 +83,13 @@ WIPE: tuple[str, ...] = (
     "support.conversations", "support.customers", "support.history_imports", "support.messages",
     "support.shadow_runs",
     "tools.mcp_calls",
-    "work.escrows", "work.schedules", "work.work", "work.work_events",
+    "work.councils", "work.escrows", "work.schedules", "work.work", "work.work_events",
     "workshop.approvals", "workshop.events", "workshop.grants", "workshop.sessions",
 )  # fmt: skip
 
 KEEP: tuple[str, ...] = (
     "academy.addenda", "academy.curricula", "academy.eval_suites",
+    "academy.teachings",  # ⟨1.9⟩ the owner's teaching an addendum (kept) was made of
     "archive.automations", "archive.class_versions", "archive.classes", "archive.clearance", "archive.fields",
     "archive.folders", "archive.levels", "archive.link_kinds", "archive.party_kinds",
     "archive.reminder_rules", "archive.retention_rules", "archive.sources",
@@ -161,11 +162,27 @@ RESET: tuple[str, ...] = (
     # ⟨1.8⟩ a paired runner stays; the short-lived pairing it came from is gone
     # (an immutable column too)
     "UPDATE infra.runners SET pairing_id = NULL WHERE pairing_id IS NOT NULL",
+    # ⟨1.9⟩ what stays keeps no link to what ran: the card that approved it,
+    # the founding it was drawn for, the call or work it came from, all gone
+    "UPDATE substitutes.logins SET call_id = NULL WHERE call_id IS NOT NULL",
+    """UPDATE provisioning.plans SET founding_id = NULL, decision_id = NULL
+     WHERE founding_id IS NOT NULL OR decision_id IS NOT NULL""",
+    "UPDATE academy.teachings SET work_id = NULL WHERE work_id IS NOT NULL",
+    "UPDATE oversight.protocols SET decision_id = NULL WHERE decision_id IS NOT NULL",
+    """UPDATE support.settings SET thresholds_decision_id = NULL
+     WHERE thresholds_decision_id IS NOT NULL""",
+    "UPDATE support.channels SET go_live_decision_id = NULL WHERE go_live_decision_id IS NOT NULL",
+    "UPDATE growth.templates SET decision_id = NULL WHERE decision_id IS NOT NULL",
+    "UPDATE growth.rules SET decision_id = NULL WHERE decision_id IS NOT NULL",
+    "UPDATE growth.opt_outs SET message_id = NULL WHERE message_id IS NOT NULL",
+    "UPDATE governance.objectives SET decision_id = NULL WHERE decision_id IS NOT NULL",
+    """UPDATE governance.risks SET accepted_decision_id = NULL
+     WHERE accepted_decision_id IS NOT NULL""",
 )
 
 # The ref sequences no table owns (nextval in the code): what they number.
 REF_RESET: tuple[str, ...] = (
-    "academy.teaching_ref_seq", "advisor.memo_ref_seq",
+    "advisor.memo_ref_seq",
     "archive.hold_ref_seq", "archive.party_ref_seq", "archive.record_ref_seq",
     "cartable.decision_ref_seq", "cartable.deliverable_ref_seq",
     "core.founding_ref_seq",
@@ -189,6 +206,7 @@ REF_RESET: tuple[str, ...] = (
     "workshop.approval_ref_seq", "workshop.grant_ref_seq", "workshop.session_ref_seq",
 )  # fmt: skip
 REF_KEEP: tuple[str, ...] = (
+    "academy.teaching_ref_seq",  # the teachings stay
     "archive.automation_ref_seq", "archive.folder_ref_seq", "archive.reminder_ref_seq",
     "archive.retention_ref_seq",
     "dceo.principle_ref_seq",

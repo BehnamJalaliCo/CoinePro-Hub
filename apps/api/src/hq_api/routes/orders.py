@@ -11,13 +11,14 @@ from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from hq_api import idempotency, pagination, workflows_client
 from hq_api.context import Ctx, owner_ctx
 from hq_api.db import Tx
 from hq_api.domain import decisions as Dec
 from hq_api.domain import orders as O
+from hq_api.domain import players as PL
 from hq_api.domain import recurrence
 from hq_api.domain import work as W
 from hq_api.errors import ApiError, responses
@@ -37,10 +38,49 @@ CODE_SESSION_DAYS = 7
 
 
 class OrderIn(Model):
-    text: str = Field(min_length=1, max_length=10000)
+    """⟨1.9⟩ contract §27.3: a voice order whose phone recogniser was not
+    available comes with its audio (`file_id`) and no text: the hub
+    transcribes it (nothing leaves the hub)."""
+
+    text: str = Field(default="", max_length=10000)
     source: Literal["voice", "text"] = "text"
     file_id: UUID | None = None
     company: str | None = Field(default=None, pattern=r"^[A-Z][A-Z0-9]{1,9}$")
+
+    @model_validator(mode="after")
+    def _text_or_audio(self) -> OrderIn:
+        if not self.text.strip() and not (self.source == "voice" and self.file_id):
+            raise ValueError("text, or a voice order's audio (source voice, file_id)")
+        return self
+
+
+async def _hub_transcript(ctx: Ctx, file_id: UUID) -> str:
+    """The order's audio as text: its stored transcript, else the hub's
+    speech to text now (503 while it is off)."""
+    async with ctx.tx() as tx:
+        stored = await tx.first(
+            """SELECT p.transcript, f.kind FROM files.files f
+               LEFT JOIN files.processing p ON p.file_id = f.id WHERE f.id = :id""",
+            id=file_id,
+        )
+    if stored is None:
+        raise ApiError(422, "validation_failed", fields={"file_id": "unknown file"})
+    if (stored["transcript"] or "").strip():
+        return str(stored["transcript"])
+    if not ctx.hub.settings.stt_url:
+        raise ApiError(503, "channel_not_configured", "speech recognition is off on this hub")
+    try:
+        out = await workflows_client.transcribe(
+            ctx.hub, str(file_id), ctx.hub.settings.transcribe_wait_s
+        )
+    except Exception as exc:
+        raise ApiError(
+            503, "channel_not_configured", "speech recognition is not available on this hub"
+        ) from exc
+    text = str(out.get("text") or "").strip()
+    if not text:
+        raise ApiError(422, "validation_failed", fields={"file_id": "no speech in the audio"})
+    return text
 
 
 class OrderRoute(BaseModel):
@@ -130,6 +170,8 @@ async def _work(
     co = await ctx.hub.companies.by_code(r.company)
     brief = f"{text}\n\n(فرمان {ref} مدیر کل)"
     due = await due_at(tx, text)
+    # ⟨1.9⟩ §27.1: «با جی‌پی‌تی / با جمنای / با دیپ‌سیک / شورا» in the order
+    player, mode = PL.from_voice(text)
     try:
         w = await W.create(
             tx,
@@ -142,6 +184,8 @@ async def _work(
             priority="P2",
             department_code=r.department,
             due_at=due,
+            player=player,
+            mode=mode,
         )
     except ApiError:
         if r.department is None:
@@ -157,7 +201,11 @@ async def _work(
             kind="one_off",
             priority="P2",
             due_at=due,
+            player=player,
+            mode=mode,
         )
+    if mode == "council":
+        await PL.start_council(tx, ctx.hub, w)
     r.to = w["a_code"]
     r.refs["work_ref"] = w["ref"]
     await ctx.audit(
@@ -291,7 +339,8 @@ async def create_order(
     workspace, else a new session under a live grant, else a `code_session`
     decision; question -> the advisor (thread A); meeting -> a work item for
     the CEO. What agents and models read is masked. Requires `Idempotency-Key`."""
-    text = scrub(body.text)
+    raw = body.text if body.text.strip() else await _hub_transcript(ctx, body.file_id)  # type: ignore[arg-type]
+    text = scrub(raw)
     seen = await _seen(ctx, request)
     routes, routed_by = ([], "rules") if seen else await _route(ctx, text, body.company)
     later: list[Any] = []

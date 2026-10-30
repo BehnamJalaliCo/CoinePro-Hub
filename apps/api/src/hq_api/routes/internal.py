@@ -707,6 +707,10 @@ async def deliver_work(
         from hq_api.domain import studio
 
         await studio.on_delivered(tx, ctx.hub, w, dl, body.body or "")
+        # ⟨1.9⟩ §27.2: Claude's member of a council, or a council's synthesis
+        from hq_api.domain import players
+
+        await players.on_deliverable(tx, ctx.hub, w)
         await ctx.emit(
             tx,
             w["company"],

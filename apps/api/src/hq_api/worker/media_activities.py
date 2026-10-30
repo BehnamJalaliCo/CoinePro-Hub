@@ -232,6 +232,20 @@ class MediaActivities:
                 str(f["id"]),
                 {"kind": f["kind"], "status": status},
             )
+            if sp is not None and (sp.get("text") or "").strip():
+                # ⟨1.9⟩ contract §27.3: a transcript was stored on the file
+                await events.emit(
+                    tx,
+                    company,
+                    "file.transcribed",
+                    str(f["id"]),
+                    {
+                        "kind": f["kind"],
+                        "chars": len(sp["text"]),
+                        "duration_s": sp.get("duration_s"),
+                        "engine": (sp.get("engine") or {}).get("model"),
+                    },
+                )
 
     # --------------------------------------------------------- activities --
     @activity.defn(name="file_process")

@@ -266,6 +266,8 @@ async def render_creatives(tx: Any, rows: list[dict[str, Any]]) -> list[S.Creati
                 review_md=r["review_md"],
                 source=r["source"],
                 ai_generated=r["ai_generated"],
+                picked_at=r.get("picked_at"),
+                source_creative=r.get("source_creative_ref"),
                 created_at=r["created_at"],
                 updated_at=r["updated_at"],
                 version=r["version"],
@@ -378,6 +380,27 @@ async def accept_creative(ref: str, body: S.NoteIn, ctx: Ctx = Depends(owner_ctx
 async def reject_creative(ref: str, body: S.NoteIn, ctx: Ctx = Depends(owner_ctx)) -> S.Creative:
     """The owner turns a creative in review down (with an optional note)."""
     return await _decide(ctx, ref, False, body)
+
+
+@router.post("/creatives/{ref}/pick", response_model=S.Creative, responses=E)
+async def pick_creative(ref: str, ctx: Ctx = Depends(owner_ctx)) -> S.Creative:
+    """⟨1.9⟩ contract §27.2: the owner picks one version (a council's media
+    order makes one per player): it is accepted and picked, the others of
+    the same work are not. Picking is not publishing (an A3 card, as always)."""
+    async with ctx.tx() as tx:
+        await S.pick_creative(tx, ctx.hub, ctx.who, ref)
+        row = await tx.one(S.CREATIVE_SQL + " WHERE r.ref = :ref", ref=ref)
+        return (await render_creatives(tx, [row]))[0]
+
+
+@router.post("/creatives/{ref}/animate", response_model=S.Creative, status_code=201, responses=E)
+async def animate_creative(ref: str, ctx: Ctx = Depends(owner_ctx)) -> S.Creative:
+    """⟨1.9⟩ contract §27.2: a short video made from a picked image by the
+    player that makes video; a new Creative (its `source_creative` is the image)."""
+    async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
+        row = await S.animate_creative(tx, ctx.hub, ctx.who, ref)
+        full = await tx.one(S.CREATIVE_SQL + " WHERE r.id = :id", id=row["id"])
+        return (await render_creatives(tx, [full]))[0]
 
 
 # ------------------------------------------------------------ substitute.call --

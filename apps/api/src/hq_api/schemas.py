@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 CODE = r"^[A-Z][A-Z0-9]{1,9}$"
 DEPT_CODE = r"^[A-Z][A-Z0-9]{1,11}$"
@@ -100,6 +100,15 @@ class FileRef(BaseModel):
     duration_s: float | None = None
     variants: FileVariants = Field(default_factory=FileVariants)
     transcript: str | None = None
+    # ⟨1.9⟩ contract §27.3: the hub's Persian transcript of a voice message,
+    # voice note or audio attachment (the same text, by its contract name)
+    transcript_fa: str | None = None
+
+    @model_validator(mode="after")
+    def _transcript_fa(self) -> FileRef:
+        if self.transcript_fa is None and self.transcript is not None:
+            self.transcript_fa = self.transcript
+        return self
 
 
 class Deleted(BaseModel):

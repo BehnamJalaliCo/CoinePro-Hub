@@ -154,6 +154,69 @@ BUSY_FIRST_S = 2.0  # the first pause after a busy answer; doubles, at most BUSY
 BUSY_MAX_S = 30.0
 
 
+# ⟨1.9⟩ contract §27.3: the hub runs Whisper `small`, whose peak was measured
+# transcribing 5 minutes (RUNBOOK §16: 1225 MiB, under MEM_STT); a longer
+# recording goes to stt in pieces of at most this long, one after another.
+CHUNK_S = 300
+
+
+def wav_chunks(data: bytes, seconds: float | None = None) -> list[tuple[float, bytes]]:
+    """(start second, WAV bytes) of pieces of at most `seconds`; the audio
+    itself when it is short or not a WAV the stdlib reads."""
+    import io
+    import wave
+
+    try:
+        with wave.open(io.BytesIO(data), "rb") as w:
+            params = w.getparams()
+            rate = w.getframerate()
+            per = max(int((seconds or CHUNK_S) * rate), 1)
+            if w.getnframes() <= per:
+                return [(0.0, data)]
+            out: list[tuple[float, bytes]] = []
+            start = 0
+            while frames := w.readframes(per):
+                buf = io.BytesIO()
+                with wave.open(buf, "wb") as piece:
+                    piece.setparams(params)
+                    piece.writeframes(frames)
+                out.append((start / rate, buf.getvalue()))
+                start += per
+            return out
+    except (wave.Error, EOFError):
+        return [(0.0, data)]
+
+
+def merge_pieces(pieces: list[tuple[float, dict[str, Any]]]) -> dict[str, Any]:
+    """One answer of the stt service from the answers of the pieces."""
+    if len(pieces) == 1:
+        return pieces[0][1]
+    first = pieces[0][1]
+    total = sum(float(o.get("duration_s") or 0) for _, o in pieces)
+    weighted = sum(
+        float(o.get("confidence") or 0) * float(o.get("duration_s") or 0) for _, o in pieces
+    )
+    segments = [
+        {**seg, "start_s": round(at + float(seg.get("start_s") or 0), 2),
+         "end_s": round(at + float(seg.get("end_s") or 0), 2)}
+        for at, o in pieces for seg in o.get("segments") or []
+    ]  # fmt: skip
+    timing: dict[str, float] = {}
+    for _, o in pieces:
+        for k, v in (o.get("timing") or {}).items():
+            timing[k] = round(timing.get(k, 0.0) + float(v or 0), 3)
+    return {
+        **first,
+        "text_raw": " ".join(t for _, o in pieces if (t := (o.get("text_raw") or "").strip())),
+        "text": " ".join(t for _, o in pieces if (t := (o.get("text") or "").strip())),
+        "duration_s": round(total, 2),
+        "confidence": round(weighted / total, 4) if total else first.get("confidence"),
+        "segments": segments,
+        "timing": timing,
+        "pieces": len(pieces),
+    }
+
+
 async def transcribe(
     url: str,
     audio: Path,
@@ -164,10 +227,25 @@ async def transcribe(
 ) -> dict[str, Any]:
     """POST the audio to the stt service; its answer (text normalised there).
     A `503 busy` (one transcription runs, the queue is full) is retried with
-    a growing pause for up to `busy_wait_s`, then SttBusy."""
+    a growing pause for up to `busy_wait_s`, then SttBusy. ⟨1.9⟩ A recording
+    longer than CHUNK_S goes in pieces (the answers joined, timings shifted)."""
     if not url:
         raise SttUnavailable("STT_URL is not set")
     data = await asyncio.to_thread(audio.read_bytes)  # at most the kind's limit (sound_track)
+    pieces = await asyncio.to_thread(wav_chunks, data)
+    answers = [
+        (at, await _post(url, piece, limit_s, busy_wait_s, transport)) for at, piece in pieces
+    ]
+    return merge_pieces(answers)
+
+
+async def _post(
+    url: str,
+    data: bytes,
+    limit_s: float,
+    busy_wait_s: float,
+    transport: httpx.AsyncBaseTransport | None,
+) -> dict[str, Any]:
     waited, pause = 0.0, BUSY_FIRST_S
     while True:
         try:
