@@ -2643,6 +2643,26 @@ for company servers that the owner has paired; the hub's own server keeps its ru
   - The hub stores only a hash of the token.
 - **Detach:** `DELETE /infra/servers/{id}` 🔏 revokes the token at once. The runner stops on its next poll.
 
+### 26.1a Over the holding's private network (owner, 2026-10-30: «باید همه چی به هم متصل باشه از طریق شبکه ما»)
+- **Route:** the runner reaches the hub over the **Hetzner private network**, not the internet.
+  - On each company server, `hq.coinepro.com` resolves to `10.10.1.4` (the runner's `--hub-ip 10.10.1.4`, or one `/etc/hosts` line).
+  - Caddy already listens on 443 on every interface, so the TLS certificate stays valid and the traffic stays inside the network.
+  - The private network is unencrypted; TLS covers it.
+- **Fallback:** if the private address does not answer, the runner falls back to the public address and says so in its state (`via: "private"|"public"`).
+- **A server outside the network** (for example IG-Hub) joins it from the Hetzner console. That is the owner's action, and its next free address is `10.10.1.5`.
+  - Until it joins, it works over the public address.
+
+### 26.1b Companies working together through their servers
+- **How servers work together:** each company's Claude-run server talks to the others **through the hub**, never directly:
+  - a cross-company work request (CEO to CEO, §4)
+  - a job on the other company's runner
+- **Media published through a company's own product API** (for example IG-Hub's Instagram API):
+  - **What the series names:** a §22 series target may name `channel: "runner"` with `{server, command}`.
+  - **The publish job:** at publish time the hub queues a `publish` job on that server's runner. The runner fetches the rendered files from the hub, runs the configured local command (which calls the product's own API on that server), and returns `{external_id, url}`.
+  - **No new egress:** no hub egress to private addresses is needed.
+  - **Setting up the publish command:** the owner seals it once with the series. The `command` is set up by that server's own Claude.
+- **Job kinds:** the job kinds of §26.2 add `publish`.
+
 ### 26.2 Jobs and what agents can do
 A **job** is one unit of work for one server: `{id, server, kind, actor: Actor, args, state: "queued"|"running"|"awaiting_seal"|"done"|"failed"|"cancelled", created_at, started_at|null, finished_at|null, exit_code|null, summary_fa|null, transcript_url|null}`.
 
@@ -2695,7 +2715,7 @@ Agent tools (Tool Gateway, recorded like every tool call) create jobs and wait f
 | POST | `/runners/jobs/{id}/events` | runner: a batch of `{seq, type: "stdout"\|"stderr"\|"session_event"\|"progress", data}` |
 | POST | `/runners/jobs/{id}/result` | runner: `{exit_code, summary_fa?, usage?}` |
 | POST | `/runners/classify` | runner (bearer): `{cmd}` → `{category\|null}` (for the Claude hook) |
-| GET | `/infra/servers` | also paired servers: `{id, company, name, origin: "provisioned"\|"attached", private_ip, user, hostname, runner_version, state: "pending"\|"online"\|"offline"\|"revoked", last_seen_at, map_at}` |
+| GET | `/infra/servers` | also paired servers: `{id, company, name, origin: "provisioned"\|"attached", private_ip, user, hostname, runner_version, via: "private"\|"public"\|null, state: "pending"\|"online"\|"offline"\|"revoked", last_seen_at, map_at}` |
 | DELETE | `/infra/servers/{id}` 🔏 | `server.detach`, target `<CODE>:<server>` · revokes the runner |
 | GET / POST | `/infra/servers/{id}/map` | the latest map / queue a `map` job |
 | GET | `/infra/servers/{id}/activity` | `?actor&from&to`, `Page` of jobs and their commands |
