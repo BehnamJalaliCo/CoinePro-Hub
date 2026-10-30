@@ -1,72 +1,95 @@
-# گزارش پرامپت ۱۷.۱: deploy متوقف شد (make check قرمز)
+# گزارش پرامپت ۱۷.۱: deploy کد runnerها (سبز)
 
 > Claude سرور هاب، ۲۰۲۶-۱۰-۳۰.
-> - **وضعیت:** 🔴 قرمز. طبق قدم ۱ پرامپت، جلوتر نرفتم.
-> - **deploy:** انجام نشد. نه `make backup`، نه migration ۰۰۳۲، نه ساخت image، نه OPA و نه Caddy.
-> - **سرور زنده:** دست نخورده است و همان `server/p15-2-companies` است. کلید توقف هم همان است که مالک گذاشته.
-> - **شاخه:** `server/p17-1-deploy` از `claude/coinepro-hub-setup-hsvnw7` در 45d81c5. هیچ کدی عوض نشد؛ فقط همین گزارش اضافه شد.
+> - **وضعیت:** 🟢 سبز. کد پرامپت ۱۷ روی هاب زنده است و migration آن **0032** است.
+> - **شاخه:** `server/p17-1-deploy`. شاخه‌ی اصلی در e991d64، یعنی همراه پنج اصلاح سشن مشورت، در آن ادغام شد (343e6bb). جز این گزارش، هیچ کدی عوض نشد.
+> - **checkout زنده:** حالا روی `server/p17-1-deploy` است.
+> - **کلید توقف:** همان‌طور که مالک گذاشته بود ماند. هلدینگ (HQ) `engaged` است، نسخه‌ی ۴، با یادداشت خود مالک. FX، PC و TY `released` هستند.
+> - **سرورهای شرکت:** به هیچ‌کدام وصل نشدم. runner روی هاب نصب نشد.
+> - **اجرای اول:** متوقف شده بود. خلاصه‌اش در §۶ است.
 
-## ۱. نتیجه‌ی `make check` (۷۸ دقیقه، rc=2)
-- **سبز:** compose-config، ports، compose-rules، shellcheck، yamllint، hadolint، opa (183/183)، backup، provisioning، python lint، python audit و live.
-  - live همان دو GAP قبلی را دارد: رسیدن egress و searxng با IP. بستنشان قانون DOCKER-USER مالک است.
-- **قرمز:** gitleaks، memory-budget، infra و python test.
+## ۱. `make check` (اجرای دوم، در worktree جدا)
+- **محل اجرا:** یک worktree موقت، نه checkout زنده. زمان: 19:43:54 تا 21:00:37Z (۷۷ دقیقه).
+- **۱۵ دروازه از ۱۶ سبز:**
+  - gitleaks، compose-config، ports، compose-rules، memory-budget، shellcheck، yamllint، hadolint، infra، backup، provisioning، python lint و python audit.
+  - opa: 183/183، پوشش ۱۰۰٪.
+  - python test:
+    - سرویس‌ها: 1161 passed (پوشش 88.9٪).
+    - stt: 74 passed.
+    - apps/api: 925 passed، پوشش کل 82.9٪ و منطق دامنه ۹۱٪.
+  - **پنج قرمز اجرای اول همه سبز شدند:** test_identity، دو آزمون fresh start، جلسه‌ها (vote) و gitleaks. دو دروازه‌ی حافظه هم سبز شدند.
+- **live: یک FAIL، از worktree و نه از کد:**
+  - پیام: «media-render: the sandbox probe failed (no answer)».
+  - **علت:** worktree فایل `infra/compose/.env` ندارد. `live.sh` برخلاف دروازه‌های دیگر `ensure_env` را صدا نمیزند. پس `hq.sh` با پیام `.env not found` میایستد و سنجش جوابی نمیگیرد.
+  - **سنجش جدا:** همین سنجش با یک `.env` موقت (`gen-env.sh`) سبز شد: `{"interfaces": ["lo"], "reached": [], "isolated": true}`.
+  - **روی سرور زنده:** `make verify-live` همین سنجش را سبز گذراند (§۴). در ۱۵.۲ هم همین اتفاق افتاده بود.
 
-## ۲. قرمزهایی که از کد پرامپت ۱۷ است (کار سشن مشورت)
-python test: ۴ شکست و 921 قبول.
+## ۲. deploy (۲۰۲۶-۱۰-۳۰، به وقت UTC)
+| زمان | قدم | نتیجه |
+|---|---|---|
+| 21:13:29 | `make backup` | `/home/Hub/backups/20261030T211329Z`: پایگاه‌های hq (5.6M)، temporal (60M) و temporal_visibility (1.7M)، فایل‌ها و لنگرهای audit |
+| 21:13:50 | checkout `server/p17-1-deploy` در `/home/Hub/CoinePro-Hub` | تمیز |
+| 21:13:54 تا 21:15:32 | `make up` (پروفایل full) | rc=0. `api-migrate` به 0032 رسید. api، worker، gateway و بقیه دوباره ساخته شدند و همه سالم‌اند |
+| 21:15:50 تا 21:15:56 | ری‌استارت Caddy | سالم. بلوک `/api/v1/runners/*` و SSE ترمینال بارگذاری شد |
+| 21:16:17 تا 21:28:26 | `make verify-live` | rc=0 (§۴) |
 
-1. **`test_identity.py::test_no_endpoint_works_without_authentication`**
-   - `POST /api/v1/runners/pair` بدون احراز هویت `422` میدهد (`fields.company: Field required`)، ولی آزمون `401` میخواهد.
-   - این مسیر برای جفت‌سازی runner عمداً عمومی است. پس یا آزمون باید آن را در فهرست مسیرهای عمومی با پاسخ مورد انتظارش بیاورد، یا مسیر باید پیش از اعتبارسنجی بدنه جواب درستی بدهد. تصمیمش با طراح قرارداد است.
-2. **`test_p16_fresh_start.py`، دو آزمون:**
-   - `test_what_ran_goes_what_the_hub_is_made_of_stays`
-   - `test_a_table_in_no_list_or_a_kept_row_pointing_at_wiped_data_stops_it`
-   - هر دو با این پیام می‌ایستند:
-     `fresh start: tables in no list: infra.runner_pairings, infra.runners, infra.server_jobs, infra.server_job_events, infra.network_links, control.server_policy`
-   - شش جدول تازه‌ی migration ۰۰۳۲ باید در یکی از فهرست‌های WIPE، KEEP یا ASK در `hq_api.fresh_start` بیایند.
-   - **اثر در سرور زنده:** فقط `make fresh-start` امن می‌ایستد؛ بقیه‌ی کارها اثری نمی‌گیرند.
-3. **`test_p11_meetings.py::test_a_meeting_runs_end_to_end_with_the_fake_model`**
-   - نوبت‌های دیده‌شده `statement، challenge، minutes` است، یعنی نوبت `vote` جا افتاده.
-   - **قطعی است، نه تصادفی:** تنها دوباره اجرا شد و باز شکست خورد.
-   - **روی سرور زنده سبز است:** همین آزمون روی `server/p15-2-companies` در یک worktree موقت سبز شد. پس از تغییرات بعد از ۱۵.۲ آمده است.
-   - **علت:** بررسی نشد، چون این پرامپت فقط deploy است.
-   - **فایل‌های عوض‌شده در این بازه:** `agents/roles/*.md`، `agents/tools.md`، `agents/protocols/oversight.yaml`، `hq_api/domain/decisions.py`، `studio*.py` و `routes/workshop.py`.
-4. **gitleaks:** سه یافته‌ی `generic-api-key` در `apps/android`:
-   - `app/src/test/java/com/coinepro/hq/ErrorLogTest.kt:60`، رشته‌ی آزمون پوشاندن کلید.
-   - `app/src/debug/assets/demo-fixtures.json:44502` و `:49489`.
-   - به نظر مثبت کاذب‌اند، چون داده‌ی آزمون و نمونه‌اند. ولی `apps/android` مال سشن مشورت است: یا نمونه‌ها عوض شوند، یا fingerprintها در فهرست مجاز gitleaks بیایند.
+- **چرا Caddy ری‌استارت شد و reload نشد:**
+  - `api-on.caddy` به‌صورت یک فایل تکی به کانتینر وصل است (bind mount). checkout فایل را با inode تازه مینویسد، ولی کانتینر هنوز inode قبلی را میبیند.
+  - بعد از `make up`، داخل Caddy صفر خط `runners` بود؛ در ریپو چهار خط.
+  - `caddy reload` همان فایل قدیمی را میخواند. پس کانتینر ری‌استارت شد: حدود ۶ ثانیه قطعی 80/443.
+  - بعد از ری‌استارت، داخل کانتینر هم چهار خط `runners` بود.
+  - **هشدار Caddy:** چهار هشدار بی‌خطر «Unnecessary header_up X-Forwarded-For» ثبت شد.
+- **OPA:** با `--watch` خودش سیاست‌ها را بارگذاری میکند. این را از داخل api از خود OPA پرسیدم:
+  - `hq.internal.server_ops` = `server.read`، `server.run` (از `servers.rego`).
+  - `hq.config.a2_grants`: ابزارهای `server.*` در ceo، manager، employee و overseer هستند (از `data.json` تازه).
+- **دیتابیس:** شش جدول تازه هستند: `infra.runner_pairings`، `infra.runners`، `infra.server_jobs`، `infra.server_job_events`، `infra.network_links` و `control.server_policy`.
+- **لاگ‌ها:** از 21:14Z در api، worker و gateway صفر خطا و صفر Traceback.
 
-## ۳. قرمزهایی که پیش از پرامپت ۱۷ بود
-این دو در سرور زنده هم هستند. `infra/compose`، `infra.sh` و `memory-budget.sh` بین `server/p15-2-companies` و شاخه‌ی اصلی عوض نشده‌اند.
+## ۳. migration ۰۰۳۲ و downgrade آن
+- **زنجیره:** `revision = "0032"`، `down_revision = "0031"`.
+- **downgrade این‌ها را برمیدارد:**
+  - شش جدول تازه و تابع `infra.server_jobs_guard()`.
+  - ستون‌های `server_id` و `cwd` از `workshop.sessions`.
+  - ستون‌های تازه‌ی `infra.servers`.
+  - CHECKهای قبلی با `NOT VALID` برمیگردند. ردیف‌های قبلی همان‌طور که هستند میمانند.
+- **downgrade این‌ها را نگه میدارد:**
+  - نوع `server_destructive` در CHECK کارت‌ها میماند، پس کارت‌هایش پاک نمیشوند.
+  - ردیف‌های `infra.servers` هم میمانند.
+- **اثرش:** داده‌ی جفت‌سازی، runnerها، کارها و نقشه‌ی شبکه با downgrade از بین میرود. پیش از downgrade واقعی، بکاپ لازم است.
+- **آزمون:**
+  - آزمون رفت‌وبرگشت در `make check` سبز بود (`test_p13f_join`: پایین تا 0009 و دوباره بالا تا head).
+  - `test_p12f_join` (یک head واحد) هم سبز بود.
+- **روی دیتابیس زنده** فقط upgrade اجرا شد.
 
-1. **memory-budget:**
-   - `lean+substitutes` (6384 > 6196 MiB) و `lean+substitutes-web` (6320 > 6196 MiB) بیش از بودجه‌اند، بدون یادداشت «not enabled».
-   - **علت:** حافظه‌ی browser-web در ۱۵.۲، با اجازه‌ی مالک، 300 MiB بیشتر شد.
-   - سرور روی پروفایل full است و همه‌ی ترکیب‌های full سبزند.
-2. **infra:** پنج آزمون دروازه‌ی حافظه شکست خورد: stt، mcp، substitutes، media و ocr.
-   - **علت:** از 478a4b7 (۲۰۲۶-۱۰-۳۰ 04:11Z، بعد از `make check` و deploy ۱۵.۲)، `hq.sh` پروفایل‌های اختیاری را با RAM همین سرور (15608 MiB) میسنجد. آزمون‌های infra هنوز بودجه‌ی مرجع را انتظار دارند.
-   - باید یکی از این دو با دیگری هماهنگ شود: آزمون‌ها یا رفتار `hq.sh`.
+## ۴. `verify-live` و سه سنجش پرامپت
+- **`make verify-live`:** rc=0.
+  - «media-render has no network at all».
+  - «/internal are 404 at the edge».
+  - همان دو GAP قبلی هست: رسیدن egress و searxng با IP. بستنشان قانون DOCKER-USER مالک است.
+- **سه سنجش:**
+  1. `GET https://hq.coinepro.com/api/v1/runners/pair`: **405**.
+  2. همین مسیر از `10.10.1.4:443` (`--resolve hq.coinepro.com:443:10.10.1.4`): **405**. گواهی همان است: `CN=hq.coinepro.com`، Let's Encrypt YE2، `verify ok`.
+  3. `/internal`: **404**. `/internal/health` و `/internal/x` از نشانی خصوصی هم 404 دادند.
+- **سنجش اضافه:** `POST /runners/pair` بدون بدنه 422 میدهد. این مسیر عمومی است و آزمون test_identity هم همین را میخواهد.
 
-## ۴. downgrade migration ۰۰۳۲
-- آزمون رفت‌وبرگشت در `make check` سبز بود: `test_p13f_join.py::test_a_round_trip_keeps_a_card_of_every_later_kind`.
-  - این آزمون دیتابیس آزمایشی را تا 0009 پایین میبرد، که downgrade ۰۰۳۲ را هم شامل است. بعد دوباره تا 0032 بالا میآورد.
-- `test_p12f_join` هم سبز بود: زنجیره‌ی 0031 → 0032 و یک head واحد.
-- روی دیتابیس زنده هیچ downgrade یا upgradeی اجرا نشد.
+## ۵. کلید توقف
+پیش و پس از deploy یکسان است:
+- **HQ:** `engaged`، نسخه‌ی ۴، از 2026-10-30 01:34:58Z، با یادداشت مالک: «هلدینگ تا نصب نسخه‌ی آخر متوقف بماند؛ خود مالک روشن میکند».
+- **FX، PC و TY:** `released`.
 
-## ۵. یک اشتباه من در این اجرا (برطرف شد)
-- **چه شد:** شاخه‌ی `server/p17-1-deploy` را در خود checkout زنده ساختم، از 17:23:56 تا 18:45:08 UTC.
-  - چند کانتینر زنده از همین checkout فایل میخوانند: `agents/` در api، worker و gateway، و `infra/opa/policy` در OPA که با `--watch` خودکار بارگذاری میشود.
-  - پس در این ۸۱ دقیقه، منشورها و سیاست‌های OPA شاخه‌ی اصلی روی کد ۱۵.۲ بارگذاری بود.
-- **برطرف شد:** checkout به `server/p15-2-companies` برگشت و OPA دوباره همان سیاست‌های زنده را خواند.
-- **اثرش:**
-  - در این بازه هیچ اجرای ایجنتی نبود (`agents.runs`: 0).
-  - api، gateway و OPA هیچ خطایی ثبت نکردند.
-  - worker نُه بار `reconcile_schedules` را ناموفق گزارش داد. این خطا پیش از این بازه هم بود: پنج بار از 15:00 تا 17:23، همان خطای باز Temporal. بعد از برگشت، صفر بار.
-- **از این به بعد:** `make check` را در یک worktree جدا اجرا میکنم. checkout زنده فقط هنگام خود deploy عوض میشود.
+## ۶. اجرای اول (متوقف شد)
+- **چه شد:** `make check` روی 45d81c5 قرمز بود و deploy انجام نشد. گزارش آن اجرا در تاریخچه‌ی همین فایل است (03bdc7b).
+- **پنج اصلاح سشن مشورت:** 55cabea (identity)، 66c1d80 (fresh start)، d360607 (جلسه‌ها)، 24f6126 (gitleaks) و e991d64 (دروازه‌های حافظه).
+- **اشتباه من در آن اجرا:**
+  - شاخه را در checkout زنده ساختم. ۸۱ دقیقه (17:23:56 تا 18:45:08Z) منشورها و سیاست‌های OPA شاخه‌ی اصلی روی کد ۱۵.۲ بارگذاری بود.
+  - برش گرداندم. هیچ اجرای ایجنتی نبود و خطای تازه‌ای ثبت نشد.
+  - این بار `make check` در worktree جدا اجرا شد.
 
-## ۶. قدم بعدی
-1. **سشن مشورت:**
-   - چهار آزمون بخش ۲ را درست کند.
-   - برای gitleaks تصمیم بگیرد.
-   - درباره‌ی هماهنگ کردن memory-budget و infra با `hq.sh` نظر بدهد.
-2. **سرور هاب:** بعد از push، پرامپت ۱۷.۱ را از اول اجرا میکند.
-3. **مالک:** نصب runner روی سرورها (`COMPANY_SERVER_ACCESS_SETUP.md`) تا deploy سبز صبر میکند.
+## ۷. قدم بعدی
+1. **مالک:**
+   - نصب runner روی هر سرور با `docs/server-prompts/COMPANY_SERVER_ACCESS_SETUP.md`.
+   - آزاد کردن کلید توقف هلدینگ هر وقت که خودتان صلاح دانستید.
+2. **پیشنهاد کوچک (`scripts/` و `infra/` مال سرور هاب است؛ در پرامپت بعد، اگر مالک خواست):**
+   - `live.sh` مثل دروازه‌های دیگر `ensure_env` را صدا بزند تا در worktree هم سبز شود.
+   - خط‌های اضافه‌ی `header_up X-Forwarded-For` در `api-on.caddy` برداشته شوند.
+   - Caddy پوشه‌ی `infra/caddy` را mount کند، نه فایل‌های تکی را. آن وقت deploy با `caddy reload` و بدون قطعی انجام میشود.
