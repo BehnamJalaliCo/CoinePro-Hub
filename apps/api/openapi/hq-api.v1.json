@@ -939,7 +939,7 @@
           },
           "wait_s": {
             "default": 20,
-            "maximum": 25.0,
+            "maximum": 20.0,
             "minimum": 0.0,
             "title": "Wait S",
             "type": "integer"
@@ -65669,6 +65669,7 @@
     },
     "/api/v1/infra/servers/{id}/jobs/{job}": {
       "get": {
+        "description": "One job of the server (§26.2 shape, its masked arguments, the card\nthat holds it, its session, its result and transcript).",
         "operationId": "server_job",
         "parameters": [
           {
@@ -65981,7 +65982,7 @@
         ]
       },
       "post": {
-        "description": "Queues a `map` job: the map when the runner answers within 15 s,\nelse `202 {job}` (the map arrives with the job's server.call).",
+        "description": "Queues a `map` job: the map when the runner answers within 10 s,\nelse `202 {job}` (the map arrives with the job's server.call).",
         "operationId": "refresh_server_map",
         "parameters": [
           {
@@ -113179,7 +113180,7 @@
     },
     "/internal/v1/servers/jobs": {
       "post": {
-        "description": "A job on a company server for the calling agent, then waits up to\n`wait_s` (≤ 25) for it: finished, waiting for the seal, or still running\n(ask again with GET /servers/jobs/{id}). A `claude` job opens a\nCodeSession (`runtime: company_server`). Requires `Idempotency-Key`.",
+        "description": "A job on a company server for the calling agent, then waits up to\n`wait_s` (≤ 20) for it: finished, waiting for the seal, or still running\n(ask again with GET /servers/jobs/{id}). A `claude` job opens a\nCodeSession (`runtime: company_server`). Requires `Idempotency-Key`.",
         "operationId": "agent_job",
         "requestBody": {
           "content": {
@@ -113368,7 +113369,7 @@
             "required": false,
             "schema": {
               "default": 0,
-              "maximum": 25,
+              "maximum": 20,
               "minimum": 0,
               "title": "Wait S",
               "type": "integer"

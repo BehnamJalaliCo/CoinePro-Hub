@@ -890,11 +890,17 @@ async def test_holding_platform_sre_on_every_server(
            WHERE c.kind = 'holding'""",
         code,
     )
-    r = await agent_job(client, code, {"kind": "map", "server": "box", "company": co["code"]})
-    assert r.status_code == 201, r.text
-    assert r.json()["job"]["kind"] == "map" and r.json()["job"]["actor"]["code"] == code
-    r = await client.get("/internal/v1/servers", headers=await agent_headers(code))
-    assert r.status_code == 200 and any(s["name"] == "box" for s in r.json())
+    try:
+        r = await agent_job(client, code, {"kind": "map", "server": "box", "company": co["code"]})
+        assert r.status_code == 201, r.text
+        assert r.json()["job"]["kind"] == "map" and r.json()["job"]["actor"]["code"] == code
+        r = await client.get("/internal/v1/servers", headers=await agent_headers(code))
+        assert r.status_code == 200 and any(s["name"] == "box" for s in r.json())
+    finally:  # the holding's only platform SRE would take other tests' work
+        await su.execute(
+            "UPDATE core.employees SET status = 'dismissed', dismissed_at = now() WHERE code = $1",
+            code,
+        )
 
 
 async def test_owner_session_on_a_company_server(
@@ -1151,3 +1157,36 @@ def test_classify_paths_and_deploys() -> None:
         "ls",
     ):
         assert not is_deploy(cmd), cmd
+
+
+async def test_pr130_finds_a_link_that_worked_and_now_fails(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+) -> None:
+    from hq_api.domain import oversight_checks as C
+
+    co = await new_company()
+    a = await pair(client, hub, owner_session, co, "n1", "10.10.8.1")
+    assert (await poll(client, a)).status_code == 204
+    sid = uuid.UUID(a["server"]["id"])
+    await su.execute(
+        """INSERT INTO infra.network_links (company_id, from_server_id, to_key, to_ip, port, ok,
+               error, at, last_ok_at)
+           VALUES ($1, $2, 'hub', '10.10.1.4', 443, false, 'timeout', now(), now() - interval '1 day')""",
+        co["id"],
+        sid,
+    )
+    holding = await hub.companies.holding()
+    companies = {c.code: c.id for c in await hub.companies.all()}
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        ctx = C.CheckCtx(tx, holding.id, holding.code, companies, datetime.now(UTC), {})
+        out = await SV.network_links_hold(ctx)
+    keys = {p.key for p in out.problems}
+    assert f"link-{sid}-hub-443" in keys
+    assert "PR-130" in C.CHECKS
+    # The run queued a fresh netcheck on the online runner.
+    job = await take(client, a)
+    assert job["kind"] == "netcheck"

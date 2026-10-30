@@ -566,7 +566,7 @@ async def _wait_job(hub: Hub, scope: list[UUID], job_id: UUID, wait_s: float,
     responses={**E, 202: {"model": JobQueued, "description": "queued; server.state follows"}},
 )
 async def refresh_server_map(id: UUID, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
-    """Queues a `map` job: the map when the runner answers within 15 s,
+    """Queues a `map` job: the map when the runner answers within 10 s,
     else `202 {job}` (the map arrives with the job's server.call)."""
     async with ctx.tx() as tx:
         s = await SV.load_server(tx, id)
@@ -574,7 +574,7 @@ async def refresh_server_map(id: UUID, request: Request, ctx: Ctx = Depends(owne
             tx, server=s, kind="map", args={}, actor_kind="owner", actor_code="owner",
             summary="نقشه‌ی سرور", timeout_s=300, request_id=ctx.request_id,
         )  # fmt: skip
-    j = await _wait_job(ctx.hub, await ctx.scope(), j["id"], 15)
+    j = await _wait_job(ctx.hub, await ctx.scope(), j["id"], 10)
     if j["state"] == "done":
         async with ctx.tx() as tx:
             s = await SV.load_server(tx, id)
@@ -687,6 +687,8 @@ async def server_activity(
 
 @router.get("/infra/servers/{id}/jobs/{job}", response_model=SV.Job, responses=E)
 async def server_job(id: UUID, job: UUID, ctx: Ctx = Depends(owner_ctx)) -> SV.Job:
+    """One job of the server (§26.2 shape, its masked arguments, the card
+    that holds it, its session, its result and transcript)."""
     async with ctx.tx() as tx:
         j = await SV.load_job(tx, job)
     if j["server_id"] != id:
@@ -925,7 +927,7 @@ class AgentJobIn(Model):
     args: dict[str, Any] = Field(default_factory=dict)
     # a cross-company request the server's company accepted (the agent's own work item)
     via_work: str | None = Field(default=None, pattern=r"^W-[0-9]{6,}$")
-    wait_s: int = Field(default=AGENT_WAIT_S, ge=0, le=25)
+    wait_s: int = Field(default=AGENT_WAIT_S, ge=0, le=20)
 
 
 class ExecArgs(Model):
@@ -1074,7 +1076,7 @@ async def agent_servers(
 @internal_router.post("/servers/jobs", response_model=AgentJob, status_code=201, responses=ER)
 async def agent_job(body: AgentJobIn, request: Request, ctx: Ctx = Depends(internal_ctx)) -> Any:
     """A job on a company server for the calling agent, then waits up to
-    `wait_s` (≤ 25) for it: finished, waiting for the seal, or still running
+    `wait_s` (≤ 20) for it: finished, waiting for the seal, or still running
     (ask again with GET /servers/jobs/{id}). A `claude` job opens a
     CodeSession (`runtime: company_server`). Requires `Idempotency-Key`."""
     who = _agent(ctx)
@@ -1143,7 +1145,7 @@ async def _agent_wait(ctx: Ctx, scope: list[UUID], job_id: UUID, wait_s: int) ->
 
 @internal_router.get("/servers/jobs/{id}", response_model=AgentJob, responses=ER)
 async def agent_get_job(
-    id: UUID, wait_s: int = Query(default=0, ge=0, le=25), ctx: Ctx = Depends(internal_ctx)
+    id: UUID, wait_s: int = Query(default=0, ge=0, le=20), ctx: Ctx = Depends(internal_ctx)
 ) -> AgentJob:
     """A job the agent started (or of its company), waiting up to `wait_s`."""
     who = _agent(ctx)
