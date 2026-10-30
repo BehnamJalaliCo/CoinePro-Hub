@@ -54,6 +54,9 @@ WIPE: tuple[str, ...] = (
     "feedback.items", "feedback.signals",
     "governance.batches", "governance.kpi_values", "governance.okr_checkins",
     "governance.outcome_reviews",
+    # ⟨1.8⟩ prompt 17: what ran on the company servers and what was measured;
+    # a pairing lives 15 minutes (the paired runners stay, below)
+    "infra.network_links", "infra.runner_pairings", "infra.server_job_events", "infra.server_jobs",
     "growth.funnel_days", "growth.leaks", "growth.nps_responses", "growth.nps_waves",
     "growth.referral_checks", "growth.rescue_cases", "growth.rescue_steps", "growth.sends",
     "intake.events", "intake.nonces", "intake.rejections",
@@ -92,6 +95,7 @@ KEEP: tuple[str, ...] = (
     "audit.chain_head",
     "auth.challenges", "auth.enrolment_tokens", "auth.passkeys", "auth.sessions", "auth.step_ups",
     "control.deploy_freezes", "control.kill_switches",
+    "control.server_policy",  # ⟨1.8⟩ the owner's seal policy for the company servers
     "core.companies", "core.departments", "core.employee_code_seq", "core.employees", "core.hiring",
     "feedback.keywords",
     "governance.authority", "governance.authority_history", "governance.calendar_events",
@@ -99,6 +103,7 @@ KEEP: tuple[str, ...] = (
     "governance.rollout",
     "growth.opt_outs", "growth.rules", "growth.templates",
     "infra.inventory", "infra.servers",
+    "infra.runners",  # ⟨1.8⟩ the runners the owner paired: the servers stay attached
     "intake.sources",
     "knowledge.corpus_chunks", "knowledge.corpus_files", "knowledge.corpus_sources",
     "knowledge.skill_versions", "knowledge.skills",
@@ -153,6 +158,9 @@ RESET: tuple[str, ...] = (
     # an employee hired by a card stays; the card is gone (an immutable column:
     # its trigger sleeps under session_replication_role = replica)
     "UPDATE core.employees SET hired_by_decision_id = NULL WHERE hired_by_decision_id IS NOT NULL",
+    # ⟨1.8⟩ a paired runner stays; the short-lived pairing it came from is gone
+    # (an immutable column too)
+    "UPDATE infra.runners SET pairing_id = NULL WHERE pairing_id IS NOT NULL",
 )
 
 # The ref sequences no table owns (nextval in the code): what they number.
