@@ -8,6 +8,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { ApiError, isMock, type Problem } from './client';
+import { observed } from './observe';
 
 export type FileKind = 'image' | 'video' | 'audio' | 'document';
 export type MediaRef = {
@@ -48,14 +49,17 @@ export type OrderOut = {
 };
 
 // Same path as the typed client, so next.config's alias swaps the fixtures out of production builds.
-const mockHandle = isMock ? async (r: Request) => (await import('@/lib/api/mock')).handle(r) : undefined;
+const mockHandle = isMock ? async (r: Request) => (await import('@/lib/api/mock-v21')).handle(r) : undefined;
+// 0.4.0: the request id and «خطاخوان» (./observe), the same as the typed client.
+const send = observed(mockHandle ?? ((r: Request) => globalThis.fetch(r)));
 
 async function problem(res: Response): Promise<never> {
   let p: Partial<Problem> | undefined;
   try { p = (await res.json()) as Partial<Problem>; } catch { /* not JSON */ }
   // A 429 says when to try again in a header, not in the body.
   const wait = Number(res.headers.get('Retry-After'));
-  throw new ApiError(res.status, wait > 0 ? ({ ...p, retry_after: wait } as Partial<Problem>) : p);
+  const withId = { ...p, request_id: p?.request_id ?? res.headers.get('X-Request-Id') } as Partial<Problem>;
+  throw new ApiError(res.status, wait > 0 ? ({ ...withId, retry_after: wait } as Partial<Problem>) : withId);
 }
 
 /** One JSON call against /api/v1 with the contract's headers. */
@@ -72,7 +76,7 @@ export async function call<T>(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE
   });
   let res: Response;
   try {
-    res = mockHandle ? await mockHandle(req) : await fetch(req);
+    res = await send(req);
   } catch {
     throw new ApiError(0, undefined);
   }

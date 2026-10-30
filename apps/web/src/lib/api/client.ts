@@ -1,5 +1,6 @@
 import createClient, { type Middleware } from 'openapi-fetch';
 import type { components, paths } from '@/generated/api';
+import { observed } from './observe';
 
 export type Schemas = components['schemas'];
 export type Problem = Schemas['Problem'];
@@ -52,13 +53,14 @@ const contract: Middleware = {
 // Inlined at build time: in production the branch and the fixtures module are compiled away.
 const mockFetch =
   process.env.NEXT_PUBLIC_HQ_MOCK === '1'
-    ? async (input: Request): Promise<Response> => (await import('@/lib/api/mock')).handle(input)
+    ? async (input: Request): Promise<Response> => (await import('@/lib/api/mock-v21')).handle(input)
     : undefined;
 
+// 0.4.0: every call carries its X-Request-Id and its failures reach «خطاخوان» and the hub's health (./observe).
 export const api = createClient<paths>({
   baseUrl: typeof window === 'undefined' ? 'http://localhost' : window.location.origin,
   credentials: 'same-origin',
-  ...(mockFetch ? { fetch: mockFetch } : {}),
+  fetch: observed(mockFetch ?? ((r: Request) => globalThis.fetch(r))),
 });
 api.use(contract);
 
@@ -73,7 +75,8 @@ export async function ok<T>(p: Promise<Result<T>>): Promise<T> {
     throw new ApiError(0, undefined);
   }
   if (r.response.ok) return r.data as T;
-  throw new ApiError(r.response.status, (r.error ?? undefined) as Partial<Problem> | undefined);
+  const pr = (r.error ?? undefined) as Partial<Problem> | undefined;
+  throw new ApiError(r.response.status, { ...pr, request_id: pr?.request_id ?? r.response.headers.get('X-Request-Id') });
 }
 
 export const isMock = MOCK;

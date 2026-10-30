@@ -154,6 +154,13 @@ export function useHoldingStream(onEvent?: (e: StreamEvent) => void): StreamStat
               cb.current?.(e);
             }
           });
+          // 0.3.0–0.6.0: the demo holding's runs, outputs and cards, the owner's orders moving on, and (with the tab hidden) its alerts.
+          void import('@/lib/api/mock-v21').then((m) => {
+            for (const e of m.tick21() as StreamEvent[]) {
+              for (const [prefix, keys] of INVALIDATE) if (e.type.startsWith(prefix)) for (const k of keys) void qc.invalidateQueries({ queryKey: [k] });
+              cb.current?.(e);
+            }
+          });
         }
       }, 2400);
       return () => clearInterval(t);

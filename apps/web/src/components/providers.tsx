@@ -5,6 +5,7 @@ import { useState, type ReactNode } from 'react';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { ToastProvider } from './ui/toast';
 import { ApiError } from '@/lib/api/client';
+import { backoff, hubHealth, isTransientStatus } from '@/lib/hub-health';
 
 export function Providers({ children }: { children: ReactNode }) {
   const [qc] = useState(
@@ -14,7 +15,13 @@ export function Providers({ children }: { children: ReactNode }) {
           queries: {
             staleTime: 15_000,
             refetchOnWindowFocus: true,
-            retry: (n, e) => !(e instanceof ApiError && e.status >= 400 && e.status < 500) && n < 2,
+            // 0.4.0: a read that met a 502/503/504 or no answer is tried again quietly; while the hub restarts (four of them in fifteen
+            // seconds) it keeps waiting with a growing pause, so pages keep what they had instead of an error on every card.
+            retry: (n, e) => {
+              if (e instanceof ApiError && isTransientStatus(e.status)) return hubHealth.outage || n < 3;
+              return !(e instanceof ApiError && e.status >= 400 && e.status < 500) && n < 2;
+            },
+            retryDelay: (n, e) => (e instanceof ApiError && isTransientStatus(e.status) ? backoff(n) : Math.min(1000 * 2 ** n, 8000)),
           },
         },
       }),
