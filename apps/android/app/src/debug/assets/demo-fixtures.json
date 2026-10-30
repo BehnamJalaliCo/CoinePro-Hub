@@ -2253,7 +2253,7 @@
      },
      "expected": {
       "metric_fa": "دقت ۷ روزه‌ی سیگنال طلا (٪)",
-      "kpi": "signal_accuracy_7d",
+      "kpi": "signal_accuracy_week",
       "baseline": 61,
       "target": 68,
       "by_days": 60
@@ -44499,7 +44499,7 @@
       "state": "no_source"
      },
      {
-      "key": "signal_accuracy_7d",
+      "key": "signal_accuracy_week",
       "name_fa": "دقت ۷ روزه‌ی سیگنال طلا",
       "unit": "%",
       "value": 63.7,
@@ -49486,7 +49486,7 @@
     {
      "id": "kpi-FX-11",
      "company": "FX",
-     "key": "signal_accuracy_7d",
+     "key": "signal_accuracy_week",
      "card": "growth",
      "name_fa": "دقت ۷ روزه‌ی سیگنال طلا",
      "unit": "%",
@@ -52558,11 +52558,11 @@
    }
   ]
  },
- "/kpis/FX/signal_accuracy_7d/values": {
+ "/kpis/FX/signal_accuracy_week/values": {
   "status": 200,
   "body": [
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-41760m",
     "value": 63.9,
     "source_ref": {
@@ -52572,7 +52572,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-40320m",
     "value": 64.3,
     "source_ref": {
@@ -52582,7 +52582,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-38880m",
     "value": 64.4,
     "source_ref": {
@@ -52592,7 +52592,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-37440m",
     "value": 66.2,
     "source_ref": {
@@ -52602,7 +52602,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-36000m",
     "value": 66.2,
     "source_ref": {
@@ -52612,7 +52612,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-34560m",
     "value": 62.4,
     "source_ref": {
@@ -52622,7 +52622,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-33120m",
     "value": 63.9,
     "source_ref": {
@@ -52632,7 +52632,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-31680m",
     "value": 66.3,
     "source_ref": {
@@ -52642,7 +52642,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-30240m",
     "value": 63.7,
     "source_ref": {
@@ -52652,7 +52652,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-28800m",
     "value": 63.8,
     "source_ref": {
@@ -52662,7 +52662,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-27360m",
     "value": 65.8,
     "source_ref": {
@@ -52672,7 +52672,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-25920m",
     "value": 62.8,
     "source_ref": {
@@ -52682,7 +52682,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-24480m",
     "value": 64.1,
     "source_ref": {
@@ -52692,7 +52692,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-23040m",
     "value": 66.8,
     "source_ref": {
@@ -52702,7 +52702,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-21600m",
     "value": 63.4,
     "source_ref": {
@@ -52712,7 +52712,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-20160m",
     "value": 64.2,
     "source_ref": {
@@ -52722,7 +52722,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-18720m",
     "value": 66.3,
     "source_ref": {
@@ -52732,7 +52732,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-17280m",
     "value": 66.1,
     "source_ref": {
@@ -52742,7 +52742,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-15840m",
     "value": 67.5,
     "source_ref": {
@@ -52752,7 +52752,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-14400m",
     "value": 67,
     "source_ref": {
@@ -52762,7 +52762,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-12960m",
     "value": 64.1,
     "source_ref": {
@@ -52772,7 +52772,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-11520m",
     "value": 65.2,
     "source_ref": {
@@ -52782,7 +52782,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-10080m",
     "value": 63.7,
     "source_ref": {
@@ -52792,7 +52792,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-8640m",
     "value": 65.4,
     "source_ref": {
@@ -52802,7 +52802,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-7200m",
     "value": 63.4,
     "source_ref": {
@@ -52812,7 +52812,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-5760m",
     "value": 67.3,
     "source_ref": {
@@ -52822,7 +52822,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-4320m",
     "value": 65.8,
     "source_ref": {
@@ -52832,7 +52832,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-2880m",
     "value": 64.5,
     "source_ref": {
@@ -52842,7 +52842,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@-1440m",
     "value": 67.3,
     "source_ref": {
@@ -52852,7 +52852,7 @@
     }
    },
    {
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "at": "@0m",
     "value": 63.7,
     "source_ref": {
@@ -55980,7 +55980,7 @@
     "key_results": [
      {
       "id": "kr-KR-0010",
-      "kpi": "signal_accuracy_7d",
+      "kpi": "signal_accuracy_week",
       "metric_fa": null,
       "checkins": [
        {
@@ -56229,7 +56229,7 @@
    "key_results": [
     {
      "id": "kr-KR-0010",
-     "kpi": "signal_accuracy_7d",
+     "kpi": "signal_accuracy_week",
      "metric_fa": null,
      "checkins": [
       {
@@ -56454,7 +56454,7 @@
      "due_at": "@-7200m",
      "expected": {
       "metric_fa": "دقت ۷ روزه‌ی سیگنال طلا (٪)",
-      "kpi": "signal_accuracy_7d",
+      "kpi": "signal_accuracy_week",
       "baseline": 61,
       "target": 68,
       "by_days": 60
@@ -56562,7 +56562,7 @@
      "due_at": "@36000m",
      "expected": {
       "metric_fa": "دقت ۷ روزه‌ی سیگنال طلا (٪)",
-      "kpi": "signal_accuracy_7d",
+      "kpi": "signal_accuracy_week",
       "baseline": 61,
       "target": 68,
       "by_days": 60
@@ -58139,7 +58139,7 @@
    },
    "expected": {
     "metric_fa": "دقت ۷ روزه‌ی سیگنال طلا (٪)",
-    "kpi": "signal_accuracy_7d",
+    "kpi": "signal_accuracy_week",
     "baseline": 61,
     "target": 68,
     "by_days": 60
