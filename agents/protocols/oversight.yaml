@@ -692,3 +692,16 @@ protocols:
       Every digital-CEO prediction scored today was made and sealed (sealed_hash) before the owner's decision (made_at < decided_at), and none
       was shown to anyone before that decision.
     evidence: "prediction ids, made_at, decided_at, sealed_hash"
+  # ⟨1.8⟩ Company server runners (prompt 17, contract §26.1a): the holding's own network.
+  - ref: PR-130
+    area: product
+    method: rule
+    schedule: "FREQ=DAILY;BYHOUR=5;BYMINUTE=40"
+    scope: holding
+    severity: high
+    answerable: hub_platform_sre
+    title_fa: "هر سرور به هاب و به سرورهای دیگر میرسد"
+    check: >-
+      Every paired company server reaches the hub (10.10.1.4:443) and every other paired server's private address (22, 443, 80): each
+      run queues a read-only netcheck on every online runner, and a link that worked before and fails now is a finding.
+    evidence: "/infra/network, netcheck jobs"

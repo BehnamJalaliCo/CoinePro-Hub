@@ -159,6 +159,16 @@ There is no tool that writes the charter or the authority matrix: agents propose
 
 Publishing has no tool: code publishes a sealed series' items through the official APIs, and everything else is a card.
 
+### Company servers (v1.8, prompt 17; contract §26)
+Each company server runs `hq-runner`, which pulls jobs from the hub over HTTPS; the hub never connects into a server. Every call is a job and an Audit row (masked); a destructive one (a database, a volume, a backup or a disk deleted, the server's SSH, users or firewall changed, the server deleted) waits for the owner's seal and answers `awaiting_seal` with the card's ref. A kill switch answers `company_locked`; a deploy freeze refuses deploy commands (`deploy_frozen`). A job still running answers `running`: call the same tool again with `{job}`. Own company only; the holding's platform SRE and the overseer on every server; another company's server only through a cross-company request its CEO accepted (`via_work`: the agent's own work item; the job runs as that CEO).
+| Tool | Class | Input | What it does |
+|---|---|---|---|
+| `server.map` | A0 | `{server?, company?, fresh?}` · `{job}` | Without `server`: the servers the role may work on. With it: the latest inventory (§26.5: containers, compose projects, systemd units and timers, cron, ports, repositories, automations, sites), a fresh one when `fresh` or older than a day. |
+| `server.read` | A0 | `{server, company?, path, max_bytes?, via_work?}` · `{job}` | One file (≤ 20 MB; secrets masked). |
+| `server.exec` | A2 | `{server, company?, cmd, cwd?, timeout_s?, sudo?, via_work?}` · `{job}` | A command as the server's work user (sudo only if it has it), ≤ 3600 s; stdout, stderr and the exit code. |
+| `server.write` | A2 | `{server, company?, path, content, encoding?, mode?, via_work?}` · `{job}` | Writes a file (≤ 1 MB here) and keeps `<file>.hq-bak`. |
+| `server.claude` | A2 | `{server, company?, brief, title?, cwd?, via_work?}` · `{job}` | The server's own Claude Code on a brief in a repository folder, under its CLAUDE.md: a Workshop session (`runtime: company_server`); its usage goes into the Token Treasury. |
+
 ### Which role has what (v2)
 Role charters list their tools in frontmatter; the gateway enforces them. In short: the **overseer** has every read tool, the web,
 and the oversight powers; the **advisor** has every read tool, the web and `inquiry.ask`; the **assistant** has the web, files,
