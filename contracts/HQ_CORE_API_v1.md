@@ -2763,3 +2763,44 @@ Agent tools (Tool Gateway, recorded like every tool call) create jobs and wait f
 
   Servers never call each other directly; the hub carries every cross-server task.
 
+
+## 27. Choosing the player, the council of models, and speech on the hub ⟨1.9⟩ (2026-10-31, prompt 18)
+Owner, 2026-10-23 (request #13), brought forward on 2026-10-31: «بگیم بده جی‌پی‌تی انجام بده یا فلان کارو جمنای بکنه یا دستور بدم با هم
+مشارکت کنن… عکس و ویدیو با هم بسازن». And request #14: speech to text on the hub.
+
+### 27.1 The player of an order
+- **Fields:** `POST /work` and `PATCH /work/{id}` take `player: "auto"|"claude"|"gpt"|"gemini"|"deepseek"` (default `auto`) and `mode: "single"|"council"` (default `single`).
+- **Where they appear:** `Work` carries both, and every child work inherits them unless its assignee's charter forbids it.
+- **`auto`:** the LLM Router picks, as today.
+- **A named player:** every model call of the work's runs goes to that player.
+  - **`claude`:** the Claude models through the router.
+  - **The others:** a substitute seat (§21.13), within its daily cap, with the same data masking.
+  - **Unavailable player** (signed out, limited or off): the run waits up to 30 minutes and then falls back to `auto`. A notification says so, and the work's events record it.
+- **Voice orders:** they recognise «با جی‌پی‌تی / با جمنای / با دیپ‌سیک / شورا» and set the fields.
+
+### 27.2 The council of models
+- **How it runs:** `mode: "council"` runs the same brief independently on every available player (Claude plus every substitute that is `ready`).
+  - Each player's work is a council member run.
+  - Claude then writes the synthesis.
+- **Synthesis contents:** where the players agree, where they differ and why, the recommendation, and each answer in full.
+- **Record shape:**
+  ```
+  Council { work_ref, members: [{player, model, state: "queued"|"working"|"done"|"failed"|"skipped", run_id|null, deliverable_ref|null, reason|null}],
+            synthesis_ref|null, state: "running"|"synthesising"|"done"|"failed" }
+  ```
+  - `GET /work/{id}/council` returns it.
+  - Stream `work.council` carries every change to it.
+- **Media work** (images, video):
+  - Each player that can make the kind makes its own version as a Creative (§21.13).
+  - The owner picks one (`POST /creatives/{ref}/pick`). For video, `POST /creatives/{ref}/animate` makes a video from the picked image.
+- **Budget:** one envelope covers the whole council. A member that would pass a cap is `skipped` with the reason.
+
+### 27.3 Speech to text on the hub
+- **Model and memory:** the `stt` service runs the pinned **`small`** faster-whisper model (MIT) so it fits the memory budget, and `/meta.speech.enabled` becomes `true`.
+- **When the hub transcribes:**
+  - voice messages and voice notes
+  - the owner's voice orders when the phone's recogniser is unavailable or fails
+  - audio files attached anywhere
+- **Results:** a transcript is stored on the file (`transcript_fa`), and stream `file.transcribed` announces it.
+- **Privacy:** audio never leaves the hub.
+- **The phone first:** the apps still prefer the phone's recogniser for live dictation. The hub's transcript also replaces a voice message's text when the owner asks.
