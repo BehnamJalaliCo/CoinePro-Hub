@@ -201,6 +201,9 @@ private val GROUPS = listOf(
     )),
     ToolGroupDef("system", "سیستم و ایمنی", "کلیدهای توقف، سلامت و ردّ هر اقدام", listOf(
         Tool("control", "کنترل", DivanIcon.LOCK, "توقف و ادامه‌ی شرکت‌ها و انتشارها"),
+        // ⟨1.8⟩ §26: the companies' servers under the holding's control, and the few things that wait for the owner's seal there.
+        Tool("servers", "همه‌ی سرورها", DivanIcon.SERVER, "نقشه، کارهای زنده، ترمینال و Claude روی سرور شرکت‌ها"),
+        Tool("server-policy", "قوانین سرورها", DivanIcon.SEAL, "شش کار ویرانگری که مُهر تو را میخواهند"),
         Tool("sites", "پایش سایت‌ها", DivanIcon.SERVER, "سالم بودن سایت‌ها و رخدادهایشان"),
         Tool("audit", "دفتر Audit", DivanIcon.REPORT, "ردّ تغییرناپذیر هر اقدام در هاب"),
         Tool("settings", "تنظیمات", DivanIcon.SETTINGS, "دستگاه‌ها، اعلان‌ها، استخدام و ظاهر"),
@@ -279,6 +282,15 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                 com.coinepro.hq.core.link.AlertTone.ERROR -> toasts.error(text, a.action) { go() }
                 com.coinepro.hq.core.link.AlertTone.OK -> toasts.ok(text, a.action) { go() }
                 com.coinepro.hq.core.link.AlertTone.INFO -> toasts.info(text, a.action) { go() }
+            }
+        }
+    }
+    // ⟨1.8⟩ §26.3: a destructive command on a company server was held for the seal; with the app on screen it says so at once.
+    LaunchedEffect(env) {
+        env.stream.events.collect { e ->
+            if (e.type == "server.awaiting_seal") {
+                val ref = (e.data["decision_ref"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: e.ref?.takeIf { it.startsWith("D-") }
+                toasts.info("کار ویرانگر روی سرور منتظر مُهر توست.", "ببین") { navApi.go(ref?.let { "cartable/$it" } ?: "cartable") }
             }
         }
     }
@@ -382,6 +394,7 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     composable("messages/{code}") { ChatScreen(it.arguments?.getString("code").orEmpty()) }
                     composable("companies") { CompaniesScreen() }
                     composable("companies/{code}") { CompanyScreen(it.arguments?.getString("code").orEmpty()) }
+                    composable("companies/{code}/{tab}") { CompanyScreen(it.arguments?.getString("code").orEmpty(), tab0 = it.arguments?.getString("tab") ?: "control") }
                     composable("employees/{code}") { EmployeeScreen(it.arguments?.getString("code").orEmpty()) }
                     composable("work/{id}") { WorkScreen(it.arguments?.getString("id").orEmpty()) }
                     composable("treasury") { TreasuryScreen() }
@@ -393,6 +406,13 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     composable("runs") { com.coinepro.hq.ui.owner.RunsScreen() }
                     composable("sites") { com.coinepro.hq.ui.owner.SitesScreen() }
                     composable("settings") { SettingsScreen(graph) }
+                    // ⟨1.8⟩ §26 the companies' servers
+                    composable("servers") { com.coinepro.hq.ui.servers.ServersScreen() }
+                    composable("servers/{id}") { com.coinepro.hq.ui.servers.ServerScreen(it.arguments?.getString("id").orEmpty()) }
+                    composable("servers/{id}/terminal") { com.coinepro.hq.ui.servers.TerminalScreen(it.arguments?.getString("id").orEmpty()) }
+                    composable("servers-attach") { com.coinepro.hq.ui.servers.AttachScreen() }
+                    composable("servers-attach/{company}") { com.coinepro.hq.ui.servers.AttachScreen(company0 = it.arguments?.getString("company")) }
+                    composable("server-policy") { com.coinepro.hq.ui.servers.ServerPolicyScreen() }
                     composable("errors") { com.coinepro.hq.ui.settings.ErrorLogScreen(graph.errors) }
                     // ⟨1.5⟩ §19
                     composable("revenue") { com.coinepro.hq.ui.revenue.RevenueScreen() }

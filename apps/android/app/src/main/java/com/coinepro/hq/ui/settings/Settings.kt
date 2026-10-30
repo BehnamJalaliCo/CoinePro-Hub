@@ -120,6 +120,8 @@ fun SettingsScreen(graph: AppGraph) {
         }
         item { HiringCard() }
         item { ManagementSettingsCard() }
+        // ⟨1.8⟩ §26.3: «قوانین سرورها».
+        item { com.coinepro.hq.ui.servers.ServerPolicyLink() }
         item {
             HqCard(Modifier.fillMaxWidth()) {
                 SectionTitle("نما")

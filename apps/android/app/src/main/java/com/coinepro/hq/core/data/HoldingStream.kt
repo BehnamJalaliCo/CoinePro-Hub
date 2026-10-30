@@ -395,6 +395,10 @@ class HoldingStream(
             "hold." to arrayOf("archive", "legal"),
             "fixity." to arrayOf("archive"),
             "schema." to arrayOf("archive", "decisions"),
+            // ⟨1.8⟩ §26.4: a server's state, each call on it (its activity, the control room's live calls) and a destructive call held
+            // for the owner's seal (its `server_destructive` card in the cartable).
+            "server.awaiting_seal" to arrayOf("servers", "decisions", "inbox"),
+            "server." to arrayOf("servers"),
         )
     }
 }

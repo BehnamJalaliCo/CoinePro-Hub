@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -246,6 +247,7 @@ private fun EventItem(e: SessionEvent, driverKind: String) {
 @Composable
 fun SessionScreen(ref: String) {
     val env = LocalEnv.current
+    val nav = com.coinepro.hq.ui.LocalNav.current
     val toasts = LocalToasts.current
     val context = LocalContext.current
     val act = activity()
@@ -270,6 +272,8 @@ fun SessionScreen(ref: String) {
     }
     val ws = workspaces.data?.firstOrNull { it.code == s.workspace }
     val grant = grants.data?.firstOrNull { it.ref == s.grant }
+    // ⟨1.8⟩ Claude Code on a company's server (§26.2): the server it runs on, and its company's kill switch.
+    val server = if (s.onServer) rememberQuery("servers", "servers", maxAgeMs = 30_000) { servers() }.data?.firstOrNull { it.id == s.server } else null
     val results = feed.events.filter { it.type == "approval_result" }.associateBy { it.str("approval_id") }
 
     Column(Modifier.fillMaxSize().imePadding()) {
@@ -277,12 +281,13 @@ fun SessionScreen(ref: String) {
             item {
                 HqCard {
                     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        CompanyMark(companyOf(workspaces.data, s.workspace), height = 16.dp, mono = true, ink = c.textSecondary, modifier = Modifier.padding(top = 5.dp))
+                        CompanyMark(sessionCompany(s, workspaces.data), height = 16.dp, mono = true, ink = c.textSecondary, modifier = Modifier.padding(top = 5.dp))
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(s.title, style = Divan.type.h2)
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Fig(s.ref, style = Divan.type.figureSmall, color = c.textMuted)
-                                Fig(ws?.repo ?: s.workspace, style = Divan.type.figureSmall, color = c.textMuted)
+                                if (s.onServer) Fig(server?.let { "${it.name} · ${it.login}" } ?: s.server.orEmpty(), style = Divan.type.figureSmall, color = c.textMuted)
+                                else Fig(ws?.repo ?: s.workspace, style = Divan.type.figureSmall, color = c.textMuted)
                                 s.branch?.let { Fig(it, style = Divan.type.figureSmall, color = c.textMuted) }
                             }
                         }
@@ -298,13 +303,22 @@ fun SessionScreen(ref: String) {
                             Text(actorFa(s.driver), style = Divan.type.caption, color = c.textSecondary)
                         }
                         Fig("${modelLabel(s.model)} · ${s.effort}", style = Divan.type.figureSmall, color = c.textSecondary)
-                        Text(when (s.runtime) { "subscription" -> "اشتراک Claude، روی هاب"; "managed" -> "Managed Agents"; else -> "میزبانی خودمان" }, style = Divan.type.caption, color = c.textSecondary)
+                        Text(when (s.runtime) { "subscription" -> "اشتراک Claude، روی هاب"; "managed" -> "Managed Agents"; "company_server" -> "Claude Code خود سرور شرکت"; else -> "میزبانی خودمان" }, style = Divan.type.caption, color = c.textSecondary)
                         Fig(usd(s.usage.usd) + (grant?.let { " / " + usd(it.budgetUsd, 0) } ?: ""), style = Divan.type.figureSmall, color = c.textSecondary)
                     }
                     grant?.let {
                         val pct = (s.usage.usd / it.budgetUsd * 100).coerceIn(0.0, 100.0)
                         MeterBar(pct, Modifier.padding(top = 10.dp), tone = budgetTone(pct), height = 4.dp)
                     }
+                    if (s.onServer && server != null) {
+                        // What it may do there: everything but the six destructive categories, which stop and wait for the owner's seal.
+                        Row(Modifier.padding(top = 10.dp).fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.tile).clickable(role = androidx.compose.ui.semantics.Role.Button) { nav.go("servers/${server.id}") }.padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            DIcon(DivanIcon.SERVER, size = 16.dp, tint = c.goldInk)
+                            Text("روی سرور میخواند، میسازد، commit و push و deploy میکند؛ فقط کارهای ویرانگر منتظر مُهر تو میمانند.", style = Divan.type.caption, color = c.textSecondary, modifier = Modifier.weight(1f))
+                            DIcon(DivanIcon.NEXT, size = 14.dp, tint = c.textMuted)
+                        }
+                    }
+                    if (s.held == "company_locked") Text("کلید توقف این شرکت زده شده؛ جلسه ایستاده است.", Modifier.padding(top = 8.dp), style = Divan.type.caption, color = c.negative)
                     if (s.brief.isNotBlank()) {
                         HorizontalDivider(Modifier.padding(vertical = 10.dp), color = c.lineDivider)
                         RichText(s.brief, style = Divan.type.small)

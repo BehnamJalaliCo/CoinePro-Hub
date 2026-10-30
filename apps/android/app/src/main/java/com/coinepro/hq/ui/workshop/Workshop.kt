@@ -93,6 +93,9 @@ fun StatePill(state: String) {
 
 fun companyOf(workspaces: List<Workspace>?, code: String): String = workspaces?.firstOrNull { it.code == code }?.company ?: code.substringBefore('-')
 
+/** ⟨1.8⟩ A session's company: its workspace's, or the company of the server it runs on. */
+fun sessionCompany(s: CodeSession, workspaces: List<Workspace>?): String = s.company?.takeIf { s.workspace.isBlank() } ?: companyOf(workspaces, s.workspace)
+
 @Composable
 fun rememberWorkspaces(): QueryHandle<List<Workspace>> = rememberQuery("workshop:workspaces", "workshop", maxAgeMs = 60_000) { workspaces() }
 
@@ -104,7 +107,7 @@ fun rememberSessions(): QueryHandle<List<CodeSession>> = rememberQuery("workshop
 
 /** One session in a list: where, what, who drives it, what it has cost. */
 @Composable
-fun SessionRow(s: CodeSession, workspaces: List<Workspace>?, grant: Grant?, onClick: () -> Unit) {
+fun SessionRow(s: CodeSession, workspaces: List<Workspace>?, grant: Grant?, serverName: String? = null, onClick: () -> Unit) {
     val c = Divan.colors
     val ws = workspaces?.firstOrNull { it.code == s.workspace }
     val waiting = s.state == "waiting_approval"
@@ -116,12 +119,14 @@ fun SessionRow(s: CodeSession, workspaces: List<Workspace>?, grant: Grant?, onCl
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            CompanyMark(companyOf(workspaces, s.workspace), height = 15.dp, mono = true, ink = c.textSecondary, modifier = Modifier.padding(top = 3.dp))
+            CompanyMark(sessionCompany(s, workspaces), height = 15.dp, mono = true, ink = c.textSecondary, modifier = Modifier.padding(top = 3.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(s.title, style = Divan.type.bodyStrong, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Fig(s.ref, style = Divan.type.figureSmall, color = c.textMuted)
-                    Fig(ws?.repo?.substringAfter('/') ?: s.workspace, style = Divan.type.figureSmall, color = c.textMuted)
+                    // ⟨1.8⟩ Claude Code on the company's own server, in its repository there.
+                    if (s.onServer) Text("روی سرور " + (serverName ?: "شرکت"), style = Divan.type.micro, color = c.goldInk)
+                    else Fig(ws?.repo?.substringAfter('/') ?: s.workspace, style = Divan.type.figureSmall, color = c.textMuted)
                 }
             }
             StatePill(s.state)

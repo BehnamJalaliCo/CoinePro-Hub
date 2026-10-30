@@ -65,6 +65,8 @@ fun ControlScreen() {
             }
         }
         item(key = "backups") { BackupsCard() }
+        // ⟨1.8⟩ §26.3: the companies' servers and the few destructive kinds of work that wait for the owner's seal there.
+        item(key = "servers") { com.coinepro.hq.ui.servers.ServerPolicyLink() }
         // ⟨1.5⟩ §20.7: who may do what, and up to how much, lives in the authority matrix.
         item(key = "authority") {
             HqCard(Modifier.fillMaxWidth(), onClick = { nav.go("authority") }) {

@@ -44,6 +44,8 @@ val DECISION_KIND = mapOf(
     // ⟨1.7⟩ §23: the archive's two cards, so the cartable names them (their pages are not in the app yet).
     "archive_schema" to Kind("تغییر طرح بایگانی", DivanIcon.SETTINGS),
     "archive_disposal" to Kind("امحای سندهای بایگانی", DivanIcon.REPORT),
+    // ⟨1.8⟩ §26.3: a destructive command on a company's server, held for the owner's seal.
+    "server_destructive" to Kind("کار ویرانگر روی سرور", DivanIcon.URGENT),
 )
 
 fun decisionKind(k: String) = DECISION_KIND[k] ?: Kind(k, DivanIcon.DECISION)

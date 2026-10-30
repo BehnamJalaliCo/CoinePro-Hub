@@ -21,12 +21,12 @@ import org.robolectric.RobolectricTestRunner
  */
 @RunWith(RobolectricTestRunner::class)
 class StreamTopicsTest {
-    /** The topics the hub serves (events.py TOPICS), as of contract ⟨1.7.4⟩. */
+    /** The topics the hub serves (events.py TOPICS), as of contract ⟨1.8⟩ (§26.4 adds `servers`). */
     private val served = setOf(
         "work", "decisions", "deliverables", "messages", "notifications", "activity", "llm", "control", "runs", "files", "workshop", "orders",
         "backups", "inquiries", "errands", "stars", "stories", "skills", "academy", "oversight", "founding", "revenue", "support", "growth",
         "feedback", "companies", "meetings", "governance", "knowledge", "advisor", "treasury", "creatives", "briefings", "people", "notes",
-        "quality", "ask", "reviews", "dceo", "media", "legal", "archive",
+        "quality", "ask", "reviews", "dceo", "media", "legal", "archive", "servers",
     )
 
     @Test

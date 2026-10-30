@@ -502,8 +502,15 @@ fun CaseEmail.draft(): EmailDraft = EmailDraft(case, from, to, cc, subject, body
 val MEDIA_KINDS = setOf("media_series", "media_publish", "email_send", "role_new")
 
 /** `email_send` is sealed on the exact message: the step-up target is the message digest, not the card's ref (§22.6). */
-fun sealTarget(d: Decision): String =
-    if (d.kind == "email_send") (d.payload["digest"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() } ?: d.ref else d.ref
+fun sealTarget(d: Decision): String = when (d.kind) {
+    "email_send" -> (d.payload["digest"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() } ?: d.ref
+    // ⟨1.8⟩ §26.3: `server.destructive` on `<CODE>:<server>`.
+    SERVER_DESTRUCTIVE -> sealCardOf(d)?.target ?: d.ref
+    else -> d.ref
+}
+
+/** The step-up action a card's seal signs: `server.destructive` for a server's destructive command (§26.3), else `decision.approve`. */
+fun sealAction(d: Decision): String = if (d.kind == SERVER_DESTRUCTIVE) "server.destructive" else "decision.approve"
 
 /** A §22 payload as the app's model; null when it is missing or does not fit. */
 fun <T> Decision.payloadAs(s: kotlinx.serialization.KSerializer<T>): T? = runCatching { Api.json.decodeFromJsonElement(s, payload) }.getOrNull()

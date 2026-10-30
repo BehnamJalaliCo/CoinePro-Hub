@@ -121,6 +121,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
         val query = req.url.queryParameterNames.associateWith { req.url.queryParameter(it) }
         val version = req.header("If-Match")?.trim('"')?.toIntOrNull()
         if (req.method == "GET" && path in Demo.absent) return respond(req, 404 to problem("not_found", "پیدا نشد."))
+        // ⟨1.8⟩ §26: the companies' servers, the owner's terminal, server sessions and their seal card.
+        servers.handle(req, path, body, query)?.let { return it }
         tick18()
         // ⟨1.7.3⟩ §5.2: outputs seen, filed and filtered.
         outputs.handle(req.method, path, query, body)?.let { return respond(req, it) }
@@ -269,6 +271,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     private val companies = CompaniesDemo(store)
     /** Eager too: the owner's orders in every stage, and their live progress on the stream. */
     private val orders = OrdersDemo(store)
+    /** ⟨1.8⟩ before [scripts]: wakes on the first look at a server, so other screens see the holding as before. */
+    private val servers = ServersDemo(store)
     private val scripts = mutableMapOf<String, MutableList<JsonObject>>().apply {
         for ((k, v) in store) if (k.startsWith("#script:")) put(k.removePrefix("#script:"), v.second.jsonObject["items"]!!.jsonArray.map { it.jsonObject }.toMutableList())
     }

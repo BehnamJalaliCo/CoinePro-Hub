@@ -752,6 +752,13 @@ fun androidx.compose.foundation.lazy.LazyListScope.controlRoom(co: Company?, d: 
     item(key = "control-budget") { BudgetCard(t, ui) }
     item(key = "control-live") { LiveFeedCard(co.code, holding, d) }
     item(key = "control-hiring") { HiringCard(co.code, holding) }
+    // ⟨1.8⟩ §26: its servers (every company's for the holding), locked while it is stopped, and the calls on them as they happen.
+    item(key = "control-servers") {
+        val nav = com.coinepro.hq.ui.LocalNav.current
+        com.coinepro.hq.ui.servers.ServersControlCard(if (holding) null else co.code, !d.state(co.code, holding, co).running) {
+            nav.go(if (holding) "servers" else "companies/${co.code}/servers")
+        }
+    }
     if (!holding) item(key = "control-sites") { SitesCard(co.code) }
     if (!holding) item(key = "control-delete") { DeleteCard(t, ui) }
 }

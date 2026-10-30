@@ -67,6 +67,8 @@ object Refs {
             "founding", "provision_run" -> r?.takeIf { prefix(it) == "C" }?.let { "founding/$it" } ?: "founding"
             "server_plan" -> r?.takeIf { prefix(it) == "PV" }?.let { "founding/$it" } ?: "founding"
             "code_session" -> r?.takeIf { prefix(it) == "S" }?.let { "workshop/$it" } ?: "workshop"
+            // ⟨1.8⟩ §26: a company server (by its id) and its activity.
+            "server" -> r?.let { "servers/$it" } ?: "servers"
             "archive_record" -> r?.takeIf { prefix(it) == "AR" }?.let { "archive/$it" } ?: "archive"
             "archive_fixity" -> "archive"
             "support_conversation" -> r?.takeIf { prefix(it) == "SC" }?.let { "support/$it" } ?: "support"

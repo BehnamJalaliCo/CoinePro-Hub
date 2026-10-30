@@ -173,7 +173,7 @@ fun CompanyScreen(code: String, tab0: String = "control", dept0: String? = null,
             val brand = co.data?.let { it.kind != "holding" } == true
             // ⟨control⟩ the control room first: the owner opens a company to see it and steer it.
             com.coinepro.hq.designsystem.ScrollRow {
-                (listOf("control" to "اتاق کنترل", "departments" to "دپارتمان‌ها", "people" to "کارمندها", "work" to "کارها") + (if (brand) listOf("brand" to "نشان و مُهر") else emptyList()))
+                (listOf("control" to "اتاق کنترل") + (if (brand) listOf("servers" to "سرورها") else emptyList()) + listOf("departments" to "دپارتمان‌ها", "people" to "کارمندها", "work" to "کارها") + (if (brand) listOf("brand" to "نشان و مُهر") else emptyList()))
                     .forEach { (k, l) -> com.coinepro.hq.designsystem.FilterChip(l, tab == k, { tab = k }) }
             }
         }
@@ -201,6 +201,8 @@ fun CompanyScreen(code: String, tab0: String = "control", dept0: String? = null,
                     }
                 }
             }
+            // ⟨1.8⟩ §26: the company's servers, under the holding's control.
+            "servers" -> item(key = "servers") { com.coinepro.hq.ui.servers.CompanyServers(code) }
             "brand" -> item {
                 Loadable(co) { x -> HqCard(Modifier.fillMaxWidth()) { BrandBlock(x.code, x.nameFa ?: x.code, x.nameEn ?: x.code) } }
             }

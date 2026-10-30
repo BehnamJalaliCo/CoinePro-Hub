@@ -163,6 +163,24 @@ Every library is free and open source and pinned to an exact version (`gradle/li
     `archive_disposal` (its records; a held one is skipped); refs `AR-`, `LH-`, `PT-`, `FP-`, `RR-`, `RM-`, `AU-` open
     their pages; stream topic `archive`; the §23 codes (`clearance`, `sealed_record`, `schema_invalid`,
     `secret_in_document`, `held`) in Persian.
+- **The companies' servers** ⟨1.8⟩ (contract §26, prompt 17; built ahead of the hub against the contract, the demo answers every call):
+  - **«سرورها»** on each company page and **«همه‌ی سرورها»** in the tools sheet — each server's state (reachable, unreachable, waiting to be
+    reached, host key changed), whether the hub made it or it was attached, when it was last seen, and from its latest `server.map` the disk and
+    memory bars and what runs on it. A server's page: its **map** (system, disks, RAM and swap, containers, compose projects, systemd units and
+    timers, cron, listening ports with the public ones marked, repositories with remote, branch and head, n8n and other automations, the sites
+    it serves; refreshed on demand), its **activity** live (`/infra/servers/{id}/activity` and the stream's `server.call`: who, which tool, the
+    masked command, exit code and duration, its Claude session and the full transcript) and its **sessions**.
+  - **«یک کار بسپار»** — Claude Code on the server itself (`runtime: "company_server"`), driven by the company's CEO or a manager, or by the
+    owner; the brief spoken or written, with files; watched, steered and stopped on the Workshop's own session page.
+  - **«ترمینال»** — the owner's own command (`POST /infra/servers/{id}/exec`, a passkey per command bound to its exact body), the output streamed
+    into a monospace, left-to-right panel that scrolls both ways; `sudo`, stop, and the last commands a tap away (in memory only).
+  - **Seals** — a destructive command (`server.awaiting_seal`, a `server_destructive` card) stands at the top of the cartable and on the server
+    with the whole command, the server, the kind of loss and who asked; the seal is the passkey on `server.destructive` (`<CODE>:<server>`), a
+    «نه» needs none. **«قوانین سرورها»** (settings, control, tools) switches the six categories with the passkey and says what runs free.
+  - **Attaching** — company, name, private IPv4, the work user and the host key fingerprint (checked on the phone: a private range, not the hub,
+    never root, `SHA256:` and 43 characters), sealed `server.attach`; then the hub's key line with the setup sheet's restrictions to copy or send
+    to that server's Claude with `COMPANY_SERVER_ACCESS_SETUP.md`, and the wait until it is reachable. Re-pin and detach in the server's ⋮.
+  - **Kill switch** — a stopped company's servers are locked (no task, no terminal); the control room shows the servers and their live calls.
 - **Live** — `/api/v1/stream`, one connection per lane of topics (the hub takes at most 200 characters of `topics`;
   `core/data/StreamTopics.kt`); events refresh the screens that show the touched data (the same invalidation map as the web). The first
   lane is the alert lane (`work,decisions,deliverables,notifications,control`); the others open only while the app is on screen.
@@ -248,7 +266,7 @@ Every library is free and open source and pinned to an exact version (`gradle/li
 
 ```
 app/src/main/java/com/coinepro/hq/
-  core/net/        Api (contract v1.7; every 🔏 write names its step-up action and target), Models, Models14 … Models20
+  core/net/        Api (contract v1.7; every 🔏 write names its step-up action and target), Models, Models14 … Models21
   core/auth/       Auth (sign-in, enrolment, step-up), Passkeys, TokenVault
   core/data/       QueryCache (shared cached queries), HoldingStream (SSE), LiveActivity (who works now), Control (switches, optimistic),
                    Orders (stage, estimate, holders, timeline, notices), OrderWatcher, WorkTitles (ids to refs and titles)

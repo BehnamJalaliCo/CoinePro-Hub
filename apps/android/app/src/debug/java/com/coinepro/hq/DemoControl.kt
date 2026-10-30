@@ -164,6 +164,8 @@ internal object DemoLive {
     @Volatile var stopped: Set<String> = emptySet()
     /** The owner's orders moving on their own ([OrdersDemo]). */
     @Volatile var orders: OrdersDemo? = null
+    /** ⟨1.8⟩ the companies' servers ([ServersDemo]): their calls and held seals on the stream. */
+    @Volatile var servers: ServersDemo? = null
     /** The notifications the hub raises ([NotificationsDemo]), for the background link's script. */
     @Volatile var notifications: NotificationsDemo? = null
     /** The background link's script, by tick; played once per demo session. */
@@ -214,6 +216,7 @@ internal object DemoLive {
         }.forEach { out += it.second() }
         if (tick % 4 == 0) beat()?.let { out += it }
         out += orders?.tick(tick).orEmpty()
+        out += servers?.tick(tick).orEmpty()
         // Two lines an older hub sends with an id where a ref belongs: the feed resolves the first and names the second's topic.
         if (tick == 2) out += event("FX", "work.updated", "0193b1c2-0003-7d4f-8a2e-0000005a1003", mapOf("status" to "in_progress"))
         if (tick == 3) out += event("HQ", "file.ready", "01a187f8-e3e9-7b4f-8dd2-3c4e5f607182", emptyMap())

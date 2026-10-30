@@ -729,12 +729,14 @@ data class SessionUsage(val usd: Double = 0.0, val inputTokens: Long = 0, val ou
 data class CodeSession(
     val id: String,
     val ref: String,
-    val workspace: String,
-    val grant: String,
+    /** Empty for a session on a company server (⟨1.8⟩ `runtime: "company_server"`), which runs in the server's own repository. */
+    val workspace: String = "",
+    val grant: String = "",
     val title: String,
     val brief: String = "",
     val openedBy: Actor? = null,
     val driver: Actor,
+    /** `subscription` · `managed` · `self_hosted` · ⟨1.8⟩ `company_server` (Claude Code on the company's server, §26.2). */
     val runtime: String = "managed",
     val model: String = "",
     val effort: String = "",
@@ -744,8 +746,14 @@ data class CodeSession(
     val usage: SessionUsage = SessionUsage(),
     val createdAt: String,
     val updatedAt: String,
+    /** ⟨1.8⟩ the server a `company_server` session runs on (its id) and the company; §26 names neither field, so both are optional. */
+    val server: String? = null,
+    val company: String? = null,
+    /** ⟨1.4.3⟩ §17.8: why it is held (`budget` · `company_locked` · `work_lock`). */
+    val held: String? = null,
 ) {
     val open: Boolean get() = state !in setOf("done", "failed", "stopped")
+    val onServer: Boolean get() = runtime == "company_server"
 }
 
 @Serializable

@@ -19,6 +19,8 @@ object StreamTopics {
         "runs", "files", "workshop", "orders", "oversight", "inquiries", "errands", "stars", "skills", "academy", "founding", "backups",
         "stories", "companies", "revenue", "support", "growth", "feedback", "meetings", "governance", "knowledge", "advisor", "ask",
         "reviews", "briefings", "people", "notes", "quality", "dceo", "treasury", "creatives", "media", "legal", "archive",
+        // ⟨1.8⟩ §26.4: the companies' servers (`server.state`, `server.call`, `server.awaiting_seal`).
+        "servers",
     )
 
     /**

@@ -18,6 +18,8 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.serialization.json.put
 import kotlinx.serialization.serializer
 import okhttp3.Call
@@ -1186,6 +1188,116 @@ class Api(
         get("/audit", mapOf("company" to company, "action" to action, "limit" to limit))
     suspend fun auditVerify(): AuditVerify = get("/audit/verify")
 
+    // ------------------------------------------- company servers ⟨1.8⟩ (§26) --
+    /** Every server the hub reaches, provisioned or attached; [company] narrows on the phone (§26.4 names no filter). A bare list or a Page. */
+    suspend fun servers(company: String? = null): List<HubServer> =
+        listAny("/infra/servers", emptyMap(), HubServer.serializer()).filter { company == null || it.company == company }
+
+    /** The latest `server.map`; null before the first one (`404`). */
+    suspend fun serverMap(id: String): ServerMap? = orNull {
+        ServerMaps.parse(get<JsonElement>("/infra/servers/${seg(id)}/map"))
+    }
+
+    /** Takes a fresh map. A hub that answers `202` (mapping in the background) gives no map yet: null, and `server.state` follows. */
+    suspend fun refreshMap(id: String): ServerMap? {
+        val req = write("POST", "/infra/servers/${seg(id)}/map", JsonObject(emptyMap()), null)
+        return execute(req).use { r ->
+            check(r)
+            val text = r.body.string()
+            if (r.code == 202 || text.isBlank()) null else ServerMaps.parse(runCatching { json.parseToJsonElement(text) }.getOrNull())
+        }
+    }
+
+    /** Who did what on the server, newest first (`?actor&from&to`, a Page). */
+    suspend fun serverActivity(id: String, actor: String? = null, from: String? = null, to: String? = null, cursor: String? = null, limit: Int = 50): Page<ServerCall> =
+        get("/infra/servers/${seg(id)}/activity", mapOf("actor" to actor, "from" to from, "to" to to, "cursor" to cursor, "limit" to limit))
+
+    /** 🔏 `server.attach` on `company:<CODE>`: `201` with `public_key`, the line the server's work user adds. The hub answers the server
+     *  with `public_key` beside its fields, or `{server, public_key}`; both are read. */
+    suspend fun attachServer(body: AttachIn, stepUp: StepUp): AttachOut {
+        val token = stepUp("server.attach", "company:${body.company}")
+        val out: JsonObject = post("/infra/servers/attach", json.encodeToJsonElement(AttachIn.serializer(), body), token)
+        val inner = out["server"] as? JsonObject ?: out
+        val server = runCatching { json.decodeFromJsonElement(HubServer.serializer(), inner) }.getOrNull()
+        val key = (out["public_key"] as? JsonPrimitive)?.contentOrNull ?: (inner["public_key"] as? JsonPrimitive)?.contentOrNull
+            ?: throw mismatch(201, "POST", "/infra/servers/attach", IllegalArgumentException("missing public_key"))
+        return AttachOut(server, key)
+    }
+
+    /** 🔏 `server.repin` on `<CODE>:<server>`: the new host key fingerprint, after the owner checked it on the server itself. */
+    suspend fun repinServer(s: HubServer, hostKey: String, stepUp: StepUp): HubServer =
+        post("/infra/servers/${seg(s.id)}/repin", buildJsonObject { put("host_key_sha256", hostKey) }, stepUp("server.repin", s.target))
+
+    /** 🔏 `server.detach` on `<CODE>:<server>`: the hub forgets its key; the server itself is never touched. */
+    suspend fun detachServer(s: HubServer, stepUp: StepUp) {
+        val token = stepUp("server.detach", s.target)
+        val req = Request.Builder().url(url("/infra/servers/${seg(s.id)}")).delete().header("X-Step-Up", token).header("Idempotency-Key", UUID.randomUUID().toString()).build()
+        execute(req).use { check(it) }
+    }
+
+    /**
+     * The owner's own command, 🔏 `server.exec` bound to the SHA-256 of the exact body (§26.4 names no target; a passkey per command, for
+     * exactly that command), streamed as SSE: stdout and stderr as they come, then the exit. A `202 awaiting_seal` (a destructive command
+     * the policy holds) is one [TermEvent.AwaitingSeal]; a refusal (`423 company_locked`, `409 host_key_changed`) throws.
+     */
+    fun exec(server: HubServer, body: ExecIn, stepUp: StepUp): kotlinx.coroutines.flow.Flow<TermEvent> = kotlinx.coroutines.flow.flow {
+        val text = jsonBody.encodeToString(ExecIn.serializer(), body)
+        val token = stepUp("server.exec", sha256(text))
+        val req = Request.Builder().url(url("/infra/servers/${seg(server.id)}/exec")).post(text.toRequestBody(JSON))
+            .header("Accept", "text/event-stream").header("Idempotency-Key", UUID.randomUUID().toString()).header("X-Step-Up", token).build()
+        execute(req, streamClient).use { r ->
+            if (r.code == 202) {
+                val o = runCatching { json.parseToJsonElement(r.body.string()) as? JsonObject }.getOrNull()
+                val ref = (o?.get("decision_ref") ?: o?.get("decision") ?: o?.get("ref")) as? JsonPrimitive
+                emit(TermEvent.AwaitingSeal(ref?.contentOrNull, (o?.get("message_fa") as? JsonPrimitive)?.contentOrNull ?: "این فرمان ویرانگر است و منتظر مُهر تو ماند."))
+                return@use
+            }
+            check(r)
+            if (r.header("Content-Type").orEmpty().contains("json")) {
+                val o = runCatching { json.parseToJsonElement(r.body.string()) as? JsonObject }.getOrNull() ?: return@use
+                termEventsOfJson(o).forEach { emit(it) }
+                return@use
+            }
+            val src = r.body.source()
+            val p = SseParser()
+            while (true) {
+                val line = src.readUtf8Line() ?: break
+                p.line(line)?.let { m -> termEventOf(m)?.let { emit(it) } }
+            }
+            p.end()?.let { m -> termEventOf(m)?.let { emit(it) } }
+        }
+    }.flowOn(kotlinx.coroutines.Dispatchers.IO)
+
+    suspend fun serverPolicy(): ServerPolicy = get("/control/server-policy")
+
+    /** 🔏 PUT on the SHA-256 of the exact body (§26.4 names no action; the app signs `server.policy`, like every body-bound seal). */
+    suspend fun putServerPolicy(p: ServerPolicy, stepUp: StepUp): ServerPolicy {
+        val text = jsonBody.encodeToString(ServerPolicy.serializer(), p)
+        return send("PUT", "/control/server-policy", text, stepUp = stepUp("server.policy", sha256(text)))
+    }
+
+    /**
+     * Claude Code on the company's server (§26.2 `server.claude`, `runtime: "company_server"`): the owner gives it a brief and a driver (an
+     * agent of the company, or the owner when [driver] is null). §26 names the tool, not the owner's route; the app opens it where the
+     * Workshop opens sessions, with the server instead of a grant, and the session is then the Workshop's own (events, steering, stop).
+     */
+    suspend fun startServerSession(server: HubServer, driver: String?, title: String, brief: String, attachments: List<String>): CodeSession =
+        post("/workshop/sessions", buildJsonObject {
+            put("runtime", "company_server"); put("server", server.id); put("company", server.company)
+            put("driver", driver?.let(::JsonPrimitive) ?: JsonNull); put("title", title); put("brief", brief); put("attachments", ids(attachments))
+        })
+
+    /** A transcript the hub stores (§26.3: owner-readable): an API path (relative or on the hub's origin) read with the session. */
+    suspend fun transcript(url: String): String {
+        val target = when {
+            url.startsWith("http://") || url.startsWith("https://") -> url.toHttpUrl()
+            url.startsWith("/api/") -> base.newBuilder().encodedPath(url.substringBefore('?')).encodedQuery(url.substringAfter('?', "").ifBlank { null }).build()
+            else -> url(url)
+        }
+        if (target.host != base.host) throw ApiException(422, "validation_failed", "این نشانی بیرون از هاب است؛ اپ آن را باز نمیکند.")
+        return execute(Request.Builder().url(target).get().header("Accept", "text/plain, application/json").build()).use { r -> check(r); r.body.string() }
+    }
+
     // ------------------------------------------------------------ plumbing --
     private fun seg(s: String): String = java.net.URLEncoder.encode(s, "UTF-8").replace("+", "%20")
     private fun ids(xs: List<String>) = JsonArray(xs.map(::JsonPrimitive))
@@ -1348,7 +1460,8 @@ private class ContractHeaders(private val tokens: TokenSource) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val b = chain.request().newBuilder()
             .header("X-HQ-Client", "android")
-            .header("Accept", "application/json")
+        // JSON unless the call asked for something else (an SSE stream, a file, a transcript).
+        if (chain.request().header("Accept") == null) b.header("Accept", "application/json")
         tokens.token()?.let { b.header("Authorization", "Bearer $it") }
         return chain.proceed(b.build())
     }

@@ -122,6 +122,8 @@ private val STEP_UP_KINDS = setOf(
     "media_publish", "email_send", "role_new",
     // ⟨1.7⟩ §23: the archive's two cards, target = ref.
     "archive_schema", "archive_disposal",
+    // ⟨1.8⟩ §26.3: a destructive command on a company's server, 🔏 `server.destructive` on `<CODE>:<server>` ([sealAction]).
+    "server_destructive",
 )
 /** Kinds sealed on their own page, never by the cartable's approve: a server plan's seal is bound to its digest (§18.8).
  *  The card carries {plan, company}; the plan page sends a founding's plan on to its founding (§18.16). */
@@ -220,9 +222,15 @@ fun CartableScreen(company0: String? = null) {
                 for ((key, label) in listOf("expiry" to "زودتر منقضی", "oldest" to "بیشترین انتظار", "newest" to "تازه‌ترین")) FilterChip(label, sort == key, { sort = key })
             }
         }
+        // ⟨1.8⟩ §26.3: a destructive command on a company's server waits here first, the command itself on the card.
+        if (tab == "pending") {
+            val seals = all.filter { it.kind == com.coinepro.hq.core.net.SERVER_DESTRUCTIVE }
+            if (seals.isNotEmpty()) item(key = "server-seals") { com.coinepro.hq.ui.servers.SealCards(seals) }
+        }
         // ⟨1.5⟩ §20.10: low-risk A1 cards sealed together with one passkey.
         if (tab == "pending") item { BatchSealButton() }
-        val list = all.filter { riskF == null || it.risk == riskF }.let { xs ->
+        // ⟨1.8⟩ a server's destructive command already stands above as its own card, with its command and its seal.
+        val list = all.filter { riskF == null || it.risk == riskF }.filter { tab != "pending" || it.kind != com.coinepro.hq.core.net.SERVER_DESTRUCTIVE }.let { xs ->
             when (sort) {
                 "expiry" -> xs.sortedWith(compareBy({ it.expiresAt ?: "9999" }, { it.createdAt }))
                 "oldest" -> xs.sortedBy { it.createdAt }
@@ -297,6 +305,8 @@ private fun Payload(d: Decision) {
         }
         // ⟨1.5⟩ §21.6: one definition of the deploy payload, bound to head_sha, with the real diff and the substitute's second review.
         "deploy" -> DeployPayloadBlock(d)
+        // ⟨1.8⟩ §26.3: the exact command, the server and what would be lost.
+        "server_destructive" -> com.coinepro.hq.ui.servers.SealPayload(d)
         // ⟨1.5⟩ §21.5: the monthly HR round's evaluation, payload v2.
         "evaluation" -> EvaluationBlock(d)
         "tool_enable" -> Section("ابزارهای این سرور عوض شده‌اند") {
@@ -496,7 +506,7 @@ private fun DecisionDetail(d: Decision, onChanged: (Decision) -> Unit) {
                         SealButton(d.company, co.nameFa, co.nameEn, co.holding, busy = seal.busy) {
                             seal.run(onError = { e -> toasts.error(if (d.kind in com.coinepro.hq.core.net.ARCHIVE_KINDS) com.coinepro.hq.core.net.archiveError(e) else e.messageFa) }) {
                                 // ⟨1.6⟩ §22.6: an `email_send` card is sealed on the message digest, every other on its ref.
-                                val token = if (needsStepUp(d)) env.auth.stepUp(act, "decision.approve", com.coinepro.hq.core.net.sealTarget(d)) else null
+                                val token = if (needsStepUp(d)) env.auth.stepUp(act, com.coinepro.hq.core.net.sealAction(d), com.coinepro.hq.core.net.sealTarget(d)) else null
                                 val out = env.api.approve(d.ref, null, token)
                                 decided(out)
                                 toasts.ok("مُهر خورد. ${out.resolution?.let { "$it " } ?: ""}به ${actorFa(d.proposer)} خبر داده شد.")
