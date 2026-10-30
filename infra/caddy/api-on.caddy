@@ -103,6 +103,43 @@ handle /public/* {
 	respond 404
 }
 
+# ⟨1.8⟩ Prompt 17 (contract §26.1, §26.1a): the company servers' runners. They
+# reach this site over the holding's private network (hq.coinepro.com pinned
+# to 10.10.1.4 on each server) or the public address: Caddy publishes 443 on
+# every interface, so the same certificate serves both and no network rule
+# changes. A long-poll holds up to 30 s; a job's result may carry a 20 MB
+# file (base64). /internal stays closed (above). The api authenticates every
+# runner call (the credential's SHA-256, constant-time) and rate-limits the
+# one unauthenticated route (/runners/pair).
+@runners path /api/v1/runners/*
+handle @runners {
+	request_body {
+		max_size 32MB
+	}
+	reverse_proxy api:8000 {
+		header_up X-Forwarded-For {remote_host}
+		transport http {
+			read_timeout 90s
+			write_timeout 120s
+		}
+	}
+}
+
+# The owner's terminal on a company server (SSE, POST /api/v1/infra/servers/<id>/exec).
+@server_exec {
+	path_regexp server_exec ^/api/v1/infra/servers/[^/]+/exec$
+	method POST
+}
+handle @server_exec {
+	reverse_proxy api:8000 {
+		flush_interval -1
+		header_up X-Forwarded-For {remote_host}
+		transport http {
+			read_timeout 0
+		}
+	}
+}
+
 # Everything else under /api: bodies capped and a normal read timeout.
 handle /api/* {
 	request_body {

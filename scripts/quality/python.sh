@@ -35,7 +35,8 @@ api_image() { # api_image <cmd...>: apps/api's test image without the test depen
 case "${1:-}" in
   lint)
     "$TE" run sh -c 'ruff check --no-cache . && ruff format --no-cache --check . &&
-      mypy hq-common/src llm-router/src claude-runtime/src claude-runtime/testing gateway/src stt/src egress/src provisioner/src substitutes/src tts/src media-render/src ocr/src'
+      mypy hq-common/src llm-router/src claude-runtime/src claude-runtime/testing gateway/src stt/src egress/src provisioner/src substitutes/src tts/src media-render/src ocr/src &&
+      MYPYPATH=company-runner/src mypy company-runner/src'
     api_image -v "$API_DIR:/api:ro" -w /api "$API_IMAGE" sh -c \
       'ruff check --no-cache . && ruff format --no-cache --check . && mypy src'
     ;;
@@ -44,7 +45,8 @@ case "${1:-}" in
       --cov=hq_common --cov=llm_router --cov=claude_runtime --cov=hq_gateway --cov=hq_stt --cov=hq_egress --cov=hq_provisioner --cov=hq_substitutes --cov=hq_tts --cov=hq_media_render --cov=hq_ocr --cov-report=term \
       --cov-fail-under=80 &&
       coverage report --fail-under=85 \
-        --include="*/llm_router/assignment.py,*/llm_router/budget.py,*/llm_router/scheduler.py,*/llm_router/breaker.py,*/llm_router/quota.py,*/hq_gateway/gateway.py,*/hq_gateway/tools.py,*/hq_common/redact.py,*/hq_common/persian.py,*/hq_stt/engine.py,*/hq_stt/main.py,*/hq_stt/lock.py,*/hq_stt/fetch.py,*/hq_stt/eval.py,*/hq_egress/guard.py,*/hq_egress/net.py,*/hq_egress/proxy.py,*/hq_egress/rules.py,*/hq_gateway/web.py,*/hq_common/provisioning.py,*/hq_provisioner/runner.py,*/hq_provisioner/hetzner.py,*/hq_provisioner/cloudinit.py,*/hq_provisioner/vault.py"'
+        --include="*/llm_router/assignment.py,*/llm_router/budget.py,*/llm_router/scheduler.py,*/llm_router/breaker.py,*/llm_router/quota.py,*/hq_gateway/gateway.py,*/hq_gateway/tools.py,*/hq_common/redact.py,*/hq_common/persian.py,*/hq_stt/engine.py,*/hq_stt/main.py,*/hq_stt/lock.py,*/hq_stt/fetch.py,*/hq_stt/eval.py,*/hq_egress/guard.py,*/hq_egress/net.py,*/hq_egress/proxy.py,*/hq_egress/rules.py,*/hq_gateway/web.py,*/hq_common/provisioning.py,*/hq_provisioner/runner.py,*/hq_provisioner/hetzner.py,*/hq_provisioner/cloudinit.py,*/hq_provisioner/vault.py" &&
+      cd company-runner && PYTHONPATH=src pytest -p no:cacheprovider tests'
     HQ_TEST_TARGET=api "$TE" run sh -c "cd /api && HQ_FUZZ_EXAMPLES=${HQ_FUZZ_EXAMPLES:-8} pytest tests \
       --cov=hq_api --cov-report=term \
       --cov-fail-under=80 && coverage report --fail-under=85 --include='$API_DOMAIN'"
