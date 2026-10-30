@@ -10,6 +10,7 @@ on:
     paths:
       - "apps/web/**"
       - "apps/android/**"
+      - "apps/VERSION"
       - "apps/api/openapi/**"
       - "design/**"
       - ".github/workflows/clients.yml"
@@ -41,7 +42,7 @@ jobs:
           [ "$(printf '%s\n' "$files" | wc -l)" -lt 300 ] || all
           has() { if printf '%s\n' "$files" | grep -qE "$1"; then echo true; else echo false; fi; }
           echo "web=$(has '^(apps/web/|apps/api/openapi/|design/|\.github/workflows/clients\.yml$)')" >> "$GITHUB_OUTPUT"
-          echo "android=$(has '^(apps/android/|design/|\.github/workflows/clients\.yml$)')" >> "$GITHUB_OUTPUT"
+          echo "android=$(has '^(apps/android/|apps/VERSION$|design/|\.github/workflows/clients\.yml$)')" >> "$GITHUB_OUTPUT"
 
   web:
     needs: changes
