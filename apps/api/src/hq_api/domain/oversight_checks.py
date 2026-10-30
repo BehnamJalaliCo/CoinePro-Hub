@@ -44,6 +44,8 @@ class Problem:
     body_md: str
     key: str
     evidence: list[dict[str, Any]] = field(default_factory=list)
+    # ⟨1.7.5⟩ a problem worse than its protocol's usual severity (None: the protocol's)
+    severity: str | None = None
 
 
 @dataclass
@@ -585,14 +587,19 @@ async def hub_healthy(ctx: CheckCtx) -> Checked:
         if isinstance(cert, int | float) and cert < 14:
             why.append(f"certificate {cert} days")
         if why:
+            # ⟨1.7.5⟩ one key for the hub's health: the open finding is brought
+            # up to date each hour (not a new one per disk percent); a disk
+            # past 90% is critical, a new finding the owner hears of
+            disk = float(d.get("disk_used_pct") or 0)
             problems.append(
                 Problem(
                     ctx.holding_id,
                     ctx.holding,
                     "سلامت خود هاب",
                     "; ".join(why),
-                    "hub:" + ",".join(why)[:150],
+                    "hub",
                     [{"kind": "metric", "ref": "health.hub", "note": "; ".join(why)}],
+                    severity="critical" if disk > 90 else None,
                 )
             )
     return Checked(problems, {ctx.holding: ctx.holding_id})

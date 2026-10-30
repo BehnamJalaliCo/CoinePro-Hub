@@ -10,6 +10,8 @@ stream HQ_CORE (`hq.core.<company>.<type>`).
 - ⟨1.4.2⟩ Unknown topics are ignored, not refused (a client may name topics a
   newer server adds); the first comment lists the topics served
   (`: topics work,decisions,...`). Only a malformed `topics` is 422.
+- ⟨1.7.5⟩ `topics` up to 1000 characters, and `topics=all` for every topic
+  (one connection for an app that follows them all).
 - Heartbeat comment every 15 s. Events carry metadata only.
 """
 
@@ -105,15 +107,16 @@ async def stream(
     request: Request,
     topics: str = Query(
         default="work,decisions,deliverables,messages,notifications,activity,llm,control,runs",
-        pattern=r"^[a-z]+(,[a-z]+)*$",
-        max_length=200,
+        pattern=r"^[a-z][a-z_]*(,[a-z][a-z_]*)*$",
+        max_length=1000,
     ),
     company: list[str] | None = Query(default=None),
     ctx: Ctx = Depends(owner_ctx),
 ) -> StreamingResponse:
     """Live events (SSE). `Last-Event-ID` resumes after that JetStream sequence.
     Unknown topics are ignored; the first comment names the topics served."""
-    wanted = {t for t in topics.split(",") if t} & events.TOPICS.keys()
+    names = {t for t in topics.split(",") if t}
+    wanted = set(events.TOPICS) if "all" in names else names & events.TOPICS.keys()
     summary = company == ["*"]
     companies: set[str] | None = None
     if company and not summary:

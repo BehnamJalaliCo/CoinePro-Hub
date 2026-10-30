@@ -46,6 +46,13 @@ CODES: dict[str, tuple[int, str, str]] = {
         "این کلید تکرار قبلاً با درخواست دیگری استفاده شده است.",
     ),
     "validation_failed": (422, "Validation failed", "اطلاعات ارسال‌شده درست نیست."),
+    # ⟨1.7.5⟩ contract §25: a company with history is archived, never deleted
+    "company_has_history": (
+        409,
+        "Company has history",
+        "این شرکت سابقه دارد و حذف نمیشود؛ به‌جایش بایگانی‌اش کن.",
+    ),
+    "code_taken": (409, "Code taken", "این کد را شرکت یا تأسیس دیگری گرفته؛ کد دیگری انتخاب کن."),
     "evidence_required": (422, "Evidence required", "بستن کار بدون خروجی یا شاهد ممکن نیست."),
     "delegation_depth_exceeded": (
         409,
@@ -210,6 +217,11 @@ SQLSTATE_CODES: dict[str, str] = {
     "HQV01": "validation_failed",
     "HQN01": "not_found",
     "HQR01": "sealed_record",  # ⟨1.7⟩ a sealed archive version or a disposed record
+    # ⟨1.7.5⟩ core.purge_company: the holding, history, no such company, still linked
+    "HQA02": "validation_failed",
+    "HQA03": "company_has_history",
+    "HQA04": "not_found",
+    "HQA05": "company_has_history",
 }
 
 

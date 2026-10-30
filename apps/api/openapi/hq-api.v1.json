@@ -13089,6 +13089,17 @@
             ],
             "title": "Code"
           },
+          "color_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color Index"
+          },
           "company": {
             "anyOf": [
               {
@@ -13130,6 +13141,18 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "logo_file_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo File Id"
           },
           "name_en": {
             "anyOf": [
@@ -13207,6 +13230,17 @@
           "state": {
             "title": "State",
             "type": "string"
+          },
+          "tagline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tagline"
           },
           "updated_at": {
             "format": "date-time",
@@ -13326,9 +13360,72 @@
       },
       "FoundingIn": {
         "additionalProperties": false,
+        "description": "⟨1.7.5⟩ the owner's choices ride along (contract §25): kept by the\nproposer; `blank` needs name_fa and code.",
         "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "color_index": {
+            "anyOf": [
+              {
+                "maximum": 8.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color Index"
+          },
+          "logo_file_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo File Id"
+          },
+          "name_fa": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name Fa"
+          },
           "source": {
             "$ref": "#/components/schemas/hq_api__routes__founding__Source"
+          },
+          "tagline": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tagline"
           }
         },
         "required": [
@@ -13347,7 +13444,8 @@
           "kind": {
             "enum": [
               "repo",
-              "idea"
+              "idea",
+              "blank"
             ],
             "title": "Kind",
             "type": "string"
@@ -26822,6 +26920,26 @@
         "title": "ReadIn",
         "type": "object"
       },
+      "ReadManyIn": {
+        "description": "⟨1.7.5⟩ several notifications read in one request (contract §25).",
+        "properties": {
+          "ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "title": "ReadManyIn",
+        "type": "object"
+      },
       "Reason": {
         "additionalProperties": false,
         "properties": {
@@ -39293,7 +39411,8 @@
           "kind": {
             "enum": [
               "repo",
-              "idea"
+              "idea",
+              "blank"
             ],
             "title": "Kind",
             "type": "string"
@@ -50066,7 +50185,8 @@
                   "enum": [
                     "active",
                     "paused",
-                    "archived"
+                    "archived",
+                    "draft"
                   ],
                   "type": "string"
                 },
@@ -50307,6 +50427,85 @@
       }
     },
     "/api/v1/companies/{code}": {
+      "delete": {
+        "description": "⟨1.7.5⟩ 🔏 step-up `company.delete` on the code, `Idempotency-Key`: a\ncompany made by mistake goes with everything keyed to it (employees,\ncharters, brand, its founding ...), never its audit rows. Only without\nhistory (§25): else `409 company_has_history` with what it has (archive\nit instead). The holding is `422`. A provisioned server is history here:\na Hetzner server goes only on the owner's separate approval.",
+        "operationId": "delete_company",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Delete Company",
+        "tags": [
+          "organisation"
+        ]
+      },
       "get": {
         "description": "One company with its counters, kill switch and deploy freeze.",
         "operationId": "get_company",
@@ -60554,6 +60753,7 @@
                         "version": 1
                       },
                       "code": "TY",
+                      "color_index": 1,
                       "company": "TY",
                       "created_at": "2026-10-17T05:42:00Z",
                       "created_by": {
@@ -60563,6 +60763,7 @@
                       },
                       "decision_ref": "x",
                       "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "logo_file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                       "name_en": "TradeYar",
                       "name_fa": "تریدیار",
                       "plan": "x",
@@ -60611,6 +60812,7 @@
                         "repo": "x"
                       },
                       "state": "x",
+                      "tagline": "x",
                       "updated_at": "2026-10-17T05:42:00Z",
                       "workspace": "x"
                     }
@@ -60686,17 +60888,22 @@
         ]
       },
       "post": {
-        "description": "Opens the read-only audit of the repository (a workshop session under an\nautomatic read-only grant once a runtime exists; else github.read and\nreading, no execution), or for an idea the proposal straight away.\nRequires `Idempotency-Key`.",
+        "description": "Opens the read-only audit of the repository (a workshop session under an\nautomatic read-only grant once a runtime exists; else github.read and\nreading, no execution), or for an idea the proposal straight away;\n⟨1.7.5⟩ `blank` registers a `draft` company at once. A taken `code` is\n`409 code_taken`. Requires `Idempotency-Key`.",
         "operationId": "create_founding",
         "requestBody": {
           "content": {
             "application/json": {
               "example": {
+                "code": "TY",
+                "color_index": 1,
+                "logo_file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                "name_fa": "تریدیار",
                 "source": {
                   "brief_md": "x",
                   "kind": "repo",
                   "repo": "x"
-                }
+                },
+                "tagline": "x"
               },
               "schema": {
                 "$ref": "#/components/schemas/FoundingIn"
@@ -60722,6 +60929,7 @@
                     "version": 1
                   },
                   "code": "TY",
+                  "color_index": 1,
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
                   "created_by": {
@@ -60731,6 +60939,7 @@
                   },
                   "decision_ref": "x",
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "logo_file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "name_en": "TradeYar",
                   "name_fa": "تریدیار",
                   "plan": "x",
@@ -60779,6 +60988,7 @@
                     "repo": "x"
                   },
                   "state": "x",
+                  "tagline": "x",
                   "updated_at": "2026-10-17T05:42:00Z",
                   "workspace": "x"
                 },
@@ -60883,6 +61093,7 @@
                     "version": 1
                   },
                   "code": "TY",
+                  "color_index": 1,
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
                   "created_by": {
@@ -60892,6 +61103,7 @@
                   },
                   "decision_ref": "x",
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "logo_file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "name_en": "TradeYar",
                   "name_fa": "تریدیار",
                   "plan": "x",
@@ -60940,6 +61152,7 @@
                     "repo": "x"
                   },
                   "state": "x",
+                  "tagline": "x",
                   "updated_at": "2026-10-17T05:42:00Z",
                   "workspace": "x"
                 },
@@ -61064,6 +61277,7 @@
                     "version": 1
                   },
                   "code": "TY",
+                  "color_index": 1,
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
                   "created_by": {
@@ -61073,6 +61287,7 @@
                   },
                   "decision_ref": "x",
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "logo_file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "name_en": "TradeYar",
                   "name_fa": "تریدیار",
                   "plan": "x",
@@ -61121,6 +61336,7 @@
                     "repo": "x"
                   },
                   "state": "x",
+                  "tagline": "x",
                   "updated_at": "2026-10-17T05:42:00Z",
                   "workspace": "x"
                 },
@@ -61225,6 +61441,7 @@
                     "version": 1
                   },
                   "code": "TY",
+                  "color_index": 1,
                   "company": "TY",
                   "created_at": "2026-10-17T05:42:00Z",
                   "created_by": {
@@ -61234,6 +61451,7 @@
                   },
                   "decision_ref": "x",
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "logo_file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                   "name_en": "TradeYar",
                   "name_fa": "تریدیار",
                   "plan": "x",
@@ -61282,6 +61500,7 @@
                     "repo": "x"
                   },
                   "state": "x",
+                  "tagline": "x",
                   "updated_at": "2026-10-17T05:42:00Z",
                   "workspace": "x"
                 },
@@ -71985,6 +72204,68 @@
           }
         },
         "summary": "List Notifications",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/read": {
+      "post": {
+        "description": "⟨1.7.5⟩ Marks these read (ids not found or already read are skipped);\none audit row and one interaction for the whole request.",
+        "operationId": "read_notifications",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "ids": [
+                  "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                ]
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ReadManyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "updated": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Count"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Read Notifications",
         "tags": [
           "notifications"
         ]
@@ -84954,8 +85235,8 @@
             "required": false,
             "schema": {
               "default": "work,decisions,deliverables,messages,notifications,activity,llm,control,runs",
-              "maxLength": 200,
-              "pattern": "^[a-z]+(,[a-z]+)*$",
+              "maxLength": 1000,
+              "pattern": "^[a-z][a-z_]*(,[a-z][a-z_]*)*$",
               "title": "Topics",
               "type": "string"
             }

@@ -32,6 +32,13 @@ storage:
     local:
       path: /var/tempo/blocks
 
+# 15.2 §5: traces are kept 3 days (Tempo's own default is 14), so the
+# disk stays small whenever the tracing profile is on (Tempo 3: the
+# backend worker compacts and expires blocks).
+backend_worker:
+  compaction:
+    block_retention: 72h
+
 overrides:
   defaults:
     metrics_generator:

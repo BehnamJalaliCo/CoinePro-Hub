@@ -686,19 +686,27 @@ async def raise_finding(
     dedupe_key: str | None = None,
 ) -> tuple[dict[str, Any], bool]:
     """(the finding, created?). A finding still open with the same key is the
-    same finding: returned, not duplicated (an hourly rule found again). A
-    protocol that is not active raises nothing (409)."""
+    same finding: ⟨1.7.5⟩ its evidence brought up to date, not duplicated (an
+    hourly rule found again), and no new notification. Only a higher severity
+    opens a new finding (its key `<key>:<severity>`, as one key is open once;
+    the owner hears of it); a closed one found again opens anew. A protocol
+    that is not active raises nothing (409)."""
     if protocol is not None:
         require_active(protocol)
     if dedupe_key:
+        dedupe_key = dedupe_key[:180]
         same = await tx.first(
             FINDING_SQL
-            + " WHERE f.company_id = :co AND f.dedupe_key = :k AND f.status NOT IN ('verified', 'closed')",
+            + " WHERE f.company_id = :co AND f.dedupe_key = ANY(CAST(:keys AS text[]))"
+            + " AND f.status NOT IN ('verified', 'closed')"
+            + " ORDER BY f.opened_at DESC LIMIT 1 FOR UPDATE OF f",
             co=company_id,
-            k=dedupe_key,
+            keys=[dedupe_key, *(f"{dedupe_key}:{s}" for s in SEVERITIES)],
         )
+        if same and SEVERITIES.index(severity) <= SEVERITIES.index(same["severity"]):
+            return await _found_again(tx, same, evidence), False
         if same:
-            return same, False
+            dedupe_key = f"{dedupe_key}:{severity}"
     role = answerable or (protocol or {}).get("answerable")
     if answerable and "-" in answerable:  # an employee code given explicitly
         exists = await tx.scalar(
@@ -749,22 +757,51 @@ async def raise_finding(
         row["ref"],
         {"severity": severity, "status": "open", "protocol": (protocol or {}).get("ref")},
     )
-    if severity in ("critical", "high"):
-        await notify.raise_notification(
-            tx,
-            company_id=company_id,
-            company_code=company_code,
-            level="decision",
-            title_fa=f"یافته‌ی {'بحرانی' if severity == 'critical' else 'جدی'} ناظر کل: {title_fa}"[
-                :300
-            ],
-            body_fa=body_md[:1000],
-            link_kind="finding",
-            link_ref=row["ref"],
-            source_kind="agent" if by_kind == "agent" else "system",
-            source_code=by_code,
+    f = await load_finding(tx, row["ref"])
+    await _tell_owner(tx, f, company_code, by_kind, by_code)
+    return f, True
+
+
+def notice_level(f: dict[str, Any]) -> str:
+    """⟨1.7.5⟩ A finding asks the owner to decide only when the owner answers
+    it; one an employee answers is a report."""
+    return "decision" if f["answerable_kind"] == "owner" else "report"
+
+
+async def _tell_owner(
+    tx: Tx, f: dict[str, Any], company_code: str, by_kind: str, by_code: str
+) -> None:
+    severity = f["severity"]
+    if severity not in ("critical", "high"):
+        return
+    label = "بحرانی" if severity == "critical" else "جدی"
+    await notify.raise_notification(
+        tx,
+        company_id=f["company_id"],
+        company_code=company_code,
+        level=notice_level(f),
+        title_fa=f"یافته‌ی {label} ناظر کل: {f['title_fa']}"[:300],
+        body_fa=str(f["body_md"] or "")[:1000],
+        link_kind="finding",
+        link_ref=f["ref"],
+        source_kind="agent" if by_kind == "agent" else "system",
+        source_code=by_code,
+    )
+
+
+async def _found_again(
+    tx: Tx, f: dict[str, Any], evidence: list[dict[str, Any]] | None
+) -> dict[str, Any]:
+    """The same open finding seen again: its evidence becomes today's (its
+    text and severity stay as raised: they are immutable)."""
+    if evidence:
+        await tx.exec(
+            """UPDATE oversight.findings SET evidence = CAST(:ev AS jsonb), updated_at = now()
+               WHERE id = :id""",
+            id=f["id"],
+            ev=json.dumps(evidence, ensure_ascii=False),
         )
-    return await load_finding(tx, row["ref"]), True
+    return await load_finding(tx, f["ref"])
 
 
 def _has_fix_evidence(history: list[dict[str, Any]]) -> bool:

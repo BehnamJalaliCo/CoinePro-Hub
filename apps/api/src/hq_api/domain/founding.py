@@ -190,7 +190,7 @@ class FoundingAudit(BaseModel):
 
 
 class FoundingSource(BaseModel):
-    kind: Literal["repo", "idea"]
+    kind: Literal["repo", "idea", "blank"]
     repo: str | None = None
     brief_md: str = ""
 
@@ -221,6 +221,11 @@ class Founding(BaseModel):
     brand: FoundingBrand = Field(
         default_factory=lambda: FoundingBrand(state="missing", version=None)
     )
+    # ⟨1.7.5⟩ what the owner chose up front (contract §25): kept by the proposer,
+    # the colour slot and logo become the company's at the seal
+    tagline: str | None = None
+    color_index: int | None = None
+    logo_file_id: UUID | None = None
 
 
 # ------------------------------------------------------------------- plans --
@@ -651,6 +656,9 @@ async def render(tx: Tx, r: dict[str, Any], ssh_sources: list[str] | None = None
         proposal_work=r.get("proposal_work_ref"),
         workspace=r.get("workspace_code"),
         brand=brand,
+        tagline=r.get("tagline"),
+        color_index=r.get("color_index"),
+        logo_file_id=r.get("logo_file_id"),
     )
 
 
@@ -677,19 +685,90 @@ async def _emit(tx: Tx, holding: str, f: dict[str, Any], change: str) -> None:
     )
 
 
+async def code_taken(tx: Tx, code: str, *, founding_id: UUID | None = None) -> bool:
+    """A company has it, or another founding not cancelled (§25)."""
+    return bool(
+        await tx.scalar("SELECT 1 FROM core.companies WHERE code = :c", c=code)
+        or await tx.scalar(
+            """SELECT 1 FROM core.foundings WHERE code = :c AND state <> 'cancelled'
+                 AND id IS DISTINCT FROM :id""",
+            c=code,
+            id=founding_id,
+        )
+    )
+
+
+async def _check_logo(tx: Tx, file_id: UUID) -> None:
+    """The owner's own image upload, still in the holding (it moves to the
+    company when the brand is made from it)."""
+    f = await tx.first(
+        "SELECT mime, variant, created_by_kind FROM files.files WHERE id = :id", id=file_id
+    )
+    if f is None or f["variant"] != "original" or f["created_by_kind"] != "owner":
+        raise ApiError(422, "validation_failed", fields={"logo_file_id": "not one of your uploads"})
+    if f["mime"] not in brands.LOGO_MIMES:
+        raise ApiError(
+            422,
+            "validation_failed",
+            fields={"logo_file_id": "a logo is PNG (best, with transparency), WebP or JPEG"},
+            message_fa="لوگو باید PNG (بهتر با زمینه‌ی شفاف)، WebP یا JPEG باشد.",
+        )
+
+
 async def create(
-    tx: Tx, who: Principal, source: dict[str, Any], *, runtime_on: bool
+    tx: Tx,
+    who: Principal,
+    source: dict[str, Any],
+    *,
+    runtime_on: bool,
+    chosen: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """POST /foundings: the founding, then its read-only audit (or, for an
-    idea, straight to the proposal)."""
+    idea, straight to the proposal; ⟨1.7.5⟩ for `blank`, the company itself,
+    a `draft` the owner completes later). `chosen`: the owner's name_fa,
+    code, tagline, color_index and logo_file_id, kept as given."""
+    chosen = {k: v for k, v in (chosen or {}).items() if v is not None}
     holding = await _holding(tx)
+    code = chosen.get("code")
+    if source["kind"] == "blank" and not (code and chosen.get("name_fa")):
+        raise ApiError(
+            422,
+            "validation_failed",
+            fields={"code": "a blank founding needs code and name_fa"},
+            message_fa="برای «فقط ثبت کن» نام فارسی و کد شرکت لازم است.",
+        )
+    if code:
+        await tx.exec(
+            "SELECT pg_advisory_xact_lock(hashtext('core.foundings.code:' || :c))", c=code
+        )
+        if await code_taken(tx, code):
+            raise ApiError(409, "code_taken", f"{code} is taken", fields={"code": "taken"})
+    if chosen.get("color_index"):
+        holder = await tx.scalar(
+            "SELECT code FROM core.companies WHERE color_index = :ci", ci=chosen["color_index"]
+        )
+        if holder:
+            raise ApiError(
+                409,
+                "validation_failed",
+                fields={"color_index": f"taken by {holder}"},
+                message_fa=f"این رنگ مال شرکت {holder} است؛ رنگ دیگری انتخاب کن.",
+            )
+    if chosen.get("logo_file_id"):
+        await _check_logo(tx, chosen["logo_file_id"])
     row = await tx.one(
-        """INSERT INTO core.foundings (company_id, source, created_by_kind, created_by_code)
-           VALUES (:co, CAST(:src AS jsonb), :k, :c) RETURNING ref""",
+        """INSERT INTO core.foundings (company_id, source, created_by_kind, created_by_code,
+               name_fa, code, tagline, color_index, logo_file_id)
+           VALUES (:co, CAST(:src AS jsonb), :k, :c, :nfa, :code, :tag, :ci, :logo) RETURNING ref""",
         co=holding["id"],
         src=json.dumps(source, ensure_ascii=False),
         k=who.kind,
         c=who.code,
+        nfa=chosen.get("name_fa"),
+        code=code,
+        tag=chosen.get("tagline"),
+        ci=chosen.get("color_index"),
+        logo=chosen.get("logo_file_id"),
     )
     f = await load(tx, row["ref"])
     await audit.record(
@@ -704,11 +783,76 @@ async def create(
     )
     if source["kind"] == "repo":
         await _start_audit(tx, who, f, holding, runtime_on=runtime_on)
-    else:
+    elif source["kind"] == "idea":
         await _start_proposal(tx, f, holding, None)
+    else:
+        await _register(tx, who, f)
     f = await load(tx, f["ref"])
     await _emit(tx, holding["code"], f, "created")
     return f
+
+
+async def _new_company(
+    tx: Tx, f: dict[str, Any], code: str, name_fa: str, name_en: str, status: str
+) -> UUID:
+    """The company row: the owner's colour slot while it is still free (a slot
+    is one company's), else the first free one."""
+    await tx.exec("SELECT pg_advisory_xact_lock(hashtext('core.companies.color_index'))")
+    co = await tx.one(
+        """INSERT INTO core.companies (code, name, kind, name_fa, name_en, color_index, template, status)
+           VALUES (:code, :name_en, 'company', :name_fa, :name_en,
+                   CASE WHEN CAST(:ci AS int) IS NOT NULL AND NOT EXISTS (
+                            SELECT 1 FROM core.companies WHERE color_index = CAST(:ci AS int))
+                        THEN CAST(:ci AS int)
+                        ELSE (SELECT min(slot) FROM generate_series(1, 8) AS slot
+                              WHERE slot NOT IN (SELECT color_index FROM core.companies
+                                                 WHERE color_index IS NOT NULL)) END,
+                   :tpl, :status)
+           RETURNING id""",
+        code=code,
+        name_fa=name_fa,
+        name_en=name_en,
+        ci=f.get("color_index"),
+        tpl=TEMPLATE,
+        status=status,
+    )
+    ids = [r["id"] for r in await tx.all("SELECT id FROM core.companies")]
+    await tx.rescope(ids)
+    company_id: UUID = co["id"]
+    return company_id
+
+
+async def _brand_from_logo(tx: Tx, who: Principal, f: dict[str, Any], code: str) -> None:
+    """The owner's logo becomes the company's brand: a version traced by the
+    worker (the reconcile picks it up), sealed by the owner as any brand."""
+    if f.get("logo_file_id"):
+        await brands.upload(tx, who, code, f["logo_file_id"], "mark", {})
+
+
+async def _register(tx: Tx, who: Principal, f: dict[str, Any]) -> None:
+    """⟨1.7.5⟩ `blank`: only registered. The company is a `draft` with the
+    standard template, no audit, no proposal, no card; sealed at once."""
+    code, name_fa = f["code"], f["name_fa"]
+    company_id = await _new_company(tx, f, code, name_fa, code, "draft")
+    added = await templates.apply(tx, company_id, code, TEMPLATE)
+    await audit.record(
+        tx,
+        who,
+        company_id=company_id,
+        action="founding.register",
+        action_class="A2",
+        target_kind="company",
+        target_ref=code,
+        summary=f"registered by {f['ref']} as a draft: {added}",
+    )
+    await tx.exec(
+        """UPDATE core.foundings SET state = 'sealed', new_company_id = :co, updated_at = now()
+           WHERE id = :id""",
+        co=company_id,
+        id=f["id"],
+    )
+    await _brand_from_logo(tx, who, f, code)
+    await events.emit(tx, code, "control.changed", code, {"change": "company.created"})
 
 
 async def _start_audit(
@@ -839,6 +983,17 @@ async def _start_proposal(
         if report
         else f"An idea (no repository):\n{scrub(str(src.get('brief_md') or ''))[:8000]}"
     )
+    kept = ""
+    if f.get("code") or f.get("name_fa"):
+        kept = (
+            "The owner chose "
+            + (f"the name «{f['name_fa']}» " if f.get("name_fa") else "")
+            + ("and " if f.get("code") and f.get("name_fa") else "")
+            + (f"the code {f['code']} " if f.get("code") else "")
+            + "(keep them exactly as given"
+            + (f"; tagline: «{f['tagline']}»" if f.get("tagline") else "")
+            + ").\n"
+        )
     w = await W.create(
         tx,
         SERVICE,
@@ -846,7 +1001,7 @@ async def _start_proposal(
         company_code=holding["code"],
         title=f"پیشنهاد شرکت تازه برای تأسیس {f['ref']}"[:300],
         brief=(
-            f"Founding {f['ref']} ({src.get('repo') or 'an idea'}). {summary}\n\n"
+            f"Founding {f['ref']} ({src.get('repo') or 'an idea'}). {summary}\n{kept}\n"
             "Propose the company with `propose` kind `company_found` and payload "
             '{founding: "' + f["ref"] + '", code (2-10 capitals, a new one), name_fa, name_en, '
             "departments: [codes of the standard template: TECH, GROWTH, SALES, PRODUCT, FIN, QUANT, AIOPS, HR], "
@@ -891,13 +1046,13 @@ async def check_proposal(tx: Tx, payload: dict[str, Any], company_id: UUID) -> N
             raise ApiError(
                 422, "validation_failed", fields={"payload.plan": "not a plan of this founding"}
             )
-    if await tx.scalar("SELECT 1 FROM core.companies WHERE code = :c", c=payload["code"]) or (
-        await tx.scalar(
-            "SELECT 1 FROM core.foundings WHERE code = :c AND state <> 'cancelled' AND id <> :id",
-            c=payload["code"],
-            id=f["id"],
-        )
-    ):
+    # ⟨1.7.5⟩ the owner's own choices stand (contract §25)
+    for key in ("code", "name_fa"):
+        if f.get(key) and payload.get(key) != f[key]:
+            raise ApiError(
+                422, "validation_failed", fields={f"payload.{key}": f"the owner chose {f[key]}"}
+            )
+    if await code_taken(tx, payload["code"], founding_id=f["id"]):
         raise ApiError(422, "validation_failed", fields={"payload.code": "already taken"})
     known = {d["code"] for d in (templates.template(TEMPLATE) or {}).get("departments") or []}
     bad = sorted(set(payload["departments"]) - known)
@@ -1022,21 +1177,7 @@ async def found_company(tx: Tx, d: dict[str, Any], p: dict[str, Any]) -> dict[st
             extra={"founding": f["ref"], "decision": d["ref"], "state": f["state"]},
         )
         return {"founding": f["ref"], "company": None, "skipped": f"the founding is {f['state']}"}
-    await tx.exec("SELECT pg_advisory_xact_lock(hashtext('core.companies.color_index'))")
-    co = await tx.one(
-        """INSERT INTO core.companies (code, name, kind, name_fa, name_en, color_index, template, status)
-           VALUES (:code, :name_en, 'company', :name_fa, :name_en,
-                   (SELECT min(slot) FROM generate_series(1, 8) AS slot
-                     WHERE slot NOT IN (SELECT color_index FROM core.companies WHERE color_index IS NOT NULL)),
-                   :tpl, 'paused')
-           RETURNING id""",
-        code=p["code"],
-        name_fa=p["name_fa"],
-        name_en=p["name_en"],
-        tpl=TEMPLATE,
-    )
-    ids = [r["id"] for r in await tx.all("SELECT id FROM core.companies")]
-    await tx.rescope(ids)
+    co = {"id": await _new_company(tx, f, p["code"], p["name_fa"], p["name_en"], "paused")}
     added = await templates.apply(
         tx, co["id"], p["code"], TEMPLATE, departments=list(p["departments"])
     )
@@ -1074,6 +1215,7 @@ async def found_company(tx: Tx, d: dict[str, Any], p: dict[str, Any]) -> dict[st
         co=co["id"],
         id=f["id"],
     )
+    await _brand_from_logo(tx, who, f, p["code"])
     plan = await plan_of(tx, f["id"])
     if plan is not None and plan["state"] == "proposed":
         await tx.exec(
