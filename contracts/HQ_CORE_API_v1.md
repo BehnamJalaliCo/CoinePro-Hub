@@ -2688,3 +2688,42 @@ Tools (Tool Gateway, recorded like every tool call):
 | GET / PUT | `/control/server-policy` | `{seal_required: ["db_drop", "volume_delete", "backup_delete", "disk_wipe", "access_change", "server_delete"]}`; PUT 🔏 |
 
 **Stream:** topic `servers` carries `server.state`, `server.call` (one per call, summary only) and `server.awaiting_seal`.
+
+### 26.5 Shapes the Android app 0.7.0 is built on (binding for prompt 17)
+- **`POST /infra/servers/attach` → `201`:**
+  ```
+  {server: Server, public_key: "from=\"10.10.1.4\",no-agent-forwarding,no-X11-forwarding,no-port-forwarding ssh-ed25519 AAAA… hq-<CODE>-<name>"}
+  ```
+  The key comes with its options.
+- **`Server.map`** (`GET …/map` returns `{at, map}`):
+  ```
+  {os, kernel, uptime_s, cpu: {cores, load1}, memory: {total_mb, used_mb, swap_total_mb, swap_used_mb},
+   disks: [{mount, total_gb, used_gb}], containers: [{name, image, state, health|null, project|null}],
+   compose: [{project, path, services: [..]}], systemd: [{unit, state, timer: bool, next_at|null}],
+   cron: [{user, schedule, cmd_masked}], ports: [{port, proto, bind, process, public: bool}],
+   repos: [{path, remote, branch, dirty: bool, last_commit_at}],
+   automations: [{kind: "n8n"|"cron"|"systemd"|"other", name, active: bool, detail}], sites: [{host, upstream}]}
+  ```
+- **The owner's terminal:** `POST /infra/servers/{id}/exec`.
+  - **step-up:** 🔏 `server.exec`, target = SHA-256 of the exact body.
+  - **body:** `{cmd, cwd?, timeout_s, sudo}`.
+  - **reply:** SSE with these events:
+    - `stdout` and `stderr`: `{text}`
+    - `exit`: `{code, duration_ms}`
+    - `error`: `{code, message}`
+    - `awaiting_seal`: `{decision_ref}`, when the command is destructive. It becomes a `server_destructive` card like an agent's.
+- **Step-up targets:**
+  - repin and detach: `<CODE>:<server>`.
+  - `PUT /control/server-policy`: action `server.policy`, target = SHA-256 of the body.
+- **An owner-started session on a server:**
+  ```
+  POST /workshop/sessions {runtime: "company_server", server, company, driver: "<agent code>"|null, title, brief}
+  ```
+  - `driver: null` means the owner drives.
+  - `CodeSession` adds `server|null, company`.
+- **Stream `server.call` `data`:**
+  ```
+  {server, company, actor: Actor, tool, summary_fa, cmd_masked, exit_code|null, duration_ms|null, session_ref|null, state: "running"|"done"|"failed"}
+  ```
+  - `state` arrives once at the start (`running`) and once at the end.
+- **`transcript_url`:** a hub path (`/api/v1/…`), read with the owner's session.
