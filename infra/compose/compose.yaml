@@ -721,6 +721,10 @@ services:
       HQ_FILES_ROOT: /data/files
       STT_URL: ${STT_URL:-}
       STT_PUNCTUATION: ${STT_PUNCTUATION:-on}
+      # ⟨1.9⟩ stt runs on demand: the worker touches want here (the host's
+      # coinepro-hq-stt.path starts it) and waits for a cold start.
+      HQ_STT_DEMAND_DIR: /stt-demand
+      HQ_STT_COLD_START_S: ${HQ_STT_COLD_START_S:-120}
       # Prompt 14 §4: the archive's OCR (Tesseract on hq-ocr): hq.sh sets it while
       # HQ_OCR=on and it fits the memory budget, else empty (scans keep
       # text_state "none", nothing fails).
@@ -746,6 +750,8 @@ services:
       # and inside the backup set (created by `make bootstrap`, owner uid 10001).
       - ${HQ_BACKUP_DIR:-/home/Hub/backups}/audit-anchors:/anchors
       - ${HQ_BACKUP_DIR:-/home/Hub/backups}/status:/hub-status:ro
+      # ⟨1.9⟩ the demand file of on-demand stt (tmpfiles: 0755, uid 10001)
+      - ${HQ_RUN_DIR:-/run/hq}/stt:/stt-demand
       - ../../agents:/app/agents:ro
       - ../../.git:/hub-repo.git:ro
       - hq-git:/var/lib/hq-git
@@ -1341,8 +1347,12 @@ services:
     # "stt", HQ_STT=on): hq.sh refuses it while the profile plus stt is over
     # the memory budget. Only the worker reaches it (hq-stt is internal);
     # no audio ever leaves the hub. The model is freed after STT_IDLE_UNLOAD_S.
+    # ⟨1.9⟩ On demand: `up` never starts it; infra/stt/on-demand.sh does (the
+    # host's coinepro-hq-stt.path, when the worker asks) and stops it again.
     <<: *service
     profiles: [stt]
+    # never back by itself (a reboot, a crash): only the starter, under the lock
+    restart: "no"
     image: coinepro-hq/stt:0.1.0
     build:
       context: ../../services
@@ -1353,6 +1363,8 @@ services:
         condition: service_completed_successfully
     environment:
       STT_MODEL: ${STT_MODEL:-small}
+      # ⟨1.9⟩ the worker sends pieces of at most 30 s: the limit is sized on that peak
+      STT_MAX_DURATION_S: ${STT_MAX_DURATION_S:-60}
       STT_IDLE_UNLOAD_S: ${STT_IDLE_UNLOAD_S:-300}
       STT_CPU_THREADS: ${STT_CPU_THREADS:-4}
     user: "10001:10001"

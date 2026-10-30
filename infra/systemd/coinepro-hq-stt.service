@@ -1,0 +1,15 @@
+[Unit]
+Description=CoinePro HQ: speech to text while it is asked for (stopped 5 minutes after the last request)
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=Hub
+Group=Hub
+# Does nothing unless HQ_STT=on; waits on /run/hq/oneshot.lock (shared with the
+# backups, the TTS and the render passes), starts stt, stops it when idle.
+ExecStart=/home/Hub/CoinePro-Hub/infra/stt/on-demand.sh
+TimeoutStartSec=25min
+NoNewPrivileges=yes
+PrivateTmp=yes

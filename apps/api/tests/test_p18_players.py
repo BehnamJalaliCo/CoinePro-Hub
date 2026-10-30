@@ -446,45 +446,87 @@ async def test_a_voice_order_without_text_is_transcribed_on_the_hub(
     assert off.status_code == 503, off.text
 
 
-def _wav(seconds: int, rate: int = 16000) -> bytes:
+def _wav(seconds: float, rate: int = 16000, quiet: tuple[tuple[float, float], ...] = ()) -> bytes:
+    """A 16-bit mono WAV: a tone, silent within the `quiet` spans (seconds)."""
+    import array
     import io
+    import math
     import wave
 
+    samples = array.array("h")
+    for i in range(int(seconds * rate)):
+        t = i / rate
+        silent = any(a <= t < b for a, b in quiet)
+        samples.append(0 if silent else int(8000 * math.sin(2 * math.pi * 300 * t)))
     buf = io.BytesIO()
     with wave.open(buf, "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
         w.setframerate(rate)
-        w.writeframes(b"\x00\x00" * rate * seconds)
+        w.writeframes(samples.tobytes())
     return buf.getvalue()
 
 
-async def test_a_long_recording_goes_to_stt_in_pieces_within_the_measured_peak(
+def _answer(n: int, request: httpx.Request) -> httpx.Response:
+    secs = (len(request.content) - 44) / 32000
+    return httpx.Response(200, json={
+        "text_raw": f"بخش {n}", "text": f"بخش {n}", "language": "fa", "duration_s": secs,
+        "confidence": 0.5 + n * 0.1, "segments": [{"start_s": 0.5, "end_s": 1.0, "text": f"بخش {n}"}],
+        "engine": {"name": "faster-whisper", "model": "small", "version": "test"},
+        "timing": {"load_s": 0.1, "transcribe_s": 1.0},
+    })  # fmt: skip
+
+
+async def test_every_recording_goes_to_stt_in_short_pieces_cut_where_it_is_quiet(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    assert M.CHUNK_S == 300  # small's peak was measured transcribing 5 minutes
-    assert [at for at, _ in M.wav_chunks(_wav(2))] == [0.0]  # short: as it is
+    assert M.CHUNK_S == 30  # small's limit is sized on its measured 30-second peak
+    assert [at for at, _ in M.wav_chunks(_wav(1))] == [0.0]  # short: as it is
     assert M.wav_chunks(b"not a wav") == [(0.0, b"not a wav")]
     monkeypatch.setattr(M, "CHUNK_S", 2)
-    sizes: list[int] = []
+    seen: list[float] = []
 
     def handle(request: httpx.Request) -> httpx.Response:
         assert request.content[:4] == b"RIFF"
-        n = len(sizes)
-        sizes.append(len(request.content))
-        secs = (len(request.content) - 44) / 32000
-        return httpx.Response(200, json={
-            "text_raw": f"بخش {n}", "text": f"بخش {n}", "language": "fa", "duration_s": secs,
-            "confidence": 0.5 + n * 0.1, "segments": [{"start_s": 0.5, "end_s": 1.5, "text": f"بخش {n}"}],
-            "engine": {"name": "faster-whisper", "model": "small", "version": "test"},
-            "timing": {"load_s": 0.1, "transcribe_s": 1.0},
-        })  # fmt: skip
+        seen.append((len(request.content) - 44) / 32000)
+        return _answer(len(seen) - 1, request)
 
     f = tmp_path / "long.wav"
-    f.write_bytes(_wav(5))
+    f.write_bytes(_wav(5, quiet=((1.5, 1.7), (3.4, 3.6))))
     out = await M.transcribe("http://stt.test", f, transport=httpx.MockTransport(handle))
-    assert len(sizes) == 3 and out["pieces"] == 3  # 2 s + 2 s + 1 s
-    assert out["text"] == "بخش 0 بخش 1 بخش 2" and out["duration_s"] == 5.0
-    assert [s["start_s"] for s in out["segments"]] == [0.5, 2.5, 4.5]
+    assert out["pieces"] == len(seen) == 3 and all(s <= 2.0 for s in seen)
+    assert abs(sum(seen) - 5.0) < 0.01 and out["duration_s"] == round(sum(seen), 2)
+    # the cuts fall in the silences, not inside a word
+    assert 1.5 <= seen[0] <= 1.7 and 3.4 <= seen[0] + seen[1] <= 3.6
+    assert out["text"] == "بخش 0 بخش 1 بخش 2"
+    assert out["segments"][1]["start_s"] == round(seen[0] + 0.5, 2)
     assert out["engine"]["model"] == "small" and out["timing"]["transcribe_s"] == 3.0
-    assert out["confidence"] == round((0.5 * 2 + 0.6 * 2 + 0.7 * 1) / 5, 4)
+
+
+async def test_a_stopped_stt_is_asked_for_and_waited_for(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(M, "COLD_POLL_S", 0.01)
+    calls = {"n": 0}
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        if calls["n"] <= 3:  # the container is still starting
+            raise httpx.ConnectError("Name or service not known", request=request)
+        return _answer(0, request)
+
+    f = tmp_path / "order.wav"
+    f.write_bytes(_wav(1))
+    demand_dir = tmp_path / "stt"
+    demand_dir.mkdir()
+    out = await M.transcribe("http://stt.test", f, transport=httpx.MockTransport(handle),
+                             demand_dir=str(demand_dir), cold_start_s=5)  # fmt: skip
+    assert out["text"] == "بخش 0" and calls["n"] == 4
+    assert (demand_dir / "want").read_text().strip().isdigit()
+    # Without a demand directory (stt always up), or past the cold start: unavailable.
+    calls["n"] = -100
+    with pytest.raises(M.SttUnavailable):
+        await M.transcribe("http://stt.test", f, transport=httpx.MockTransport(handle))
+    with pytest.raises(M.SttUnavailable):
+        await M.transcribe("http://stt.test", f, transport=httpx.MockTransport(handle),
+                           demand_dir=str(demand_dir), cold_start_s=0.05)  # fmt: skip

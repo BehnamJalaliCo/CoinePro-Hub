@@ -22,6 +22,8 @@
 # (api, OpenBao; internal) only, and the renderer has no network at all.
 # Prompt 14 §4: the archive's OCR sits on hq-ocr (internal) only, whose only
 # other member is the worker; its fetch job sits on hq-fetch like stt-fetch.
+# ⟨1.9⟩ Prompt 18: stt runs on demand (started and stopped by the host's
+# starter, never by itself after a reboot): a job here, restart "no".
 set -euo pipefail
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -29,7 +31,7 @@ ensure_env
 
 JOBS='["hq-tools","temporal-schema","temporal-namespace","db-provision","llm-migrate","api-migrate","stt-fetch",
   "backup-tools","mcp-codecortex-index","substitute-runner","browser-web-login","web-login-relay","tts",
-  "media-courier","media-render","ocr-fetch"]'
+  "media-courier","media-render","ocr-fetch","stt"]'
 HARDENED='["api","worker","opa","llm-router","claude-runtime","llm-migrate","api-migrate","gateway","web","stt","stt-fetch",
   "backup-tools","egress","searxng","browser","provisioner","mcp-time","mcp-codecortex","mcp-codecortex-index",
   "substitute-runner","browser-web","browser-web-login","web-login-relay","tts","media-courier","media-render",

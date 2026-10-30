@@ -15,7 +15,8 @@
 #     for since browser-web's +300 MiB of 15.2). CI (no server) enforces every
 #     profile with every opt-in it switches on;
 # and on the server the active profile is also checked against the real
-# MemTotal (HQ_MEMTOTAL_MB stands in for it, as in hq.sh).
+# MemTotal (HQ_MEMTOTAL_MB stands in for it, as in hq.sh). ⟨1.9⟩ stt runs on
+# demand: a set with stt is counted as its burst (burst_sum_mb below).
 # tmpfs mounts are charged to their container's memory, so they live inside
 # its limit (they are not added on top).
 set -euo pipefail
@@ -29,6 +30,24 @@ failed=0
 
 limit_sum_mb() { # limit_sum_mb PROFILE [OPT_IN_PROFILE...]
   compose_json "$@" | jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor'
+}
+
+# ⟨1.9⟩ prompt 18: stt runs on demand, a burst: while it runs the start-up
+# one-shots have finished and the one-shot lock keeps the backup out
+# (infra/compose/stt-burst.jq, as hq.sh counts it). Every set with stt is
+# checked that way: the set without stt as usual, and the burst.
+burst_sum_mb() { # burst_sum_mb PROFILE [OPT_IN_PROFILE...] (stt among them)
+  compose_json "$@" | jq -f "$REPO_DIR/infra/compose/stt-burst.jq"
+}
+set_sum_mb() { # set_sum_mb PROFILE [OPT_IN_PROFILE...]
+  local p
+  for p in "${@:2}"; do
+    if [[ "$p" == stt ]]; then
+      burst_sum_mb "$@"
+      return
+    fi
+  done
+  limit_sum_mb "$@"
 }
 
 check() { # check LABEL SUM_MB RAM_MB WHERE [HEADROOM_PERCENT [ENFORCED]]
@@ -89,7 +108,7 @@ for profile in "${PROFILES[@]}"; do
       enforced=yes
       if [[ "$on_server" == yes && "$profile" != "$active" ]]; then enforced=other; fi
     fi
-    check "$profile+$extra" "$(limit_sum_mb "$profile" "$extra")" "$ref" "reference" 0 "$enforced"
+    check "$profile+$extra" "$(set_sum_mb "$profile" "$extra")" "$ref" "reference" 0 "$enforced"
   done
 done
 
@@ -98,9 +117,16 @@ if [[ "$on_server" == yes ]]; then
   for extra in "${OPT_IN[@]}"; do
     if opt_in_enabled "$extra"; then enabled+=("$extra"); fi
   done
+  ram="${HQ_MEMTOTAL_MB:-$(awk '/^MemTotal:/ {print int($2 / 1024)}' /proc/meminfo)}"
+  steady=()
+  for extra in "${enabled[@]}"; do
+    if [[ "$extra" != stt ]]; then steady+=("$extra"); fi
+  done
   label="$active"
-  for extra in "${enabled[@]}"; do label+="+$extra"; done
-  check "$label" "$(limit_sum_mb "$active" "${enabled[@]}")" \
-    "${HQ_MEMTOTAL_MB:-$(awk '/^MemTotal:/ {print int($2 / 1024)}' /proc/meminfo)}" "this server"
+  for extra in "${steady[@]}"; do label+="+$extra"; done
+  check "$label" "$(limit_sum_mb "$active" "${steady[@]}")" "$ram" "this server"
+  if ((${#steady[@]} != ${#enabled[@]})); then
+    check "$label+stt (on demand)" "$(burst_sum_mb "$active" "${enabled[@]}")" "$ram" "this server"
+  fi
 fi
 exit "$failed"

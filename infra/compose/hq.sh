@@ -147,38 +147,6 @@ subcommand() {
   done
 }
 
-# Speech to text (prompt 06 §3): opt-in profile "stt", switched on with
-# HQ_STT=on (.env). While the active profile plus stt is over the memory budget
-# (80% of the profile's reference RAM, as the memory gate counts it) it can
-# never be switched on by accident: a command that starts or creates
-# containers is refused; any other (exec for the backup and unseal, ps, logs,
-# config) runs without stt. The worker gets STT_URL only while stt is on.
-stt="${HQ_STT:-$(sed -n 's/^HQ_STT=//p' "$ENV_FILE" | tail -n1)}"
-export STT_URL=""
-if [[ "$stt" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
-  ref="$(budget_ref)"
-  # backup-tools (its own profile, run hourly by infra/backup) counts too.
-  sum="$(compose "${profile_args[@]}" --profile stt --profile backup-tools config --format json |
-    jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
-  budget=$((ref * 80 / 100))
-  if ((sum <= budget)); then
-    profile_args+=(--profile stt)
-    export STT_URL="http://stt:8000"
-  else
-    over="the $profile profile plus stt needs $sum MiB of memory limits, $((sum - budget)) MiB"
-    over+=" over the budget of $budget MiB (80% of $ref MiB)"
-    case "$(subcommand "$@")" in
-      up | run | create | start | restart)
-        echo "error: HQ_STT=on refused: $over." >&2
-        echo "       Turning stt on is the owner's decision: the options (a smaller model," \
-          "lower limits elsewhere, a bigger server) are in docs/ops/RUNBOOK.md (STT)." >&2
-        echo "       Set HQ_STT=off in $ENV_FILE to start the stack without it." >&2
-        exit 3
-        ;;
-      *) echo "warning: HQ_STT=on ignored ($over; docs/ops/RUNBOOK.md, STT)" >&2 ;;
-    esac
-  fi
-fi
 # The provisioner (prompt 09 §4): opt-in profile "provisioning", switched on
 # with HQ_PROVISIONING=on (.env) once the owner has stored the Hetzner token
 # (make hetzner-token). The same memory rule as stt; the api gets
@@ -388,6 +356,51 @@ fi
 if [[ "${1:-}" == "--print-ocr" ]]; then # the quality gate's check
   if [[ -n "$HQ_OCR_URL" ]]; then echo on; else echo off; fi
   exit 0
+fi
+# Speech to text (prompt 06 §3; ⟨1.9⟩ prompt 18, contract §27.3): installed
+# with HQ_STT=on (.env; `make stt-on` fetches the model first) and run ON
+# DEMAND: `up` never starts it. The worker touches /run/hq/stt/want, the
+# host's coinepro-hq-stt.path runs infra/stt/on-demand.sh, which holds the
+# one-shot lock (no backup, TTS or render pass meanwhile) and starts stt with
+# HQ_STT_START=1; 5 minutes without a transcription it stops it.
+# The memory rule counts stt as a burst: while it runs, the start-up
+# one-shots (the migrations, which a long-running service waits for) have
+# finished and the lock keeps the backup's one-shot out, so it is the active
+# set (every other opt-in included) less those, plus stt (stt-burst.jq, read
+# by the memory gate too). Over the budget,
+# HQ_STT=on can never be switched on by accident: a command that starts or
+# creates containers is refused; any other runs without stt. The worker and
+# the api get STT_URL only while it is installed and fits.
+stt="${HQ_STT:-$(sed -n 's/^HQ_STT=//p' "$ENV_FILE" | tail -n1)}"
+export STT_URL=""
+if [[ "$stt" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
+  ref="$(budget_ref)"
+  sum="$(compose "${profile_args[@]}" --profile stt --profile backup-tools config --format json |
+    jq -f "$COMPOSE_DIR/stt-burst.jq")"
+  budget=$((ref * 80 / 100))
+  if ((sum <= budget)); then
+    export STT_URL="http://stt:8000"
+    if [[ "${HQ_STT_START:-0}" == "1" ]]; then
+      profile_args+=(--profile stt) # the on-demand starter (and stop) only
+    elif [[ "$(subcommand "$@")" == up ]]; then
+      # the start-up one-shots (migrations) never run beside it: the next
+      # transcription starts it again
+      compose "${profile_args[@]}" --profile stt stop stt >/dev/null 2>&1 || true
+    fi
+  else
+    over="the $profile profile with stt running needs $sum MiB of memory limits, $((sum - budget)) MiB"
+    over+=" over the budget of $budget MiB (80% of $ref MiB)"
+    case "$(subcommand "$@")" in
+      up | run | create | start | restart)
+        echo "error: HQ_STT=on refused: $over." >&2
+        echo "       Turning stt on is the owner's decision: the options (a smaller model," \
+          "lower limits elsewhere, a bigger server) are in docs/ops/RUNBOOK.md (STT)." >&2
+        echo "       Set HQ_STT=off in $ENV_FILE (make stt-off) to start the stack without it." >&2
+        exit 3
+        ;;
+      *) echo "warning: HQ_STT=on ignored ($over; docs/ops/RUNBOOK.md, STT)" >&2 ;;
+    esac
+  fi
 fi
 if [[ "${HQ_ALL_PROFILES:-0}" == "1" ]]; then
   profile_args=(--profile "*")

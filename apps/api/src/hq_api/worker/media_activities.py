@@ -155,7 +155,12 @@ class MediaActivities:
         is checked by its transcript only; no model reads it."""
         s = self.hub.settings
         res = await M.transcribe(
-            s.stt_url, wav, busy_wait_s=busy_wait_s, transport=self.stt_transport
+            s.stt_url,
+            wav,
+            busy_wait_s=busy_wait_s,
+            transport=self.stt_transport,
+            demand_dir=s.stt_demand_dir,
+            cold_start_s=s.stt_cold_start_s,
         )
         normalised = persian.normalise(res.get("text") or "")
         final, punctuation, ratio = normalised, "off", None

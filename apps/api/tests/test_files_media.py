@@ -247,7 +247,8 @@ async def test_a_30s_video_gets_a_poster_frames_and_its_transcript(
     ref = (await upload(client, owner, video_30s(tmp_path), "video/mp4", "clip.mp4")).json()
     assert ref["status"] == "processing" and 29 <= ref["duration_s"] <= 31
     out = await acts.file_process(ref["id"])
-    assert out["frames"] >= 3 and stt.calls == 1, out
+    # ⟨1.9⟩ stt gets pieces of at most 30 s: a track of a little over 30 s is two
+    assert out["frames"] >= 3 and 1 <= stt.calls <= 2, out
     meta = (await client.get(f"/api/v1/files/{ref['id']}/meta", headers=owner)).json()
     assert meta["status"] == "ready" and meta["variants"]["poster"]
     assert meta["transcript"] and "ی" in meta["transcript"] and "ي" not in meta["transcript"]

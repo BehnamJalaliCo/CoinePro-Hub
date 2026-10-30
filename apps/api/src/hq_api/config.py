@@ -57,6 +57,12 @@ class Settings:
     stt_punctuation_model: str = field(
         default_factory=lambda: _env("STT_PUNCTUATION_MODEL", "claude-haiku-5-5")
     )
+    # ⟨1.9⟩ stt runs on demand (prompt 18): the worker touches `want` in this
+    # directory (a host bind mount, /run/hq/stt) and the host's
+    # coinepro-hq-stt.path starts the container; empty: stt is always up (tests).
+    stt_demand_dir: str = field(default_factory=lambda: _env("HQ_STT_DEMAND_DIR"))
+    # How long a transcription waits for a cold stt (the start, the one-shot lock).
+    stt_cold_start_s: int = field(default_factory=lambda: _int("HQ_STT_COLD_START_S", 120))
     # How long POST /transcribe waits for the worker (a 15-minute recording on CPU).
     transcribe_wait_s: int = field(default_factory=lambda: _int("HQ_TRANSCRIBE_WAIT_S", 600))
     # Prompt 14 §4: OCR on the hub (Tesseract 5, the opt-in `ocr` profile), reached

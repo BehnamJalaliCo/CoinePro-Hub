@@ -154,37 +154,65 @@ BUSY_FIRST_S = 2.0  # the first pause after a busy answer; doubles, at most BUSY
 BUSY_MAX_S = 30.0
 
 
-# ⟨1.9⟩ contract §27.3: the hub runs Whisper `small`, whose peak was measured
-# transcribing 5 minutes (RUNBOOK §16: 1225 MiB, under MEM_STT); a longer
-# recording goes to stt in pieces of at most this long, one after another.
-CHUNK_S = 300
+# ⟨1.9⟩ contract §27.3: the hub runs Whisper `small` on demand, its memory
+# limit sized on its measured peak transcribing 30 s (RUNBOOK §16: 648 MiB;
+# 5 minutes in one request peaked at 1225): every recording goes to stt in
+# pieces of at most CHUNK_S, each cut at the quietest moment of its last
+# QUIET_SEARCH_S, one after another.
+CHUNK_S = 30
+QUIET_SEARCH_S = 5.0
+QUIET_FRAME_S = 0.05
+COLD_POLL_S = 1.0
+
+
+def _quietest(frames: bytes, rate: int, start: int, end: int) -> int:
+    """The frame index in [start, end) where a QUIET_FRAME_S window of 16-bit
+    mono samples is quietest (the cut)."""
+    import array
+
+    step = max(int(QUIET_FRAME_S * rate), 1)
+    best, best_at = None, end
+    for at in range(start, max(end - step, start), step):
+        window = array.array("h", frames[at * 2 : (at + step) * 2])
+        energy = sum(abs(v) for v in window)
+        if best is None or energy < best:
+            best, best_at = energy, at + step // 2
+    return best_at
 
 
 def wav_chunks(data: bytes, seconds: float | None = None) -> list[tuple[float, bytes]]:
-    """(start second, WAV bytes) of pieces of at most `seconds`; the audio
-    itself when it is short or not a WAV the stdlib reads."""
+    """(start second, WAV bytes) of pieces of at most `seconds`, each cut at
+    its quietest moment near the end (16-bit mono; else a plain cut); the
+    audio itself when it is short or not a WAV the stdlib reads."""
     import io
     import wave
 
     try:
         with wave.open(io.BytesIO(data), "rb") as w:
             params = w.getparams()
-            rate = w.getframerate()
+            rate, total = w.getframerate(), w.getnframes()
             per = max(int((seconds or CHUNK_S) * rate), 1)
-            if w.getnframes() <= per:
+            if total <= per:
                 return [(0.0, data)]
-            out: list[tuple[float, bytes]] = []
-            start = 0
-            while frames := w.readframes(per):
-                buf = io.BytesIO()
-                with wave.open(buf, "wb") as piece:
-                    piece.setparams(params)
-                    piece.writeframes(frames)
-                out.append((start / rate, buf.getvalue()))
-                start += per
-            return out
+            frames = w.readframes(total)
     except (wave.Error, EOFError):
         return [(0.0, data)]
+    width = params.sampwidth * params.nchannels
+    quiet = params.sampwidth == 2 and params.nchannels == 1
+    search = min(int(QUIET_SEARCH_S * rate), per // 2)
+    out: list[tuple[float, bytes]] = []
+    at = 0
+    while at < total:
+        end = min(at + per, total)
+        if end < total and quiet:
+            end = _quietest(frames, rate, end - search, end)
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as piece:
+            piece.setparams(params)
+            piece.writeframes(frames[at * width : end * width])
+        out.append((at / rate, buf.getvalue()))
+        at = end
+    return out
 
 
 def merge_pieces(pieces: list[tuple[float, dict[str, Any]]]) -> dict[str, Any]:
@@ -217,6 +245,16 @@ def merge_pieces(pieces: list[tuple[float, dict[str, Any]]]) -> dict[str, Any]:
     }
 
 
+def demand(directory: str) -> None:
+    """Ask the host for stt (contract §27.3): `want` touched in the demand
+    directory starts the container (coinepro-hq-stt.path) and keeps it up;
+    5 minutes without a touch, the host stops it. Never fails the caller."""
+    if not directory:
+        return
+    with contextlib.suppress(OSError):
+        Path(directory, "want").write_text(f"{time.time():.0f}\n", encoding="ascii")
+
+
 async def transcribe(
     url: str,
     audio: Path,
@@ -224,18 +262,25 @@ async def transcribe(
     limit_s: float = 900,
     busy_wait_s: float = 120,
     transport: httpx.AsyncBaseTransport | None = None,
+    demand_dir: str = "",
+    cold_start_s: float = 120,
 ) -> dict[str, Any]:
     """POST the audio to the stt service; its answer (text normalised there).
     A `503 busy` (one transcription runs, the queue is full) is retried with
-    a growing pause for up to `busy_wait_s`, then SttBusy. ⟨1.9⟩ A recording
-    longer than CHUNK_S goes in pieces (the answers joined, timings shifted)."""
+    a growing pause for up to `busy_wait_s`, then SttBusy. ⟨1.9⟩ The audio
+    goes in pieces of at most CHUNK_S (the answers joined, timings shifted);
+    with `demand_dir`, stt is asked for before each piece and a stopped stt
+    is waited for up to `cold_start_s`."""
     if not url:
         raise SttUnavailable("STT_URL is not set")
     data = await asyncio.to_thread(audio.read_bytes)  # at most the kind's limit (sound_track)
     pieces = await asyncio.to_thread(wav_chunks, data)
-    answers = [
-        (at, await _post(url, piece, limit_s, busy_wait_s, transport)) for at, piece in pieces
-    ]
+    answers = []
+    for at, piece in pieces:
+        demand(demand_dir)
+        answers.append(
+            (at, await _post(url, piece, limit_s, busy_wait_s, transport, demand_dir, cold_start_s))
+        )
     return merge_pieces(answers)
 
 
@@ -245,8 +290,11 @@ async def _post(
     limit_s: float,
     busy_wait_s: float,
     transport: httpx.AsyncBaseTransport | None,
+    demand_dir: str = "",
+    cold_start_s: float = 0,
 ) -> dict[str, Any]:
     waited, pause = 0.0, BUSY_FIRST_S
+    cold = 0.0
     while True:
         try:
             async with httpx.AsyncClient(timeout=limit_s, transport=transport) as http:
@@ -255,6 +303,14 @@ async def _post(
                     content=data,
                     headers={"Content-Type": "audio/wav"},
                 )
+        except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+            # stt is stopped (on demand): ask for it and wait while it starts
+            if not demand_dir or cold >= cold_start_s:
+                raise SttUnavailable(type(exc).__name__) from exc
+            demand(demand_dir)
+            await asyncio.sleep(COLD_POLL_S)
+            cold += COLD_POLL_S
+            continue
         except httpx.HTTPError as exc:
             raise SttUnavailable(type(exc).__name__) from exc
         if r.status_code == 503 and _code(r) == "busy":

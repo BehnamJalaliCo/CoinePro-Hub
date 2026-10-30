@@ -1,0 +1,10 @@
+[Unit]
+Description=CoinePro HQ: speech to text on demand (the worker asks; prompt 18, enabled by make stt-on only)
+
+[Path]
+# The worker (uid 10001) touches it before every piece of audio it transcribes.
+PathModified=/run/hq/stt/want
+Unit=coinepro-hq-stt.service
+
+[Install]
+WantedBy=paths.target

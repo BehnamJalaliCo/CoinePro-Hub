@@ -383,52 +383,91 @@ else
 fi
 
 # ---------------------------------------------------------- stt (opt-in) ----
-# Prompt 06 §3: an opt-in profile over the memory budget is shown but does not
-# fail the gate while it is off; switched on, the gate fails and hq.sh refuses
+# Prompt 06 §3; ⟨1.9⟩ prompt 18: stt is installed with HQ_STT=on and runs on
+# demand: `up` never starts it (the host's starter does, HQ_STT_START=1); the
+# memory rule counts it as a burst (infra/compose/stt-burst.jq). Over the
+# budget it is shown while off, fails the gate while on, and hq.sh refuses
 # it, so it can never be turned on by accident. STT_URL follows the switch.
-over_budget() { # over_budget PROFILE -> 0 if PROFILE + stt is over 80% of its reference
-  local ref sum
-  ref="$(sed -n 's/^HQ_BUDGET_REF_RAM_MB=//p' "$REPO_DIR/infra/compose/profiles/$1.env")"
-  sum="$(HQ_PROFILE="$1" HQ_STT=off "$HQ" --profile stt --profile backup-tools config --format json |
-    jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
-  ((sum > ref * 80 / 100))
-}
-gate_off="$(HQ_STT=off CI=1 "$REPO_DIR/scripts/quality/memory-budget.sh" 2>&1)" && off_rc=0 || off_rc=$?
 gate_on="$(HQ_STT=on CI=1 "$REPO_DIR/scripts/quality/memory-budget.sh" 2>&1)" && on_rc=0 || on_rc=$?
-if over_budget full; then
-  # --dry-run: should the refusal ever break, compose still changes nothing.
-  refusal="$(HQ_PROFILE=full HQ_STT=on "$HQ" --dry-run up --no-start 2>&1)" && hq_rc=0 || hq_rc=$?
-  # Commands that start nothing (the backup's and unseal's exec) still run, without stt.
-  rendered="$(HQ_PROFILE=full HQ_STT=on "$HQ" config --format json 2>"$T/stt-warn")" &&
-    cfg_rc=0 || cfg_rc=$?
-  if ((off_rc != 0)) || ! grep -q 'full+stt OVER by .* not enabled' <<<"$gate_off"; then
-    fail "stt: memory gate with stt off: exit $off_rc, or the over-budget line is missing"
-  elif ((on_rc == 0)) || ! grep -q 'full+stt OVER (' <<<"$gate_on"; then
-    fail "stt: memory gate with stt on passed an over-budget combination"
-  elif ((hq_rc != 3)) || ! grep -q 'HQ_STT=on refused' <<<"$refusal"; then
-    fail "stt: hq.sh 'up' accepted HQ_STT=on over the memory budget (exit $hq_rc)"
-  elif ((cfg_rc != 0)) || ! grep -q 'HQ_STT=on ignored' "$T/stt-warn" ||
-    [[ "$(jq -r '(.services | has("stt")), .services.worker.environment.STT_URL' <<<"$rendered" |
-      paste -sd,)" != "false," ]]; then
-    fail "stt: over the budget, a command that starts nothing did not run without stt (exit $cfg_rc)"
-  else
-    pass "stt: over the budget it is shown while off, fails the gate and 'up' is refused while on"
-  fi
+on_json="$(HQ_PROFILE=full HQ_STT=on "$HQ" config --format json)"
+start_services="$(HQ_PROFILE=full HQ_STT=on HQ_STT_START=1 "$HQ" config --services)"
+burst="$(HQ_PROFILE=full HQ_STT=off "$HQ" --profile stt --profile backup-tools config --format json |
+  jq -f "$REPO_DIR/infra/compose/stt-burst.jq")"
+whole="$(HQ_PROFILE=full HQ_STT=off "$HQ" --profile stt --profile backup-tools config --format json |
+  jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
+if ((on_rc != 0)) || ! grep -q 'full+stt ok' <<<"$gate_on"; then
+  fail "stt: the memory gate with stt on (on demand, full) failed (exit $on_rc)"
+elif [[ "$(jq -r '(.services | has("stt")), .services.worker.environment.STT_URL,
+    .services.api.environment.STT_URL, .services.worker.environment.HQ_STT_DEMAND_DIR' <<<"$on_json" |
+  paste -sd,)" != "false,http://stt:8000,http://stt:8000,/stt-demand" ]]; then
+  fail "stt: HQ_STT=on: 'up' would start stt, or the worker/api lack STT_URL or the demand directory"
+elif ! grep -qx stt <<<"$start_services"; then
+  fail "stt: the on-demand starter (HQ_STT_START=1) does not get the stt service"
+elif [[ "$(jq -r '.services.stt.restart' <<<"$(HQ_PROFILE=full HQ_STT=on HQ_STT_START=1 "$HQ" config --format json)")" != "no" ]]; then
+  fail "stt: stt would come back by itself after a reboot (restart is not \"no\")"
+elif ((burst >= whole)); then
+  fail "stt: the burst ($burst MiB) does not leave out the start-up one-shots and the backup ($whole MiB)"
 else
-  # ⟨1.9⟩ prompt 18: Whisper small fits the full profile (the hub's); lean has
-  # no room for it, so switched on there the gate fails and 'up' is refused.
-  url="$(HQ_PROFILE=full HQ_STT=on "$HQ" config --format json | jq -r '.services.worker.environment.STT_URL')"
-  lean_refusal="$(HQ_PROFILE=lean HQ_STT=on "$HQ" --dry-run up --no-start 2>&1)" &&
-    lean_rc=0 || lean_rc=$?
-  if ((off_rc != 0)) || [[ "$url" != "http://stt:8000" ]] ||
-    ! grep -q 'full+stt ok' <<<"$gate_on"; then
-    fail "stt: within the full budget, the gate (off $off_rc) or STT_URL ($url) is wrong"
-  elif over_budget lean && { ((on_rc == 0)) || ! grep -q 'lean+stt OVER (' <<<"$gate_on" ||
-    ((lean_rc != 3)) || ! grep -q 'HQ_STT=on refused' <<<"$lean_refusal"; }; then
-    fail "stt: lean over the budget, but the gate (on $on_rc) or hq.sh (exit $lean_rc) took it"
-  else
-    pass "stt: within the full budget, switched on with STT_URL set; refused where it does not fit"
-  fi
+  pass "stt: on demand (not started by up, the starter alone), STT_URL and the demand dir set, a burst of $burst MiB"
+fi
+# Over the budget (a limit far too large for this test): refused, never by accident.
+big_env="$T/stt-big.env"
+cp "${HQ_ENV_FILE:-$REPO_DIR/infra/compose/.env}" "$big_env"
+printf 'MEM_STT=%s\n' 64g >>"$big_env"
+refusal="$(HQ_ENV_FILE="$big_env" HQ_PROFILE=full HQ_STT=on "$HQ" --dry-run up --no-start 2>&1)" && hq_rc=0 || hq_rc=$?
+rendered="$(HQ_ENV_FILE="$big_env" HQ_PROFILE=full HQ_STT=on "$HQ" config --format json 2>"$T/stt-warn")" &&
+  cfg_rc=0 || cfg_rc=$?
+big_gate="$(HQ_ENV_FILE="$big_env" HQ_STT=on CI=1 "$REPO_DIR/scripts/quality/memory-budget.sh" 2>&1)" &&
+  big_rc=0 || big_rc=$?
+off_gate="$(HQ_ENV_FILE="$big_env" HQ_STT=off CI=1 "$REPO_DIR/scripts/quality/memory-budget.sh" 2>&1)" &&
+  off_rc=0 || off_rc=$?
+if ((hq_rc != 3)) || ! grep -q 'HQ_STT=on refused' <<<"$refusal"; then
+  fail "stt: hq.sh 'up' accepted HQ_STT=on over the memory budget (exit $hq_rc)"
+elif ((cfg_rc != 0)) || ! grep -q 'HQ_STT=on ignored' "$T/stt-warn" ||
+  [[ -n "$(jq -r '.services.worker.environment.STT_URL' <<<"$rendered")" ]]; then
+  fail "stt: over the budget, a command that starts nothing did not run without stt (exit $cfg_rc)"
+elif ((big_rc == 0)) || ! grep -q 'full+stt OVER (' <<<"$big_gate"; then
+  fail "stt: the memory gate with stt on passed an over-budget burst"
+elif ((off_rc != 0)) || ! grep -q 'full+stt OVER by .* not enabled' <<<"$off_gate"; then
+  fail "stt: the memory gate with stt off: exit $off_rc, or the over-budget line is missing"
+else
+  pass "stt: over the budget it is shown while off, fails the gate and 'up' is refused while on"
+fi
+# The hub (MemTotal 15608 MiB): every player and the hub's speech at once.
+hub_gate="$(CI='' HQ_MEMTOTAL_MB=15608 HQ_STT=on HQ_SUBSTITUTES=on HQ_SUBSTITUTES_WEB=on HQ_PROFILE=full \
+  "$REPO_DIR/scripts/quality/memory-budget.sh" 2>&1)" && hub_rc=0 || hub_rc=$?
+if ((hub_rc != 0)) || ! grep -q 'full+substitutes+substitutes-web+stt (on demand) ok' <<<"$hub_gate"; then
+  fail "stt: on the hub (15608 MiB) full + substitutes + substitutes-web + stt does not fit (exit $hub_rc)"
+else
+  pass "stt: on the hub (15608 MiB) full + substitutes + substitutes-web + stt on demand fits"
+fi
+# The host's starter (infra/stt/on-demand.sh) with a fake hq.sh: started when
+# asked, kept while asked, stopped when idle; nothing while off or for a stale ask.
+od="$T/stt-od"
+mkdir -p "$od"
+cat >"$od/hq.sh" <<'FAKE'
+#!/usr/bin/env bash
+echo "${HQ_STT_START:-0} $*" >>"${0%/*}/calls"
+if [[ "$*" == "ps --status running -q stt" ]]; then echo abc; fi
+FAKE
+chmod +x "$od/hq.sh"
+od_run() { # od_run HQ_STT AGE_S -> the calls
+  : >"$od/calls"
+  touch -d "@$(($(date +%s) - $2))" "$od/want"
+  HQ_STT="$1" HQ_SH="$od/hq.sh" HQ_STT_WANT="$od/want" HQ_ONESHOT_LOCK="$od/lock" \
+    STT_IDLE_STOP_S=2 STT_POLL_S=1 STT_MAX_HOLD_S=30 "$REPO_DIR/infra/stt/on-demand.sh" >/dev/null
+  paste -sd'|' "$od/calls"
+}
+od_on="$(od_run on 0)"
+od_off="$(od_run off 0)"
+od_old="$(od_run on 600)"
+if [[ "$od_on" != "1 up -d --no-deps stt|1 ps --status running -q stt|1 stop -t 10 stt" &&
+  "$od_on" != "1 up -d --no-deps stt|1 stop -t 10 stt" ]]; then
+  fail "stt: the on-demand starter did not start, keep and stop stt ($od_on)"
+elif [[ -n "$od_off" || -n "$od_old" ]]; then
+  fail "stt: the starter acted while stt is off or for a stale request ($od_off / $od_old)"
+else
+  pass "stt: the host's starter starts it when asked and stops it when idle (no Docker socket in the worker)"
 fi
 off_url="$(HQ_PROFILE=full HQ_STT=off "$HQ" config --format json | jq -r '.services.worker.environment.STT_URL')"
 if [[ -n "$off_url" ]]; then

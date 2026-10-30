@@ -201,6 +201,24 @@ stt-fetch: ## Download the pinned speech model into the stt-models volume (sha25
 	HQ_STT=off $(HQ) --profile stt build stt-fetch
 	HQ_STT=off $(HQ) --profile stt run --rm -e STT_MODEL="$(or $(model),small)" stt-fetch
 
+.PHONY: stt-on stt-off stt-cold
+stt-on: ## Install speech to text ON DEMAND (prompt 18): fetch the model, HQ_STT=on, the host starts stt when the worker asks
+	$(MAKE) stt-fetch
+	@infra/compose/set-env.sh HQ_STT on
+	HQ_STT_START=1 $(HQ) build stt
+	$(HQ) up -d --wait api worker
+	sudo systemd-tmpfiles --create /etc/tmpfiles.d/coinepro-hq-oneshot.conf
+	sudo systemctl enable --now coinepro-hq-stt.path
+
+stt-off: ## Switch speech to text off again: the app records only; nothing is started on demand
+	@infra/compose/set-env.sh HQ_STT off
+	-sudo systemctl disable --now coinepro-hq-stt.path
+	-HQ_STT=off $(HQ) --profile stt stop stt
+	$(HQ) up -d --wait api worker
+
+stt-cold: ## Measure stt's cold start (stopped -> answering /health), under the one-shot lock like the starter
+	@infra/stt/cold-start.sh
+
 stt-eval: ## WER of the speech model on dir=<samples> (<name>.<audio> + <name>.txt), offline; write=1 saves a report
 	@[[ -d "$(dir)" ]] || { echo "usage: make stt-eval dir=<samples folder> [model=small] [write=1]" >&2; exit 2; }
 	@out="$$(docker run --rm --network none --read-only --tmpfs /tmp --cap-drop ALL --user 10001:10001 \
