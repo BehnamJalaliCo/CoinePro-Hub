@@ -109,22 +109,11 @@ def prompt_tokens(system: str, messages: list[dict[str, Any]]) -> int:
     return chars // 4 + images * IMAGE_TOKENS
 
 
-# A0 tools that are no read of the hub's records: ⟨1.8⟩ server.map and
-# server.read queue a job on a company server's runner and wait for it
-# (contract §26.2). A meeting turn has seconds and a small token cap; it never
-# reaches into a server, and their catalog rows would only fill its prompt.
-NOT_MEETING_READS = ("server.",)
-
-
 def meeting_tools(lib: Any, charter: Charter, tool: str | None) -> tuple[str, ...]:
-    """A meeting turn's tools: its slot's meeting tool and the role's A0 reads."""
+    """A meeting turn's tools: its slot's meeting tool and the role's A0 reads
+    (described in one line each: the turn's tool alone in full)."""
     reads = tuple(
-        t
-        for t in charter.tools
-        if lib is not None
-        and t in lib.tools
-        and lib.tools[t].cls == "A0"
-        and not t.startswith(NOT_MEETING_READS)
+        t for t in charter.tools if lib is not None and t in lib.tools and lib.tools[t].cls == "A0"
     )
     return ((tool,) if tool and tool in charter.tools else ()) + reads
 
@@ -512,6 +501,9 @@ class Runner:
             payloads=None if run["trigger"] == "meeting" else D.PAYLOADS,
             after_charter=await self._skills(rc),
             before_charter=charter_text,
+            # ⟨1.8⟩ a meeting turn: its turn's tool in full, its reads in one
+            # line each (17.1: the reads must never crowd out the statement)
+            full_tools=(rc.meeting.get("tool"),) if run["trigger"] == "meeting" else None,
         )
         # The owner's sealed standing orders (prompt 08 §2.7): the overseer's own
         # and those for every role, after the charter; a proposed one never.

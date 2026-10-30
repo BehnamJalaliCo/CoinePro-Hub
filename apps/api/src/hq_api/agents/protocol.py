@@ -111,17 +111,35 @@ def _first_json_object(text: str) -> Any:
 
 
 # ---------------------------------------------------------------- prompt --
-def tool_table(lib: Library, charter: Charter) -> str:
-    """The charter's tools (a meeting turn's charter carries only its turn's)."""
+COMPACT_CHARS = 140  # a read tool's description in a meeting turn: its first sentence
+
+
+def compact(description: str) -> str:
+    """The first sentence of a catalog description, at most COMPACT_CHARS."""
+    first = re.split(r"(?<=[.!?])\s", description.strip(), maxsplit=1)[0]
+    return first if len(first) <= COMPACT_CHARS else first[: COMPACT_CHARS - 1].rstrip() + "…"
+
+
+def tool_table(lib: Library, charter: Charter, *, full: tuple[str, ...] | None = None) -> str:
+    """The charter's tools (a meeting turn's charter carries only its turn's).
+    `full`: the tools described in full; every other one gets its first
+    sentence only (a meeting turn: its turn's tool in full, its reads short,
+    so a statement always has room under the turn's token cap)."""
     rows = ["| tool | class | input | what it does |", "|---|---|---|---|"]
     allowed = set(charter.tools)
     for t in (t for name, t in lib.tools.items() if name in allowed):
-        rows.append(f"| `{t.name}` | {t.cls} | `{t.input}` | {t.description} |")
+        what = t.description if full is None or t.name in full else compact(t.description)
+        rows.append(f"| `{t.name}` | {t.cls} | `{t.input}` | {what} |")
     return "\n".join(rows)
 
 
 def runtime_section(
-    lib: Library, charter: Charter, *, max_actions: int, answer_phase: bool = False
+    lib: Library,
+    charter: Charter,
+    *,
+    max_actions: int,
+    answer_phase: bool = False,
+    full_tools: tuple[str, ...] | None = None,
 ) -> str:
     answer = (
         "\n- This is a conversation with the owner: use the steps to look things up (read-only tools); "
@@ -140,7 +158,7 @@ def runtime_section(
 - Work, decisions, messages and notifications you create are records the system routes; nobody "waits" for you and you wait for nobody.{answer}
 
 # Your tools ({charter.role}, charter v{charter.version})
-{tool_table(lib, charter)}
+{tool_table(lib, charter, full=full_tools)}
 """
 
 
@@ -216,6 +234,7 @@ def system_prompt(
     payloads: Mapping[str, type[BaseModel]] | None = None,
     after_charter: str = "",
     before_charter: str = "",
+    full_tools: tuple[str, ...] | None = None,
 ) -> str:
     """_common, `before_charter` (the sealed holding charter and the company's
     addendum, prompt 11 §2.5), the role's charter, then `after_charter` (the
@@ -225,7 +244,7 @@ def system_prompt(
     if after_charter:
         out += "\n\n" + after_charter
     out += "\n\n" + runtime_section(
-        lib, charter, max_actions=max_actions, answer_phase=answer_phase
+        lib, charter, max_actions=max_actions, answer_phase=answer_phase, full_tools=full_tools
     )
     if payloads:
         out += "\n" + propose_section(lib, charter, payloads, values)
