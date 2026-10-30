@@ -2623,79 +2623,90 @@ from the sections above, the server is right and this list is the contract; both
 - `GET /stream`: `topics` up to 1000 characters, and `topics=all`. Until then clients split topics into groups of at most 200 characters, one connection each.
 
 
-## 26. Full holding access to the companies' servers ⟨1.8⟩ (2026-10-30, prompt 17)
-Owner, 2026-10-30: «همه چیز رو باز کن و تحت کنترل ستاد و هلدینگ مرکزی باشه… کد بزنن و پوش کامیت بکنن و هر کاری که من از شرکت دستور میدم انجام بشه…
-هر کاری که دلم خواست با سرورها… انجام بدم.» This replaces the earlier stance that the companies' servers are untouched and that the Workshop
-never touches production (§17.3 rule 1 and its runtime note no longer bind company servers). The hub's own server keeps its rules.
+## 26. Company server runners ⟨1.8⟩ (2026-10-30, prompt 17, revised)
+Owner, 2026-10-30: the holding's agents work on the companies' own servers (inspect them, write code, commit, push, deploy, build media) on
+the owner's orders, under the holding's control. The owner owns every server involved. This replaces §17.3 rule 1 ("never touches production")
+for company servers that the owner has paired; the hub's own server keeps its rules.
 
-### 26.1 How the hub reaches a company server
-- **One path:** agent → Tool Gateway → **`company-ops`** (a new hub service) → SSH over the Hetzner private network → the company server.
-  - Agents still have no network of their own.
-  - `company-ops` is the only hub component that may reach private addresses, and only the attached servers' `private_ip:22`.
-  - The egress guard still refuses private addresses for every other component.
-- **Login:** the hub logs in as the server's existing work user (`forex` on FX, and so on). That user is set up on the server, by that server's own
-  Claude with the owner, as follows:
-  - **Login rights:** an ed25519 key `from="10.10.1.4"` with sudo, `docker` and the repository's git remote.
-  - **What it already holds:** this user already holds the server's logged-in Claude Code and its push access.
-  - **Where the hub's key lives:** the hub's private key per server lives only in OpenBao (`kv/company-ops/<CODE>/<server>`).
-  - **Host key pinning:** the host key fingerprint is pinned at attach time; a changed host key is refused (`409 host_key_changed`) until the owner re-pins.
-- **Encryption:** the private network is unencrypted, and SSH encrypts it.
+### 26.1 Design: a pull runner on each company server (like a self-hosted CI runner)
+- **Runner:** each company server runs **`hq-runner`**, a small open-source program kept in this repository (`services/company-runner/`).
+  - It runs as a systemd service under the server's existing work user (`forex` on FX, …).
+  - That user already holds the server's logged-in Claude Code, Docker and git.
+- **Who connects to whom:**
+  - The runner opens **outbound HTTPS** to `https://hq.coinepro.com/api/v1/runners/*`. It long-polls for jobs, streams their events and posts results.
+  - **The hub never connects into a company server:** no inbound port, no SSH key held by the hub, no private-network rule, no DOCKER-USER change.
+  - It needs no new hub container; the routes live in `apps/api`.
+- **Pairing (device-authorisation flow, nothing secret is shown):**
+  1. On the server, `hq-runner pair --company <CODE> --name <name>` calls `POST /runners/pair`. The hub answers with a short `user_code` (`ABCD-1234`), shown on the server.
+  2. The owner approves it in the app with the passkey: `POST /runners/approve {user_code}` 🔏 `server.attach`, target `company:<CODE>`.
+  3. The runner's poll then receives its own credential (`runner_token`, rotated every 24 h through `POST /runners/rotate`). It stores it with mode `600` under the work user's home.
+  - The hub stores only a hash of the token.
+- **Detach:** `DELETE /infra/servers/{id}` 🔏 revokes the token at once. The runner stops on its next poll.
 
-### 26.2 What agents can do
-Tools (Tool Gateway, recorded like every tool call):
+### 26.2 Jobs and what agents can do
+A **job** is one unit of work for one server: `{id, server, kind, actor: Actor, args, state: "queued"|"running"|"awaiting_seal"|"done"|"failed"|"cancelled", created_at, started_at|null, finished_at|null, exit_code|null, summary_fa|null, transcript_url|null}`.
 
-| Tool | What |
-|---|---|
-| `server.exec` | `{server, cmd, cwd?, timeout_s ≤ 3600, sudo?}`, streamed stdout/stderr, `exit_code` |
-| `server.read` / `server.write` | files (≤ 20 MB per call); `write` keeps a `.hq-bak` of what it replaced |
-| `server.claude` | starts **Claude Code on the company server** (`claude -p … --output-format stream-json`) as a `CodeSession` with `runtime: "company_server"`; it reads, edits, runs, commits, pushes and deploys like the server's own Claude, and its events stream as `SessionEvent` (§17.3) |
-| `server.map` | the server's inventory: OS, disk, memory, containers and compose projects, systemd units and timers, cron, listening ports, repositories and their remotes, n8n/automations found, sites served |
+Agent tools (Tool Gateway, recorded like every tool call) create jobs and wait for them:
 
-**Every role can be given these tools in its charter.** Defaults:
-- **The company's CEO, CTO / Lead Developer, DevOps and SRE:** all four tools.
-- **SEO, content and analysts:** `read`, `map` and `exec` (read-only commands are not enforced, they are trusted to the charter).
-- **The holding's platform SRE and the overseer:** all servers.
+| Tool | Job kind | What the runner does |
+|---|---|---|
+| `server.map` | `map` | collects the inventory (§26.5) with fixed read-only commands |
+| `server.exec` | `exec` | runs `{cmd, cwd?, timeout_s ≤ 3600, sudo?}` as the work user (sudo only if the user has it), streams stdout/stderr, returns `exit_code` |
+| `server.read` / `server.write` | `read` / `write` | a file (≤ 20 MB); `write` keeps `<file>.hq-bak` |
+| `server.claude` | `claude` | runs the server's own Claude Code on a brief (`claude -p … --output-format stream-json`), in the repository folder named in `args.cwd`, under that repository's CLAUDE.md; events stream as `SessionEvent` into a `CodeSession` with `runtime: "company_server"`; owner messages resume it (`--resume`) |
 
-### 26.3 Control without friction
-- **Free by default:** everything runs without a card, including code, commits, pushes, merges, deploys, restarts, config changes, packages and new automations.
-- **Only these wait for the owner's seal:** a decision card `server_destructive` (🔏 `server.destructive`, target `<CODE>:<server>`) for each of these:
-  - dropping or truncating a database
-  - deleting a data volume or a backup
-  - wiping or repartitioning a disk
-  - changing that server's SSH, users or Hetzner firewall
-  - deleting the server
+**Charter defaults:**
+- **Each company's CEO, CTO / Lead Developer, DevOps and SRE:** all tools on that company's servers.
+- **SEO, content and analysts:** `map`, `read` and `exec`.
+- **The holding's platform SRE and the overseer:** every paired server.
 
-  The gateway detects them by pattern and by tool, and on detection the call returns `202 awaiting_seal`.
-  The owner may lift this list from the app (`PUT /control/server-policy`, 🔏).
+### 26.3 Control
+- **Free:** jobs run without a card.
+- **Seal-required:** a decision card `server_destructive` (🔏 `server.destructive`, target `<CODE>:<server>`) first, for the categories in `/control/server-policy`:
+  - `db_drop`
+  - `volume_delete`
+  - `backup_delete`
+  - `disk_wipe`
+  - `access_change` (that server's SSH, users or firewall)
+  - `server_delete`
+
+  How each job kind is checked:
+  - **`exec`:** the hub classifies the command before queueing.
+  - **`claude`:** the runner installs a Claude Code `PreToolUse` hook for the session that asks the hub to classify each Bash command.
+  - **On a match:** the job, or that tool call, waits in `awaiting_seal`.
 - **Kill switch and deploy freeze:**
-  - The company's kill switch stops its sessions at once and refuses `server.*` with `423 company_locked`.
-  - A deploy freeze refuses commands the gateway classes as deploys.
-- **Recording:** every call is in the Audit ledger.
-  - **Ledger row:** the actor, server, command (secrets masked by name and pattern), exit code, duration and output digest.
-  - **Full transcripts:** stored in object storage and readable by the owner.
-- **Budget:** `server.claude` sessions draw on the company's envelope and the Token Treasury like every run.
+  - **Kill switch:** the company's kill switch cancels its queued and running jobs; the runner kills the process group.
+  - **New jobs while locked:** `423 company_locked`.
+  - **Deploy freeze:** refuses jobs the hub classes as deploys.
+- **Audit:** every job, plus every command inside a `claude` job, is an Audit row:
+  - fields: actor, server, masked command, exit code, duration, digest
+  - the full transcript goes to object storage, readable by the owner
+  - secrets are masked by name and pattern before storing
+- **Budget:** `claude` jobs run on the server's own Claude login; the runner reports usage from stream-json into the Token Treasury.
 
 ### 26.4 API
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/infra/servers` | ⟨1.8⟩ also attached servers: `{id, company, name, origin: "provisioned"\|"attached", private_ip, user, host_key_sha256, state: "pending"\|"reachable"\|"unreachable"\|"host_key_changed", last_seen_at, map_at}` |
-| POST | `/infra/servers/attach` 🔏 | `server.attach`, target `company:<CODE>` · `{company, name, private_ip, user, host_key_sha256}` → `201` with `public_key` (the line to add on the server); the hub tries to reach it and moves to `reachable` |
-| POST | `/infra/servers/{id}/repin` 🔏 | `server.repin` · `{host_key_sha256}` |
-| DELETE | `/infra/servers/{id}` 🔏 | `server.detach` · forgets the key; never touches the server |
-| GET | `/infra/servers/{id}/map` | the latest `server.map`, and `POST …/map` refreshes it |
-| GET | `/infra/servers/{id}/activity` | `?actor&from&to`, `Page` of calls: `{at, actor, tool, summary_fa, cmd_masked, exit_code, duration_ms, session_ref\|null, transcript_url}` |
-| POST | `/infra/servers/{id}/exec` 🔏 | the owner's own command from the app, `server.exec`, streamed as SSE |
-| GET / PUT | `/control/server-policy` | `{seal_required: ["db_drop", "volume_delete", "backup_delete", "disk_wipe", "access_change", "server_delete"]}`; PUT 🔏 |
+| POST | `/runners/pair` | runner, unauthenticated, rate-limited: `{company, name, hostname, private_ip, os, runner_version}` → `{device_code, user_code, expires_in: 900, interval: 5}` |
+| POST | `/runners/token` | runner: `{device_code}` → `428 authorization_pending` until approved, then `{runner_token, server_id}` once |
+| POST | `/runners/approve` 🔏 | owner: `{user_code}` · `server.attach`, target `company:<CODE>` → `{server}` |
+| POST | `/runners/rotate` | runner (bearer) → `{runner_token}` |
+| GET | `/runners/jobs/next` | runner (bearer), long-poll ≤ 30 s → `{job}` or `204`; also carries cancels |
+| POST | `/runners/jobs/{id}/events` | runner: a batch of `{seq, type: "stdout"\|"stderr"\|"session_event"\|"progress", data}` |
+| POST | `/runners/jobs/{id}/result` | runner: `{exit_code, summary_fa?, usage?}` |
+| POST | `/runners/classify` | runner (bearer): `{cmd}` → `{category\|null}` (for the Claude hook) |
+| GET | `/infra/servers` | also paired servers: `{id, company, name, origin: "provisioned"\|"attached", private_ip, user, hostname, runner_version, state: "pending"\|"online"\|"offline"\|"revoked", last_seen_at, map_at}` |
+| DELETE | `/infra/servers/{id}` 🔏 | `server.detach`, target `<CODE>:<server>` · revokes the runner |
+| GET / POST | `/infra/servers/{id}/map` | the latest map / queue a `map` job |
+| GET | `/infra/servers/{id}/activity` | `?actor&from&to`, `Page` of jobs and their commands |
+| POST | `/infra/servers/{id}/exec` 🔏 | the owner's own `exec` job, `server.exec`, target = SHA-256 of the body; SSE of its events |
+| GET / PUT | `/control/server-policy` | `{seal_required: [...]}`; PUT 🔏 `server.policy`, target = SHA-256 of the body |
 
-**Stream:** topic `servers` carries `server.state`, `server.call` (one per call, summary only) and `server.awaiting_seal`.
+**Stream:** topic `servers` carries `server.state`, `server.call` (one per job start and end) and `server.awaiting_seal`.
+**Database:** `infra.servers.plan_id` becomes nullable for `origin = "attached"`.
 
-### 26.5 Shapes the Android app 0.7.0 is built on (binding for prompt 17)
-- **`POST /infra/servers/attach` → `201`:**
-  ```
-  {server: Server, public_key: "from=\"10.10.1.4\",no-agent-forwarding,no-X11-forwarding,no-port-forwarding ssh-ed25519 AAAA… hq-<CODE>-<name>"}
-  ```
-  The key comes with its options.
-- **`Server.map`** (`GET …/map` returns `{at, map}`):
+### 26.5 Shapes the Android app is built on (binding)
+- **`Server.map`** (`GET …/map` → `{at, map}`):
   ```
   {os, kernel, uptime_s, cpu: {cores, load1}, memory: {total_mb, used_mb, swap_total_mb, swap_used_mb},
    disks: [{mount, total_gb, used_gb}], containers: [{name, image, state, health|null, project|null}],
@@ -2704,26 +2715,12 @@ Tools (Tool Gateway, recorded like every tool call):
    repos: [{path, remote, branch, dirty: bool, last_commit_at}],
    automations: [{kind: "n8n"|"cron"|"systemd"|"other", name, active: bool, detail}], sites: [{host, upstream}]}
   ```
-- **The owner's terminal:** `POST /infra/servers/{id}/exec`.
-  - **step-up:** 🔏 `server.exec`, target = SHA-256 of the exact body.
-  - **body:** `{cmd, cwd?, timeout_s, sudo}`.
-  - **reply:** SSE with these events:
-    - `stdout` and `stderr`: `{text}`
-    - `exit`: `{code, duration_ms}`
-    - `error`: `{code, message}`
-    - `awaiting_seal`: `{decision_ref}`, when the command is destructive. It becomes a `server_destructive` card like an agent's.
-- **Step-up targets:**
-  - repin and detach: `<CODE>:<server>`.
-  - `PUT /control/server-policy`: action `server.policy`, target = SHA-256 of the body.
-- **An owner-started session on a server:**
-  ```
-  POST /workshop/sessions {runtime: "company_server", server, company, driver: "<agent code>"|null, title, brief}
-  ```
-  - `driver: null` means the owner drives.
+- **The owner's terminal:** body `{cmd, cwd?, timeout_s, sudo}`. The SSE events:
+  - `stdout` / `stderr`: `{text}`
+  - `exit`: `{code, duration_ms}`
+  - `error`: `{code, message}`
+  - `awaiting_seal`: `{decision_ref}`
+- **An owner-started session:** `POST /workshop/sessions {runtime: "company_server", server, company, driver: "<agent code>"|null, title, brief, cwd?}`.
   - `CodeSession` adds `server|null, company`.
-- **Stream `server.call` `data`:**
-  ```
-  {server, company, actor: Actor, tool, summary_fa, cmd_masked, exit_code|null, duration_ms|null, session_ref|null, state: "running"|"done"|"failed"}
-  ```
-  - `state` arrives once at the start (`running`) and once at the end.
-- **`transcript_url`:** a hub path (`/api/v1/…`), read with the owner's session.
+- **Stream `server.call`:** `{server, company, actor: Actor, tool, summary_fa, cmd_masked, exit_code|null, duration_ms|null, session_ref|null, state: "running"|"done"|"failed"}`.
+- **`transcript_url`:** a hub path read with the owner's session.
