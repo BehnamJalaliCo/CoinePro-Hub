@@ -55,6 +55,8 @@ departments:
       - گزارش‌ها کوتاه و فنی‌اند: چه شد، چرا، اثرش، راه برگشت.
     team:
       - {role: sre, why_fa: پایش سرویس‌ها، رسیدگی اولیه به حادثه و گزارش سلامت, first: true}
+      - {role: devops_engineer, why_fa: deploy، CI/CD، اتوماسیون‌ها، سلامت سرورها و backup روی سرورهای خود شرکت, first: true}
+      - {role: lead_developer, why_fa: کیفیت کد، بازبینی، شاخه‌ها و PRها و سشن‌های Claude روی سرورهای شرکت, first: true}
       - {role: software_engineer, why_fa: تغییرهای کوچک و آزموده در کارگاه کد, first: true}
       - {role: db_reliability, why_fa: پایداری دیتابیس و پشتیبان‌گیری, first: false}
       - {role: appsec_engineer, why_fa: بازبینی امنیت کد و رمزها, first: false}
