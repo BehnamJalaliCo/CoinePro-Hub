@@ -1,0 +1,135 @@
+Metadata-Version: 2.4
+Name: hq-runner
+Version: 0.1.0
+Summary: CoinePro HQ job runner for a company server: outbound HTTPS only, like a self-hosted CI runner
+License-Expression: MIT
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: httpx<0.29,>=0.28.1
+Dynamic: license-file
+
+# services/company-runner — `hq-runner`، runner ستاد روی سرور هر شرکت
+
+برنامه‌ای کوچک و متن‌باز (لایسنس MIT) که روی هر سرور شرکت، با **کاربر کاری همان سرور**، اجرا میشود و کارهای ایجنت‌های هلدینگ را از ستاد میگیرد. طرحش مثل runner خودمیزبان GitHub Actions است.
+
+- **مرجع:** قرارداد هاب §۲۶ (۲۶.۱ تا ۲۶.۶)، پرامپت ۱۷ و راهنمای نصب `docs/server-prompts/COMPANY_SERVER_ACCESS_SETUP.md`.
+- **زبان و وابستگی:** Python 3.12، فقط کتابخانه‌ی استاندارد به‌علاوه‌ی `httpx` (BSD). نسخه‌ها با hash در `requirements.lock` قفل‌اند.
+- **هیچ پورتی باز نمیکند و روی هیچ پورتی گوش نمیدهد.** runner فقط از داخل سرور با HTTPS به `hq.coinepro.com` وصل میشود. هاب هرگز به سرور وصل نمیشود؛ کلید SSH، قانون فایروال یا DOCKER-USER لازم نیست.
+
+## چه کارهایی میکند
+| کار (`kind`) | چه میکند |
+|---|---|
+| `map` | نقشه‌ی سرور با شکل دقیق §۲۶.۵، فقط با دستورهای ثابت فقط‌خواندنی: `os-release`، `uname`، `nproc`، `/proc/loadavg`، `free -m`، `df`، `docker ps` و `docker compose ls`، `systemctl list-units` و `list-timers`، `crontab -l` (رمزها ماسک)، `ss -ltunp`، و `git remote / branch / status / log` برای ریپوهای خانه‌ی کاربر (تا عمق ۳). n8n را از image کانتینر یا پروسه پیدا میکند و سایت‌ها را از تنظیمات nginx و Caddy. نبودِ هر ابزار فقط همان بخش را خالی میگذارد. |
+| `exec` | `bash -lc <cmd>` با همین کاربر (اختیاری `sudo -n`، فقط اگر کاربر sudo دارد)، در `cwd`، با سقف زمان (پیش‌فرض ۶۰۰، حداکثر ۳۶۰۰ ثانیه). stdout و stderr خط‌به‌خط و دسته‌ای فرستاده میشوند. سقف خروجی ۱۰ مگابایت است. |
+| `read` / `write` | یک فایل تا ۲۰ مگابایت. `write` نسخه‌ی قبلی را در `<file>.hq-bak` نگه میدارد و دسترسی فایل را حفظ میکند. |
+| `claude` | Claude Code خود سرور را اجرا میکند (`claude -p … --output-format stream-json --verbose`) در پوشه‌ی ریپو (`args.cwd`)، زیر CLAUDE.md همان ریپو. پیام‌های بعدی مالک با `--resume` ادامه میدهند. هر خط stream-json یک `session_event` میشود و مصرف توکن از خط آخر به خزانه میرود. |
+| `publish` | فایل‌های رندرشده را از ستاد میگیرد (فقط از نشانی خود هاب)، دستور انتشار محلی همین سرور را اجرا میکند و `{external_id, url}` را برمیگرداند (§۲۶.۱b). |
+| `netcheck` | سنجش شبکه (§۲۶.۶): اتصال TCP به هر پورت (۳ ثانیه) و ping هر مقصد اگر ping باشد، به‌علاوه‌ی آدرس خصوصی هاب. |
+
+**کنترل:**
+- **همزمانی:** حداکثر ۲ کار همزمان، هر کار با سقف زمان خودش.
+- **لغو:** با لغو کار، کلید توقف یا قطع سرویس، کل process group کار بسته میشود.
+- **دستورهای ویرانگر داخل `claude`:**
+  - برای هر اجرا یک hook موقت `PreToolUse` نصب میشود. این hook هر دستور Bash را به `/runners/classify` میفرستد.
+  - اگر هاب دسته‌ای مثل `db_drop` برگرداند، دستور اجرا نمیشود و ستاد کارت مُهر مالک را بالا میآورد.
+  - اگر هاب جواب ندهد هم دستور اجرا نمیشود (fail closed).
+- **ماسک رمزها:** پیش از فرستادن، رمزها از هر خروجی پاک میشوند:
+  - با نام: `KEY=…`، `"password": …` و `--password …`
+  - هدر `Authorization` و `Bearer`
+  - رمز داخل URL
+  - شکل‌های شناخته‌شده: کلید خصوصی PEM، توکن‌های Anthropic، GitHub، GitLab، AWS، Slack، Stripe، Vault، Telegram و JWT
+  - خود توکن runner
+
+## نصب (یک بار، با کاربر کاری سرور، مثلاً `forex`)
+پیش‌نیاز: `python3.12`. اگر روی سرور نیست، از بسته‌ی سیستم نصبش کنید.
+
+**راه ۱: pipx**
+```
+git clone https://github.com/BehnamJalaliCo/CoinePro-Hub.git ~/CoinePro-Hub
+pipx install --python python3.12 ~/CoinePro-Hub/services/company-runner
+hq-runner --version
+```
+
+**راه ۲: venv با وابستگی‌های قفل‌شده (hash)**
+```
+cd ~/CoinePro-Hub/services/company-runner
+python3.12 -m venv ~/.local/share/hq-runner/venv
+~/.local/share/hq-runner/venv/bin/pip install --require-hashes -r requirements.lock
+~/.local/share/hq-runner/venv/bin/pip install --no-deps .
+mkdir -p ~/.local/bin && ln -sf ~/.local/share/hq-runner/venv/bin/hq-runner ~/.local/bin/hq-runner
+```
+
+**به‌روزرسانی:** `git -C ~/CoinePro-Hub pull`، بعد همان دستور نصب، بعد `sudo systemctl restart hq-runner@$USER`.
+
+## جفت‌سازی
+```
+hq-runner pair --company FX --name "fx-main" --hub-ip 10.10.1.4
+```
+- **کد کوتاه:** runner یک کد کوتاه نشان میدهد، مثل `ABCD-1234`. مالک آن را در اپ ستاد با passkey تأیید میکند: شرکت ← «سرورها» ← «وصل کردن سرور».
+- **اعتبار کد:** ۱۵ دقیقه.
+- **بعد از تأیید:** اعتبارنامه در `~/.config/hq-runner/config.json` ذخیره میشود (فایل `600`، پوشه `700`). توکن هرگز چاپ نمیشود.
+- **چرخش توکن:** هر ۲۴ ساعت خودکار عوض میشود.
+- **`--hub-ip 10.10.1.4`:** ارتباط از شبکه‌ی خصوصی هلدینگ رد میشود.
+  - اتصال TCP به همین IP میرود، ولی TLS نام `hq.coinepro.com` را نگه میدارد: SNI، هدر Host و بررسی گواهی. **بررسی گواهی هرگز خاموش نمیشود.**
+  - **پشتیبان:** اگر آدرس خصوصی جواب ندهد، runner از آدرس عمومی وصل میشود و `via: public` گزارش میکند. هر ۵ دقیقه دوباره راه خصوصی را امتحان میکند.
+  - **سرور بیرون از شبکه** (مثل IG-Hub): تا وقتی مالک آن را از کنسول هتزنر به شبکه اضافه کند، از آدرس عمومی کار میکند.
+
+## سرویس دائمی (systemd)
+فایل واحد یک template است و نام نمونه‌اش همان کاربر کاری است (`User=%i`):
+```
+sudo cp ~/CoinePro-Hub/services/company-runner/systemd/hq-runner@.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now hq-runner@forex
+hq-runner status
+journalctl -u hq-runner@forex -f
+```
+- **مسیر برنامه:** `ExecStart` آن را `/home/<user>/.local/bin/hq-runner` فرض میکند. اگر خانه‌ی کاربر جای دیگری است، این خط را عوض کنید.
+- **دسترسی:** هیچ دسترسی اضافه‌ای ندارد؛ نه root، نه capability.
+- **`NoNewPrivileges`:** فقط به این دلیل خاموش است که کار `exec` ممکن است `sudo -n` بخواهد. اگر این کاربر sudo ندارد، خطش را فعال کنید.
+- **توقف سرویس:** با `systemctl stop` کارهای در حال اجرا هم بسته میشوند.
+
+## وضعیت و جدا کردن
+- **وضعیت:** `hq-runner status` نشان میدهد:
+  - online یا offline
+  - مسیر (private یا public) و زمان رفت‌وبرگشت تا هاب
+  - شناسه‌ی سرور و نسخه
+  - هیچ‌وقت توکن را نشان نمیدهد.
+- **جدا کردن:** `hq-runner unpair` اعتبارنامه‌ی محلی را پاک میکند. بعد:
+  - سرویس را خاموش کنید: `sudo systemctl disable --now hq-runner@forex`
+  - در اپ ستاد سرور را «جدا» کنید تا هاب هم توکن را باطل کند.
+- **جدا کردن از اپ:** اگر مالک سرور را از اپ جدا کند، runner در poll بعدی میایستد.
+
+## عیب‌یابی
+| نشانه | علت و کار |
+|---|---|
+| سرویس با کد خروج ۳ ایستاده | هاب توکن را نپذیرفت (401): دوباره `hq-runner pair --force …` |
+| سرویس با کد خروج ۴ ایستاده | سرور در ستاد جدا شده: اگر باید برگردد، دوباره جفت کنید |
+| `status` میگوید offline | `journalctl -u hq-runner@<user>` را ببینید؛ خطای شبکه با تأخیر فزاینده (تا ۶۰ ثانیه) دوباره امتحان میشود |
+| `via: public` با اینکه `--hub-ip` داده شده | آدرس خصوصی جواب نداد: عضویت سرور در شبکه‌ی خصوصی هتزنر را بسنجید (`hq-runner` خودش هر ۵ دقیقه دوباره امتحان میکند) |
+| کار `claude` میگوید Claude Code پیدا نشد | PATH سرویس `~/.local/bin` را دارد. اگر `claude` جای دیگری است، `HQ_RUNNER_CLAUDE_BIN` را در unit بگذارید یا `"claude_bin"` را در `config.json` |
+| `exec` با `sudo` خطا میدهد | `sudo -n` رمز نمیپرسد. اگر کاربر sudo بدون رمز ندارد، کار با sudo اجرا نمیشود و این درست است |
+| کار `claude` دستوری را «Blocked by HQ» میگوید | دستور مُهر مالک میخواهد؛ کارتش در اپ است |
+
+## با هاب چطور حرف میزند (قرارداد §۲۶.۴)
+| چه | چطور |
+|---|---|
+| مسیرها | همه زیر `https://hq.coinepro.com/api/v1/runners/*` |
+| بدنه‌ها | دقیقاً فیلدهای §۲۶.۴ |
+| poll و ضربان | هر poll (`GET /runners/jobs/next`، long-poll تا ۳۰ ثانیه) ضربان هم هست |
+| پارامترهای poll | `via`، `hub_rtt_ms` و `slots` (جای خالی برای کار) |
+| هدرهای هر درخواست | `X-HQ-Runner-Via`، `X-HQ-Runner-Hub-Rtt-Ms`، `X-HQ-Runner-Version` |
+| رویدادها | `POST /runners/jobs/{id}/events` با بدنه‌ی `{events: [{seq, type, data}]}`؛ `stdout` و `stderr` به شکل `{text}` |
+| نتیجه | `POST …/result` با `{exit_code, summary_fa, usage?, data?}` |
+| محتوای `data` | نقشه‌ی `map`؛ فایل `read` با `encoding` برابر `utf8` یا `base64`؛ پاسخ `publish`؛ `results` در `netcheck`؛ `session_id` و `files_changed` در `claude` |
+| لغو | از `cancel: [ids]` در پاسخ poll میآید؛ 409 روی رویدادها هم کار را میبندد |
+
+## توسعه و تست
+```
+python3.12 -m venv .venv && .venv/bin/pip install httpx==0.28.1 pytest
+.venv/bin/python -m pytest services/company-runner/tests -q
+```
+- **هاب جعلی:** تست‌ها هاب را با `httpx.MockTransport` میسازند.
+- **Claude جعلی:** Claude Code با `testing/fake_claude.py` جایگزین میشود؛ stream-json را تولید میکند و hook را مثل CLI واقعی اجرا میکند.
+- **TLS واقعی:** شبکه‌ی خصوصی با یک گواهی محلی آزموده میشود. برای این تست `openssl` لازم است.
+- **lint:** `ruff` با قواعد `services/pyproject.toml`.

@@ -2728,7 +2728,7 @@ Agent tools (Tool Gateway, recorded like every tool call) create jobs and wait f
 ### 26.5 Shapes the Android app is built on (binding)
 - **`Server.map`** (`GET …/map` → `{at, map}`):
   ```
-  {os, kernel, uptime_s, cpu: {cores, load1}, memory: {total_mb, used_mb, swap_total_mb, swap_used_mb},
+  {user, os, kernel, uptime_s, cpu: {cores, load1}, memory: {total_mb, used_mb, swap_total_mb, swap_used_mb},
    disks: [{mount, total_gb, used_gb}], containers: [{name, image, state, health|null, project|null}],
    compose: [{project, path, services: [..]}], systemd: [{unit, state, timer: bool, next_at|null}],
    cron: [{user, schedule, cmd_masked}], ports: [{port, proto, bind, process, public: bool}],
@@ -2746,9 +2746,9 @@ Agent tools (Tool Gateway, recorded like every tool call) create jobs and wait f
 - **`transcript_url`:** a hub path read with the owner's session.
 
 ### 26.6 The holding's network map ⟨1.8⟩ (owner, 2026-10-30: «عمیقاً بررسی بکن… که همه‌ی سرورها به هم دسترسی داشته باشند یا همه به هاب»)
-- **Job kind `netcheck` (read-only):** `args: {targets: [{name, ip, ports}]}`.
+- **Job kind `netcheck` (read-only):** `args: {targets: [{to, host, port}]}`, one row per port (the runner also accepts `{name, ip, ports}`); results echo `to`.
   - The runner TCP-connects each port (3 s timeout) and pings each target where it can.
-  - It returns `{from, via, results: [{name, ip, port, ok, ms, error}]}`.
+  - It returns `{from, via, results: [{to, host, port, ok, ms, error}]}`; a ping row has `port: null`.
 - **What every poll carries:** each runner reports `via` and `hub_rtt_ms`, stored on its server row.
 - **`GET /infra/network`:**
   ```

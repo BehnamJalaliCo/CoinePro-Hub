@@ -37,6 +37,7 @@ from hq_runner.proc import capture
 CaptureFn = Callable[[list[str]], Awaitable[str | None]]
 
 MAP_KEYS = (
+    "user",
     "os",
     "kernel",
     "uptime_s",
@@ -409,6 +410,7 @@ class Inventory:
         cron = await self.cron()
         repos = await self.repos()
         result: dict[str, Any] = {
+            "user": getpass.getuser(),
             "os": parse_os_release(self._read("/etc/os-release") or "") or platform.system(),
             "kernel": platform.release(),
             "uptime_s": self.uptime(),
