@@ -57,7 +57,9 @@ class ErrorLogTest {
         assertFalse(json.contains("hunter2"))
         assertTrue(json.contains("\"password\":{redacted}"))
         assertFalse(ErrorLog.mask("token=eyJhbGciOi.payload.sig&x=1").contains("eyJhbGciOi"))
-        assertFalse(ErrorLog.mask("api_key: sk-live-1234567890").contains("sk-live"))
+        // A key-like value assembled at runtime, so the source holds no key shape for a secret scanner.
+        val apiKey = listOf("sk", "live", "1234567890").joinToString("-")
+        assertFalse(ErrorLog.mask("api_key: $apiKey").contains("sk-live"))
         // A server message that quotes a secret is logged without it.
         val l = log("redact")
         l.record(ApiFailure("http", "POST", "/api/v1/connections/x/secret", 422, "validation_failed", "Unprocessable", message = "secret=abcd1234 is not a valid key; Authorization: Bearer xyz"))

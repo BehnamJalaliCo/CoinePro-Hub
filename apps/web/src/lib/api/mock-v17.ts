@@ -410,14 +410,14 @@ const DEFS: Def[] = [
   def('compliance', 'safety_cost', 'انطباق نظارت', '%', 'up', 'oversight.compliance', 24, false, 'min', 0),
   def('findings_high', 'safety_cost', 'یافته‌ی بالا و بحرانی باز', '', 'down', 'oversight.findings_open_high', 24, false, 'sum', 0),
 ];
-const FX_EXTRA = def('signal_accuracy_7d', 'growth', 'دقت ۷ روزه‌ی سیگنال طلا', '%', 'up', null, 48, false, 'avg', 1);
+const FX_EXTRA = def('signal_accuracy_week', 'growth', 'دقت ۷ روزه‌ی سیگنال طلا', '%', 'up', null, 48, false, 'avg', 1);
 // The closed registry of reviewed queries (§20.4): funnel.signup_rate waits for product events, so it is not in it.
 const REGISTRY = new Set(DEFS.map((d) => d.query).filter((q): q is string => !!q && q !== 'funnel.signup_rate'));
 type Prof = { base: number; swing: number; drift: number; target: number | null; ageMin?: number; none?: boolean };
 const P = (base: number, swing: number, drift: number, target: number | null, ageMin = 12, none = false): Prof => ({ base, swing, drift, target, ageMin, none });
 const PROFILE: Record<string, Record<string, Prof>> = {
   TY: { uptime_24h: P(99.82, 0.12, 0, 99.5), p95_latency: P(690, 110, -0.25, 800), open_incidents: P(0.2, 0.5, 0, 0), revenue_month: P(6380, 260, 0.14, 6000, 60 * 9), active_users: P(1840, 50, 0.08, 2200, 60 * 20), min_balance_rate: P(36.5, 1.6, 0.12, 45, 60 * 9), signup_rate: P(0, 0, 0, 12, 0, true), cost_month: P(58.1, 2, 0.4, 60), budget_use: P(74, 2, 0.4, 80), compliance: P(96, 1.5, 0, 95, 60 * 5), findings_high: P(1, 0.4, 0, 0, 60 * 5) },
-  FX: { uptime_24h: P(99.21, 0.3, 0.003, 99.5), p95_latency: P(1450, 240, -0.4, 800), open_incidents: P(0.4, 0.6, 0, 0), revenue_month: P(3320, 160, 0.06, 3500, 60 * 9), active_users: P(960, 30, 0.03, 1200, 60 * 24 * 4), min_balance_rate: P(55.4, 2, 0.02, 55, 60 * 9), signup_rate: P(0, 0, 0, 10, 0, true), cost_month: P(42.3, 1.6, 0.4, 50), budget_use: P(41, 2, 0.4, 80), compliance: P(91, 2, -0.02, 95, 60 * 5), findings_high: P(2, 0.4, 0, 0, 60 * 5), signal_accuracy_7d: P(66, 2.4, 0.08, 68, 60 * 30) },
+  FX: { uptime_24h: P(99.21, 0.3, 0.003, 99.5), p95_latency: P(1450, 240, -0.4, 800), open_incidents: P(0.4, 0.6, 0, 0), revenue_month: P(3320, 160, 0.06, 3500, 60 * 9), active_users: P(960, 30, 0.03, 1200, 60 * 24 * 4), min_balance_rate: P(55.4, 2, 0.02, 55, 60 * 9), signup_rate: P(0, 0, 0, 10, 0, true), cost_month: P(42.3, 1.6, 0.4, 50), budget_use: P(41, 2, 0.4, 80), compliance: P(91, 2, -0.02, 95, 60 * 5), findings_high: P(2, 0.4, 0, 0, 60 * 5), signal_accuracy_week: P(66, 2.4, 0.08, 68, 60 * 30) },
   PC: { uptime_24h: P(99.95, 0.04, 0, 99.5), p95_latency: P(980, 140, -0.2, 800), open_incidents: P(0.6, 0.5, 0, 0), revenue_month: P(1460, 90, -0.06, 1500, 60 * 52), active_users: P(0, 0, 0, 600, 0, true), min_balance_rate: P(52, 3, 0, 50, 60 * 9), signup_rate: P(0, 0, 0, 10, 0, true), cost_month: P(21.6, 1, 0.5, 25), budget_use: P(92, 2, 0.4, 80), compliance: P(94, 1.5, 0, 95, 60 * 5), findings_high: P(1, 0.4, 0, 0, 60 * 5) },
 };
 const defsOf = (c: string) => (c === 'FX' ? [...DEFS, FX_EXTRA] : DEFS);
@@ -438,7 +438,7 @@ function series(c: string, d: Def): Array<number | null> {
     return Number(r.toFixed(d.digits));
   });
 }
-const sourceRef = (c: string, d: Def) => (d.query ? src('query', d.query, `${c}`) : d.key === 'signal_accuracy_7d' ? src('deliverable', 'O-000029', 'kpi.record مدیر کوانت') : src('manual', `kpi.record:${c}.${d.key}`, 'ثبت مدیرعامل با شاهد'));
+const sourceRef = (c: string, d: Def) => (d.query ? src('query', d.query, `${c}`) : d.key === 'signal_accuracy_week' ? src('deliverable', 'O-000029', 'kpi.record مدیر کوانت') : src('manual', `kpi.record:${c}.${d.key}`, 'ثبت مدیرعامل با شاهد'));
 function cardKpi(c: string, d: Def) {
   const set = kpiSets[c]?.kpis.find((k: any) => k.key === d.key);
   const trend = series(c, d);
@@ -489,7 +489,7 @@ const objectives: any[] = [
     ] },
   { ref: 'OB-0004', company: 'FX', quarter: '1405-Q3', title_fa: 'سیگنال طلا دقیق و ثبت‌نام سریع', why_md: 'دقت پایین بعد از خبرها و کندی ثبت‌نام دو دلیل اصلی رها کردن اشتراک‌اند.', owner: ceo('FX'), status: 'active', decision: 'D-000002',
     key_results: [
-      kr({ ref: 'KR-0010', objective: 'OB-0004', title_fa: 'دقت ۷ روزه‌ی سیگنال طلا', kpi: 'signal_accuracy_7d', start: 61, target: 68, current: 68.4, confidence: 0.8, weight: 0.6, checkins: [checkin(60 * 24 * 3, ceo('FX'), 0.8, 'فیلتر رژیم نوسان جواب داد.', [src('deliverable', 'O-000029')])] }),
+      kr({ ref: 'KR-0010', objective: 'OB-0004', title_fa: 'دقت ۷ روزه‌ی سیگنال طلا', kpi: 'signal_accuracy_week', start: 61, target: 68, current: 68.4, confidence: 0.8, weight: 0.6, checkins: [checkin(60 * 24 * 3, ceo('FX'), 0.8, 'فیلتر رژیم نوسان جواب داد.', [src('deliverable', 'O-000029')])] }),
       kr({ ref: 'KR-0011', objective: 'OB-0004', title_fa: 'ثبت‌نام زیر یک ثانیه', metric_fa: 'زمان ثبت‌نام p95 (ثانیه)', start: 2.9, target: 1, current: 2.9, confidence: 0.7, weight: 0.4, checkins: [checkin(60 * 24 * 9, tech('FX'), 0.7, 'اصلاح روی S-0004 آماده است؛ منتظر انتشار.', [src('code_session', 'S-0004')])] }),
     ] },
   { ref: 'OB-0002', company: 'TY', quarter: '1405-Q2', title_fa: 'راه‌اندازی پشتیبانی تلگرام', why_md: 'جواب‌ها دیر و ناهمگون بود.', owner: ceo('TY'), status: 'closed', decision: 'D-000001',
@@ -499,7 +499,7 @@ const objectives: any[] = [
 // =================================================================== decision outcomes (§20.6) ==
 const or = (x: any) => ({ id: `or-${x.ref}`, measured: null, proposer_note_md: null, overseer_note_md: null, ...x });
 const expD4 = { metric_fa: 'ورودی ارگانیک هفتگی', kpi: 'organic_week', baseline: 1200, target: 1500, by_days: 90 };
-const expD3 = { metric_fa: 'دقت ۷ روزه‌ی سیگنال طلا (٪)', kpi: 'signal_accuracy_7d', baseline: 61, target: 68, by_days: 60 };
+const expD3 = { metric_fa: 'دقت ۷ روزه‌ی سیگنال طلا (٪)', kpi: 'signal_accuracy_week', baseline: 61, target: 68, by_days: 60 };
 const expD5 = { metric_fa: 'نرخ تبدیل صفحه‌ی قیمت (٪)', kpi: null, baseline: 1.8, target: 2.5, by_days: 30 };
 const expD8 = { metric_fa: 'کاربر بازگشتی در هفته', kpi: 'returning_week', baseline: 40, target: 100, by_days: 60 };
 const outcomes: any[] = [
