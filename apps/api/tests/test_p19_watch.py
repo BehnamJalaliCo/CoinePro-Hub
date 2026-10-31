@@ -135,11 +135,12 @@ async def test_the_owner_files_several_and_deletes_for_good_with_a_step_up(
 
 # ---------------------------------------------------------- §28.2 catalogue --
 SECTION_ANSWER = {
-    "summary_md": "دو کانتینر و یک سایت.",
+    "title_fa": "محصولات و سرویس‌ها",
+    "summary_fa": "دو کانتینر و یک سایت.",
     "count": 2,
     "tables": [{"title_fa": "کانتینرها", "columns": ["نام", "ایمیج"],
                 "rows": [["web", "nginx:1.27"], ["api", "tradeyar/api:3.1"]]}],
-    "notes_md": "رمز پایگاه داده OPENAI_API_KEY=sk-abcdefghijklmnopqrstuvwxyz0123456789 خوانده نشد.",
+    "notes_fa": ["رمز پایگاه داده OPENAI_API_KEY=sk-abcdefghijklmnopqrstuvwxyz0123456789 خوانده نشد."],
 }  # fmt: skip
 
 
@@ -192,7 +193,7 @@ async def test_a_catalogue_runs_on_every_server_and_is_filed_with_its_diff(
     assert keys == [k for k, _, _ in CAT.SECTIONS if k in keys] and "risks" in keys
     products = next(s for s in got["sections"] if s["key"] == "products")
     assert ["web", "nginx:1.27"] in products["tables"][0]["rows"]
-    assert all("sk-abcdef" not in (s.get("notes_md") or "") for s in got["sections"])
+    assert all("sk-abcdef" not in " ".join(s["notes_fa"]) for s in got["sections"])
     dl = await su.fetchrow(
         """SELECT d.body, d.category, c.kind FROM cartable.deliverables d
            JOIN core.companies c ON c.id = d.company_id WHERE d.ref = $1""",
@@ -211,7 +212,7 @@ async def test_a_catalogue_runs_on_every_server_and_is_filed_with_its_diff(
     for _ in CAT.SECTIONS:
         j = await take(client, rn)
         await _answer(client, rn, j, exit_code=0,
-                      data={"result_fa": json.dumps(changed, ensure_ascii=False)})  # fmt: skip
+                      data={"result_fa": "```json\n" + json.dumps(changed, ensure_ascii=False) + "\n```"})  # fmt: skip
     got = (await client.get(f"/api/v1/companies/{co['code']}/catalogue", headers=h)).json()
     assert got["state"] == "done" and got["diff"]["products"]["added"] == ["bot"]
     assert got["diff"]["products"]["removed"] == ["api"]
@@ -337,7 +338,6 @@ async def test_the_watch_runs_each_duty_once_per_period(
 ) -> None:
     co = await new_company()
     await pair(client, hub, owner_session, co, "ops-1")
-    month = datetime.now(UTC).strftime("%Y-%m")
     router = FakeRouter(json.dumps({"title_fa": "پیشنهاد هلدینگ", "body_md": "۱. فروش متقابل",
                                     "fix_md": "شروع با یک کمپین مشترک"}, ensure_ascii=False))  # fmt: skip
     now = datetime.now(UTC)
@@ -345,6 +345,7 @@ async def test_the_watch_runs_each_duty_once_per_period(
     second = await WATCH.sweep(hub, router, now)
     tz = await su.fetchval("SELECT timezone FROM owner.settings WHERE id = 1")
     week = WATCH.owner_week(now, tz)
+    month = WATCH.owner_month(now, tz)  # the owner's month (UTC's can still be the last one)
     keys = {r["key"] for r in await su.fetch(
         "SELECT key FROM ops.watch_runs WHERE key LIKE $1", f"%:{co['code']}:%")}  # fmt: skip
     assert keys == {f"catalogue:{co['code']}:{week}", f"growth_memo:{co['code']}:{week}"}

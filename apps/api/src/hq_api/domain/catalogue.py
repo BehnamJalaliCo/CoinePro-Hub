@@ -91,6 +91,7 @@ SECTIONS: tuple[tuple[str, str, str], ...] = (
     ),
 )
 SECTION_FA = {k: fa for k, fa, _ in SECTIONS}
+SECTION_WHAT = {k: what for k, _, what in SECTIONS}
 
 BRIEF = """You are cataloguing this server for the owner of the holding (contract §28.2). READ ONLY:
 run only commands that read (ls, cat, ps, ss, docker ps/inspect/compose ls, systemctl list-*/status,
@@ -101,27 +102,52 @@ summarise, sample or shorten; your answer comes back whole, however long it is.
 
 The section to catalogue: {title} — {what}.
 
-Answer with ONE JSON object and nothing else:
-{{"summary_md": "two or three Persian sentences on what this section shows",
-  "count": <how many items in total>,
-  "tables": [{{"title_fa": "...", "columns": ["...", "..."], "rows": [["...", "..."], ...]}}],
-  "notes_md": "Persian: anything that did not fit a table, and what you could not read and why"}}
-Column names and notes in Persian; names, paths, commands and versions as they are."""
+Your whole answer is ONE fenced JSON block and nothing before or after it, exactly this schema:
+```json
+{{"title_fa": "{title}",
+  "summary_fa": "two or three Persian sentences on what this section shows",
+  "count": 0,
+  "tables": [{{"title_fa": "a Persian title for the table",
+              "columns": ["ستون اول", "ستون دوم"],
+              "rows": [["a cell", "a cell"]]}}],
+  "notes_fa": ["one Persian note per item: what did not fit a table, what you could not read and why"]}}
+```
+Rules the hub checks (an answer that breaks them is sent back to you once):
+- `count` is the number of items in total (an integer).
+- every cell is a string: write numbers, sizes, dates and lists as text ("3", "1.2 GB", "2026-10-31",
+  "a، b"); "" for an empty cell; never an object or a list inside a cell;
+- every row has exactly as many cells as its table has columns; one table per kind of item;
+- `summary_fa` and every note are plain Persian sentences: never JSON, a code block, a table or a
+  list of rows inside them; every item you found goes in a table row;
+- column names, titles and notes in Persian; names, paths, commands and versions as they are."""
+
+RETRY = """
+
+YOUR PREVIOUS ANSWER FOR THIS SECTION COULD NOT BE READ BY THE HUB:
+{errors}
+Catalogue the section again (re-read what you need) and answer with the one fenced JSON block of
+exactly the schema above, every rule kept."""
 
 
 # ------------------------------------------------------------------ shapes --
 class CatalogueTable(BaseModel):
+    """A real table: every row exactly as wide as `columns`, every cell a string."""
+
     title_fa: str | None = None
     columns: list[str] = Field(default_factory=list)
-    rows: list[list[Any]] = Field(default_factory=list)
+    rows: list[list[str]] = Field(default_factory=list)
 
 
 class CatalogueSection(BaseModel):
+    """One section, always this shape (prompt 19.2): plain Persian prose in
+    `summary_fa` and `notes_fa` (never JSON, a code block or a table), every
+    item in `tables`."""
+
     key: str
     title_fa: str
-    summary_md: str | None = None
+    summary_fa: str | None = None
     tables: list[CatalogueTable] = Field(default_factory=list)
-    notes_md: str | None = None
+    notes_fa: list[str] = Field(default_factory=list)
     count: int | None = None
 
 
@@ -179,7 +205,7 @@ def render(c: dict[str, Any]) -> Catalogue:
         deliverable=c["deliverable_ref"],
         reason_fa=c["reason_fa"],
         servers=out,
-        sections=[CatalogueSection.model_validate(x) for x in c["sections"] or []],
+        sections=[CatalogueSection.model_validate(stored(x)) for x in c["sections"] or []],
         diff=c["diff"],
     )
 
@@ -211,17 +237,12 @@ async def start(
     servers = await _paired(tx, company.id)
     jobs: list[dict[str, Any]] = []
     for s in servers:
-        for key, title, what in SECTIONS:
+        for key, title, _ in SECTIONS:
             j = await SV.create_job(
                 tx,
                 server=s,
                 kind="claude",
-                args={
-                    "brief": BRIEF.format(title=title, what=what),
-                    "title": f"کاتالوگ {company.code}: {title}",
-                    "timeout_s": JOB_TIMEOUT_S,
-                    "max_turns": 60,
-                },
+                args=_claude_args(company.code, key),
                 actor_kind="service",
                 actor_code="catalogue",
                 summary=f"کاتالوگ شرکت: {title}",
@@ -291,56 +312,307 @@ async def _emit(tx: Tx, c: dict[str, Any]) -> None:
 
 
 # ---------------------------------------------------------- a job's answer --
-def parse_section(key: str, text: str) -> dict[str, Any]:
-    """One job's answer as a section: its JSON object (masked, capped), or
-    the text itself as the summary when it is not one."""
-    title = SECTION_FA.get(key, key)
-    obj: Any = None
-    m = re.search(r"\{.*\}", text or "", re.S)
-    if m:
+SECTION_FIELDS = ("tables", "summary_fa", "notes_fa", "summary_md", "notes_md", "count")
+FENCE = re.compile(r"```[ \t]*(?:json|JSON)?[ \t]*\r?\n(.*?)\r?\n?[ \t]*```", re.S)
+TRAILING_COMMA = re.compile(r",(\s*[}\]])")
+MAX_BARE_TRIES = 400  # '{' positions tried for a bare object (a broken answer stays linear)
+# prose that carries JSON, a code block or a table row: never kept as it came
+JSONISH = re.compile(r'"[^"\n]{1,80}"\s*:|\[\s*\[|```|^\s*[{}\[\]]|^\s*\|.*\|\s*$|[{\[]\s*"', re.M)
+FRAGMENTS = (
+    re.compile(r"```.*?(```|\Z)", re.S),
+    re.compile(
+        r'"[^"\n]{1,80}"\s*:\s*'
+        r'(\[\[.*?\]\]|\[.*?\]|\{.*?\}|"(?:[^"\\]|\\.)*"|[-\d.eE+]+|true|false|null)\s*,?',
+        re.S,
+    ),
+    re.compile(r"\[\[.*?\]\]", re.S),
+    re.compile(r'\{\s*"[^{}]*\}', re.S),
+    re.compile(r'\[\s*"[^\[\]]*\]', re.S),
+)
+NOT_STRUCTURED_FA = (
+    "جواب این بخش ساختار جدولی خواسته‌شده را نداشت؛ متن خوانای آن در یادداشت‌ها آمده است."
+)
+UNREADABLE_FA = "جواب این بخش خوانا نبود (JSON شکسته) و جدولی از آن خوانده نشد."
+
+
+def _fa_num(n: int) -> str:
+    return str(n).translate(str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹"))
+
+
+def _candidates(text: str) -> tuple[list[Any], list[str]]:
+    """Every JSON value the answer holds: the fenced blocks first, then bare
+    objects; and why a fenced block did not parse (for the retry)."""
+    found: list[Any] = []
+    errors: list[str] = []
+    for m in FENCE.finditer(text):
+        raw = m.group(1).strip()
+        for attempt in (raw, TRAILING_COMMA.sub(r"\1", raw)):
+            try:
+                found.append(json.loads(attempt))
+                break
+            except ValueError as exc:
+                err = f"the fenced JSON block does not parse: {exc}"
+        else:
+            errors.append(err)
+    if any(isinstance(x, dict) for x in found):
+        return found, errors
+    dec = json.JSONDecoder()
+    i, tries = 0, 0
+    while tries < MAX_BARE_TRIES:
+        i = text.find("{", i)
+        if i < 0:
+            break
+        tries += 1
         try:
-            obj = json.loads(m.group(0))
+            obj, end = dec.raw_decode(text, i)
         except ValueError:
-            obj = None
-    if not isinstance(obj, dict):
-        return {"key": key, "title_fa": title, "summary_md": SV.mask(text or ""),
-                "tables": [], "notes_md": None, "count": None}  # fmt: skip
-    tables = []
-    for t in obj.get("tables") or []:
-        if not isinstance(t, dict):
+            i += 1
             continue
-        cols = [SV.mask(str(c)) for c in (t.get("columns") or [])][:MAX_COLUMNS]
-        rows = [
-            [_cell(v) for v in r][:MAX_COLUMNS] for r in (t.get("rows") or [])[:MAX_ROWS] if isinstance(r, list)
-        ]  # fmt: skip
-        tables.append({"title_fa": SV.mask(str(t.get("title_fa") or "")) or None,
-                       "columns": cols, "rows": rows})  # fmt: skip
-    count = obj.get("count")
+        found.append(obj)
+        i = end
+    return found, errors
+
+
+def _section_object(found: list[Any]) -> dict[str, Any] | None:
+    objs = [x for x in found if isinstance(x, dict) and any(k in x for k in SECTION_FIELDS)]
+    with_tables = [x for x in objs if isinstance(x.get("tables"), list)]
+    best = with_tables or objs
+    return best[0] if best else None
+
+
+def _text(v: Any) -> str:
+    """A cell as a string: numbers as written, a list joined, an object as
+    `key: value` pairs; nothing nested survives."""
+    if v is None:
+        return ""
+    if isinstance(v, bool):
+        return "بله" if v else "خیر"
+    if isinstance(v, int | float):
+        return str(int(v)) if isinstance(v, float) and v.is_integer() else str(v)
+    if isinstance(v, list):
+        return "، ".join(t for t in (_text(x) for x in v) if t)
+    if isinstance(v, dict):
+        return "، ".join(f"{k}: {_text(x)}" for k, x in v.items())
+    return str(v)
+
+
+def _cell(v: Any) -> str:
+    return SV.mask(_text(v))
+
+
+def clean_prose(text: Any) -> tuple[str, bool]:
+    """(the prose with every JSON fragment, code block and table row taken
+    out, whether anything was taken). What still looks like JSON after
+    that is dropped line by line: raw JSON never reaches prose."""
+    s = text if isinstance(text, str) else _text(text)
+    dirty = False
+    for rx in FRAGMENTS:
+        s, n = rx.subn(" ", s)
+        dirty = dirty or n > 0
+    lines = []
+    for line in s.splitlines():
+        if JSONISH.search(line):
+            dirty = True
+            continue
+        lines.append(re.sub(r"[ \t]{2,}", " ", line).strip(" \t") if dirty else line.strip())
+    out = re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
+    if dirty:  # what a cut fragment left behind: a lone comma or colon
+        out = re.sub(r"^[\s:،,;]+$", "", out, flags=re.M).strip()
+    return SV.mask(out), dirty
+
+
+def _notes(v: Any) -> tuple[list[str], bool]:
+    items = v if isinstance(v, list) else re.split(r"\n\s*\n", v) if isinstance(v, str) else [v]
+    out: list[str] = []
+    dirty = False
+    for it in items:
+        if it is None or it == "":
+            continue
+        t, d = clean_prose(it)
+        dirty = dirty or d
+        if t:
+            out.append(t)
+    return out, dirty
+
+
+def _count(v: Any) -> int | None:
+    if isinstance(v, bool):
+        return None
+    if isinstance(v, int | float):
+        return int(v)
+    if isinstance(v, str) and v.strip().isdigit():
+        return int(v.strip())
+    return None
+
+
+def normalise(key: str, obj: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    """(the section in its one shape, what broke the schema). The section is
+    always usable: a short row padded, a long one given more columns, a
+    nested cell flattened; the errors decide whether the job is asked again."""
+    errors: list[str] = []
+    tables: list[dict[str, Any]] = []
+    raw_tables = obj.get("tables")
+    if raw_tables is None:
+        raw_tables = []
+    if not isinstance(raw_tables, list):
+        errors.append("`tables` is not a list")
+        raw_tables = []
+    notes: list[str] = []
+    for n, t in enumerate(raw_tables, start=1):
+        if not isinstance(t, dict):
+            errors.append(f"tables[{n - 1}] is not an object")
+            continue
+        cols_in = t.get("columns")
+        rows_in = t.get("rows")
+        if not isinstance(cols_in, list) or not cols_in:
+            errors.append(f"tables[{n - 1}].columns is missing or empty")
+            cols_in = []
+        if not isinstance(rows_in, list):
+            errors.append(f"tables[{n - 1}].rows is not a list of rows")
+            rows_in = []
+        cols = [_cell(c) for c in cols_in]
+        if any(isinstance(c, dict | list) for c in cols_in):
+            errors.append(f"tables[{n - 1}].columns holds a non-string")
+        rows: list[list[str]] = []
+        widths_bad = 0
+        for r in rows_in[:MAX_ROWS]:
+            if not isinstance(r, list):
+                if isinstance(r, dict):  # a row as an object: its values, in the columns' order
+                    errors.append(f"tables[{n - 1}] has a row that is an object, not a list")
+                    r = [r.get(c, "") for c in cols_in] if cols_in else list(r.values())
+                else:
+                    errors.append(f"tables[{n - 1}] has a row that is not a list")
+                    r = [r]
+            if cols and len(r) != len(cols):
+                widths_bad += 1
+            rows.append([_cell(v) for v in r])
+        if widths_bad:
+            errors.append(
+                f"tables[{n - 1}]: {widths_bad} row(s) do not have exactly {len(cols)} cells"
+            )
+        width = max([len(cols), *(len(r) for r in rows)]) if (cols or rows) else 0
+        cols = cols + [f"ستون {_fa_num(i + 1)}" for i in range(len(cols), width)]
+        rows = [r + [""] * (width - len(r)) for r in rows]
+        if len(cols) > MAX_COLUMNS:
+            notes.append(f"جدولی بیش از {_fa_num(MAX_COLUMNS)} ستون داشت؛ ستون‌های بعدی نیامد.")
+            cols, rows = cols[:MAX_COLUMNS], [r[:MAX_COLUMNS] for r in rows]
+        if len(rows_in) > MAX_ROWS:
+            notes.append(
+                f"بیش از {_fa_num(MAX_ROWS)} ردیف در یک جدول آمد؛ فقط {_fa_num(MAX_ROWS)} ردیف اول نگه داشته شد."
+            )
+        title, dirty = clean_prose(t.get("title_fa") or "")
+        if dirty:
+            errors.append(f"tables[{n - 1}].title_fa is not plain text")
+        tables.append({"title_fa": title or None, "columns": cols, "rows": rows})
+    summary, dirty = clean_prose(obj.get("summary_fa", obj.get("summary_md")) or "")
+    if dirty:
+        errors.append(
+            "`summary_fa` holds JSON, a code block or a table; it must be plain Persian sentences"
+        )
+    got, dirty = _notes(obj.get("notes_fa", obj.get("notes_md")) or [])
+    if dirty:
+        errors.append(
+            "a note in `notes_fa` holds JSON, a code block or a table; notes are plain sentences"
+        )
+    if "summary_fa" not in obj and "tables" not in obj:
+        errors.append("the object does not have the schema's fields")
     return {
         "key": key,
-        "title_fa": title,
-        "summary_md": SV.mask(str(obj.get("summary_md") or "")) or None,
+        "title_fa": SECTION_FA.get(key, key),
+        "summary_fa": summary or None,
         "tables": tables,
-        "notes_md": (SV.mask(str(obj.get("notes_md") or "")) + _over(obj)).strip() or None,
-        "count": int(count) if isinstance(count, int | float) else None,
-    }
+        "notes_fa": got + notes,
+        "count": _count(obj.get("count")),
+    }, errors
 
 
-def _over(obj: dict[str, Any]) -> str:
-    """Said plainly when a broken answer passed the guards (never silent)."""
-    big = [t for t in obj.get("tables") or [] if isinstance(t, dict)
-           and len(t.get("rows") or []) > MAX_ROWS]  # fmt: skip
-    return (
-        f"\n\nبیش از {MAX_ROWS} ردیف در یک جدول آمد؛ فقط {MAX_ROWS} ردیف اول نگه داشته شد."
-        if big
-        else ""
-    )
+def parse_answer(key: str, text: str) -> tuple[dict[str, Any], list[str]]:
+    """One job's answer as a section (always in the one shape) and the
+    reasons it broke the schema (empty: it kept every rule). An answer with
+    no JSON object at all keeps its readable prose as notes, tables empty."""
+    text = text or ""
+    found, errors = _candidates(text)
+    obj = _section_object(found)
+    if obj is not None:
+        sec, more = normalise(key, obj)
+        return sec, errors + more
+    tables, rest = md_tables(FENCE.sub("\n\n", text))
+    prose, _ = _notes(rest)
+    reasons = errors or ["the answer holds no JSON object of the schema"]
+    lead = NOT_STRUCTURED_FA if prose or tables else UNREADABLE_FA
+    return {
+        "key": key,
+        "title_fa": SECTION_FA.get(key, key),
+        "summary_fa": None,
+        "tables": tables,
+        "notes_fa": [lead, *prose],
+        "count": sum(len(t["rows"]) for t in tables) or None,
+    }, reasons
 
 
-def _cell(v: Any) -> Any:
-    if isinstance(v, bool | int | float) or v is None:
-        return v
-    return SV.mask(str(v))
+MD_ROW = re.compile(r"^\s*\|(.*)\|\s*$")
+MD_RULE = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$")
+
+
+def md_tables(text: str) -> tuple[list[dict[str, Any]], str]:
+    """The markdown tables of a prose answer as real tables (a header row,
+    its rule, its rows), and the prose without them."""
+    lines = text.splitlines()
+    tables: list[dict[str, Any]] = []
+    rest: list[str] = []
+    i = 0
+    while i < len(lines):
+        if i + 1 < len(lines) and MD_ROW.match(lines[i]) and MD_RULE.match(lines[i + 1]):
+            cols = [_cell(c.strip()) for c in MD_ROW.match(lines[i]).group(1).split("|")]  # type: ignore[union-attr]
+            title = (
+                rest.pop().strip().lstrip("#").strip()
+                if rest and rest[-1].lstrip().startswith("#")
+                else ""
+            )
+            i += 2
+            rows = []
+            while i < len(lines) and (m := MD_ROW.match(lines[i])):
+                r = [_cell(c.strip()) for c in m.group(1).split("|")]
+                rows.append((r + [""] * len(cols))[: max(len(cols), len(r))])
+                i += 1
+            width = max([len(cols), *(len(r) for r in rows)])
+            cols += [f"ستون {_fa_num(n + 1)}" for n in range(len(cols), width)]
+            tables.append({"title_fa": clean_prose(title)[0] or None, "columns": cols,
+                           "rows": [r + [""] * (width - len(r)) for r in rows][:MAX_ROWS]})  # fmt: skip
+            continue
+        rest.append(lines[i])
+        i += 1
+    return tables, "\n".join(rest)
+
+
+def stored(x: dict[str, Any]) -> dict[str, Any]:
+    """A stored section in the one shape, whenever it was written. One
+    written since prompt 19.2 is already in it (masked, rows as wide as
+    their columns) and passes as it is; one from before (`summary_md`,
+    `notes_md`, raw cells) is put in order and masked again."""
+    extra: dict[str, Any] = {k: x[k] for k in ("server", "server_name") if k in x}
+    if isinstance(x.get("notes_fa"), list) and "summary_md" not in x and "notes_md" not in x:
+        return {
+            "key": str(x.get("key") or ""),
+            "title_fa": str(x.get("title_fa") or SECTION_FA.get(str(x.get("key")), "")),
+            "summary_fa": x.get("summary_fa") or None,
+            "tables": [
+                {
+                    "title_fa": t.get("title_fa") or None,
+                    "columns": [_text(c) for c in t.get("columns") or []],
+                    "rows": [[_text(v) for v in r] for r in t.get("rows") or []],
+                }
+                for t in x.get("tables") or []
+                if isinstance(t, dict)
+            ],
+            "notes_fa": [str(n) for n in x["notes_fa"]],
+            "count": _count(x.get("count")),
+            **extra,
+        }
+    sec, _ = normalise(str(x.get("key") or ""), x)
+    if x.get("title_fa"):
+        sec["title_fa"] = clean_prose(x["title_fa"])[0] or sec["title_fa"]
+    return {**sec, **extra}
 
 
 def map_sections(m: dict[str, Any]) -> list[dict[str, Any]]:
@@ -348,14 +620,14 @@ def map_sections(m: dict[str, Any]) -> list[dict[str, Any]]:
     not catalogue the server."""
     m = m or {}
 
-    def rows(key: str, cols: list[str]) -> list[list[Any]]:
+    def rows(key: str, cols: list[str]) -> list[list[str]]:
         items = m.get(key) or []
         out = []
-        for it in items[:MAX_ROWS]:
+        for it in items[:MAX_ROWS] if isinstance(items, list) else []:
             if isinstance(it, dict):
                 out.append([_cell(it.get(c)) for c in cols])
             else:
-                out.append([_cell(it)] + [None] * (len(cols) - 1))
+                out.append([_cell(it)] + [""] * (len(cols) - 1))
         return out
 
     def table(title: str, key: str, cols: list[str]) -> dict[str, Any] | None:
@@ -367,9 +639,9 @@ def map_sections(m: dict[str, Any]) -> list[dict[str, Any]]:
         return {
             "key": key,
             "title_fa": SECTION_FA[key],
-            "summary_md": "از نقشه‌ی خود runner (Claude Code روی این سرور در دسترس نبود).",
+            "summary_fa": "از نقشه‌ی خود runner (Claude Code روی این سرور در دسترس نبود).",
             "tables": ts,
-            "notes_md": None,
+            "notes_fa": [],
             "count": sum(len(t["rows"]) for t in ts) or None,
         }
 
@@ -401,39 +673,102 @@ async def by_job(tx: Tx, job_id: UUID) -> dict[str, Any] | None:
     )
 
 
+LOOSE_FA = "قالب جواب این بخش کامل نبود؛ هاب آن را در همین شکل جدولی مرتب کرد."
+
+
+def _tagged(sec: dict[str, Any], e: dict[str, Any]) -> dict[str, Any]:
+    return {**sec, "server": e["server"], "server_name": e["server_name"]}
+
+
+async def _answer_section(tx: Tx, hub: Any, e: dict[str, Any], j: dict[str, Any]) -> dict[str, Any]:
+    """The last word on a claude job's answer: the section in its one shape,
+    with a plain note when the hub had to put it in order."""
+    sec, errors = parse_answer(e["section"], await SV.full_answer(tx, hub, j))
+    if errors and sec["tables"] and LOOSE_FA not in sec["notes_fa"]:
+        sec["notes_fa"].append(LOOSE_FA)
+    return _tagged(sec, e)
+
+
+def _unread_section(e: dict[str, Any]) -> dict[str, Any]:
+    return _tagged({
+        "key": e["section"], "title_fa": SECTION_FA.get(e["section"], e["section"]),
+        "summary_fa": None, "tables": [], "count": None,
+        "notes_fa": [f"این بخش روی این سرور خوانده نشد: {e.get('reason_fa') or 'کار تمام نشد.'}"],
+    }, e)  # fmt: skip
+
+
+def _claude_args(company: str, key: str, errors: list[str] | None = None) -> dict[str, Any]:
+    title, what = SECTION_FA[key], SECTION_WHAT[key]
+    brief = BRIEF.format(title=title, what=what)
+    if errors:
+        brief += RETRY.format(errors="\n".join(f"- {x}" for x in errors[:8]))
+    return {
+        "brief": brief,
+        "title": f"کاتالوگ {company}: {title}" + (" (دوباره)" if errors else ""),
+        "timeout_s": JOB_TIMEOUT_S,
+        "max_turns": 60,
+    }
+
+
+async def _retry(
+    tx: Tx, c: dict[str, Any], e: dict[str, Any], errors: list[str]
+) -> dict[str, Any] | None:
+    """Once per section: the same server is asked again, told why its answer
+    could not be read. None when it cannot be asked (the company locked)."""
+    srv = await SV.load_server(tx, UUID(e["server"]))
+    try:
+        r = await SV.create_job(
+            tx,
+            server=srv,
+            kind="claude",
+            args=_claude_args(c["company"], e["section"], errors),
+            actor_kind="service",
+            actor_code="catalogue",
+            summary=f"کاتالوگ شرکت، دوباره: {SECTION_FA[e['section']]}",
+            timeout_s=JOB_TIMEOUT_S,
+        )
+    except ApiError:
+        return None
+    return {**_job_entry(r, srv, e["section"]), "attempt": 2, "retry_of": e["job"]}
+
+
 async def on_job(tx: Tx, hub: Any, job_id: UUID) -> bool:
-    """A job of a running catalogue ended: its entry, a map in place of a
-    Claude Code that is not there, and the end of the run once every job
-    ended. True when the catalogue is done now (the caller files it)."""
+    """A job of a running catalogue ended: its entry, its section (asked once
+    more when the answer broke the schema), a map in place of a Claude Code
+    that is not there, and the end of the run once every job ended. True
+    when the catalogue is done now (the caller files it)."""
     c = await by_job(tx, job_id)
     if c is None or c["state"] != "running":
         return False
     j = await SV.load_job(tx, job_id)
     jobs = [dict(x) for x in c["jobs"]]
     sections = [dict(x) for x in c["sections"] or []]
-    for e in jobs:
+    for e in list(jobs):
         if e["job"] != str(job_id) or e["state"] in SV.FINAL:
             continue
         e["state"] = j["state"] if j["state"] in SV.FINAL else "running"
         if j["state"] == "done" and e["kind"] == "claude":
-            text = await SV.full_answer(tx, hub, j)
-            sec = parse_section(e["section"], text)
-            sec["server"] = e["server"]
-            sec["server_name"] = e["server_name"]
-            sections.append(sec)
+            if int(e.get("attempt") or 1) < 2:
+                _, errors = parse_answer(e["section"], await SV.full_answer(tx, hub, j))
+                again = await _retry(tx, c, e, errors) if errors else None
+                if again is not None:
+                    e["retried"] = again["job"]
+                    e["errors"] = errors[:8]
+                    jobs.append(again)
+                    continue
+            sections.append(await _answer_section(tx, hub, e, j))
         elif j["state"] == "done" and e["kind"] == "map":
             srv = await SV.load_server(tx, UUID(e["server"]))
-            for sec in map_sections(srv["map"] or {}):
-                sections.append({**sec, "server": e["server"], "server_name": e["server_name"]})
+            sections += [_tagged(sec, e) for sec in map_sections(srv["map"] or {})]
         elif j["state"] in ("failed", "cancelled"):
             e["reason_fa"] = _job_reason(j)
+            if e["kind"] == "claude" and e.get("retry_of"):
+                # the second try did not end: the first answer, put in order
+                first = await SV.load_job(tx, UUID(e["retry_of"]))
+                sections.append(await _answer_section(tx, hub, e, first))
+                continue
             if e["kind"] == "claude":  # the section says it was not read, and why
-                sections.append({
-                    "key": e["section"], "title_fa": SECTION_FA.get(e["section"], e["section"]),
-                    "summary_md": None, "tables": [], "count": None,
-                    "notes_md": f"این بخش روی این سرور خوانده نشد: {e['reason_fa']}",
-                    "server": e["server"], "server_name": e["server_name"],
-                })  # fmt: skip
+                sections.append(_unread_section(e))
             if e["kind"] == "claude" and not any(
                 x["server"] == e["server"] and x["kind"] == "map" for x in jobs
             ):
@@ -469,75 +804,89 @@ def _job_reason(j: dict[str, Any]) -> str:
 
 # ------------------------------------------------------------------ the end --
 def merged(sections: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """The sections of every server, one per key in the fixed order; a table
-    of one server keeps the server's name in its title."""
+    """The sections of every server, one per key in the fixed order, each in
+    the one shape; with more than one server, a table, the summary and each
+    note keep the server's name."""
+    parts_all = [{**stored(s), "server_name": s.get("server_name") or ""} for s in sections]
     servers = {s.get("server") for s in sections}
+    many = len(servers) > 1
     out = []
     for key, title, _ in SECTIONS:
-        parts = [s for s in sections if s["key"] == key]
+        parts = [s for s in parts_all if s["key"] == key]
         if not parts:
             continue
-        tables = []
-        summaries, notes = [], []
+        tables: list[dict[str, Any]] = []
+        summaries: list[str] = []
+        notes: list[str] = []
         count = 0
         counted = False
         for p in parts:
-            tag = p.get("server_name") or ""
+            tag = p["server_name"]
             for t in p["tables"]:
                 name = t.get("title_fa") or title
-                tables.append({**t, "title_fa": f"{tag} · {name}" if len(servers) > 1 else name})
-            if p.get("summary_md"):
-                summaries.append(
-                    f"**{tag}:** {p['summary_md']}" if len(servers) > 1 else p["summary_md"]
-                )
-            if p.get("notes_md"):
-                notes.append(f"**{tag}:** {p['notes_md']}" if len(servers) > 1 else p["notes_md"])
-            if p.get("count") is not None:
+                tables.append({**t, "title_fa": f"{tag} · {name}" if many else name})
+            if p["summary_fa"]:
+                summaries.append(f"{tag}: {p['summary_fa']}" if many else p["summary_fa"])
+            notes += [f"{tag}: {n}" if many else n for n in p["notes_fa"]]
+            if p["count"] is not None:
                 count += int(p["count"])
                 counted = True
         out.append(
             {
                 "key": key,
                 "title_fa": title,
-                "summary_md": "\n\n".join(summaries) or None,
+                "summary_fa": "\n\n".join(summaries) or None,
                 "tables": tables,
-                "notes_md": "\n\n".join(notes) or None,
+                "notes_fa": notes,
                 "count": count if counted else None,
             }
         )
     return out
 
 
+def _md_cell(v: Any) -> str:
+    t = str(v if v is not None else "").replace("\\", "\\\\").replace("|", "\\|")
+    t = " ".join(t.split())
+    return t or "—"
+
+
 def markdown(company: str, sections: list[dict[str, Any]], diff: dict[str, Any] | None) -> str:
+    """The deliverable, from the structure alone: headings, plain sentences,
+    real tables (header, rule, every row as wide as its header), notes as a
+    list. Nothing of an answer's raw text reaches it."""
     lines = [f"# کاتالوگ کامل شرکت {company}", ""]
     if diff:
         lines += ["## تغییر نسبت به کاتالوگ قبلی", ""]
         for key, d in diff.items():
             add, gone = d.get("added") or [], d.get("removed") or []
             lines.append(
-                f"- **{SECTION_FA.get(key, key)}:** {len(add)} مورد تازه، {len(gone)} مورد حذف‌شده"
+                f"- {SECTION_FA.get(key, key)}: {_fa_num(len(add))} مورد تازه، {_fa_num(len(gone))} مورد حذف‌شده"
                 + (f" (تازه: {'، '.join(map(str, add[:10]))})" if add else "")
             )
         lines.append("")
-    for s in sections:
-        lines += [f"## {s['title_fa']}" + (f" ({s['count']})" if s.get("count") else ""), ""]
-        if s.get("summary_md"):
-            lines += [str(s["summary_md"]), ""]
+    for raw in sections:
+        s = stored(raw)
+        count = f" ({_fa_num(s['count'])})" if s.get("count") else ""
+        lines += [f"## {s['title_fa']}{count}", ""]
+        if s["summary_fa"]:
+            lines += [s["summary_fa"], ""]
         for t in s["tables"]:
-            cols = t.get("columns") or []
+            cols = t["columns"]
             if t.get("title_fa"):
                 lines += [f"### {t['title_fa']}", ""]
-            if cols:
-                lines.append("| " + " | ".join(cols) + " |")
-                lines.append("|" + "---|" * len(cols))
-            for r in t.get("rows") or []:
-                cells = [
-                    ("—" if v is None else str(v)).replace("|", "/").replace("\n", " ") for v in r
-                ]
-                lines.append("| " + " | ".join(cells) + " |")
+            if not cols:
+                continue
+            lines.append("| " + " | ".join(_md_cell(c) for c in cols) + " |")
+            lines.append("|" + " --- |" * len(cols))
+            for r in t["rows"]:
+                lines.append("| " + " | ".join(_md_cell(v) for v in r) + " |")
+            if not t["rows"]:
+                lines.append("| " + " | ".join(["—"] * len(cols)) + " |")
             lines.append("")
-        if s.get("notes_md"):
-            lines += [str(s["notes_md"]), ""]
+        if s["notes_fa"]:
+            lines += ["یادداشت‌ها:", ""]
+            lines += [f"- {n.replace(chr(10), ' ')}" for n in s["notes_fa"]]
+            lines.append("")
     return "\n".join(lines)  # whole: players.deliver files what the body cannot hold
 
 
@@ -547,12 +896,12 @@ def diff_of(old: list[dict[str, Any]], new: list[dict[str, Any]]) -> dict[str, A
 
     def items(sections: list[dict[str, Any]]) -> dict[str, set[str]]:
         out: dict[str, set[str]] = {}
-        for s in sections:
+        for s in map(stored, sections):
             bag = out.setdefault(s["key"], set())
-            for t in s.get("tables") or []:
-                for r in t.get("rows") or []:
-                    if r and r[0] is not None:
-                        bag.add(str(r[0]))
+            for t in s["tables"]:
+                for r in t["rows"]:
+                    if r and r[0]:
+                        bag.add(r[0])
         return out
 
     a, b = items(old), items(new)
@@ -568,12 +917,9 @@ def diff_of(old: list[dict[str, Any]], new: list[dict[str, Any]]) -> dict[str, A
 async def finish(tx: Tx, hub: Any, catalogue_id: UUID) -> None:
     """Every job ended: the merged sections, the diff, the deliverable of the
     holding's system employee; the archive record is filed after commit."""
-    from hq_api.domain import players
-    from hq_api.domain import work as W
-
     c = await tx.one(CAT_SQL + " WHERE k.id = :id FOR UPDATE OF k", id=catalogue_id)
     sections = merged(c["sections"] or [])
-    if not any(s["tables"] or s.get("summary_md") for s in sections):
+    if not any(_has_content(s) for s in sections):
         await tx.exec(
             """UPDATE infra.catalogues SET state = 'failed', reason_fa = :r, finished_at = now(),
                    updated_at = now() WHERE id = :id""",
@@ -582,14 +928,51 @@ async def finish(tx: Tx, hub: Any, catalogue_id: UUID) -> None:
         )
         await _emit(tx, await tx.one(CAT_SQL + " WHERE k.id = :id", id=c["id"]))
         return
-    previous = (
-        await tx.first("SELECT sections FROM infra.catalogues WHERE id = :p", p=c["previous_id"])
-        if c["previous_id"]
-        else None
+    diff = await _diff_from_previous(tx, c, sections)
+    dl, w = await _deliver(tx, hub, c, sections, diff)
+    await tx.exec(
+        """UPDATE infra.catalogues SET state = 'done', sections = CAST(:s AS jsonb), diff = CAST(:d AS jsonb),
+               deliverable_ref = :dl, work_id = :w, finished_at = now(), updated_at = now()
+           WHERE id = :id""",
+        s=json.dumps(sections, ensure_ascii=False, default=str),
+        d=json.dumps(diff, ensure_ascii=False) if diff is not None else None,
+        dl=dl["ref"],
+        w=w["id"],
+        id=c["id"],
     )
-    diff = diff_of(previous["sections"], sections) if previous else None
+    if diff and c["started_by_code"] == "watch":
+        await _diff_to_ceo(tx, c, dl["ref"], diff)
+    await _emit(tx, await tx.one(CAT_SQL + " WHERE k.id = :id", id=c["id"]))
+
+
+UNREAD_MARK = "این بخش روی این سرور خوانده نشد"
+
+
+def _has_content(s: dict[str, Any]) -> bool:
+    said = [n for n in s["notes_fa"] if UNREAD_MARK not in n and UNREADABLE_FA not in n]
+    return bool(s["tables"] or s.get("summary_fa") or said)
+
+
+async def _diff_from_previous(
+    tx: Tx, c: dict[str, Any], sections: list[dict[str, Any]]
+) -> dict[str, Any] | None:
+    if not c["previous_id"]:
+        return None
+    previous = await tx.first(
+        "SELECT sections FROM infra.catalogues WHERE id = :p", p=c["previous_id"]
+    )
+    return diff_of(previous["sections"] or [], sections) if previous else None
+
+
+async def _deliver(
+    tx: Tx, hub: Any, c: dict[str, Any], sections: list[dict[str, Any]], diff: dict[str, Any] | None
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """(the deliverable, its work): the catalogue as a deliverable of the
+    holding's system employee, rendered from the structure alone."""
+    from hq_api.domain import players
+    from hq_api.domain import work as W
+
     holding = await hub.companies.holding()
-    sys_code = f"{holding.code}-SYS"
     w = await W.create(
         tx,
         SERVICE,
@@ -599,7 +982,7 @@ async def finish(tx: Tx, hub: Any, catalogue_id: UUID) -> None:
         brief=f"The deep catalogue of {c['company']} (contract §28.2), produced by code from its servers.",
         kind="one_off",
         priority="P3",
-        assignee_code=sys_code,
+        assignee_code=f"{holding.code}-SYS",
     )
     w = await W.load(tx, w["id"])
     dl = await players.deliver(
@@ -614,19 +997,7 @@ async def finish(tx: Tx, hub: Any, catalogue_id: UUID) -> None:
         },
         hub=hub,
     )
-    await tx.exec(
-        """UPDATE infra.catalogues SET state = 'done', sections = CAST(:s AS jsonb), diff = CAST(:d AS jsonb),
-               deliverable_ref = :dl, work_id = :w, finished_at = now(), updated_at = now()
-           WHERE id = :id""",
-        s=json.dumps(sections, ensure_ascii=False, default=str),
-        d=json.dumps(diff, ensure_ascii=False) if diff is not None else None,
-        dl=dl["ref"],
-        w=w["id"],
-        id=c["id"],
-    )
-    if diff and c["started_by_code"] == "watch":
-        await _diff_to_ceo(tx, c, dl["ref"], diff)
-    await _emit(tx, await tx.one(CAT_SQL + " WHERE k.id = :id", id=c["id"]))
+    return dl, w
 
 
 async def _diff_to_ceo(tx: Tx, c: dict[str, Any], ref: str, diff: dict[str, Any]) -> None:
@@ -723,3 +1094,89 @@ async def sweep(tx: Tx, hub: Any, now: datetime | None = None) -> int:
             await on_job(tx, hub, UUID(e["job"]))
         n += 1
     return n
+
+
+# ---------------------------------------------------------------- rerender --
+async def rebuilt_sections(tx: Tx, hub: Any, c: dict[str, Any]) -> list[dict[str, Any]]:
+    """A finished catalogue's per-server sections again, from what its jobs
+    stored (a claude job's whole answer; a map job's server map, as it is
+    now), through the same parser as a live run."""
+    out: list[dict[str, Any]] = []
+    for e in c["jobs"] or []:
+        if e.get("retried"):
+            continue  # its second try carries the section
+        if e["kind"] == "map":
+            if e["state"] == "done":
+                srv = await SV.load_server(tx, UUID(e["server"]))
+                out += [_tagged(sec, e) for sec in map_sections(srv["map"] or {})]
+            continue
+        if e["state"] == "done":
+            out.append(await _answer_section(tx, hub, e, await SV.load_job(tx, UUID(e["job"]))))
+        elif e.get("retry_of"):
+            out.append(
+                await _answer_section(tx, hub, e, await SV.load_job(tx, UUID(e["retry_of"])))
+            )
+        elif e["state"] in ("failed", "cancelled"):
+            out.append(_unread_section(e))
+    return out
+
+
+async def rerender(hub: Any, catalogue_id: UUID, *, deliver: bool) -> dict[str, Any]:
+    """Prompt 19.2: a finished catalogue's sections rebuilt in the one shape
+    from its jobs' stored answers; with `deliver`, a new deliverable and a
+    new archive record rendered from that structure (the old ones stay: the
+    archive never forgets), the catalogue pointing at the new ones."""
+    ids = await hub.companies.ids()
+    async with hub.db.tx(ids) as tx:
+        c = await tx.one(CAT_SQL + " WHERE k.id = :id FOR UPDATE OF k", id=catalogue_id)
+        if c["state"] == "running":
+            return {"catalogue": str(c["id"]), "company": c["company"], "skipped": "running"}
+        sections = merged(await rebuilt_sections(tx, hub, c))
+        diff = await _diff_from_previous(tx, c, sections) if c["state"] == "done" else None
+        dl_ref = c["deliverable_ref"]
+        record = c["record_ref"]
+        if deliver and c["state"] == "done" and any(_has_content(s) for s in sections):
+            dl, _ = await _deliver(tx, hub, c, sections, diff)
+            dl_ref, record = dl["ref"], None
+        await tx.exec(
+            """UPDATE infra.catalogues SET sections = CAST(:s AS jsonb), diff = CAST(:d AS jsonb),
+                   deliverable_ref = :dl, record_ref = :rec, updated_at = now() WHERE id = :id""",
+            s=json.dumps(sections, ensure_ascii=False, default=str),
+            d=json.dumps(diff, ensure_ascii=False) if diff is not None else None,
+            dl=dl_ref,
+            rec=record,
+            id=c["id"],
+        )
+    if dl_ref != c["deliverable_ref"]:
+        record = await file_done(hub, c["id"])
+    return {
+        "catalogue": str(c["id"]),
+        "company": c["company"],
+        "sections": len(sections),
+        "tables": sum(len(s["tables"]) for s in sections),
+        "rows": sum(len(t["rows"]) for s in sections for t in s["tables"]),
+        "deliverable": dl_ref,
+        "record": record,
+    }
+
+
+async def rerender_all(hub: Any, *, deliver_all: bool = False) -> list[dict[str, Any]]:
+    """Every finished catalogue, oldest first (so each diff reads a previous
+    one already in the one shape); a new deliverable and record for each
+    company's latest one (every one with `deliver_all`)."""
+    ids = await hub.companies.ids()
+    async with hub.db.tx(ids) as tx:
+        rows = await tx.all(
+            """SELECT k.id, k.company_id, k.state,
+                      k.id = (SELECT l.id FROM infra.catalogues l WHERE l.company_id = k.company_id
+                                 AND l.state = 'done' ORDER BY l.created_at DESC LIMIT 1) AS latest
+               FROM infra.catalogues k WHERE k.state <> 'running' ORDER BY k.created_at"""
+        )
+    out = []
+    for r in rows:
+        try:
+            out.append(await rerender(hub, r["id"], deliver=deliver_all or bool(r["latest"])))
+        except Exception as exc:  # one broken catalogue never stops the rest
+            log.exception("catalogue: not re-rendered", extra={"catalogue": str(r["id"])})
+            out.append({"catalogue": str(r["id"]), "error": type(exc).__name__})
+    return out

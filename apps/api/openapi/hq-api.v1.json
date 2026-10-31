@@ -5388,6 +5388,7 @@
         "type": "object"
       },
       "CatalogueSection": {
+        "description": "One section, always this shape (prompt 19.2): plain Persian prose in\n`summary_fa` and `notes_fa` (never JSON, a code block or a table), every\nitem in `tables`.",
         "properties": {
           "count": {
             "anyOf": [
@@ -5404,18 +5405,14 @@
             "title": "Key",
             "type": "string"
           },
-          "notes_md": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notes Md"
+          "notes_fa": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes Fa",
+            "type": "array"
           },
-          "summary_md": {
+          "summary_fa": {
             "anyOf": [
               {
                 "type": "string"
@@ -5424,7 +5421,7 @@
                 "type": "null"
               }
             ],
-            "title": "Summary Md"
+            "title": "Summary Fa"
           },
           "tables": {
             "items": {
@@ -5486,6 +5483,7 @@
         "type": "object"
       },
       "CatalogueTable": {
+        "description": "A real table: every row exactly as wide as `columns`, every cell a string.",
         "properties": {
           "columns": {
             "items": {
@@ -5496,7 +5494,9 @@
           },
           "rows": {
             "items": {
-              "items": {},
+              "items": {
+                "type": "string"
+              },
               "type": "array"
             },
             "title": "Rows",
@@ -34918,12 +34918,15 @@
           "uptime_24h": {
             "anyOf": [
               {
+                "maximum": 1.0,
+                "minimum": 0.0,
                 "type": "number"
               },
               {
                 "type": "null"
               }
             ],
+            "description": "The share of the site's checks that passed in the window, as a FRACTION 0..1 (0.9975 = 99.75%), four decimals; null when the site has no check in the window.",
             "title": "Uptime 24H"
           },
           "url": {
@@ -34986,12 +34989,15 @@
           "uptime_24h": {
             "anyOf": [
               {
+                "maximum": 1.0,
+                "minimum": 0.0,
                 "type": "number"
               },
               {
                 "type": "null"
               }
             ],
+            "description": "The share of the site's checks that passed in the window, as a FRACTION 0..1 (0.9975 = 99.75%), four decimals; null when the site has no check in the window.",
             "title": "Uptime 24H"
           },
           "url": {
@@ -54426,8 +54432,10 @@
                     {
                       "count": 1,
                       "key": "x",
-                      "notes_md": "x",
-                      "summary_md": "x",
+                      "notes_fa": [
+                        "x"
+                      ],
+                      "summary_fa": "x",
                       "tables": [
                         {
                           "columns": [
@@ -54560,8 +54568,10 @@
                     {
                       "count": 1,
                       "key": "x",
-                      "notes_md": "x",
-                      "summary_md": "x",
+                      "notes_fa": [
+                        "x"
+                      ],
+                      "summary_fa": "x",
                       "tables": [
                         {
                           "columns": [
@@ -77894,7 +77904,7 @@
                     "kind": "one_off",
                     "last": {},
                     "method": "x",
-                    "uptime_24h": 1.0,
+                    "uptime_24h": 0.0,
                     "url": "x",
                     "version": 1
                   }
@@ -78013,7 +78023,7 @@
                     "kind": "one_off",
                     "last": {},
                     "method": "x",
-                    "uptime_24h": 1.0,
+                    "uptime_24h": 0.0,
                     "url": "x",
                     "version": 1
                   }
@@ -103696,8 +103706,10 @@
                     {
                       "count": 1,
                       "key": "x",
-                      "notes_md": "x",
-                      "summary_md": "x",
+                      "notes_fa": [
+                        "x"
+                      ],
+                      "summary_fa": "x",
                       "tables": [
                         {
                           "columns": [
@@ -108744,7 +108756,7 @@
                       "enabled": false,
                       "kind": "one_off",
                       "last": {},
-                      "uptime_24h": 1.0,
+                      "uptime_24h": 0.0,
                       "url": "x"
                     }
                   ]

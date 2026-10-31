@@ -49,11 +49,11 @@ async def test_a_jobs_output_past_the_stream_and_a_long_answer_are_kept_whole(
     )
     assert r.status_code == 202
     rows = [[f"svc-{i}", "سرویس پشتیبان برای گزارش روزانه " * 4] for i in range(2200)]  # ~330 KB
-    answer = json.dumps({"summary_md": "همه", "count": 2200,
+    answer = json.dumps({"summary_fa": "همه", "count": 2200,
                          "tables": [{"title_fa": "سرویس‌ها", "columns": ["نام", "شرح"], "rows": rows}]},
                         ensure_ascii=False)  # fmt: skip
     jobs = [await take(client, rn) for _ in CAT.SECTIONS]
-    small = json.dumps({"summary_md": "کم", "count": 1,
+    small = json.dumps({"summary_fa": "کم", "count": 1,
                         "tables": [{"title_fa": "یک", "columns": ["نام"], "rows": [["تنها"]]}]},
                        ensure_ascii=False)  # fmt: skip
     for n, j in enumerate(jobs):

@@ -818,8 +818,9 @@ async def proposal_input(tx: Tx) -> dict[str, Any]:
     its revenue and its open findings (masked, capped)."""
     rows = await tx.all(
         """SELECT c.code, c.name_fa,
-                  (SELECT jsonb_agg(jsonb_build_object('key', s ->> 'key', 'count', s -> 'count',
-                                                       'summary', left(s ->> 'summary_md', 400)))
+                  (SELECT jsonb_agg(jsonb_build_object(
+                              'key', s ->> 'key', 'count', s -> 'count',
+                              'summary', left(COALESCE(s ->> 'summary_fa', s ->> 'summary_md'), 400)))
                      FROM infra.catalogues k, jsonb_array_elements(k.sections) s
                     WHERE k.id = (SELECT id FROM infra.catalogues WHERE company_id = c.id
                                     AND state = 'done' ORDER BY created_at DESC LIMIT 1)) AS catalogue,

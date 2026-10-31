@@ -13,7 +13,7 @@ ENV_FILE := infra/compose/.env
 	backup-hourly restore-weekly pitr-test disk-hygiene gdrive-auth backup-password openbao-snapshot-token mcp-secret account-secret \
 	hetzner-token owner-ssh-key intake-secret telegram-bot-token connection-secret \
 	chatgpt-login gemini-login chatgpt-web-login gemini-web-login deepseek-web-login
-.PHONY: mcp-build mcp-test mcp-index
+.PHONY: mcp-build mcp-test mcp-index catalogue-rerender
 
 help: ## Show the available commands
 	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-16s %s\n", $$1, $$2}'
@@ -90,6 +90,9 @@ openbao-snapshot-token: ## OWNER: store your OpenBao snapshot-only token (hidden
 
 bootstrap-month1: ## Month-1 setup work (seed/bootstrap/month1.yaml) as service "bootstrap"; wakes real runs
 	$(HQ) exec -T worker python -m hq_api.bootstrap month1
+
+catalogue-rerender: ## Prompt 19.2: rebuild every finished catalogue in the one section shape from its stored answers; new deliverable + archive PDF for each company's latest (ALL=1: every one)
+	$(HQ) exec -T api python -m hq_api.catalogue_rerender $(if $(ALL),--all,)
 
 prompt-check: ## One REAL call with a charter's prompt (role=advisor): schema and answer checked, nothing stored
 	@infra/compose/hq.sh exec -T worker python -m hq_api.agents.check_prompt "$(or $(role),advisor)" \
