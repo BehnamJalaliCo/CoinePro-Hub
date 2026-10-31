@@ -2829,6 +2829,16 @@ through the TradeYar server and extract everything" was shallow, and three of fo
   - **Code:** repositories, branches and last commits; outputs and reports produced; logs with recurring errors.
   - **Risks:** expiring certificates, failing services, public ports, outdated packages with CVEs.
 - **Output:** a structured catalogue (sections with tables), filed in the archive as a `report` record, plus a deliverable to the owner.
+- **Section shape** (stored and served; older catalogues converted on read):
+  ```
+  {key, title_fa, summary_fa: str|null, tables: [{title_fa: str|null, columns: [str], rows: [[str]]}], notes_fa: [str], count: int|null}
+  ```
+  - **Cells:** every cell is a string.
+  - **Rows:** each row is exactly as wide as its columns.
+  - **Prose fields** are plain sentences, never JSON.
+  - **What the job returns:** one fenced JSON object per section.
+  - **A section that does not parse:** retried once. As a last resort its prose goes to `notes_fa`, with tables empty.
+- **`uptime_24h`** on `/ops/sites` and `/internal/v1/health/sites` is a fraction 0..1. The governance KPI `health.uptime_24h` stays a percent (unit `%`).
 - **Routes:**
   - `POST /companies/{code}/catalogue` (owner) starts a run.
   - `GET /companies/{code}/catalogue` returns the latest.
