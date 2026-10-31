@@ -2804,3 +2804,61 @@ Owner, 2026-10-23 (request #13), brought forward on 2026-10-31: «بگیم بد�
 - **Results:** a transcript is stored on the file (`transcript_fa`), and stream `file.transcribed` announces it.
 - **Privacy:** audio never leaves the hub.
 - **The phone first:** the apps still prefer the phone's recogniser for live dictation. The hub's transcript also replaces a voice message's text when the owner asks.
+
+## 28. Owner's clean-up, deep company catalogue, the watch, and council robustness ⟨1.10⟩ (2026-10-31, prompt 19)
+Owner, 2026-10-31: outputs must not pile up (select several → archive or delete for good); a search field showed a stray "O-…"; an
+intelligence beyond the CEOs must watch the app and the holding (bugs, security holes, growth, advice); the council's answer to "go
+through the TradeYar server and extract everything" was shallow, and three of four players failed.
+
+### 28.1 Outputs: several at once, archive or delete
+- **Bulk archive:** `POST /deliverables/file {refs: [..]}` files each one as §5.2 `/{ref}/file` does → `{records: [{ref, record}]}`, idempotent per ref.
+- **Delete for good:** `DELETE /deliverables {refs: [..]}`, 🔏 `deliverables.delete` on the SHA-256 of the sorted refs.
+  - **What is deleted:** the rows, their files and their ratings, removed from the database and storage.
+  - **What stays:** only an Audit row with `{ref, title, company, deleted_by, at}`. The Audit chain cannot lose rows.
+  - **A filed output:** archive records it was filed into stay. The archive is the owner's record.
+  - **Response:** `{deleted: n}`.
+- §5.2's "never deleted" now means: never deleted by anyone but the owner.
+
+### 28.2 Company catalogue (a deep extraction, not a summary)
+- **What it is:** `Catalogue { company, at, state: "running"|"done"|"failed", record: "AR-…"|null, sections: [...] }`.
+- **How it is built:** by a `claude` job on every paired server of the company (§26). The brief is fixed and exhaustive; the job reads, it does not change anything:
+  - **Products and services:** every container, compose project, systemd unit, process, port, domain and site, and what each one does.
+  - **Automations and schedules:** every n8n workflow (name, trigger, nodes, schedule, last run, errors), cron entry and timer.
+  - **Data:** databases, schemas, tables with row counts (no row contents), queues and buckets.
+  - **Interfaces:** APIs and their routes, bots and their commands, webhooks, and integrations with third parties (names only, never secrets).
+  - **Code:** repositories, branches and last commits; outputs and reports produced; logs with recurring errors.
+  - **Risks:** expiring certificates, failing services, public ports, outdated packages with CVEs.
+- **Output:** a structured catalogue (sections with tables), filed in the archive as a `report` record, plus a deliverable to the owner.
+- **Routes:**
+  - `POST /companies/{code}/catalogue` (owner) starts a run.
+  - `GET /companies/{code}/catalogue` returns the latest.
+  - A weekly protocol refreshes it and sends the diff to the CEO and the owner.
+- **The CEO's duty:** when an order asks to "go through / extract everything", the CEO starts the catalogue instead of writing a summary of its own.
+
+### 28.3 The watch (دیده‌بان): continuous checks over the app, the hub and every company
+- **Who runs it:** the overseer (§18) runs these as protocols, each producing findings and, where useful, a proposed fix as a work item or a Code Workshop session for the owner's seal.
+  - **Daily security sweep (every paired server and the hub):**
+    - public ports against the expected list
+    - CVEs in installed packages and lock files
+    - TLS expiry
+    - failed logins summary
+    - secrets committed to repositories
+    - backup freshness
+  - **Daily app health:** the apps report their own errors (`POST /client/errors`, below), and the overseer groups them, finds the cause in code (`github.read`), and proposes the fix.
+  - **Weekly code review per repository:** a read-only `claude` job looks for bugs, dead code, missing tests and risky patterns, and returns a ranked list.
+- **Who else contributes:**
+  - **Weekly growth memo from the advisor:** per company, the three highest-value moves from the catalogue, revenue, funnel and support data, each with expected impact.
+  - **Monthly «پیشنهاد هلدینگ» from the digital CEO:** cross-company opportunities.
+- **App error reports:** `POST /client/errors {app: "android"|"web", version, entries: [ErrorEntry]}`.
+  - The entries are the app's own error log (already masked on the device), sent in batches.
+  - `GET /client/errors?app&version&from` is for the owner and the overseer.
+
+### 28.4 Council robustness
+- **An unsupported model:** a substitute seat whose model is refused by the provider (e.g. Codex with a ChatGPT login refusing a model id) retries once with the seat's default model.
+  - The seat's model list is re-checked against what the CLI reports.
+  - The member's `reason` is written in Persian («مدل gpt-5.3 با اشتراک ChatGPT پشتیبانی نمیشود؛ با مدل پیش‌فرض دوباره امتحان شد»).
+- **Web recipe failure** (`recipe_failed`): one retry after reloading the signed-in profile.
+  - Then the member is `failed`, with a Persian reason and a screenshot attached to the failure for the overseer.
+  - The substitute's state becomes `error`, so the next council skips it with that reason up front.
+- **Synthesis:** never waits for members that ended. With one answer it says so plainly and does not pretend there was a council.
+- **The app:** shows each failure in plain Persian, never raw JSON.
