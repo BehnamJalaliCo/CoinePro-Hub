@@ -13,9 +13,14 @@
 // - Companies (DemoCompanies.kt): `DELETE /companies/{code}` (409 for a company with a history), `PATCH` to archive; ⟨1.7.5⟩ a `blank`
 //   founding registers a draft company.
 // - The demo's live stream (DemoLive): runs starting and finishing, outputs and cards; with the tab hidden, a card and an urgent alert.
+// - ⟨1.10⟩ §28: several outputs filed at once (`POST /deliverables/file {refs}`) or deleted for good (`DELETE /deliverables {refs}`, with
+//   the step-up; one Audit row each), the TradeYar catalogue's output, and an order given to the council where only Claude answered
+//   (`GET /work/{id}/council`: GPT refused its model in English, Gemini's recipe failed as raw JSON, DeepSeek was off). ./mock-v28 has
+//   the catalogue, the watch and the client error reports.
 
 // Through the alias, so a production build (where the alias points elsewhere) could never pull the fixtures in.
 import { handle as base } from '@/lib/api/mock';
+import { handle28 } from './mock-v28';
 
 const json = (body: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const problem = (status: number, code: string, message_fa: string) => json({ code, message_fa, status, title: code, type: 'about:blank' }, status);
@@ -135,17 +140,24 @@ const extraOutputs: any[] = [
     'دقت هفته 68٪، در محدوده‌ی هدف؛ دو سیگنال طلا بی‌دلیل منقضی شدند.', 'دقت هفته **68%**؛ جزئیات در پیوست پایش.', ago(3 * 60 * 24 + 90)),
 ];
 // The demo's state: the earlier days read (one filed in the archive), and the polished morning report read this morning.
+// ⟨1.10⟩ The deep catalogue of TradeYar's server (§28.2), also delivered to the owner.
+extraOutputs.push(deliverable('O-000040', 'TY', 'W-000202', emp('TY-CEO', 'TY', 'ceo', null, 'مدیرعامل'), 'کاتالوگ کامل سرور تریدیار',
+  '۹ کانتینر، ۱۴ گردش‌کار n8n، ۴۲ جدول، ۸۷ مسیر API و ۴ ریسک؛ دو ریسک جدی: گواهی رو به انقضا و پورت بی‌رمز روی شبکه‌ی خصوصی.',
+  '## محصولات و سرویس‌ها\n۹ کانتینر در ۳ پروژه‌ی compose.\n\n## ریسک‌ها\n- گواهی `api.tradeyar.com` تا ۹ روز دیگر\n- `node_exporter` بی‌رمز\n\nجدول‌های کامل در کاتالوگ شرکت و سند بایگانی AR-000094.', ago(60 * 26)));
+filed['O-000040'] = 'AR-000094';
 seen['O-000030'] = ago(240);
 seen['O-000028'] = ago(60 * 24 + 100);
 seen['O-000026'] = ago(3 * 60 * 24 + 30);
 filed['O-000026'] = 'AR-000092';
 /** Outputs of the orders below: their own pages only, so the list stays as the fixtures have it. */
 const orderOutputs = new Map<string, any>();
+/** ⟨1.10⟩ Deleted for good by the owner: gone from every list and page. */
+const deleted = new Set<string>();
 const outView = (d: any) => ({ ...d, category: d.producer?.code?.endsWith('-SYS') ? 'report' : 'work', seen_at: seen[d.ref] ?? null, filed_as: filed[d.ref] ?? null });
 const dayOf = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso));
 async function allOutputs(req: Request) {
   const b = await baseJson<{ items: any[] }>(req, '/deliverables');
-  return [...b.items, ...extraOutputs, ...[...orderOutputs.values()].filter((d) => d.listed)].map(outView).sort((a, b2) => b2.created_at.localeCompare(a.created_at));
+  return [...b.items, ...extraOutputs, ...[...orderOutputs.values()].filter((d) => d.listed)].filter((d) => !deleted.has(d.ref)).map(outView).sort((a, b2) => b2.created_at.localeCompare(a.created_at));
 }
 
 // ==================================================================================================== orders ==
@@ -156,7 +168,11 @@ type RunRec = { id: string; employee: string; state: string; started: string; fi
 type Node = {
   id: string; ref: string; company: string; title: string; brief: string; priority: string; status: string; assignee: Emp; owner: boolean; parent: Node | null;
   created: string; updated: string; progress: number | null; note: string | null; deliverable: string | null; events: WEv[]; runs: RunRec[];
+  /** ⟨1.9⟩ §27.1: `council` runs the brief on every available player. */
+  mode?: 'single' | 'council';
 };
+/** ⟨1.9⟩ §27.2 the councils of the demo's orders, by work ref. */
+const councils = new Map<string, any>();
 const beats: Array<[number, () => Ev[]]> = [];
 let tickNo = 0;
 function beat(t: number, f: () => Ev[]) { beats.push([t, f]); }
@@ -259,6 +275,24 @@ function outputOf(n: Node, ref: string, title: string, summary: string, when: st
   k7.events.push({ at: ago(40), kind: 'cancelled', actor: 'PC-CEO', actor_kind: 'agent', data: { reason: 'شرکت متوقف شد.' } });
   failed(o7, 38, 'پرو-چارت متوقف است و سیاست ارسال ایمیل هنوز مُهر نشده؛ کمپین بدون آن اجرا نمیشود.');
 
+  // ⟨1.10⟩ Given to the council (§27.2): only Claude answered; the other three failed or were left out (§28.4).
+  const o8 = order('W-000209', 8, tyCeo, 'سرور تریدیار را بگرد و همه‌چیز را استخراج کن', 'P2', 'delivered', 600, 'همه‌ی محصولات، خودکارسازی‌ها، داده، رابط‌ها، کد و ریسک‌های سرور تریدیار؛ کامل، نه خلاصه.');
+  o8.mode = 'council';
+  accepted(o8, 598); run(o8, 598, 560, 'done', ['شرح را به چهار بازیکن داد', 'council.start'], ['پاسخ Claude را خواند', 'work.read'], ['جمع‌بندی را نوشت', 'work.deliver']);
+  const solo = outputOf(o8, 'O-000049', 'پاسخ Claude: سرور تریدیار', '۹ کانتینر، ۱۴ گردش‌کار n8n و ۴۲ جدول؛ برای فهرست کامل کاتالوگ شرکت ساخته شد.', ago(570));
+  const synth = outputOf(o8, 'O-000050', 'جمع‌بندی: سرور تریدیار', 'فقط Claude پاسخ داد؛ این یک پاسخ است، نه نظر شورا.', ago(560));
+  orderOutputs.get(synth).body = '## فقط Claude پاسخ داد\nسه بازیکن دیگر پاسخی ندادند، پس جای «هم‌نظری» و «اختلاف» خالی است و این متن نظر شورا نیست.\n\n## پیشنهاد\nبرای فهرست کامل، **کاتالوگ کامل** تریدیار ساخته شد (AR-000094): ۹ کانتینر، ۱۴ گردش‌کار، ۴۲ جدول، ۸۷ مسیر API و ۴ ریسک.\n\n## پاسخ Claude، کامل\nسرور `ty-app-01` سه پروژه‌ی compose دارد: صرافی، خودکارسازی و ربات‌ها. جزئیات در کاتالوگ.';
+  delivered(o8, 560, synth);
+  councils.set(o8.ref, {
+    work_ref: o8.ref, state: 'done', synthesis_ref: synth, media: null,
+    members: [
+      { player: 'claude', model: 'claude-opus-5-5', state: 'done', run_id: idOf(880), deliverable_ref: solo, reason: null },
+      { player: 'gpt', model: 'gpt-5.3', state: 'failed', run_id: idOf(881), deliverable_ref: null, reason: "The 'gpt-5.3' model is not supported when using Codex with a ChatGPT account." },
+      { player: 'gemini', model: 'gemini-3-pro', state: 'failed', run_id: idOf(882), deliverable_ref: null, reason: '{"code":"recipe_failed","step":"submit","detail":"selector textarea[aria-label=Prompt] not found after 30000ms"}' },
+      { player: 'deepseek', model: 'deepseek-v4', state: 'skipped', run_id: null, deliverable_ref: null, reason: 'بازیکن ذخیره‌ی DeepSeek خاموش است؛ شورا بدون او برگزار شد.' },
+    ],
+  });
+
   // Opened by agents, not the owner (the live stream talks about them too).
   agentWork('W-000108', pcTech, 'PC-CEO', 'رفع خطای نمایش قیمت در ترمینال', 'P1', 'in_progress', 300);
   agentWork('W-000130', hqAi, 'HQ-AIOPS-MGR', 'بازبینی مصرف توکن هفته', 'P3', 'in_progress', 90);
@@ -333,6 +367,7 @@ function workJson(n: Node) {
     budget: { tokens: 400000, tokens_used: used, usd: null, usd_used: (0.21 * (n.runs.length + 1)).toFixed(2) }, escrow: null, schedule: null,
     depth: depthOf(n), parent_id: n.parent?.id ?? null, root_id: rootOf(n).id, requested_by_work_id: null,
     deliverable_ids: n.deliverable ? [`o-${n.deliverable.toLowerCase()}`] : [], deliverable_refs: n.deliverable ? [n.deliverable] : [], evidence: [], version: 1 + n.events.length,
+    player: 'auto', mode: n.mode ?? 'single',
   };
 }
 const kidsOf = (n: Node) => nodes.filter((x) => x.parent === n).sort((a, b) => a.created.localeCompare(b.created));
@@ -470,6 +505,9 @@ export async function handle(req: Request): Promise<Response> {
   }
   const body = async <T,>() => (await req.clone().json().catch(() => ({}))) as T;
   const stepUp = req.headers.get('X-Step-Up');
+  // ⟨1.10⟩ §28: the catalogue, the watch and the client error reports.
+  const v28 = await handle28(req, p, q, base);
+  if (v28) return v28;
 
   // ------------------------------------------------------------------------------------------- control --
   if (p === '/control/state' && m === 'GET') return json(control);
@@ -596,10 +634,37 @@ export async function handle(req: Request): Promise<Response> {
     for (const r of b.refs ?? []) if (b.seen !== false && !seen[r]) { seen[r] = nowIso(); n++; } else if (b.seen === false && seen[r]) { delete seen[r]; n++; }
     return json({ updated: n });
   }
+  // ⟨1.10⟩ §28.1: several at once.
+  if (p === '/deliverables/file' && m === 'POST') {
+    const b = await body<{ refs?: string[] }>();
+    if (!b.refs?.length) return problem(422, 'validation_failed', 'دست‌کم یک خروجی لازم است.');
+    const list = await allOutputs(req);
+    const missing = b.refs.filter((r) => !list.some((d) => d.ref === r) && !orderOutputs.has(r));
+    if (missing.length) return problem(404, 'not_found', `پیدا نشد: ${missing.join('، ')}`);
+    for (const r of b.refs) filed[r] ??= `AR-${String(nextRecord++).padStart(6, '0')}`;
+    return json({ records: b.refs.map((r) => ({ ref: r, record: filed[r] })) });
+  }
+  if (p === '/deliverables' && m === 'DELETE') {
+    const b = await body<{ refs?: string[] }>();
+    if (!b.refs?.length) return problem(422, 'validation_failed', 'دست‌کم یک خروجی لازم است.');
+    if (!stepUp) return problem(403, 'step_up_required', 'حذف برای همیشه تأیید با اثر انگشت یا چهره میخواهد.');
+    const list = await allOutputs(req);
+    let n = 0;
+    for (const r of b.refs) {
+      const d = list.find((x) => x.ref === r) ?? (orderOutputs.has(r) && !deleted.has(r) ? outView(orderOutputs.get(r)) : null);
+      if (!d) continue;
+      deleted.add(r); delete seen[r]; n++;
+      // The Audit chain keeps one line: what it was, whose, who deleted it and when. A filed one's archive record stays.
+      row(d.company, 'deliverable.delete', 'deliverable', r, OWNER, nowIso(), `deleted: ${r} · ${d.title}`, true);
+      queue.push(ev(d.company, 'deliverable.deleted', r, { by: 'owner' }));
+    }
+    return json({ deleted: n });
+  }
   const fl = /^\/deliverables\/(O-\d+)\/file$/.exec(p);
   if (fl && m === 'POST') { filed[fl[1]!] ??= `AR-${String(nextRecord++).padStart(6, '0')}`; return json({ record: filed[fl[1]!] }); }
   const od = /^\/deliverables\/(O-\d+)$/.exec(p);
   if (od && m === 'GET') {
+    if (deleted.has(od[1]!)) return problem(404, 'not_found', 'این خروجی برای همیشه پاک شده است.');
     const mine = orderOutputs.get(od[1]!) ?? extraOutputs.find((d) => d.ref === od[1]);
     if (mine) return json(outView(mine));
     const res = await base(req);
@@ -640,6 +705,12 @@ export async function handle(req: Request): Promise<Response> {
     beat(tickNo + 12, () => { const x = findNode(k); return x ? deliverUp(x, n) : []; });
     queue.push(ev(b.company, 'work.created', ref, { assignee: ceo.code, root_ref: ref }));
     return json(workJson(n), 201);
+  }
+  const wc = /^\/work\/([^/]+)\/council$/.exec(p);
+  if (wc && m === 'GET') {
+    const n = findNode(wc[1]!);
+    const c = n && councils.get(n.ref);
+    return c ? json(c) : problem(404, 'not_found', 'این کار به شورا داده نشده است.');
   }
   const wm = /^\/work\/([^/]+?)(\/events|\/runs|\/tree-events)?$/.exec(p);
   if (wm && m === 'GET') {

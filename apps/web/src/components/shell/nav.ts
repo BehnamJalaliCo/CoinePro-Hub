@@ -10,6 +10,8 @@ export const NAV_MAIN: NavItem[] = [
   { href: '/outputs', label: 'خروجی‌ها', icon: 'deliverable', badge: 'deliverables' },
   { href: '/advisor', label: 'مشاور کل', icon: 'advisor' },
   { href: '/oversight', label: 'ناظر کل', icon: 'overseer' },
+  // ⟨1.10⟩ §28.3: security, app health, code, growth and the holding's proposals, each with a proposed fix.
+  { href: '/watch', label: 'دیده‌بان', icon: 'scope' },
   { href: '/assistant', label: 'دستیار', icon: 'assistant' },
   { href: '/companies', label: 'شرکت‌ها', icon: 'companies' },
   { href: '/messages', label: 'پیام‌ها', icon: 'messages', badge: 'messages' },

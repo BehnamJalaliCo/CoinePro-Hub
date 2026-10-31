@@ -7,6 +7,7 @@ import { NotificationMatrix } from '@/components/v15/notification-matrix';
 import { ManagementSettingsCard } from '@/components/v18/settings';
 import { BrowserNotificationsCard } from '@/components/v21/push';
 import { ErrorLogCard } from '@/components/v21/shell';
+import { ErrorReportsCard } from '@/components/v28/error-reports';
 import { Button } from '@/components/ui/button';
 import { Card, PageHeader, Pill, SectionTitle, Segmented, Skeleton, Switch } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
@@ -105,6 +106,8 @@ export default function SettingsPage() {
           <NotificationMatrix />
           {/* 0.3.0: «خطاخوان», the panel's own log of failures for this version. */}
           <ErrorLogCard />
+          {/* ⟨1.10⟩ §28.3: its errors go to the hub for the overseer's app-health check, unless turned off here. */}
+          <ErrorReportsCard />
           <p className="px-1 text-[11px] text-muted">نسخه‌ی پنل <span className="fig">{process.env.NEXT_PUBLIC_APP_VERSION}</span></p>
         </div>
       </div>

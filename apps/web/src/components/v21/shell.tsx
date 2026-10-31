@@ -13,6 +13,7 @@ import { useInbox } from '@/lib/api/hooks';
 import { call } from '@/lib/api/v13';
 import type { Inbox21 } from '@/lib/api/v21';
 import { errorLog, type ErrorEntry } from '@/lib/errorlog';
+import { startUploads } from '@/lib/error-upload';
 import { hubHealth, backoff } from '@/lib/hub-health';
 import type { StreamEvent, StreamState } from '@/lib/stream';
 import { ago, cx } from '@/lib/format';
@@ -40,7 +41,8 @@ export function ShellExtras({ feed, stream }: { feed: StreamEvent[]; stream: Str
   const pathname = usePathname();
   const qc = useQueryClient();
   const prev = useRef<StreamState | null>(null);
-  useEffect(() => { errorLog.start(); }, []);
+  // ⟨1.10⟩ then its errors go to the hub in batches (§28.3), unless the owner turned that off.
+  useEffect(() => { errorLog.start(); startUploads(); }, []);
   useEffect(() => { errorLog.setScreen(pathname); }, [pathname]);
   useEffect(() => {
     const was = prev.current;
@@ -82,7 +84,7 @@ type Group = { key: string; title: string; note: string; tools: Tool[] };
 export const GROUPS: Group[] = [
   { key: 'work', title: 'فرمان و کار', note: 'آنچه دادی و آنچه تحویل گرفتی', tools: [
     { href: '/orders', label: 'فرمان‌های من', icon: 'command', hint: 'هر فرمانی که دادی، از ثبت تا تحویل' },
-    { href: '/outputs', label: 'خروجی‌ها', icon: 'deliverable', hint: 'گزارش‌ها و کارهای تحویل‌شده؛ بخوان و امتیاز بده', badge: 'outputs' },
+    { href: '/outputs', label: 'خروجی‌ها', icon: 'deliverable', hint: 'گزارش‌ها و کارهای تحویل‌شده؛ بخوان، امتیاز بده، بایگانی یا پاک کن', badge: 'outputs' },
     { href: '/planner', label: 'پلنر', icon: 'planner', hint: 'کارهای امروز و این هفته در یک تقویم' },
     { href: '/runs', label: 'اجرای ایجنت‌ها', icon: 'agent', hint: 'هر ایجنت الان چه میکند، قدم‌به‌قدم' },
     { href: '/notifications', label: 'اعلان‌ها', icon: 'bell', hint: 'هشدارها، گزارش‌ها و پرسش‌های یک‌ضربه‌ای' },
@@ -92,6 +94,7 @@ export const GROUPS: Group[] = [
   { key: 'org', title: 'سازمان', note: 'کسانی که کنار تو کار میکنند و آنچه یاد میگیرند', tools: [
     { href: '/advisor', label: 'مشاور کل', icon: 'advisor', hint: 'با او فکر کن و نظر دوم بگیر' },
     { href: '/oversight', label: 'ناظر کل', icon: 'overseer', hint: 'چه کسی کجا خطا کرد و چه نگه داشته شد' },
+    { href: '/watch', label: 'دیده‌بان', icon: 'scope', hint: 'امنیت، سلامت اپ، کد، رشد و پیشنهاد هلدینگ، با اصلاح پیشنهادی' },
     { href: '/assistant', label: 'دستیار', icon: 'assistant', hint: 'کارهای بیرونی تو را در اینترنت پیگیری میکند' },
     { href: '/stars', label: 'ستاره‌ها', icon: 'star', hint: 'بهترین شرکت و کارمندهای هفته و ماه' },
     { href: '/founding', label: 'تأسیس شرکت', icon: 'found', hint: 'شرکت تازه قدم‌به‌قدم: از ایده، ریپو یا فقط با نام' },

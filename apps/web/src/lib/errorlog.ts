@@ -1,5 +1,6 @@
-// «خطاخوان» on the web (0.3.0, 0.4.0; the Android app's core/diag/ErrorLog.kt): every failure of this version of the panel, in this browser
-// only (localStorage, never sent anywhere). A new version starts an empty log and keeps the previous ones apart (the last three). Every
+// «خطاخوان» on the web (0.3.0, 0.4.0; the Android app's core/diag/ErrorLog.kt): every failure of this version of the panel, kept in this
+// browser (localStorage); ⟨1.10⟩ its errors and warnings, masked as below, also go to the hub in batches for the overseer's app-health
+// check unless the owner turns that off in Settings (../lib/error-upload.ts). A new version starts an empty log and keeps the previous ones apart (the last three). Every
 // failed API call is recorded with its exact time (Tehran and UTC, to the millisecond), the request id the panel sent (`X-Request-Id`; the
 // hub echoes it and writes it in its own log), the page and the steps before it; a burst of 502s while the hub restarts becomes one entry;
 // uncaught errors and rejected promises are kept with their stack. Never a body, a token, a cookie, passkey data or customer data: paths

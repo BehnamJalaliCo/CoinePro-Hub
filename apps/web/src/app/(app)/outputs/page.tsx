@@ -13,6 +13,7 @@ import { Card, Empty, ErrorState, FilterChip, PageHeader, Pill, Rating, Segmente
 import { useToast } from '@/components/ui/toast';
 import { RefChip, ScopeChips } from '@/components/v17/bits';
 import { RANGES, UndoBar, dayFa, inputCls, ownerDay, span, type Undo } from '@/components/v21/bits';
+import { DeleteDialog, DeleteOne, RowCheck, SelectAll, SelectionBar, useCleanup, useSelection } from '@/components/v28/outputs';
 import { ApiError } from '@/lib/api/client';
 import { useCompanies, useInbox, useRate } from '@/lib/api/hooks';
 import { activeFilters, categoryOf, useLocalSeen, useOutput, useOutputActions, useOutputs, type Category, type Inbox21, type Output, type OutputQuery } from '@/lib/api/v21';
@@ -20,8 +21,10 @@ import { useScope } from '@/lib/scope';
 import { cx, jDateTime, jTime, modelLabel, tokens, usd } from '@/lib/format';
 
 // Outputs (0.3.0, contract §5.2 ⟨1.7.3⟩): what the agents and the hub's own reporting delivered. The owner reads one and marks it seen (the
-// button on the row or on its page, or all at once): it leaves «تازه» for «خوانده‌شده» and is never deleted, so agents and the digital chief
-// keep learning from it, search and the archive still find it, and it can be filed in the archive to be cited later. Rating stays separate.
+// button on the row or on its page, or all at once): it leaves «تازه» for «خوانده‌شده» and stays, so agents and the digital chief keep
+// learning from it, search and the archive still find it, and it can be filed in the archive to be cited later. Rating stays separate.
+// ⟨1.10⟩ §28.1: outputs must not pile up — the owner chooses several (a box on each row, shift for a range, «همه») and files them, marks
+// them seen, or deletes them for good (the passkey on exactly that set; one Audit line each stays). Only the owner ever deletes one.
 
 const CATEGORY_FA: Record<Category, string> = { report: 'گزارش', work: 'کار' };
 type Tab = 'new' | 'seen' | 'all';
@@ -64,7 +67,7 @@ function RatePanel({ d }: { d: Output }) {
 }
 
 /** One deliverable: summary, body, evidence, what produced it, seen and filing, and the owner's rating. */
-function Detail({ refId, onSeen }: { refId: string; onSeen: (refs: string[], seen: boolean, text: string) => Promise<boolean> }) {
+function Detail({ refId, onSeen, onGone }: { refId: string; onSeen: (refs: string[], seen: boolean, text: string) => Promise<boolean>; onGone: () => void }) {
   const q = useOutput(refId);
   const act = useOutputActions();
   const toast = useToast();
@@ -112,6 +115,8 @@ function Detail({ refId, onSeen }: { refId: string; onSeen: (refs: string[], see
           </>
         )}
         {d.filed_as ? <RefChip r={d.filed_as} note="در بایگانی" /> : <Button variant="secondary" size="sm" icon="deliverable" loading={act.file.isPending} onClick={file}>بایگانی کن</Button>}
+        <span className="flex-1" />
+        <DeleteOne refId={d.ref} filed={!!d.filed_as} onGone={onGone} />
       </div>
       <div className="flex items-center gap-3 rounded-[14px] bg-tile/60 p-3">
         <Link href={`/employees/${d.producer.code}`} className="flex min-w-0 flex-1 items-center gap-3 rounded-[10px] hover:text-gold-ink">
@@ -152,10 +157,13 @@ function Detail({ refId, onSeen }: { refId: string; onSeen: (refs: string[], see
 }
 
 /** One output in the list: a new one carries a gold dot and full ink; a seen one is quieter. Its button marks it either way. */
-function Row({ d, seen, selected, companyFa, onOpen, onMark }: { d: Output; seen: boolean; selected: boolean; companyFa: string; onOpen: () => void; onMark: () => void }) {
+function Row({ d, seen, selected, checked, companyFa, onOpen, onMark, onCheck }: {
+  d: Output; seen: boolean; selected: boolean; checked: boolean; companyFa: string; onOpen: () => void; onMark: () => void; onCheck: (range: boolean) => void;
+}) {
   const cat = categoryOf(d);
   return (
-    <div className={cx('group relative flex gap-2 rounded-[14px] p-3 transition-colors', selected ? 'tahrir bg-gold-soft' : 'hover:bg-hover')}>
+    <div className={cx('group relative flex gap-2 rounded-[14px] p-3 transition-colors', selected ? 'tahrir bg-gold-soft' : checked ? 'bg-gold-soft/60' : 'hover:bg-hover')}>
+      <RowCheck on={checked} label={`انتخاب ${d.ref}: ${d.title}`} onToggle={onCheck} />
       <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 flex-col gap-1.5 text-start" aria-current={selected || undefined}>
         <span className="flex items-center gap-2">
           {!seen ? <span className="size-2 flex-none rounded-full bg-gold" aria-label="تازه" /> : null}
@@ -254,6 +262,15 @@ function OutputsInner() {
   const matches = (d: Output) => (query.seen == null || query.seen === !!seenAt(d)) && (!query.category || categoryOf(d) === query.category);
   const list = loaded.filter(matches);
   const sel = params.get('ref') ?? null;
+  const order = useMemo(() => list.map((d) => d.ref), [list]);
+  const pick = useSelection(order);
+  const [confirm, setConfirm] = useState(false);
+  const [seenBusy, setSeenBusy] = useState(false);
+  const clean = useCleanup((refs) => { pick.clear(); setConfirm(false); if (sel && refs.includes(sel)) router.replace(`/outputs${tab !== 'new' ? `?tab=${tab}` : ''}`, { scroll: false }); });
+  const filedCount = (refs: string[]) => refs.filter((r) => loaded.find((d) => d.ref === r)?.filed_as).length;
+  const { clear: clearPick } = pick;
+  // Another tab, filter or search is another list: nothing stays chosen from the last one.
+  useEffect(() => { clearPick(); }, [tab, f, range, applied, clearPick]);
 
   const mark = useCallback(async (refs: string[], seen: boolean, text: string): Promise<boolean> => {
     if (!refs.length) return false;
@@ -300,7 +317,7 @@ function OutputsInner() {
         <Card className="flex flex-col gap-3 p-3 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto [&>*]:shrink-0">
           <div className="relative">
             <span className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-muted"><Icon name="search" size={16} /></span>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} maxLength={100} placeholder="جستجو در عنوان، خلاصه یا O-…" aria-label="جستجو در خروجی‌ها" className={cx(inputCls, 'ps-9')} />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} maxLength={100} placeholder="جستجو در عنوان و خلاصه" aria-label="جستجو در خروجی‌ها" className={cx(inputCls, 'ps-9')} />
           </div>
           <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1">
             <FilterChip selected={nActive > 0} onClick={() => setFilters(true)} count={nActive || undefined}><Icon name="filter" size={14} />فیلترها</FilterChip>
@@ -314,17 +331,16 @@ function OutputsInner() {
           {q.isLoading ? Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-28 rounded-[14px]" />)
             : q.error ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
             : !list.length ? (
-              tab === 'new' && !nActive && !applied ? <Empty icon="seal" title="چیز تازه‌ای نمانده" body="هر خروجی تازه این‌جا میاید؛ خوانده‌شده‌ها در «خوانده‌شده» میمانند و هیچ‌وقت پاک نمیشوند." />
+              tab === 'new' && !nActive && !applied ? <Empty icon="seal" title="چیز تازه‌ای نمانده" body="هر خروجی تازه این‌جا میاید؛ خوانده‌شده‌ها در «خوانده‌شده» میمانند تا خودت بایگانی یا پاکشان کنی." />
                 : tab === 'seen' && !nActive && !applied ? <Empty icon="deliverable" title="هنوز چیزی خوانده‌شده نیست" body="روی یک خروجی «خوانده شد» را بزن تا این‌جا بیاید." />
                 : <Empty icon="filter" title="خروجی‌ای با این فیلترها نیست" />
             ) : (
               <>
-                {tab === 'new' ? (
-                  <div className="flex items-center gap-2 px-1">
-                    <span className="flex-1 text-[12px] text-muted">با دکمه‌ی کنار هر ردیف خوانده‌شده میشود</span>
-                    <Button variant="text" size="sm" icon="seal" onClick={() => void mark(list.map((d) => d.ref), true, `${list.length} خروجی خوانده شد`)}>همه را خوانده‌شده کن</Button>
-                  </div>
-                ) : null}
+                <div className="flex flex-wrap items-center gap-2 px-1">
+                  <SelectAll all={pick.all} some={pick.some} count={list.length} onToggle={pick.toggleAll} />
+                  <span className="flex-1" />
+                  {tab === 'new' ? <Button variant="text" size="sm" icon="seal" onClick={() => void mark(list.map((d) => d.ref), true, `${list.length} خروجی خوانده شد`)}>همه را خوانده‌شده کن</Button> : null}
+                </div>
                 {days.map(([day, rows]) => (
                   <section key={day} className="flex flex-col gap-1" aria-label={dayFa(day)}>
                     <div className="flex items-center gap-2 px-1 pt-1">
@@ -334,20 +350,26 @@ function OutputsInner() {
                     </div>
                     {rows.map((d) => {
                       const seen = !!seenAt(d);
-                      return <Row key={d.ref} d={d} seen={seen} selected={sel === d.ref} companyFa={companyFa(d.company)} onOpen={() => open(d.ref)}
-                        onMark={() => void mark([d.ref], !seen, seen ? `${d.ref} دوباره تازه شد` : `${d.ref} خوانده شد`)} />;
+                      return <Row key={d.ref} d={d} seen={seen} selected={sel === d.ref} checked={pick.has(d.ref)} companyFa={companyFa(d.company)} onOpen={() => open(d.ref)}
+                        onMark={() => void mark([d.ref], !seen, seen ? `${d.ref} دوباره تازه شد` : `${d.ref} خوانده شد`)} onCheck={(range) => pick.toggle(d.ref, range)} />;
                     })}
                   </section>
                 ))}
                 {q.hasNextPage ? <Button variant="secondary" icon="next" loading={q.isFetchingNextPage} onClick={() => q.fetchNextPage()}>بیشتر</Button> : null}
+                <SelectionBar count={pick.chosen.length} filed={filedCount(pick.chosen)} busy={{ file: clean.filing, seen: seenBusy }} onClear={pick.clear}
+                  onFile={async () => { if (await clean.file(pick.chosen.filter((r) => !loaded.find((d) => d.ref === r)?.filed_as))) pick.clear(); }}
+                  onSeen={async () => { setSeenBusy(true); try { if (await mark(pick.chosen, true, `${pick.chosen.length.toLocaleString('fa-IR')} خروجی خوانده شد`)) pick.clear(); } finally { setSeenBusy(false); } }}
+                  onDelete={() => setConfirm(true)} />
               </>
             )}
         </Card>
-        <Card className="p-5 lg:p-7">{sel ? <Detail key={sel} refId={sel} onSeen={mark} /> : <Empty icon="deliverable" title="یک خروجی را انتخاب کن" body="هر خروجی که بخوانی و «خوانده شد» بزنی به «خوانده‌شده» میرود؛ پاک نمیشود و در بایگانی هم میتوانی ثبتش کنی." />}</Card>
+        <Card className="p-5 lg:p-7">{sel ? <Detail key={sel} refId={sel} onSeen={mark} onGone={() => router.replace(`/outputs${tab !== 'new' ? `?tab=${tab}` : ''}`, { scroll: false })} />
+          : <Empty icon="deliverable" title="یک خروجی را انتخاب کن" body="هر خروجی که بخوانی و «خوانده شد» بزنی به «خوانده‌شده» میرود. چند تا را با جعبه‌ی کنارشان انتخاب کن تا یک‌جا بایگانی، خوانده‌شده یا برای همیشه پاکشان کنی." />}</Card>
       </div>
       <Filters open={filters} onOpenChange={setFilters} query={query} set={(x) => setF({ ...f, ...x })} producers={producers} range={range} setRange={setRange}
         onClear={() => { setF({ category: null, unrated: false, company: null, producer: null }); setRange('all'); }} />
       <UndoBar undo={undo} onDone={(id) => setUndo((u) => (u?.id === id ? null : u))} />
+      <DeleteDialog open={confirm} onOpenChange={setConfirm} count={pick.chosen.length} filed={filedCount(pick.chosen)} busy={clean.removing} onConfirm={async () => { if (await clean.remove(pick.chosen)) setConfirm(false); }} />
     </>
   );
 }

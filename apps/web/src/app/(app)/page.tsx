@@ -20,6 +20,7 @@ import { MdInline } from '@/components/ui/md';
 import { useLive } from '@/lib/live';
 import { FeedLine, feedRowOf } from '@/components/v21/feed';
 import { HomeOrdersCard } from '@/components/v21/orders';
+import { HomeWatchCard } from '@/components/v28/watch';
 import { PriorityTag } from '@/components/v21/priority';
 import type { Inbox21 } from '@/lib/api/v21';
 import { isUrgentPriority } from '@/lib/priority';
@@ -223,7 +224,7 @@ export default function CommandCenter() {
         {/* ⟨1.5⟩ §21.2: ask the hub, above the cartable. 0.3.0: the two columns end together. */}
         <div className="flex min-w-0 flex-col gap-4 [&>*:last-child]:flex-1"><AskBox /><Cartable /><Live /></div>
         {/* 0.4.0: the owner's orders, live, first in the second column. */}
-        <div className="flex min-w-0 flex-col gap-4 [&>*:last-child]:flex-1"><HomeOrdersCard onNewOrder={voice} /><Overseer /><Workshop /><Today /><Budgets /></div>
+        <div className="flex min-w-0 flex-col gap-4 [&>*:last-child]:flex-1"><HomeOrdersCard onNewOrder={voice} /><Overseer /><HomeWatchCard /><Workshop /><Today /><Budgets /></div>
       </div>
     </>
   );

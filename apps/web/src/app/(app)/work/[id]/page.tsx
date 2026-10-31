@@ -10,6 +10,7 @@ import { RunList } from '@/components/v15/runs';
 import { WorkActions } from '@/components/v15/work-actions';
 import { OrderTrackerCard, TimelineCard, useTrack } from '@/components/v21/orders';
 import { PriorityTag } from '@/components/v21/priority';
+import { CouncilCard } from '@/components/v28/council';
 import { useWorkRuns } from '@/lib/api/v15';
 import { isOwnerOrder } from '@/lib/api/v21';
 import { ACTOR_FA, WORK_KIND, WORK_STATUS } from '@/lib/labels';
@@ -47,6 +48,8 @@ export default function WorkPage({ params }: { params: Promise<{ id: string }> }
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-4">
           {order && track ? <OrderTrackerCard t={track} /> : null}
+          {/* ⟨1.9⟩ §27.2 an order given to the council: each player, and Claude's synthesis (⟨1.10⟩ §28.4: failures in plain Persian). */}
+          <CouncilCard work={w.ref} mode={(w as { mode?: string | null }).mode} />
           {track ? <TimelineCard t={track} /> : null}
           <Card className="flex flex-col gap-4 p-5">
             <h2 className="text-[14px] font-semibold">مسیر ارجاع</h2>
