@@ -427,6 +427,9 @@ def test_a_recipe_failure_carries_one_screenshot_and_nothing_else_does() -> None
     assert body["screenshot"]["mime"] == "image/jpeg" and body["step"] == "2:fill"
     timeout = _json.loads(SW._job_answer({**got, "error": "timeout"}, "3", 1000).body)
     assert "screenshot" not in timeout
-    fake = {**got, "screenshot": {"mime": "image/jpeg", "b64": base64.b64encode(b"<html>").decode()}}
+    fake = {
+        **got,
+        "screenshot": {"mime": "image/jpeg", "b64": base64.b64encode(b"<html>").decode()},
+    }
     assert "screenshot" not in _json.loads(SW._job_answer(fake, "3", 1000).body)
     assert SW.WebIn(account="gemini-web", task="text", prompt="x", reload=True).reload is True
