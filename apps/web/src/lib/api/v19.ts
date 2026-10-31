@@ -10,6 +10,7 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { bodyTarget, stepUp } from '@/lib/auth';
 import { ApiError, type Schemas } from './client';
+import { handled } from './observe';
 import { call, type Actor } from './v13';
 import { ifMatch, qs } from './v15';
 import type { EvalRun } from './v14';
@@ -19,7 +20,7 @@ type Page<T> = { items: T[]; next_cursor: string | null };
 const items = <T>(x: T[] | Page<T>): T[] => (Array.isArray(x) ? x : x.items);
 const enc = encodeURIComponent;
 async function orNull<T>(p: Promise<T>): Promise<T | null> {
-  try { return await p; } catch (e) { if (e instanceof ApiError && e.status === 404) return null; throw e; }
+  try { return await p; } catch (e) { if (e instanceof ApiError && e.status === 404) { handled(e); return null; } throw e; }
 }
 
 export type ModelCeiling = 'claude-haiku-5-5' | 'claude-sonnet-5-5' | 'claude-opus-5-5';

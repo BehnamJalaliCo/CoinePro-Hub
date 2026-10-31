@@ -298,8 +298,12 @@ export function useRecordFile(ref: string, file: RecordFile | null, needsStepUp:
 }
 
 // ------------------------------------------------------------------ hooks: parties, holds, reminders, retention, fixity --
+/** The archive's parties. The hub filters by `kind` and `q` only, so a scope is applied here (it is not sent). */
 export const useParties = (f: { kind?: string | null; scope?: string | null; q?: string | null } = {}) =>
-  useQuery({ queryKey: ['archive', 'parties', f], queryFn: async () => items(await call<Party[] | Page<Party>>('GET', `/archive/parties${qs({ kind: f.kind, scope: f.scope, q: f.q })}`)), placeholderData: keepPreviousData });
+  useQuery({
+    queryKey: ['archive', 'parties', f], placeholderData: keepPreviousData,
+    queryFn: async () => items(await call<Party[] | Page<Party>>('GET', `/archive/parties${qs({ kind: f.kind, q: f.q })}`)).filter((p) => !f.scope || (p.scopes ?? []).includes(f.scope)),
+  });
 export type PartyIn = Pick<Party, 'kind' | 'name_fa' | 'name_en' | 'identifiers' | 'scopes'>;
 export function usePartyAction() {
   const qc = useQueryClient();
@@ -310,8 +314,15 @@ export function usePartyAction() {
   };
 }
 
+/**
+ * The archive's legal holds. The hub's `GET /archive/holds` filters by `state` only (a `case` parameter would be ignored and every
+ * case's holds come back), so a case's holds are picked here. (Hub note: a `case` filter there would save the transfer.)
+ */
 export const useHolds = (f: { state?: 'active' | 'released' | null; case?: string | null } = {}) =>
-  useQuery({ queryKey: ['archive', 'holds', f], queryFn: async () => items(await call<LegalHold[] | Page<LegalHold>>('GET', `/archive/holds${qs({ state: f.state, case: f.case })}`)) });
+  useQuery({
+    queryKey: ['archive', 'holds', f],
+    queryFn: async () => items(await call<LegalHold[] | Page<LegalHold>>('GET', `/archive/holds${qs({ state: f.state })}`)).filter((h) => !f.case || h.case === f.case),
+  });
 export function useHoldAction() {
   const qc = useQueryClient();
   const done = () => Promise.all(['archive', 'legal', 'decisions'].map((k) => qc.invalidateQueries({ queryKey: [k] })));

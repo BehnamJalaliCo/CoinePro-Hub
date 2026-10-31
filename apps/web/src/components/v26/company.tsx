@@ -31,7 +31,7 @@ export function CompanyServers({ code }: { code: string }) {
       {q.isLoading ? <Skeleton className="h-40 rounded-[16px]" />
         : q.error ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         : !list?.length ? <Empty icon="server" title="این شرکت هنوز سروری به هاب نداده" body={<Iso text="Claude سرور این شرکت runner ستاد را نصب میکند و یک کد کوتاه میدهد؛ با «وصل کردن سرور» همان کد را تأیید کن." />} />
-        : <div className="grid gap-3 md:grid-cols-2">{byState(list).map((s) => <ServerCard key={s.id} s={s} locked={locked} />)}</div>}
+        : <div className="grid grid-cols-1 gap-3 md:grid-cols-2 [&>*]:min-w-0">{byState(list).map((s) => <ServerCard key={s.id} s={s} locked={locked} />)}</div>}
       <p className="text-[11px] leading-5 text-muted"><Iso text="روی هر سرور runner ستاد با کاربر کاری همان سرور کار میکند و خودش با HTTPS به هاب وصل میشود؛ هاب به هیچ سروری وارد نمیشود، پورتی باز نمیشود و کلیدی از سرور دست هاب نیست. اعتبار هر runner هر ۲۴ ساعت عوض میشود و با «جدا کردن» همان لحظه باطل میشود." /></p>
       {list ? <ServerTaskSheet open={task} onOpenChange={setTask} servers={online} initial={null} /> : null}
     </div>

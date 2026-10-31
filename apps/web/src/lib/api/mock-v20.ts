@@ -867,8 +867,9 @@ export async function handle20(req: Request, p: string, u: URL): Promise<Respons
       return json(page(parties.filter((x) => (!k || x.kind === k) && (!s || x.scopes.includes(s)) && (!t || norm(`${x.name_fa} ${x.name_en ?? ''}`).includes(t))).map(partyOut)));
     }
     if (p === '/archive/holds') {
-      const st = q('state'), cs = q('case');
-      return json(page(holds.filter((h) => (!st || h.state === st) && (!cs || h.case === cs)).map((h) => { const rs = records.filter((r) => canSee(r) && covers(h, r)); return { ...h, records: h.state === 'active' ? rs.length : 0, record_refs: h.state === 'active' ? rs.map((r) => r.ref) : [] }; })));
+      // As the hub: `state` only (a case's holds are picked by the panel).
+      const st = q('state');
+      return json(page(holds.filter((h) => !st || h.state === st).map((h) => { const rs = records.filter((r) => canSee(r) && covers(h, r)); return { ...h, records: h.state === 'active' ? rs.length : 0, record_refs: h.state === 'active' ? rs.map((r) => r.ref) : [] }; })));
     }
     if (p === '/archive/reminders') {
       const out = records.filter(canSee).flatMap((r) => remindersOf(r).filter((x) => x.state === 'sent' || (x.state === 'done' && x.left >= -30 && x.left <= 90)).map((x) => {

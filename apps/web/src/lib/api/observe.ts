@@ -17,6 +17,11 @@ export function forgetRequest(requestId: string | null | undefined) {
   else QUIET.add(requestId);
 }
 const logged = new Map<string, number>();
+/** A failure the code expected and handled (a 404 read as «none yet», an older hub's 404/405): taken back from «خطاخوان». */
+export function handled(e: unknown): void {
+  const id = (e as { requestId?: string | null } | null)?.requestId;
+  if (id) forgetRequest(id);
+}
 
 async function problemOf(res: Response): Promise<{ code?: string; title?: string; message?: string }> {
   try {

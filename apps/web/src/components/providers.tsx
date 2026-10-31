@@ -3,11 +3,23 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import * as Tooltip from '@radix-ui/react-tooltip';
+import { setNonce } from 'get-nonce';
 import { ToastProvider } from './ui/toast';
 import { ApiError } from '@/lib/api/client';
 import { backoff, hubHealth, isTransientStatus } from '@/lib/hub-health';
 
-export function Providers({ children }: { children: ReactNode }) {
+/**
+ * The page's CSP nonce for the styles the dialog, sheet, popover and menu libraries inject (react-remove-scroll's scroll lock and its
+ * scrollbar compensation, through get-nonce): production allows inline <style> only with the nonce. Set during render, before any of them
+ * mounts; on the server it is a no-op.
+ */
+function useStyleNonce(nonce: string | undefined) {
+  const [done] = useState(() => { if (nonce && typeof document !== 'undefined') setNonce(nonce); return true; });
+  return done;
+}
+
+export function Providers({ children, nonce }: { children: ReactNode; nonce?: string }) {
+  useStyleNonce(nonce);
   const [qc] = useState(
     () =>
       new QueryClient({

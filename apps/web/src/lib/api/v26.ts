@@ -6,6 +6,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { ApiError, isMock, type Problem } from './client';
+import { handled } from './observe';
 import { call, type CodeSession } from './v13';
 import { bodyTarget, stepUp } from '@/lib/auth';
 import { useControl } from './hooks';
@@ -34,7 +35,7 @@ export async function serverMap(id: string): Promise<ServerMap | null> {
   try {
     return parseServerMap(await call<unknown>('GET', `/infra/servers/${encodeURIComponent(id)}/map`));
   } catch (e) {
-    if (e instanceof ApiError && e.status === 404) return null;
+    if (e instanceof ApiError && e.status === 404) { handled(e); return null; }
     throw e;
   }
 }

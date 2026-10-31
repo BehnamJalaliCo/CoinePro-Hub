@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { clean } from './support';
 
 /** Every page of the panel, as the sidebar and the detail links reach them. */
 const PAGES = [
@@ -23,15 +24,6 @@ const PAGES = [
   '/archive/settings?tab=parties', '/archive/settings?tab=sources', '/cartable?ref=D-000092', '/cartable?ref=D-000093',
 ];
 
-/** Fails the test on any page error, console error or failed API call while [run] is going on. */
-async function clean(page: Page, run: () => Promise<void>) {
-  const errors: string[] = [];
-  page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
-  page.on('response', (r) => { if (r.url().includes('/api/v1/') && r.status() >= 400) errors.push(`HTTP ${r.status()} ${r.url()}`); });
-  await run();
-  expect(errors, errors.join('\n')).toEqual([]);
-}
 
 for (const path of PAGES) {
   test(`renders ${path} @phone`, async ({ page }) => {
@@ -226,7 +218,7 @@ test('takes in files, refuses the one with a secret, makes a draft and files it'
     await page.getByRole('button', { name: 'ثبت کن' }).click();
     await expect(page.getByText(/سند AR-\d+ ثبت شد/)).toBeVisible();
     await expect(page.getByText('مُهر روی manifest نسخه‌ی 1 است', { exact: false })).toBeVisible();
-  });
+  }, [/POST \/archive\/intake → 422 secret_in_document/]);
 });
 
 test('seals a filed record on its manifest with the passkey', async ({ page }) => {
@@ -278,5 +270,5 @@ test('shows a refused schema change next to its input', async ({ page }) => {
     await sheet.getByRole('button', { name: 'بررسی اثر' }).click();
     await expect(sheet.getByText(/رتبه‌ی تکراری/).first()).toBeVisible();
     await expect(sheet.getByRole('button', { name: 'ذخیره با passkey' })).toHaveCount(0);
-  });
+  }, [/→ 422 schema_invalid/]);
 });

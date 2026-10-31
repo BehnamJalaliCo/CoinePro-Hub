@@ -9,6 +9,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSyncExternalStore } from 'react';
 import { bodyTarget, stepUp } from '@/lib/auth';
 import { ApiError } from './client';
+import { handled } from './observe';
 import { refRoute } from '@/lib/refs';
 import type { Finding, Protocol, Severity } from './v14';
 import { call } from './v13';
@@ -17,7 +18,7 @@ import { localSeen } from './v21';
 const enc = encodeURIComponent;
 
 /** A route the hub does not serve yet (an older hub): the panel says so instead of failing. */
-export const notServed = (e: unknown) => e instanceof ApiError && (e.status === 404 || e.status === 405 || e.status === 501);
+export const notServed = (e: unknown) => { const yes = e instanceof ApiError && (e.status === 404 || e.status === 405 || e.status === 501); if (yes) handled(e); return yes; };
 
 // The hub deploys §28 after the panel. A §28 action whose route answers 404/405 is hidden from then on (this tab's session; a reload
 // after the hub's update asks again) and never shown to the owner as an error.
@@ -47,7 +48,7 @@ export function useServed(f: Feature28): boolean {
 }
 /** Runs [p]; a 404/405 marks [f] missing and resolves to null instead of throwing. */
 async function gated<T>(f: Feature28, p: () => Promise<T>): Promise<T | null> {
-  try { return await p(); } catch (e) { if (e instanceof ApiError && (e.status === 404 || e.status === 405)) { markMissing(f); return null; } throw e; }
+  try { return await p(); } catch (e) { if (e instanceof ApiError && (e.status === 404 || e.status === 405)) { handled(e); markMissing(f); return null; } throw e; }
 }
 
 // =========================================================================================== §28.1 outputs, several at once ==
@@ -168,8 +169,8 @@ export function parseCatalogue(x: unknown): Catalogue | null {
 /** The latest catalogue; null before the first (`404`). */
 export async function catalogue(code: string): Promise<Catalogue | null> {
   try { return parseCatalogue(await call<unknown>('GET', `/companies/${enc(code)}/catalogue`)); } catch (e) {
-    if (e instanceof ApiError && e.status === 405) { markMissing('catalogue'); return null; }
-    if (e instanceof ApiError && e.status === 404) return null;
+    if (e instanceof ApiError && e.status === 405) { handled(e); markMissing('catalogue'); return null; }
+    if (e instanceof ApiError && e.status === 404) { handled(e); return null; }
     throw e;
   }
 }

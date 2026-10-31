@@ -39,7 +39,7 @@ export function MapView({ m, refreshing, onRefresh }: { m: ServerMap; refreshing
         <span className="flex-1 text-[12px] text-muted">{m.at ? `نقشه‌ی ${ago(m.at)}` : 'آخرین نقشه'}</span>
         {onRefresh ? <Button variant="text" size="sm" icon="refresh" loading={refreshing} onClick={onRefresh}>نقشه‌ی تازه</Button> : null}
       </div>
-      <div className="grid items-start gap-3 lg:grid-cols-2">
+      <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2 [&>*]:min-w-0">
         <Card className="flex flex-col gap-3 p-4">
           <h3 className="text-[13px] font-semibold text-gold-ink">سیستم</h3>
           <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-[12px]">

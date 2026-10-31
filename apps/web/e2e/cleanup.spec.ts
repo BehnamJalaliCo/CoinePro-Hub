@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { clean } from './support';
 
 // ⟨1.10⟩ Contract §28 end to end over the demo holding (NEXT_PUBLIC_HQ_MOCK=1, lib/api/mock-v21.ts and mock-v28.ts): several outputs chosen
 // at once (shift for a range, «همه») and filed, marked seen or deleted for good behind the passkey and a plain confirmation; the same on
@@ -7,15 +8,6 @@ import { expect, test, type Page } from '@playwright/test';
 
 const PAGES = ['/watch', '/companies/TY?tab=catalogue', '/work/W-000209', '/outputs?tab=all'];
 
-/** Fails the test on any page error, console error or failed API call while [run] is going on. */
-async function clean(page: Page, run: () => Promise<void>) {
-  const errors: string[] = [];
-  page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
-  page.on('response', (r) => { if (r.url().includes('/api/v1/') && r.status() >= 400) errors.push(`HTTP ${r.status()} ${r.url()}`); });
-  await run();
-  expect(errors, errors.join('\n')).toEqual([]);
-}
 
 for (const path of PAGES) {
   test(`renders ${path} @phone`, async ({ page }) => {

@@ -2,7 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
 import type { paths } from '@/generated/api';
-import { api, ok, type Schemas } from './client';
+import { handled } from './observe';
+import { ApiError, api, ok, type Schemas } from './client';
 
 /** The query parameters of a GET path, straight from the OpenAPI types. */
 type Query<P extends keyof paths> = paths[P] extends { get: { parameters: { query?: infer Q } } } ? NonNullable<Q> : never;
@@ -69,7 +70,11 @@ export function useRate() {
 
 // ------------------------------------------------------------- organisation --
 export const useCompanies = () => useQuery({ queryKey: ['companies'], queryFn: () => ok(api.GET('/api/v1/companies')), staleTime: 30_000 });
-export const useCompany = (code: string) => useQuery({ queryKey: ['companies', code], queryFn: () => ok(api.GET('/api/v1/companies/{code}', { params: { path: { code } } })) });
+/** One company. Its 404 (a company just deleted, or a link to one that is gone) is shown on the page and is not a failure of the panel. */
+export const useCompany = (code: string) => useQuery({
+  queryKey: ['companies', code],
+  queryFn: async () => { try { return await ok(api.GET('/api/v1/companies/{code}', { params: { path: { code } } })); } catch (e) { if (e instanceof ApiError && e.status === 404) handled(e); throw e; } },
+});
 /** A company's departments; nothing is asked before a company is chosen (no `/companies//departments`). */
 export const useDepartments = (code: string | null | undefined) => useQuery({ queryKey: ['companies', code ?? '', 'departments'], enabled: !!code, queryFn: () => ok(api.GET('/api/v1/companies/{code}/departments', { params: { path: { code: code! } } })) });
 export const useOrgChart = (company: string) => useQuery({ queryKey: ['employees', 'chart', company], queryFn: () => ok(api.GET('/api/v1/org/{company}/chart', { params: { path: { company } } })) });

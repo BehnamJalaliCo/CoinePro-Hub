@@ -37,15 +37,20 @@ function useReads() {
   const toast = useToast();
   const [marked, setMarked] = useState<Record<string, string>>({});
   const waiting = useRef(new Map<number, { ids: string[]; all: { before: string | null; level: string | null } | null; timer: ReturnType<typeof setTimeout> }>());
+  // The mutations are new objects on every render: the sender reads them through a ref, so it stays the same function and the flush
+  // below runs only when the page is left (it used to run on the next render and send at once, leaving «برگردان» nothing to undo).
+  const latest = useRef({ act, toast });
+  useEffect(() => { latest.current = { act, toast }; });
   const send = useCallback(async (ids: string[], all: { before: string | null; level: string | null } | null) => {
+    const { act: a, toast: t } = latest.current;
     try {
-      if (all) await act.readAll.mutateAsync(all); else await act.read.mutateAsync(ids);
+      if (all) await a.readAll.mutateAsync(all); else await a.read.mutateAsync(ids);
       void closeSystem({ ids });
     } catch (e) {
       setMarked((m) => { const n = { ...m }; for (const id of ids) delete n[id]; return n; });
-      toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : 'علامت خوانده‌شده به هاب نرسید.' });
+      t({ tone: 'error', text: e instanceof ApiError ? e.messageFa : 'علامت خوانده‌شده به هاب نرسید.' });
     }
-  }, [act.read, act.readAll, toast]);
+  }, []);
   const open = useCallback((id: string) => {
     setMarked((m) => (m[id] ? m : { ...m, [id]: new Date().toISOString() }));
     void send([id], null);

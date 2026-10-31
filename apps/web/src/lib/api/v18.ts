@@ -10,6 +10,7 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { bodyTarget, stepUp } from '@/lib/auth';
 import { ApiError, type Schemas } from './client';
+import { handled } from './observe';
 import { call, type Actor } from './v13';
 import { ifMatch, qs, type Connection } from './v15';
 import type { Conflict } from './v17';
@@ -20,7 +21,7 @@ const items = <T>(x: T[] | Page<T>): T[] => (Array.isArray(x) ? x : x.items);
 const enc = encodeURIComponent;
 /** A GET that answers 404 when the thing does not exist yet (a memo, the current review, the latest briefing): null, not an error. */
 async function orNull<T>(p: Promise<T>): Promise<T | null> {
-  try { return await p; } catch (e) { if (e instanceof ApiError && e.status === 404) return null; throw e; }
+  try { return await p; } catch (e) { if (e instanceof ApiError && e.status === 404) { handled(e); return null; } throw e; }
 }
 
 export type FileRef = { id: string; name: string; mime: string; size: number; sha256: string };

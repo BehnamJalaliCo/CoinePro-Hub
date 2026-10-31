@@ -57,7 +57,9 @@ function EntryCard({ e }: { e: ErrorEntry }) {
         <span className={cx('flex size-8 flex-none items-center justify-center rounded-full', TONE[k.tone])}><Icon name={k.icon} size={16} /></span>
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="flex items-center gap-1.5"><span className="truncate text-[13px] font-semibold">{k.fa}</span>{e.count > 1 ? <span className="text-[11px] text-muted">{e.kind === 'unreachable' ? `${e.count} درخواست` : `${e.count} بار`}</span> : null}</span>
-          <span className="fig line-clamp-2 text-[12px] text-sec" dir="ltr" style={{ textAlign: 'right' }}>{line}</span>
+          {/* «شروع پنل» reads in Persian; the browser and version are in its details. */}
+          {e.kind === 'session' ? <span className="text-[12px] text-sec">پنل در این مرورگر باز شد{e.count > 1 ? `؛ آخرین بار ${local(e.lastAt ?? e.at).slice(11, 16)}` : ''}</span>
+            : <span className="fig line-clamp-2 text-[12px] text-sec" dir="ltr" style={{ textAlign: 'right' }}>{line}</span>}
         </span>
         <span className="flex flex-none flex-col items-end gap-1">
           <Pill tone={levelTone(e.level)} dot>{levelFa(e.level)}</Pill>

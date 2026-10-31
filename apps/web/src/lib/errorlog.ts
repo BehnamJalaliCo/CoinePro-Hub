@@ -182,10 +182,25 @@ class ErrorLog {
     }
     this.entries = stored?.entries ?? [];
     this.seq = this.entries.reduce((m, e) => Math.max(m, e.id), 0);
-    this.note('session', 'info', 'app started', `panel started v${APP} on ${device()}`);
+    this.opened();
     window.addEventListener('error', (ev) => this.crash(ev.error ?? ev.message, 'error'));
     window.addEventListener('unhandledrejection', (ev) => this.crash(ev.reason, 'unhandled rejection'));
     document.addEventListener('visibilitychange', () => this.crumb(document.visibilityState === 'visible' ? 'tab foreground' : 'tab background'));
+  }
+
+  /**
+   * «شروع پنل» once per browser session (a reload or another tab of the same session adds nothing); a new session right after the last
+   * one, with nothing logged between, raises that entry's count instead of adding a row, so reloads never push real failures out.
+   */
+  private opened() {
+    const key = `${KEY}.session.${APP}`;
+    try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1'); } catch { /* no session storage: note it */ }
+    const head = this.entries[0];
+    if (head?.kind === 'session' && head.app === APP) {
+      this.update([{ ...head, count: head.count + 1, lastAt: nowIso(), detail: `panel started v${APP} on ${device()}` }, ...this.entries.slice(1)]);
+      return;
+    }
+    this.note('session', 'info', 'app started', `panel started v${APP} on ${device()}`);
   }
 
   subscribe = (l: () => void) => { this.listeners.add(l); return () => { this.listeners.delete(l); }; };

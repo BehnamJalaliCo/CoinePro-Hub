@@ -15,6 +15,7 @@ import { RefChip, ScopeChips } from '@/components/v17/bits';
 import { RANGES, UndoBar, dayFa, inputCls, ownerDay, span, type Undo } from '@/components/v21/bits';
 import { DeleteDialog, DeleteOne, RowCheck, SelectAll, SelectionBar, useCleanup, useSelection } from '@/components/v28/outputs';
 import { ApiError } from '@/lib/api/client';
+import { handled } from '@/lib/api/observe';
 import { useCompanies, useInbox, useRate } from '@/lib/api/hooks';
 import { activeFilters, categoryOf, useLocalSeen, useOutput, useOutputActions, useOutputs, type Category, type Inbox21, type Output, type OutputQuery } from '@/lib/api/v21';
 import { useScope } from '@/lib/scope';
@@ -89,7 +90,7 @@ function Detail({ refId, onSeen, onGone }: { refId: string; onSeen: (refs: strin
       toast({ tone: 'ok', text: <>در بایگانی ثبت شد: <span className="fig">{out.record}</span>؛ پیش‌نویس است تا بایگان کاملش کند.</> });
       void q.refetch();
     } catch (e) {
-      if (e instanceof ApiError && (e.status === 404 || e.status === 405)) toast({ tone: 'info', text: 'بایگانی خروجی با به‌روزرسانی هاب فعال میشود.' });
+      if (e instanceof ApiError && (e.status === 404 || e.status === 405)) { handled(e); toast({ tone: 'info', text: 'بایگانی خروجی با به‌روزرسانی هاب فعال میشود.' }); }
       else toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : 'بایگانی نشد.' });
     }
   };
@@ -313,7 +314,7 @@ function OutputsInner() {
           { value: 'new', label: unseen ? `تازه (${unseen})` : 'تازه' }, { value: 'seen', label: 'خوانده‌شده' }, { value: 'all', label: 'همه' },
         ]} /></div>
       </PageHeader>
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(320px,440px)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(320px,440px)_minmax(0,1fr)] [&>*]:min-w-0">
         <Card className="flex flex-col gap-3 p-3 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto [&>*]:shrink-0">
           <div className="relative">
             <span className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-muted"><Icon name="search" size={16} /></span>

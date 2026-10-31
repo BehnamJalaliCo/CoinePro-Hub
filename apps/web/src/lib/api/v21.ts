@@ -10,6 +10,7 @@ import { useSyncExternalStore } from 'react';
 import { bodyTarget, stepUp } from '@/lib/auth';
 import { isUuid, isWorkRef, refPrefix } from '@/lib/refs';
 import { ApiError, type Schemas } from './client';
+import { handled } from './observe';
 import { call } from './v13';
 import { qs } from './v15';
 
@@ -75,8 +76,12 @@ export const useOutputs = (q: OutputQuery) =>
     getNextPageParam: (last) => last.next_cursor,
     placeholderData: keepPreviousData,
   });
+/** One output; null when it is not there (deleted for good, or a link to one that never was): the page says so, «خطاخوان» keeps nothing. */
 export const useOutput = (ref: string | null) =>
-  useQuery({ queryKey: ['deliverables', 'one', ref], enabled: !!ref, queryFn: () => call<Output>('GET', `/deliverables/${enc(ref!)}`) });
+  useQuery({
+    queryKey: ['deliverables', 'one', ref], enabled: !!ref,
+    queryFn: async () => { try { return await call<Output>('GET', `/deliverables/${enc(ref!)}`); } catch (e) { if (e instanceof ApiError && e.status === 404) { handled(e); return null; } throw e; } },
+  });
 
 /** `GET /inbox/summary` with ⟨1.7.3⟩ `deliverables_unseen`. */
 export type Inbox21 = Schemas['InboxSummary'] & { deliverables_unseen?: number | null };
@@ -94,7 +99,7 @@ export function useOutputActions() {
           localSeen.forget(v.refs);
           return { local: false };
         } catch (e) {
-          if (e instanceof ApiError && (e.status === 404 || e.status === 405)) { localSeen.mark(v.refs, v.seen); return { local: true }; }
+          if (e instanceof ApiError && (e.status === 404 || e.status === 405)) { handled(e); localSeen.mark(v.refs, v.seen); return { local: true }; }
           throw e;
         }
       },
@@ -166,7 +171,7 @@ export function useWorkLabel(key: string | null | undefined) {
     enabled: !!key && (isUuid(key) || isWorkRef(key)),
     queryFn: async () => {
       try { const w = await fetchWork(key!); return { id: w.id, ref: w.ref, title: w.title } as const; } catch (e) {
-        if (e instanceof ApiError && e.status === 404) return null;
+        if (e instanceof ApiError && e.status === 404) { handled(e); return null; }
         throw e;
       }
     },
@@ -230,10 +235,18 @@ export function useCompanyRemoval() {
       mutationFn: async (code: string) => {
         try { await call<void>('DELETE', `/companies/${enc(code)}`, undefined, { 'Idempotency-Key': crypto.randomUUID() }); } catch (e) {
           if (!(e instanceof ApiError) || e.status !== 403 || e.code !== 'step_up_required') throw e;
+          handled(e); // the expected answer of a hub that has the route: not a failure for «خطاخوان»
           await call<void>('DELETE', `/companies/${enc(code)}`, undefined, { 'Idempotency-Key': crypto.randomUUID(), 'X-Step-Up': await stepUp('company.delete', code) });
         }
       },
-      onSuccess: done,
+      // The deleted company's own page is not read again (it would only answer 404); everything else about companies is.
+      onSuccess: (_v, code) => {
+        qc.removeQueries({ queryKey: ['companies', code] });
+        return Promise.all([
+          qc.invalidateQueries({ queryKey: ['companies'], predicate: (q) => q.queryKey[1] !== code }),
+          ...['control', 'brands', 'founding'].map((k) => qc.invalidateQueries({ queryKey: [k] })),
+        ]);
+      },
     }),
     /** `PATCH /companies/{code}` `{status: archived}` 🔏 `company.archive`, with If-Match on the fresh version. */
     archive: useMutation({
@@ -285,15 +298,17 @@ export async function controlHistory(code: string, holding: boolean, limit = 12)
     if (!hit || Math.abs(ms(hit.at) - t) > 5_000) return { reason: null, until: null };
     return { reason: typeof hit.data.reason === 'string' ? hit.data.reason : null, until: typeof hit.data.until === 'string' ? hit.data.until : null };
   };
-  // ⟨1.7.3⟩ "changed: engaged: <reason>" — what follows the summary's second colon is the reason.
-  const fromSummary = (s: string) => { const m = /^[^:]+:\s*[^:]+:\s*(.+)$/.exec(s); return m?.[1]?.trim() || null; };
+  // ⟨1.7.3⟩ The hub writes `<summary>: <reason>` (domain/control.py with_reason): a switch's summary is "changed: engaged" (two parts), a
+  // freeze's is "active" or "lifted" (one). The known head is taken off; whatever follows is the reason, colons and all.
+  const switchReason = (s: string) => /^(?:changed|unchanged):\s*(?:engaged|released)(?::\s*([\s\S]+))?$/.exec(s)?.[1]?.trim() || null;
+  const freezeReason = (s: string) => /^(?:active|lifted)(?::\s*([\s\S]+))?$/.exec(s)?.[1]?.trim() || null;
   const switches = [...engage, ...release].filter((e) => (e.target?.ref ?? scope) === scope).map((e): ControlEvent => {
     const own = e.actor.kind === 'owner' ? reasonOf(e.at, 'kill_switch.set', scope) : { reason: null, until: null };
-    return { at: e.at, kind: e.action.endsWith('engage') ? 'engage' : 'release', by: e.actor, reason: own.reason ?? fromSummary(e.summary), until: null, stepUp: e.step_up };
+    return { at: e.at, kind: e.action.endsWith('engage') ? 'engage' : 'release', by: e.actor, reason: own.reason ?? switchReason(e.summary), until: null, stepUp: e.step_up };
   });
   const freezes = freeze.filter((e) => (e.target?.ref ?? code) === code).map((e): ControlEvent => {
     const own = e.actor.kind === 'owner' ? reasonOf(e.at, 'deploy_freeze.set', code) : { reason: null, until: null };
-    return { at: e.at, kind: e.summary.startsWith('lifted') ? 'unfreeze' : 'freeze', by: e.actor, reason: own.reason ?? fromSummary(e.summary), until: own.until, stepUp: e.step_up };
+    return { at: e.at, kind: e.summary.startsWith('lifted') ? 'unfreeze' : 'freeze', by: e.actor, reason: own.reason ?? freezeReason(e.summary), until: own.until, stepUp: e.step_up };
   });
   return [...switches, ...freezes].sort((a, b) => ms(b.at) - ms(a.at)).slice(0, limit);
 }

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { clean } from './support';
 
 // The Android app's 0.3.0–0.6.0 on the web, end to end over the demo holding (NEXT_PUBLIC_HQ_MOCK=1, lib/api/mock-v21.ts): outputs seen and
 // filed, the control layer and the control room, removing a company, «فرمان‌های من», priorities in words, notifications read and folded,
@@ -9,15 +10,6 @@ const PAGES = [
   '/outputs?tab=seen', '/control', '/companies',
 ];
 
-/** Fails the test on any page error, console error or failed API call while [run] is going on. */
-async function clean(page: Page, run: () => Promise<void>) {
-  const errors: string[] = [];
-  page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
-  page.on('response', (r) => { if (r.url().includes('/api/v1/') && r.status() >= 400) errors.push(`HTTP ${r.status()} ${r.url()}`); });
-  await run();
-  expect(errors, errors.join('\n')).toEqual([]);
-}
 
 for (const path of PAGES) {
   test(`renders ${path} @phone`, async ({ page }) => {

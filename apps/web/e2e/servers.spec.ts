@@ -1,19 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
+import { clean } from './support';
 
 // ⟨1.8⟩ Contract §26: the companies' servers, the owner's terminal, pairing, the server rules and the holding's network map, end to end
 // over the demo holding (NEXT_PUBLIC_HQ_MOCK=1, lib/api/mock-v26.ts).
 
 const PAGES = ['/servers', '/servers/srv-fx-1', '/servers/srv-ty-1', '/servers/srv-pc-1', '/servers/srv-fx-2', '/servers/srv-fx-1/terminal', '/servers/attach', '/server-policy', '/network', '/companies/TY?tab=servers'];
 
-/** Fails the test on any page error, console error or failed API call while [run] is going on. */
-async function clean(page: Page, run: () => Promise<void>) {
-  const errors: string[] = [];
-  page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
-  page.on('response', (r) => { if (r.url().includes('/api/v1/') && r.status() >= 400) errors.push(`HTTP ${r.status()} ${r.url()}`); });
-  await run();
-  expect(errors, errors.join('\n')).toEqual([]);
-}
 
 for (const path of PAGES) {
   test(`renders ${path} @phone`, async ({ page }) => {
