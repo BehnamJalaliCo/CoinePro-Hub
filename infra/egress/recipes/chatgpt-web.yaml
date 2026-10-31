@@ -5,8 +5,25 @@
 # and are NOT yet verified on the live site (no sign-in exists until the
 # owner's `make chatgpt-web-login`); the first failing step falls back to one
 # Claude run with web.browse on this profile, which proposes the fix here.
+# 2026-10-31 (after prompt 19), checked on the live site: the composer is no
+# longer #prompt-textarea but a contenteditable div, and with the profile's
+# locale fa-IR the send button is found by its Persian label («ارسال…»), not
+# data-testid=send-button (every call failed at 1:wait). The stop button takes
+# its testid or its Persian label («توقف…»).
+# 2026-10-31.3: the answer no longer carries data-message-author-role (a test
+# call was sent and answered, then 6:read found nothing), and a temporary chat
+# has no data-local-conversation-final-assistant either. An answer's row has
+# a read-aloud button («بلند…», only under ChatGPT's answers, only once one is
+# finished): the read waits for it.
+# 2026-10-31.4-.5: .3's read took the whole thread («شما گفتید: … ChatGPT گفت: …»);
+# each answer follows ChatGPT's own hidden heading («ChatGPT گفت:» / "ChatGPT
+# said:"), so the read takes the block right after the last one (the
+# heading's outermost element: it nests). Checked by test calls: the answer
+# is not the heading's sibling, so the read takes the answer's turn (the
+# outermost block above the heading without the user's «شما گفتید») and in it
+# the first block that holds neither the heading nor the bare «ChatGPT» label.
 key: chatgpt-web
-version: "2026-10-22.1"
+version: "2026-10-31.5"
 site: chatgpt.com
 # A temporary chat: nothing of the job stays in the account's history.
 start_url: "https://chatgpt.com/?temporary-chat=true"
@@ -42,19 +59,20 @@ tasks:
     timeout_s: 240
     steps:
       - {do: goto, url: "{start_url}"}
-      - {do: wait, selector: "#prompt-textarea", timeout_s: 30}
-      - {do: fill, selector: "#prompt-textarea", text: "{prompt}"}
-      - {do: click, selector: "[data-testid=send-button]"}
-      - {do: wait, selector: "[data-testid=stop-button]", timeout_s: 20, optional: true}
-      - {do: wait_gone, selector: "[data-testid=stop-button]", timeout_s: 200}
-      - {do: read, selector: "[data-message-author-role=assistant]"}
+      - {do: wait, selector: "div[contenteditable=true]", timeout_s: 30}
+      - {do: fill, selector: "div[contenteditable=true]", text: "{prompt}"}
+      - {do: click, selector: "[data-testid=send-button], button[aria-label*='ارسال']"}
+      - {do: wait, selector: "[data-testid=stop-button], button[aria-label*='توقف']", timeout_s: 20, optional: true}
+      - {do: wait_gone, selector: "[data-testid=stop-button], button[aria-label*='توقف']", timeout_s: 200}
+      - {do: wait, selector: "button[aria-label*='بلند'], [data-testid=voice-play-turn-action-button]", timeout_s: 30}
+      - {do: read, selector: "xpath=(//*[(normalize-space(.)='ChatGPT گفت:' or normalize-space(.)='ChatGPT said:') and normalize-space(..)!=normalize-space(.)])[last()]/ancestor::*[not(contains(.,'شما گفتید')) and not(contains(.,'You said'))][last()]//*[not(contains(.,'ChatGPT گفت')) and not(contains(.,'ChatGPT said')) and (contains(..,'ChatGPT گفت') or contains(..,'ChatGPT said')) and normalize-space(.)!='' and normalize-space(.)!='ChatGPT' and not(ancestor-or-self::button)][1]"}
   image:
     timeout_s: 180
     steps:
       - {do: goto, url: "{start_url}"}
-      - {do: wait, selector: "#prompt-textarea", timeout_s: 30}
-      - {do: fill, selector: "#prompt-textarea", text: "{prompt}"}
-      - {do: click, selector: "[data-testid=send-button]"}
+      - {do: wait, selector: "div[contenteditable=true]", timeout_s: 30}
+      - {do: fill, selector: "div[contenteditable=true]", text: "{prompt}"}
+      - {do: click, selector: "[data-testid=send-button], button[aria-label*='ارسال']"}
       - {do: wait, selector: "img[alt^='Generated image']", timeout_s: 170}
-      - {do: wait_gone, selector: "[data-testid=stop-button]", timeout_s: 60}
+      - {do: wait_gone, selector: "[data-testid=stop-button], button[aria-label*='توقف']", timeout_s: 60}
       - {do: download_image, selector: "img[alt^='Generated image']", attr: src}
