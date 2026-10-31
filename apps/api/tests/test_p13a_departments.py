@@ -49,12 +49,12 @@ async def test_a_new_company_has_media_with_its_mandate_identity_and_team(
     assert "IRANYekanX" in media["identity_md"]
     assert {t["role"] for t in media["team"]} == MEDIA_TEAM
     assert {t["role"] for t in media["team"] if t["first"]} == MEDIA_TEAM - {"ui_designer"}
-    # The team lists only live charters: TECH's staged roles are not there yet.
+    # The team lists only live charters (prompt 18 made devops_engineer and lead_developer live in TECH).
     lib = hub.charters
     for d in depts.values():
         for t in d["team"]:
             assert lib.get(t["role"]) is not None, t
-    assert [t["role"] for t in depts["TECH"]["team"]] == ["sre"]
+    assert [t["role"] for t in depts["TECH"]["team"]] == ["sre", "devops_engineer", "lead_developer"]
     assert depts["GROWTH"]["team"] == []  # its charters are staged, not live
     tpl = (await client.get("/api/v1/templates", headers=owner)).json()
     std = next(t for t in tpl if t["key"] == "standard")
