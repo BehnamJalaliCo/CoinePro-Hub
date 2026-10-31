@@ -16,7 +16,7 @@
 # read only once its action bar (message-actions) shows, so a stop button that
 # is never matched cannot hand back half an answer.
 key: gemini-web
-version: "2026-10-31.2"
+version: "2026-10-31.3"
 site: gemini.google.com
 start_url: "https://gemini.google.com/app"
 hosts:
@@ -25,6 +25,13 @@ hosts:
   - googleusercontent.com
   - apis.google.com
   - www.google.com
+  # 2026-10-31 (owner's order): what Gemini sends a prompt through, refused
+  # until now in the job and in the sign-in window (egress log): its own API,
+  # its anti-abuse check and its live channel, and Google's client log.
+  - geminiweb-pa.clients6.google.com
+  - waa-pa.clients6.google.com
+  - signaler-pa.clients6.google.com
+  - play.google.com
 login_hosts:
   - accounts.google.com
   # Google's consent pages after sign-in (the EU consent, the account bar)
