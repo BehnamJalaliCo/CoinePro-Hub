@@ -1323,8 +1323,16 @@ async def decide(
         raise ApiError(409, "decision_not_pending", f"{d['ref']} is {d['status']}")
     if verdict == "approved":
         # A hold (the overseer's, or watch mode's) stops the approval until the
-        # owner releases it; rejecting or returning stays possible.
-        await oversight.require_not_held(tx, "decision", d["ref"])
+        # owner releases it; rejecting or returning stays possible. The owner's
+        # own approval is that release (owner, 2026-11-01: «من مدیر کل هستم که مهر
+        # رو میزنم»): the hold is released with the same seal, then the card goes on.
+        h = await oversight.held(tx, "decision", d["ref"])
+        if h is not None and who.is_owner:
+            await oversight.decide_hold(
+                tx, who, h["ref"], "released", "با مُهر مدیر کل روی همین کارت آزاد شد", step_up_id
+            )
+        elif h is not None:
+            await oversight.require_not_held(tx, "decision", d["ref"])
     if verdict == "approved" and d["kind"] == "hire":
         # Every approval, whoever approves (contract §18.11): refused with a
         # stable code before anything changes, so no employee is made.

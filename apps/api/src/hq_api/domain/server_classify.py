@@ -143,13 +143,26 @@ SENSITIVE_WRITE_PATHS = (
     ("firewall rules", re.compile(r"^/etc/(?:ufw|iptables|nftables)(?:/|\.conf$)")),
 )
 _SPLIT = re.compile(r"\|\||&&|[;|\n&]|\$\(|`|\)")
+# `2>&1`, `>&2`, `<&0`: a descriptor copy, not a command separator and not a file.
+_FD_DUP = re.compile(r"\d*[<>]&\d+-?")
 _REDIRECT = re.compile(r"(?:^|\s)\d?>{1,2}\s*(\S+)")
+
+
+_VALUE_FLAGS: dict[str, tuple[str, ...]] = {
+    "sudo": ("-u", "-g", "-C", "-h", "-p", "-U", "-r", "-t", "-D", "-R"),
+    "doas": ("-u", "-C"),
+    "su": ("-c", "-s", "-g", "-G"),
+    "nice": ("-n",),
+    "ionice": ("-c", "-n", "-t", "-p"),
+    "flock": ("-w", "-E", "-c", "-x", "-s"),
+    "timeout": ("-s", "-k"),
+}
 
 
 def _segments(cmd: str) -> list[list[str]]:
     """The simple commands of a command line, each as argv without prefixes."""
     out: list[list[str]] = []
-    for part in _SPLIT.split(cmd):
+    for part in _SPLIT.split(_FD_DUP.sub(" ", cmd)):
         part = part.strip()
         if not part:
             continue
@@ -163,8 +176,8 @@ def _segments(cmd: str) -> list[list[str]]:
                 argv.pop(0)
             while argv and argv[0].startswith("-") and head in PREFIXES:
                 flag = argv.pop(0)
-                takes_value = head in ("sudo", "su", "nice", "ionice", "flock")
-                if takes_value and flag in ("-u", "-n", "-c", "-g") and argv:
+                # Only these flags take a value (`sudo -n` does not: it means non-interactive).
+                if flag in _VALUE_FLAGS.get(head, ()) and argv:
                     argv.pop(0)
         if argv:
             out.append(argv)
@@ -225,6 +238,14 @@ def _firewall_read_only(prog: str, a: list[str]) -> bool:
     return False
 
 
+def _in_place(argv: list[str]) -> bool:
+    """`sed -i`, `perl -i`: the named files are written, not read."""
+    return _base(argv[0]) in ("sed", "perl") and any(
+        a == "--in-place" or a.startswith("--in-place=") or re.fullmatch(r"-[A-Za-z]*i\S*", a)
+        for a in argv[1:]
+    )
+
+
 def _program(argv: list[str]) -> tuple[str, str] | None:
     prog = _base(argv[0])
     args = argv[1:]
@@ -270,8 +291,10 @@ def classify_detail(cmd: str) -> tuple[str, str] | None:
         hit = _program(argv)
         if hit is not None:
             return hit
-    readers_only = bool(segments) and all(_base(a[0]) in READERS for a in segments)
-    redirects = [m.group(1) for m in _REDIRECT.finditer(text)]
+    readers_only = bool(segments) and all(
+        _base(a[0]) in READERS and not _in_place(a) for a in segments
+    )
+    redirects = [m.group(1) for m in _REDIRECT.finditer(_FD_DUP.sub(" ", text))]
     for category, name, rx in TEXT_RULES:
         if not rx.search(text):
             continue
