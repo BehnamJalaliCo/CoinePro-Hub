@@ -10,6 +10,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -47,6 +48,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -67,6 +71,7 @@ import com.coinepro.hq.core.format.usd
 import com.coinepro.hq.core.net.ApiException
 import com.coinepro.hq.core.net.Deliverable
 import com.coinepro.hq.core.net.DeliverableQuery
+import com.coinepro.hq.core.net.gated
 import com.coinepro.hq.designsystem.Avatar
 import com.coinepro.hq.designsystem.BtnSize
 import com.coinepro.hq.designsystem.BtnVariant
@@ -112,8 +117,11 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.longOrNull
 
 // Outputs (contract §5.2, ⟨1.7.3⟩): what the agents and the hub's own reporting delivered. The owner reads one and marks it seen (a swipe,
-// the button on its page, or all at once): it leaves «تازه» for «خوانده‌شده» and is never deleted, so agents and the digital chief keep
-// learning from it, search and the archive still find it, and it can be filed in the archive to be cited later. The rating stays separate.
+// the button on its page, or all at once): it leaves «تازه» for «خوانده‌شده», so agents and the digital chief keep learning from it, search
+// and the archive still find it, and it can be filed in the archive to be cited later. The rating stays separate.
+// ⟨1.10⟩ §28.1: so they never pile up, a long press opens selection mode (a check beside every row, «۳ انتخاب‌شده» on top, all or none):
+// file several in the archive, mark them seen, or delete them for good — the owner only, with the passkey on the SHA-256 of the sorted
+// refs; only an Audit line stays, and archive records they were filed into stay. Back leaves the mode. The same on one output's ⋮.
 
 /** The date ranges of the filter, in the owner's zone. */
 private val RANGES = listOf("all" to "همه‌ی زمان‌ها", "today" to "امروز", "yesterday" to "دیروز", "7d" to "۷ روز اخیر", "30d" to "۳۰ روز اخیر", "month" to "این ماه")
@@ -175,7 +183,7 @@ internal data class Undo(val id: Long, val refs: List<String>, val seen: Boolean
 
 /** Outputs: «تازه», «خوانده‌شده» and «همه», with the unrated filter, category, company, producer, date range and search, by day. */
 @Composable
-fun OutputsScreen(tab0: String = "new", filters0: Boolean = false) {
+fun OutputsScreen(tab0: String = "new", filters0: Boolean = false, select0: Set<String> = emptySet()) {
     val env = LocalEnv.current
     val nav = LocalNav.current
     val toasts = LocalToasts.current
@@ -207,6 +215,13 @@ fun OutputsScreen(tab0: String = "new", filters0: Boolean = false) {
     var cursor by remember(query.key) { mutableStateOf<String?>(null) }
     var loadingMore by remember { mutableStateOf(false) }
     var undo by remember { mutableStateOf<Undo?>(null) }
+    // ⟨1.10⟩ §28.1 selection mode, what the owner deleted a moment ago (hidden before the next answer), and the delete's sheet.
+    var sel by remember { mutableStateOf(com.coinepro.hq.core.data.Selection(select0, select0.isNotEmpty())) }
+    val gone = remember { mutableStateListOf<String>() }
+    var deleting by remember { mutableStateOf<List<Deliverable>?>(null) }
+    var bulk by remember { mutableStateOf<String?>(null) }
+    val gaps by env.api.gaps.missing.collectAsStateWithLifecycle()
+    androidx.activity.compose.BackHandler(sel.active) { sel = sel.exit() }
     LaunchedEffect(q.data) {
         optimistic.clear()
         cursor = q.data?.nextCursor
@@ -245,13 +260,43 @@ fun OutputsScreen(tab0: String = "new", filters0: Boolean = false) {
         }
     }
 
-    val loaded = q.data?.items.orEmpty() + more
+    val loaded = (q.data?.items.orEmpty() + more).filter { it.ref !in gone }
     val list = loaded.filter { query.matches(it, seenAt(it)) }
+    val visible = list.map { it.ref }
+    LaunchedEffect(visible) { if (q.data != null) sel = sel.retain(visible) }
+
+    fun select(next: com.coinepro.hq.core.data.Selection) {
+        if (next.active && !sel.active) undo = null
+        if (next != sel) haptics.tick()
+        sel = next
+    }
+
+    /** «بایگانی» for the selection: one call (§28.1), or one per output from a hub before ⟨1.10⟩. */
+    fun fileSelected() {
+        val refs = sel.sorted
+        if (refs.isEmpty() || bulk != null) return
+        bulk = "file"
+        scope.launch {
+            try {
+                // A hub before ⟨1.10⟩ has no bulk route: each one is filed on its own route instead, quietly.
+                val n = env.api.gated(com.coinepro.hq.core.net.HubFeature.BULK_FILE) { fileDeliverables(refs) }?.records?.size
+                    ?: refs.count { r -> runCatching { env.api.fileDeliverable(r) }.isSuccess }
+                env.cache.invalidate("deliverables", "archive")
+                haptics.confirm()
+                toasts.ok("$n خروجی در بایگانی ثبت شد؛ پیش‌نویس‌اند تا بایگان کاملشان کند.")
+                sel = sel.exit()
+            } catch (e: ApiException) {
+                haptics.reject()
+                toasts.error(e.messageFa)
+            } finally { bulk = null }
+        }
+    }
     val unseenCount = inbox.data?.deliverablesUnseen ?: if (tab == "new" && q.data != null) list.size else null
 
     Box(Modifier.fillMaxSize()) {
         Page(onRefresh = r::refresh, refreshing = r.refreshing) {
-            item { PageHeader("خروجی‌ها", eyebrow = "آنچه ایجنت‌ها و گزارش‌های هاب تحویل داده‌اند") }
+            // In selection mode its bar takes the header's place.
+            item { if (sel.active) Box(Modifier.height(40.dp)) else PageHeader("خروجی‌ها", eyebrow = "آنچه ایجنت‌ها و گزارش‌های هاب تحویل داده‌اند") }
             item {
                 Segmented(
                     listOf(
@@ -263,7 +308,7 @@ fun OutputsScreen(tab0: String = "new", filters0: Boolean = false) {
             }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    HqTextField(search, { search = it }, "جستجو در عنوان، خلاصه یا O-…", Modifier.fillMaxWidth(), maxLength = 100)
+                    HqTextField(search, { search = it }, "جستجو در عنوان و خلاصه", Modifier.fillMaxWidth(), maxLength = 100)
                     ChipRow {
                         FilterChip("فیلترها", query.active > 0, { filters = true }, count = query.active.takeIf { it > 0 })
                         FilterChip("بی‌امتیاز", unrated, { unrated = !unrated })
@@ -281,7 +326,7 @@ fun OutputsScreen(tab0: String = "new", filters0: Boolean = false) {
                 list.isEmpty() -> item {
                     when {
                         tab == "new" && query.active == 0 && applied.isBlank() ->
-                            Empty("چیز تازه‌ای نمانده", icon = DivanIcon.SEAL, body = "هر خروجی تازه این‌جا میاید؛ خوانده‌شده‌ها در «خوانده‌شده» میمانند و هیچ‌وقت پاک نمیشوند.")
+                            Empty("چیز تازه‌ای نمانده", icon = DivanIcon.SEAL, body = "هر خروجی تازه این‌جا میاید؛ خوانده‌شده‌ها در «خوانده‌شده» میمانند تا خودت بایگانی یا پاکشان کنی.")
                         tab == "seen" && query.active == 0 && applied.isBlank() ->
                             Empty("هنوز چیزی خوانده‌شده نیست", icon = DivanIcon.DELIVERABLE, body = "خروجی را به چپ یا راست بکش، یا در صفحه‌اش «خوانده شد» را بزن.")
                         else -> Empty("خروجی‌ای با این فیلترها نیست", icon = DivanIcon.FILTER)
@@ -290,7 +335,7 @@ fun OutputsScreen(tab0: String = "new", filters0: Boolean = false) {
                 else -> {
                     if (tab == "new") item {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("بکش تا خوانده‌شده شود", style = Divan.type.caption, color = c.textMuted, modifier = Modifier.weight(1f))
+                            Text("بکش تا خوانده‌شده شود؛ نگه دار تا چندتا را انتخاب کنی", style = Divan.type.caption, color = c.textMuted, modifier = Modifier.weight(1f))
                             HqButton("همه را خوانده‌شده کن", {
                                 val refs = list.map { it.ref }
                                 mark(refs, true, "${refs.size} خروجی خوانده شد")
@@ -307,8 +352,10 @@ fun OutputsScreen(tab0: String = "new", filters0: Boolean = false) {
                         }
                         items(rows, key = { it.ref }) { d -> Box(itemMotion()) {
                             val seen = seenAt(d) != null
-                            SwipeToSee(seen, onSwipe = { mark(listOf(d.ref), !seen, if (seen) "${d.ref} دوباره تازه شد" else "${d.ref} خوانده شد") }) {
-                                OutputRow(d, seen, companies.let { companyOf(it, d.company).nameFa }) { nav.go("outputs/${d.ref}") }
+                            val companyFa = companyOf(companies, d.company).nameFa
+                            if (sel.active) OutputRow(d, seen, companyFa, selecting = true, selected = d.ref in sel, onLongClick = { select(sel.start(d.ref)) }) { select(sel.toggle(d.ref)) }
+                            else SwipeToSee(seen, onSwipe = { mark(listOf(d.ref), !seen, if (seen) "${d.ref} دوباره تازه شد" else "${d.ref} خوانده شد") }) {
+                                OutputRow(d, seen, companyFa, onLongClick = { select(sel.start(d.ref)) }) { nav.go("outputs/${d.ref}") }
                             }
                         }}
                     }
@@ -324,6 +371,8 @@ fun OutputsScreen(tab0: String = "new", filters0: Boolean = false) {
                             }
                         }, Modifier.fillMaxWidth(), variant = BtnVariant.SECONDARY, loading = loadingMore, icon = DivanIcon.NEXT)
                     }
+                    // Room under the last row for the selection's actions.
+                    if (sel.active) item(key = "sel-room") { Box(Modifier.height(64.dp)) }
                 }
             }
         }
@@ -332,6 +381,32 @@ fun OutputsScreen(tab0: String = "new", filters0: Boolean = false) {
             u.refs.forEach { optimistic[it] = !u.seen }
             scope.launch {
                 try { markSeen(env, toasts, u.refs, !u.seen) } catch (e: ApiException) { toasts.error(e.messageFa) }
+            }
+        }
+        // ⟨1.10⟩ §28.1 selection mode: its bar on top, its actions at the bottom.
+        SelectionTop(
+            sel, sel.allOf(visible), Modifier.align(Alignment.TopCenter),
+            onClose = { select(sel.exit()) },
+            onAll = { select(if (sel.allOf(visible)) sel.none() else sel.all(visible)) },
+        )
+        SelectionActions(
+            sel, bulk, Modifier.align(Alignment.BottomCenter), canDelete = com.coinepro.hq.core.net.HubFeature.DELETE_OUTPUTS !in gaps,
+            onFile = ::fileSelected,
+            onSeen = {
+                val refs = sel.sorted
+                sel = sel.exit()
+                mark(refs, true, "${refs.size} خروجی خوانده شد")
+            },
+            onDelete = { deleting = loaded.filter { it.ref in sel } },
+        )
+    }
+    deleting?.let { ds ->
+        HqSheet({ deleting = null }, "حذف ${ds.size} خروجی برای همیشه", sub = "فقط تو میتوانی؛ با اثر انگشت یا چهره") {
+            DeleteOutputsContent(ds, onCancel = { deleting = null }) { n ->
+                gone.addAll(ds.map { it.ref })
+                deleting = null
+                sel = sel.exit()
+                toasts.ok("$n خروجی برای همیشه پاک شد؛ یک خط در دفتر Audit ماند.")
             }
         }
     }
@@ -417,11 +492,29 @@ internal fun SwipeToSee(seen: Boolean, onSwipe: () -> Unit, content: @Composable
     ) { content() }
 }
 
-/** One output in the list: new ones carry a gold dot and full ink; seen ones are quieter. */
+/** One output in the list: new ones carry a gold dot and full ink; seen ones are quieter. In selection mode a check slides in beside it
+ *  and a tap toggles it; a long press opens the mode. */
 @Composable
-private fun OutputRow(d: Deliverable, seen: Boolean, companyFa: String, onOpen: () -> Unit) {
+internal fun OutputRow(
+    d: Deliverable, seen: Boolean, companyFa: String,
+    selecting: Boolean = false, selected: Boolean = false, onLongClick: (() -> Unit)? = null, onOpen: () -> Unit,
+) {
     val c = Divan.colors
-    HqCard(Modifier.fillMaxWidth(), onClick = onOpen) {
+    val reduced = com.coinepro.hq.designsystem.LocalReducedMotion.current
+    val tint by androidx.compose.animation.animateColorAsState(if (selected) c.softGold else c.card, com.coinepro.hq.designsystem.Motion.short(reduced), label = "row-selected")
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    AnimatedVisibility(
+        selecting,
+        enter = if (reduced) androidx.compose.animation.EnterTransition.None else fadeIn(com.coinepro.hq.designsystem.Motion.medium()) + androidx.compose.animation.expandHorizontally(com.coinepro.hq.designsystem.Motion.medium()),
+        exit = if (reduced) androidx.compose.animation.ExitTransition.None else fadeOut(com.coinepro.hq.designsystem.Motion.exit()) + androidx.compose.animation.shrinkHorizontally(com.coinepro.hq.designsystem.Motion.exit()),
+    ) {
+        Box(Modifier.padding(end = 10.dp)) { SelectCheck(selected) }
+    }
+    HqCard(
+        Modifier.weight(1f).then(if (selected) Modifier.border(1.dp, c.lineTahrir, RoundedCornerShape(com.coinepro.hq.designsystem.Radius.card)) else Modifier),
+        onClick = onOpen, color = tint, onLongClick = onLongClick,
+        onClickLabel = if (selecting) (if (selected) "برداشتن از انتخاب" else "انتخاب") else "باز کردن", onLongClickLabel = "انتخاب چندتایی",
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (!seen) Box(Modifier.size(8.dp).clip(CircleShape).background(c.goldFill))
             Pill(CATEGORY_FA[d.kind] ?: d.kind, if (d.kind == "report") Tone.LAPIS else Tone.SILVER)
@@ -435,6 +528,139 @@ private fun OutputRow(d: Deliverable, seen: Boolean, companyFa: String, onOpen: 
         Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(buildAnnotatedString { append(d.producer.titleFa); append("، "); append(jTime(d.createdAt)); append("، "); fig(d.ref) }, style = Divan.type.micro, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             d.filedAs?.let { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) { DIcon(DivanIcon.DELIVERABLE, size = 12.dp, tint = c.textMuted); Fig(it, style = Divan.type.figureSmall, color = c.textMuted) } }
+        }
+    }
+    }
+}
+
+/** The round check of selection mode: an empty ring, or the gold disc with its tick. */
+@Composable
+internal fun SelectCheck(on: Boolean) {
+    val c = Divan.colors
+    val reduced = com.coinepro.hq.designsystem.LocalReducedMotion.current
+    val fill by androidx.compose.animation.animateColorAsState(if (on) c.goldFill else androidx.compose.ui.graphics.Color.Transparent, com.coinepro.hq.designsystem.Motion.short(reduced), label = "check-fill")
+    val ring = if (on) c.goldFill else c.textMuted
+    val ink = c.page
+    androidx.compose.foundation.Canvas(Modifier.size(24.dp).semantics { contentDescription = if (on) "انتخاب‌شده" else "انتخاب‌نشده" }) {
+        val r = size.minDimension / 2
+        drawCircle(fill, r)
+        drawCircle(ring, r - 1.dp.toPx(), style = androidx.compose.ui.graphics.drawscope.Stroke(1.6.dp.toPx()))
+        if (on) {
+            val p = androidx.compose.ui.graphics.Path().apply {
+                moveTo(size.width * 0.28f, size.height * 0.52f)
+                lineTo(size.width * 0.44f, size.height * 0.67f)
+                lineTo(size.width * 0.72f, size.height * 0.36f)
+            }
+            drawPath(p, ink, style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+        }
+    }
+}
+
+/** Selection mode's top bar: close, «۳ انتخاب‌شده», and all or none. */
+@Composable
+internal fun SelectionTop(sel: com.coinepro.hq.core.data.Selection, all: Boolean, modifier: Modifier, onClose: () -> Unit, onAll: () -> Unit) {
+    val c = Divan.colors
+    val reduced = com.coinepro.hq.designsystem.LocalReducedMotion.current
+    AnimatedVisibility(
+        sel.active, modifier,
+        enter = if (reduced) androidx.compose.animation.EnterTransition.None else fadeIn(com.coinepro.hq.designsystem.Motion.emphasised()) + slideInVertically(com.coinepro.hq.designsystem.Motion.emphasised()) { -it },
+        exit = if (reduced) androidx.compose.animation.ExitTransition.None else fadeOut(com.coinepro.hq.designsystem.Motion.exit()) + slideOutVertically(com.coinepro.hq.designsystem.Motion.exit()) { -it },
+    ) {
+        Row(
+            Modifier.fillMaxWidth().background(c.raised).padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            com.coinepro.hq.designsystem.IconBtn(DivanIcon.CLOSE, "بیرون از انتخاب", onClose)
+            Text(
+                if (sel.count == 0) "هیچ‌کدام انتخاب نشده" else "${sel.count} انتخاب‌شده",
+                style = Divan.type.bodyStrong, color = c.textPrimary, modifier = Modifier.weight(1f).semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite },
+            )
+            HqButton(if (all) "هیچ" else "همه", onAll, variant = BtnVariant.TEXT, size = BtnSize.SM)
+        }
+    }
+}
+
+/** Selection mode's actions: file in the archive, mark seen, delete for good. */
+@Composable
+internal fun SelectionActions(
+    sel: com.coinepro.hq.core.data.Selection, busy: String?, modifier: Modifier,
+    onFile: () -> Unit, onSeen: () -> Unit, onDelete: () -> Unit, canDelete: Boolean = true,
+) {
+    val c = Divan.colors
+    val reduced = com.coinepro.hq.designsystem.LocalReducedMotion.current
+    AnimatedVisibility(
+        sel.active, modifier,
+        enter = if (reduced) androidx.compose.animation.EnterTransition.None else fadeIn(com.coinepro.hq.designsystem.Motion.emphasised()) + slideInVertically(com.coinepro.hq.designsystem.Motion.emphasised()) { it },
+        exit = if (reduced) androidx.compose.animation.ExitTransition.None else fadeOut(com.coinepro.hq.designsystem.Motion.exit()) + slideOutVertically(com.coinepro.hq.designsystem.Motion.exit()) { it },
+    ) {
+        val some = sel.count > 0
+        Row(
+            Modifier.padding(12.dp).widthIn(max = 560.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.raised).padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically,
+        ) {
+            HqButton("بایگانی", onFile, Modifier.weight(1f), variant = BtnVariant.SECONDARY, size = BtnSize.SM, enabled = some && busy == null, loading = busy == "file")
+            HqButton("خوانده‌شده", onSeen, Modifier.weight(1f), variant = BtnVariant.SECONDARY, size = BtnSize.SM, enabled = some && busy == null)
+            // A hub before ⟨1.10⟩ has no delete: the action is not offered.
+            if (canDelete) HqButton("حذف برای همیشه", onDelete, Modifier.weight(1.45f), variant = BtnVariant.DANGER, size = BtnSize.SM, enabled = some && busy == null)
+        }
+    }
+}
+
+/**
+ * ⟨1.10⟩ §28.1 deleting outputs for good: what goes and what stays, said plainly, then the passkey on the SHA-256 of the sorted refs.
+ * A hub before ⟨1.10⟩ (404/405) keeps them, and the sheet says so.
+ */
+@Composable
+fun DeleteOutputsContent(items: List<Deliverable>, onCancel: () -> Unit, onDeleted: (Int) -> Unit) {
+    val env = LocalEnv.current
+    val toasts = LocalToasts.current
+    val c = Divan.colors
+    val scope = rememberCoroutineScope()
+    val haptics = com.coinepro.hq.designsystem.rememberHaptics()
+    var busy by remember { mutableStateOf(false) }
+    val act = if (androidx.activity.compose.LocalActivity.current != null) com.coinepro.hq.ui.activity() else null
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text("از دیتابیس پاک میشود و برنمیگردد؛ فقط یک خط در دفتر Audit میماند.", style = Divan.type.bodyStrong, color = c.textPrimary)
+        com.coinepro.hq.ui.companies.Consequences(
+            listOfNotNull(
+                DivanIcon.CLOSE to "خود خروجی، فایل‌هایش و امتیازهایش از دیتابیس و انبار فایل پاک میشوند.",
+                DivanIcon.REPORT to "در دفتر Audit فقط شماره، عنوان، شرکت، این‌که تو پاکش کردی و زمانش میماند.",
+                items.mapNotNull { it.filedAs }.takeIf { it.isNotEmpty() }?.let { DivanIcon.DELIVERABLE to "سند بایگانی‌شده‌شان (${it.joinToString("، ")}) سر جایش میماند؛ بایگانی سابقه‌ی توست." },
+                DivanIcon.LOCK to "تأیید آخر با اثر انگشت یا چهره است.",
+            ),
+            c.negative,
+        )
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            for (d in items.take(6)) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Fig(d.ref, style = Divan.type.figureSmall, color = c.textMuted)
+                RichText(d.title, Modifier.weight(1f), style = Divan.type.small, color = c.textPrimary, maxLines = 1)
+            }
+            if (items.size > 6) Text("و ${items.size - 6} خروجی دیگر", style = Divan.type.caption, color = c.textMuted)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            HqButton("حذف برای همیشه", {
+                if (busy || act == null) return@HqButton
+                busy = true
+                scope.launch {
+                    try {
+                        val out = env.api.gated(com.coinepro.hq.core.net.HubFeature.DELETE_OUTPUTS) {
+                            deleteDeliverables(items.map { it.ref }) { a, t -> env.auth.stepUp(act, a, t) }
+                        }
+                        if (out == null) {
+                            // A hub before ⟨1.10⟩: nothing was deleted; the action leaves the screens, without an error.
+                            onCancel()
+                        } else {
+                            env.cache.invalidate("deliverables", "inbox", "employees")
+                            haptics.confirm()
+                            onDeleted(out.deleted)
+                        }
+                    } catch (e: ApiException) {
+                        haptics.reject()
+                        toasts.error(e.messageFa)
+                    } finally { busy = false }
+                }
+            }, Modifier.weight(1f), variant = BtnVariant.DANGER, icon = DivanIcon.LOCK, loading = busy)
+            HqButton("انصراف", onCancel, Modifier.weight(1f), variant = BtnVariant.GHOST)
         }
     }
 }
@@ -468,10 +694,22 @@ internal fun UndoBar(u: Undo?, modifier: Modifier, onTimeout: (Long) -> Unit, on
 /** One deliverable: summary, body, evidence, what produced it, seen and filing, and the owner's rating. */
 @Composable
 fun OutputScreen(ref: String) {
+    val nav = LocalNav.current
+    val toasts = LocalToasts.current
     val q = rememberQuery("deliverable:$ref", "deliverables") { deliverable(ref) }
     val r = refresher(q)
+    var deleting by remember { mutableStateOf<Deliverable?>(null) }
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
-        item { Loadable(q, skeleton = { Skeleton(Modifier.fillMaxWidth().height(300.dp), radius = 16.dp) }) { d -> OutputDetail(d) { q.set(it) } } }
+        item { Loadable(q, skeleton = { Skeleton(Modifier.fillMaxWidth().height(300.dp), radius = 16.dp) }) { d -> OutputDetail(d, onDelete = { deleting = d }) { q.set(it) } } }
+    }
+    deleting?.let { d ->
+        HqSheet({ deleting = null }, "حذف ${d.ref} برای همیشه", sub = "فقط تو میتوانی؛ با اثر انگشت یا چهره") {
+            DeleteOutputsContent(listOf(d), onCancel = { deleting = null }) {
+                deleting = null
+                toasts.ok("${d.ref} برای همیشه پاک شد؛ یک خط در دفتر Audit ماند.")
+                nav.back()
+            }
+        }
     }
 }
 
@@ -486,7 +724,7 @@ private fun usageOf(d: Deliverable): Pair<Long?, String?> {
 }
 
 @Composable
-private fun OutputDetail(d: Deliverable, onChanged: (Deliverable) -> Unit) {
+private fun OutputDetail(d: Deliverable, onDelete: () -> Unit = {}, onChanged: (Deliverable) -> Unit) {
     val env = LocalEnv.current
     val nav = LocalNav.current
     val toasts = LocalToasts.current
@@ -495,6 +733,7 @@ private fun OutputDetail(d: Deliverable, onChanged: (Deliverable) -> Unit) {
     val action = rememberAction()
     val filing = rememberAction()
     val local by env.seen.refs.collectAsStateWithLifecycle()
+    val gaps by env.api.gaps.missing.collectAsStateWithLifecycle()
     var score by rememberSaveable(d.ref) { mutableIntStateOf(d.rating?.score ?: 0) }
     var comment by rememberSaveable(d.ref) { mutableStateOf(d.rating?.comment.orEmpty()) }
     var filed by rememberSaveable(d.ref) { mutableStateOf(d.filedAs) }
@@ -504,8 +743,33 @@ private fun OutputDetail(d: Deliverable, onChanged: (Deliverable) -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Pill(CATEGORY_FA[d.kind] ?: d.kind, if (d.kind == "report") Tone.LAPIS else Tone.SILVER)
                 CompanyMark(d.company, height = 14.dp, mono = true, ink = c.textSecondary)
-                Text(companyOf(companies, d.company).nameFa, style = Divan.type.caption, color = c.textMuted)
+                Text(companyOf(companies, d.company).nameFa, style = Divan.type.caption, color = c.textMuted, modifier = Modifier.weight(1f, fill = false))
                 Fig(d.ref, style = Divan.type.figureSmall, color = c.textMuted)
+                androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                // ⟨1.10⟩ §28.1 the selection's actions on this one output.
+                Box {
+                    var menu by remember { mutableStateOf(false) }
+                    com.coinepro.hq.designsystem.IconBtn(DivanIcon.MORE, "کارهای این خروجی", { menu = true })
+                    androidx.compose.material3.DropdownMenu(menu, { menu = false }, containerColor = c.overlay) {
+                        if (filed == null) androidx.compose.material3.DropdownMenuItem({ Text("بایگانی", style = Divan.type.small) }, {
+                            menu = false
+                            filing.run {
+                                val out = env.api.fileDeliverable(d.ref)
+                                filed = out.record
+                                env.cache.invalidate("deliverables", "archive")
+                                toasts.ok("در بایگانی ثبت شد: ${out.record}")
+                            }
+                        }, leadingIcon = { DIcon(DivanIcon.DELIVERABLE, size = 18.dp) })
+                        androidx.compose.material3.DropdownMenuItem({ Text(if (seenAt == null) "خوانده‌شده" else "دوباره تازه", style = Divan.type.small) }, {
+                            menu = false
+                            action.run { markSeen(env, toasts, listOf(d.ref), seenAt == null) }
+                        }, leadingIcon = { DIcon(if (seenAt == null) DivanIcon.SEAL else DivanIcon.REFRESH, size = 18.dp) })
+                        if (com.coinepro.hq.core.net.HubFeature.DELETE_OUTPUTS !in gaps) androidx.compose.material3.DropdownMenuItem({ Text("حذف برای همیشه", style = Divan.type.small, color = c.negative) }, {
+                            menu = false
+                            onDelete()
+                        }, leadingIcon = { DIcon(DivanIcon.DISMISS, size = 18.dp, tint = c.negative) })
+                    }
+                }
             }
             RichText(d.title, style = Divan.type.h2, color = c.textPrimary)
         }

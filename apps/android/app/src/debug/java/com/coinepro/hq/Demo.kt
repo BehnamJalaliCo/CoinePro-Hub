@@ -127,7 +127,9 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
         servers.handle(req, path, body, query)?.let { return it }
         tick18()
         // ⟨1.7.3⟩ §5.2: outputs seen, filed and filtered.
-        outputs.handle(req.method, path, query, body)?.let { return respond(req, it) }
+        outputs.handle(req.method, path, query, body, req.header("X-Step-Up"))?.let { return respond(req, it) }
+        // ⟨1.10⟩ §28: the company catalogue, the watch's findings, the apps' error reports and a council that mostly failed.
+        watch.handle(req.method, path, body)?.let { return respond(req, it) }
         // §9: kill switches and deploy freezes, their history and the owner's reasons.
         control.handle(req.method, path, query, body, req.header("X-Step-Up"))?.let { return respond(req, it) }
         // 0.4.1: notifications read and grouped, removing a company, the planner's meetings, the founding's work refs.
@@ -268,6 +270,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     private val archive by lazy { ArchiveDemo(context, store, files) }
     /** ⟨1.9⟩ eager: `/meta.speech` and the voice message's hub transcript are there from the first read. */
     private val council = CouncilDemo(context, store, files)
+    private val watch = WatchDemo(store)
     private val outputs by lazy { OutputsDemo(store) }
     /** Eager: the holding's mixed states are there from the first read. */
     private val control = ControlDemo(store)

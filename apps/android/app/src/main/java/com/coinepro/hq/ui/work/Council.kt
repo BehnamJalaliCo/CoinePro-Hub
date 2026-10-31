@@ -35,7 +35,10 @@ import com.coinepro.hq.core.data.SynthKind
 import com.coinepro.hq.core.data.SynthSection
 import com.coinepro.hq.core.data.councilProgressFa
 import com.coinepro.hq.core.data.councilStateFa
+import com.coinepro.hq.core.data.MemberReason
+import com.coinepro.hq.core.data.memberReasonFa
 import com.coinepro.hq.core.data.memberStateFa
+import com.coinepro.hq.core.data.soloAnswerFa
 import com.coinepro.hq.core.data.playerFa
 import com.coinepro.hq.core.data.providerOfPlayer
 import com.coinepro.hq.core.data.synthesisSections
@@ -112,6 +115,7 @@ private fun CouncilState(k: Council) {
         k.state == "failed" -> Pill(councilStateFa(k), Tone.NEG, dot = true)
         moving -> Pill(if (live.state == StreamState.LIVE) "زنده" else councilStateFa(k), Tone.GOLD, live = live.state == StreamState.LIVE)
         k.mediaCouncil -> Pill(councilStateFa(k), Tone.GOLD, icon = DivanIcon.IMAGE)
+        soloAnswerFa(k) != null -> Pill(councilStateFa(k), Tone.WARN, dot = true)
         else -> Pill(councilStateFa(k), Tone.POS, icon = DivanIcon.SEAL)
     }
 }
@@ -134,7 +138,7 @@ private fun MemberRow(m: CouncilMember) {
                 Text(playerFa(m.player), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = if (out) c.textSecondary else c.textPrimary)
                 if (m.model.isNotBlank()) Fig(if (m.player == "claude") com.coinepro.hq.core.format.modelLabel(m.model) else subModel(m.model), style = Divan.type.figureSmall, color = c.textMuted)
             }
-            m.reason?.takeIf { out }?.let { Text(it, style = Divan.type.micro, color = if (m.state == "failed") c.negative else c.textMuted, maxLines = 3) }
+            if (out) memberReasonFa(m.reason)?.let { ReasonLine(it, if (m.state == "failed") c.negative else c.textMuted) }
             m.deliverableRef?.takeIf { m.state == "done" && !m.creative }?.let { ref ->
                 Row(
                     Modifier.clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClickLabel = "دیدن پاسخ") { nav.go("outputs/$ref") }.padding(vertical = 2.dp),
@@ -154,12 +158,53 @@ private fun MemberRow(m: CouncilMember) {
     }
 }
 
+/** ⟨1.10⟩ §28.4 a member's reason in plain Persian; when the hub's words were raw JSON or English, «پاسخ نداد» and a «جزئیات» toggle
+ *  with the original in a small left-to-right block. */
+@Composable
+internal fun ReasonLine(r: MemberReason, tint: androidx.compose.ui.graphics.Color, open0: Boolean = false) {
+    val c = Divan.colors
+    var open by rememberSaveable(r.raw) { mutableStateOf(open0) }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(r.text, style = Divan.type.micro, color = tint, maxLines = 3)
+            if (r.raw != null) Text(
+                if (open) "بستن جزئیات" else "جزئیات",
+                style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk,
+                modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(role = Role.Button) { open = !open }.padding(horizontal = 4.dp, vertical = 2.dp),
+            )
+        }
+        val raw = r.raw
+        if (raw != null) com.coinepro.hq.designsystem.Expand(open) {
+            androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Ltr) {
+                Text(
+                    raw.take(1200),
+                    style = Divan.type.figureSmall.copy(textDirection = androidx.compose.ui.text.style.TextDirection.Ltr), color = c.textSecondary,
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(c.tile).padding(horizontal = 10.dp, vertical = 8.dp),
+                )
+            }
+        }
+    }
+}
+
 // --------------------------------------------------------------- synthesis --
 /** Claude's synthesis, highlighted: where the players agree, where they differ and why, the recommendation; each answer whole a tap away. */
 @Composable
 private fun Synthesis(k: Council) {
     val c = Divan.colors
     val ref = k.synthesisRef
+    // ⟨1.10⟩ §28.4: one answer is said plainly; it is not a council's synthesis.
+    soloAnswerFa(k)?.let { solo ->
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.tile)).background(c.softWarning).padding(14.dp),
+            verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            DIcon(DivanIcon.INFO, size = 18.dp, tint = c.warning)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(solo, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
+                Text("بقیه‌ی بازیکن‌ها پاسخی ندادند؛ آنچه میخوانی پاسخ یک مدل است، نه جمع‌بندی شورا.", style = Divan.type.caption, color = c.textSecondary)
+            }
+        }
+    }
     when {
         ref != null -> {
             val q = rememberQuery("deliverable:$ref", "deliverables") { deliverable(ref) }

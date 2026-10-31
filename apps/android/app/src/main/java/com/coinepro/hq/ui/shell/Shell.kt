@@ -150,6 +150,8 @@ private val GROUPS = listOf(
     ToolGroupDef("org", "سازمان", "کسانی که کنار تو کار میکنند و آنچه یاد میگیرند", listOf(
         Tool("advisor", "مشاور کل", DivanIcon.ADVISOR, "با او فکر کن و نظر دوم بگیر"),
         Tool("oversight", "ناظر کل", DivanIcon.OVERSEER, "چه کسی کجا خطا کرد و چه نگه داشته شد"),
+        // ⟨1.10⟩ §28.3: the overseer's watch over the apps, the hub and every company.
+        Tool("watch", "دیده‌بان", DivanIcon.SCOPE, "امنیت، سلامت اپ، کد، رشد و پیشنهاد هلدینگ؛ هر یافته با اصلاحش"),
         Tool("assistant", "دستیار", DivanIcon.ASSISTANT, "کارهای بیرونی تو را در اینترنت پیگیری میکند"),
         Tool("stars", "ستاره‌ها", DivanIcon.STAR, "بهترین شرکت و کارمندهای هفته و ماه"),
         Tool("founding", "تأسیس شرکت", DivanIcon.FOUND, "شرکت تازه قدم‌به‌قدم: از ایده، ریپو یا فقط با نام"),
@@ -398,6 +400,8 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     composable("messages/{code}") { ChatScreen(it.arguments?.getString("code").orEmpty()) }
                     composable("companies") { CompaniesScreen() }
                     composable("companies/{code}") { CompanyScreen(it.arguments?.getString("code").orEmpty()) }
+                    composable("catalogue/{code}") { com.coinepro.hq.ui.companies.CatalogueScreen(it.arguments?.getString("code").orEmpty()) }
+                    composable("watch") { com.coinepro.hq.ui.oversight.WatchScreen() }
                     composable("companies/{code}/{tab}") { CompanyScreen(it.arguments?.getString("code").orEmpty(), tab0 = it.arguments?.getString("tab") ?: "control") }
                     composable("employees/{code}") { EmployeeScreen(it.arguments?.getString("code").orEmpty()) }
                     composable("work/{id}") { WorkScreen(it.arguments?.getString("id").orEmpty()) }

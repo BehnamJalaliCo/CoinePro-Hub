@@ -64,6 +64,12 @@ data class Finding(
     val openedAt: String,
     val closedAt: String? = null,
     val history: List<FindingStep> = emptyList(),
+    /** ⟨1.10⟩ §28.3 the watch's kind: security · app_health · code · growth · holding (null for the other protocols' findings). */
+    val kind: String? = null,
+    /** ⟨1.10⟩ the overseer's proposed fix, in words. */
+    val fixMd: String? = null,
+    /** ⟨1.10⟩ the fix as something to approve: a work item, a Code Workshop session or a card for the seal. */
+    val fix: FindingFix? = null,
 )
 
 @Serializable

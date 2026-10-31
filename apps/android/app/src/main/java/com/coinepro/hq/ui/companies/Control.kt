@@ -551,6 +551,7 @@ fun ActionsContent(t: CoTarget, s: CoState, ui: ControlUi, go: (String) -> Unit)
         ActionRow(DivanIcon.COMMAND, if (t.holding) "فرمان به هلدینگ" else "فرمان به مدیرعامل", "کار تازه؛ مدیرعامل آن را به دپارتمان درست میسپارد", c.goldInk) { ui.open(ControlSheet.Order(t)) }
         if (!t.holding) ActionRow(DivanIcon.MESSAGES, "پیام به مدیرعامل", "گفت‌وگوی ${t.code}-CEO", c.textSecondary) { go("messages/${t.code}-CEO") }
         ActionRow(DivanIcon.SETTINGS, "اتاق کنترل", "وضعیت و تاریخچه، بودجه، استخدام، فعالیت زنده", c.textSecondary) { go("companies/${t.code}") }
+        if (!t.holding && catalogueServed()) ActionRow(DivanIcon.KNOWLEDGE, "کاتالوگ کامل", "هرچه روی سرورهایش هست، جزءبه‌جزء؛ فقط خواندنی", c.goldInk) { go("catalogue/${t.code}") }
         if (!t.holding) ActionRow(DivanIcon.DISMISS, "حذف شرکت", "برای شرکتی که اشتباهی ساخته شده؛ با کد و گذرکلید", c.negative) { ui.open(ControlSheet.Delete(t)) }
     }
 }
@@ -759,6 +760,8 @@ fun androidx.compose.foundation.lazy.LazyListScope.controlRoom(co: Company?, d: 
             nav.go(if (holding) "servers" else "companies/${co.code}/servers")
         }
     }
+    // ⟨1.10⟩ §28.2: the deep catalogue of what runs on its servers.
+    if (!holding) item(key = "control-catalogue") { CatalogueCard(co.code, t.nameFa) }
     if (!holding) item(key = "control-sites") { SitesCard(co.code) }
     if (!holding) item(key = "control-delete") { DeleteCard(t, ui) }
 }

@@ -424,7 +424,7 @@ private fun FindingRow(f: Finding, onClick: () -> Unit) {
 
 /** One finding: the evidence, the trail, and the owner's verdict on a fix (verify, reopen or close). */
 @Composable
-private fun FindingSheet(f: Finding, onClose: () -> Unit) {
+internal fun FindingSheet(f: Finding, onClose: () -> Unit) {
     val env = LocalEnv.current
     val c = Divan.colors
     val action = rememberAction()

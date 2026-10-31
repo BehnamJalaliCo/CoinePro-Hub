@@ -182,6 +182,14 @@ fun SettingsScreen(graph: AppGraph) {
         }
         // «خطاخوان»: every failed call, contract mismatch and crash on this phone, to copy or share for the developer.
         item { ErrorLogCard(graph.errors) { nav.go("errors") } }
+        // ⟨1.10⟩ §28.3: the log to the hub, for the overseer's app-health check.
+        item {
+            val on by graph.prefs.reportErrors.collectAsStateWithLifecycle()
+            val reported by graph.reporter.reported.collectAsStateWithLifecycle()
+            val entries by graph.errors.entries.collectAsStateWithLifecycle()
+            val serious = entries.count { it.level != com.coinepro.hq.core.diag.LEVEL_INFO }
+            ErrorReportCard(on, graph.prefs::setReportErrors, reported, (serious - reported).coerceAtLeast(0))
+        }
         item {
             HqButton(if (env.demo) "خروج از نمایش آزمایشی" else "خروج", { action.run { env.auth.signOut() } }, Modifier.fillMaxWidth(), variant = BtnVariant.DANGER, icon = DivanIcon.BACK)
         }

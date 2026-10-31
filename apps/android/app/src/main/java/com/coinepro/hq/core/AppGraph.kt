@@ -12,12 +12,14 @@ import com.coinepro.hq.core.data.HoldingStream
 import com.coinepro.hq.core.data.QueryCache
 import com.coinepro.hq.core.media.MediaKit
 import com.coinepro.hq.core.net.Api
+import com.coinepro.hq.core.net.gated
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -137,6 +139,42 @@ class AppGraph(context: Context) {
         note = { title, detail -> errors.note("link", com.coinepro.hq.core.diag.LEVEL_INFO, title, detail) },
     ).also { linkRef = it }
 
+    /** ⟨1.10⟩ §28.3 «خطاخوان» to the hub: a real, signed-in session with «ارسال خطاها به ستاد» on; every entry once. */
+    private val reportScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    val reporter = com.coinepro.hq.core.diag.ErrorReporter(
+        entries = { errors.entries.value },
+        sent = com.coinepro.hq.core.diag.PrefsSentStore(app),
+        upload = { batch ->
+            val api = env.value.api
+            val out = try {
+                api.gated(com.coinepro.hq.core.net.HubFeature.CLIENT_ERRORS) {
+                    clientErrors(BuildConfig.VERSION_NAME, com.coinepro.hq.core.diag.ErrorReporter.wire(batch))
+                }
+            } catch (e: com.coinepro.hq.core.net.ApiException) {
+                // Reporting never reports itself: the failed call leaves the log, and the batch goes on the next round.
+                e.logged?.let(errors::forget)
+                throw e
+            }
+            // A hub before ⟨1.10⟩: the entries stay queued, silently, for a later app start.
+            if (out == null) throw com.coinepro.hq.core.diag.ErrorReporter.NotServed()
+        },
+        allowed = {
+            prefs.reportErrors.value && !env.value.demo && env.value.auth.signedIn.value &&
+                env.value.api.gaps.has(com.coinepro.hq.core.net.HubFeature.CLIENT_ERRORS)
+        },
+    )
+
+    /** The rounds run while the app is on screen; signing in starts one at once. */
+    fun reportWhileOpen(open: Boolean) = if (open) reporter.start(reportScope) else reporter.stop()
+
+    init {
+        @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+        reportScope.launch {
+            env.flatMapLatest { it.auth.signedIn }.collect { on -> if (on) runCatching { reporter.flush() } }
+        }
+        reportScope.launch { prefs.reportErrors.collect { on -> if (on) runCatching { reporter.flush() } } }
+    }
+
     val demoAvailable: Boolean get() = Demo.available
 
     fun enterDemo() {
@@ -219,6 +257,15 @@ class Prefs(context: Context) {
     fun setAppLock(on: Boolean) {
         sp.edit().putBoolean("app_lock", on).apply()
         lockFlow.value = on
+    }
+
+    private val reportFlow = MutableStateFlow(sp.getBoolean("report_errors", true))
+    /** ⟨1.10⟩ «ارسال خطاها به ستاد»: the error log's masked entries go to the hub (`POST /client/errors`); on by default. */
+    val reportErrors: StateFlow<Boolean> = reportFlow.asStateFlow()
+
+    fun setReportErrors(on: Boolean) {
+        sp.edit().putBoolean("report_errors", on).apply()
+        reportFlow.value = on
     }
 }
 

@@ -57,7 +57,7 @@ internal class OutputsDemo(private val store: MutableMap<String, Pair<Int, JsonE
     }
 
     /** Answers the ⟨1.7.3⟩ reads and writes, or null to let the rest of the demo answer. */
-    fun handle(method: String, path: String, query: Map<String, String?>, body: JsonObject?): Pair<Int, JsonElement>? {
+    fun handle(method: String, path: String, query: Map<String, String?>, body: JsonObject?, stepUp: String? = null): Pair<Int, JsonElement>? {
         if (method == "GET" && path == "/deliverables") return 200 to page(filter(query).map(::view))
         if (method == "GET" && path.matches(Regex("^/deliverables/O-\\d+$"))) return store[path]?.let { 200 to view(it.second) }
         if (method == "GET" && path == "/inbox/summary") {
@@ -70,6 +70,24 @@ internal class OutputsDemo(private val store: MutableMap<String, Pair<Int, JsonE
             var n = 0
             for (r in refs) if (on && r !in seen) { seen[r] = HqClock.now().toString(); n++ } else if (!on && seen.remove(r) != null) n++
             return 200 to buildJsonObject { put("updated", n) }
+        }
+        // ⟨1.10⟩ §28.1: several filed at once, and deleted for good (the owner's passkey; only an Audit line stays).
+        if (method == "POST" && path == "/deliverables/file") {
+            val refs = body?.get("refs")?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull }.orEmpty()
+            return 200 to buildJsonObject {
+                put("records", JsonArray(refs.filter { r -> list().any { it.str("ref") == r } }.map { r ->
+                    buildJsonObject { put("ref", r); put("record", filed.getOrPut(r) { "AR-%06d".format(nextRecord++) }) }
+                }))
+            }
+        }
+        if (method == "DELETE" && path == "/deliverables") {
+            if (stepUp == null) return 403 to buildJsonObject { put("code", "step_up_required"); put("message_fa", "این کار تأیید با گذرکلید لازم دارد."); put("status", 403); put("title", "Forbidden"); put("type", "about:blank") }
+            val refs = body?.get("refs")?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull }.orEmpty().toSet()
+            val before = list()
+            val kept = before.filter { it.str("ref") !in refs }
+            store["/deliverables"] = 200 to page(kept)
+            for (r in refs) { store.remove("/deliverables/$r"); seen.remove(r); filed.remove(r) }
+            return 200 to buildJsonObject { put("deleted", before.size - kept.size) }
         }
         Regex("^/deliverables/(O-\\d+)/file$").find(path)?.let { m ->
             if (method != "POST") return null

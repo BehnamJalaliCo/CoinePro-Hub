@@ -147,11 +147,38 @@ fun memberStateFa(m: CouncilMember): String = when (m.state) {
     "queued" -> "در صف"; "working" -> "کار میکند"; "done" -> "تحویل داد"; "failed" -> "ناموفق"; "skipped" -> "کنار ماند"; else -> m.state
 }
 
+/** ⟨1.10⟩ §28.4 a member's reason as the app shows it: [text] in Persian, and [raw] (the hub's own words) behind «جزئیات» when the
+ *  reason was not Persian (raw JSON, an English error) and the app said «پاسخ نداد» instead. */
+data class MemberReason(val text: String, val raw: String? = null)
+
+/** Persian as given; raw JSON or an English sentence becomes «پاسخ نداد» with the original kept for «جزئیات». */
+fun memberReasonFa(reason: String?): MemberReason? {
+    val r = reason?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    val json = r.startsWith("{") || r.startsWith("[") || Regex("\\{\\s*\"\\w+\"\\s*:").containsMatchIn(r)
+    val persian = r.count { it in '\u0600'..'\u06FF' }
+    val latin = r.count { it in 'a'..'z' || it in 'A'..'Z' }
+    return if (json || persian == 0 || persian * 2 < latin) MemberReason(NO_ANSWER, r) else MemberReason(r)
+}
+
+private const val NO_ANSWER = "پاسخ نداد"
+
+/** ⟨1.10⟩ §28.4 a council that ended with one answer says so plainly («فقط Claude پاسخ داد»), and does not pretend there was a council. */
+fun soloAnswerFa(c: Council): String? {
+    val moving = c.members.any { it.state == "queued" || it.state == "working" }
+    val done = c.members.filter { it.state == "done" }
+    if (moving || c.members.size < 2 || done.size != 1) return null
+    return "فقط ${playerFa(done.single().player)} پاسخ داد"
+}
+
 /** The council's state in words. */
 fun councilStateFa(c: Council): String = when (c.state) {
     "running" -> "بازیکن‌ها کار میکنند"
     "synthesising" -> "Claude جمع‌بندی مینویسد"
-    "done" -> if (c.mediaCouncil) "منتظر انتخاب تو" else "جمع‌بندی آماده است"
+    "done" -> when {
+        c.mediaCouncil -> "منتظر انتخاب تو"
+        soloAnswerFa(c) != null -> "فقط یک پاسخ"
+        else -> "جمع‌بندی آماده است"
+    }
     "failed" -> "ناموفق"
     else -> c.state
 }

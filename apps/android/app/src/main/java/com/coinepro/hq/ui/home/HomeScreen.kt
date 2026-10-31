@@ -108,6 +108,7 @@ fun HomeScreen(onNewOrder: () -> Unit, onVoiceOrder: () -> Unit = {}) {
     val sessions = rememberSessions()
     val workspaces = rememberWorkspaces()
     val grants = rememberGrants()
+    val watch = com.coinepro.hq.ui.oversight.rememberWatchGroups()
     val r = refresher(inbox, away, presence, day, month, pending, planner, sessions)
     val c = Divan.colors
 
@@ -170,6 +171,8 @@ fun HomeScreen(onNewOrder: () -> Unit, onVoiceOrder: () -> Unit = {}) {
         // The owner's orders, followed from given to delivered: prominent, under the four numbers.
         item(key = "orders") { com.coinepro.hq.ui.work.HomeOrdersCard(onNewOrder) }
         item { OverseerCard() }
+        // ⟨1.10⟩ §28.3: the watch, only while it has something open.
+        if (watch.isNotEmpty()) item(key = "watch") { com.coinepro.hq.ui.oversight.WatchHomeCard(watch) }
         // ⟨1.5⟩ §21.2: ask the hub, above the cartable.
         item { com.coinepro.hq.ui.ask.AskBox() }
         item {

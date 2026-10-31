@@ -24,11 +24,13 @@ class HqApp : Application() {
                 val env = graph.env.value
                 if (env.auth.signedIn.value) env.cache.refreshObserved()
                 graph.link.setForeground(true)
+                graph.reportWhileOpen(true)
             }
 
             override fun onStop(owner: LifecycleOwner) {
                 graph.errors.foreground = false
                 graph.link.setForeground(false)
+                graph.reportWhileOpen(false)
             }
         })
     }

@@ -291,6 +291,38 @@ fun ErrorLogCard(log: ErrorLog, onOpen: () -> Unit) {
     }
 }
 
+/**
+ * ⟨1.10⟩ §28.3 «ارسال خطاها به ستاد»: the log's errors and warnings, as masked here, go to the hub for the overseer's daily app-health
+ * check (in batches, at start and every 15 minutes while the app is open; a crash on the next start). On by default.
+ */
+@Composable
+fun ErrorReportCard(on: Boolean, onChange: (Boolean) -> Unit, reported: Int, waiting: Int) {
+    val c = Divan.colors
+    HqCard(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(Modifier.size(40.dp).clip(CircleShape).background(c.tile), contentAlignment = Alignment.Center) {
+                DIcon(DivanIcon.SEND, size = 20.dp, tint = if (on) c.goldInk else c.textSecondary)
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("ارسال خطاها به ستاد", style = Divan.type.bodyStrong)
+                Text(
+                    when {
+                        !on -> "خاموش است؛ خطاها فقط روی همین گوشی میمانند."
+                        waiting > 0 -> "$reported مورد رفته، $waiting مورد در نوبت؛ هر مورد یک بار."
+                        else -> "$reported مورد رفته؛ هر مورد یک بار."
+                    },
+                    style = Divan.type.caption, color = c.textSecondary,
+                )
+            }
+            com.coinepro.hq.designsystem.HqSwitch(on, onChange, "ارسال خطاها به ستاد")
+        }
+        Text(
+            "فقط نسخه‌ی ماسک‌شده‌ی خطاخوان میرود: بی‌متن درخواست، بی‌توکن و بی‌داده‌ی مشتری. ناظر کل هر روز آن‌ها را دسته میکند، علت را در کد پیدا میکند و اصلاح پیشنهاد میدهد.",
+            style = Divan.type.micro, color = c.textMuted, modifier = Modifier.padding(top = 10.dp),
+        )
+    }
+}
+
 private fun copyText(context: Context, label: String, text: String) {
     (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText(label, text))
 }

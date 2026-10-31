@@ -54,6 +54,8 @@ class ApiException(
     val fieldKeys: List<String> = emptyList(),
     /** ⟨1.7⟩ `422 schema_invalid` and `validation_failed`: each named field with the server's sentence (§23.10), shown next to it. */
     val fields: Map<String, String> = emptyMap(),
+    /** ⟨1.10⟩ the Problem's `detail` (the framework's "Not Found" says the route itself is missing, [routeMissing]). */
+    val detail: String? = null,
 ) : Exception("HTTP $status $code") {
     /** The error log's entry for this failure, so a caller that expected it (a 404 read as "none yet") can take it back. */
     @Volatile var logged: Long? = null
@@ -162,6 +164,8 @@ class Api(
 
     /** The app's error log for a real session; the demo and the tests leave it null. */
     @Volatile var failures: FailureSink? = null
+    /** ⟨1.10⟩ the §28 routes this hub turned out not to serve, learnt once per app start ([gated]). */
+    val gaps = HubGaps()
 
     /** Whether the hub is answering (a restart's burst of 502s); every answer and every failure reports here. */
     @Volatile var hub: HubHealth? = null
@@ -246,6 +250,29 @@ class Api(
     suspend fun fileDeliverable(ref: String): FiledOut = post("/deliverables/${seg(ref)}/file", JsonObject(emptyMap()))
     suspend fun rate(ref: String, score: Int, comment: String?): Deliverable =
         post("/deliverables/${seg(ref)}/rating", buildJsonObject { put("score", score); put("comment", comment) })
+    /** ⟨1.10⟩ §28.1 files several at once, each as `/{ref}/file` does (idempotent per ref). */
+    suspend fun fileDeliverables(refs: List<String>): FiledMany =
+        post("/deliverables/file", buildJsonObject { put("refs", ids(refs.distinct())) })
+    /**
+     * ⟨1.10⟩ §28.1 deletes for good (the owner only): the rows, their files and ratings; an Audit line stays, and archive records they
+     * were filed into stay. 🔏 `deliverables.delete` on [deleteTarget] (the SHA-256 of the sorted refs); the body sends the same list.
+     */
+    suspend fun deleteDeliverables(refs: List<String>, stepUp: StepUp): DeletedOut {
+        val sorted = refs.distinct().sorted()
+        val token = stepUp("deliverables.delete", deleteTarget(sorted))
+        return call(write("DELETE", "/deliverables", buildJsonObject { put("refs", ids(sorted)) }, token), serializer())
+    }
+
+    // ------------------------------------------------ ⟨1.10⟩ §28.2 catalogue --
+    /** The latest catalogue of a company; `404` while it has none. */
+    suspend fun catalogue(code: String): Catalogue = get("/companies/${seg(code)}/catalogue")
+    /** Starts a run (the owner): a read-only `claude` job on every paired server of the company. */
+    suspend fun startCatalogue(code: String): Catalogue = post("/companies/${seg(code)}/catalogue", JsonObject(emptyMap()))
+
+    // ---------------------------------------------- ⟨1.10⟩ §28.3 app errors --
+    /** The app's own error log (already masked on the phone), one batch. */
+    suspend fun clientErrors(version: String, entries: JsonArray): ClientErrorsOut =
+        post("/client/errors", buildJsonObject { put("app", "android"); put("version", version); put("entries", entries) })
 
     // ------------------------------------------------------- organisation --
     suspend fun companies(): List<Company> = get("/companies")
@@ -1375,6 +1402,7 @@ class Api(
         throw ApiException(
             r.code, p.code, p.messageFa, p.requestId ?: r.header("X-Request-Id"), p.missing, p.blockedReasons, wait, batchReasons(p), p.fields?.keys?.filter { it != "items" }.orEmpty(),
             p.fields?.mapNotNull { (k, v) -> (v as? JsonPrimitive)?.takeIf { it.isString }?.content?.let { k to it } }?.toMap().orEmpty(),
+            p.detail,
         ).also { it.logged = logged }
     }
 
@@ -1454,6 +1482,11 @@ class Api(
             }.orEmpty()
 
         fun sha256(text: String): String = MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
+
+        /** ⟨1.10⟩ §28.1 the seal's target of a delete: SHA-256 of the canonical JSON of the refs, distinct and sorted
+         *  (`["O-000026","O-000028"]`, no spaces), as `decision.batch` seals its sorted items. */
+        fun deleteTarget(refs: Collection<String>): String =
+            sha256(json.encodeToString(JsonElement.serializer(), JsonArray(refs.distinct().sorted().map(::JsonPrimitive))))
 
         @OptIn(ExperimentalSerializationApi::class)
         val json = Json {
