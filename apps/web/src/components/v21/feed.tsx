@@ -32,6 +32,7 @@ const TOPIC_FA: Record<string, string> = {
   creative: 'طرح‌ها', media: 'استودیوی رسانه', legal: 'مشاور حقوقی', role: 'نقش‌ها', record: 'بایگانی', reminder: 'یادآور بایگانی', hold: 'توقیف',
   fixity: 'سلامت بایگانی', schema: 'طرح بایگانی', message: 'پیام‌ها', notification: 'اعلان‌ها', employee: 'کارمندها', presence: 'خلوت', budget: 'بودجه',
   llm: 'مصرف مدل', hiring: 'استخدام', story: 'استوری‌ها', company: 'شرکت‌ها', server: 'سرورها', activity: 'فعالیت ایجنت‌ها',
+  catalogue: 'کاتالوگ شرکت',
 };
 
 function look(r: FeedRow): { icon: IconName; tint: string } {
