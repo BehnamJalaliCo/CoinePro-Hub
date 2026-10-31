@@ -54,7 +54,11 @@ async def test_a_new_company_has_media_with_its_mandate_identity_and_team(
     for d in depts.values():
         for t in d["team"]:
             assert lib.get(t["role"]) is not None, t
-    assert [t["role"] for t in depts["TECH"]["team"]] == ["sre", "devops_engineer", "lead_developer"]
+    assert [t["role"] for t in depts["TECH"]["team"]] == [
+        "sre",
+        "devops_engineer",
+        "lead_developer",
+    ]
     assert depts["GROWTH"]["team"] == []  # its charters are staged, not live
     tpl = (await client.get("/api/v1/templates", headers=owner)).json()
     std = next(t for t in tpl if t["key"] == "standard")
