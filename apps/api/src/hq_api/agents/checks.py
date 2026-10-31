@@ -457,6 +457,11 @@ async def hub_snapshot(
         ' / node_filesystem_size_bytes{mountpoint="/"})',
         "memory_used_pct": "100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
         "load1": "node_load1",
+        # ⟨1.10.1⟩ a service at 85% of its memory cap (the alert HqContainerMemoryNearCap
+        # of containers.rules.yml is firing): its use in percent of its cap
+        "memory_near_cap": "round(100 * max by (service) (hq_container_memory_bytes"
+        " / hq_container_memory_limit_bytes)) and on (service)"
+        ' ALERTS{alertname="HqContainerMemoryNearCap", alertstate="firing"}',
     }
     try:
         async with httpx.AsyncClient(
@@ -467,7 +472,7 @@ async def hub_snapshot(
                 vec = (
                     resp.json().get("data", {}).get("result", []) if resp.status_code == 200 else []
                 )
-                if key in ("up", "restarts_24h"):
+                if key in ("up", "restarts_24h", "memory_near_cap"):
                     data[key] = {
                         str(v["metric"].get("service", "?")): float(v["value"][1])
                         for v in vec[:100]

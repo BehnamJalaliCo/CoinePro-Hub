@@ -602,6 +602,22 @@ async def hub_healthy(ctx: CheckCtx) -> Checked:
                     severity="critical" if disk > 90 else None,
                 )
             )
+        # ⟨1.10.1⟩ a service near its memory cap (Temporal stalled at its cap on
+        # 2026-10-31): one finding per service, while its alert fires
+        for svc, pct in sorted((d.get("memory_near_cap") or {}).items()):
+            problems.append(
+                Problem(
+                    ctx.holding_id,
+                    ctx.holding,
+                    f"حافظه‌ی {svc} نزدیک سقف است ({int(float(pct))}٪)",
+                    f"{svc} uses {int(float(pct))}% of its memory cap (alert HqContainerMemoryNearCap, "
+                    "85% for 15 minutes). Look at what grew (its caches, its load); the cap is the "
+                    "owner's memory budget, and a restart is the owner's decision.",
+                    f"memory-{svc}",
+                    [{"kind": "metric", "ref": "health.hub", "note": f"{svc} {pct}% of its cap"}],
+                    severity="high",
+                )
+            )
     return Checked(problems, {ctx.holding: ctx.holding_id})
 
 

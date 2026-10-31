@@ -473,6 +473,13 @@ async def test_the_holding_responder_and_hub_snapshot(
             return httpx.Response(
                 200, json={"data": {"result": [{"metric": {"service": "loki"}, "value": [0, "2"]}]}}
             )
+        if "HqContainerMemoryNearCap" in q:  # ⟨1.10.1⟩ a service at 85% of its cap
+            return httpx.Response(
+                200,
+                json={
+                    "data": {"result": [{"metric": {"service": "temporal"}, "value": [0, "88"]}]}
+                },
+            )
         return httpx.Response(
             200, json={"data": {"result": [{"metric": {}, "value": [0, "42.42"]}]}}
         )
@@ -492,6 +499,7 @@ async def test_the_holding_responder_and_hub_snapshot(
     finally:
         whub.settings = real
     assert data["services_up"] == "1/2" and data["restarts_24h"] == {"loki": 2}
+    assert data["memory_near_cap"] == {"temporal": 88.0}
     assert (
         data["disk_used_pct"] == 42.4
         and data["backup"]["ok"] is True

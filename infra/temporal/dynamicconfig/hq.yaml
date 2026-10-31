@@ -3,3 +3,40 @@
 limit.maxIDLength:
   - value: 255
     constraints: {}
+
+# ⟨1.10.1⟩ Bounded memory (report 19 §10: the server grew to its 768 MiB cap in
+# 13 days and its schedules stalled). Our load is tiny (a few dozen
+# schedules, at most a few runs a minute). Temporal 1.32 keeps one host-level
+# cache of workflow mutable state and one of history events; both are bounded
+# here in bytes (their defaults are sized for large clusters), entries expire
+# sooner, and compose sets small SQL connection pools (SQL_MAX_CONNS 10,
+# SQL_MAX_IDLE_CONNS 5). The persistence rate limits stay at their defaults:
+# capping them (300 QPS) starved the 512 shards' start-up on the test bench
+# ("System Persistence Max QPS Reached"), for no memory saved.
+# GOMEMLIMIT (profiles/*.env) stays: the Go heap is collected before the
+# container's cap. Every key was checked against the 1.32.1 binary; the
+# reasoning and the measured values: RUNBOOK (Temporal memory).
+history.cacheSizeBasedLimit:
+  - value: true
+    constraints: {}
+history.hostLevelCacheMaxSize:
+  - value: 4096            # entries (used while the limit is by count)
+    constraints: {}
+history.hostLevelCacheMaxSizeBytes:
+  - value: 67108864        # 64 MiB of mutable state: every open workflow, many times over
+    constraints: {}
+history.cacheTTL:
+  - value: 30m
+    constraints: {}
+history.enableHostLevelEventsCache:
+  - value: true
+    constraints: {}
+history.eventsHostLevelCacheMaxSizeBytes:
+  - value: 33554432        # 32 MiB of history events, host-wide
+    constraints: {}
+history.eventsCacheMaxSizeBytes:
+  - value: 262144          # 256 KiB per shard (the fallback if the host-level cache is off)
+    constraints: {}
+history.eventsCacheTTL:
+  - value: 30m
+    constraints: {}

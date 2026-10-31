@@ -1,0 +1,21 @@
+# ⟨1.10.1⟩ A long-running service near its memory cap (2026-10-31: Temporal
+# reached 766 of its 768 MiB after 13 days and its schedules stalled, report
+# 19 §10). Its caches are bounded now (infra/temporal/dynamicconfig/hq.yaml);
+# this is the alarm when something still grows. The overseer hears of it
+# through PR-062 (a finding per service, while this alert fires). No blind
+# restart: the cap is the owner's memory budget, a restart the owner's call.
+groups:
+  - name: hq-containers
+    rules:
+      - alert: HqContainerMemoryNearCap
+        expr: >-
+          (max by (service) (hq_container_memory_bytes)
+            / max by (service) (hq_container_memory_limit_bytes > 0)) > 0.85
+          and on (service) max by (service) (hq_container_up{oneshot="false"}) == 1
+        for: 15m
+        labels:
+          severity: warning
+          category: capacity
+        annotations:
+          summary: "{{ $labels.service }} uses more than 85% of its memory cap"
+          description: "docker stats on the hub; for temporal see RUNBOOK (Temporal memory)"

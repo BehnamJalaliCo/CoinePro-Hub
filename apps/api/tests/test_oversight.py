@@ -202,7 +202,8 @@ async def test_every_code_checker_runs(
     co = await new_company()
     await su.execute(
         """INSERT INTO ops.hub_health (company_id, at, data)
-           SELECT id, now(), '{"up": {"api": 0}, "disk_used_pct": 91, "certificate_days_left": 5}'
+           SELECT id, now(), '{"up": {"api": 0}, "disk_used_pct": 91, "certificate_days_left": 5,
+                               "memory_near_cap": {"temporal": 88}}'
            FROM core.companies WHERE kind = 'holding'
            ON CONFLICT (company_id) DO UPDATE SET data = EXCLUDED.data"""
     )
@@ -241,6 +242,12 @@ async def test_every_code_checker_runs(
     assert (
         results["PR-062"] == "fail"
     )  # the hub snapshot above: a service down, disk 91%, cert 5 days
+    # ⟨1.10.1⟩ and Temporal near its memory cap: a finding of its own
+    near = await su.fetchrow(
+        """SELECT f.title_fa, f.severity FROM oversight.findings f
+           WHERE f.dedupe_key LIKE 'PR-062:memory-temporal%' AND f.status NOT IN ('verified', 'closed')"""
+    )
+    assert near is not None and "temporal" in near["title_fa"] and near["severity"] == "high"
     assert co["code"]
 
 

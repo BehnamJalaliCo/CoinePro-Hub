@@ -633,4 +633,57 @@ else
   pass "ocr: off by default; on where it fits (the worker alone gets HQ_OCR_URL); refused without room"
 fi
 
+# ------------------------------------------- memory near the cap (19.1) ----
+# A long-running service at 85% of its cap for 15 minutes is an alert (and,
+# through PR-062, a finding); a one-shot job and a service below it are not.
+# Temporal's caches are bounded in its dynamic config (no blind restart).
+prom_image="$(HQ_PROFILE=full "$HQ" config --format json | jq -r .services.prometheus.image)"
+cat >"$T/containers-test.yml" <<'YAML'
+rule_files: [/rules/containers.rules.yml]
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'hq_container_memory_bytes{service="temporal"}'
+        values: '700000000x30'
+      - series: 'hq_container_memory_limit_bytes{service="temporal"}'
+        values: '805306368x30'
+      - series: 'hq_container_up{service="temporal",oneshot="false"}'
+        values: '1x30'
+      - series: 'hq_container_memory_bytes{service="api"}'
+        values: '100000000x30'
+      - series: 'hq_container_memory_limit_bytes{service="api"}'
+        values: '402653184x30'
+      - series: 'hq_container_up{service="api",oneshot="false"}'
+        values: '1x30'
+      - series: 'hq_container_memory_bytes{service="backup-tools"}'
+        values: '260000000x30'
+      - series: 'hq_container_memory_limit_bytes{service="backup-tools"}'
+        values: '268435456x30'
+      - series: 'hq_container_up{service="backup-tools",oneshot="true"}'
+        values: '1x30'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: HqContainerMemoryNearCap
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: HqContainerMemoryNearCap
+        exp_alerts:
+          - exp_labels: {severity: warning, category: capacity, service: temporal}
+            exp_annotations:
+              summary: "temporal uses more than 85% of its memory cap"
+              description: "docker stats on the hub; for temporal see RUNBOOK (Temporal memory)"
+YAML
+temporal_keys="$(grep -cE '^history\.(cacheSizeBasedLimit|hostLevelCacheMaxSizeBytes|eventsHostLevelCacheMaxSizeBytes|enableHostLevelEventsCache):' \
+  "$REPO_DIR/infra/temporal/dynamicconfig/hq.yaml")"
+if ! out="$(docker run --rm --network none --entrypoint promtool \
+  -v "$REPO_DIR/infra/observability/prometheus/rules:/rules:ro" -v "$T/containers-test.yml:/t.yml:ro" \
+  "$prom_image" test rules /t.yml 2>&1)"; then
+  fail "memory: the near-cap alert: $(tail -n6 <<<"$out")"
+elif ((temporal_keys != 4)); then
+  fail "memory: Temporal's caches are not bounded in its dynamic config ($temporal_keys of 4 keys)"
+else
+  pass "memory: a service at 85% of its cap for 15 minutes alerts (not a one-shot); Temporal's caches bounded"
+fi
+
 exit "$failed"

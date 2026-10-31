@@ -264,6 +264,10 @@ services:
       DYNAMIC_CONFIG_FILE_PATH: /etc/temporal/config/dynamicconfig/hq.yaml
       LOG_LEVEL: warn
       GOMEMLIMIT: ${GOMEMLIMIT_TEMPORAL:?}
+      # ⟨1.10.1⟩ small connection pools for a small hub (defaults 20/20 per store);
+      # the caches are bounded in dynamicconfig/hq.yaml
+      SQL_MAX_CONNS: "10"
+      SQL_MAX_IDLE_CONNS: "5"
     ports:
       - "127.0.0.1:7233:7233"
     volumes:
