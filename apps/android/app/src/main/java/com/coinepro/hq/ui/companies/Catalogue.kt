@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -55,6 +56,7 @@ import com.coinepro.hq.designsystem.Md
 import com.coinepro.hq.designsystem.PageHeader
 import com.coinepro.hq.designsystem.Pill
 import com.coinepro.hq.designsystem.Radius
+import com.coinepro.hq.designsystem.RichText
 import com.coinepro.hq.designsystem.ScrollRow
 import com.coinepro.hq.designsystem.SectionTitle
 import com.coinepro.hq.designsystem.Skeleton
@@ -108,7 +110,7 @@ internal fun catalogueServed(): Boolean {
 
 /** «کاتالوگ کامل» of [code]: start or refresh a run, its live state per server, then the sections with their tables. */
 @Composable
-fun CatalogueScreen(code: String) {
+fun CatalogueScreen(code: String, section0: String? = null) {
     val env = LocalEnv.current
     val toasts = LocalToasts.current
     val c = Divan.colors
@@ -118,7 +120,7 @@ fun CatalogueScreen(code: String) {
     val q = rememberQuery("catalogue:$code", "catalogue") { catalogueOrNull(code) }
     val r = refresher(q)
     val start = rememberAction()
-    var section by rememberSaveable { mutableStateOf<String?>(null) }
+    var section by rememberSaveable { mutableStateOf(section0) }
     val k = q.data
     // While it runs, the page follows it.
     val onScreen = com.coinepro.hq.ui.rememberOnScreen()
@@ -253,7 +255,8 @@ private val SECTION_ICON = mapOf(
     "interfaces" to DivanIcon.GLOBE, "code" to DivanIcon.CODE, "risks" to DivanIcon.URGENT,
 )
 
-/** A section: its summary, its tables (each scrolls sideways) and any notes. */
+/** A section: its summary, its tables (each scrolls sideways) and its notes as bullets. JSON written into any text is drawn as a table
+ *  or a list, never shown raw. */
 @Composable
 private fun SectionCard(s: CatalogueSection) {
     val c = Divan.colors
@@ -261,34 +264,74 @@ private fun SectionCard(s: CatalogueSection) {
         SectionTitle(s.titleFa.ifBlank { s.key }, icon = SECTION_ICON[s.key] ?: DivanIcon.REPORT) {
             s.count?.let { Pill("$it مورد", if (s.key == "risks" && it > 0) Tone.NEG else Tone.SILVER) }
         }
-        s.summaryMd?.takeIf { it.isNotBlank() }?.let { Md(it, Modifier.padding(top = Space.xs)) }
+        s.summary?.let { ProseOrData(it, Modifier.padding(top = Space.xs)) }
         for (t in s.tables) CatalogueGrid(t, Modifier.padding(top = Space.sm))
-        s.notesMd?.takeIf { it.isNotBlank() }?.let { Md(it, Modifier.padding(top = Space.sm), style = Divan.type.caption, color = c.textSecondary) }
+        val notes = s.notes
+        if (notes.isNotEmpty()) Column(Modifier.padding(top = Space.sm), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            for (n in notes) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(Modifier.padding(top = 8.dp).size(5.dp).clip(CircleShape).background(c.goldInk))
+                ProseOrData(n, Modifier.weight(1f), caption = true)
+            }
+        }
     }
 }
 
-/** A cell's width from its column's longest text (the header included), between a narrow and a wide limit. */
-internal fun columnWidths(t: CatalogueTable): List<Int> = t.columns.indices.map { i ->
-    val longest = (listOf(t.columns[i]) + t.rows.indices.map { r -> t.cell(r, i) }).maxOf { it.length }
-    (longest * 7 + 28).coerceIn(84, 240)
+/** A text as the hub wrote it: prose as prose, and any JSON in it as a table or a list. */
+@Composable
+internal fun ProseOrData(text: String, modifier: Modifier = Modifier, caption: Boolean = false) {
+    val c = Divan.colors
+    val parts = androidx.compose.runtime.remember(text) { com.coinepro.hq.core.data.JsonBits.split(text) }
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        for (p in parts) when (p) {
+            is com.coinepro.hq.core.data.JsonBits.Part.Prose ->
+                if (caption) Md(p.text, style = Divan.type.caption, color = c.textSecondary) else Md(p.text)
+            is com.coinepro.hq.core.data.JsonBits.Part.Data -> when (val sh = com.coinepro.hq.core.data.JsonBits.shape(p.value)) {
+                is com.coinepro.hq.core.data.JsonBits.Shape.Table -> CatalogueGrid(sh.table)
+                is com.coinepro.hq.core.data.JsonBits.Shape.Lines -> Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    for (l in sh.lines) Text(com.coinepro.hq.designsystem.timesFig("• $l"), style = Divan.type.small, color = c.textPrimary)
+                }
+            }
+        }
+    }
 }
 
-/** A table that scrolls sideways when it is wider than the card; Latin cells (names, ports, versions) read left to right. */
+/** A cell's width from its column's longest text (the header included), between a narrow and a wide limit; a long cell wraps. */
+internal fun columnWidths(t: CatalogueTable): List<Int> = t.header.indices.map { i ->
+    val longest = (listOf(t.header[i]) + t.rows.indices.map { r -> t.cell(r, i) }).maxOf { it.length }
+    (longest * 7 + 28).coerceIn(84, 220)
+}
+
+/**
+ * A table: the first column stays in place while the others scroll sideways together (one scroll state for every row), long cells wrap,
+ * Latin cells (names, ports, versions) read left to right in the figure face; JSON in a cell is written out as words.
+ */
 @Composable
 internal fun CatalogueGrid(t: CatalogueTable, modifier: Modifier = Modifier) {
     val c = Divan.colors
     val widths = columnWidths(t)
+    val header = t.header
+    val scroll = rememberScrollState()
+    val headed = header.any { it.isNotBlank() }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        t.titleFa?.let { Text(it, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary) }
-        Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.tile)).background(c.tile)) {
-            Column(Modifier.horizontalScroll(rememberScrollState())) {
-                Row(Modifier.background(c.lineDivider.copy(alpha = 0.35f)).padding(vertical = 8.dp)) {
-                    t.columns.forEachIndexed { i, h -> Cell(h, widths[i], header = true) }
+        t.titleFa?.takeIf { it.isNotBlank() }?.let { Text(it, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary) }
+        if (header.isNotEmpty()) Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.tile)).background(c.tile)) {
+            @Composable
+            fun Line(r: Int?, bg: androidx.compose.ui.graphics.Color) {
+                Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min).background(bg)) {
+                    // The first column, sticky, with a hairline beside it.
+                    Box(Modifier.width(widths[0].dp).padding(vertical = 8.dp)) { Cell(if (r == null) header[0] else t.cell(r, 0), widths[0], header = r == null) }
+                    if (header.size > 1) {
+                        Box(Modifier.width(1.dp).fillMaxHeight().background(c.lineDivider))
+                        Row(Modifier.weight(1f).horizontalScroll(scroll).padding(vertical = 8.dp)) {
+                            for (i in 1 until header.size) Cell(if (r == null) header[i] else t.cell(r, i), widths[i], header = r == null)
+                        }
+                    }
                 }
-                t.rows.indices.forEach { r ->
-                    if (r > 0) Box(Modifier.width(widths.sum().dp).height(1.dp).background(c.lineDivider))
-                    Row(Modifier.padding(vertical = 8.dp)) { t.columns.indices.forEach { i -> Cell(t.cell(r, i), widths[i]) } }
-                }
+            }
+            if (headed) Line(null, c.lineDivider.copy(alpha = 0.18f))
+            t.rows.indices.forEach { r ->
+                if (r > 0 || headed) Box(Modifier.fillMaxWidth().height(1.dp).background(c.lineDivider))
+                Line(r, androidx.compose.ui.graphics.Color.Transparent)
             }
         }
         if (t.rows.isEmpty()) Text("موردی پیدا نشد.", style = Divan.type.caption, color = c.textMuted)
@@ -298,15 +341,17 @@ internal fun CatalogueGrid(t: CatalogueTable, modifier: Modifier = Modifier) {
 @Composable
 private fun Cell(text: String, width: Int, header: Boolean = false) {
     val c = Divan.colors
-    val latin = text.none { it in '؀'..'ۿ' }
+    val latin = text.none { it in '\u0600'..'\u06FF' }
     val style = when {
         header -> Divan.type.micro.copy(fontWeight = FontWeight.SemiBold)
         latin -> Divan.type.figureSmall.copy(textDirection = TextDirection.Ltr)
         else -> Divan.type.small
     }
-    Text(
+    // A Persian cell with Latin in it ("۳۸ مسیر؛ /v1/signals") keeps each Latin run whole and left to right.
+    if (!header && !latin) RichText(text, Modifier.width(width.dp).padding(horizontal = 10.dp), style = style, color = c.textPrimary, maxLines = 6)
+    else Text(
         text, Modifier.width(width.dp).padding(horizontal = 10.dp), style = style,
-        color = if (header) c.textSecondary else c.textPrimary, maxLines = if (header) 2 else 3, overflow = TextOverflow.Ellipsis,
+        color = if (header) c.textSecondary else c.textPrimary, maxLines = if (header) 2 else 6, overflow = TextOverflow.Ellipsis,
     )
 }
 

@@ -550,7 +550,7 @@ fun ActionsContent(t: CoTarget, s: CoState, ui: ControlUi, go: (String) -> Unit)
         }
         ActionRow(DivanIcon.CARTABLE, "کارتابل ${if (t.holding) "هلدینگ" else "این شرکت"}", "فقط کارت‌های ${t.nameFa}", c.goldInk) { go("cartable-co/${t.code}") }
         ActionRow(DivanIcon.COMMAND, if (t.holding) "فرمان به هلدینگ" else "فرمان به مدیرعامل", "کار تازه؛ مدیرعامل آن را به دپارتمان درست میسپارد", c.goldInk) { ui.open(ControlSheet.Order(t)) }
-        if (!t.holding) ActionRow(DivanIcon.MESSAGES, "پیام به مدیرعامل", "گفت‌وگوی ${t.code}-CEO", c.textSecondary) { go("messages/${t.code}-CEO") }
+        if (!t.holding) ActionRow(DivanIcon.MESSAGES, "پیام‌های ${t.nameFa}", "مدیرعامل و مدیرهای همین شرکت", c.textSecondary) { go("messages-co/${t.code}") }
         ActionRow(DivanIcon.SETTINGS, "اتاق کنترل", "وضعیت و تاریخچه، بودجه، استخدام، فعالیت زنده", c.textSecondary) { go("companies/${t.code}") }
         if (!t.holding && catalogueServed()) ActionRow(DivanIcon.KNOWLEDGE, "کاتالوگ کامل", "هرچه روی سرورهایش هست، جزءبه‌جزء؛ فقط خواندنی", c.goldInk) { go("catalogue/${t.code}") }
         if (!t.holding) ActionRow(DivanIcon.DISMISS, "حذف شرکت", "برای شرکتی که اشتباهی ساخته شده؛ با کد و اثر انگشت", c.negative) { ui.open(ControlSheet.Delete(t)) }
@@ -1196,7 +1196,7 @@ private fun SitesCard(code: String) {
                 LiveDot(if (ok) c.positive else c.negative, live = false, size = 8.dp)
                 com.coinepro.hq.designsystem.Fig(s.url.removePrefix("https://").removePrefix("http://"), Modifier.weight(1f), style = Divan.type.figureSmall, color = c.textPrimary)
                 s.last?.ms?.let { com.coinepro.hq.designsystem.Fig("${it}ms", style = Divan.type.figureSmall, color = if (it > 1500) c.warning else c.textMuted) }
-                s.uptime24h?.let { com.coinepro.hq.designsystem.Fig(String.format(java.util.Locale.US, "%.1f%%", it * 100), style = Divan.type.figureSmall, color = c.textSecondary) }
+                s.uptime24h?.let { com.coinepro.hq.designsystem.Fig(com.coinepro.hq.core.format.uptimeText(it), style = Divan.type.figureSmall, color = c.textSecondary) }
             }
         }
     }

@@ -37,6 +37,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.Role
@@ -100,11 +101,20 @@ private val COUNTERPARTS = mapOf(
     ),
 )
 
-/** The meeting room: one thread per counterpart (advisor, CEOs, managers). */
+/** Where a thread opens: the advisor, the overseer and the assistant have their own pages. */
+private fun routeOf(t: com.coinepro.hq.core.net.Thread): String =
+    when (t.kind) { "advisor" -> "advisor"; "overseer" -> "oversight/chat"; "assistant" -> "assistant"; else -> "messages/${t.code}" }
+
+/** The meeting room, per company (the owner, 2026-10-31): the holding's own counterparts first, then each company with its mark, its
+ *  unread count and its people (the CEO first, then the managers by department), each section folding away; a chip row picks one
+ *  company ([company0] when opened from a company's page); the search reads every message. */
 @Composable
-fun ThreadsScreen() {
+fun ThreadsScreen(company0: String? = null) {
     val nav = LocalNav.current
     val c = Divan.colors
+    val companies = com.coinepro.hq.ui.rememberCompanies()
+    var only by rememberSaveable { mutableStateOf(company0) }
+    var folded by rememberSaveable { mutableStateOf(emptyList<String>()) }
     val q = rememberQuery("threads", "threads") { threads() }
     val r = refresher(q)
     var text by rememberSaveable { mutableStateOf("") }
@@ -125,7 +135,7 @@ fun ThreadsScreen() {
                     Column(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.card).clickable(role = Role.Button) {
                             val t = list?.firstOrNull { it.code == h.thread }
-                            nav.go(when (t?.kind) { "advisor" -> "advisor"; "overseer" -> "oversight/chat"; "assistant" -> "assistant"; else -> "messages/${h.thread}" })
+                            nav.go(t?.let(::routeOf) ?: "messages/${h.thread}")
                         }.padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
@@ -140,33 +150,79 @@ fun ThreadsScreen() {
             }
             return@Page
         }
+        val groups = list?.let { com.coinepro.hq.core.data.ThreadGroups.group(it, companies) }.orEmpty()
+        if (groups.size > 1) item(key = "chips") {
+            com.coinepro.hq.designsystem.ScrollRow {
+                com.coinepro.hq.designsystem.FilterChip("همه", only == null, { only = null }, count = groups.sumOf { it.unread }.takeIf { it > 0 })
+                for (g in groups) com.coinepro.hq.designsystem.FilterChip(
+                    groupName(g, companies), only == g.company, { only = if (only == g.company) null else g.company }, count = g.unread.takeIf { it > 0 },
+                )
+            }
+        }
         when {
             list == null && q.error == null -> items(4) { Skeleton(Modifier.fillMaxWidth().height(64.dp)) }
             list == null -> item { ErrorBlock(q.error, { q.refresh() }) }
             list.isEmpty() -> item { Empty("هنوز گفت‌وگویی نیست", icon = DivanIcon.MESSAGES) }
-            else -> item {
-                Column(Modifier.clip(RoundedCornerShape(16.dp)).background(c.card)) {
-                    list.sortedByDescending { it.lastMessageAt }.forEachIndexed { i, t ->
-                        if (i > 0) HorizontalDivider(color = c.lineDivider)
-                        Row(
-                            Modifier.fillMaxWidth().clickable(role = Role.Button) { nav.go(when (t.kind) { "advisor" -> "advisor"; "overseer" -> "oversight/chat"; "assistant" -> "assistant"; else -> "messages/${t.code}" }) }.padding(14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            if (t.kind == "advisor") Orb(36.dp) else Avatar(avatarKind(t.kind), size = 36.dp, label = t.titleFa)
-                            Column(Modifier.weight(1f)) {
-                                Text(t.titleFa, style = Divan.type.small.copy(fontWeight = if (t.unread > 0) FontWeight.Bold else FontWeight.SemiBold), color = if (t.unread > 0) c.textPrimary else c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    t.company?.let { CompanyMark(it, height = 11.dp, mono = true, ink = c.textMuted) }
-                                    Text(ago(t.lastMessageAt), style = Divan.type.micro, color = c.textMuted)
+            else -> {
+                val shown = groups.filter { only == null || it.company == only }
+                if (shown.isEmpty()) item { Empty("با این شرکت هنوز گفت‌وگویی نیست", icon = DivanIcon.MESSAGES) }
+                for (g in shown) item(key = "group-${g.company}") {
+                    val open = only != null || g.company !in folded
+                    Column(Modifier.clip(RoundedCornerShape(16.dp)).background(c.card)) {
+                        GroupHeader(g, groupName(g, companies), open) { folded = if (g.company in folded) folded - g.company else folded + g.company }
+                        com.coinepro.hq.designsystem.Expand(open) {
+                            Column {
+                                g.threads.forEach { t ->
+                                    HorizontalDivider(color = c.lineDivider)
+                                    ThreadRow(t) { nav.go(routeOf(t)) }
                                 }
                             }
-                            if (t.unread > 0) Badge(t.unread)
                         }
                     }
                 }
             }
         }
+    }
+}
+
+/** A section's name: «هلدینگ» for the holding's own, else the company's Persian name. */
+private fun groupName(g: com.coinepro.hq.core.data.ThreadGroup, companies: List<com.coinepro.hq.core.net.Company>): String =
+    if (g.holding) "هلدینگ" else com.coinepro.hq.ui.companyOf(companies, g.company).nameFa
+
+/** A company's section head: its mark and name, how many unread, and the fold. */
+@Composable
+private fun GroupHeader(g: com.coinepro.hq.core.data.ThreadGroup, name: String, open: Boolean, onToggle: () -> Unit) {
+    val c = Divan.colors
+    Row(
+        Modifier.fillMaxWidth().clickable(role = Role.Button, onClickLabel = if (open) "بستن" else "باز کردن", onClick = onToggle).padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        CompanyMark(g.company, height = 16.dp, ink = c.textPrimary)
+        Text(name, style = Divan.type.bodyStrong, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text("${g.threads.size} گفت‌وگو", style = Divan.type.micro, color = c.textMuted)
+        if (g.unread > 0) Badge(g.unread)
+        DIcon(DivanIcon.CHEVRON, Modifier.graphicsLayer { rotationZ = if (open) 0f else 90f }, size = 16.dp, tint = c.textMuted)
+    }
+}
+
+/** One conversation: its counterpart, when it last moved, and how many are unread. */
+@Composable
+private fun ThreadRow(t: com.coinepro.hq.core.net.Thread, onOpen: () -> Unit) {
+    val c = Divan.colors
+    Row(
+        Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onOpen).padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        if (t.kind == "advisor") Orb(36.dp) else Avatar(avatarKind(t.kind), size = 36.dp, label = t.titleFa)
+        Column(Modifier.weight(1f)) {
+            Text(t.titleFa, style = Divan.type.small.copy(fontWeight = if (t.unread > 0) FontWeight.Bold else FontWeight.SemiBold), color = if (t.unread > 0) c.textPrimary else c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                com.coinepro.hq.core.data.ThreadGroups.departmentOf(t)?.let { d -> com.coinepro.hq.core.format.DEPT_FA[d]?.let { Text(it, style = Divan.type.micro, color = c.textMuted) } }
+                Text(ago(t.lastMessageAt), style = Divan.type.micro, color = c.textMuted)
+            }
+        }
+        if (t.unread > 0) Badge(t.unread)
     }
 }
 
@@ -365,7 +421,20 @@ fun ChatScreen(
             env.cache.invalidate("threads", "inbox")
         }
     }
-    LaunchedEffect(items.size, live.text.length) { if (items.isNotEmpty()) list.animateScrollToItem(list.layoutInfo.totalItemsCount.coerceAtLeast(1) - 1) }
+    // To the newest message; without animations (the system's «remove animations») it jumps there, the same on every run.
+    val reduced = com.coinepro.hq.designsystem.LocalReducedMotion.current
+    LaunchedEffect(items.size, live.text.length) {
+        if (items.isEmpty()) return@LaunchedEffect
+        val last = list.layoutInfo.totalItemsCount.coerceAtLeast(1) - 1
+        if (reduced) list.scrollToItem(last) else list.animateScrollToItem(last)
+        // A voice note's waveform, an image or a transcript arriving a moment later grows the messages above: the newest stays in view
+        // for that moment (not after, so the owner can scroll back freely).
+        kotlinx.coroutines.withTimeoutOrNull(2_000) {
+            androidx.compose.runtime.snapshotFlow { list.canScrollForward }.collect { more ->
+                if (more && !list.isScrollInProgress) list.scrollToItem((list.layoutInfo.totalItemsCount - 1).coerceAtLeast(0), Int.MAX_VALUE / 4)
+            }
+        }
+    }
 
     suspend fun send(body: String, attachments: List<String>) {
         try {

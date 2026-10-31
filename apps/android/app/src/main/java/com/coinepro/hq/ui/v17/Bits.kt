@@ -174,7 +174,7 @@ fun budgetFig(used: Long, cap: Long?): String = if (cap == null) tokens(used) el
 fun pctOf(used: Long, cap: Long?): Double = if (cap == null || cap <= 0) 0.0 else minOf(100.0, used * 100.0 / cap)
 
 /** A 0..1 as a Latin percentage. */
-fun pct01(v: Double?): String = if (v == null) "—" else "${(v * 100).roundToInt()}%"
+fun pct01(v: Double?): String = com.coinepro.hq.core.format.percentText(v)
 
 /** Risk score tone: ≥ 15 high, ≥ 8 medium. */
 fun scoreTone(s: Int): Tone = if (s >= 15) Tone.NEG else if (s >= 8) Tone.WARN else Tone.NEUTRAL

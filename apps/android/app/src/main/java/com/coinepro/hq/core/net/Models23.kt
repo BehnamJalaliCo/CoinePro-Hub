@@ -24,34 +24,72 @@ data class FiledMany(val records: List<FiledRecord> = emptyList())
 data class DeletedOut(val deleted: Int = 0)
 
 // --------------------------------------------------------------- catalogue --
-/** One table of a catalogue section: its columns and rows (a cell is text or a number; never a secret, never a row's contents). */
+/** One table of a catalogue section: its columns and rows (a cell is text or a number; never a secret, never a row's contents). A row
+ *  is a list of cells, or an object keyed by the columns (some models write it so); a table without columns takes its rows' keys. */
 @Serializable
 data class CatalogueTable(
     val titleFa: String? = null,
     val columns: List<String> = emptyList(),
-    val rows: List<List<JsonElement>> = emptyList(),
+    val rows: List<JsonElement> = emptyList(),
 ) {
-    /** A cell as text: a string as is, a number or a boolean as written, null as a dash. */
-    fun cell(r: Int, c: Int): String = when (val e = rows.getOrNull(r)?.getOrNull(c)) {
-        null, JsonNull -> "—"
-        is JsonPrimitive -> e.content
-        is JsonArray -> e.joinToString("، ") { (it as? JsonPrimitive)?.content ?: it.toString() }
-        is JsonObject -> e.toString()
+    /** The header: the columns, or the keys of the rows when they are objects, or none. */
+    val header: List<String> get() = columns.ifEmpty {
+        rows.filterIsInstance<JsonObject>().flatMap { it.keys }.distinct().ifEmpty {
+            val n = rows.maxOfOrNull { (it as? JsonArray)?.size ?: 1 } ?: 0
+            List(n) { "" }
+        }
+    }
+
+    /** A cell as text: a string as is, a number or a boolean as written, null as a dash, a list joined, an object as «key: value». */
+    fun cell(r: Int, c: Int): String {
+        val row = rows.getOrNull(r) ?: return "—"
+        val e = when (row) {
+            is JsonArray -> row.getOrNull(c)
+            is JsonObject -> header.getOrNull(c)?.let { row[it] } ?: row.values.toList().getOrNull(c)
+            else -> if (c == 0) row else null
+        }
+        return text(e)
+    }
+
+    companion object {
+        /** Any JSON value as words for a cell or a line. */
+        fun text(e: JsonElement?): String = when (e) {
+            null, JsonNull -> "—"
+            is JsonPrimitive -> e.content
+            is JsonArray -> e.joinToString("، ") { text(it) }
+            is JsonObject -> e.entries.joinToString(" · ") { (k, v) -> "$k: ${text(v)}" }
+        }
     }
 }
 
-/** One part of the catalogue (products, automations, data, interfaces, code, risks…): a summary, tables and any notes. */
+/**
+ * One part of the catalogue (products, automations, data, interfaces, code, risks…): `{title_fa, summary_fa, tables: [{title_fa,
+ * columns, rows}], notes_fa: [..]}`. The older `summary_md` / `notes_md` still read. Any text may carry JSON a model wrote into it; the
+ * app renders that as a table or a list, never raw ([com.coinepro.hq.core.data.JsonBits]).
+ */
 @Serializable
 data class CatalogueSection(
     /** products · automations · data · interfaces · code · risks (or another key the hub adds). */
     val key: String = "",
     val titleFa: String = "",
+    val summaryFa: String? = null,
     val summaryMd: String? = null,
     val tables: List<CatalogueTable> = emptyList(),
+    /** A list of lines (or one text, from an older hub). */
+    val notesFa: JsonElement? = null,
     val notesMd: String? = null,
     /** How many things the section found, when the hub counts them. */
     val count: Int? = null,
-)
+) {
+    val summary: String? get() = summaryFa?.takeIf { it.isNotBlank() } ?: summaryMd?.takeIf { it.isNotBlank() }
+
+    /** The notes as lines. */
+    val notes: List<String> get() = when (val n = notesFa) {
+        is JsonArray -> n.mapNotNull { (it as? JsonPrimitive)?.content ?: it.toString() }.filter { it.isNotBlank() }
+        is JsonPrimitive -> listOfNotNull(n.content.takeIf { it.isNotBlank() && n.isString })
+        else -> listOfNotNull(notesMd?.takeIf { it.isNotBlank() })
+    }
+}
 
 /** A paired server's part of a catalogue run (§26): which server, and how far its read-only job is. */
 @Serializable

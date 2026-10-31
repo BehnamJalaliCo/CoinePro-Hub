@@ -90,7 +90,7 @@ fun QuotaCard() {
             s == null && q.error != null -> ErrorBlock(q.error, { q.refresh() })
             s == null -> Skeleton(Modifier.fillMaxWidth().height(48.dp).padding(top = 8.dp))
             else -> Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                val used = s.utilization?.toDoubleOrNull()?.let { it * 100 }
+                val used = s.utilization?.toDoubleOrNull()?.let { com.coinepro.hq.core.format.percentOf(it) }
                 if (used != null) {
                     Row { Text(figs("مصرف پنجره ${s.window ?: ""}"), style = Divan.type.caption, color = c.textSecondary, modifier = Modifier.weight(1f)); Fig("${used.toInt()}%", style = Divan.type.figureSmall) }
                     MeterBar(used, tone = if (used >= 90) BarTone.NEG else if (used >= 70) BarTone.WARN else BarTone.SILVER)

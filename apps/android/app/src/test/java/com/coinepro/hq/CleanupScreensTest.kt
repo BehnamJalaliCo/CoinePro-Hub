@@ -62,6 +62,11 @@ class CleanupScreensTest(private val name: String, private val night: Boolean) {
                 }
             },
             "catalogue" to { _ -> com.coinepro.hq.ui.companies.CatalogueScreen("TY") },
+            // The owner's messages per company, opened from TradeYar's page.
+            "threads-company" to { _ -> com.coinepro.hq.ui.messages.ThreadsScreen("TY") },
+            // A large n8n table (sticky first column, long cells wrapped) and notes, one with JSON drawn as a table, never raw.
+            "catalogue-n8n" to { _ -> com.coinepro.hq.ui.companies.CatalogueScreen("TY", section0 = "automations") },
+            "catalogue-notes" to { _ -> com.coinepro.hq.ui.companies.CatalogueScreen("TY", section0 = "interfaces") },
             "catalogue-empty" to { _ -> com.coinepro.hq.ui.companies.CatalogueScreen("FX") },
             "watch" to { _ -> com.coinepro.hq.ui.oversight.WatchScreen() },
             "council-failed" to { _ ->

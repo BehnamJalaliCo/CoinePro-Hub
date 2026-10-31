@@ -149,7 +149,7 @@ fun compact(v: Double): String = when {
 }
 
 /** A 0..1 rate as a Latin figure ("38%"); null stays a dash, never an estimate. */
-fun rate(r: Double?): String = if (r == null || !r.isFinite()) "—" else "${(r * 100).roundToInt()}%"
+fun rate(r: Double?): String = com.coinepro.hq.core.format.percentText(r)
 
 // A run of Latin: words, refs (CR-005, SC-000411, TM-0003@2), numbers with their unit ("94.16 USDT", "40%"), kept together left to right.
 private val LATIN = Regex("[A-Za-z0-9$+−][\\w.$%/:+−@-]*(?:[ \\t]+[A-Za-z0-9$][\\w.$%/:+−@-]*)*")

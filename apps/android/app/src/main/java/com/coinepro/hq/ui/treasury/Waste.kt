@@ -101,7 +101,7 @@ fun WasteCard(company: String? = null) {
                     }
                     Column {
                         Text("در برابر میانگین ۷ روز", style = Divan.type.micro, color = c.textMuted)
-                        Fig((if (d.vs7d >= 0) "+" else "−") + pct01(kotlin.math.abs(d.vs7d)), style = Divan.type.figureM, color = if (d.vs7d > 0.1) c.warning else if (d.vs7d < -0.1) c.positive else c.textPrimary)
+                        Fig((if (d.vs7d >= 0) "+" else "−") + com.coinepro.hq.ui.v18.change01(kotlin.math.abs(d.vs7d)), style = Divan.type.figureM, color = if (d.vs7d > 0.1) c.warning else if (d.vs7d < -0.1) c.positive else c.textPrimary)
                     }
                     Column {
                         Text("کل روز", style = Divan.type.micro, color = c.textMuted)

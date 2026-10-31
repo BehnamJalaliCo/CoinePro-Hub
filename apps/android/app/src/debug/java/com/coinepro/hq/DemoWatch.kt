@@ -36,6 +36,23 @@ internal class WatchDemo(private val store: MutableMap<String, Pair<Int, JsonEle
         store["/deliverables/O-000170"] = 200 to catalogueOutput()
         val protocols = (store["/oversight/protocols"]?.second as? JsonArray).orEmpty()
         store["/oversight/protocols"] = 200 to JsonArray(protocols + PROTOCOLS.map { (ref, area, title) -> protocol(ref, area, title) })
+        // The messages page per company: TradeYar's and Pro-Chart's CEOs and a manager of each company, beside the fixture's six.
+        (store["/threads"]?.second as? JsonArray)?.let { list ->
+            fun t(code: String, kind: String, co: String, title: String, unread: Int, min: Long) = buildJsonObject {
+                put("id", "t-${code.lowercase()}"); put("code", code); put("kind", kind); put("company", co); put("title_fa", title); put("unread", unread)
+                put("last_message_at", HqClock.now().minus(min, ChronoUnit.MINUTES).toString()); put("last_ref", "$code-0003")
+                putJsonArray("participants") {
+                    add(buildJsonObject { put("kind", "owner"); put("code", "owner"); put("display_fa", "مدیر کل") })
+                    add(buildJsonObject { put("kind", "agent"); put("code", code); put("display_fa", title) })
+                }
+            }
+            store["/threads"] = 200 to JsonArray(list + listOf(
+                t("TY-CEO", "ceo", "TY", "مدیرعامل تریدیار", 2, 35),
+                t("TY-GROWTH-MGR", "manager", "TY", "مدیر رشد تریدیار", 0, 300),
+                t("PC-CEO", "ceo", "PC", "مدیرعامل پرو-چارت", 0, 900),
+                t("FX-QUANT-MGR", "manager", "FX", "مدیر کوانت FX", 0, 1500),
+            ))
+        }
         val page = store["/oversight/findings"]?.second as? JsonObject
         if (page != null) store["/oversight/findings"] = 200 to JsonObject(page + ("items" to JsonArray(page["items"]!!.jsonArray + findings())))
     }
@@ -97,14 +114,26 @@ internal class WatchDemo(private val store: MutableMap<String, Pair<Int, JsonEle
                 row("n8n", "compose", "127.0.0.1:5678", "flow.tradeyar.com", "اتوماسیون‌ها"),
                 row("caddy.service", "systemd", "80, 443", "—", "TLS و پراکسی"),
             )),
-        section("automations", "اتوماسیون‌ها و زمان‌بندی‌ها", 9, "شش workflow در n8n و سه cron؛ یکی از workflowها در ۲۴ ساعت گذشته سه بار خطا داد.",
-            table("n8n", listOf("workflow", "تریگر", "گره‌ها", "زمان‌بندی", "آخرین اجرا", "خطا"),
-                row("signal-broadcast", "webhook", 14, "—", "۱۲ دقیقه پیش", "—"),
-                row("daily-digest-email", "cron", 9, "08:00", "امروز ۰۸:۰۰", "—"),
-                row("kyc-reminder", "cron", 6, "every 2h", "۴۰ دقیقه پیش", "3 × SMTP timeout"),
-                row("telegram-sync", "webhook", 11, "—", "۳ دقیقه پیش", "—"),
-                row("churn-winback", "cron", 8, "Sat 10:00", "شنبه", "—"),
-                row("invoice-export", "manual", 5, "—", "۶ روز پیش", "—"),
+        section("automations", "اتوماسیون‌ها و زمان‌بندی‌ها", 21, "هجده workflow در n8n و سه cron؛ دو workflow در ۲۴ ساعت گذشته خطا داد.",
+            table("n8n", listOf("workflow", "تریگر", "گره‌ها", "زمان‌بندی", "آخرین اجرا", "وضعیت", "خطای اخیر"),
+                row("signal-broadcast", "webhook", 14, "—", "12 دقیقه پیش", "فعال", "—"),
+                row("signal-broadcast-vip", "webhook", 16, "—", "12 دقیقه پیش", "فعال", "—"),
+                row("daily-digest-email", "cron", 9, "08:00", "امروز 08:00", "فعال", "—"),
+                row("weekly-report-pdf", "cron", 12, "Sat 09:00", "شنبه", "فعال", "—"),
+                row("kyc-reminder", "cron", 6, "every 2h", "40 دقیقه پیش", "فعال", "3 × SMTP timeout (smtp.zoho.com:587) در ارسال یادآوری مرحله‌ی دوم"),
+                row("kyc-document-check", "webhook", 18, "—", "2 ساعت پیش", "فعال", "—"),
+                row("telegram-sync", "webhook", 11, "—", "3 دقیقه پیش", "فعال", "—"),
+                row("telegram-support-router", "webhook", 22, "—", "9 دقیقه پیش", "فعال", "1 × 429 از Telegram"),
+                row("churn-winback", "cron", 8, "Sat 10:00", "شنبه", "فعال", "—"),
+                row("trial-expiry-nudge", "cron", 7, "daily 11:00", "دیروز", "فعال", "—"),
+                row("invoice-export", "manual", 5, "—", "6 روز پیش", "فعال", "—"),
+                row("zarinpal-webhook", "webhook", 10, "—", "25 دقیقه پیش", "فعال", "—"),
+                row("refund-request", "webhook", 9, "—", "3 روز پیش", "فعال", "—"),
+                row("instagram-dm-capture", "webhook", 13, "—", "1 ساعت پیش", "فعال", "—"),
+                row("lead-scoring", "cron", 15, "every 30m", "20 دقیقه پیش", "فعال", "—"),
+                row("price-alert-fanout", "webhook", 19, "—", "2 دقیقه پیش", "فعال", "—"),
+                row("backup-verify", "cron", 4, "04:30", "امروز 04:30", "فعال", "—"),
+                row("old-campaign-2025", "cron", 6, "—", "4 ماه پیش", "خاموش", "—"),
             ),
             table("cron و timer", listOf("زمان", "فرمان", "کاربر"),
                 row("0 3 * * *", "pg_dump → /backup", "tradeyar"),
@@ -154,8 +183,10 @@ internal class WatchDemo(private val store: MutableMap<String, Pair<Int, JsonEle
         put("sections", JsonArray(sections))
     }
 
-    private fun section(key: String, title: String, count: Int, summary: String, vararg tables: JsonObject) = buildJsonObject {
-        put("key", key); put("title_fa", title); put("count", count); put("summary_md", summary); put("tables", JsonArray(tables.toList()))
+    /** A section as the hub serves it (`summary_fa`, `tables`, `notes_fa`). */
+    private fun section(key: String, title: String, count: Int, summary: String, vararg tables: JsonObject, notes: List<String> = NOTES[key].orEmpty()) = buildJsonObject {
+        put("key", key); put("title_fa", title); put("count", count); put("summary_fa", summary); put("tables", JsonArray(tables.toList()))
+        put("notes_fa", JsonArray(notes.map(::JsonPrimitive)))
     }
 
     private fun table(title: String, columns: List<String>, vararg rows: JsonArray) = buildJsonObject {
@@ -243,6 +274,16 @@ internal class WatchDemo(private val store: MutableMap<String, Pair<Int, JsonEle
     private companion object {
         /** Not a UUID: the orders' demo leaves it to this one. */
         const val FAILED_ID = "w-000200"
+
+        /** Notes per section; the interfaces' second note carries JSON a model wrote into it (the app draws it as a table). */
+        val NOTES = mapOf(
+            "automations" to listOf("old-campaign-2025 چهار ماه است اجرا نشده؛ میشود پاکش کرد.", "kyc-reminder به SMTP با پورت 587 وابسته است."),
+            "interfaces" to listOf(
+                "هیچ کلید یا رمزی خوانده نشد؛ فقط نام سرویس‌ها.",
+                "دستورهای ربات: {\"columns\": [\"دستور\", \"کاربرد\"], \"rows\": [[\"/signals\", \"سیگنال‌های امروز\"], [\"/plan\", \"پلن و تمدید\"], [\"/support\", \"گفت‌وگو با پشتیبانی\"]]}",
+            ),
+            "risks" to listOf("هیچ‌کدام بحرانی نیست؛ ارتقای Pillow اولویت دارد."),
+        )
 
         val PROTOCOLS = listOf(
             Triple("PR-130", "security", "پایش امنیتی روزانه: پورت، CVE، TLS، ورود ناموفق، رمز در ریپو، backup"),

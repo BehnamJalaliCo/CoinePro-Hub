@@ -195,7 +195,10 @@ fun subModel(id: String?): String {
 }
 
 /** A 0..1 as a Latin percentage with [digits] decimals. */
-fun pct01(v: Double?, digits: Int = 0): String = if (v == null || !v.isFinite()) "—" else String.format(Locale.US, "%.${digits}f%%", v * 100)
+fun pct01(v: Double?, digits: Int = 0): String = com.coinepro.hq.core.format.percentText(v, digits)
+
+/** A change against a base (can pass 100%: «+150%»): scaled as it is, never read as a percent already. */
+fun change01(v: Double?, digits: Int = 0): String = if (v == null || !v.isFinite()) "—" else String.format(Locale.US, "%.${digits}f%%", v * 100)
 
 /** Hours in prose: «۳۶ ساعت» under two days, else whole days. */
 fun hoursFa(h: Int): String = if (h < 48) "$h ساعت" else "${(h + 12) / 24} روز"

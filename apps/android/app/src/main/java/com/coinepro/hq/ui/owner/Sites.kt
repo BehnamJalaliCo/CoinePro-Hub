@@ -68,7 +68,7 @@ import com.coinepro.hq.ui.rememberQuery
 import com.coinepro.hq.ui.v14.HqSheet
 import java.util.Locale
 
-private fun uptime(v: Double?) = if (v == null) "—" else if (v >= 0.999 || v == 0.0) "${(v * 100).toInt()}%" else String.format(Locale.US, "%.1f%%", v * 100)
+private fun uptime(v: Double?) = com.coinepro.hq.core.format.uptimeText(v)
 
 @Composable
 private fun SiteRow(s: Site) {

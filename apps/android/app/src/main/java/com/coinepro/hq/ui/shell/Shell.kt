@@ -408,6 +408,7 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     composable("academy") { AcademyScreen() }
                     composable("tools") { ToolsScreen() }
                     composable("messages") { ThreadsScreen() }
+                    composable("messages-co/{company}") { ThreadsScreen(company0 = it.arguments?.getString("company")) }
                     composable("messages/{code}") { ChatScreen(it.arguments?.getString("code").orEmpty()) }
                     composable("companies") { CompaniesScreen() }
                     composable("companies/{code}") { CompanyScreen(it.arguments?.getString("code").orEmpty()) }

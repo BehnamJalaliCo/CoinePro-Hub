@@ -106,6 +106,24 @@ fun usd(v: Double?, digits: Int = 2): String = usd(v?.toString(), digits)
 /** "21٪" — prose (drawn with Persian digits). */
 fun pct(v: Double?): String = if (v == null) "—" else "${v.roundToInt()}٪"
 
+/**
+ * A share as a percent, whichever way the hub sends it: a fraction (0..1, the contract's form: `uptime_24h`, accuracy, progress) or,
+ * from an older service, already a percent (`uptime_24h` 99.8). A value above 1 is taken as a percent, so it is never scaled twice
+ * («10000.0%»). A share is never above 100%.
+ */
+fun percentOf(v: Double): Double = (if (v > 1.0) v else v * 100).coerceIn(0.0, 100.0)
+
+/** [percentOf] as a Latin figure: "38%", "99.8%" with [digits]; null or not a number is a dash. */
+fun percentText(v: Double?, digits: Int = 0): String =
+    if (v == null || !v.isFinite()) "—" else String.format(Locale.US, "%.${digits}f%%", percentOf(v))
+
+/** A site's uptime: "100%" when whole (or none), else one decimal ("99.8%"). */
+fun uptimeText(v: Double?): String {
+    if (v == null || !v.isFinite()) return "—"
+    val p = percentOf(v)
+    return if (p >= 99.95 || p == 0.0) "${p.roundToInt()}%" else String.format(Locale.US, "%.1f%%", p)
+}
+
 /** Persian decimal separator for prose numbers ("7٫9"). */
 fun faDecimal(n: Double, digits: Int = 1): String = String.format(Locale.US, "%.${digits}f", n).replace('.', '٫')
 

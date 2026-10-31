@@ -175,6 +175,8 @@ fun CompanyScreen(code: String, tab0: String = "control", dept0: String? = null,
             com.coinepro.hq.designsystem.ScrollRow {
                 (listOf("control" to "اتاق کنترل") + (if (brand) listOf("servers" to "سرورها") else emptyList()) + listOf("departments" to "دپارتمان‌ها", "people" to "کارمندها", "work" to "کارها") + (if (brand) listOf("brand" to "نشان و مُهر") else emptyList()))
                     .forEach { (k, l) -> com.coinepro.hq.designsystem.FilterChip(l, tab == k, { tab = k }) }
+                // The company's conversations: the messages page, opened on this company's section.
+                com.coinepro.hq.designsystem.FilterChip("پیام‌ها", false, { nav.go("messages-co/$code") })
             }
         }
         when (tab) {
