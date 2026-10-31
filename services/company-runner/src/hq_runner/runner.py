@@ -9,7 +9,9 @@ systemd unit does not restart on those two exit codes.
 from __future__ import annotations
 
 import asyncio
+import base64
 import contextlib
+import gzip
 import logging
 import signal
 import time
@@ -88,6 +90,41 @@ class Fatal(Exception):
     def __init__(self, exit_code: int, message: str):
         super().__init__(message)
         self.exit_code = exit_code
+
+
+ARTIFACT_GZ_MAX = 20 * 1024 * 1024  # the result body carries it as base64 (the hub takes 32 MB)
+
+
+def with_overflow(result: JobResult, sink: EventSink) -> JobResult:
+    """⟨0.2.0⟩ the output past the live stream, whole, as one gzip artifact of
+    the result (`output_overflow`). Only when even that is over
+    ARTIFACT_GZ_MAX does its beginning go, and the result says from which
+    byte it is kept; nothing is cut without saying so."""
+    path = sink.overflow_path
+    raw = Path(path).read_bytes() if path else b""
+    kept_from = 0
+    packed = gzip.compress(raw, compresslevel=6)
+    for keep in (64 * 1024 * 1024, 16 * 1024 * 1024):
+        if len(packed) <= ARTIFACT_GZ_MAX:
+            break
+        kept_from = max(0, len(raw) - keep)
+        packed = gzip.compress(raw[kept_from:], compresslevel=6)
+    art: dict[str, Any] = {
+        "encoding": "gzip+base64",
+        "b64": base64.b64encode(packed).decode() if len(packed) <= ARTIFACT_GZ_MAX else "",
+        "bytes": len(raw),
+        "kept_from_byte": kept_from,
+        "dropped_bytes": sink.dropped_bytes,
+    }
+    output = dict(result.output or {})
+    output["output_overflow"] = art
+    note = f" خروجی بیش از ۱۰ مگابایت بود؛ {len(raw)} بایتِ بعدی کامل به‌صورت فایل پیوست شد."
+    if kept_from or sink.dropped_bytes or not art["b64"]:
+        note = (
+            f" خروجی بسیار بزرگ بود؛ از بایت {kept_from} پیوست شد"
+            f" و {sink.dropped_bytes} بایت فراتر از سقف دیسک نگه داشته نشد."
+        )
+    return JobResult(result.exit_code, result.summary_fa + note, result.usage, output)
 
 
 class Runner:
@@ -312,8 +349,13 @@ class Runner:
             result = JobResult(EXIT_CANCELLED, "کار لغو شد.")
         await sink.close()
         log.info("job %s (%s) finished with exit code %s", jid, kind, result.exit_code)
-        if not sink.dead:
-            await self.post_result(jid, result)
+        try:
+            if sink.overflow_path is not None or sink.dropped_bytes:
+                result = await asyncio.to_thread(with_overflow, result, sink)
+            if not sink.dead:
+                await self.post_result(jid, result)
+        finally:
+            sink.discard_overflow()
 
     async def _guarded(self, handler: Handler, ctx: JobContext) -> JobResult:
         """Runs the handler; a cancel stops handlers that have no process of their own."""

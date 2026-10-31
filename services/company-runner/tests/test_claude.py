@@ -130,6 +130,39 @@ def test_claude_job_streams_session_events_and_hook_blocks_drop_database(
     assert result["usage"]["thinking_tokens"] == 4 and result["usage"]["cost_usd"] == 0.0123
     assert fake_hub.result_output("cl1")["session_id"] == "sess-42"
     assert fake_hub.result_output("cl1")["result_fa"] == "Done."
+    assert fake_hub.result_output("cl1")["answer_truncated"] is False
+
+
+def test_a_long_answer_comes_back_whole(
+    fake_hub: FakeHub, cfg: Config, cfg_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """⟨0.2.0⟩ the final answer is never cut at a few thousand characters (the
+    catalogue's sections come back whole); only past MAX_ANSWER_CHARS is it
+    cut, and the result says so."""
+    from hq_runner import claude_job as CJ
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    cfg.claude_bin = str(FAKE_CLAUDE)
+    save(cfg, cfg_path)
+    monkeypatch.setenv("FAKE_CLAUDE_ANSWER_CHARS", "300000")
+    fake_hub.jobs.append(
+        {"id": "cl9", "kind": "claude", "args": {"brief": "list", "cwd": str(repo)}}
+    )
+    runner = Runner(cfg, make_route(fake_hub), cfg_path=cfg_path, persist_state=False)
+    run(drive(runner, lambda: "cl9" in fake_hub.results, within=60))
+    out = fake_hub.result_output("cl9")
+    assert len(out["result_fa"]) == 300_005 and out["answer_chars"] == 300_005
+    assert out["answer_truncated"] is False
+    monkeypatch.setattr(CJ, "MAX_ANSWER_CHARS", 1000)
+    fake_hub.jobs.append(
+        {"id": "cl10", "kind": "claude", "args": {"brief": "list", "cwd": str(repo)}}
+    )
+    runner = Runner(cfg, make_route(fake_hub), cfg_path=cfg_path, persist_state=False)
+    run(drive(runner, lambda: "cl10" in fake_hub.results, within=60))
+    out = fake_hub.result_output("cl10")
+    assert len(out["result_fa"]) == 1000 and out["answer_truncated"] is True
+    assert "نویسه" in fake_hub.results["cl10"]["summary_fa"]
 
 
 def test_claude_job_cancel(fake_hub: FakeHub, cfg: Config, cfg_path: Path, tmp_path: Path) -> None:

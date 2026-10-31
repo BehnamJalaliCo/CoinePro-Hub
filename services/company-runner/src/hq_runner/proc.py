@@ -34,7 +34,7 @@ def kill_group(pid: int, sig: int) -> None:
         os.killpg(pid, sig)
 
 
-async def _pump(stream: asyncio.StreamReader, on_line: LineFn) -> None:
+async def _pump(stream: asyncio.StreamReader, on_line: LineFn, max_line: int = MAX_LINE) -> None:
     pending = b""
     while True:
         chunk = await stream.read(CHUNK)
@@ -47,9 +47,9 @@ async def _pump(stream: asyncio.StreamReader, on_line: LineFn) -> None:
                 break
             on_line(pending[:nl].decode("utf-8", "replace").rstrip("\r"))
             pending = pending[nl + 1 :]
-        while len(pending) > MAX_LINE:
-            on_line(pending[:MAX_LINE].decode("utf-8", "replace"))
-            pending = pending[MAX_LINE:]
+        while len(pending) > max_line:
+            on_line(pending[:max_line].decode("utf-8", "replace"))
+            pending = pending[max_line:]
     if pending:
         on_line(pending.decode("utf-8", "replace").rstrip("\r"))
 
@@ -63,9 +63,12 @@ async def run_streamed(
     cancel: asyncio.Event,
     on_stdout: LineFn,
     on_stderr: LineFn,
+    max_line: int = MAX_LINE,
 ) -> ProcResult:
     """Runs argv in a new session (its own process group). On timeout or
-    cancel the group gets SIGTERM, then SIGKILL after a grace period."""
+    cancel the group gets SIGTERM, then SIGKILL after a grace period. A line
+    longer than `max_line` comes in pieces (⟨0.2.0⟩ the claude job's stream
+    of JSON lines raises it so its final answer is one whole line)."""
     start = time.monotonic()
     proc = await asyncio.create_subprocess_exec(
         *argv,
@@ -79,7 +82,7 @@ async def run_streamed(
     assert proc.stdout is not None
     assert proc.stderr is not None
     pumps = [
-        asyncio.create_task(_pump(proc.stdout, on_stdout)),
+        asyncio.create_task(_pump(proc.stdout, on_stdout, max_line)),
         asyncio.create_task(_pump(proc.stderr, on_stderr)),
     ]
     waiter = asyncio.create_task(proc.wait())

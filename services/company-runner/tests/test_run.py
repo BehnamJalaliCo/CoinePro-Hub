@@ -115,13 +115,29 @@ def test_exec_timeout(fake_hub: FakeHub, cfg: Config) -> None:
     assert "before" in fake_hub.texts("j3")
 
 
-def test_output_is_capped(fake_hub: FakeHub, cfg: Config) -> None:
+def test_output_past_the_stream_comes_whole_with_the_result(fake_hub: FakeHub, cfg: Config) -> None:
+    """⟨0.2.0⟩ nothing is dropped: past the live stream, the rest of the output
+    arrives with the result as one gzip artifact, and the spool is removed."""
+    import base64
+    import gzip
+
     fake_hub.jobs.append(exec_job("j4", "for i in $(seq 1 500); do echo line-$i-xxxxxxxxxx; done"))
     runner = Runner(cfg, make_route(fake_hub), persist_state=False, max_output=2000)
     run(drive(runner, lambda: "j4" in fake_hub.results))
-    assert sum(len(t) for t in fake_hub.texts("j4")) <= 2000
-    assert any("truncated" in t for t in fake_hub.texts("j4", "progress"))
-    assert fake_hub.results["j4"]["exit_code"] == 0
+    streamed = "".join(fake_hub.texts("j4"))
+    assert len(streamed) <= 2000
+    assert any("comes whole with the result" in t for t in fake_hub.texts("j4", "progress"))
+    res = fake_hub.results["j4"]
+    assert res["exit_code"] == 0 and "فایل پیوست" in res["summary_fa"]
+    art = res["data"]["output_overflow"]
+    rest = gzip.decompress(base64.b64decode(art["b64"])).decode()
+    assert (
+        art["bytes"] == len(rest.encode())
+        and art["dropped_bytes"] == 0
+        and art["kept_from_byte"] == 0
+    )
+    whole = streamed + rest
+    assert all(f"line-{i}-" in whole for i in (1, 250, 500))
 
 
 def test_at_most_two_jobs_at_once(fake_hub: FakeHub, cfg: Config) -> None:

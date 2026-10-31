@@ -71,6 +71,8 @@ TOKEN_PER_IP = 60
 RUNNER_PER_MIN = 600
 AGENT_WAIT_S = 20
 MAX_READ_BYTES = 20 * 1024 * 1024
+AGENT_STDOUT = 12_000  # the tail an agent's tool answer shows (the whole output: a file)
+AGENT_STDERR = 4_000
 MAX_WRITE_CHARS = 1024 * 1024
 HOLDING_SERVER_ROLES = ("hub_platform_sre", "overseer")
 FA_AWAITING = "این فرمان ویرانگر است و منتظر مُهر تو ماند."
@@ -976,7 +978,9 @@ OP_OF = {"map": "server.read", "read": "server.read", "exec": "server.run", "wri
 
 class AgentJob(BaseModel):
     job: SV.Job
-    output: dict[str, str] | None = None
+    # stdout/stderr (their tails; `stdout_chars`/`stderr_chars` and, once the
+    # job ended, `full_output_file`: everything, for files.read)
+    output: dict[str, Any] | None = None
     map: dict[str, Any] | None = None
     hint_fa: str | None = None
 
@@ -1039,7 +1043,18 @@ def _agent_view(
     if rows:
         so = "".join(r["data"].get("text", "") for r in rows if r["type"] == "stdout")
         se = "".join(r["data"].get("text", "") for r in rows if r["type"] == "stderr")
-        out = {"stdout": so[-12000:], "stderr": se[-4000:]}
+        out = {
+            "stdout": so[-AGENT_STDOUT:],
+            "stderr": se[-AGENT_STDERR:],
+            "stdout_chars": len(so),
+            "stderr_chars": len(se),
+        }
+        res = j.get("result") or {}
+        whole = res.get("output_file") or (
+            str(j["transcript_file_id"]) if j.get("transcript_file_id") else None
+        )
+        if whole and (len(so) > AGENT_STDOUT or len(se) > AGENT_STDERR or res.get("output_file")):
+            out["full_output_file"] = whole  # ⟨1.10.1⟩ nothing is lost: the whole output
     hint = None
     if j["state"] == "awaiting_seal":
         hint = f"این کار ویرانگر است و منتظر مُهر مدیر کل ماند ({j['decision_ref']}); بعداً با job وضعش را ببین."

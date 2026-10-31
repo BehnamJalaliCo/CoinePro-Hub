@@ -34,7 +34,15 @@ from hq_runner.proc import run_streamed
 CLAUDE_DEFAULT_TIMEOUT_S = 3600
 CLAUDE_MAX_TIMEOUT_S = 4 * 3600
 PERMISSION_MODES = {"default", "acceptEdits", "plan", "bypassPermissions", "dontAsk", "auto"}
-MAX_TEXT = 4000
+# ⟨0.2.0⟩ nothing the owner or an agent relies on is cut: an event's text (a
+# message of the session, a command) keeps up to EVENT_TEXT; the final answer
+# comes back whole (the hub keeps a long one in its file store). Only past
+# MAX_ANSWER_CHARS (≈16 MB of Persian, the hub's result body cap) is the end
+# cut, and then the result says so (`answer_truncated`), never silently.
+EVENT_TEXT = 64_000
+MAX_TEXT = EVENT_TEXT  # (the name earlier versions used)
+MAX_ANSWER_CHARS = 8_000_000
+JSON_LINE_BYTES = 64 * 1024 * 1024  # one stream-json line (the final answer) read whole
 FILE_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
 
 
@@ -299,6 +307,7 @@ async def run_claude(ctx: JobContext) -> JobResult:
             cancel=ctx.cancel,
             on_stdout=on_stdout,
             on_stderr=ctx.line_sink("stderr"),
+            max_line=JSON_LINE_BYTES,
         )
         drain_hook_log()
     finally:
@@ -307,11 +316,15 @@ async def run_claude(ctx: JobContext) -> JobResult:
     exit_code = res.exit_code
     if final.get("is_error") and exit_code == 0:
         exit_code = 1
-    answer = ctx.masker.text(_cut(str(final.get("result") or "")))
+    whole = str(final.get("result") or "")
+    cut = len(whole) > MAX_ANSWER_CHARS
+    answer = ctx.masker.text(whole[:MAX_ANSWER_CHARS] if cut else whole)
     output = {
         "session_id": final.get("session_id"),
         "result_fa": answer,
-        "files_changed": files_changed[:200],
+        "answer_chars": len(whole),
+        "answer_truncated": cut,
+        "files_changed": files_changed,
         "num_turns": final.get("num_turns"),
         "stop_reason": final.get("stop_reason"),
     }
@@ -323,4 +336,6 @@ async def run_claude(ctx: JobContext) -> JobResult:
         summary = "نشست Claude روی سرور تمام شد."
     else:
         summary = f"نشست Claude با کد خروج {exit_code} تمام شد."
+    if cut:
+        summary += f" جواب {len(whole)} نویسه بود و فقط {MAX_ANSWER_CHARS} نویسه‌ی اول آن آمد."
     return JobResult(exit_code, summary, usage=usage, output=output)

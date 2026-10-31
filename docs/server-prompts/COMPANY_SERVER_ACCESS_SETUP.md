@@ -22,6 +22,30 @@
    - نسخه‌ی runner
    - وضعیت
 
+## به‌روزرسانی runner
+- **چه وقت:** هر بار که هاب نسخه‌ی تازه‌ی runner را اعلام کند.
+  - مثلاً **0.2.0** (پرامپت ۱۹.۱). از این نسخه هیچ چیز کوتاه نمیشود: جواب کامل Claude برمیگردد و خروجی بیش از ۱۰ مگابایت هم کامل به‌شکل فایل پیوست میرسد.
+  - نسخه‌ی قدیمی جواب‌های Claude را در ۴۰۰۰ نویسه میبُرد. کاتالوگ شرکت چنین سروری را «runner قدیمی» نشان میدهد.
+- **چطور** (با همان کاربر کاری):
+  1. اگر کاری روی این سرور در حال اجراست، صبر کن تا تمام شود. `hq-runner status` تعداد کارهای در حال اجرا را نشان میدهد.
+  2. ریپو را تازه کن: `git -C ~/CoinePro-Hub pull`
+  3. نصب را به‌روز کن، به همان راهی که نصب شده بود:
+     - **pipx:**
+       ```
+       pipx install --force --python python3.12 ~/CoinePro-Hub/services/company-runner
+       ```
+       (برای نصب از پوشه‌ی محلی، `pipx upgrade` نسخه‌ی تازه را نمیبیند؛ `install --force` میبیند.)
+     - **venv:**
+       ```
+       cd ~/CoinePro-Hub/services/company-runner
+       ~/.local/share/hq-runner/venv/bin/pip install --require-hashes -r requirements.lock
+       ~/.local/share/hq-runner/venv/bin/pip install --no-deps --force-reinstall .
+       ```
+  4. سرویس را دوباره بالا بیاور: `sudo systemctl restart hq-runner@$USER`
+  5. بسنج: `hq-runner --version` باید نسخه‌ی تازه (مثلاً `0.2.0`) را نشان بدهد و `hq-runner status` باید «online» باشد. هاب هم نسخه را در صفحه‌ی سرور نشان میدهد.
+- **جفت‌سازی دوباره لازم نیست.** اعتبارنامه در `~/.config/hq-runner/config.json` میماند.
+- **گزارش به مالک:** نام سرور، نسخه‌ی قبلی و تازه، وضعیت.
+
 ## قوانین
 - **رمز:** هیچ رمز یا توکنی چاپ نشود.
 - **دست‌نخورده:** به SSH، فایروال، کاربرها و رمزهای این سرور دست نزن. runner به هیچ‌کدام نیاز ندارد.

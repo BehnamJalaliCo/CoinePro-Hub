@@ -880,9 +880,7 @@
           "output": {
             "anyOf": [
               {
-                "additionalProperties": {
-                  "type": "string"
-                },
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -11121,7 +11119,7 @@
           "text_md": {
             "anyOf": [
               {
-                "maxLength": 200000,
+                "maxLength": 20000000,
                 "type": "string"
               },
               {

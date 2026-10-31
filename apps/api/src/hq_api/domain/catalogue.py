@@ -39,8 +39,11 @@ log = logging.getLogger("hq_api.catalogue")
 SERVICE = Principal(kind="service", code="catalogue", role="service")
 JOB_TIMEOUT_S = 1800
 STALE = timedelta(hours=6)  # a job still waiting then (a server off) ends as failed
-CELL_CHARS = 300
-ROWS_PER_TABLE = 200
+# ⟨1.10.1⟩ nothing of what a server answers is cut: every row, every column,
+# every cell whole (an answer too long for its place goes to the file store);
+# only these guards against a broken answer stop it, and then the section says so
+MAX_ROWS = 100_000
+MAX_COLUMNS = 200
 
 SECTIONS: tuple[tuple[str, str, str], ...] = (
     (
@@ -94,8 +97,7 @@ run only commands that read (ls, cat, ps, ss, docker ps/inspect/compose ls, syst
 journalctl, crontab -l, git log/status/remote, psql/mysql with SELECT on catalogs and count(*), n8n
 export to stdout); never change, restart, install, write or delete anything, never print a secret,
 a key, a token, a password or a row's contents (counts only). Be exhaustive: list every item, do not
-summarise or sample; when there are more than {rows} of one kind, list the {rows} that matter most
-and give the total.
+summarise, sample or shorten; your answer comes back whole, however long it is.
 
 The section to catalogue: {title} — {what}.
 
@@ -166,6 +168,8 @@ def render(c: dict[str, Any]) -> Catalogue:
         else:
             st = "failed"
         why = next((j.get("reason_fa") for j in s["jobs"] if j.get("reason_fa")), None)
+        if why is None and _old_runner(s["jobs"][0].get("runner_version")):
+            why = OLD_RUNNER_FA
         out.append(CatalogueServer(id=s["id"], name=s["name"], state=st, reason_fa=why))
     return Catalogue(
         company=c["company"],
@@ -213,7 +217,7 @@ async def start(
                 server=s,
                 kind="claude",
                 args={
-                    "brief": BRIEF.format(title=title, what=what, rows=ROWS_PER_TABLE),
+                    "brief": BRIEF.format(title=title, what=what),
                     "title": f"کاتالوگ {company.code}: {title}",
                     "timeout_s": JOB_TIMEOUT_S,
                     "max_turns": 60,
@@ -253,11 +257,23 @@ def _done_id(c: dict[str, Any] | None) -> UUID | None:
     return out
 
 
+# ⟨1.10.1⟩ a runner before 0.2.0 cut a Claude answer at 4 000 characters
+OLD_RUNNER_FA = (
+    "runner این سرور قدیمی است (پیش از 0.2.0) و جواب‌های بلند را کوتاه میکند؛ runner را به‌روز کنید."
+)
+
+
+def _old_runner(version: Any) -> bool:
+    m = re.match(r"^(\d+)\.(\d+)", str(version or ""))
+    return m is not None and (int(m.group(1)), int(m.group(2))) < (0, 2)
+
+
 def _job_entry(j: dict[str, Any], s: dict[str, Any], section: str) -> dict[str, Any]:
     return {
         "job": str(j["id"]),
         "server": str(s["id"]),
         "server_name": s["name"],
+        "runner_version": s.get("runner_version"),
         "section": section,
         "kind": j["kind"],
         "state": "queued",
@@ -287,33 +303,44 @@ def parse_section(key: str, text: str) -> dict[str, Any]:
         except ValueError:
             obj = None
     if not isinstance(obj, dict):
-        return {"key": key, "title_fa": title, "summary_md": SV.mask(text or "")[:4000],
+        return {"key": key, "title_fa": title, "summary_md": SV.mask(text or ""),
                 "tables": [], "notes_md": None, "count": None}  # fmt: skip
     tables = []
     for t in obj.get("tables") or []:
         if not isinstance(t, dict):
             continue
-        cols = [SV.mask(str(c))[:80] for c in (t.get("columns") or [])][:20]
+        cols = [SV.mask(str(c)) for c in (t.get("columns") or [])][:MAX_COLUMNS]
         rows = [
-            [_cell(v) for v in r][:20] for r in (t.get("rows") or [])[:ROWS_PER_TABLE] if isinstance(r, list)
+            [_cell(v) for v in r][:MAX_COLUMNS] for r in (t.get("rows") or [])[:MAX_ROWS] if isinstance(r, list)
         ]  # fmt: skip
-        tables.append({"title_fa": SV.mask(str(t.get("title_fa") or ""))[:200] or None,
+        tables.append({"title_fa": SV.mask(str(t.get("title_fa") or "")) or None,
                        "columns": cols, "rows": rows})  # fmt: skip
     count = obj.get("count")
     return {
         "key": key,
         "title_fa": title,
-        "summary_md": SV.mask(str(obj.get("summary_md") or ""))[:4000] or None,
-        "tables": tables[:20],
-        "notes_md": SV.mask(str(obj.get("notes_md") or ""))[:4000] or None,
+        "summary_md": SV.mask(str(obj.get("summary_md") or "")) or None,
+        "tables": tables,
+        "notes_md": (SV.mask(str(obj.get("notes_md") or "")) + _over(obj)).strip() or None,
         "count": int(count) if isinstance(count, int | float) else None,
     }
+
+
+def _over(obj: dict[str, Any]) -> str:
+    """Said plainly when a broken answer passed the guards (never silent)."""
+    big = [t for t in obj.get("tables") or [] if isinstance(t, dict)
+           and len(t.get("rows") or []) > MAX_ROWS]  # fmt: skip
+    return (
+        f"\n\nبیش از {MAX_ROWS} ردیف در یک جدول آمد؛ فقط {MAX_ROWS} ردیف اول نگه داشته شد."
+        if big
+        else ""
+    )
 
 
 def _cell(v: Any) -> Any:
     if isinstance(v, bool | int | float) or v is None:
         return v
-    return SV.mask(str(v))[:CELL_CHARS]
+    return SV.mask(str(v))
 
 
 def map_sections(m: dict[str, Any]) -> list[dict[str, Any]]:
@@ -324,7 +351,7 @@ def map_sections(m: dict[str, Any]) -> list[dict[str, Any]]:
     def rows(key: str, cols: list[str]) -> list[list[Any]]:
         items = m.get(key) or []
         out = []
-        for it in items[:ROWS_PER_TABLE]:
+        for it in items[:MAX_ROWS]:
             if isinstance(it, dict):
                 out.append([_cell(it.get(c)) for c in cols])
             else:
@@ -389,7 +416,7 @@ async def on_job(tx: Tx, hub: Any, job_id: UUID) -> bool:
             continue
         e["state"] = j["state"] if j["state"] in SV.FINAL else "running"
         if j["state"] == "done" and e["kind"] == "claude":
-            text = str((j["result"] or {}).get("result_fa") or "")
+            text = await SV.full_answer(tx, hub, j)
             sec = parse_section(e["section"], text)
             sec["server"] = e["server"]
             sec["server_name"] = e["server_name"]
@@ -511,7 +538,7 @@ def markdown(company: str, sections: list[dict[str, Any]], diff: dict[str, Any] 
             lines.append("")
         if s.get("notes_md"):
             lines += [str(s["notes_md"]), ""]
-    return "\n".join(lines)[:200_000]
+    return "\n".join(lines)  # whole: players.deliver files what the body cannot hold
 
 
 def diff_of(old: list[dict[str, Any]], new: list[dict[str, Any]]) -> dict[str, Any]:
@@ -534,7 +561,7 @@ def diff_of(old: list[dict[str, Any]], new: list[dict[str, Any]]) -> dict[str, A
         added = sorted(b.get(key, set()) - a.get(key, set()))
         removed = sorted(a.get(key, set()) - b.get(key, set()))
         if added or removed:
-            out[key] = {"added": added[:100], "removed": removed[:100]}
+            out[key] = {"added": added, "removed": removed}
     return out
 
 
@@ -585,6 +612,7 @@ async def finish(tx: Tx, hub: Any, catalogue_id: UUID) -> None:
             "source": "catalogue",
             "company": c["company"],
         },
+        hub=hub,
     )
     await tx.exec(
         """UPDATE infra.catalogues SET state = 'done', sections = CAST(:s AS jsonb), diff = CAST(:d AS jsonb),
@@ -644,7 +672,10 @@ async def file_done(hub: Any, catalogue_id: UUID) -> str | None:
         record = await AD.file(hub, lambda: hub.db.tx(ids), SERVICE, dict(dl))
     except ApiError as exc:
         log.warning(
-            "catalogue: not filed", extra={"catalogue": str(catalogue_id), "code": exc.code}
+            "catalogue: not filed (%s: %s)",
+            exc.code,
+            exc.detail,
+            extra={"catalogue": str(catalogue_id)},
         )
         return None
     async with hub.db.tx(ids) as tx:

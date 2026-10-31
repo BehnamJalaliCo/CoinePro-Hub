@@ -29,8 +29,13 @@ masked command, exit code, duration, digest).
 
 from __future__ import annotations
 
+import asyncio
+import base64
+import binascii
+import gzip
 import hashlib
 import hmac
+import io
 import json
 import logging
 import os
@@ -74,8 +79,15 @@ PAIR_INTERVAL_S = 5
 ONLINE_S = 90  # a runner long-polls at most 30 s at a time: three missed polls = offline
 ROTATE_GRACE_S = 600  # the previous credential still works this long after a rotation
 DISPATCH_GRACE_S = 120  # beyond the job's own timeout, before the hub fails it
-MAX_EVENT_TEXT = 64 * 1024
-MAX_JOB_EVENTS_BYTES = 8 * 1024 * 1024  # what the hub keeps of one job's output
+# ⟨1.10.1⟩ the runner (0.2.0) sends an event's text up to 64 000 characters and
+# streams 10 MB of a job's output; the hub keeps all of it, and what came past
+# the stream arrives whole with the result (`output_overflow`, a gzip artifact)
+MAX_EVENT_TEXT = 192 * 1024
+MAX_JOB_EVENTS_BYTES = 24 * 1024 * 1024  # what the hub keeps of one job's live output
+INLINE_ANSWER = 256_000  # a claude job's answer kept inline in the result (the rest: the file)
+OVERFLOW_TEXT_MAX = (
+    64 * 1024 * 1024
+)  # an artifact masked and stored as text up to this, else as gzip
 MAX_READ_INLINE = 64 * 1024  # a read's content kept inline in the result (the rest: the file)
 TOKEN_PREFIX = "hqr1_"  # noqa: S105 - the prefix of a runner credential, not one
 USER_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -1224,10 +1236,14 @@ async def finish(
     elif not ok:
         err = "exit_nonzero" if exit_code is not None else "runner_error"
     result: dict[str, Any] | None = None
+    data = dict(data or {})
+    overflow = data.pop("output_overflow", None)
     if ok:
-        result = await _apply(tx, hub, j, data or {})
+        result = await _apply(tx, hub, j, data)
     elif j["kind"] == "publish":
         await _apply_publish(tx, j, data or {}, False, err)
+    if isinstance(overflow, dict):
+        result = {**(result or {}), **await _store_overflow(tx, hub, j, overflow)}
     await tx.exec(
         """UPDATE infra.server_jobs SET state = :st, finished_at = now(), exit_code = :x,
                summary_fa = COALESCE(:s, summary_fa), error_code = :e,
@@ -1326,9 +1342,67 @@ async def _apply(tx: Tx, hub: Any, j: dict[str, Any], data: dict[str, Any]) -> d
                 x=str(sid)[:200],
                 id=j["session_id"],
             )
-        return {k: mask_value(data.get(k)) for k in ("session_id", "result_fa", "files_changed")
-                if k in data}  # fmt: skip
+        out = {k: mask_value(data.get(k))
+               for k in ("session_id", "files_changed", "answer_chars", "answer_truncated")
+               if k in data}  # fmt: skip
+        answer = mask(str(data.get("result_fa") or ""))
+        out["result_fa"] = answer
+        if len(answer) > INLINE_ANSWER:
+            # the whole answer in the file store, its head inline (full_answer reads it)
+            fid = await _store_file(tx, hub, j, answer.encode(), "answer.md", "text/markdown")
+            out.update(result_fa=answer[:INLINE_ANSWER], result_file=str(fid))
+        return out
     return mask_value({k: v for k, v in data.items() if k != "content"})  # type: ignore[no-any-return]
+
+
+async def full_answer(tx: Tx, hub: Any, j: dict[str, Any]) -> str:
+    """A claude job's whole answer (from the file store when it was too long
+    to keep inline in the result)."""
+    res = j.get("result") or {}
+    if res.get("result_file"):
+        key = await tx.scalar(
+            "SELECT storage_key FROM files.files WHERE id = CAST(:id AS uuid)",
+            id=res["result_file"],
+        )
+        if key:
+            data: bytes = await hub.storage.get(str(key))
+            return data.decode("utf-8", "replace")
+    return str(res.get("result_fa") or "")
+
+
+async def _store_overflow(
+    tx: Tx, hub: Any, j: dict[str, Any], art: dict[str, Any]
+) -> dict[str, Any]:
+    """⟨1.10.1⟩ the output that came past the live stream, kept whole as a
+    file of the job: masked text up to OVERFLOW_TEXT_MAX, else the runner's
+    (already masked) gzip as it came."""
+    meta = {
+        "bytes": int(art.get("bytes") or 0),
+        "kept_from_byte": int(art.get("kept_from_byte") or 0),
+        "dropped_bytes": int(art.get("dropped_bytes") or 0),
+    }
+    try:
+        packed = base64.b64decode(str(art.get("b64") or ""), validate=True)
+    except (binascii.Error, ValueError):
+        return {"output_overflow": {**meta, "stored": False}}
+    if not packed:
+        return {"output_overflow": {**meta, "stored": False}}
+
+    def unpack() -> bytes | None:
+        try:
+            with gzip.GzipFile(fileobj=io.BytesIO(packed)) as g:
+                raw = g.read(OVERFLOW_TEXT_MAX + 1)
+        except (OSError, EOFError):
+            return None
+        return raw if len(raw) <= OVERFLOW_TEXT_MAX else None
+
+    raw = await asyncio.to_thread(unpack)
+    if raw is not None:
+        text = await asyncio.to_thread(lambda: mask(raw.decode("utf-8", "replace")))
+        fid = await _store_file(tx, hub, j, text.encode(), "output-rest.log", "text/plain")
+    else:
+        fid = await _store_file(tx, hub, j, packed, "output-rest.log.gz", "application/gzip")
+    return {"output_file": str(fid), "output_overflow": {**meta, "stored": True}}
 
 
 async def _store_file(

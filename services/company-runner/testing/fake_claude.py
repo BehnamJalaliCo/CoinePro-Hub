@@ -161,7 +161,8 @@ def main() -> int:
             "num_turns": 2,
             "duration_ms": 12,
             "stop_reason": "end_turn",
-            "result": "Done.",
+            # a long answer when the test asks for one (FAKE_CLAUDE_ANSWER_CHARS)
+            "result": "Done." + "ب" * int(os.environ.get("FAKE_CLAUDE_ANSWER_CHARS") or 0),
             "usage": {
                 "input_tokens": 120,
                 "output_tokens": 30,

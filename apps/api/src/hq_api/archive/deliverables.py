@@ -31,6 +31,23 @@ def _body(dl: dict[str, Any]) -> tuple[str, str]:
     return title, "\n".join(parts)
 
 
+SEARCH_TEXT = 400_000  # the record's search text (the column's cap); the PDF is whole
+
+
+async def _whole_text(hub: Any, txf: Any, dl: dict[str, Any]) -> str | None:
+    """The output's full text when the body is only its head (a
+    players.store_text attachment `*-full.md`), else None."""
+    for fid in dl.get("attachments") or []:
+        async with txf() as tx:
+            f = await tx.first(
+                "SELECT name, mime, storage_key FROM files.files WHERE id = :id", id=fid
+            )
+        if f and f["mime"] == "text/markdown" and str(f["name"]).endswith("-full.md"):
+            raw: bytes = await hub.storage.get(str(f["storage_key"]))
+            return raw.decode("utf-8", "replace")
+    return None
+
+
 async def file(hub: Any, txf: Any, who: Principal, dl: dict[str, Any]) -> str:
     """-> the archive record's ref (the same one on every call)."""
     if dl["filed_as"]:
@@ -49,7 +66,12 @@ async def file(hub: Any, txf: Any, who: Principal, dl: dict[str, Any]) -> str:
         )
         cls = await R.resolve_class(tx, CLASS, co["code"]) if cls_row else None
         lv = await R.resolve_level(tx, None, cls, None)
-    data, pages = await pdf.render(hub, title, body, footer=f"CoinePro HQ · {dl['ref']}")
+    # ⟨1.10.1⟩ the whole output: its full text when the body is only its head
+    whole = await _whole_text(hub, txf, dl) or body
+    if whole is not body and scan.kinds(whole):
+        raise ApiError(422, "secret_in_document", "the deliverable holds a secret pattern")
+    data, pages = await pdf.render(hub, title, whole, footer=f"CoinePro HQ · {dl['ref']}")
+    name, mime, text = f"{dl['ref']}.pdf", "application/pdf", f"{title}\n\n{whole}"
     sha = hashlib.sha256(data).hexdigest()
     fid = uuid.uuid4()
     blob, wrapped = data, None
@@ -62,14 +84,14 @@ async def file(hub: Any, txf: Any, who: Principal, dl: dict[str, Any]) -> str:
     key, stored_sha = await hub.storage.put(blob)
     it = ST.Intake(
         file_id=fid,
-        name=f"{dl['ref']}.pdf",
-        mime="application/pdf",
+        name=name,
+        mime=mime,
         size=len(data),
         sha256=sha,
         storage_key=key,
         pages=pages,
         text_state="text_layer",
-        text=f"{title}\n\n{body}"[:400_000],
+        text=text[:SEARCH_TEXT],  # the search text (the column's cap); the file is whole
         ocr_confidence=None,
     )
     stored = [ST.Stored(it, key, stored_sha, bool(lv["encrypt"]), wrapped)]
