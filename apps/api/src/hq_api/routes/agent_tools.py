@@ -338,6 +338,12 @@ async def tool_company_state(
 
 
 # -------------------------------------------------------------- health.sites --
+UPTIME_DOC = (
+    "The share of the site's checks that passed in the window, as a FRACTION 0..1 "
+    "(0.9975 = 99.75%), four decimals; null when the site has no check in the window."
+)
+
+
 class SiteHealth(BaseModel):
     company: str
     url: str
@@ -345,7 +351,7 @@ class SiteHealth(BaseModel):
     enabled: bool
     consecutive_failures: int
     last: dict[str, Any] | None
-    uptime_24h: float | None
+    uptime_24h: float | None = Field(ge=0, le=1, description=UPTIME_DOC)
 
 
 class IncidentBrief(BaseModel):
@@ -371,7 +377,7 @@ SITES_SQL = """
            (SELECT jsonb_build_object('at', k.at, 'ok', k.ok, 'status', k.status,
                    'latency_ms', k.latency_ms, 'tls_days_left', k.tls_days_left, 'error_code', k.error_code)
               FROM ops.checks k WHERE k.site_id = s.id ORDER BY k.at DESC LIMIT 1) AS last,
-           (SELECT round(100.0 * count(*) FILTER (WHERE k.ok) / nullif(count(*), 0), 1)
+           (SELECT round(count(*) FILTER (WHERE k.ok)::numeric / nullif(count(*), 0), 4)
               FROM ops.checks k WHERE k.site_id = s.id AND k.at >= :since) AS uptime
     FROM ops.sites s JOIN core.companies c ON c.id = s.company_id
 """

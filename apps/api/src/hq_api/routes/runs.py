@@ -26,7 +26,7 @@ from hq_api import pagination
 from hq_api.context import Ctx, owner_ctx
 from hq_api.domain import sites as site_seed
 from hq_api.errors import ApiError, responses
-from hq_api.routes.agent_tools import SITES_SQL
+from hq_api.routes.agent_tools import SITES_SQL, UPTIME_DOC
 from hq_api.schemas import CODE, Model, Page
 from hq_api.security import stepup
 
@@ -314,7 +314,7 @@ class Site(BaseModel):
     canary: bool
     consecutive_failures: int
     last: dict[str, Any] | None
-    uptime_24h: float | None
+    uptime_24h: float | None = Field(ge=0, le=1, description=UPTIME_DOC)
     version: int
 
 
