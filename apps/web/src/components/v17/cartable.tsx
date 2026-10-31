@@ -49,7 +49,7 @@ export function BatchSeal() {
   if (!n) return null;
   return (
     <>
-      <Button variant="silver" size="sm" icon="seal" onClick={() => setOpen(true)}>مُهر گروهی <span className="fig">({n})</span></Button>
+      <Button variant="silver" size="sm" icon="seal" onClick={() => setOpen(true)}>مُهر گروهی ({n.toLocaleString('fa-IR')})</Button>
       {open ? <BatchSheet onClose={() => setOpen(false)} /> : null}
     </>
   );
@@ -91,12 +91,12 @@ function BatchSheet({ onClose }: { onClose: () => void }) {
       footer={(
         <div className="flex flex-col items-center gap-2">
           <SealButton code={holding?.code ?? 'HQ'} nameFa={holding?.name_fa ?? 'هلدینگ'} nameEn={holding?.name_en ?? 'Holding'} holding size={84} busy={seal.isPending} disabled={!chosen.length || chosen.length > maxItems} onSealed={run} />
-          <span className="text-center text-[12px] text-muted">{chosen.length ? <>مُهر <span className="fig">{chosen.length}</span> کارت، روی هم <span className="fig">{usd(total)}</span>. اگر یکی عوض شده باشد هیچ‌کدام مُهر نمیشود.</> : 'کارتی انتخاب نشده.'}</span>
+          <span className="text-center text-[12px] text-muted">{chosen.length ? <>مُهر {chosen.length.toLocaleString('fa-IR')} کارت، روی هم <span className="fig">{usd(total)}</span>. اگر یکی عوض شده باشد هیچ‌کدام مُهر نمیشود.</> : 'کارتی انتخاب نشده.'}</span>
         </div>
       )}>
       <div className="flex flex-col gap-3">
         <p className="rounded-[12px] bg-tile p-3 text-[12px] leading-6 text-sec">
-          فقط پیشنهاد، مصوبه‌ی جلسه و ورودی دانشنامه؛ هر کدام حداکثر <span className="fig">{usd(maxUsd)}</span> و حداکثر <span className="fig">{maxItems}</span> کارت در یک مُهر (ماتریس اختیار). هر کارت مصوبه، ردیف Audit و ثبت تعامل خودش را دارد.
+          فقط پیشنهاد، مصوبه‌ی جلسه و ورودی دانشنامه؛ هر کدام حداکثر <span className="fig">{usd(maxUsd)}</span> و حداکثر {maxItems.toLocaleString('fa-IR')} کارت در یک مُهر (ماتریس اختیار). هر کارت مصوبه، ردیف Audit و ثبت تعامل خودش را دارد.
         </p>
         {q.isLoading ? <Skeleton className="h-40" /> : !list.length ? <Empty icon="seal" title="کارت شایسته‌ای نیست" /> : (
           <ul className="flex flex-col gap-2">

@@ -96,17 +96,23 @@ export async function registration(): Promise<ServiceWorkerRegistration | null> 
   try { return (await navigator.serviceWorker.getRegistration('/')) ?? (await navigator.serviceWorker.register('/sw.js', { scope: '/' })); } catch { return null; }
 }
 
-/** Shows [a] as a browser notification; false when the browser does not allow it. */
+const CHANNEL_FA: Record<Channel, string> = { urgent: 'فوری', cartable: 'کارتابل', orders: 'فرمان‌های تو', outputs: 'خروجی‌ها' };
+/**
+ * Shows [a] as a browser notification; false when the browser does not allow it. As the Android app since 0.6.0 and the service worker:
+ * the screen may be locked, so the notification names only where it belongs, never what it says (a click opens it in the panel; on screen
+ * the panel's own toast shows it whole).
+ */
 export async function showSystem(a: Alert): Promise<boolean> {
   if (permission() !== 'granted' || !alertsWanted()) return false;
   const options: NotificationOptions & { renotify?: boolean; requireInteraction?: boolean } = {
-    body: a.text, tag: a.key, lang: 'fa', dir: 'rtl', icon: '/icon.svg', badge: '/icon.svg', silent: a.channel === 'outputs',
+    body: CHANNEL_FA[a.channel], tag: a.key, lang: 'fa', dir: 'rtl', icon: '/icon.svg', badge: '/icon.svg', silent: a.channel === 'outputs',
     requireInteraction: a.channel === 'urgent', data: { url: a.route ?? '/notifications', nid: a.notificationId ?? null },
   };
   const reg = await registration();
   try {
-    if (reg) await reg.showNotification(a.title, options);
-    else new Notification(a.title, options);
+    const title = a.channel === 'urgent' ? 'پیام فوری از ستاد' : 'پیام تازه از ستاد';
+    if (reg) await reg.showNotification(title, options);
+    else new Notification(title, options);
     return true;
   } catch { return false; }
 }

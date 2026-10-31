@@ -1,5 +1,6 @@
 'use client';
 
+import { safeHref } from '@/lib/format';
 import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
 import { Icon } from '@/components/icon';
@@ -127,7 +128,7 @@ export function DeployPayloadBlock({ d }: { d: Decision18 }) {
         {p.head_sha ? <span>commit <span className="fig text-ink" title={p.head_sha}>{p.head_sha.slice(0, 10)}</span></span> : null}
         {p.rollout ? <span>روش <span className="fig text-ink">{p.rollout}</span></span> : null}
         {p.window ? <span>پنجره {jDateTime(p.window.from)} تا {jDateTime(p.window.to)}</span> : null}
-        {p.pr_url ? <a href={p.pr_url} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 text-gold-ink hover:underline"><Icon name="share" size={13} />PR</a> : null}
+        {safeHref(p.pr_url) ? <a href={safeHref(p.pr_url)!} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 text-gold-ink hover:underline"><Icon name="share" size={13} />PR</a> : null}
       </div>
       {conflicts.length ? (
         <ul className="flex flex-col gap-1">{conflicts.map((c, i) => <li key={i} className="flex items-start gap-2 rounded-[10px] bg-warn-soft p-2 text-[12px] text-ink"><span className="text-warn"><Icon name="urgent" size={14} /></span>{CONFLICT_RULE[c.rule] ?? c.rule}: {c.note_fa}</li>)}</ul>

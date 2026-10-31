@@ -1,5 +1,6 @@
 'use client';
 
+import { safeHref } from '@/lib/format';
 import Link from 'next/link';
 import { useMemo, useState, type ComponentProps, type ReactNode } from 'react';
 import { Icon } from '@/components/icon';
@@ -243,7 +244,7 @@ export function FieldValue({ f, v, masked, plain }: { f: Pick<Field, 'type' | 'o
       const r = v as { kind?: string; ref?: string };
       return r?.ref ? <RefChip r={r.ref} note={r.kind ? REF_KIND_FA[r.kind] ?? r.kind : null} /> : <span className="fig">{String(v)}</span>;
     }
-    case 'url': return <a href={String(v)} target="_blank" rel="noreferrer noopener" dir="ltr" className="fig break-all text-gold-ink hover:underline">{String(v)}</a>;
+    case 'url': { const href = safeHref(v); return href ? <a href={href} target="_blank" rel="noreferrer noopener" dir="ltr" className="fig break-all text-gold-ink hover:underline">{String(v)}</a> : <span dir="ltr" className="fig break-all">{String(v)}</span>; }
     case 'email': return <a href={`mailto:${String(v)}`} dir="ltr" className="fig break-all text-gold-ink hover:underline">{String(v)}</a>;
     case 'phone': return <span dir="ltr" className="fig">{String(v)}</span>;
     case 'id_code': case 'iban': return <Masked4 v={String(v)} />;

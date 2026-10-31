@@ -179,11 +179,18 @@ export function Empty({ icon = 'deliverable', title, body, action }: { icon?: Ic
 export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
   const fa = (error as { messageFa?: string })?.messageFa ?? 'بارگذاری انجام نشد.';
   const code = (error as { code?: string })?.code;
+  const rid = (error as { requestId?: string | null })?.requestId;
   return (
     <div role="alert" className="flex flex-col items-center gap-3 px-6 py-10 text-center">
       <span className="flex size-14 items-center justify-center rounded-full bg-neg-soft text-neg"><Icon name="urgent" size={26} /></span>
       <p className="text-body font-semibold text-ink">{fa}</p>
-      {code ? <p className="fig text-micro text-muted">{code}</p> : null}
+      {/* The technical code (and the request id «خطاخوان» keeps) under «جزئیات», not under the Persian sentence. */}
+      {code || rid ? (
+        <details className="text-micro text-muted">
+          <summary className="cursor-pointer select-none">جزئیات</summary>
+          <p className="fig pt-1" dir="ltr">{[code, rid].filter(Boolean).join(' · ')}</p>
+        </details>
+      ) : null}
       {onRetry ? <Button variant="secondary" icon="refresh" onClick={onRetry}>دوباره</Button> : null}
     </div>
   );

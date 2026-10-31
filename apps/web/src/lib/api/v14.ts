@@ -225,7 +225,12 @@ export const useFoundings = () => useInfiniteQuery({
   initialPageParam: null as string | null,
   getNextPageParam: (last) => last.next_cursor,
 });
-export const useFounding = (ref: string) => useQuery({ queryKey: ['founding', ref], queryFn: () => call<Founding>('GET', `/foundings/${ref}`), refetchInterval: 5_000 });
+/** One founding; read again every 5 s only while something is happening on the hub's side (auditing, provisioning), never once it is
+ *  active or cancelled or waits for the owner (the stream's `founding.*` refreshes it then). */
+export const useFounding = (ref: string) => useQuery({
+  queryKey: ['founding', ref], queryFn: () => call<Founding>('GET', `/foundings/${ref}`),
+  refetchInterval: (q) => (q.state.data && ['auditing', 'sealed', 'provisioning'].includes(q.state.data.state) ? 5_000 : false),
+});
 export const usePlan = (ref: string | null, seed?: ServerPlan | null) => useQuery({ queryKey: ['founding', 'plan', ref], enabled: !!ref, queryFn: () => call<ServerPlan>('GET', `/provisioning/plans/${ref}`), initialData: seed ?? undefined });
 export const useRun = (id: string | null) => useQuery({ queryKey: ['founding', 'run', id], enabled: !!id, queryFn: () => call<ProvisionRun>('GET', `/provisioning/runs/${id}`), refetchInterval: (q) => (q.state.data?.state === 'running' || q.state.data?.state === 'queued' ? 2_000 : false) });
 export function useFoundingAction() {

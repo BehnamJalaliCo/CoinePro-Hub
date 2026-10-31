@@ -75,6 +75,17 @@ export function until(iso: string | null | undefined, now = Date.now()): string 
   return `${Math.round(h / 24)} روز مانده`;
 }
 
+/**
+ * A link from data, only when it is the web's own kind: an absolute http(s) URL or a path on this origin (`/…`, not `//host`). Anything
+ * else (`javascript:`, `data:`, an unknown scheme) gives null, and the caller shows the text without a link.
+ */
+export function safeHref(v: unknown): string | null {
+  const s = typeof v === 'string' ? v.trim() : '';
+  if (!s) return null;
+  if (/^\/(?!\/)/.test(s)) return s;
+  try { const u = new URL(s); return u.protocol === 'https:' || u.protocol === 'http:' ? u.href : null; } catch { return null; }
+}
+
 export function cx(...a: Array<string | false | null | undefined>): string {
   return a.filter(Boolean).join(' ');
 }

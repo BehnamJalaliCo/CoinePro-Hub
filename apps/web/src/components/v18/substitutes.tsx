@@ -1,5 +1,6 @@
 'use client';
 
+import { safeHref } from '@/lib/format';
 import { useState } from 'react';
 import { Icon } from '@/components/icon';
 import { Button } from '@/components/ui/button';
@@ -63,7 +64,7 @@ function LoginSheet({ s, connectionId, onClose }: { s: Substitute; connectionId:
             <p className="flex items-start gap-2 rounded-[12px] bg-pos-soft p-3 text-ink"><Icon name="seal" size={16} className="mt-1 text-pos" />وارد شد. جایگاه‌های CLI از همین حالا کار میکنند.</p>
           ) : l.state === 'waiting' ? (
             <div className="flex flex-col gap-3">
-              <a href={l.verification_url} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1.5 self-start text-gold-ink hover:underline"><Icon name="globe" size={16} /><span dir="ltr" className="fig max-w-[22rem] truncate">{l.verification_url}</span></a>
+              <a href={safeHref(l.verification_url) ?? undefined} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1.5 self-start text-gold-ink hover:underline"><Icon name="globe" size={16} /><span dir="ltr" className="fig max-w-[22rem] truncate">{l.verification_url}</span></a>
               {l.method === 'device_code' && l.user_code ? (
                 <div className="flex flex-col items-center gap-1 rounded-[14px] bg-tile p-4">
                   <span className="text-[12px] text-muted">این کد را آن‌جا بزن</span>

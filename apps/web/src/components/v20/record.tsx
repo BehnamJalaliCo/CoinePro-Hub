@@ -1,5 +1,6 @@
 'use client';
 
+import { safeHref } from '@/lib/format';
 import Link from 'next/link';
 import { useRef, useState } from 'react';
 import { Icon } from '@/components/icon';
@@ -209,8 +210,8 @@ function FileViewer({ r, f, onClose }: { r: ArchiveRecord; f: RecordFile; onClos
               <span className="text-gold-ink"><Icon name="report" size={28} /></span>
               <span className="text-[13px] text-sec">فایل آماده است.</span>
               <div className="flex flex-wrap justify-center gap-2">
-                <a href={file.url} target="_blank" rel="noopener" className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-gold px-4 text-[13px] font-bold text-on-gold hover:bg-gold-bright"><Icon name="share" size={18} />باز کردن در زبانه‌ی تازه</a>
-                <a href={file.url} download={f.name} className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-strong px-4 text-[13px] font-semibold text-ink hover:bg-hover"><Icon name="download" size={18} />دریافت</a>
+                <a href={safeHref(file.url) ?? undefined} target="_blank" rel="noopener" className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-gold px-4 text-[13px] font-bold text-on-gold hover:bg-gold-bright"><Icon name="share" size={18} />باز کردن در زبانه‌ی تازه</a>
+                <a href={safeHref(file.url) ?? undefined} download={f.name} className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-strong px-4 text-[13px] font-semibold text-ink hover:bg-hover"><Icon name="download" size={18} />دریافت</a>
               </div>
             </div>
           )
