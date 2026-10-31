@@ -7,6 +7,9 @@
 #                    librarian) answers the owner's ask
 #   dceo.predict     the digital CEO (service `dceo`) seals its own prediction
 #   dceo.principles  ... and proposes principles for the owner
+#   dceo.proposal    ... and, once a month, «پیشنهاد هلدینگ» (contract §28.3
+#                    ⟨1.10⟩): advice the owner reads as a watch finding,
+#                    written by code; it never acts on it
 #
 # The red line of §21.10: the digital CEO is a service that never acts. Every
 # operation that is not its own `dceo.*` is refused to it here, whatever any
@@ -25,7 +28,7 @@ grant if {
 }
 
 grant if {
-	op in {"dceo.predict", "dceo.principles"}
+	op in {"dceo.predict", "dceo.principles", "dceo.proposal"}
 	service
 	p.code == "dceo"
 }

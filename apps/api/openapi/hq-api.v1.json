@@ -5277,6 +5277,248 @@
         "title": "CatalogTool",
         "type": "object"
       },
+      "Catalogue": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "deliverable": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deliverable"
+          },
+          "diff": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Diff"
+          },
+          "reason_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Fa"
+          },
+          "record": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record"
+          },
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogueSection"
+            },
+            "title": "Sections",
+            "type": "array"
+          },
+          "servers": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogueServer"
+            },
+            "title": "Servers",
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "company",
+          "at",
+          "state"
+        ],
+        "title": "Catalogue",
+        "type": "object"
+      },
+      "CatalogueIn": {
+        "additionalProperties": false,
+        "properties": {
+          "company": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "start": {
+            "default": false,
+            "title": "Start",
+            "type": "boolean"
+          }
+        },
+        "title": "CatalogueIn",
+        "type": "object"
+      },
+      "CatalogueSection": {
+        "properties": {
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "notes_md": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes Md"
+          },
+          "summary_md": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Md"
+          },
+          "tables": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogueTable"
+            },
+            "title": "Tables",
+            "type": "array"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title_fa"
+        ],
+        "title": "CatalogueSection",
+        "type": "object"
+      },
+      "CatalogueServer": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "reason_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Fa"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "state"
+        ],
+        "title": "CatalogueServer",
+        "type": "object"
+      },
+      "CatalogueTable": {
+        "properties": {
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Columns",
+            "type": "array"
+          },
+          "rows": {
+            "items": {
+              "items": {},
+              "type": "array"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "title_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title Fa"
+          }
+        },
+        "title": "CatalogueTable",
+        "type": "object"
+      },
       "CeoWeeklyLetterIn": {
         "properties": {
           "at": {
@@ -6260,6 +6502,153 @@
           "cmd"
         ],
         "title": "ClassifyIn",
+        "type": "object"
+      },
+      "ClientError": {
+        "properties": {
+          "app": {
+            "title": "App",
+            "type": "string"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "entry": {
+            "additionalProperties": true,
+            "title": "Entry",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "level": {
+            "title": "Level",
+            "type": "string"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "screen": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Screen"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "app",
+          "version",
+          "at",
+          "kind",
+          "level",
+          "screen",
+          "status",
+          "code",
+          "message",
+          "entry",
+          "received_at"
+        ],
+        "title": "ClientError",
+        "type": "object"
+      },
+      "ClientErrorsIn": {
+        "additionalProperties": false,
+        "properties": {
+          "app": {
+            "enum": [
+              "android",
+              "web"
+            ],
+            "title": "App",
+            "type": "string"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorEntry"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Entries",
+            "type": "array"
+          },
+          "version": {
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "app",
+          "version",
+          "entries"
+        ],
+        "title": "ClientErrorsIn",
+        "type": "object"
+      },
+      "ClientErrorsOut": {
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "accepted"
+        ],
+        "title": "ClientErrorsOut",
         "type": "object"
       },
       "CloseIn": {
@@ -8083,6 +8472,17 @@
             "title": "Members",
             "type": "array"
           },
+          "note_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Fa"
+          },
           "state": {
             "enum": [
               "running",
@@ -9518,6 +9918,19 @@
           "title"
         ],
         "title": "Delegate",
+        "type": "object"
+      },
+      "DeletedOut": {
+        "properties": {
+          "deleted": {
+            "title": "Deleted",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "deleted"
+        ],
+        "title": "DeletedOut",
         "type": "object"
       },
       "Deliver": {
@@ -12144,6 +12557,132 @@
         "title": "ErrandIn",
         "type": "object"
       },
+      "ErrorEntry": {
+        "additionalProperties": true,
+        "description": "One entry of an app's own error log (the app's fields; others kept).",
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "kind": {
+            "pattern": "^[a-z_]{1,30}$",
+            "title": "Kind",
+            "type": "string"
+          },
+          "level": {
+            "default": "error",
+            "enum": [
+              "error",
+              "warning",
+              "info"
+            ],
+            "title": "Level",
+            "type": "string"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "method": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Method"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Path"
+          },
+          "screen": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Screen"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "at",
+          "kind"
+        ],
+        "title": "ErrorEntry",
+        "type": "object"
+      },
       "Escrow": {
         "properties": {
           "allowed_action_classes": {
@@ -13011,6 +13550,22 @@
         "title": "FileVariants",
         "type": "object"
       },
+      "FiledMany": {
+        "properties": {
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/FiledRecord"
+            },
+            "title": "Records",
+            "type": "array"
+          }
+        },
+        "required": [
+          "records"
+        ],
+        "title": "FiledMany",
+        "type": "object"
+      },
       "FiledOut": {
         "properties": {
           "record": {
@@ -13022,6 +13577,24 @@
           "record"
         ],
         "title": "FiledOut",
+        "type": "object"
+      },
+      "FiledRecord": {
+        "properties": {
+          "record": {
+            "title": "Record",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "record"
+        ],
+        "title": "FiledRecord",
         "type": "object"
       },
       "Finding": {
@@ -13062,6 +13635,27 @@
             "title": "Evidence",
             "type": "array"
           },
+          "fix": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FindingFix"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fix_md": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fix Md"
+          },
           "history": {
             "items": {
               "$ref": "#/components/schemas/HistoryItem"
@@ -13073,6 +13667,24 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "security",
+                  "app_health",
+                  "code",
+                  "growth",
+                  "holding"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
           },
           "opened_at": {
             "format": "date-time",
@@ -13125,6 +13737,46 @@
         "title": "Finding",
         "type": "object"
       },
+      "FindingFix": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "work",
+              "workshop",
+              "decision"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref"
+          },
+          "summary_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Fa"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "FindingFix",
+        "type": "object"
+      },
       "FindingRaiseIn": {
         "additionalProperties": false,
         "properties": {
@@ -13172,6 +13824,46 @@
             "maxItems": 20,
             "title": "Evidence",
             "type": "array"
+          },
+          "fix": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FindingFix"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fix_md": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fix Md"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "security",
+                  "app_health",
+                  "code",
+                  "growth",
+                  "holding"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
           },
           "protocol": {
             "anyOf": [
@@ -21347,6 +22039,17 @@
             ],
             "title": "Reason"
           },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
           "run_id": {
             "anyOf": [
               {
@@ -24513,6 +25216,33 @@
           "items"
         ],
         "title": "Page[Claim]",
+        "type": "object"
+      },
+      "Page_ClientError_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ClientError"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[ClientError]",
         "type": "object"
       },
       "Page_CodeSession_": {
@@ -28069,6 +28799,25 @@
           "ok"
         ],
         "title": "ReferralResultIn",
+        "type": "object"
+      },
+      "RefsIn": {
+        "additionalProperties": false,
+        "properties": {
+          "refs": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Refs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "refs"
+        ],
+        "title": "RefsIn",
         "type": "object"
       },
       "RegisterOptionsIn": {
@@ -38719,6 +39468,18 @@
             "title": "Account",
             "type": "string"
           },
+          "error_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Until"
+          },
           "last_failure": {
             "anyOf": [
               {
@@ -38750,7 +39511,8 @@
             "enum": [
               "signed_in",
               "expired",
-              "signed_out"
+              "signed_out",
+              "error"
             ],
             "title": "State",
             "type": "string"
@@ -51829,6 +52591,315 @@
         ]
       }
     },
+    "/api/v1/client/errors": {
+      "get": {
+        "description": "The apps' error reports, newest first.",
+        "operationId": "get_client_errors",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "app",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "android",
+                    "web"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "App"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 60,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "app": "x",
+                      "at": "2026-10-17T05:42:00Z",
+                      "code": "TY",
+                      "entry": {},
+                      "id": "x",
+                      "kind": "one_off",
+                      "level": "decision",
+                      "message": "x",
+                      "received_at": "2026-10-17T05:42:00Z",
+                      "screen": "x",
+                      "status": 1,
+                      "version": "x"
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ClientError_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Client Errors",
+        "tags": [
+          "watch"
+        ]
+      },
+      "post": {
+        "description": "§28.3 an app's own error log, in batches (masked on the device and\nagain here); the overseer's daily app health reads them.",
+        "operationId": "post_client_errors",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "app": "android",
+                "entries": [
+                  {
+                    "at": "2026-10-17T05:42:00Z",
+                    "code": "TY",
+                    "id": 1,
+                    "kind": "one_off",
+                    "level": "error",
+                    "message": "x",
+                    "method": "x",
+                    "path": "x",
+                    "screen": "x",
+                    "status": 1,
+                    "title": "گزارش هفتگی رشد"
+                  }
+                ],
+                "version": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ClientErrorsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "accepted": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ClientErrorsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Post Client Errors",
+        "tags": [
+          "watch"
+        ]
+      }
+    },
     "/api/v1/companies": {
       "get": {
         "description": "Holding first, then by code; built for 40+ companies.",
@@ -53327,6 +54398,276 @@
         ]
       }
     },
+    "/api/v1/companies/{code}/catalogue": {
+      "get": {
+        "description": "The latest catalogue of the company (running, done or failed).",
+        "operationId": "get_catalogue",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "at": "2026-10-17T05:42:00Z",
+                  "company": "TY",
+                  "deliverable": "O-000456",
+                  "diff": {},
+                  "reason_fa": "x",
+                  "record": "x",
+                  "sections": [
+                    {
+                      "count": 1,
+                      "key": "x",
+                      "notes_md": "x",
+                      "summary_md": "x",
+                      "tables": [
+                        {
+                          "columns": [
+                            "x"
+                          ],
+                          "rows": [
+                            []
+                          ],
+                          "title_fa": "گزارش هفتگی رشد"
+                        }
+                      ],
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "servers": [
+                    {
+                      "id": "x",
+                      "name": "report.pdf",
+                      "reason_fa": "x",
+                      "state": "queued"
+                    }
+                  ],
+                  "state": "running"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Catalogue"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Catalogue",
+        "tags": [
+          "watch"
+        ]
+      },
+      "post": {
+        "description": "§28.2 the deep catalogue of a company: one read-only `claude` job per\nsection on every paired server (the server's map when its Claude Code is\nnot there), merged into one deliverable and filed in the archive as a\n`report` record. A run still going is answered as it is.",
+        "operationId": "start_catalogue",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "at": "2026-10-17T05:42:00Z",
+                  "company": "TY",
+                  "deliverable": "O-000456",
+                  "diff": {},
+                  "reason_fa": "x",
+                  "record": "x",
+                  "sections": [
+                    {
+                      "count": 1,
+                      "key": "x",
+                      "notes_md": "x",
+                      "summary_md": "x",
+                      "tables": [
+                        {
+                          "columns": [
+                            "x"
+                          ],
+                          "rows": [
+                            []
+                          ],
+                          "title_fa": "گزارش هفتگی رشد"
+                        }
+                      ],
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "servers": [
+                    {
+                      "id": "x",
+                      "name": "report.pdf",
+                      "reason_fa": "x",
+                      "state": "queued"
+                    }
+                  ],
+                  "state": "running"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Catalogue"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Start Catalogue",
+        "tags": [
+          "watch"
+        ]
+      }
+    },
     "/api/v1/companies/{code}/departments": {
       "get": {
         "description": "The company's departments with their managers, in display order.",
@@ -54678,6 +56019,7 @@
                   "version": 1,
                   "web": {
                     "account": "x",
+                    "error_until": "2026-10-17T05:42:00Z",
                     "last_failure": "x",
                     "last_ok_at": "2026-10-17T05:42:00Z",
                     "recipe_version": "x",
@@ -58480,6 +59822,99 @@
       }
     },
     "/api/v1/deliverables": {
+      "delete": {
+        "description": "⟨1.10⟩ §28.1 Owner only, 🔏 `deliverables.delete` on the SHA-256 of the\nsorted refs (`delete_target`): the deliverables, their ratings, the files\nonly they carried, the overseer's claims about them and a weekly letter\nmade of one are removed from the database and the storage. An Audit row\nper deliverable stays ({ref, title, company, deleted_by, at}); archive\nrecords they were filed into stay. -> {deleted: n}.",
+        "operationId": "delete_many",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "refs": [
+                  "W-000789"
+                ]
+              },
+              "schema": {
+                "$ref": "#/components/schemas/RefsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "deleted": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/DeletedOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Delete Many",
+        "tags": [
+          "deliverables"
+        ]
+      },
       "get": {
         "description": "Newest first. ⟨1.7.3⟩ `seen`, `category`, and `from`/`to` (days in the\nowner's zone, both included). ⟨1.7.4⟩ `work`: one work's deliverables (its\nid or its ref).",
         "operationId": "list_deliverables",
@@ -58794,6 +60229,106 @@
           }
         },
         "summary": "List Deliverables",
+        "tags": [
+          "deliverables"
+        ]
+      }
+    },
+    "/api/v1/deliverables/file": {
+      "post": {
+        "description": "⟨1.10⟩ §28.1 Owner: file several deliverables in the archive, each one\nas `/{ref}/file` does (idempotent per ref: a filed one answers its record).",
+        "operationId": "file_many",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "refs": [
+                  "W-000789"
+                ]
+              },
+              "schema": {
+                "$ref": "#/components/schemas/RefsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "records": [
+                    {
+                      "record": "x",
+                      "ref": "W-000789"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/FiledMany"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "File Many",
         "tags": [
           "deliverables"
         ]
@@ -77899,6 +79434,12 @@
                       "evidence": [
                         {}
                       ],
+                      "fix": {
+                        "kind": "work",
+                        "ref": "W-000789",
+                        "summary_fa": "x"
+                      },
+                      "fix_md": "x",
                       "history": [
                         {
                           "at": "2026-10-17T05:42:00Z",
@@ -77912,6 +79453,7 @@
                         }
                       ],
                       "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "kind": "security",
                       "opened_at": "2026-10-17T05:42:00Z",
                       "protocol": "x",
                       "ref": "W-000789",
@@ -78023,6 +79565,12 @@
                   "evidence": [
                     {}
                   ],
+                  "fix": {
+                    "kind": "work",
+                    "ref": "W-000789",
+                    "summary_fa": "x"
+                  },
+                  "fix_md": "x",
                   "history": [
                     {
                       "at": "2026-10-17T05:42:00Z",
@@ -78036,6 +79584,7 @@
                     }
                   ],
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "security",
                   "opened_at": "2026-10-17T05:42:00Z",
                   "protocol": "x",
                   "ref": "W-000789",
@@ -78165,6 +79714,12 @@
                   "evidence": [
                     {}
                   ],
+                  "fix": {
+                    "kind": "work",
+                    "ref": "W-000789",
+                    "summary_fa": "x"
+                  },
+                  "fix_md": "x",
                   "history": [
                     {
                       "at": "2026-10-17T05:42:00Z",
@@ -78178,6 +79733,7 @@
                     }
                   ],
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "security",
                   "opened_at": "2026-10-17T05:42:00Z",
                   "protocol": "x",
                   "ref": "W-000789",
@@ -89845,6 +91401,7 @@
                     "version": 1,
                     "web": {
                       "account": "x",
+                      "error_until": "2026-10-17T05:42:00Z",
                       "last_failure": "x",
                       "last_ok_at": "2026-10-17T05:42:00Z",
                       "recipe_version": "x",
@@ -90061,6 +91618,7 @@
                   "version": 1,
                   "web": {
                     "account": "x",
+                    "error_until": "2026-10-17T05:42:00Z",
                     "last_failure": "x",
                     "last_ok_at": "2026-10-17T05:42:00Z",
                     "recipe_version": "x",
@@ -90248,6 +91806,7 @@
                   "version": 1,
                   "web": {
                     "account": "x",
+                    "error_until": "2026-10-17T05:42:00Z",
                     "last_failure": "x",
                     "last_ok_at": "2026-10-17T05:42:00Z",
                     "recipe_version": "x",
@@ -97537,10 +99096,12 @@
                       "model": "claude-sonnet-5-5",
                       "player": "x",
                       "reason": "دلیل",
+                      "reason_code": "x",
                       "run_id": "x",
                       "state": "queued"
                     }
                   ],
+                  "note_fa": "x",
                   "state": "running",
                   "synthesis_ref": "x",
                   "work_ref": "x"
@@ -102104,6 +103665,145 @@
         ]
       }
     },
+    "/internal/v1/catalogue": {
+      "post": {
+        "description": "company.catalogue: the latest catalogue of the company; `start: true`\n(or none yet) starts a run. The CEO's answer to \"go through the server\nand extract everything\" (§28.2), never a summary of its own.",
+        "operationId": "agent_catalogue",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "company": "TY",
+                "start": false
+              },
+              "schema": {
+                "$ref": "#/components/schemas/CatalogueIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "at": "2026-10-17T05:42:00Z",
+                  "company": "TY",
+                  "deliverable": "O-000456",
+                  "diff": {},
+                  "reason_fa": "x",
+                  "record": "x",
+                  "sections": [
+                    {
+                      "count": 1,
+                      "key": "x",
+                      "notes_md": "x",
+                      "summary_md": "x",
+                      "tables": [
+                        {
+                          "columns": [
+                            "x"
+                          ],
+                          "rows": [
+                            []
+                          ],
+                          "title_fa": "گزارش هفتگی رشد"
+                        }
+                      ],
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "servers": [
+                    {
+                      "id": "x",
+                      "name": "report.pdf",
+                      "reason_fa": "x",
+                      "state": "queued"
+                    }
+                  ],
+                  "state": "running"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Catalogue"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Agent Catalogue",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
     "/internal/v1/charter/{scope}": {
       "put": {
         "description": "Agents read the charter, never write it (contract §20.2): refused and\naudited, whoever asks. An amendment is a `charter_amendment` card.",
@@ -102386,6 +104086,197 @@
           }
         },
         "summary": "Claim Verdict",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/client/errors": {
+      "get": {
+        "description": "client.errors: the daily app health's input (§28.3).",
+        "operationId": "agent_client_errors",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "app",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "android",
+                    "web"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "App"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 60,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "app": "x",
+                      "at": "2026-10-17T05:42:00Z",
+                      "code": "TY",
+                      "entry": {},
+                      "id": "x",
+                      "kind": "one_off",
+                      "level": "decision",
+                      "message": "x",
+                      "received_at": "2026-10-17T05:42:00Z",
+                      "screen": "x",
+                      "status": 1,
+                      "version": "x"
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ClientError_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Agent Client Errors",
         "tags": [
           "internal"
         ]
@@ -111633,6 +113524,13 @@
                     "ref": "W-000789"
                   }
                 ],
+                "fix": {
+                  "kind": "work",
+                  "ref": "W-000789",
+                  "summary_fa": "x"
+                },
+                "fix_md": "x",
+                "kind": "security",
                 "protocol": "x",
                 "severity": "info",
                 "title_fa": "گزارش هفتگی رشد"
@@ -111661,6 +113559,12 @@
                   "evidence": [
                     {}
                   ],
+                  "fix": {
+                    "kind": "work",
+                    "ref": "W-000789",
+                    "summary_fa": "x"
+                  },
+                  "fix_md": "x",
                   "history": [
                     {
                       "at": "2026-10-17T05:42:00Z",
@@ -111674,6 +113578,7 @@
                     }
                   ],
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "security",
                   "opened_at": "2026-10-17T05:42:00Z",
                   "protocol": "x",
                   "ref": "W-000789",
@@ -111825,6 +113730,12 @@
                   "evidence": [
                     {}
                   ],
+                  "fix": {
+                    "kind": "work",
+                    "ref": "W-000789",
+                    "summary_fa": "x"
+                  },
+                  "fix_md": "x",
                   "history": [
                     {
                       "at": "2026-10-17T05:42:00Z",
@@ -111838,6 +113749,7 @@
                     }
                   ],
                   "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "security",
                   "opened_at": "2026-10-17T05:42:00Z",
                   "protocol": "x",
                   "ref": "W-000789",

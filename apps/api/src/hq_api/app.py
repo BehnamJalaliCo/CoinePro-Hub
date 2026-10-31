@@ -77,6 +77,7 @@ from hq_api.routes import role_drafts as role_draft_routes  # prompt 13 §1.1
 from hq_api.routes import servers as server_routes  # prompt 17: company server runners
 from hq_api.routes import substitutes as substitute_routes  # prompt 12 part A
 from hq_api.routes import voices as voice_routes  # prompt 13: the voice registry
+from hq_api.routes import watch as watch_routes  # prompt 19: catalogue, client errors
 
 log = logging.getLogger("hq_api.access")
 _REQUEST_ID = re.compile(r"^[A-Za-z0-9-]{8,64}$")
@@ -255,6 +256,8 @@ def create_app(
     # ⟨1.8⟩ prompt 17 (contract §26): company server runners; their agent tools.
     app.include_router(server_routes.router, prefix="/api/v1")
     app.include_router(server_routes.internal_router, prefix="/internal/v1")
+    app.include_router(watch_routes.router, prefix="/api/v1")
+    app.include_router(watch_routes.internal_router, prefix="/internal/v1")
     # ⟨1.7⟩ prompt 14 (contract §23): the archive of record and its agent tools.
     app.include_router(archive_routes.router, prefix="/api/v1")
     app.include_router(archive_agent_routes.internal_router, prefix="/internal/v1")

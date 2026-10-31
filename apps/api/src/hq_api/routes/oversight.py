@@ -556,6 +556,10 @@ class FindingRaiseIn(Model):
     evidence: list[O.Evidence] = Field(default_factory=list, max_length=20)
     answerable: str | None = Field(default=None, max_length=64, pattern=r"^[A-Za-z0-9_-]{2,64}$")
     due_in_hours: int | None = Field(default=None, ge=1, le=24 * 30)
+    # ⟨1.10⟩ §28.3 the watch's kind and the proposed fix
+    kind: Literal["security", "app_health", "code", "growth", "holding"] | None = None
+    fix_md: str | None = Field(default=None, max_length=20000)
+    fix: O.FindingFix | None = None
 
 
 class FindingUpdateIn(Model):
@@ -644,6 +648,9 @@ async def raise_finding(
             due_in_hours=body.due_in_hours,
             by_kind="agent",
             by_code=ctx.who.code,
+            kind=body.kind,
+            fix_md=await scrub_async(body.fix_md) if body.fix_md else None,
+            fix=body.fix.model_dump(exclude_none=True) if body.fix else None,
         )
         await ctx.audit(
             tx,

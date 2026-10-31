@@ -305,6 +305,7 @@ OP_CLASS: dict[str, str] = {
     "ask.answer": "A1",
     "dceo.predict": "A0",
     "dceo.principles": "A1",
+    "dceo.proposal": "A1",  # ⟨1.10⟩ §28.3 the monthly holding proposal
     # prompt 13, the media half (media.rego): the media studio's tools and the
     # render one-shot's queue (service media)
     "media.item": "A1",
@@ -334,6 +335,9 @@ OP_CLASS: dict[str, str] = {
     # prompt 17 (contract §26.2): server.map/read (A0); server.exec/write/claude (A2)
     "server.read": "A0",
     "server.run": "A2",
+    # ⟨1.10⟩ prompt 19 (contract §28.2-§28.3): the catalogue; the apps' error reports
+    "catalogue.start": "A1",
+    "client_errors.read": "A0",
 }
 
 

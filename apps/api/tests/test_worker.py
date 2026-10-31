@@ -634,6 +634,7 @@ async def test_score_job_and_maintenance(hub: Hub, wk: dict[str, Any], owner_db:
         "purge",
         "requeue_runs",
         "players_sweep",
+        "watch_sweep",
         "backups_ingest",
         "inquiries_late",
         "oversight_tick",

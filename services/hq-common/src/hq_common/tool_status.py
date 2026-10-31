@@ -136,6 +136,9 @@ GATEWAY_TOOLS: frozenset[str] = frozenset(
         "server.exec",
         "server.write",
         "server.claude",
+        # prompt 19 (contract §28.2-§28.3): the company catalogue, the apps' error reports
+        "company.catalogue",
+        "client.errors",
     }
 )
 # Tools whose traffic leaves the hub through the egress service (contract §18.7).

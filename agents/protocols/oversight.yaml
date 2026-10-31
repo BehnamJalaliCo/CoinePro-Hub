@@ -705,3 +705,48 @@ protocols:
       Every paired company server reaches the hub (10.10.1.4:443) and every other paired server's private address (22, 443, 80): each
       run queues a read-only netcheck on every online runner, and a link that worked before and fails now is a finding.
     evidence: "/infra/network, netcheck jobs"
+  # ⟨1.10⟩ The watch (prompt 19, contract §28.3): the app, the hub and every company server.
+  - ref: PR-140
+    area: security
+    method: llm
+    schedule: "FREQ=DAILY;BYHOUR=4;BYMINUTE=30"
+    scope: holding
+    severity: high
+    answerable: hub_platform_sre
+    title_fa: "پایش امنیتی روزانه‌ی هاب و همه‌ی سرورها"
+    check: >-
+      On every paired company server (read-only server.exec or server.claude; never change anything) and on the hub (backups.status,
+      health.hub, github.read): listening ports open to the internet against the expected list (22 only from the owner's addresses,
+      80/443 for sites), CVEs in installed packages and in lock files, TLS certificates expiring within 21 days, a summary of failed
+      logins of the last day, secrets committed to repositories, and backups older than a day. Each problem is a finding of kind
+      `security` on the company that owns the server (the holding for the hub), with the fix in words and, where useful, a work item
+      or a Code Workshop session as `fix` for the owner's seal. Nothing found is a pass.
+    evidence: "server refs and job ids, the command outputs (masked), CVE ids, certificate dates"
+  - ref: PR-141
+    area: product
+    method: llm
+    schedule: "FREQ=DAILY;BYHOUR=6;BYMINUTE=15"
+    scope: holding
+    severity: medium
+    answerable: hub_platform_sre
+    title_fa: "سلامت روزانه‌ی اپ‌ها از گزارش خطای خودشان"
+    check: >-
+      Read the apps' own error reports of the last day (client.errors). Group the entries by cause (the same path, status, code or
+      screen), find the cause in the code (github.read on the app's repository), and raise one finding of kind `app_health` per cause
+      with how often it happened, on which versions, the cause in the code and the proposed fix (fix_md; fix: a Code Workshop session
+      or a work item). A cause already open is updated, not raised again.
+    evidence: "client error ids and counts, versions, file paths and lines"
+  - ref: PR-142
+    area: quality
+    method: llm
+    schedule: "FREQ=WEEKLY;BYDAY=SA;BYHOUR=9;BYMINUTE=30"
+    scope: holding
+    severity: medium
+    answerable: hub_platform_sre
+    title_fa: "بازبینی هفتگی کد هر مخزن"
+    check: >-
+      For every repository of every company (on its server: a read-only server.claude in the repository; the hub's own: github.read),
+      look for bugs, dead code, missing tests and risky patterns (secrets in code, unchecked input, unsafe shell, missing timeouts).
+      Return a ranked list: one finding of kind `code` per serious item on the company that owns the repository, with the fix proposed
+      as a work item or a Code Workshop session for the owner's seal; the rest in the protocol result's notes.
+    evidence: "repository, branch and commit, file paths and lines, job ids"

@@ -29,6 +29,8 @@ test_only_the_librarian_answers_an_ask if {
 test_the_digital_ceo_writes_only_its_own_rows if {
 	allowed(dceo, "dceo.predict", {"decision": "D-000001", "method": "model"})
 	allowed(dceo, "dceo.principles", {"week": "2026-10-24"})
+	allowed(dceo, "dceo.proposal", {"month": "2026-11"})
+	not allowed(f.hq_adv, "dceo.proposal", {"month": "2026-11"})
 	not allowed(f.svc, "dceo.predict", {"decision": "D-000001"})
 	not allowed(f.hq_adv, "dceo.predict", {"decision": "D-000001"})
 }

@@ -137,6 +137,7 @@ class Maintenance:
             "reconcile_schedules",
             "requeue_runs",
             "players_sweep",
+            "watch_sweep",
             "purge",
             "backups_ingest",
             "inquiries_late",

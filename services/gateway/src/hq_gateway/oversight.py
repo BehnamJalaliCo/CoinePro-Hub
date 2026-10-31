@@ -26,6 +26,12 @@ class EvidenceIn(T.In):
     note: str = Field(default="", max_length=1000)
 
 
+class FixIn(T.In):
+    kind: Literal["work", "workshop", "decision"]
+    ref: str | None = Field(default=None, max_length=40, pattern=r"^[A-Z]{1,4}-[0-9]{4,}$")
+    summary_fa: str | None = Field(default=None, max_length=1000)
+
+
 class FindingRaiseIn(T.In):
     company: str = Field(pattern=CO)
     protocol: str | None = Field(default=None, pattern=r"^PR-[0-9]{3,}$")
@@ -35,6 +41,11 @@ class FindingRaiseIn(T.In):
     evidence: list[EvidenceIn] = Field(default_factory=list, max_length=20)
     answerable: str | None = Field(default=None, max_length=64, pattern=r"^[A-Za-z0-9_-]{2,64}$")
     due_in_hours: int | None = Field(default=None, ge=1, le=720)
+    # ⟨1.10⟩ §28.3 the watch's kind and the proposed fix (in words; and as a
+    # work item, a Code Workshop session or a card, for the owner's seal)
+    kind: Literal["security", "app_health", "code", "growth", "holding"] | None = None
+    fix_md: str | None = Field(default=None, max_length=20000)
+    fix: FixIn | None = None
 
 
 class FindingUpdateIn(T.In):

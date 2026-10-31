@@ -431,6 +431,10 @@ async def runner_result(
             data=body.data if body.data is not None else body.result,
             error=body.error,
         )
+    if j["actor_code"] == "catalogue" and j["state"] in SV.FINAL:
+        from hq_api.domain import catalogue
+
+        await catalogue.after_job(hub, j["id"])  # ⟨1.10⟩ §28.2, after the commit
     return {"state": j["state"]}
 
 

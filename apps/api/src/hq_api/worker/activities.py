@@ -141,6 +141,7 @@ class Activities:
             self.run_finalize,
             self.requeue_runs,
             self.players_sweep,
+            self.watch_sweep,
             self.site_checks,
             self.hub_health,
             self.order_route,
@@ -943,6 +944,15 @@ class Activities:
 
         async with self._tx() as tx:
             return await players.sweep(tx, self.hub)
+
+    @activity.defn(name="watch_sweep")
+    async def watch_sweep(self) -> dict[str, Any]:
+        """⟨1.10⟩ contract §28.2-§28.3: the weekly catalogue refresh and growth
+        memo per company, the monthly holding proposal (each once per its
+        period), and catalogue runs left waiting on a server that is off."""
+        from hq_api.domain import watch
+
+        return await watch.sweep(self.hub, self.router)
 
     @activity.defn(name="site_checks")
     async def site_checks(self) -> dict[str, Any]:

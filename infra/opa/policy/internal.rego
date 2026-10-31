@@ -58,7 +58,7 @@ ops := {
 	# prompt 12 part B (mgmt.rego): the TTS one-shot, a checked claim
 	"tts.claim", "tts.done", "claim.verdict",
 	# prompt 12 §2, §13 (owner_tools.rego): the librarian's answer; the digital CEO's own rows
-	"ask.answer", "dceo.predict", "dceo.principles",
+	"ask.answer", "dceo.predict", "dceo.principles", "dceo.proposal",
 	# prompt 13, the media half (media.rego): the media studio and the render
 	# one-shot's queue; roles written on demand (roles.rego)
 	"media.item", "media.render", "media.review", "series.propose", "media.jobs",
@@ -71,6 +71,8 @@ ops := {
 	"archive.search", "archive.read", "archive.file", "archive.link", "archive.hold",
 	# prompt 17 (servers.rego): jobs on the companies' own servers (contract §26.2)
 	"server.read", "server.run",
+	# ⟨1.10⟩ prompt 19 (watch.rego): the company catalogue, the apps' error reports
+	"catalogue.start", "client_errors.read",
 }
 
 # The oversight roles of the holding: the overseer, QC (the inspector) and

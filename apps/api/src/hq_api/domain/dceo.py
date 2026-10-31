@@ -800,6 +800,105 @@ async def propose_principles(
     return {"proposed": len(made), "refs": made}
 
 
+# ------------------------------------------------- ⟨1.10⟩ §28.3 the proposal --
+PROPOSAL_SYSTEM = (
+    "You are the holding's digital CEO. Once a month you write «پیشنهاد هلدینگ»: the "
+    "cross-company opportunities the owner should consider (shared customers, services one "
+    "company could sell another, duplicated cost, a capability one has and another lacks). "
+    "Use only the facts given; cite each one by its company and figure. Answer with ONE JSON "
+    'object: {"title_fa": "...", "body_md": "Persian: at most five opportunities, each with '
+    'the companies involved, the expected impact and the first step", "fix_md": "Persian: the '
+    'one move you would start this month"}. Advice only: you never act on it.'
+)
+PROPOSAL_MODEL = "claude-sonnet-5-5"
+
+
+async def proposal_input(tx: Tx) -> dict[str, Any]:
+    """Per company: what it runs (its latest catalogue's sections and counts),
+    its revenue and its open findings (masked, capped)."""
+    rows = await tx.all(
+        """SELECT c.code, c.name_fa,
+                  (SELECT jsonb_agg(jsonb_build_object('key', s ->> 'key', 'count', s -> 'count',
+                                                       'summary', left(s ->> 'summary_md', 400)))
+                     FROM infra.catalogues k, jsonb_array_elements(k.sections) s
+                    WHERE k.id = (SELECT id FROM infra.catalogues WHERE company_id = c.id
+                                    AND state = 'done' ORDER BY created_at DESC LIMIT 1)) AS catalogue,
+                  (SELECT jsonb_build_object('days', count(*), 'commission_usdt', COALESCE(sum(commission_usdt), 0))
+                     FROM revenue.days d WHERE d.company_id = c.id
+                      AND d.day >= (now() - interval '30 days')::date) AS revenue,
+                  (SELECT count(*) FROM oversight.findings f WHERE f.company_id = c.id
+                      AND f.status NOT IN ('verified', 'closed')) AS open_findings
+           FROM core.companies c WHERE c.kind = 'company' AND c.status = 'active' ORDER BY c.code"""
+    )
+    out: dict[str, Any] = redact(
+        {"companies": [dict(r) for r in rows]}, max_string=600, max_list=50
+    )
+    return out
+
+
+async def holding_proposal(hub: Any, router: Any, tx_factory: Any, month: str) -> dict[str, Any]:
+    """⟨1.10⟩ §28.3 once a month: «پیشنهاد هلدینگ», a watch finding of kind
+    `holding` (advice; nothing is done with it but what the owner decides).
+    Nothing while the holding is locked or the owner zone is spent."""
+    from hq_api.domain import advisor
+    from hq_api.domain import oversight as O
+
+    async with tx_factory() as tx:
+        lock = await gate.automation_lock(tx)
+        if lock is not None:
+            return gate.skipped(lock)
+        s = await settings(tx)
+        if not s.get("enabled", True) or not s.get("model_predictions", True) or router is None:
+            return {"skipped": True, "reason": "off"}
+        if await advisor.zone_spent(tx, hub):
+            return {"skipped": True, "reason": "owner_zone_share"}
+        body = await proposal_input(tx)
+        holding = await hub.companies.holding()
+    if not body["companies"]:
+        return {"proposed": 0, "reason": "no company"}
+    await require(hub, "dceo.proposal", {"month": month})
+    call = await router.run(
+        {
+            "company_code": holding.code,
+            "actor_ref": f"{holding.code}-SYS",
+            "task_class": "dceo_principles",
+            "priority": 4,
+            "model": PROPOSAL_MODEL,
+            "effort": "medium",
+            "system": PROPOSAL_SYSTEM,
+            "prompt": canonical(body)[:PRINCIPLES_PROMPT_CHARS],
+            "max_output_tokens": 4000,
+            "timeout_s": 300,
+            "meta": {"purpose": "dceo_proposal", "owner_zone": owner_zone.AUTO},
+        },
+        300,
+    )
+    if not getattr(call, "ok", False):
+        return {"proposed": 0, "reason": str(getattr(call, "status", "error"))}
+    m = re.search(r"\{.*\}", str(getattr(call, "text", "") or ""), re.S)
+    try:
+        got = json.loads(m.group(0)) if m else None
+    except ValueError:
+        got = None
+    if not isinstance(got, dict) or not str(got.get("body_md") or "").strip():
+        return {"proposed": 0, "reason": "unreadable"}
+    async with tx_factory() as tx:
+        f, _ = await O.raise_finding(
+            tx,
+            company_id=holding.id,
+            company_code=holding.code,
+            severity="info",
+            title_fa=scrub(str(got.get("title_fa") or f"پیشنهاد هلدینگ {month}"))[:300],
+            body_md=scrub(str(got["body_md"]))[:20000],
+            by_kind="system",
+            by_code="dceo",
+            dedupe_key=f"holding_proposal:{month}",
+            kind="holding",
+            fix_md=scrub(str(got.get("fix_md") or ""))[:20000] or None,
+        )
+    return {"proposed": 1, "ref": f["ref"]}
+
+
 # ------------------------------------------------------------------ PR-121 --
 @C.check(PR121)
 async def predictions_sealed(ctx: C.CheckCtx) -> C.Checked:

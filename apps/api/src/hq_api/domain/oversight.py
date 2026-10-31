@@ -132,6 +132,12 @@ class HistoryItem(BaseModel):
     note: str
 
 
+class FindingFix(BaseModel):
+    kind: Literal["work", "workshop", "decision"]
+    ref: str | None = None
+    summary_fa: str | None = None
+
+
 class Finding(BaseModel):
     id: UUID
     ref: str
@@ -147,6 +153,12 @@ class Finding(BaseModel):
     opened_at: datetime
     closed_at: datetime | None
     history: list[HistoryItem] = Field(default_factory=list)
+    # ⟨1.10⟩ §28.3 the watch: its kind, and the overseer's proposed fix (in
+    # words, and as something for the owner's seal: a work item, a Code
+    # Workshop session or a card)
+    kind: Literal["security", "app_health", "code", "growth", "holding"] | None = None
+    fix_md: str | None = None
+    fix: FindingFix | None = None
 
 
 class Challenge(BaseModel):
@@ -629,6 +641,9 @@ def render_finding(r: dict[str, Any], history: list[dict[str, Any]] | None = Non
             )
             for h in history or []
         ],
+        kind=r.get("kind"),
+        fix_md=r.get("fix_md"),
+        fix=FindingFix.model_validate(r["fix"]) if r.get("fix") else None,
     )
 
 
@@ -684,6 +699,9 @@ async def raise_finding(
     by_kind: str = "system",
     by_code: str = "oversight",
     dedupe_key: str | None = None,
+    kind: str | None = None,
+    fix_md: str | None = None,
+    fix: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], bool]:
     """(the finding, created?). A finding still open with the same key is the
     same finding: ⟨1.7.5⟩ its evidence brought up to date, not duplicated (an
@@ -721,10 +739,13 @@ async def raise_finding(
     row = await tx.one(
         """INSERT INTO oversight.findings (company_id, protocol_id, run_id, severity, title_fa, body_md,
                evidence, answerable_kind, answerable_code, raised_by_kind, raised_by_code, dedupe_key,
-               due_at)
+               due_at, kind, fix_md, fix)
            VALUES (:co, :p, :run, :sev, :t, :b, CAST(:ev AS jsonb), :ak, :ac, :bk, :bc, :k,
-                   now() + make_interval(hours => :h))
+                   now() + make_interval(hours => :h), :kind, :fix_md, CAST(:fix AS jsonb))
            RETURNING id, ref""",
+        kind=kind,
+        fix_md=fix_md[:20000] if fix_md else None,
+        fix=json.dumps(fix, ensure_ascii=False) if fix else None,
         co=company_id,
         p=(protocol or {}).get("id"),
         run=run_id,

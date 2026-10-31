@@ -58,6 +58,7 @@ from hq_gateway import (
     roles,  # noqa: F401 - prompt 13 §1.1: role.draft, role.decide
     servers,  # noqa: F401 - prompt 17: server.map/read/exec/write/claude
     support,  # noqa: F401 - kb.*, support.draft/handoff/mystery (prompt 10)
+    watch,  # noqa: F401 - prompt 19: company.catalogue, client.errors
     web,  # registers the internet tools (web.*, http.request)
 )
 from hq_gateway import mcp as M

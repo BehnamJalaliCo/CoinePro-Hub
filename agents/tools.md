@@ -66,7 +66,7 @@ internal names and `/internal` are unreachable. Service-account credentials are 
 |---|---|---|---|
 | `inquiry.ask` | A1 | `{to, question_md, due_in_hours}` | A formal question with a due time (overseer, advisor; a CEO inside its company). |
 | `inquiry.answer` | A1 | `{ref, answer_md, evidence}` | The answer, delivered to the asker's thread. |
-| `finding.raise` | A1 | `{company, protocol?, severity, title_fa, body_md, evidence, answerable, due_in_hours}` | A finding (overseer, QC, fact-checker, AI safety, security). |
+| `finding.raise` | A1 | `{company, protocol?, severity, title_fa, body_md, evidence, answerable, due_in_hours, kind?, fix_md?, fix?}` | A finding (overseer, QC, fact-checker, AI safety, security). ⟨1.10⟩ The watch's `kind` (`security`, `app_health`, `code`, `growth`, `holding`) and the proposed fix: `fix_md` in words, `fix: {kind: work/workshop/decision, ref, summary_fa}` for the owner's seal. |
 | `finding.update` | A2 | `{ref, status, note, evidence?}` | The answerable sets `acknowledged`, `fixing`, `fixed`, `disputed`; the overseer sets `verified`, `closed`. |
 | `protocol.result` | A2 | `{protocol, result, findings, notes}` | The result of one scheduled protocol run (overseer). |
 | `challenge.issue` | A2 | `{company, period, title_fa, brief_md, criteria, due_at, judge?}` | A challenge to a company (overseer). |
@@ -168,6 +168,12 @@ Each company server runs `hq-runner`, which pulls jobs from the hub over HTTPS; 
 | `server.exec` | A2 | `{server, company?, cmd, cwd?, timeout_s?, sudo?, via_work?}` · `{job}` | A command as the server's work user (sudo only if it has it), ≤ 3600 s; stdout, stderr and the exit code. |
 | `server.write` | A2 | `{server, company?, path, content, encoding?, mode?, via_work?}` · `{job}` | Writes a file (≤ 1 MB here) and keeps `<file>.hq-bak`. |
 | `server.claude` | A2 | `{server, company?, brief, title?, cwd?, via_work?}` · `{job}` | The server's own Claude Code on a brief in a repository folder, under its CLAUDE.md: a Workshop session (`runtime: company_server`); its usage goes into the Token Treasury. |
+
+### The company catalogue and the watch (v1.10, prompt 19; contract §28.2-§28.3)
+| Tool | Class | Input | What it does |
+|---|---|---|---|
+| `company.catalogue` | A1 | `{company?, start?}` | The company's latest deep catalogue (products and services, automations and schedules, data, interfaces, code and outputs, risks; per server, as tables); `start` (or none yet) starts a run: a fixed, exhaustive, read-only `claude` job per section on every paired server (the runner's map where Claude Code is missing), merged into one deliverable and an archive `report` record. A CEO for its own company (an order to "go through / extract everything" is this, never a summary of its own); the overseer, the advisor and the platform SRE for any company. |
+| `client.errors` | A0 | `{app?, version?, from?}` | The Android and web apps' own error log (masked on the device and on the hub), newest first: the overseer's daily app health and the platform SRE. |
 
 ### Which role has what (v2)
 Role charters list their tools in frontmatter; the gateway enforces them. In short: the **overseer** has every read tool, the web,

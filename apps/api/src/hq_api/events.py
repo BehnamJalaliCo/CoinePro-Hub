@@ -72,7 +72,8 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "growth": ("rescue.", "lifecycle.", "nps."),
     "feedback": ("feedback.",),
     # ⟨1.4.6⟩ prompt 9.1: brand.updated (contract §18.14)
-    "companies": ("brand.",),
+    # ⟨1.10⟩ prompt 19 (contract §28.2): catalogue.updated (a company's catalogue run)
+    "companies": ("brand.", "catalogue."),
     # ⟨1.5⟩ prompt 11 (contract §20.11): meeting.scheduled, .started, .turn, .claim,
     # .whisper (metadata only; the text is the owner's to read), .ended; the
     # governance topic; knowledge.updated, knowledge.expiring
