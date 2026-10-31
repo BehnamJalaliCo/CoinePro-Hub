@@ -187,6 +187,9 @@ def status(cfg_path: Path | None, out: TextIO = sys.stdout, now: float | None = 
         )
     if isinstance(last_ok, int | float):
         print(f"last ok:  {int(now - last_ok)} s ago", file=out)
+    jobs = st.get("running_jobs")
+    if isinstance(jobs, int):
+        print(f"jobs:     {jobs} running", file=out)
     rotated = int((now - cfg.rotated_at) // 3600)
     print(f"token:    stored (mode 600), rotated {rotated} h ago", file=out)
     return 0 if state == "online" else 1

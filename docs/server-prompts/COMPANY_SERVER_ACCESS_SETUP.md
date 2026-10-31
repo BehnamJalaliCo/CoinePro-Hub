@@ -41,7 +41,16 @@
        ~/.local/share/hq-runner/venv/bin/pip install --require-hashes -r requirements.lock
        ~/.local/share/hq-runner/venv/bin/pip install --no-deps --force-reinstall .
        ```
-  4. سرویس را دوباره بالا بیاور: `sudo systemctl restart hq-runner@$USER`
+     - **venv ساخته‌شده با uv:** این venv خودش `pip` ندارد. همان دو دستور بالا را با `uv pip` اجرا کن:
+       ```
+       uv pip install --python <مسیر venv>/bin/python --require-hashes -r requirements.lock
+       uv pip install --python <مسیر venv>/bin/python --no-deps --reinstall .
+       ```
+  4. سرویس را دوباره بالا بیاور، به همان شکلی که نصب شده:
+     - **سرویس سیستمی:** `sudo systemctl restart hq-runner@$USER`
+     - **سرویس کاربر** (وقتی کاربر کاری sudo ندارد): `systemctl --user restart hq-runner`
+     - **اگر هیچ‌کدام در دسترس نبود:** وقتی هیچ کاری در حال اجرا نیست، پردازه‌ی قدیمی runner را ببند. systemd خودش نسخه‌ی تازه را بالا میآورد (`Restart=always`).
+     - **«offline» بعد از restart:** تا حدود یک دقیقه طبیعی است. runner وضعیت را بعد از پایان اولین long-poll مینویسد.
   5. بسنج: `hq-runner --version` باید نسخه‌ی تازه (مثلاً `0.2.0`) را نشان بدهد و `hq-runner status` باید «online» باشد. هاب هم نسخه را در صفحه‌ی سرور نشان میدهد.
 - **جفت‌سازی دوباره لازم نیست.** اعتبارنامه در `~/.config/hq-runner/config.json` میماند.
 - **گزارش به مالک:** نام سرور، نسخه‌ی قبلی و تازه، وضعیت.

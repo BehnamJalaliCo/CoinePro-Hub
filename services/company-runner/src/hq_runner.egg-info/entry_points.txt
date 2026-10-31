@@ -1,2 +1,0 @@
-[console_scripts]
-hq-runner = hq_runner.cli:main
