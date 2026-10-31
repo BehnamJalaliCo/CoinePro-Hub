@@ -27,6 +27,23 @@ export function pct(v: number | null | undefined): string {
   return v == null ? '—' : `${Math.round(v)}٪`;
 }
 
+/**
+ * A share as a percentage, whichever way the hub writes it: a fraction 0..1 (⟨1.10⟩ `uptime_24h`, rates, confidences) or a value that is
+ * already a percentage (> 1; an older hub's uptime). Never more than 100%, never negative. [digits]: decimals kept below 100 (a full 100
+ * is written whole). Latin digits (a figure), with the percent sign.
+ */
+export function percentOf(v: number | string | null | undefined, digits = 0): string {
+  const n = typeof v === 'string' ? Number(v) : v;
+  if (n == null || !Number.isFinite(n)) return '—';
+  const p = Math.min(100, Math.max(0, n > 1 ? n : n * 100));
+  return `${p === 100 ? '100' : p.toFixed(digits)}%`;
+}
+/** The same share as a number 0..100 (a bar's width). */
+export const percentValue = (v: number | string | null | undefined) => {
+  const n = typeof v === 'string' ? Number(v) : v;
+  return n == null || !Number.isFinite(n) ? 0 : Math.min(100, Math.max(0, n > 1 ? n : n * 100));
+};
+
 const fmt = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat('fa-IR-u-ca-persian-nu-latn', { timeZone: OWNER_TZ, ...o });
 const dayMonth = fmt({ day: 'numeric', month: 'long' });
 const dayMonthYear = fmt({ day: 'numeric', month: 'long', year: 'numeric' });

@@ -13,7 +13,7 @@ import { Card, Empty, ErrorState, FilterChip, Pill, SectionTitle, Skeleton } fro
 import { useToast } from '@/components/ui/toast';
 import { RefChip } from '@/components/v17/bits';
 import { ApiError } from '@/lib/api/client';
-import { CATALOGUE_PARTS, notServed, partOf, useCatalogue, useStartCatalogue, type Catalogue, type CatalogueCell, type CatalogueSection, type CatalogueTable } from '@/lib/api/v28';
+import { CATALOGUE_PARTS, notServed, partOf, partOfSection, useCatalogue, useStartCatalogue, type Catalogue, type CatalogueCell, type CatalogueSection, type CatalogueTable } from '@/lib/api/v28';
 import { serverNameOf } from '@/lib/api/v26-model';
 import { ago, cx, jDateTime } from '@/lib/format';
 
@@ -26,16 +26,29 @@ function Cell({ v }: { v: CatalogueCell }) {
   return <span className={cx(!PERSIAN.test(v) && 'fig')}>{v}</span>;
 }
 
+/**
+ * A part's table: its first column (what the row is) stays in view while the rest scrolls sideways on a phone; cells wrap rather than
+ * stretch the table; the header stays on top while a long table scrolls.
+ */
 function Table({ t }: { t: CatalogueTable }) {
+  const first = 'sticky start-0 z-[1] bg-[var(--hq-surface-card)] shadow-[inset_-1px_0_0_var(--hq-line-divider)]';
   return (
     <div className="flex flex-col gap-1.5">
-      {t.title_fa ? <h4 className="text-[12px] font-semibold text-sec">{t.title_fa} <span className="fig font-normal text-muted">({t.rows.length})</span></h4> : null}
-      <div className="overflow-x-auto rounded-[12px] border border-div">
-        <table className="w-full min-w-[520px] border-collapse text-[12px]">
-          <thead><tr className="bg-tile text-right text-[11px] text-muted">{t.columns.map((c) => <th key={c} scope="col" className="px-3 py-2 font-semibold"><Cell v={c} /></th>)}</tr></thead>
+      {t.title_fa ? <h4 className="text-[12px] font-semibold text-sec">{t.title_fa} <span className="font-normal text-muted">({t.rows.length.toLocaleString('fa-IR')})</span></h4> : null}
+      <div className="max-h-[70vh] overflow-auto rounded-[12px] border border-div">
+        <table className="w-full border-collapse text-[12px]">
+          <thead className="sticky top-0 z-[2]">
+            <tr className="text-right text-[11px] text-muted">
+              {t.columns.map((c, j) => <th key={`${c}-${j}`} scope="col" className={cx('min-w-[7rem] max-w-[22rem] bg-tile px-3 py-2 align-bottom font-semibold', j === 0 && cx(first, 'bg-tile z-[3]'))}><Cell v={c} /></th>)}
+            </tr>
+          </thead>
           <tbody>
             {t.rows.map((r, i) => (
-              <tr key={i} className="border-t border-div align-top">{t.columns.map((_, j) => <td key={j} className="px-3 py-2 leading-5 text-ink"><Cell v={r[j] ?? null} /></td>)}</tr>
+              <tr key={i} className="border-t border-div align-top">
+                {t.columns.map((_, j) => j === 0
+                  ? <th key={j} scope="row" className={cx('min-w-[8rem] max-w-[14rem] px-3 py-2 text-start font-semibold leading-5 text-ink [overflow-wrap:anywhere]', first)}><Cell v={r[j] ?? null} /></th>
+                  : <td key={j} className="min-w-[7rem] max-w-[22rem] px-3 py-2 leading-5 text-ink [overflow-wrap:anywhere]"><Cell v={r[j] ?? null} /></td>)}
+              </tr>
             ))}
           </tbody>
         </table>
@@ -45,7 +58,7 @@ function Table({ t }: { t: CatalogueTable }) {
 }
 
 function Section({ s, server }: { s: CatalogueSection; server: (name: string | null | undefined) => string | null }) {
-  const part = partOf(s.key);
+  const part = partOfSection(s);
   return (
     <Card as="section" id={`cat-${part?.key ?? s.key}`} className="flex scroll-mt-24 flex-col gap-3 p-4" aria-label={s.title_fa ?? part?.fa ?? s.key}>
       <div className="flex items-center gap-3">
@@ -102,8 +115,8 @@ export function CompanyCatalogue({ code, nameFa }: { code: string; nameFa: strin
   const n = c?.servers?.length ?? 1;
   const server = (name: string | null | undefined) => (name ? serverNameOf(code, nameFa, name, n).text : null);
   const running = c?.state === 'running' || start.isPending;
-  const sections = (c?.sections ?? []).filter((s) => !only || (partOf(s.key)?.key ?? s.key) === only);
-  const present = CATALOGUE_PARTS.filter((p) => (c?.sections ?? []).some((s) => partOf(s.key)?.key === p.key));
+  const sections = (c?.sections ?? []).filter((s) => !only || (partOfSection(s)?.key ?? s.key) === only);
+  const present = CATALOGUE_PARTS.filter((p) => (c?.sections ?? []).some((s) => partOfSection(s)?.key === p.key));
   return (
     <div className="flex flex-col gap-4">
       <Card className="flex flex-col gap-3 p-4">

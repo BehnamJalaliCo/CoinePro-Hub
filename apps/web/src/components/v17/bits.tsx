@@ -8,7 +8,7 @@ import { FilterChip, Pill } from '@/components/ui/primitives';
 import type { IconName } from '@/generated/icons';
 import { useCompanies } from '@/lib/api/hooks';
 import type { Actor } from '@/lib/api/v13';
-import { cx, tokens, usd } from '@/lib/format';
+import { cx, percentOf, tokens, usd } from '@/lib/format';
 import { refRoute } from '@/lib/refs';
 
 type Tone = ComponentProps<typeof Pill>['tone'];
@@ -116,7 +116,7 @@ export const onTarget = (v: number | null, target: number | null, direction: 'up
 export const budgetFig = (used: number, cap: number | null) => (cap == null ? `${tokens(used)}` : `${tokens(used)} / ${tokens(cap)}`);
 export const pctOf = (used: number, cap: number | null) => (cap ? Math.min(100, (used / cap) * 100) : 0);
 /** A 0..1 as a Latin percentage. */
-export const pct01 = (v: number | null | undefined) => (v == null ? '—' : `${Math.round(v * 100)}%`);
+export const pct01 = (v: number | null | undefined) => percentOf(v);
 /** Risk score tone: ≥ 15 high, ≥ 8 medium. */
 export const scoreTone = (s: number): 'neg' | 'warn' | 'neutral' => (s >= 15 ? 'neg' : s >= 8 ? 'warn' : 'neutral');
 /** Days from now (negative = past), whole days. */

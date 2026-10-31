@@ -7,7 +7,7 @@ import { Pill } from '@/components/ui/primitives';
 import type { IconName } from '@/generated/icons';
 import { fileUrl } from '@/lib/api/v13';
 import type { AgendaKind, AudioState, CitationKind, ClaimVerdict, CreativeState, HealthFlag, HrFlag, Placement, Player, Recommendation, ReminderKind, TriggerKind, WasteCategory } from '@/lib/api/v18';
-import { cx } from '@/lib/format';
+import { cx, percentOf } from '@/lib/format';
 
 type Tone = ComponentProps<typeof Pill>['tone'];
 type Label = { fa: string; tone: Tone };
@@ -116,7 +116,7 @@ export function subModel(id: string | null | undefined): string {
   return `${name} ${m[2]!.toUpperCase().replace(/^V/, 'V')}`;
 }
 /** A 0..1 as a Latin percentage. */
-export const pct01 = (v: number | null | undefined, digits = 0) => (v == null ? '—' : `${(v * 100).toFixed(digits)}%`);
+export const pct01 = (v: number | null | undefined, digits = 0) => percentOf(v, digits);
 export const hoursFa = (h: number) => (h < 48 ? `${h} ساعت` : `${Math.round(h / 24)} روز`);
 
 // ------------------------------------------------------------------ pieces --

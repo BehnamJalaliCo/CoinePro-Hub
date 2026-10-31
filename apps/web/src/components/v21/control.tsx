@@ -20,7 +20,7 @@ import { freezeDeploys, liftFreezes, putMonthBudget, useControlHistory, useOutpu
 import { stepUp } from '@/lib/auth';
 import { byFa, coState, pctOf, runsOf, stirred, type CoState } from '@/lib/control';
 import { usePulses } from '@/lib/pulses';
-import { ago, cx, jDateTime, jTime, tokens, until, usd } from '@/lib/format';
+import { ago, cx, jDateTime, jTime, percentOf, tokens, until, usd } from '@/lib/format';
 import { Consequences, inputCls, ownerDay } from './bits';
 import { DeleteCompany } from './delete-company';
 import { FeedLine, feedRowOf, type FeedRow } from './feed';
@@ -666,7 +666,7 @@ function SitesCard({ code }: { code: string }) {
               <span className={cx('size-2 rounded-full', ok ? 'bg-pos' : 'bg-neg')} />
               <span className="fig min-w-0 flex-1 truncate text-[12px] text-ink">{s.url.replace(/^https?:\/\//, '')}</span>
               {last.ms != null ? <span className={cx('fig text-[12px]', last.ms > 1500 ? 'text-warn' : 'text-muted')}>{last.ms}ms</span> : null}
-              {s.uptime_24h != null ? <span className="fig text-[12px] text-sec">{(s.uptime_24h * 100).toFixed(1)}%</span> : null}
+              {s.uptime_24h != null ? <span className="fig text-[12px] text-sec">{percentOf(s.uptime_24h, 1)}</span> : null}
             </div>
           );
         })}

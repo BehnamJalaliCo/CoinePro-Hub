@@ -96,7 +96,7 @@ const site = (company: string, url: string, kind: string, extra: Record<string, 
 });
 const sites: any[] = [
   site('TY', 'https://tradeyar.trade-future.ir', 'web', { uptime_24h: 0.998 }),
-  site('TY', 'https://user.tradeyar.trade-future.ir', 'web', { uptime_24h: 0.962, consecutive_failures: 0, last: { at: iso(1), status: 200, ms: 1_840, ok: true } }),
+  site('TY', 'https://user.tradeyar.trade-future.ir', 'web', { uptime_24h: 96.2, /* an older hub: already a percentage */ consecutive_failures: 0, last: { at: iso(1), status: 200, ms: 1_840, ok: true } }),
   site('FX', 'https://coineprofx.com', 'web', { uptime_24h: 1 }),
   site('FX', 'https://fx.trade-future.ir', 'web', { uptime_24h: 1, last: { at: iso(1), status: 301, ms: 180, ok: true } }),
   site('FX', 'https://api.coineprofx.com/health', 'api', { uptime_24h: 0.999 }),

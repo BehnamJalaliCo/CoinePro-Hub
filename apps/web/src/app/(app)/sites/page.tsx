@@ -11,7 +11,7 @@ import { useToast } from '@/components/ui/toast';
 import { ApiError } from '@/lib/api/client';
 import { useCompanies } from '@/lib/api/hooks';
 import { useIncidents, usePutSites, useSites, type Site, type SiteIn } from '@/lib/api/v15';
-import { ago, cx, jDateTime } from '@/lib/format';
+import { ago, cx, jDateTime, percentOf } from '@/lib/format';
 import { useScope } from '@/lib/scope';
 
 const field = 'h-10 w-full rounded-[10px] border border-strong bg-card px-3 text-[14px] text-ink outline-none focus:border-gold-ink';
@@ -31,7 +31,7 @@ function SiteRow({ s }: { s: Site }) {
       </div>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted">
         <span className="fig">{s.kind} · {s.method}</span>
-        <span>۲۴ ساعت: <span className="fig text-sec">{pct(s.uptime_24h)}</span></span>
+        <span>۲۴ ساعت: <span className="fig text-sec">{percentOf(s.uptime_24h, 1)}</span></span>
         {last ? <span className="fig">{last.status ?? '—'} · {last.ms != null ? `${last.ms}ms` : '—'}</span> : <span>هنوز چک نشده</span>}
         {last?.at ? <span>{ago(last.at)}</span> : null}
         {s.consecutive_failures ? <span className="text-neg">{s.consecutive_failures.toLocaleString('fa-IR')} شکست پشت هم</span> : null}

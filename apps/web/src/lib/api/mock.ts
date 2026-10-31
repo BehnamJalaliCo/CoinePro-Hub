@@ -128,6 +128,10 @@ const threads: any[] = [
   { code: 'P', kind: 'assistant', company: 'HQ', title_fa: 'دستیار شخصی', unread: 0, last_message_at: iso(14), last_ref: 'P-0003', participants: [owner, actor('HQ-PA', 'دستیار شخصی', 'assistant')] },
   { code: 'FX-CEO', kind: 'ceo', company: 'FX', title_fa: 'مدیرعامل FX', unread: 1, last_message_at: iso(12), last_ref: 'FX-CEO-0010', participants: [owner, actor('FX-CEO', 'مدیرعامل FX')] },
   { code: 'TY-TECH-MGR', kind: 'manager', company: 'TY', title_fa: 'مدیر فنی تریدیار', unread: 1, last_message_at: iso(42), last_ref: 'TY-TECH-MGR-0002', participants: [owner, actor('TY-TECH-MGR', 'مدیر فنی تریدیار')] },
+  // Per company (the owner, 2026-10-31): TradeYar's CEO is listed first though its growth manager wrote last.
+  { code: 'TY-GROWTH-MGR', kind: 'manager', company: 'TY', title_fa: 'مدیر رشد تریدیار', unread: 2, last_message_at: iso(6), last_ref: 'TY-GROWTH-MGR-0005', participants: [owner, actor('TY-GROWTH-MGR', 'مدیر رشد تریدیار')] },
+  { code: 'TY-CEO', kind: 'ceo', company: 'TY', title_fa: 'مدیرعامل تریدیار', unread: 0, last_message_at: iso(95), last_ref: 'TY-CEO-0007', participants: [owner, actor('TY-CEO', 'مدیرعامل تریدیار')] },
+  { code: 'PC-CEO', kind: 'ceo', company: 'PC', title_fa: 'مدیرعامل پرو-چارت', unread: 0, last_message_at: iso(300), last_ref: 'PC-CEO-0003', participants: [owner, actor('PC-CEO', 'مدیرعامل پرو-چارت')] },
 ].map((t, i) => ({ id: `t${i}`, ...t }));
 
 // ⟨1.3⟩ files: demo attachments are data URLs (the client's fileUrl passes them through); uploads made in mock

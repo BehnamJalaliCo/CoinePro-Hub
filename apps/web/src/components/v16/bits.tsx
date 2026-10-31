@@ -7,7 +7,7 @@ import { FilterChip, Pill } from '@/components/ui/primitives';
 import { rruleFa } from '@/components/v14/bits';
 import { useCompanies } from '@/lib/api/hooks';
 import { GUARD_FA, NO_OVERRIDE, type LifecycleRule } from '@/lib/api/v16';
-import { cx } from '@/lib/format';
+import { cx, percentOf } from '@/lib/format';
 
 type Tone = ComponentProps<typeof Pill>['tone'];
 type Label = { fa: string; tone: Tone };
@@ -83,7 +83,7 @@ export const money = (v: string | number | null | undefined, unit = '') => {
 /** Axis ticks: 0 / 250 / 1.2K. */
 export const compact = (v: number) => (v >= 1000 ? `${(v / 1000).toFixed(v >= 10_000 ? 0 : 1).replace(/\.0$/, '')}K` : String(Math.round(v)));
 /** A 0..1 rate as a Latin figure ("38%"); null stays a dash, never an estimate. */
-export const rate = (r: number | null | undefined) => (r == null ? '—' : `${Math.round(r * 100)}%`);
+export const rate = (r: number | null | undefined) => percentOf(r);
 
 // ------------------------------------------------------------------ pieces --
 // A run of Latin: words, refs (CR-005, SC-000411), numbers with their unit ("94.16 USDT", "40%"), kept together left to right.

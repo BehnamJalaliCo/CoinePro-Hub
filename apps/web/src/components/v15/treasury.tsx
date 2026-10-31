@@ -10,7 +10,7 @@ import { ApiError } from '@/lib/api/client';
 import { useCompanies } from '@/lib/api/hooks';
 import { downloadCsv, useBudgets, useCallPages, useQuota, useTreasuryAction, useWhatIf, type BudgetIn, type BudgetUse, type Connection } from '@/lib/api/v15';
 import { ModelName } from '@/components/brand/model-mark';
-import { cx, jDateTime, tokens, until, usd } from '@/lib/format';
+import { cx, jDateTime, percentValue, tokens, until, usd } from '@/lib/format';
 
 const field = 'h-10 w-full rounded-[10px] border border-strong bg-card px-3 text-[14px] text-ink outline-none focus:border-gold-ink';
 const fail = (toast: ReturnType<typeof useToast>, e: unknown) => toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : 'انجام نشد.' });
@@ -23,7 +23,7 @@ export function QuotaCard() {
   const q = useQuota();
   const s = q.data?.subscription;
   const st = s ? QUOTA[s.status] ?? { fa: s.status, tone: 'pos' as const } : null;
-  const used = s?.utilization != null ? Math.round(Number(s.utilization) * 100) : null;
+  const used = s?.utilization != null ? Math.round(percentValue(s.utilization)) : null;
   return (
     <Card className="flex flex-col gap-3 p-5">
       <SectionTitle title="سهمیه‌ی اشتراک" note="کنترل‌کننده‌ی سهمیه کد است، نه مدل" action={st ? <Pill tone={st.tone} dot>{st.fa}</Pill> : null} />

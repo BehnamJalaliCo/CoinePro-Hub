@@ -16,7 +16,7 @@ import {
   type ArchiveRecord, type Field, type Intake, type RecordFile,
 } from '@/lib/api/v20';
 import { useNow } from '@/lib/store';
-import { ago, cx } from '@/lib/format';
+import { ago, cx, percentOf } from '@/lib/format';
 import { ClassTag, ErrorLine, FieldValue, JDay, JStamp, LevelPill, ScopeTag, Sha, StatePill, SuggestionLine, TEXT_STATE, bad, bytesFig, daysLeftFa, daysTo, defaultFolder, fieldErrors, useArchive, type ArchiveMaps, field } from './bits';
 import { FieldInput, emptyValue, metaErrors, missingRequired } from './field-input';
 
@@ -170,7 +170,7 @@ export function FileFacts({ f }: { f: RecordFile }) {
     <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted">
       <span className="fig">{bytesFig(f.size_bytes)}</span>
       {f.pages ? <span>{f.pages} صفحه</span> : null}
-      <span className={f.text_state === 'failed' ? 'text-warn' : undefined}>{TEXT_STATE[f.text_state] ?? f.text_state}{f.ocr_confidence != null ? <> <span className="fig">{Math.round(f.ocr_confidence * 100)}%</span></> : null}</span>
+      <span className={f.text_state === 'failed' ? 'text-warn' : undefined}>{TEXT_STATE[f.text_state] ?? f.text_state}{f.ocr_confidence != null ? <> <span className="fig">{percentOf(f.ocr_confidence)}</span></> : null}</span>
       <Sha v={f.sha256} />
     </span>
   );

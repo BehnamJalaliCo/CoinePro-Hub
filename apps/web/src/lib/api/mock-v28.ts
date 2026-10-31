@@ -78,9 +78,11 @@ const TY_SECTIONS = [
       ]),
     ],
   },
+  // As the hub writes a section now: no key, `summary_fa` and `notes_fa`.
   {
-    key: 'interfaces', title_fa: 'رابط‌ها', server: 'ty-app-01',
-    summary_md: 'API با ۸۷ مسیر، یک ربات با ۱۲ دستور، ۴ وب‌هوک ورودی و ۶ سرویس بیرونی (فقط نام؛ هیچ کلیدی خوانده نشد).',
+    title_fa: 'رابط‌ها', server: 'ty-app-01',
+    summary_fa: 'API با ۸۷ مسیر، یک ربات با ۱۲ دستور، ۴ وب‌هوک ورودی و ۶ سرویس بیرونی (فقط نام؛ هیچ کلیدی خوانده نشد).',
+    notes_fa: 'وب‌هوک‌های ورودی پشت Caddy با توکن مسیر محافظت میشوند؛ مقدار توکن‌ها خوانده نشد.',
     tables: [
       table('گروه‌های مسیر API', ['پیشوند', 'مسیر', 'احراز هویت'], [
         ['/v1/auth', 9, 'عمومی'], ['/v1/markets', 14, 'عمومی'], ['/v1/orders', 18, 'کاربر'], ['/v1/wallet', 21, 'کاربر + 2FA'], ['/v1/admin', 25, 'ادمین'],
@@ -89,9 +91,14 @@ const TY_SECTIONS = [
       table('سرویس‌های بیرونی', ['نام', 'کار'], [['درگاه پرداخت شاپرک', 'واریز ریالی'], ['سرویس پیامک', 'کد تأیید'], ['Cloudflare', 'DNS'], ['Sentry', 'خطاهای وب']]),
     ],
   },
+  // A job that answered JSON where words belong (the hub keeps it as the summary): the panel reads it, never shows it raw.
   {
     key: 'code', title_fa: 'کد', server: 'ty-app-01',
-    summary_md: 'سه مخزن روی سرور checkout شده‌اند. پرتکرارترین خطای لاگ ۷ روز: `IntegrityError` در ثبت سفارش هم‌زمان (۲۱۴ بار).',
+    summary_md: '```json\n' + JSON.stringify({
+      summary_md: 'سه مخزن روی سرور checkout شده‌اند. پرتکرارترین خطای لاگ ۷ روز: `IntegrityError` در ثبت سفارش هم‌زمان (۲۱۴ بار).',
+      tables: [{ title_fa: 'پوشه‌های کاری', columns: ['مسیر', 'مخزن', 'اندازه'], rows: [['/srv/tradeyar/api', 'tradeyar/api', '412 MB'], ['/srv/tradeyar/web', 'tradeyar/web', '1.2 GB']] }],
+      notes_md: 'شاخه‌ی `release/1.9` ربات دو commit از `main` عقب است.',
+    }) + '\n```',
     tables: [
       table('مخزن‌ها', ['مخزن', 'شاخه', 'آخرین commit', 'تاریخ'], [
         ['tradeyar/api', 'main', 'a41c9e2 · Fix fee rounding on IRT pairs', ago(60 * 26).slice(0, 10)],

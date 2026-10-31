@@ -127,28 +127,86 @@ const PART_ALIAS: Record<string, string> = {
 };
 export const partOf = (key: string) => CATALOGUE_PARTS.find((p) => p.key === (PART_ALIAS[key] ?? key)) ?? null;
 
-const cell = (v: unknown): CatalogueCell => (v == null || typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean' ? (v as CatalogueCell) : JSON.stringify(v));
+/** A section's part of the brief: its key, else its Persian title (a hub that names sections by title only). */
+export const partOfSection = (s: Pick<CatalogueSection, 'key' | 'title_fa'>) =>
+  partOf(s.key) ?? CATALOGUE_PARTS.find((p) => !!s.title_fa && (s.title_fa.includes(p.fa) || p.fa.includes(s.title_fa.trim()))) ?? null;
+
+/** A value as words in a cell: a list joined, an object as «key: value» pairs, never raw JSON. */
+export function cellText(v: unknown): CatalogueCell {
+  if (v == null || typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return v as CatalogueCell;
+  if (Array.isArray(v)) return v.map((x) => String(cellText(x) ?? '—')).join('، ');
+  if (typeof v === 'object') return Object.entries(v as Record<string, unknown>).map(([k, x]) => `${k}: ${String(cellText(x) ?? '—')}`).join('، ');
+  return String(v);
+}
 function tableOf(t: Record<string, unknown>): CatalogueTable {
-  const raw = Array.isArray(t.rows) ? (t.rows as unknown[]) : [];
-  let columns = Array.isArray(t.columns) ? (t.columns as unknown[]).map(String) : [];
-  // Rows may come as objects: their keys are the columns.
-  if (!columns.length && raw[0] && typeof raw[0] === 'object' && !Array.isArray(raw[0])) columns = Object.keys(raw[0] as object);
-  const rows = raw.map((r) => (Array.isArray(r) ? r.map(cell) : r && typeof r === 'object' ? columns.map((c) => cell((r as Record<string, unknown>)[c])) : [cell(r)]));
+  const raw = Array.isArray(t.rows) ? (t.rows as unknown[]) : Array.isArray(t.items) ? (t.items as unknown[]) : [];
+  let columns = Array.isArray(t.columns) ? (t.columns as unknown[]).map((c) => (c && typeof c === 'object' ? String((c as Record<string, unknown>).title_fa ?? (c as Record<string, unknown>).key ?? '') : String(c))) : [];
+  // Rows may come as objects: their keys are the columns (the union of all rows', in first-seen order).
+  if (!columns.length && raw.some((r) => r && typeof r === 'object' && !Array.isArray(r))) columns = [...new Set(raw.flatMap((r) => (r && typeof r === 'object' && !Array.isArray(r) ? Object.keys(r as object) : [])))];
+  const rows = raw.map((r) => (Array.isArray(r) ? r.map(cellText) : r && typeof r === 'object' ? columns.map((c) => cellText((r as Record<string, unknown>)[c])) : [cellText(r)]));
+  if (!columns.length && rows.length) columns = rows[0]!.map((_, i) => (i ? '' : 'مورد'));
   return { title_fa: (t.title_fa as string | null | undefined) ?? (t.title as string | null | undefined) ?? null, columns, rows };
 }
+
+/** JSON written where text belongs (a job that answered JSON, a fenced block): the value, or undefined when it is plain text. */
+export function jsonIn(text: string | null | undefined): unknown {
+  if (!text) return undefined;
+  const t = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+  if (!/^[[{]/.test(t)) return undefined;
+  try { return JSON.parse(t) as unknown; } catch { return undefined; }
+}
+const textOf = (v: unknown) => (typeof v === 'string' && v.trim() ? v : null);
+/** Any JSON value as tables: rows of objects as one table, an object of lists as one table each, other objects as key and value. */
+export function tablesFromJson(v: unknown, title: string | null = null): CatalogueTable[] {
+  if (Array.isArray(v)) return v.length ? [tableOf({ title_fa: title, rows: v })] : [];
+  if (v && typeof v === 'object') {
+    const o = v as Record<string, unknown>;
+    if (Array.isArray(o.rows) || Array.isArray(o.columns)) return [tableOf({ title_fa: title, ...o })];
+    const lists = Object.entries(o).filter(([, x]) => Array.isArray(x));
+    const flat = Object.entries(o).filter(([, x]) => !Array.isArray(x));
+    return [
+      ...(flat.length ? [{ title_fa: title, columns: ['مورد', 'مقدار'], rows: flat.map(([k, x]) => [k, cellText(x)]) }] : []),
+      ...lists.flatMap(([k, x]) => tablesFromJson(x, k)),
+    ];
+  }
+  return [];
+}
+
 /**
- * The hub's catalogue, read leniently: a section with one table or many, rows as arrays or objects, notes as `notes_md` or `body_md`,
- * the deliverable as `deliverable` or `deliverable_ref`, reasons as `reason_fa`, the difference as words or as `{part: {added, removed}}`.
+ * One section, whichever way the hub writes it: `{key?, title_fa, summary_md|summary_fa, tables: [{title_fa, columns, rows}], notes_md|notes_fa}`.
+ * A summary or notes that is JSON (a job that answered JSON where words belong) is read: a section-shaped object gives its own summary,
+ * tables and notes; anything else becomes tables. The page never shows raw JSON.
+ */
+export function sectionOf(s: Record<string, unknown>): CatalogueSection {
+  let summary = textOf(s.summary_md) ?? textOf(s.summary_fa) ?? textOf(s.summary);
+  let notes = textOf(s.body_md) ?? textOf(s.notes_md) ?? textOf(s.notes_fa) ?? textOf(s.notes);
+  const tables = [...(Array.isArray(s.tables) ? (s.tables as Array<Record<string, unknown>>) : []), ...(s.table && typeof s.table === 'object' ? [s.table as Record<string, unknown>] : [])].map(tableOf);
+  for (const which of ['summary', 'notes'] as const) {
+    const v = jsonIn(which === 'summary' ? summary : notes);
+    if (v === undefined) continue;
+    if (which === 'summary') summary = null; else notes = null;
+    const o = v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+    if (o && ('tables' in o || 'summary_md' in o || 'summary_fa' in o || 'notes_md' in o || 'notes_fa' in o)) {
+      const inner = sectionOf(o);
+      summary = summary ?? inner.summary_md ?? null;
+      notes = [notes, inner.body_md].filter(Boolean).join('\n\n') || null;
+      tables.push(...inner.tables);
+    } else tables.push(...tablesFromJson(v));
+  }
+  return {
+    key: String(s.key ?? s.kind ?? ''), title_fa: textOf(s.title_fa) ?? textOf(s.title), server: textOf(s.server),
+    summary_md: summary, body_md: notes, count: typeof s.count === 'number' ? s.count : null, tables,
+  };
+}
+
+/**
+ * The hub's catalogue, read leniently: sections as `sectionOf` reads them, the deliverable as `deliverable` or `deliverable_ref`,
+ * reasons as `reason_fa`, the difference as words or as `{part: {added, removed}}`.
  */
 export function parseCatalogue(x: unknown): Catalogue | null {
   if (!x || typeof x !== 'object') return null;
   const o = x as Record<string, unknown>;
-  const sections = (Array.isArray(o.sections) ? (o.sections as Array<Record<string, unknown>>) : []).map((s) => ({
-    key: String(s.key ?? s.kind ?? ''), title_fa: (s.title_fa as string | null) ?? null, server: (s.server as string | null) ?? null,
-    summary_md: (s.summary_md as string | null) ?? null, body_md: (s.body_md as string | null) ?? (s.notes_md as string | null) ?? null,
-    count: typeof s.count === 'number' ? s.count : null,
-    tables: [...(Array.isArray(s.tables) ? (s.tables as Array<Record<string, unknown>>) : []), ...(s.table && typeof s.table === 'object' ? [s.table as Record<string, unknown>] : [])].map(tableOf),
-  }));
+  const sections = (Array.isArray(o.sections) ? (o.sections as Array<Record<string, unknown>>) : []).map(sectionOf);
   const diff = o.diff ?? o.diff_md;
   const changes = diff && typeof diff === 'object' && !Array.isArray(diff)
     ? Object.entries(diff as Record<string, { added?: unknown; removed?: unknown }>).map(([key, v]) => ({

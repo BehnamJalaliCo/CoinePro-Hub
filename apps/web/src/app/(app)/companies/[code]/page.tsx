@@ -12,7 +12,7 @@ import { DepartmentRanks, HrRoundLine } from '@/components/v18/people';
 import { DepartmentSheet, RoleDraftSheet, RolesOnDemand } from '@/components/v19/org';
 import { ControlRoom, ControlSheets, StateChip, useControlData, useControlUi } from '@/components/v21/control';
 import { PriorityTag } from '@/components/v21/priority';
-import { useCompany, useEmployees, useOrgChart, useWorkList } from '@/lib/api/hooks';
+import { useCompany, useEmployees, useOrgChart, useThreads, useWorkList } from '@/lib/api/hooks';
 import { useDepartments19 } from '@/lib/api/v19';
 import { CompanyServers } from '@/components/v26/company';
 import { CompanyCatalogue } from '@/components/v28/catalogue';
@@ -49,6 +49,9 @@ function CompanyInner({ code }: { code: string }) {
   const chart = useOrgChart(code);
   const emps = useEmployees({ company: [code] });
   const work = useWorkList({ company: [code] });
+  // Its conversations (its CEO and managers) on the messages page, filtered to this company.
+  const threads = (useThreads().data ?? []).filter((t) => t.company === code);
+  const unread = threads.reduce((n, t) => n + (t.unread ?? 0), 0);
   const asked = search.get('tab');
   const [tab0, setTab] = useState<'control' | 'overview' | 'people' | 'work' | 'brand' | 'servers' | 'catalogue'>(search.get('role') ? 'people' : asked === 'servers' || asked === 'overview' || asked === 'catalogue' ? asked : 'control');
   const dept = search.get('dept');
@@ -80,6 +83,11 @@ function CompanyInner({ code }: { code: string }) {
             {c ? (() => { const st = d.state(c.code, c.kind === 'holding', c); return <><StateChip s={{ ...st, freeze: null, frozen: false }} busy={d.busy(c.code)} />{st.freeze ? <Pill tone="warn" icon="lock">deploy بسته، {until(st.freeze.until)}</Pill> : null}</>; })() : null}
           </div>
         </div>
+        {threads.length ? (
+          <Link href={`/messages?company=${code}`} className="text-[13px] text-sec hover:text-ink">
+            <span className="inline-flex items-center gap-1.5"><Icon name="messages" size={16} />گفت‌وگوها {unread ? <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-gold px-1.5 text-[11px] font-bold text-on-gold">{unread.toLocaleString('fa-IR')}</span> : <span className="text-muted">({threads.length.toLocaleString('fa-IR')})</span>}</span>
+          </Link>
+        ) : null}
         <Link href="/control" className="text-[13px] text-sec hover:text-ink"><span className="inline-flex items-center gap-1.5"><Icon name="lock" size={16} />کنترل</span></Link>
       </div>
       {/* ⟨1.4.6⟩ the company's brand and seal are data (§18.14); the holding's own seal is fixed and is not. */}
