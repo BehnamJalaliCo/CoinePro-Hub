@@ -21,8 +21,10 @@ RUN pip install --require-hashes --no-deps -r /tmp/requirements.lock \
     && mkdir -p /models && chown 10001:10001 /models
 
 COPY hq-common/src /app/hq-common/src
-COPY --chmod=0644 stt/model.lock.json /app/stt/model.lock.json
 COPY stt/src /app/stt/src
+# After the sources: a --chmod COPY would make the missing /app/stt 0644 too
+# (no x: uid 10001 could not reach /app/stt/src).
+COPY --chmod=0644 stt/model.lock.json /app/stt/model.lock.json
 
 USER 10001
 WORKDIR /app/stt
