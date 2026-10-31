@@ -61,6 +61,8 @@ WIPE: tuple[str, ...] = (
     # ⟨1.8⟩ prompt 17: what ran on the company servers and what was measured;
     # a pairing lives 15 minutes (the paired runners stay, below)
     "infra.network_links", "infra.runner_pairings", "infra.server_job_events", "infra.server_jobs",
+    # ⟨1.10⟩ prompt 19: catalogue runs, the apps' error reports, the watch's duties
+    "infra.catalogues", "ops.client_errors", "ops.watch_runs",
     "growth.funnel_days", "growth.leaks", "growth.nps_responses", "growth.nps_waves",
     "growth.referral_checks", "growth.rescue_cases", "growth.rescue_steps", "growth.sends",
     "intake.events", "intake.nonces", "intake.rejections",

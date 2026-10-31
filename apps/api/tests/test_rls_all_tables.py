@@ -1260,6 +1260,25 @@ async def _fill_p17(su: Any, co: dict[str, Any]) -> None:
     await su.execute(
         "INSERT INTO work.councils (company_id, work_id, members) VALUES ($1, $2, '[]')", c, work
     )
+    # prompt 19 (migration 0034): a catalogue run, an app's error report, a watch duty
+    cat = await su.fetchval(
+        """INSERT INTO infra.catalogues (company_id, started_by_kind, started_by_code)
+           VALUES ($1, 'owner', 'owner') RETURNING id""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO ops.client_errors (company_id, app, version, at, kind, level, fingerprint, entry)
+           VALUES ($1, 'android', '1.0', now(), 'http', 'error', $2, '{}')""",
+        c,
+        _s.token_hex(32),
+    )
+    await su.execute(
+        """INSERT INTO ops.watch_runs (company_id, key, kind, catalogue_id)
+           VALUES ($1, $2, 'catalogue', $3)""",
+        c,
+        f"catalogue:rls{_s.token_hex(3)}:2026-10-31",
+        cat,
+    )
 
 
 @pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)

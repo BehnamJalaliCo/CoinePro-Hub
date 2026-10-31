@@ -1,18 +1,24 @@
 """The deliverables cartable (contract §5.2): outputs, owner ratings 1..10
 with history, and file downloads (tenant-checked). ⟨1.7.3⟩ seen and filed:
-the owner marks outputs seen (one or many) and files one in the archive;
-nothing is ever deleted."""
+the owner marks outputs seen (one or many) and files one in the archive.
+⟨1.10⟩ §28.1: several filed at once, or deleted for good by the owner alone
+(🔏; their ratings and files go with them, an Audit row stays, and archive
+records they were filed into stay)."""
 
 from __future__ import annotations
 
+import hashlib
+import json
+import logging
+import re
 from datetime import date, datetime, timedelta
 from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-from hq_api import idempotency, pagination
+from hq_api import events, idempotency, pagination
 from hq_api.context import Ctx, owner_ctx
 from hq_api.db import Tx
 from hq_api.domain import files as F
@@ -20,10 +26,13 @@ from hq_api.domain import org, scoring, stories
 from hq_api.domain.gov_common import owner_tz
 from hq_api.errors import ApiError, responses
 from hq_api.schemas import EmployeeRef, FileRef, Model, Page, employee_ref
+from hq_api.security import stepup
 
 router = APIRouter(tags=["deliverables"])
+log = logging.getLogger("hq_api.deliverables")
 E = responses(401, 403, 404, 409, 422)
 RERATE_DAYS = 7
+REF = re.compile(r"^O-[0-9]{4,}$")
 
 
 class Rating(BaseModel):
@@ -66,6 +75,38 @@ class SeenOut(BaseModel):
 
 class FiledOut(BaseModel):
     record: str
+
+
+class RefsIn(Model):
+    refs: list[str] = Field(min_length=1, max_length=200)
+
+    @field_validator("refs")
+    @classmethod
+    def _refs(cls, v: list[str]) -> list[str]:
+        bad = [r for r in v if not REF.fullmatch(r)]
+        if bad:
+            raise ValueError(f"not a deliverable ref: {bad[0][:20]}")
+        return sorted(set(v))
+
+
+class FiledRecord(BaseModel):
+    ref: str
+    record: str
+
+
+class FiledMany(BaseModel):
+    records: list[FiledRecord]
+
+
+class DeletedOut(BaseModel):
+    deleted: int
+
+
+def delete_target(refs: list[str]) -> str:
+    """The 🔏 target of `deliverables.delete`: SHA-256 (hex) of the sorted,
+    distinct refs as a compact JSON array (`["O-000001","O-000002"]`)."""
+    raw = json.dumps(sorted(set(refs)), separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(raw.encode()).hexdigest()
 
 
 class RatingIn(Model):
@@ -226,16 +267,83 @@ async def mark_seen(body: SeenIn, ctx: Ctx = Depends(owner_ctx)) -> SeenOut:
     return SeenOut(updated=len(rows))
 
 
-@router.post("/deliverables/{ref}/file", response_model=FiledOut, responses=E)
-async def file_deliverable(ref: str, ctx: Ctx = Depends(owner_ctx)) -> FiledOut:
-    """Owner: file the deliverable in the archive (§23): a draft of class
-    `report` with the body as a PDF and a link `about` the deliverable. A
-    second call answers the same record."""
+@router.post("/deliverables/file", response_model=FiledMany, responses=E)
+async def file_many(body: RefsIn, ctx: Ctx = Depends(owner_ctx)) -> FiledMany:
+    """⟨1.10⟩ §28.1 Owner: file several deliverables in the archive, each one
+    as `/{ref}/file` does (idempotent per ref: a filed one answers its record)."""
+    async with ctx.tx() as tx:
+        rows = await tx.all(DELIVERABLE_SQL + " WHERE dl.ref = ANY(:refs)", refs=body.refs)
+    missing = sorted(set(body.refs) - {r["ref"] for r in rows})
+    if missing:
+        raise ApiError(404, "not_found", f"no such deliverable: {', '.join(missing[:5])}")
+    out = []
+    for dl in sorted(rows, key=lambda r: r["ref"]):
+        out.append(FiledRecord(ref=dl["ref"], record=await _file_one(ctx, dict(dl))))
+    return FiledMany(records=out)
+
+
+@router.delete("/deliverables", response_model=DeletedOut, responses=E)
+async def delete_many(body: RefsIn, request: Request, ctx: Ctx = Depends(owner_ctx)) -> DeletedOut:
+    """⟨1.10⟩ §28.1 Owner only, 🔏 `deliverables.delete` on the SHA-256 of the
+    sorted refs (`delete_target`): the deliverables, their ratings, the files
+    only they carried, the overseer's claims about them and a weekly letter
+    made of one are removed from the database and the storage. An Audit row
+    per deliverable stays ({ref, title, company, deleted_by, at}); archive
+    records they were filed into stay. -> {deleted: n}."""
+    async with ctx.tx() as tx:
+        await stepup.consume(tx, request, ctx.who, "deliverables.delete", delete_target(body.refs))
+        rows = await tx.all(
+            """SELECT dl.id, dl.ref, dl.title, dl.company_id, c.code AS company
+               FROM cartable.deliverables dl JOIN core.companies c ON c.id = dl.company_id
+               WHERE dl.ref = ANY(:refs)""",
+            refs=body.refs,
+        )
+        if not rows:
+            return DeletedOut(deleted=0)
+        out = await tx.scalar(
+            "SELECT cartable.owner_delete_deliverables(CAST(:ids AS uuid[]))",
+            ids=[str(r["id"]) for r in rows],
+        )
+        at = datetime.now().astimezone().isoformat()
+        for r in rows:
+            await ctx.audit(
+                tx,
+                company_id=r["company_id"],
+                action="deliverable.delete",
+                action_class="A3",
+                target_kind="deliverable",
+                target_ref=r["ref"],
+                summary=json.dumps(
+                    {
+                        "ref": r["ref"],
+                        "title": r["title"][:200],
+                        "company": r["company"],
+                        "deleted_by": ctx.who.code,
+                        "at": at,
+                    },
+                    ensure_ascii=False,
+                )[:1000],
+                step_up=True,
+            )
+            await events.emit(tx, r["company"], "deliverable.deleted", r["ref"], {})
+        keys = [str(k) for k in (out or {}).get("storage_keys") or []]
+        gone = [
+            k
+            for k in keys
+            if not await tx.scalar("SELECT 1 FROM files.files WHERE storage_key = :k", k=k)
+        ]
+    for k in gone:  # the blobs no row uses any more, after the commit
+        try:
+            await ctx.hub.storage.destroy(k)
+        except (OSError, ValueError):
+            log.warning("deliverable delete: a blob was not removed", extra={"key": k[:12]})
+    return DeletedOut(deleted=len(rows))
+
+
+async def _file_one(ctx: Ctx, dl: dict[str, Any]) -> str:
     from hq_api.archive import deliverables as AD
 
-    async with ctx.tx() as tx:
-        dl = await tx.one(DELIVERABLE_SQL + " WHERE dl.ref = :ref", ref=ref)
-    record = await AD.file(ctx.hub, ctx.tx, ctx.who, dict(dl))
+    record = await AD.file(ctx.hub, ctx.tx, ctx.who, dl)
     if record != dl["filed_as"]:
         async with ctx.tx() as tx:
             await ctx.audit(
@@ -244,10 +352,20 @@ async def file_deliverable(ref: str, ctx: Ctx = Depends(owner_ctx)) -> FiledOut:
                 action="deliverable.file",
                 action_class="A1",
                 target_kind="deliverable",
-                target_ref=ref,
+                target_ref=dl["ref"],
                 summary=record,
             )
-    return FiledOut(record=record)
+    return record
+
+
+@router.post("/deliverables/{ref}/file", response_model=FiledOut, responses=E)
+async def file_deliverable(ref: str, ctx: Ctx = Depends(owner_ctx)) -> FiledOut:
+    """Owner: file the deliverable in the archive (§23): a draft of class
+    `report` with the body as a PDF and a link `about` the deliverable. A
+    second call answers the same record."""
+    async with ctx.tx() as tx:
+        dl = await tx.one(DELIVERABLE_SQL + " WHERE dl.ref = :ref", ref=ref)
+    return FiledOut(record=await _file_one(ctx, dict(dl)))
 
 
 @router.get("/deliverables/{ref}", response_model=Deliverable, responses=E)
