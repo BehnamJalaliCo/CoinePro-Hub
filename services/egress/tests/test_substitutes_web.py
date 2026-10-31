@@ -410,3 +410,23 @@ def test_the_sign_in_window_reaches_the_recipes_hosts_with_subdomains() -> None:
     hosts = frozenset().union(*(r.sign_in_hosts() for r in got.values()))
     assert covered("auth.openai.com", hosts) and covered("accounts.google.com", hosts)
     assert not covered("example.com", hosts) and not covered("evilchatgpt.com", hosts)
+
+
+def test_a_recipe_failure_carries_one_screenshot_and_nothing_else_does() -> None:
+    """⟨1.10⟩ §28.4: the page as the failed step left it (a JPEG or PNG ≤ 2 MB,
+    checked by content), only with recipe_failed; `reload` reaches the job."""
+    import base64
+    import json as _json
+
+    from hq_egress import substitutes_web as SW
+
+    jpeg = base64.b64encode(b"\xff\xd8\xff\xe0" + b"\x00" * 64).decode()
+    got = {"ok": False, "error": "recipe_failed", "detail": "no box", "step": "2:fill",
+           "screenshot": {"mime": "image/jpeg", "b64": jpeg}}  # fmt: skip
+    body = _json.loads(SW._job_answer(got, "3", 1000).body)
+    assert body["screenshot"]["mime"] == "image/jpeg" and body["step"] == "2:fill"
+    timeout = _json.loads(SW._job_answer({**got, "error": "timeout"}, "3", 1000).body)
+    assert "screenshot" not in timeout
+    fake = {**got, "screenshot": {"mime": "image/jpeg", "b64": base64.b64encode(b"<html>").decode()}}
+    assert "screenshot" not in _json.loads(SW._job_answer(fake, "3", 1000).body)
+    assert SW.WebIn(account="gemini-web", task="text", prompt="x", reload=True).reload is True

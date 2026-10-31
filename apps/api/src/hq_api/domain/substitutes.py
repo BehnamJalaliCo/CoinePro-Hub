@@ -181,10 +181,12 @@ class Login(BaseModel):
 
 class Web(BaseModel):
     account: str
-    state: Literal["signed_in", "expired", "signed_out"]
+    # ⟨1.10⟩ §28.4 `error`: a recipe failed twice; councils skip it until error_until
+    state: Literal["signed_in", "expired", "signed_out", "error"]
     last_ok_at: datetime | None
     recipe_version: str
     last_failure: str | None
+    error_until: datetime | None = None
 
 
 class SeatOut(BaseModel):
@@ -493,10 +495,11 @@ async def render_all(tx: Tx, only: str | None = None) -> list[Substitute]:
                 capabilities=dict(p["capabilities"] or {}),
                 web=Web(
                     account=p["web_account"],
-                    state=p["web_state"],
+                    state="error" if web_error(p) else p["web_state"],
                     last_ok_at=p["web_last_ok_at"],
                     recipe_version=p["recipe_version"],
                     last_failure=p["web_last_failure"],
+                    error_until=p["web_error_until"] if web_error(p) else None,
                 ),
                 seats=[
                     SeatOut(
@@ -630,6 +633,47 @@ async def holder(
     return await _player(tx, s["player"]), s
 
 
+# ⟨1.10⟩ §28.4 the council's robustness
+WEB_ERROR_HOLD = timedelta(hours=6)
+MODEL_REFUSED = re.compile(
+    r"(model\W[^\n]{0,120}?(not supported|unsupported|not available|does not exist|not found|"
+    r"no access|not allowed))|(unsupported[_ ]model)|(model[_ ]not[_ ]found)",
+    re.I,
+)
+
+
+def web_error(p: dict[str, Any], now: datetime | None = None) -> bool:
+    until = p.get("web_error_until")
+    return until is not None and until > (now or datetime.now(UTC))
+
+
+def refused_model(text: str | None) -> bool:
+    """The provider refused the model id (Codex with a ChatGPT login refusing
+    a model, an unknown model): not the player's fault, another model may do."""
+    return bool(text and MODEL_REFUSED.search(text))
+
+
+def provider_text(raw: str | None) -> str | None:
+    """A provider's error as one plain line for the run log (never the JSON
+    the CLI printed): its `message` when it is JSON, masked, ≤ 300."""
+    if not raw:
+        return raw
+    text = raw.strip()
+    start = text.find("{")
+    if start != -1:
+        try:
+            obj = json.loads(text[start:])
+        except ValueError:
+            obj = None
+        if isinstance(obj, dict):
+            inner = obj.get("error")
+            err: dict[str, Any] = inner if isinstance(inner, dict) else obj
+            msg = err.get("message") or err.get("type") or obj.get("type")
+            if msg:
+                text = f"provider: {msg}"
+    return scrub(text)[:300]
+
+
 def _skip_reason(p: dict[str, Any], s: dict[str, Any], now: datetime) -> str | None:
     if not s["enabled"]:
         return "off"
@@ -638,6 +682,8 @@ def _skip_reason(p: dict[str, Any], s: dict[str, Any], now: datetime) -> str | N
     if s["via"] == "web":
         if p["web_state"] != "signed_in":
             return "expired" if p["web_state"] == "expired" else "signed_out"
+        if web_error(p, now):  # ⟨1.10⟩ §28.4 its recipe failed twice: skipped up front
+            return "error"
         return None
     if p["login_state"] != "signed_in":
         return "expired" if p["login_state"] == "expired" else "signed_out"
@@ -866,7 +912,26 @@ async def finish(
     if c["state"] in ("done", "failed", "skipped"):
         return c
     p = await _player(tx, c["player"], lock=True)
-    reason = (body.status_reason or body.error or "")[:300] or None
+    raw = " ".join(x for x in (body.error, body.status_reason) if x)
+    if (
+        not body.ok
+        and c["kind"] == "call"
+        and int(c.get("attempt") or 1) < 2
+        and refused_model(raw)
+    ):
+        return await _retry_other_model(tx, hub, c, raw)
+    if raw and not body.ok:
+        log.info(
+            "substitute call failed",
+            extra={"call": str(c["id"]), "player": c["player"], "raw": scrub(raw)[:2000]},
+        )
+    reason = provider_text(body.status_reason or body.error or "") or None
+    detail = reason
+    if not body.ok and refused_model(raw):
+        reason = f"model_refused: {c['model']}"
+    elif not body.ok and body.error and reason and not reason.startswith(body.error):
+        # the machine's word first (the member's Persian reason reads it), then the detail
+        reason = f"{body.error}: {reason}"[:300]
     usage = body.usage or {}
     inp = max(int(usage.get("input_tokens") or 0), 0)
     out = max(int(usage.get("output_tokens") or 0), 0)
@@ -894,7 +959,7 @@ async def finish(
         await tx.exec(
             """UPDATE substitutes.players SET status = 'off', status_reason = :r, updated_at = now()
                WHERE player = :p""",
-            r=reason,
+            r=detail,
             p=c["player"],
         )
     elif not body.ok and body.error == "signed_out":
@@ -955,6 +1020,76 @@ async def finish(
         c["player"],
         {"call": str(c["id"]), "state": state, "reason": reason if state != "done" else None},
     )
+    return row
+
+
+async def _retry_other_model(tx: Tx, hub: Any, c: dict[str, Any], raw: str) -> dict[str, Any]:
+    """⟨1.10⟩ §28.4 the provider refused the call's model: that model is no
+    longer offered (its seats move to the nearest available one), the model
+    list is checked again against what the CLI reports, and the call is tried
+    once more with the seat's model now (else the player's default)."""
+    log.info(
+        "substitute model refused; retrying once",
+        extra={"call": str(c["id"]), "model": c["model"], "raw": scrub(raw)[:2000]},
+    )
+    p = await _player(tx, c["player"], lock=True)
+    offered = [
+        str(m["id"]) for m in p["models"] or [] if m.get("available") and m["id"] != c["model"]
+    ]
+    await apply_models(tx, c["player"], offered)
+    p = await _player(tx, c["player"])
+    seat_model = await tx.scalar(
+        "SELECT model FROM substitutes.seats WHERE player = :p AND seat = :s",
+        p=c["player"],
+        s=c["seat"],
+    )
+    alt = next(
+        (
+            str(m["id"])
+            for m in p["models"] or []
+            if m.get("available") and m["id"] != c["model"] and m["id"] == seat_model
+        ),
+        None,
+    ) or next(
+        (str(m["id"]) for m in p["models"] or [] if m.get("available") and m["id"] != c["model"]),
+        None,
+    )
+    row: dict[str, Any] = await tx.one(
+        """UPDATE substitutes.calls SET state = 'queued', model = :m, attempt = attempt + 1,
+               claimed_at = NULL, state_reason = :r
+           WHERE id = :id RETURNING *""",
+        m=alt,
+        r=f"model_refused: {c['model']}; retried with {alt or 'the CLI default'}"[:300],
+        id=c["id"],
+    )
+    if not await tx.scalar(
+        """SELECT 1 FROM substitutes.calls WHERE player = :p AND kind = 'models'
+             AND state IN ('queued', 'running')""",
+        p=c["player"],
+    ):
+        holding = await hub.companies.holding()
+        day = owner_day()
+        await tx.exec(
+            """INSERT INTO substitutes.calls (company_id, player, kind, via, state, caller_kind,
+                   caller_code, timeout_s, day, month_key)
+               VALUES (:co, :p, 'models', 'cli', 'queued', 'service', 'substitutes', 120, :day, :mkey)""",
+            co=holding.id,
+            p=c["player"],
+            day=day,
+            mkey=month_key(day),
+        )
+    holding = await hub.companies.holding()
+    await events.emit(
+        tx,
+        holding.code,
+        "substitute.updated",
+        c["player"],
+        {"call": str(c["id"]), "state": "queued", "reason": "model_refused"},
+    )
+    if c["purpose_kind"] == "council":  # the member shows the retry
+        from hq_api.domain import players
+
+        await players.on_call(tx, hub, row)
     return row
 
 
@@ -1696,8 +1831,13 @@ async def web_jobs(hub: Any, egress: Any, now: datetime | None = None) -> dict[s
             picked.append((dict(c), p["web_account"]))
     ran = 0
     for c, account in picked:
+        retry = {"reload": True} if int(c.get("attempt") or 1) > 1 else {}
         answer = await egress.web(
-            account=account, task=c["task"], prompt=c["input_md"] or "", timeout_s=c["timeout_s"]
+            account=account,
+            task=c["task"],
+            prompt=c["input_md"] or "",
+            timeout_s=c["timeout_s"],
+            **retry,
         )
         await apply_web(hub, c, account, answer)
         ran += 1
@@ -1800,10 +1940,43 @@ async def apply_web(hub: Any, c: dict[str, Any], account: str, answer: dict[str,
         if error == "off":
             await _skip_web(tx, hub, c, "off")
             return
-        await tx.exec(
+        if error == "recipe_failed" and int(c.get("attempt") or 1) < 2:
+            # ⟨1.10⟩ §28.4 once more, the profile's page reloaded (the next pass)
+            await tx.exec(
+                """UPDATE substitutes.calls SET state = 'queued', attempt = attempt + 1,
+                       claimed_at = NULL, state_reason = :r WHERE id = :id""",
+                r=f"recipe_failed: {answer.get('step') or '?'}; retrying with the page reloaded"[
+                    :300
+                ],
+                id=c["id"],
+            )
+            if c["purpose_kind"] == "council":
+                from hq_api.domain import players
+
+                await players.on_call(tx, hub, {**c, "state": "queued", "attempt": 2})
+            return
+        shot = None
+        if error == "recipe_failed":
+            shot = await _store_screenshot(tx, hub, c, answer.get("screenshot"))
+            # out of the next councils until the recipe is looked at (§28.4)
+            await tx.exec(
+                """UPDATE substitutes.players SET web_error_until = now() + :hold, updated_at = now()
+                   WHERE id = :id""",
+                hold=WEB_ERROR_HOLD,
+                id=p["id"],
+            )
+        failed = await tx.one(
             """UPDATE substitutes.calls SET state = 'failed', state_reason = :r, finished_at = now(),
-                   input_md = NULL WHERE id = :id""",
-            r=error[:300] or "failed",
+                   input_md = NULL, result = CAST(:res AS jsonb) WHERE id = :id RETURNING *""",
+            r=(f"{error}: {answer.get('step') or ''}".strip(": ") if error else "failed")[:300],
+            res=json.dumps(
+                {
+                    "screenshot_file": str(shot),
+                    "detail": scrub(str(answer.get("detail") or ""))[:300],
+                }
+            )
+            if shot
+            else None,  # SQL NULL, never a JSON null (calls_result_check)
             id=c["id"],
         )
         if c["purpose_kind"] == "creative":
@@ -1814,7 +1987,8 @@ async def apply_web(hub: Any, c: dict[str, Any], account: str, answer: dict[str,
                 ref=c["purpose_ref"],
             )
         if error == "recipe_failed":
-            await recipe_fallback(tx, hub, c, account, answer)
+            await recipe_fallback(tx, hub, c, account, answer, shot)
+        await _applied(tx, hub, failed)
 
 
 async def web_expired(tx: Tx, hub: Any, p: dict[str, Any]) -> None:
@@ -1840,8 +2014,46 @@ async def web_expired(tx: Tx, hub: Any, p: dict[str, Any]) -> None:
     )
 
 
+SCREENSHOT_MIME = ("image/png", "image/jpeg", "image/webp")
+SCREENSHOT_BYTES = 2 * 1024 * 1024
+
+
+async def _store_screenshot(tx: Tx, hub: Any, c: dict[str, Any], shot: Any) -> UUID | None:
+    """⟨1.10⟩ §28.4 the page as the failed step left it (egress takes it only
+    on recipe_failed), filed on the holding for the overseer and the SRE."""
+    import base64
+
+    if not isinstance(shot, dict) or shot.get("mime") not in SCREENSHOT_MIME:
+        return None
+    try:
+        data = base64.b64decode(str(shot.get("b64") or ""), validate=True)
+    except ValueError:
+        return None
+    if not data or len(data) > SCREENSHOT_BYTES:
+        return None
+    holding = await hub.companies.holding()
+    key, sha = await hub.storage.put(data)
+    fid: UUID = await tx.scalar(
+        """INSERT INTO files.files (company_id, name, mime, size, sha256, storage_key,
+               created_by_kind, created_by_code)
+           VALUES (:co, :name, :mime, :size, :sha, :key, 'service', 'substitutes') RETURNING id""",
+        co=holding.id,
+        name=f"recipe-{c['player']}-{str(c['id'])[:8]}.{str(shot['mime']).split('/')[1]}",
+        mime=shot["mime"],
+        size=len(data),
+        sha=sha,
+        key=key,
+    )
+    return fid
+
+
 async def recipe_fallback(
-    tx: Tx, hub: Any, c: dict[str, Any], account: str, answer: dict[str, Any]
+    tx: Tx,
+    hub: Any,
+    c: dict[str, Any],
+    account: str,
+    answer: dict[str, Any],
+    screenshot: UUID | None = None,
 ) -> dict[str, Any] | None:
     """A recipe broken by a site change: ONE Claude run finishes the same job
     with web.browse on that account (screenshots; never a secret) and writes
@@ -1867,7 +2079,14 @@ async def recipe_fallback(
             f"{str(answer.get('step') or '?')[:80]} (the site changed). Finish the same job with "
             f"web.browse on the service account {account} (screenshots only; never read or copy a "
             "cookie or a secret), then propose the recipe fix as a reviewed change (a work note with "
-            "the new steps). The job (masked prompt):\n" + (c["input_md"] or "")[:4000]
+            "the new steps)."
+            + (
+                f" The page as the failed step left it: files.read {screenshot} (a screenshot)."
+                if screenshot
+                else ""
+            )
+            + " The job (masked prompt):\n"
+            + (c["input_md"] or "")[:4000]
         ),
         kind="one_off",
         priority="P3",

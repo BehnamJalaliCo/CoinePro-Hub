@@ -49,12 +49,15 @@ class EgressWeb:
             return {"ok": False, "error": "off", "detail": "egress did not answer"}
         return out if isinstance(out, dict) else {"ok": False, "error": "failed"}
 
-    async def web(self, *, account: str, task: str, prompt: str, timeout_s: int) -> dict[str, Any]:
-        return await self._post(
-            "/v1/substitutes/web",
-            {"account": account, "task": task, "prompt": prompt, "timeout_s": timeout_s},
-            limit_s=timeout_s + 30,
-        )
+    async def web(
+        self, *, account: str, task: str, prompt: str, timeout_s: int, reload: bool = False
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "account": account, "task": task, "prompt": prompt, "timeout_s": timeout_s,
+        }  # fmt: skip
+        if reload:  # ⟨1.10⟩ §28.4: the retry after a recipe failure reloads the profile's page
+            body["reload"] = True
+        return await self._post("/v1/substitutes/web", body, limit_s=timeout_s + 30)
 
     async def web_logout(self, *, account: str) -> dict[str, Any]:
         return await self._post("/v1/substitutes/web/logout", {"account": account}, limit_s=60)

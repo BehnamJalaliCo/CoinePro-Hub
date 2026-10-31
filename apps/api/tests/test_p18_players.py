@@ -283,7 +283,7 @@ async def test_a_council_asks_every_ready_player_and_claude_writes_the_synthesis
         assert c["state"] == "running" and c["synthesis_ref"] is None
         assert set(m) == {"claude", "gpt", "gemini", "deepseek"}
         assert m["gpt"]["state"] == "queued" and m["gpt"]["model"] == "gpt-5.3"
-        assert (m["deepseek"]["state"], m["deepseek"]["reason"]) == ("skipped", "per_day")
+        assert (m["deepseek"]["state"], m["deepseek"]["reason_code"]) == ("skipped", "per_day")
         assert m["gemini"]["state"] == "skipped" and m["gemini"]["reason"]
         job = (await claim(client))["job"]
         assert "قیمت دوره" in job["input_md"]
@@ -310,7 +310,7 @@ async def test_a_council_asks_every_ready_player_and_claude_writes_the_synthesis
     assert syn["player"] == "claude" and syn["code"] == f"{co}-CEO"
     assert str(syn["parent_id"]) == w["id"]
     assert "پاسخ جی‌پی‌تی" in syn["brief"] and "پاسخ Claude" in syn["brief"]
-    assert "per_day" in syn["brief"]  # a skipped member says why
+    assert "سقف روزانه" in syn["brief"]  # a skipped member says why
     r = await client.post(
         f"/internal/v1/work/{syn['id']}/deliver",
         headers={**ceo, **idem()},

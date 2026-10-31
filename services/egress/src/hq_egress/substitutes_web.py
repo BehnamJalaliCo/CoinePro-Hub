@@ -13,7 +13,11 @@ profile browser's every connection goes through egress's listener on :3132
 with this job's bucket, which reaches only the recipe's own hosts; its
 entries go to egress's own log as host, status and size (never a path, a
 cookie or a prompt). The answer carries the text read from the page or the
-original file, never a cookie, a screenshot or the page's other content.
+original file, never a cookie or the page's other content. ⟨1.10⟩ §28.4: a
+`recipe_failed` answer carries ONE screenshot of the page as the failed step
+left it (JPEG, the viewport only, ≤ 2 MB), for the overseer and the SRE who
+fix the recipe; `reload: true` (the hub's one retry) reloads the page after
+the recipe's first `goto`.
 web.browse with a profile account (the Claude fallback when a recipe fails)
 runs in the same profile browser, on the same hosts only (profile_browse).
 """
@@ -42,6 +46,7 @@ router = APIRouter()
 Account = Literal["chatgpt-web", "gemini-web", "deepseek-web"]
 ERRORS = ("expired", "recipe_failed", "timeout", "busy", "off")
 DETAIL_CHARS = 300
+SCREENSHOT_BYTES = 2 * 1024 * 1024
 MIME_OK = ("image/png", "image/jpeg", "image/webp", "image/gif", "video/mp4", "video/webm")
 
 
@@ -51,6 +56,8 @@ class WebIn(BaseModel):
     task: Literal["text", "image", "video"]
     prompt: str = Field(min_length=1, max_length=20_000)
     timeout_s: int = Field(default=300, ge=10, le=900)
+    # ⟨1.10⟩ §28.4 the hub's one retry after a recipe failure
+    reload: bool = False
 
 
 class LogoutIn(BaseModel):
@@ -59,18 +66,40 @@ class LogoutIn(BaseModel):
 
 
 def failed(
-    error: str, detail: str, *, step: str | None = None, version: str | None = None
+    error: str,
+    detail: str,
+    *,
+    step: str | None = None,
+    version: str | None = None,
+    screenshot: dict[str, str] | None = None,
 ) -> JSONResponse:
     assert error in ERRORS
-    return JSONResponse(
-        {
-            "ok": False,
-            "error": error,
-            "detail": scrub(detail)[:DETAIL_CHARS],
-            "step": step,
-            "recipe_version": version,
-        }
-    )
+    body: dict[str, Any] = {
+        "ok": False,
+        "error": error,
+        "detail": scrub(detail)[:DETAIL_CHARS],
+        "step": step,
+        "recipe_version": version,
+    }
+    if screenshot is not None and error == "recipe_failed":
+        body["screenshot"] = screenshot
+    return JSONResponse(body)
+
+
+def screenshot_of(got: dict[str, Any]) -> dict[str, str] | None:
+    """The profile browser's screenshot, checked by content: a JPEG or PNG
+    of at most SCREENSHOT_BYTES, else none."""
+    shot = got.get("screenshot")
+    if not isinstance(shot, dict):
+        return None
+    try:
+        data = base64.b64decode(str(shot.get("b64") or ""), validate=True)
+    except ValueError:
+        return None
+    mime = sniff(data) if data and len(data) <= SCREENSHOT_BYTES else None
+    if mime not in ("image/jpeg", "image/png"):
+        return None
+    return {"mime": mime, "b64": base64.b64encode(data).decode()}
 
 
 @router.post("/v1/substitutes/web")
@@ -105,6 +134,7 @@ async def web(a: WebIn, request: Request) -> JSONResponse:
             "timeout_s": timeout,
             "proxy": {"server": s.web_proxy_url, "username": key, "password": password},
             "max_file_bytes": s.web_file_bytes,
+            "reload": a.reload,
         }
         start = time.monotonic()
         try:
@@ -131,6 +161,7 @@ def _job_answer(got: Any, version: str, max_bytes: int) -> JSONResponse:
             str(got.get("detail") or err),
             step=str(step)[:60] if step is not None else None,
             version=version,
+            screenshot=screenshot_of(got) if err == "recipe_failed" else None,
         )
     text = got.get("text_md")
     file = got.get("file") if isinstance(got.get("file"), dict) else None

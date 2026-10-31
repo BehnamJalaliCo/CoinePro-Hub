@@ -74,7 +74,10 @@ class Member(BaseModel):
     state: Literal["queued", "working", "done", "failed", "skipped"]
     run_id: str | None = None
     deliverable_ref: str | None = None
+    # ⟨1.10⟩ §28.4 always plain Persian (never a provider's raw text: that
+    # stays in the call's run log); `reason_code` is the machine's word
     reason: str | None = None
+    reason_code: str | None = None
     # ⟨additive⟩ a media council's version (Creative) of this player
     creative_ref: str | None = None
 
@@ -85,6 +88,64 @@ class Council(BaseModel):
     synthesis_ref: str | None
     state: Literal["running", "synthesising", "done", "failed"]
     media: Literal["image", "video"] | None = None
+    # ⟨1.10⟩ §28.4 said plainly when fewer than two answered (no synthesis then)
+    note_fa: str | None = None
+
+
+# ----------------------------------------------------------- reasons (§28.4) --
+REASON_FA = {
+    "off": "این بازیکن خاموش است یا جایگاهش بسته است.",
+    "signed_out": "این بازیکن وارد حسابش نشده است؛ مالک باید وارد شود.",
+    "expired": "ورود این بازیکن منقضی شده است؛ مالک باید دوباره وارد شود.",
+    "limited": "سهمیه‌ی اشتراک این بازیکن فعلاً تمام شده است.",
+    "per_day": "سقف روزانه‌ی این جایگاه پر شده است.",
+    "holding_locked": "کلید توقف هلدینگ روشن است؛ هیچ بازیکنی صدا زده نمیشود.",
+    "error": "صفحه‌ی وب این بازیکن در کار قبلی دو بار خطا داد؛ تا بررسی دستورالعمل کنار گذاشته شده است.",
+    "recipe_failed": (
+        "صفحه‌ی وب این بازیکن عوض شده و دستورالعمل خودکار کار نکرد "
+        "(یک بار با بارگذاری دوباره‌ی صفحه امتحان شد). تصویر صفحه برای ناظر پیوست شد."
+    ),
+    "recipe_retry": "صفحه‌ی وب این بازیکن خطا داد؛ با بارگذاری دوباره‌ی صفحه دوباره امتحان میشود.",
+    "timeout": "این بازیکن در زمان مقرر جواب نداد.",
+    "busy": "این بازیکن مشغول کار دیگری بود.",
+    "policy_denied": "متن کار داده‌ای دارد که به بازیکن بیرونی نمیرود؛ Claude خودش انجامش میدهد.",
+    "unavailable": "این بازیکن در دسترس نیست.",
+    "failed": "این بازیکن خطا داد و جوابی نداد.",
+    "cancelled": "این کار لغو شد.",
+    "claude_failed": "Claude این کار را تمام نکرد.",
+}
+
+
+def reason_of(raw: str | None, model: str | None = None) -> tuple[str | None, str | None]:
+    """(code, Persian sentence) of a call's or member's reason; a provider's
+    raw text never reaches the member."""
+    if not raw:
+        return None, None
+    text = str(raw)
+    low = text.lower()
+    if low.startswith("model_refused") or S.refused_model(text):
+        m = re.search(r"model_refused:\s*([A-Za-z0-9._-]+)", text)
+        name = m.group(1) if m else (model or "")
+        retried = "retried" in low
+        fa = f"مدل {name} با اشتراک این بازیکن پشتیبانی نمیشود"
+        fa += "؛ با مدل پیش‌فرض دوباره امتحان شد." if retried else "."
+        return "model_refused", fa
+    if low.startswith("policy_denied"):
+        return "policy_denied", REASON_FA["policy_denied"]
+    if low.startswith("recipe_failed") and "retrying" in low:
+        return "recipe_retry", REASON_FA["recipe_retry"]
+    code = re.split(r"[:\s;]", low, maxsplit=1)[0] or "failed"
+    for key in REASON_FA:
+        if code == key:
+            return key, REASON_FA[key]
+    if code in ("locked", "launch_gate", "kill_switch") or "lock" in code:
+        return "holding_locked", REASON_FA["holding_locked"]
+    return "failed", REASON_FA["failed"]
+
+
+def _set_reason(m: dict[str, Any], raw: str | None, model: str | None = None) -> None:
+    code, fa = reason_of(raw, model)
+    m["reason_code"], m["reason"] = code, fa
 
 
 # ------------------------------------------------------------- voice orders --
@@ -380,12 +441,19 @@ async def council_of(tx: Tx, work_id: UUID) -> dict[str, Any] | None:
 
 
 def render(c: dict[str, Any]) -> Council:
+    members = []
+    for m in c["members"] or []:
+        m = dict(m)
+        if m.get("reason") and not m.get("reason_code"):
+            _set_reason(m, m["reason"], m.get("model"))  # a council from before ⟨1.10⟩
+        members.append(Member(**m))
     return Council(
         work_ref=c["work_ref"],
-        members=[Member(**m) for m in c["members"] or []],
+        members=members,
         synthesis_ref=c["synthesis_ref"],
         state=c["state"],
         media=c.get("media"),
+        note_fa=c.get("note_fa"),
     )
 
 
@@ -421,18 +489,13 @@ async def start_council(tx: Tx, hub: Any, w: dict[str, Any]) -> dict[str, Any]:
 async def _text_member(tx: Tx, hub: Any, w: dict[str, Any], p: str, text: str) -> dict[str, Any]:
     found = await text_seat(tx, p)
     if found is None:
-        return {"player": p, "model": None, "state": "skipped", "reason": "off"}
+        return _member(p, None, "skipped", "off")
     reason = S._skip_reason(found[0], found[1], datetime.now(UTC))
     if reason is not None:
-        return {"player": p, "model": found[1]["model"], "state": "skipped", "reason": reason}
+        return _member(p, found[1]["model"], "skipped", reason)
     guard = await S.guard(tx, hub, found[1]["seat"], text)
     if guard is not None:
-        return {
-            "player": p,
-            "model": found[1]["model"],
-            "state": "skipped",
-            "reason": f"policy_denied: {guard}",
-        }
+        return _member(p, found[1]["model"], "skipped", f"policy_denied: {guard}")
     call = await S.seat_call(
         tx,
         hub,
@@ -445,13 +508,14 @@ async def _text_member(tx: Tx, hub: Any, w: dict[str, Any], p: str, text: str) -
     )
     if call["state"] != "queued":
         # the seat's daily cap, a lock, ...: the envelope's rule (§27.2)
-        return {
-            "player": p,
-            "model": call["model"],
-            "state": "skipped",
-            "reason": call["state_reason"],
-        }
+        return _member(p, call["model"], "skipped", call["state_reason"])
     return {"player": p, "model": call["model"], "state": "queued", "call_id": str(call["id"])}
+
+
+def _member(player: str, model: str | None, state: str, raw: str | None) -> dict[str, Any]:
+    m: dict[str, Any] = {"player": player, "model": model, "state": state}
+    _set_reason(m, raw, model)
+    return m
 
 
 async def _media_members(tx: Tx, hub: Any, w: dict[str, Any], media: str) -> list[dict[str, Any]]:
@@ -477,15 +541,18 @@ async def _media_members(tx: Tx, hub: Any, w: dict[str, Any], media: str) -> lis
             player=p,
             work_id=w["id"],
         )
-        out.append(
-            {
-                "player": p,
-                "model": row["model"],
-                "state": "failed" if row["state"] == "failed" else "queued",
-                "creative_ref": row["ref"],
-                "reason": row["review_md"] if row["state"] == "failed" else None,
-            }
-        )
+        m = {
+            "player": p,
+            "model": row["model"],
+            "state": "failed" if row["state"] == "failed" else "queued",
+            "creative_ref": row["ref"],
+        }
+        if row["state"] == "failed":
+            call = await tx.first(
+                "SELECT state_reason FROM substitutes.calls WHERE id = :id", id=row["call_id"]
+            )
+            _set_reason(m, (call or {}).get("state_reason") or "failed", row["model"])
+        out.append(m)
     return out
 
 
@@ -518,12 +585,14 @@ async def refresh(tx: Tx, hub: Any, c: dict[str, Any]) -> bool:
             if dl is not None:
                 m.update(state="done", deliverable_ref=dl["ref"])
             elif w["status"] in ("failed", "cancelled"):
-                m.update(state="failed", reason=w["status"])
+                m["state"] = "failed"
+                _set_reason(m, "claude_failed" if w["status"] == "failed" else "cancelled")
             elif run is not None:
                 m["state"] = "working"
         elif m.get("call_id"):
             call = await tx.first(
-                "SELECT state, state_reason FROM substitutes.calls WHERE id = CAST(:id AS uuid)",
+                """SELECT state, state_reason, model, attempt FROM substitutes.calls
+                   WHERE id = CAST(:id AS uuid)""",
                 id=m["call_id"],
             )
             if call is not None:
@@ -533,11 +602,15 @@ async def refresh(tx: Tx, hub: Any, c: dict[str, Any]) -> bool:
                 m["state"] = (
                     st if st in ("queued", "working", "done", "failed", "skipped") else "failed"
                 )
+                m["model"] = call["model"] or m.get("model")
                 if m["state"] in ("failed", "skipped"):
-                    m["reason"] = call["state_reason"]
+                    _set_reason(m, call["state_reason"] or "failed", call["model"])
+                elif call["attempt"] > 1 and call["state_reason"]:
+                    _set_reason(m, call["state_reason"], call["model"])  # tried again
         elif m.get("creative_ref"):
             cr = await tx.first(
-                "SELECT state, review_md FROM substitutes.creatives WHERE ref = :r",
+                """SELECT r.state, r.review_md, x.state_reason FROM substitutes.creatives r
+                   LEFT JOIN substitutes.calls x ON x.id = r.call_id WHERE r.ref = :r""",
                 r=m["creative_ref"],
             )
             if cr is not None:
@@ -546,18 +619,32 @@ async def refresh(tx: Tx, hub: Any, c: dict[str, Any]) -> bool:
                     "rejected": "done", "failed": "failed",
                 }.get(cr["state"], "working")  # fmt: skip
                 if m["state"] == "failed":
-                    m["reason"] = (cr["review_md"] or "failed")[:200]
+                    _set_reason(m, cr["state_reason"] or "failed", m.get("model"))
     state = c["state"]
     synthesis_ref = c["synthesis_ref"]
     synthesis_work_id = c["synthesis_work_id"]
+    note = c.get("note_fa")
     ended = all(m["state"] in FINAL_MEMBER for m in members)
+    answered = [m for m in members if m["state"] == "done"]
     if state == "running" and ended:
+        # ⟨1.10⟩ §28.4 never waits for members that ended, whatever their outcome
         if c.get("media"):
-            state = "done" if any(m["state"] == "done" for m in members) else "failed"
-        elif any(m["state"] == "done" for m in members):
+            state = "done" if answered else "failed"
+        elif len(answered) >= 2:
             synthesis_work_id = await _synthesis_work(tx, w, members)
             state = "synthesising"
+        elif len(answered) == 1:
+            # one answer is not a council: said plainly, that answer is the result
+            only = answered[0]
+            name = PLAYER_FA.get(only["player"], only["player"])
+            note = (
+                f"فقط {name} جواب داد؛ بقیه‌ی اعضا جواب ندادند (دلیل هر کدام کنارش آمده). "
+                "این یک پاسخ است، نه جمع‌بندی شورا."
+            )
+            synthesis_ref = only.get("deliverable_ref") or await _lone_answer(tx, w, only)
+            state = "done"
         else:
+            note = "هیچ عضوی جواب نداد؛ دلیل هر کدام کنارش آمده است."
             state = "failed"
     if state == "synthesising" and synthesis_work_id is not None:
         dl = await tx.scalar(
@@ -571,15 +658,17 @@ async def refresh(tx: Tx, hub: Any, c: dict[str, Any]) -> bool:
         or state != c["state"]
         or synthesis_ref != c["synthesis_ref"]
         or synthesis_work_id != c["synthesis_work_id"]
+        or note != c.get("note_fa")
     )
     if changed:
         await tx.exec(
             """UPDATE work.councils SET members = CAST(:m AS jsonb), state = :st, synthesis_ref = :sr,
-                   synthesis_work_id = :sw, updated_at = now() WHERE id = :id""",
+                   synthesis_work_id = :sw, note_fa = :n, updated_at = now() WHERE id = :id""",
             m=json.dumps(members, ensure_ascii=False),
             st=state,
             sr=synthesis_ref,
             sw=synthesis_work_id,
+            n=note,
             id=c["id"],
         )
         fresh = await tx.first(COUNCIL_SQL + " WHERE k.id = :id", id=c["id"])
@@ -604,6 +693,43 @@ async def _answer_of(tx: Tx, m: dict[str, Any]) -> str:
         if isinstance(res, dict):
             return str(res.get("text_md") or "")
     return ""
+
+
+async def _lone_answer(tx: Tx, w: dict[str, Any], m: dict[str, Any]) -> str | None:
+    """The one substitute that answered (Claude did not): its answer becomes
+    the order's deliverable, labelled with its source; none when the order
+    already ended."""
+    from hq_api.domain import work as W
+
+    if w["status"] not in W.OPEN or not m.get("call_id"):
+        return None
+    call = await tx.first(
+        "SELECT * FROM substitutes.calls WHERE id = CAST(:id AS uuid)", id=m["call_id"]
+    )
+    text = str(((call or {}).get("result") or {}).get("text_md") or "")
+    if call is None or not text:
+        return None
+    name = PLAYER_FA.get(call["player"], call["player"])
+    full = await tx.first(
+        """SELECT w.*, c.code AS company FROM work.work w JOIN core.companies c ON c.id = w.company_id
+           WHERE w.id = :id""",
+        id=w["id"],
+    )
+    assert full is not None
+    dl = await deliver(
+        tx,
+        dict(full),
+        title=w["title"],
+        body=text,
+        produced_with={
+            "player": call["player"],
+            "model": call["model"],
+            "label_fa": f"انجام‌شده با {name} (تنها پاسخ شورا)",
+            "source": S.source(call),
+            "substitute_call": str(call["id"]),
+        },
+    )
+    return str(dl["ref"])
 
 
 SYNTHESIS_FA = (

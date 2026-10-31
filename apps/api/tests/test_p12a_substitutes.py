@@ -586,8 +586,28 @@ async def test_the_web_path_makes_a_creative_with_the_hubs_overlay_and_never_pub
             }
         )
         await S.web_jobs(hub, broken)
+        # ⟨1.10⟩ §28.4 tried once more with the page reloaded, then failed
+        got = (await client.get(f"/api/v1/creatives/{c['ref']}", headers=owner)).json()
+        assert got["state"] == "queued"
+        await su.execute(
+            "UPDATE substitutes.players SET web_last_job_at = NULL WHERE player = 'gpt'"
+        )
+        await S.web_jobs(
+            hub,
+            FakeEgress(
+                {
+                    "ok": False,
+                    "error": "recipe_failed",
+                    "detail": "no prompt box",
+                    "step": "paste_prompt",
+                }
+            ),
+        )
         got = (await client.get(f"/api/v1/creatives/{c['ref']}", headers=owner)).json()
         assert got["state"] == "failed" and "recipe_failed" in got["review_md"]
+        await su.execute(
+            "UPDATE substitutes.players SET web_error_until = NULL WHERE player = 'gpt'"
+        )
         fail = await su.fetchval(
             "SELECT web_last_failure FROM substitutes.players WHERE player = 'gpt'"
         )

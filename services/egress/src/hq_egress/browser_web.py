@@ -92,6 +92,8 @@ class JobIn(BaseModel):
     timeout_s: float = Field(gt=0, le=900)
     proxy: Proxy
     max_file_bytes: int = Field(default=25 * 1024 * 1024, ge=1)
+    # ⟨1.10⟩ §28.4 the hub's one retry: the page reloaded after the first goto
+    reload: bool = False
 
 
 class RunIn(B.RunIn):
@@ -318,6 +320,7 @@ async def run_recipe(
     text: str | None = None
     file: dict[str, Any] | None = None
     steps = j.recipe.get("steps") or []
+    reloaded = False
     for i, st in enumerate(steps):
         do = str(st.get("do"))
         tag = f"{i}:{do}"
@@ -327,13 +330,20 @@ async def run_recipe(
         ms = min(float(st.get("timeout_s") or STEP_S), left) * 1000
         try:
             got = await _recipe_step(page, ctx, st, ms, j, hosts)
+            if do == "goto" and j.reload and not reloaded:
+                reloaded = True  # ⟨1.10⟩ the retry: a fresh load of the page
+                await page.reload(wait_until="load", timeout=ms)
         except (PwTimeout, Error, StepFailed, ValueError) as exc:
             if await expired(page, rule):
                 return fail("expired", "the profile shows a login page: sign in again", tag)
             if st.get("optional"):
                 continue
             why = exc.detail if isinstance(exc, StepFailed) else type(exc).__name__
-            return fail("recipe_failed", f"step {tag} failed: {why}", tag)
+            out = fail("recipe_failed", f"step {tag} failed: {why}", tag)
+            shot = await screenshot(page)
+            if shot is not None:
+                out["screenshot"] = shot
+            return out
         if do == "goto" and await expired(page, rule):
             return fail("expired", "the profile shows a login page: sign in again", tag)
         if isinstance(got, str):
@@ -343,6 +353,22 @@ async def run_recipe(
     if text is None and file is None:
         return fail("recipe_failed", "the recipe read nothing", None)
     return {"ok": True, "text_md": text, "file": file}
+
+
+SCREENSHOT_BYTES = 2 * 1024 * 1024
+
+
+async def screenshot(page: Page) -> dict[str, str] | None:
+    """⟨1.10⟩ §28.4 the viewport as the failed step left it (JPEG), for the
+    overseer and the SRE who fix the recipe; none when it cannot be taken
+    or is over 2 MB. Never the full page, never a cookie."""
+    try:
+        data = await page.screenshot(type="jpeg", quality=60, full_page=False, timeout=5000)
+    except (PwTimeout, Error):
+        return None
+    if not data or len(data) > SCREENSHOT_BYTES:
+        return None
+    return {"mime": "image/jpeg", "b64": base64.b64encode(data).decode()}
 
 
 async def _recipe_step(
