@@ -458,9 +458,9 @@ fun FileViewer(r: ArchiveRecord, f: RecordFile, m: ArchiveMaps) {
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Box(Modifier.size(48.dp).clip(CircleShape).background(c.softNegative), contentAlignment = Alignment.Center) { DIcon(DivanIcon.LOCK, size = 22.dp, tint = c.negative) }
-            Text("دیدن سند «${lvl?.titleFa}» با passkey است", style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary, textAlign = TextAlign.Center)
+            Text("دیدن سند «${lvl?.titleFa}» با اثر انگشت است", style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary, textAlign = TextAlign.Center)
             Text(buildAnnotatedString { append("یک بار، فقط برای همین سند ("); fig("archive.view"); append("، هدف "); fig(r.ref); append(").") }, style = Divan.type.caption, color = c.textMuted, textAlign = TextAlign.Center)
-            HqButton("با passkey باز کن", { load(true) }, variant = BtnVariant.PRIMARY, icon = DivanIcon.LOCK, loading = busy)
+            HqButton("با اثر انگشت باز کن", { load(true) }, variant = BtnVariant.PRIMARY, icon = DivanIcon.LOCK, loading = busy)
         }
         ErrorLine(error)
         if (busy && b == null && !needs) Skeleton(Modifier.fillMaxWidth().height(280.dp), radius = 12.dp)
@@ -473,12 +473,13 @@ fun FileViewer(r: ArchiveRecord, f: RecordFile, m: ArchiveMaps) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 HqButton("باز کردن در برنامه‌ی دیگر", {
                     scope.launch {
-                        val out = withContext(Dispatchers.IO) {
-                            File(env.media.scratch("shared"), f.name.replace(Regex("[^\\p{L}\\p{N}._-]"), "_")).apply { writeBytes(b.bytes) }
-                        }
-                        val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.files", out)
-                        val view = Intent(Intent.ACTION_VIEW).setDataAndType(uri, f.mime.ifBlank { b.mime }).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        runCatching { ctx.startActivity(Intent.createChooser(view, f.name).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                        runCatching {
+                            val name = f.name.replace(Regex("[^\\p{L}\\p{N}._-]"), "_").ifBlank { "file" }
+                            val out = withContext(Dispatchers.IO) { File(env.media.scratch("shared"), name).apply { writeBytes(b.bytes) } }
+                            val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.files", out)
+                            val view = Intent(Intent.ACTION_VIEW).setDataAndType(uri, f.mime.ifBlank { b.mime }).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            ctx.startActivity(Intent.createChooser(view, f.name).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        }.onFailure { com.coinepro.hq.core.diag.Diag.note("app", com.coinepro.hq.core.diag.LEVEL_WARNING, "file not opened", it::class.java.simpleName) }
                     }
                 }, icon = DivanIcon.SHARE, size = BtnSize.SM)
             }
@@ -727,7 +728,7 @@ private fun SealPanel(r: ArchiveRecord, m: ArchiveMaps, onSaved: (ArchiveRecord)
                         }
                     }
                     Text(buildAnnotatedString { append("مُهر روی manifest نسخه‌ی ${r.currentVersion} است: "); fig(shaShort(cur?.manifestSha256)) }, style = Divan.type.micro, color = c.textSecondary, textAlign = TextAlign.Center)
-                    Text(buildAnnotatedString { append("با passkey تو ("); fig("archive.seal"); append("). بعد از مُهر، سند و پیوندهایش دست نمیخورند.") }, style = Divan.type.micro, color = c.textMuted, textAlign = TextAlign.Center)
+                    Text(buildAnnotatedString { append("با اثر انگشت تو ("); fig("archive.seal"); append("). بعد از مُهر، سند و پیوندهایش دست نمیخورند.") }, style = Divan.type.micro, color = c.textMuted, textAlign = TextAlign.Center)
                 }
             }
             else -> Text(if (r.state == "draft") "پیش‌نویس مُهر نمیشود؛ اول ثبتش کن." else "این سند مُهر نمیشود.", style = Divan.type.caption, color = c.textMuted)
@@ -757,14 +758,14 @@ private fun SealPanel(r: ArchiveRecord, m: ArchiveMaps, onSaved: (ArchiveRecord)
                 Text(buildAnnotatedString {
                     append("از «${m.level(r.level)?.titleFa ?: r.level}» به «${m.level(to)?.titleFa ?: to}». ")
                     if (lower) {
-                        append("فقط کار توست و با passkey بسته به همین سند، همین نسخه و همین سطح: "); fig("${r.ref}@${r.version}:$to")
+                        append("فقط کار توست و با اثر انگشت بسته به همین سند، همین نسخه و همین سطح: "); fig("${r.ref}@${r.version}:$to")
                         append(". هر کس مجوز سطح تازه را دارد آن را خواهد دید.")
                         if (r.state == "sealed") append(" مُهر و manifest دست نمیخورند.")
-                    } else append("بالا بردن passkey نمیخواهد؛ پایین آوردنش میخواهد.")
+                    } else append("بالا بردن اثر انگشت نمیخواهد؛ پایین آوردنش میخواهد.")
                 }, style = Divan.type.small, color = c.textSecondary)
             },
             confirmButton = {
-                HqButton(if (lower) "با passkey پایین بیاور" else "بالا ببر", {
+                HqButton(if (lower) "با اثر انگشت پایین بیاور" else "بالا ببر", {
                     failure = null
                     change.run(onError = { level = null; failure = it }) {
                         val out = if (lower) env.api.declassify(r, to) { a, t -> env.auth.stepUp(act, a, t) } else env.api.patchRecord(r, buildJsonObject { put("level", to) })

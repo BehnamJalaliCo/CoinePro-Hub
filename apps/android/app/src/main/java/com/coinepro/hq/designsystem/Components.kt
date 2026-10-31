@@ -106,6 +106,22 @@ fun AnnotatedString.Builder.fig(text: String, color: Color? = null, weight: Font
     withStyle(SpanStyle(fontFamily = FigureFace, fontFeatureSettings = "tnum", color = color ?: Color.Unspecified, fontWeight = weight)) { append("\u2066$text\u2069") }
 }
 
+/** A clock time inside a sentence ("10:50", "08:00–09:30"): drawn with Latin digits like every figure, whatever face the sentence has. */
+private val CLOCK = Regex("(?<![\\d:])\\d{1,2}:\\d{2}(?![\\d:])")
+
+/** [text] with every clock time in it set as a figure: the rule that a time reads in Latin digits, as code and money do. */
+fun timesFig(text: String): AnnotatedString = timesFig(AnnotatedString(text))
+
+/** [text] with every clock time set as a figure (spans already there kept). */
+fun timesFig(text: AnnotatedString): AnnotatedString {
+    val hits = CLOCK.findAll(text.text).toList()
+    if (hits.isEmpty()) return text
+    return buildAnnotatedString {
+        append(text)
+        for (m in hits) addStyle(SpanStyle(fontFamily = FigureFace, fontFeatureSettings = "tnum"), m.range.first, m.range.last + 1)
+    }
+}
+
 /** A figure (money, tokens, codes, model names): Latin digits, tabular. */
 @Composable
 fun Fig(text: String, modifier: Modifier = Modifier, style: TextStyle = Divan.type.figure, color: Color = LocalContentColor.current, maxLines: Int = 1) {
@@ -257,7 +273,7 @@ fun Pill(text: String, tone: Tone = Tone.NEUTRAL, modifier: Modifier = Modifier,
     ) {
         if (icon != null) DIcon(icon, size = 14.dp, tint = fg)
         if (dot || live) LiveDot(fg, live)
-        Text(text, style = (if (figure) Divan.type.figureSmall else Divan.type.caption).copy(fontWeight = FontWeight.SemiBold, fontSize = 12.sp), color = fg, maxLines = 1)
+        Text(if (figure) AnnotatedString(text) else timesFig(text), style = (if (figure) Divan.type.figureSmall else Divan.type.caption).copy(fontWeight = FontWeight.SemiBold, fontSize = 12.sp), color = fg, maxLines = 1)
     }
 }
 
@@ -270,7 +286,7 @@ fun LiveDot(color: Color, live: Boolean = true, size: Dp = 6.dp) {
 
 // ---------------------------------------------------------------- chips --
 @Composable
-fun FilterChip(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, count: Int? = null) {
+fun FilterChip(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, count: Int? = null, figure: Boolean = false) {
     val c = Divan.colors
     val shape = CircleShape
     val bg by animateColorAsState(if (selected) c.softGold else Color.Transparent, motionShort(), label = "chip")
@@ -286,7 +302,8 @@ fun FilterChip(text: String, selected: Boolean, onClick: () -> Unit, modifier: M
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text(text, style = Divan.type.small.copy(fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal), color = if (selected) c.goldInk else c.textSecondary)
+        // A figure (an hour, a code) reads in Latin digits left to right; prose in the text face.
+        Text(text, style = (if (figure) Divan.type.figureSmall.copy(textDirection = TextDirection.Ltr) else Divan.type.small).copy(fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal), color = if (selected) c.goldInk else c.textSecondary)
         if (count != null) Text(count.toString(), style = Divan.type.caption, color = (if (selected) c.goldInk else c.textSecondary).copy(alpha = 0.8f))
     }
 }
@@ -499,7 +516,7 @@ fun SectionTitle(title: String, modifier: Modifier = Modifier, note: String? = n
         if (icon != null) DIcon(icon, size = 20.dp, tint = c.textSecondary)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(title, style = Divan.type.h3, modifier = Modifier.semantics { heading() })
-            if (note != null) Text(note, style = Divan.type.caption, color = c.textMuted)
+            if (note != null) Text(timesFig(note), style = Divan.type.caption, color = c.textMuted)
         }
         action?.invoke(this)
     }

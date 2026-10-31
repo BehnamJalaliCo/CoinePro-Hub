@@ -104,8 +104,13 @@ private fun AnnotatedString.Builder.latin(text: String) {
 // becomes the Persian comma. Between Latin words ("Chrome · Android") it stays.
 private val DOT = Regex(" · (?=[\u0600-\u06FF0-9])|(?<=[\u0600-\u06FF0-9]) · ")
 
-private fun inline(raw: String, k: MdColors): AnnotatedString = buildAnnotatedString {
-    val text = DOT.replace(raw, "، ")
+/** A decimal inside Persian prose ("disk 90.4%") takes the Persian separator, so «۹۰٫۴٪» does not read as «۹۰.۴». */
+private val DECIMAL = Regex("(?<![\\w.:/-])(\\d+)\\.(\\d+)(?=%|٪|\\s|$|[،؛,;)])")
+
+private fun inline(raw: String, k: MdColors): AnnotatedString = timesFig(inlineText(raw, k))
+
+private fun inlineText(raw: String, k: MdColors): AnnotatedString = buildAnnotatedString {
+    val text = DECIMAL.replace(DOT.replace(raw, "، "), "$1٫$2")
     var last = 0
     for (m in INLINE.findAll(text)) {
         refs(text.substring(last, m.range.first), k)

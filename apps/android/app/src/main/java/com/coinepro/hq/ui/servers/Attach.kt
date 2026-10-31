@@ -120,19 +120,19 @@ private fun PairForm(company0: String?, code0: String, error0: String?, onDone: 
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (co in companies) FilterChip(co.nameFa ?: co.code, company == co.code, { company = co.code; error = null })
             }
-            StepRow(1, done = true) {
+            StepRow(1, done = company != null && code.isNotEmpty()) {
                 Text(isolated("روی سرور: Claude همان سرور hq-runner را طبق COMPANY_SERVER_ACCESS_SETUP.md با کاربر کاری‌اش نصب میکند."), style = Divan.type.small, color = c.textPrimary)
                 HqButton("فرستادن به Claude سرور", {
                     val text = "طبق COMPANY_SERVER_ACCESS_SETUP.md از ریپوی ستاد، hq-runner را با کاربر کاری همین سرور نصب کن و بعد این را اجرا کن؛ کدی را که نشان میدهد به من بگو:\n\n$cmd"
                     ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), "فرستادن به Claude سرور"))
                 }, variant = BtnVariant.SECONDARY, size = BtnSize.SM, icon = DivanIcon.SHARE)
             }
-            StepRow(2, done = true) {
+            StepRow(2, done = code.isNotEmpty()) {
                 Text("همان‌جا جفت میکند و یک کد کوتاه نشان میدهد:", style = Divan.type.small, color = c.textPrimary)
                 CopyBox(cmd, prefix = "$ ", wrap = true)
             }
             StepRow(3, done = ready) {
-                Text("کد را اینجا بنویس و با گذرکلید تأیید کن.", style = Divan.type.small, color = c.textPrimary)
+                Text("کد را اینجا بنویس و با اثر انگشت تأیید کن.", style = Divan.type.small, color = c.textPrimary)
                 CodeField(code, { code = it; error = null }, error != null)
                 when {
                     error != null -> FieldError(error!!)
@@ -143,7 +143,7 @@ private fun PairForm(company0: String?, code0: String, error0: String?, onDone: 
         }
     }
     HqButton(
-        "تأیید با گذرکلید", {
+        "تأیید با اثر انگشت", {
             val co = company ?: return@HqButton
             action.run(onError = { e: ApiException ->
                 val why = PairCode.refusal(e)

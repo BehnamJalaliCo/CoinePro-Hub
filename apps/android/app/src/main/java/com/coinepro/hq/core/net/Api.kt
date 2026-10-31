@@ -8,6 +8,7 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.async
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
@@ -223,6 +224,14 @@ class Api(
     // ---------------------------------------------------------- decisions --
     suspend fun decisions(status: String? = "pending", risk: String? = null, company: String? = null, limit: Int = 50): Page<Decision> =
         get("/decisions", mapOf("status" to status, "risk" to risk, "company" to company, "limit" to limit))
+    /**
+     * «همه»: the hub lists one status at a time (`status` defaults to `pending`; there is no "all"), so every status is read and the
+     * pages merged, newest first. A hub change (`status=all` or several statuses) would make this one call.
+     */
+    suspend fun decisionsAll(company: String? = null, limit: Int = 50): Page<Decision> = kotlinx.coroutines.coroutineScope {
+        val pages = DECISION_STATUSES.map { s -> async { decisions(s, company = company, limit = limit).items } }.map { it.await() }
+        Page(pages.flatten().distinctBy { it.ref }.sortedByDescending { it.decidedAt ?: it.createdAt }.take(limit), null)
+    }
     suspend fun decision(ref: String): Decision = get("/decisions/${seg(ref)}")
     suspend fun approve(ref: String, note: String?, stepUp: String?): Decision =
         post("/decisions/${seg(ref)}/approve", buildJsonObject { put("note", note); put("amendments", JsonNull) }, stepUp)
@@ -284,8 +293,16 @@ class Api(
     suspend fun employee(code: String): Employee = get("/employees/${seg(code)}")
 
     // --------------------------------------------------------------- work --
-    suspend fun work(company: String? = null, status: String? = null, assignee: String? = null, q: String? = null, limit: Int = 50): Page<Work> =
-        get("/work", mapOf("company" to company, "status" to status, "assignee" to assignee, "q" to q, "limit" to limit))
+    suspend fun work(
+        company: String? = null, status: String? = null, assignee: String? = null, q: String? = null, limit: Int = 50,
+        createdBy: String? = null, cursor: String? = null,
+    ): Page<Work> =
+        get("/work", mapOf("company" to company, "status" to status, "assignee" to assignee, "q" to q, "limit" to limit, "created_by" to createdBy, "cursor" to cursor))
+
+    /** ⟨1.7.4⟩ every event of a work and of its sub-works (two levels down) in one list, oldest first, with the agents' run steps
+     *  (summaries and tool metadata only). */
+    suspend fun treeEvents(id: String, limit: Int = 500, cursor: String? = null): Page<TreeEvent> =
+        get("/work/${seg(id)}/tree-events", mapOf("limit" to limit, "cursor" to cursor))
 
     /** Work by id, or by its ref ("W-000104") as planner items and messages carry it: the API addresses work
      *  by UUID, so a ref is resolved through the list search first. */
@@ -1196,7 +1213,10 @@ class Api(
     suspend fun patchParty(p: Party, body: JsonObject): Party =
         send("PATCH", "/archive/parties/${seg(p.ref)}", json.encodeToString(JsonElement.serializer(), body), ifMatch = p.version ?: 1)
 
-    suspend fun legalHolds(state: String? = null, case: String? = null): List<LegalHold> = listAny("/archive/holds", mapOf("state" to state, "case" to case), LegalHold.serializer())
+    /** The hub filters by `state` only (it ignores `case`), so a case's holds are kept to that case here; a hub change (`?case=`) would
+     *  make the filter the hub's. */
+    suspend fun legalHolds(state: String? = null, case: String? = null): List<LegalHold> =
+        listAny("/archive/holds", mapOf("state" to state, "case" to case), LegalHold.serializer()).filter { case == null || it.case == case }
     /** The owner places one (the legal counsel too, with its case); [key] is the press's. */
     suspend fun placeHold(body: HoldIn, key: String): LegalHold = call(write("POST", "/archive/holds", jsonBody.encodeToJsonElement(HoldIn.serializer(), body), null, key), serializer())
     /** The owner's alone: 🔏 `archive.hold.release` on the ref. */
@@ -1480,6 +1500,9 @@ class Api(
                 val ref = (o["ref"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return@mapNotNull null
                 ref to ((o["reason"] as? JsonPrimitive)?.content ?: "")
             }.orEmpty()
+
+        /** Every status `GET /decisions` takes. */
+        val DECISION_STATUSES = listOf("pending", "approved", "rejected", "returned", "expired", "withdrawn")
 
         fun sha256(text: String): String = MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
 

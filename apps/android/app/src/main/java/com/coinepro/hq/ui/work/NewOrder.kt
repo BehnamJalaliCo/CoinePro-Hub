@@ -19,6 +19,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
 import androidx.compose.ui.unit.dp
 import com.coinepro.hq.core.data.PlayerOption
 import com.coinepro.hq.core.format.OWNER_TZ
@@ -68,6 +70,9 @@ fun NewOrderContent(
     var brief by rememberSaveable { mutableStateOf("") }
     var priority by rememberSaveable { mutableStateOf(priority0) }
     var repeat by rememberSaveable { mutableStateOf("none") }
+    // A recurring order carries an escrow (the hub's rule): what each run may spend, said before it is sent.
+    var capTokens by rememberSaveable { mutableStateOf(com.coinepro.hq.core.data.ESCROW_TOKENS[1]) }
+    var capUsd by rememberSaveable { mutableStateOf(com.coinepro.hq.core.data.ESCROW_USD[1]) }
     // ⟨1.9⟩ §27.1: who plays it (the router by default), or the council of models (§27.2).
     var player by rememberSaveable { mutableStateOf(player0) }
     val option = PlayerOption.entries.firstOrNull { it.key == player } ?: PlayerOption.AUTO
@@ -97,6 +102,23 @@ fun NewOrderContent(
         FilterChip("هر روز ۸ صبح", repeat == "daily", { repeat = "daily" })
         FilterChip("هر شنبه", repeat == "weekly", { repeat = "weekly" })
     }
+    if (repeat != "none") Column(
+        Modifier.fillMaxWidth().clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text("سقف هر اجرا", style = Divan.type.caption.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = c.textSecondary)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (t in com.coinepro.hq.core.data.ESCROW_TOKENS) FilterChip(com.coinepro.hq.core.format.tokens(t), capTokens == t, { capTokens = t })
+        }
+        Text("سقف ماهانه", style = Divan.type.caption.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = c.textSecondary)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (u in com.coinepro.hq.core.data.ESCROW_USD) FilterChip("$$u", capUsd == u, { capUsd = u })
+        }
+        Text(
+            "هر اجرا فقط میخواند و پیش‌نویس میکند، تا ${com.coinepro.hq.core.format.tokens(capTokens)} توکن و در ماه تا $$capUsd؛ این اجازه ۹۰ روز میماند.",
+            style = Divan.type.caption, color = c.textMuted,
+        )
+    }
     HqButton(
         "بفرست", {
             action.run {
@@ -106,6 +128,7 @@ fun NewOrderContent(
                         company = company!!, title = title.trim(), brief = brief.trim(), priority = priority,
                         kind = if (rrule != null) "recurring" else "one_off", schedule = rrule?.let { ScheduleIn(it, OWNER_TZ) },
                         player = option.player, mode = option.mode, media = media.takeIf { option == PlayerOption.COUNCIL },
+                        escrow = rrule?.let { com.coinepro.hq.core.data.recurringEscrow(capTokens, capUsd) },
                     ),
                 )
                 // Followed at once: its stage changes are told even before the list is read again.

@@ -156,9 +156,10 @@ data class Whisper(val id: String, val meeting: String = "", val item: String = 
 @Serializable
 data class TurnsPage(val items: List<Turn> = emptyList(), val whispers: List<Whisper> = emptyList(), val nextCursor: String? = null)
 
-/** One agenda item of `POST /meetings` (no defaults: every field is written). */
+/** One agenda item of `POST /meetings`: the hub's `MeetingOwnerItemIn` takes the title (and a brief, sources and companies), no time
+ *  box; the hub sets each item's time itself. */
 @Serializable
-data class MeetingItemIn(val titleFa: String, val timeBoxMin: Int)
+data class MeetingItemIn(val titleFa: String)
 
 /** One row of `PATCH /meetings/{ref}`: the items in their new order, each may be skipped. */
 @Serializable

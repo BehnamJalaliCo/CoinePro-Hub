@@ -97,6 +97,9 @@ object PairCode {
         e.code in UNKNOWN || e.status == 404 -> "این کد پیدا نشد. همان کدی را بنویس که hq-runner pair روی سرور نشان داد."
         e.code in USED -> "این کد یک بار تأیید شده است؛ سرورش در فهرست هست."
         e.code == "company_mismatch" -> "این کد برای شرکت دیگری ساخته شده؛ شرکت درست را انتخاب کن."
+        // The seal is bound to the company the runner announced (`company:{its code}`): a different chip here fails the seal, not the
+        // code or the fingerprint.
+        e.code == "step_up_invalid" -> "این کد برای شرکت دیگری ساخته شده؛ همان شرکتی را بزن که دستور pair روی سرور با آن اجرا شد و دوباره تأیید کن."
         else -> null
     }
 

@@ -40,7 +40,7 @@ class OrderWatcher(
             launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) { events.collect { pending.trySend(it) } }
             load()
             for (e in pending) {
-                if (e.type == "work.created") later()
+                if (e.type == "work.created" && mayBeOwnerOrder(e)) later()
                 val n = synchronized(told) { noticeOf(e, orders, told) } ?: continue
                 remember()
                 out.emit(n)
@@ -62,6 +62,10 @@ class OrderWatcher(
         titles.seed(w)
         memory?.let { it.ordersKnown = it.ordersKnown + w.ref }
     }
+
+    /** Only a new top-level work can be an order the owner gave elsewhere (the web, a voice order): a delegation or a recurrence is
+     *  not read again for (the hub's event names no creator yet; when it does, only the owner's count). */
+    private fun mayBeOwnerOrder(e: StreamEvent): Boolean = orderCreated(e)
 
     private fun later() {
         reload?.cancel()

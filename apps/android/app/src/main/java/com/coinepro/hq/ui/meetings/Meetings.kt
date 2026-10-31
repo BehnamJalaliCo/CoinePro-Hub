@@ -187,7 +187,7 @@ private fun MeetingRow(m: Meeting) {
                 Fig(m.ref, style = Divan.type.figureSmall, color = c.textMuted)
             }
             Text(
-                listOfNotNull("${jWeekday(m.startsAt)}، ${jTime(m.startsAt)}", if (m.before) until(m.startsAt) else null).joinToString("، "),
+                com.coinepro.hq.designsystem.timesFig(listOfNotNull("${jWeekday(m.startsAt)}، ${jTime(m.startsAt)}", if (m.before) until(m.startsAt) else null).joinToString("، ")),
                 style = Divan.type.micro, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
             m.minutes?.let { mi ->
@@ -313,7 +313,7 @@ private fun MeetingSettings(data: List<MeetingType>?, error: com.coinepro.hq.cor
                     }
                 },
                 confirmButton = {
-                    HqButton("مُهر با passkey", {
+                    HqButton("مُهر با اثر انگشت", {
                         action.gov(toasts) {
                             env.api.saveMeetingSettings(rows) { a, x -> env.auth.stepUp(act, a, x) }
                             env.cache.invalidate("meetings")
@@ -376,9 +376,14 @@ private fun StepKey(sign: String, enabled: Boolean, onClick: () -> Unit) {
 }
 
 // -------------------------------------------------------------- new meeting --
-private val AD_HOC = listOf("board", "company", "strategy", "postmortem")
-private val BOXES = listOf(5, 10, 15, 20, 30)
-private val LOCAL: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+/** The types the hub makes on demand (`MeetingCreateIn.type`); a post-mortem is the hub's own, after an incident. */
+private val AD_HOC = listOf("board", "company", "strategy")
+private val HOURS = (8..21).toList()
+private val MINUTES = listOf(0, 15, 30, 45)
+
+/** The start of a new meeting from the picked day (days from today, in the owner's zone), hour and minute. */
+internal fun meetingStart(dayOffset: Int, hour: Int, minute: Int, today: java.time.LocalDate = com.coinepro.hq.core.format.HqClock.today()): java.time.Instant =
+    today.plusDays(dayOffset.toLong()).atTime(hour, minute).atZone(ZoneId.of(OWNER_TZ)).toInstant()
 
 /** An ad-hoc meeting: the same speaker rule, budget and daily share as a scheduled one. */
 @Composable
@@ -390,39 +395,42 @@ private fun NewMeetingSheet(onClose: () -> Unit) {
     val action = rememberAction()
     var type by rememberSaveable { mutableStateOf("company") }
     var company by rememberSaveable { mutableStateOf<String?>(null) }
-    var whenText by rememberSaveable { mutableStateOf("") }
+    var day by rememberSaveable { mutableStateOf(1) }
+    var hour by rememberSaveable { mutableStateOf(10) }
+    var minute by rememberSaveable { mutableStateOf(0) }
     val titles = remember { mutableStateListOf("") }
-    val boxes = remember { mutableStateListOf(10) }
     var key by remember { mutableStateOf<String?>(null) }
-    val perCompany = type == "company" || type == "postmortem"
-    val at = runCatching { LocalDateTime.parse(whenText.trim(), LOCAL).atZone(ZoneId.of(OWNER_TZ)).toInstant() }.getOrNull()
+    val perCompany = type == "company"
+    val at = meetingStart(day, hour, minute).takeIf { it.isAfter(com.coinepro.hq.core.format.HqClock.now()) }
     val valid = at != null && (!perCompany || company != null) && titles.any { it.isNotBlank() }
     HqSheet(onClose, "جلسه‌ی تازه", sub = "سخنگوها، بودجه و سهم روزانه همان قاعده‌ی جلسه‌های زمان‌بندی‌شده است.") {
         Labelled("نوع") { ChipRow { for (k in AD_HOC) FilterChip(MEETING_TYPE.getValue(k).fa, type == k, { type = k }) } }
         if (perCompany) Labelled("شرکت") { CompanyChips(company, { company = it }, all = false) }
-        Labelled("زمان شروع") {
-            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                HqTextField(whenText, { whenText = it }, "2026-10-20 14:00", Modifier.fillMaxWidth(), maxLength = 16, figure = true)
+        Labelled("روز") {
+            com.coinepro.hq.designsystem.ScrollRow {
+                for (d in 0..13) {
+                    val iso = com.coinepro.hq.core.format.HqClock.today().plusDays(d.toLong()).toString()
+                    FilterChip(when (d) { 0 -> "امروز"; 1 -> "فردا"; else -> com.coinepro.hq.core.format.jWeekday(iso) }, day == d, { day = d })
+                }
             }
+        }
+        Labelled("ساعت (تهران)") {
+            com.coinepro.hq.designsystem.ScrollRow { for (h in HOURS) FilterChip("%02d".format(h), hour == h, { hour = h }, figure = true) }
+            Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { for (m in MINUTES) FilterChip(":%02d".format(m), minute == m, { minute = m }, figure = true) }
         }
         Labelled("دستورها") {
             for (i in titles.indices) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 HqTextField(titles[i], { titles[i] = it }, "دستور ${i + 1}", Modifier.weight(1f), maxLength = 200)
-                // One tap moves the item's time box to the next length.
-                Box(
-                    Modifier.height(44.dp).clip(RoundedCornerShape(10.dp)).border(1.dp, c.lineStrong, RoundedCornerShape(10.dp))
-                        .clickable(role = Role.Button, onClickLabel = "وقت دستور") { boxes[i] = BOXES[(BOXES.indexOf(boxes[i]) + 1) % BOXES.size] }.padding(horizontal = 10.dp),
-                    contentAlignment = Alignment.Center,
-                ) { Text("${boxes[i]} دقیقه", style = Divan.type.caption, color = c.textSecondary, textAlign = TextAlign.Center) }
-                if (titles.size > 1) com.coinepro.hq.designsystem.IconBtn(DivanIcon.CLOSE, "حذف دستور", { titles.removeAt(i); boxes.removeAt(i) })
+                if (titles.size > 1) com.coinepro.hq.designsystem.IconBtn(DivanIcon.CLOSE, "حذف دستور", { titles.removeAt(i) })
             }
-            if (titles.size < 8) HqButton("دستور دیگر", { titles.add(""); boxes.add(10) }, variant = BtnVariant.GHOST, size = BtnSize.SM, icon = DivanIcon.ADD)
+            if (titles.size < 8) HqButton("دستور دیگر", { titles.add("") }, variant = BtnVariant.GHOST, size = BtnSize.SM, icon = DivanIcon.ADD)
+            Text("وقت هر دستور را خود جلسه از بودجه و تعداد دستورها میگذارد.", style = Divan.type.micro, color = c.textMuted)
         }
         HqButton("بساز", {
             val start = at ?: return@HqButton
             val k = key ?: UUID.randomUUID().toString().also { key = it }
             action.gov(toasts) {
-                val items = titles.indices.filter { titles[it].isNotBlank() }.map { MeetingItemIn(titles[it].trim(), boxes[it]) }
+                val items = titles.filter { it.isNotBlank() }.map { MeetingItemIn(it.trim()) }
                 val m = env.api.createMeeting(type, if (perCompany) company else null, start.toString(), items, k)
                 key = null
                 env.cache.invalidate("meetings", "planner", "calendar")
@@ -431,7 +439,6 @@ private fun NewMeetingSheet(onClose: () -> Unit) {
                 nav.go("meetings/${m.ref}")
             }
         }, Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.ADD, enabled = valid, loading = action.busy)
-        if (at == null && whenText.isNotBlank()) Text(buildAnnotatedString { append("زمان را این‌طور بنویس: "); fig("2026-10-20 14:00") }, style = Divan.type.caption, color = c.warning)
-        Text("زمان به وقت تهران.", style = Divan.type.micro, color = c.textMuted)
+        if (at == null) Text("این زمان گذشته است؛ ساعت دیگری بزن.", style = Divan.type.caption, color = c.warning)
     }
 }

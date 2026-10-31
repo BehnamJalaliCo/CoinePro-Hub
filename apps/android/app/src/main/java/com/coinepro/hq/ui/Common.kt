@@ -27,6 +27,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -81,9 +82,15 @@ class QueryHandle<T>(val state: QueryState<T>, private val q: Query<T>) {
 /** A cached query: shared across screens by [key], refreshed by [tags] (stream events, mutations) and when
  *  older than [maxAgeMs] on first show. The key must encode every parameter of [fetch]. */
 @Composable
-fun <T> rememberQuery(key: String, vararg tags: String, maxAgeMs: Long = 20_000, fetch: suspend Api.() -> T): QueryHandle<T> {
+inline fun <reified T> rememberQuery(key: String, vararg tags: String, maxAgeMs: Long = 20_000, noinline fetch: suspend Api.() -> T): QueryHandle<T> =
+    rememberTypedQuery(key, kotlin.reflect.typeOf<T>().toString(), tags, maxAgeMs, fetch)
+
+/** [rememberQuery] with the value's type spelled out: one key never serves two types (0.9.0's voice order crash). */
+@PublishedApi
+@Composable
+internal fun <T> rememberTypedQuery(key: String, type: String, tags: Array<out String>, maxAgeMs: Long, fetch: suspend Api.() -> T): QueryHandle<T> {
     val env = LocalEnv.current
-    val q = remember(env, key) { env.cache.get(key, tags.toSet()) { env.api.fetch() } }
+    val q = remember(env, key, type) { env.cache.get(key, tags.toSet(), type) { env.api.fetch() } }
     val s by q.state.collectAsStateWithLifecycle()
     LaunchedEffect(q) { q.ensureFresh(maxAgeMs) }
     return QueryHandle(s, q)
@@ -102,7 +109,11 @@ fun <T> Loadable(h: QueryHandle<T>, skeleton: @Composable () -> Unit = { Skeleto
 }
 
 @Composable
-fun rememberCompanies(): List<Company> = rememberQuery("companies", "companies", maxAgeMs = 60_000) { companies() }.data.orEmpty()
+fun rememberCompanies(): List<Company> {
+    val list = rememberQuery("companies", "companies", maxAgeMs = 60_000) { companies() }.data.orEmpty()
+    androidx.compose.runtime.SideEffect { if (list.isNotEmpty()) com.coinepro.hq.core.link.CompanyNames.set(list.associate { it.code to (it.nameFa ?: it.code) }) }
+    return list
+}
 
 data class CoInfo(val code: String, val nameFa: String, val nameEn: String, val holding: Boolean, val colorIndex: Int?)
 
@@ -128,6 +139,12 @@ class ActionRunner(private val scope: CoroutineScope, private val toasts: Toasts
                 haptic()
             } catch (e: ApiException) {
                 onError?.invoke(e) ?: toasts.error(e.messageFa)
+            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Anything else (a file, a passkey answer, a state the phone refused) is said and logged, never a crash.
+                com.coinepro.hq.core.diag.Diag.note("app", com.coinepro.hq.core.diag.LEVEL_ERROR, "action failed", "${e::class.java.simpleName}: ${e.message.orEmpty()}".take(200))
+                toasts.error("این کار انجام نشد؛ دوباره امتحان کن.")
             } finally {
                 busy = false
             }
@@ -254,3 +271,12 @@ fun androidx.compose.foundation.lazy.LazyItemScope.itemMotion(): Modifier =
         placementSpec = androidx.compose.animation.core.tween(com.coinepro.hq.designsystem.Motion.MEDIUM, easing = com.coinepro.hq.designsystem.Motion.Standard),
         fadeOutSpec = androidx.compose.animation.core.tween(com.coinepro.hq.designsystem.Motion.SHORT, easing = com.coinepro.hq.designsystem.Motion.Exit),
     )
+
+/** Whether this screen is on screen now (its lifecycle at least STARTED): a page's own polling stops while the app is in the background
+ *  (the background link keeps the process alive) and starts again on return. */
+@Composable
+fun rememberOnScreen(): Boolean {
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    val state by owner.lifecycle.currentStateFlow.collectAsState()
+    return state.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
+}

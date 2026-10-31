@@ -95,3 +95,18 @@ data class FindingFix(
 /** §28.3 `POST /client/errors` answer: how many entries the hub kept (a repeated one is not stored twice). */
 @Serializable
 data class ClientErrorsOut(val accepted: Int = 0)
+
+// ------------------------------------------------------- review fixes --
+/** ⟨1.7.4⟩ `GET /work/{id}/tree-events`: a work event (`work.<kind>`) or an agent run's step (`run.step`) anywhere in the tree. */
+@kotlinx.serialization.Serializable
+data class TreeEvent(
+    val id: String = "",
+    val at: String = "",
+    val kind: String = "",
+    val workId: String = "",
+    val workRef: String = "",
+    val depth: Int = 0,
+    val actorKind: String = "",
+    val actorCode: String = "",
+    val data: JsonObject = JsonObject(emptyMap()),
+)

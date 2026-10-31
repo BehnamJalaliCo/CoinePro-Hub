@@ -159,7 +159,7 @@ fun HoldCard(h: LegalHold, m: ArchiveMaps, highlight: Boolean = false, onChanged
         ErrorLine(failure)
         if (active) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             HqButton("آزاد کن", { asking = true }, size = BtnSize.SM, icon = DivanIcon.LOCK)
-            Text("آزاد کردن فقط با passkey توست.", style = Divan.type.micro, color = c.textMuted)
+            Text("آزاد کردن فقط با اثر انگشت توست.", style = Divan.type.micro, color = c.textMuted)
         }
     }
     if (asking) AlertDialog(
@@ -175,11 +175,11 @@ fun HoldCard(h: LegalHold, m: ArchiveMaps, highlight: Boolean = false, onChanged
                         else -> "${h.records} سند زیر آن دوباره تغییرپذیر میشوند و اگر نگهداری‌شان تمام شده باشد، در کارت امحای بعدی میآیند."
                     },
                 )
-                append(" passkey بسته به "); fig(h.ref); append(" است.")
+                append(" اثر انگشت بسته به "); fig(h.ref); append(" است.")
             }, style = Divan.type.small, color = c.textSecondary)
         },
         confirmButton = {
-            HqButton("با passkey آزاد کن", {
+            HqButton("با اثر انگشت آزاد کن", {
                 failure = null
                 action.run(onError = { asking = false; failure = it }) {
                     env.api.releaseLegalHold(h.ref) { a, t -> env.auth.stepUp(act, a, t) }
@@ -337,7 +337,7 @@ fun HoldsScreen(focus0: String? = null, newFor: String? = null) {
         }
         item {
             Text(
-                "سند زیر توقیف جز نسخه‌ی تازه هیچ تغییری نمیپذیرد و حتی اگر نگهداری‌اش تمام شده باشد، از کارت امحا رد میشود. مشاور حقوقی با پرونده‌اش توقیف میگذارد؛ آزاد کردن فقط با passkey توست.",
+                "سند زیر توقیف جز نسخه‌ی تازه هیچ تغییری نمیپذیرد و حتی اگر نگهداری‌اش تمام شده باشد، از کارت امحا رد میشود. مشاور حقوقی با پرونده‌اش توقیف میگذارد؛ آزاد کردن فقط با اثر انگشت توست.",
                 style = Divan.type.small, color = c.textSecondary,
             )
         }
@@ -350,7 +350,7 @@ fun HoldsScreen(focus0: String? = null, newFor: String? = null) {
         }
         holdList(q.data, q.error, xs, arch.m, focus, { q.refresh() })
     }
-    if (making) HqSheet({ making = false }, "توقیف تازه", sub = "سندهای زیر توقیف جز نسخه‌ی تازه تغییری نمیپذیرند و تا آزاد شدن امحا نمیشوند. آزاد کردن فقط با passkey توست.") {
+    if (making) HqSheet({ making = false }, "توقیف تازه", sub = "سندهای زیر توقیف جز نسخه‌ی تازه تغییری نمیپذیرند و تا آزاد شدن امحا نمیشوند. آزاد کردن فقط با اثر انگشت توست.") {
         NewHoldContent(newFor, { making = false }) { ref -> making = false; focus = ref; nav.go("archive-holds/$ref") }
     }
 }

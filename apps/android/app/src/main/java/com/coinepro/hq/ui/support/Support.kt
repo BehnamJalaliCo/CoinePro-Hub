@@ -153,7 +153,7 @@ fun SupportScreen(tab0: String = "queue") {
                     StatTile("کانال روشن", real.count { it.state == "live" }.toString(), Modifier.weight(1f), sub = "از ${real.size} کانال", figure = false)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    StatTile("مقاله‌ی منتظر تأیید", pd.size.toString(), Modifier.weight(1f), sub = "تأیید با passkey", figure = false)
+                    StatTile("مقاله‌ی منتظر تأیید", pd.size.toString(), Modifier.weight(1f), sub = "تأیید با اثر انگشت", figure = false)
                     StatTile("آزمون سایه‌ی قبول", sd.count { it.pass }.toString(), Modifier.weight(1f), sub = "از ${sd.size} شرکت آزموده", figure = false)
                 }
             }
@@ -309,14 +309,14 @@ private fun ConversationsTab() {
 private fun ChannelsTab(q: QueryHandle<List<SupportChannel>>, shadow: QueryHandle<List<ShadowReport>>) {
     val c = Divan.colors
     val companies = rememberCompanies()
-    val cards = rememberQuery("decisions:pending", "decisions") { decisions("pending", limit = 100) }
+    val cards = rememberQuery("decisions:pending:100", "decisions") { decisions("pending", limit = 100) }
     fun cardFor(ch: SupportChannel): String? = cards.data?.items?.firstOrNull { d ->
         d.kind == "support_go_live" && (d.payload["company"] as? kotlinx.serialization.json.JsonPrimitive)?.content == ch.company &&
             (d.payload["channel"] as? kotlinx.serialization.json.JsonPrimitive)?.content == ch.kind
     }?.ref
     val list = q.data
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("توقف همیشه امن است و passkey نمیخواهد. روشن شدن بار اول فقط با کارت شروع (go-live) بعد از قبولی آزمون سایه است؛ کانالی که قبلاً روشن بوده با passkey دوباره روشن میشود.", style = Divan.type.small, color = c.textSecondary)
+        Text("توقف همیشه امن است و اثر انگشت نمیخواهد. روشن شدن بار اول فقط با کارت شروع (go-live) بعد از قبولی آزمون سایه است؛ کانالی که قبلاً روشن بوده با اثر انگشت دوباره روشن میشود.", style = Divan.type.small, color = c.textSecondary)
         when {
             list == null && q.error != null -> ErrorBlock(q.error, { q.refresh() })
             list == null -> Skeleton(Modifier.fillMaxWidth().height(240.dp), radius = 14.dp)
@@ -373,7 +373,7 @@ private fun ChannelCard(ch: SupportChannel, report: ShadowReport?, card: String?
                 ch.autoSend, { v -> if (v != ch.autoSend && !action.busy) patch(autoSend = v) }, Modifier.fillMaxWidth(),
             )
             Text(
-                (AUTO_SEND[ch.autoSend]?.second ?: "") + if (widens(ch, "kb_grounded", false)) " گشادتر کردن با passkey است؛ تنگ‌تر کردن نه." else "",
+                (AUTO_SEND[ch.autoSend]?.second ?: "") + if (widens(ch, "kb_grounded", false)) " گشادتر کردن با اثر انگشت است؛ تنگ‌تر کردن نه." else "",
                 style = Divan.type.micro, color = c.textMuted,
             )
         }
@@ -525,10 +525,10 @@ private fun KbSheet(a: KbArticle, onClose: () -> Unit) {
             { m -> Fact("انقضا", until(a.expiresAt), m) },
         ), perRow = 3)
         Text(buildAnnotatedString {
-            append("مقاله‌ی تأییدشده همان چیزی است که بی‌تو به مشتری میرود؛ پس تأییدش با passkey و روی همین نسخه است (")
+            append("مقاله‌ی تأییدشده همان چیزی است که بی‌تو به مشتری میرود؛ پس تأییدش با اثر انگشت و روی همین نسخه است (")
             fig("sha256 ${a.sha256.take(12)}…"); append(").")
         }, style = Divan.type.micro, color = c.textMuted)
-        if (a.status == "proposed") HqButton("تأیید با passkey", {
+        if (a.status == "proposed") HqButton("تأیید با اثر انگشت", {
             action.go(toasts) {
                 env.api.approveKb(a) { x, t -> env.auth.stepUp(act, x, t) }
                 env.cache.invalidate("support")
@@ -570,7 +570,7 @@ private fun KbPropose(company0: String?, onClose: () -> Unit) {
     }
     val valid = body != null && body.questionFa.length >= 3 && body.answerMd.length >= 5 && (kind != "policy" || key.isNotBlank()) &&
         parsedLinks.all { Regex("^https://\\S+$").matches(it.url) } && parsedCodes.all { it.code.isNotBlank() }
-    HqSheet(onClose, "مقاله‌ی تازه", sub = "پیشنهاد میشود؛ تا تأیید تو با passkey، به هیچ مشتری‌ای نمیرسد.") {
+    HqSheet(onClose, "مقاله‌ی تازه", sub = "پیشنهاد میشود؛ تا تأیید تو با اثر انگشت، به هیچ مشتری‌ای نمیرسد.") {
         Labelled("شرکت") { CompanyChips(company, { company = it }, all = false) }
         Labelled("نوع") { ChipRow { for ((k, fa) in KB_KIND) FilterChip(fa, kind == k, { kind = k }) } }
         if (kind == "policy") Labelled("کلید سیاست") { HqTextField(key, { key = it.trim() }, "vip.min_balance", Modifier.fillMaxWidth(), maxLength = 80, figure = true) }
@@ -678,7 +678,7 @@ private fun ShadowCard(company: String, name: String, r: ShadowReport?) {
                 ))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Fig(r.suite, style = Divan.type.figureSmall, color = c.textMuted)
-                    Text(jDateTime(r.at), style = Divan.type.micro, color = c.textMuted)
+                    Text(com.coinepro.hq.designsystem.timesFig(jDateTime(r.at)), style = Divan.type.micro, color = c.textMuted)
                 }
                 if (r.disagreements.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("اختلاف‌ها (در صف آموزش تو)", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)

@@ -36,15 +36,19 @@ class Query<T> internal constructor(
     internal val waiting: Boolean get() = flow.value.let { it.error?.transient == true || (it.loading && awaiting) }
     @Volatile private var awaiting = false
 
+    /** An invalidation arrived while a fetch was under way: that fetch may predate the change, so one more follows it. */
+    @Volatile private var dirty = false
+
     fun refresh() {
-        if (job?.isActive == true) return
+        if (job?.isActive == true) { dirty = true; return }
+        dirty = false
         job = scope.launch {
             flow.update { it.copy(loading = true) }
             try {
                 val v = fetch()
                 awaiting = false
-                fetchedAt = SystemClock.elapsedRealtime()
-                flow.value = QueryState(v, null, false)
+                fetchedAt = if (dirty) 0L else SystemClock.elapsedRealtime()
+                flow.value = QueryState(v, null, loading = dirty)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ApiException) {
@@ -54,11 +58,12 @@ class Query<T> internal constructor(
             } catch (e: Exception) {
                 flow.update { it.copy(error = ApiException.unexpected(-1), loading = false) }
             }
-        }
+        }.also { j -> j.invokeOnCompletion { c -> if (c == null && dirty) scope.launch { refresh() } } }
     }
 
     /** Refetches when older than [maxAgeMs] or never fetched. */
     fun ensureFresh(maxAgeMs: Long) {
+        if (job?.isActive == true) return
         if (fetchedAt == 0L || SystemClock.elapsedRealtime() - fetchedAt > maxAgeMs) refresh()
     }
 
@@ -85,9 +90,23 @@ class QueryCache(private val scope: CoroutineScope, private val hub: com.coinepr
         }
     }
 
+    private val types = ConcurrentHashMap<String, String>()
+
+    /**
+     * The entry for [key]. [type] names the value's type: a key already serving another type is a bug (two screens sharing a key for
+     * two endpoints); a debug build stops at once, a release build keeps the two apart instead of crashing on a cast.
+     */
     @Suppress("UNCHECKED_CAST")
-    fun <T> get(key: String, tags: Set<String>, fetch: suspend () -> T): Query<T> =
-        entries.getOrPut(key) { Query(key, tags + key.substringBefore(':'), scope, fetch) { hub?.outage == true } } as Query<T>
+    fun <T> get(key: String, tags: Set<String>, type: String? = null, fetch: suspend () -> T): Query<T> {
+        val k = if (type == null) key else {
+            val seen = types.putIfAbsent(key, type) ?: type
+            if (seen == type) key else {
+                check(!com.coinepro.hq.BuildConfig.DEBUG) { "query key '$key' serves $seen and $type" }
+                "$key|$type"
+            }
+        }
+        return entries.getOrPut(k) { Query(k, tags + key.substringBefore(':'), scope, fetch) { hub?.outage == true } } as Query<T>
+    }
 
     /** The hub is back: what waited for it fetches again (on screen now, the rest when next shown). */
     fun resume() {
@@ -106,6 +125,23 @@ class QueryCache(private val scope: CoroutineScope, private val hub: com.coinepr
         }
     }
 
+    private val soon = HashMap<Long, MutableSet<String>>()
+
+    /** [invalidate] for the stream: the tags of a burst are gathered for [windowMs] and refreshed once (a user's own change still uses
+     *  [invalidate], at once). */
+    fun invalidateSoon(vararg tags: String, windowMs: Long = 2_000L) {
+        synchronized(soon) {
+            val pending = soon[windowMs]
+            if (pending != null) { pending += tags; return }
+            soon[windowMs] = tags.toMutableSet()
+        }
+        scope.launch {
+            kotlinx.coroutines.delay(windowMs)
+            val t = synchronized(soon) { soon.remove(windowMs).orEmpty().toTypedArray() }
+            if (t.isNotEmpty()) invalidate(*t)
+        }
+    }
+
     /** After the app returns to the foreground: everything on screen refetches. */
     fun refreshObserved() {
         for (q in entries.values) {
@@ -114,5 +150,5 @@ class QueryCache(private val scope: CoroutineScope, private val hub: com.coinepr
         }
     }
 
-    fun clear() = entries.clear()
+    fun clear() { entries.clear(); types.clear() }
 }

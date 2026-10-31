@@ -134,7 +134,7 @@ fun VoiceOrderBody(onDismiss: () -> Unit, listen: Boolean = true, typed: Boolean
     val nav = LocalNav.current
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val c = Divan.colors
-    val orders = rememberQuery("orders", "orders", maxAgeMs = 10_000) { orders().items }
+    val orders = rememberQuery("voice-orders", "orders", maxAgeMs = 10_000) { orders().items }
     val action = rememberAction()
     var phase by rememberSaveable { mutableStateOf(if (typed || text0.isNotBlank()) "review" else "ready") }
     var text by rememberSaveable { mutableStateOf(text0) }

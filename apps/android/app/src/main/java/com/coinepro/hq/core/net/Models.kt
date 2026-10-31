@@ -432,6 +432,17 @@ data class BudgetIn(val tokens: Long? = null, val usd: String? = null)
 @Serializable
 data class ScheduleIn(val rrule: String, val timezone: String = "Asia/Tehran")
 
+/** §5 a recurring work's escrow (the hub requires it with `kind: recurring`): what each run may do and spend, and until when. */
+@Serializable
+data class EscrowIn(
+    /** A0..A2 only; reading and drafting (A0, A1) as the sheet sends it (always written). */
+    val allowedActionClasses: List<String>,
+    val tokenCapPerRun: Long,
+    /** Dollars a month, as a decimal string. */
+    val usdCapPerMonth: String,
+    val expiresAt: String,
+)
+
 @Serializable
 data class WorkCreate(
     val company: String,
@@ -449,6 +460,8 @@ data class WorkCreate(
     val mode: String? = null,
     /** ⟨1.9⟩ a council that makes images or a video (`image` · `video`). */
     val media: String? = null,
+    /** Recurring work only (required by the hub). */
+    val escrow: EscrowIn? = null,
 )
 
 @Serializable

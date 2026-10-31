@@ -6,6 +6,7 @@ import com.coinepro.hq.core.net.Api
 import com.coinepro.hq.core.net.ApiException
 import com.coinepro.hq.core.net.EmployeeRef
 import com.coinepro.hq.core.net.Run
+import com.coinepro.hq.core.net.StepAction
 import com.coinepro.hq.core.net.StreamEvent
 import com.coinepro.hq.core.net.Work
 import com.coinepro.hq.core.net.WorkEvent
@@ -281,9 +282,38 @@ fun noticeOf(e: StreamEvent, orders: Map<String, OrderBrief>, told: MutableSet<S
 private fun kotlinx.serialization.json.JsonElement?.str(): String? = (this as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
 
 // -------------------------------------------------------------------- api --
-/** The owner's orders, newest first. The API has no filter by creator (contract §4 lists none), so the newest work is read and the
- *  owner's own kept. */
-suspend fun Api.ownerOrders(limit: Int = 100): List<Work> = work(limit = limit).items.filter(::isOwnerOrder)
+/** The owner's orders, newest first: `created_by=owner` (⟨1.7.4⟩), up to [pages] pages of [limit]; kept to the owner's own in case a
+ *  hub ignores the filter. */
+suspend fun Api.ownerOrders(limit: Int = 100, pages: Int = 2): List<Work> {
+    val out = mutableListOf<Work>()
+    var cursor: String? = null
+    repeat(pages) {
+        val p = work(limit = limit, createdBy = "owner", cursor = cursor)
+        out += p.items.filter(::isOwnerOrder)
+        cursor = p.nextCursor ?: return out.distinctBy { it.id }
+    }
+    return out.distinctBy { it.id }
+}
+
+/** The tree's events by work ref (work events), and its runs' steps by work ref (as runs whose steps are known), from tree-events. */
+internal fun splitTree(items: List<com.coinepro.hq.core.net.TreeEvent>, company: String): Pair<Map<String, List<WorkEvent>>, Map<String, List<Run>>> {
+    val events = items.filter { it.kind.startsWith("work.") }.groupBy { it.workRef }.mapValues { (_, l) ->
+        l.mapIndexed { i, e -> WorkEvent(e.id.filter(Char::isDigit).takeLast(18).toLongOrNull() ?: i.toLong(), e.kind.removePrefix("work."), e.at, e.actorCode, e.actorKind, e.data) }
+    }
+    val runs = items.filter { it.kind == "run.step" }.groupBy { it.workRef }.mapValues { (ref, l) ->
+        l.groupBy { it.data["run_id"].str() ?: "" }.map { (id, steps) ->
+            val detail = steps.map { s ->
+                val actions = (s.data["actions"] as? kotlinx.serialization.json.JsonArray).orEmpty().mapNotNull { a ->
+                    val o = a as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+                    StepAction(o["tool"].str() ?: return@mapNotNull null, o["outcome"].str().orEmpty(), o["ref"].str())
+                }
+                com.coinepro.hq.core.net.AgentStep(s.data["n"].str()?.toIntOrNull() ?: 0, s.at, s.data["summary_fa"].str().orEmpty(), actions)
+            }
+            Run(id = id, employee = steps.first().actorCode, company = company, workRef = ref, state = "running", queuedAt = steps.first().at, startedAt = steps.first().at, stepsDetail = detail)
+        }
+    }
+    return events to runs
+}
 
 /**
  * One order and what is under it: its detail, its children's details (in parallel), and with [full] its events and runs and its children's.
@@ -297,10 +327,15 @@ suspend fun Api.orderTrack(id: String, full: Boolean = false): OrderTrack = coro
     val events = if (needEvents) async { workEvents(root.id).items } else null
     val runs = if (full) async { runCatching { workRuns(root.id) }.getOrDefault(emptyList()) } else null
     val kidList = kids.awaitAll().filterNotNull()
-    // On its own page, every descendant's events and runs: the children and the grandchildren (delegation stops at depth 2).
-    val below = if (full) kidList.map { it.id to it.ref } + kidList.flatMap { k -> k.children.map { it.id to it.ref } } else emptyList()
-    val kidEvents = below.map { (id, ref) -> async { ref to runCatching { workEvents(id).items }.getOrDefault(emptyList()) } }.awaitAll().toMap()
-    val kidRuns = below.map { (id, ref) -> async { ref to runCatching { workRuns(id) }.getOrDefault(emptyList()) } }.awaitAll().toMap()
+    // On its own page, every descendant's events and runs (the children and the grandchildren; delegation stops at depth 2): one
+    // tree-events call (⟨1.7.4⟩), or, from a hub without it, one call per descendant.
+    val tree = if (full) runCatching { treeEvents(root.id).items }.getOrNull() else null
+    val below = if (full && tree == null) kidList.map { it.id to it.ref } + kidList.flatMap { k -> k.children.map { it.id to it.ref } } else emptyList()
+    val split = tree?.let { splitTree(it, root.company) }
+    val kidEvents = split?.first?.filterKeys { it != root.ref }
+        ?: below.map { (id, ref) -> async { ref to runCatching { workEvents(id).items }.getOrDefault(emptyList()) } }.awaitAll().toMap()
+    val kidRuns = split?.second?.filterKeys { it != root.ref }
+        ?: below.map { (id, ref) -> async { ref to runCatching { workRuns(id) }.getOrDefault(emptyList()) } }.awaitAll().toMap()
     val ev = events?.await().orEmpty()
     val fromEvents = ev.filter { it.kind == "delivered" }.mapNotNull { it.data["deliverable"].str() }
     val outs = if (fromEvents.isNotEmpty() || root.deliverableIds.isEmpty()) fromEvents else try {
@@ -309,4 +344,25 @@ suspend fun Api.orderTrack(id: String, full: Boolean = false): OrderTrack = coro
         emptyList()
     }
     OrderTrack(root, kidList, ev, runs?.await().orEmpty(), kidEvents, kidRuns, outs.distinct())
+}
+
+/** A recurring order's escrow, as the new-order sheet offers it: each run up to [tokens] tokens, up to [usd] dollars a month, reading
+ *  and drafting only (A0, A1), for [days] days from [now]. The hub refuses a recurring order without one. */
+fun recurringEscrow(tokens: Long, usd: Int, days: Long = 90, now: java.time.Instant = com.coinepro.hq.core.format.HqClock.now()): com.coinepro.hq.core.net.EscrowIn =
+    com.coinepro.hq.core.net.EscrowIn(
+        allowedActionClasses = listOf("A0", "A1"), tokenCapPerRun = tokens, usdCapPerMonth = usd.toString(),
+        expiresAt = now.plus(java.time.Duration.ofDays(days)).truncatedTo(java.time.temporal.ChronoUnit.SECONDS).toString(),
+    )
+
+/** The escrow choices of the sheet: tokens per run and dollars a month. */
+val ESCROW_TOKENS = listOf(100_000L, 300_000L, 1_000_000L)
+val ESCROW_USD = listOf(5, 20, 50)
+
+/** Whether a `work.created` may be an order of the owner's: the creator when the event names it, else a top-level work (depth 0) that is
+ *  not a recurrence's occurrence. */
+fun orderCreated(e: StreamEvent): Boolean {
+    e.data["created_by"].str()?.let { return it == "owner" }
+    if (e.data["recurrence_of"] != null) return false
+    val depth = e.data["depth"].str()?.toIntOrNull() ?: return e.data["kind"].str() != "knowledge_transfer"
+    return depth == 0
 }
