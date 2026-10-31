@@ -11,7 +11,9 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.coinepro.hq.core.AppGraph
@@ -43,6 +45,7 @@ fun HqRoot(graph: AppGraph, night: Boolean, enrolToken: String?, onEnrolConsumed
         if (!signedIn) {
             env.cache.clear()
             graph.offline.clear()
+            if (!env.demo) com.coinepro.hq.device.CartableWidget.clear(view.context)
         }
     }
     CompositionLocalProvider(LocalEnv provides env, LocalToasts provides toasts) {
@@ -50,8 +53,17 @@ fun HqRoot(graph: AppGraph, night: Boolean, enrolToken: String?, onEnrolConsumed
             when {
                 enrolToken != null -> EnrolScreen(enrolToken, onDone = onEnrolConsumed)
                 !signedIn -> LoginScreen(graph)
-                locked && !env.demo -> com.coinepro.hq.ui.owner.LockScreen(graph)
-                else -> Shell(graph, launch, onLaunchConsumed)
+                else -> {
+                    // The lock covers the shell instead of replacing it: the pages, an open sheet, a half-written text and a picker's
+                    // pending result are all still there once it opens.
+                    val hide = locked && !env.demo
+                    Box(Modifier.fillMaxSize().then(if (hide) Modifier.clearAndSetSemantics { } else Modifier)) { Shell(graph, launch, onLaunchConsumed) }
+                    if (hide) Box(
+                        Modifier.fillMaxSize().background(Divan.colors.page).pointerInput(Unit) {
+                            awaitPointerEventScope { while (true) awaitPointerEvent().changes.forEach { it.consume() } }
+                        },
+                    ) { com.coinepro.hq.ui.owner.LockScreen(graph) }
+                }
             }
             ToastHost(toasts)
         }

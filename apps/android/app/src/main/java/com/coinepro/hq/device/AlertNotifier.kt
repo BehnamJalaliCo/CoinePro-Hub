@@ -52,7 +52,8 @@ class AlertNotifier(private val context: Context, private val lockOn: () -> Bool
                 .setGroup(groupOf(alert.channel))
                 .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
                 .addExtras(Bundle().apply { putString(EXTRA_NID, alert.notificationId); putString(EXTRA_KEY, alert.key) })
-            if (lockOn()) b.setVisibility(NotificationCompat.VISIBILITY_PRIVATE).setPublicVersion(publicVersion(alert.channel))
+            // The lock screen shows only «پیام تازه از ستاد» (0.6.0's promise), whatever the app lock and the phone's setting.
+            b.setVisibility(NotificationCompat.VISIBILITY_PRIVATE).setPublicVersion(publicVersion(alert.channel))
             NotificationManagerCompat.from(context).notify(alert.key, ALERT_ID, b.build())
             summarize(alert.channel)
         }
@@ -130,7 +131,7 @@ class AlertNotifier(private val context: Context, private val lockOn: () -> Bool
             .setSilent(true)
             .setAutoCancel(true)
             .setContentIntent(open(context, listRouteOf(channel), null, "summary:${channel.id}"))
-        if (lockOn()) b.setVisibility(NotificationCompat.VISIBILITY_PRIVATE).setPublicVersion(publicVersion(channel))
+        b.setVisibility(NotificationCompat.VISIBILITY_PRIVATE).setPublicVersion(publicVersion(channel))
         NotificationManagerCompat.from(context).notify(group, SUMMARY_ID, b.build())
     }
 
@@ -199,7 +200,7 @@ class AlertNotifier(private val context: Context, private val lockOn: () -> Bool
 
         /** The app opened on [route] (the ref router decides the page); [notificationId], when there is one, is marked read. */
         fun open(context: Context, route: String?, notificationId: String?, key: String): PendingIntent {
-            val i = Intent(context, MainActivity::class.java)
+            val i = LaunchKey.sign(context, Intent(context, MainActivity::class.java))
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 .apply {
                     route?.let { putExtra(MainActivity.EXTRA_OPEN, it) }

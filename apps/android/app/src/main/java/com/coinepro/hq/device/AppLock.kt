@@ -32,13 +32,25 @@ class AppLock(private val context: Context, private val prefs: Prefs) : DefaultL
         if (!on) state.value = false
     }
 
+    /** Until when a return does not lock: the app itself opened the camera, a picker or a share sheet. */
+    @Volatile private var returningUntil = 0L
+
+    /** The app is about to open another app's screen for the owner (camera, file picker, share): its return keeps the app open, so the
+     *  half-written message and the picked file are not lost behind the lock. */
+    fun leavingForResult() {
+        returningUntil = SystemClock.elapsedRealtime() + PICKER_MS
+    }
+
     override fun onStop(owner: LifecycleOwner) {
         stoppedAt = SystemClock.elapsedRealtime()
     }
 
     override fun onStart(owner: LifecycleOwner) {
         val at = stoppedAt ?: return
-        if (enabled() && SystemClock.elapsedRealtime() - at > GRACE_MS) state.value = true
+        val now = SystemClock.elapsedRealtime()
+        val picker = now < returningUntil
+        returningUntil = 0L
+        if (enabled() && !picker && now - at > GRACE_MS) state.value = true
     }
 
     fun unlock(activity: Activity, onError: (String) -> Unit) {
@@ -58,5 +70,7 @@ class AppLock(private val context: Context, private val prefs: Prefs) : DefaultL
 
     private companion object {
         const val GRACE_MS = 60_000L
+        /** How long a picker or the camera may take before coming back locks after all. */
+        const val PICKER_MS = 10 * 60_000L
     }
 }

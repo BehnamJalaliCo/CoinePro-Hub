@@ -26,6 +26,14 @@ class CartableWidget : AppWidgetProvider() {
         private const val K_URGENT = "urgent"
         private const val K_AT = "at"
 
+        /** Signed out: the counts go (the widget asks to open the app once). */
+        fun clear(context: Context) {
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear().apply()
+            val manager = AppWidgetManager.getInstance(context)
+            val ids = manager.getAppWidgetIds(ComponentName(context, CartableWidget::class.java))
+            if (ids.isNotEmpty()) render(context, manager, ids, -1, 0, null)
+        }
+
         fun update(context: Context, pending: Int, urgent: Int) {
             val at = Instant.now().toString()
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putInt(K_PENDING, pending).putInt(K_URGENT, urgent).putString(K_AT, at).apply()
@@ -36,7 +44,7 @@ class CartableWidget : AppWidgetProvider() {
 
         private fun render(context: Context, manager: AppWidgetManager, ids: IntArray, pending: Int, urgent: Int, at: String?) {
             val open = PendingIntent.getActivity(
-                context, 1, Intent(context, MainActivity::class.java).putExtra(MainActivity.EXTRA_OPEN, "cartable").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+                context, 1, LaunchKey.sign(context, Intent(context, MainActivity::class.java)).putExtra(MainActivity.EXTRA_OPEN, "cartable").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
             val v = RemoteViews(context.packageName, R.layout.widget_cartable).apply {

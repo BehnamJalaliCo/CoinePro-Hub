@@ -204,6 +204,15 @@ class AppGraph(context: Context) {
             net = if (demo) com.coinepro.hq.core.link.AlwaysOnline else network, store = if (demo) null else linkStore,
         )
         watchHub(hub, api, scope, if (demo) null else errors)
+        // The home-screen widget follows the cartable with the app closed too: a card's event (the alert lane carries them) reads the
+        // counts once its burst is over.
+        if (!demo) scope.launch {
+            stream.events.collectLatest { e ->
+                if (!e.type.startsWith("decision.")) return@collectLatest
+                delay(3_000)
+                runCatching { api.inbox() }.onSuccess { i -> com.coinepro.hq.device.CartableWidget.update(app, i.decisionsPending, i.notifications["urgent"] ?: 0) }
+            }
+        }
         api.onExpired = { scope.launch { linkRef?.expired() } }
         return Env(
             api, Auth(api, tokens, demo), cache, stream, MediaKit(app, api), demo, scope,

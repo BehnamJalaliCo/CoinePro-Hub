@@ -176,14 +176,32 @@ private class LiveReply {
     var state by mutableStateOf(LiveState.IDLE)
     var text by mutableStateOf("")
     var source: EventSource? = null
+    /** The fallback's refetches and the no-news watchdog, stopped when the reply is in. */
+    var jobs: List<kotlinx.coroutines.Job> = emptyList()
+    /** When the owner's message went (elapsed ms); a reply stored after it ends the wait, whichever way it arrives. */
+    var since: Long = 0L
+    @Volatile var lastNews: Long = 0L
+
+    fun end(next: LiveState = LiveState.IDLE) {
+        source?.cancel()
+        source = null
+        jobs.forEach { it.cancel() }
+        jobs = emptyList()
+        state = next
+    }
 }
+
+/** No word for this long while «در حال فکر…»: the wait ends quietly (the stored reply still arrives through the thread). */
+private const val LIVE_QUIET_MS = 90_000L
 
 /** Watch the agent's reply while it is written (contract §16.3): `reply.delta` chunks until `reply.done`.
  *  Without the live endpoint, polls the thread for the stored reply for up to two minutes. */
-private suspend fun startLive(scope: CoroutineScope, env: Env, code: String, live: LiveReply) {
-    live.source?.cancel()
-    live.state = LiveState.THINKING
+private suspend fun startLive(scope: CoroutineScope, env: Env, code: String, live: LiveReply, opened: kotlinx.coroutines.CompletableDeferred<Unit>? = null) {
+    live.end(LiveState.THINKING)
     live.text = ""
+    live.since = android.os.SystemClock.elapsedRealtime()
+    live.lastNews = live.since
+    if (env.demo) opened?.complete(Unit)
     if (env.demo) {
         val full = "دریافت شد. در حالت نمایشی پاسخ واقعی ساخته نمیشود؛ روی سرور، جواب واقعی با ارجاع‌ها و شاهدش میاید."
         delay(900)
@@ -195,13 +213,24 @@ private suspend fun startLive(scope: CoroutineScope, env: Env, code: String, liv
     }
     var got = false
     val finish = {
-        live.source?.cancel()
+        live.end()
         env.cache.invalidate("messages", "threads")
-        live.state = LiveState.IDLE
+    }
+    // Ninety seconds without a word: the wait ends, never a bubble left thinking for ever.
+    live.jobs = live.jobs + scope.launch {
+        while (live.state == LiveState.THINKING || live.state == LiveState.WRITING) {
+            delay(5_000)
+            if (android.os.SystemClock.elapsedRealtime() - live.lastNews > LIVE_QUIET_MS) { finish(); break }
+        }
     }
     val req = Request.Builder().url(env.api.url("/threads/${java.net.URLEncoder.encode(code, "UTF-8")}/live")).header("Accept", "text/event-stream").build()
     live.source = EventSources.createFactory(env.api.streamClient).newEventSource(req, object : EventSourceListener() {
+        override fun onOpen(eventSource: EventSource, response: Response) {
+            opened?.complete(Unit)
+        }
+
         override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
+            live.lastNews = android.os.SystemClock.elapsedRealtime()
             when (type) {
                 "reply.delta" -> {
                     got = true
@@ -216,9 +245,11 @@ private suspend fun startLive(scope: CoroutineScope, env: Env, code: String, liv
 
         override fun onFailure(eventSource: EventSource, t: Throwable?, response: Response?) {
             response?.close()
+            opened?.complete(Unit)
             if (got) return finish()
             live.state = LiveState.IDLE
-            scope.launch { repeat(40) { delay(3_000); env.cache.invalidate("messages", "threads") } }
+            // No live endpoint: the thread is read a few times, slower and slower, until the reply is in (the page stops it then).
+            live.jobs = live.jobs + scope.launch { for (wait in listOf(3_000L, 5_000L, 8_000L, 12_000L, 20_000L, 30_000L, 45_000L)) { delay(wait); env.cache.invalidate("messages", "threads") } }
         }
     })
 }
@@ -255,7 +286,7 @@ private fun Bubble(m: Message, agentKind: String, onResolve: (Message) -> Unit) 
                     DIcon(DivanIcon.MIC, size = 12.dp, tint = c.textMuted)
                     Text("ویس", style = Divan.type.micro, color = c.textMuted)
                 }
-                Text(jTime(m.createdAt), style = Divan.type.micro, color = c.textMuted)
+                Text(com.coinepro.hq.designsystem.timesFig(jTime(m.createdAt)), style = Divan.type.micro, color = c.textMuted)
                 Fig(m.ref, style = Divan.type.figureSmall, color = c.textMuted)
                 for ((k, v) in m.links) {
                     val ref = (v as? JsonPrimitive)?.contentOrNull ?: continue
@@ -320,7 +351,14 @@ fun ChatScreen(
     val list = rememberLazyListState()
     val items = q.data?.items.orEmpty()
     val lastRef = items.lastOrNull()?.ref
-    DisposableEffect(code) { onDispose { live.source?.cancel() } }
+    DisposableEffect(code) { onDispose { live.end() } }
+    // The reply is in the thread (from the live answer, the main stream or a refetch): the wait is over, however it arrived.
+    val lastAgent = items.lastOrNull()?.takeIf { it.author.kind != "owner" }?.ref
+    LaunchedEffect(lastAgent) {
+        if (lastAgent != null && live.state != LiveState.IDLE && live.state != LiveState.FAILED &&
+            android.os.SystemClock.elapsedRealtime() - live.since > 300 && items.last().let { m -> items.indexOfLast { it.author.kind == "owner" } < items.indexOf(m) }
+        ) live.end()
+    }
     LaunchedEffect(lastRef) {
         if (lastRef != null) {
             runCatching { env.api.markRead(code, lastRef) }
@@ -331,10 +369,14 @@ fun ChatScreen(
 
     suspend fun send(body: String, attachments: List<String>) {
         try {
+            // Listening first: a reply faster than the connection is not missed (the live endpoint plays from the moment it is opened).
+            val opened = kotlinx.coroutines.CompletableDeferred<Unit>()
+            scope.launch { startLive(scope, env, code, live, opened) }
+            kotlinx.coroutines.withTimeoutOrNull(3_000) { opened.await() }
             env.api.send(code, body, attachments, mode)
             env.cache.invalidate("messages", "threads")
-            scope.launch { startLive(scope, env, code, live) }
         } catch (e: com.coinepro.hq.core.net.ApiException) {
+            live.end()
             toasts.error(e.messageFa)
             throw e
         }

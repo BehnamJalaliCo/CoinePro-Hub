@@ -33,7 +33,9 @@ class OfflineCache(context: Context) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val req = chain.request()
         val path = req.url.encodedPath.removePrefix("/api/v1")
-        val keep = req.method == "GET" && KEEP.any { path == it || path.startsWith("$it/") || path.startsWith("$it?") }
+        // A search or a further page is not kept: only what a screen shows first, so the copy stays small.
+        val keep = req.method == "GET" && KEEP.any { path == it || path.startsWith("$it/") || path.startsWith("$it?") } &&
+            req.url.queryParameter("cursor") == null && req.url.queryParameter("q") == null
         if (!keep) return chain.proceed(req)
         val file = File(dir, Api.sha256(req.url.toString()))
         val res = try {
@@ -47,8 +49,18 @@ class OfflineCache(context: Context) : Interceptor {
         state.value = null
         if (res.code != 200) return res
         val body = res.peekBody(MAX_BYTES + 1).bytes()
-        if (body.size <= MAX_BYTES) runCatching { write(file, body) }
+        if (body.size <= MAX_BYTES) runCatching { write(file, body); prune() }
         return res
+    }
+
+    @Volatile private var writes = 0
+
+    /** At most [MAX_TOTAL] bytes on the phone: the oldest answers go first (checked every few writes). */
+    private fun prune() {
+        if (++writes % 20 != 0) return
+        val files = dir.listFiles()?.sortedByDescending { it.lastModified() } ?: return
+        var total = 0L
+        for (f in files) { total += f.length(); if (total > MAX_TOTAL) f.delete() }
     }
 
     fun clear() {
@@ -90,6 +102,8 @@ class OfflineCache(context: Context) : Interceptor {
         const val ALIAS = "hq-offline"
         const val TRANSFORM = "AES/GCM/NoPadding"
         const val MAX_BYTES = 512L * 1024
+        /** The whole offline copy's ceiling. */
+        const val MAX_TOTAL = 20L * 1024 * 1024
         /** What the owner reads; never files, the stream or anything sealed. */
         val KEEP = listOf(
             "/meta", "/inbox/summary", "/owner/away-summary", "/owner/presence", "/owner/hiring", "/decisions", "/deliverables", "/companies",

@@ -25,9 +25,13 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         enrolToken = tokenOf(intent)
-        launch = intent?.getStringExtra(EXTRA_OPEN)
         val graph = (application as HqApp).graph
-        markRead(intent)
+        // A recreated activity (rotation, the process brought back) does not open its first page again.
+        if (savedInstanceState == null) {
+            launch = openOf(intent)
+            markRead(intent)
+        }
+        intent?.removeExtra(EXTRA_OPEN)
         // Recents show no content (M11); screenshots stay possible on Android 13+, older phones get FLAG_SECURE with the lock on.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) setRecentsScreenshotEnabled(false)
         else if (graph.lock.enabled()) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
@@ -43,14 +47,31 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         tokenOf(intent)?.let { enrolToken = it }
-        intent.getStringExtra(EXTRA_OPEN)?.let { launch = it }
+        openOf(intent)?.let { launch = it }
         markRead(intent)
+        intent.removeExtra(EXTRA_OPEN)
+    }
+
+    /** A page to open, only from the app's own launches and only a route the app has. */
+    private fun openOf(i: Intent?): String? =
+        i?.getStringExtra(EXTRA_OPEN)?.takeIf { com.coinepro.hq.device.LaunchKey.trusted(this, i) && com.coinepro.hq.device.LaunchKey.routeAllowed(it) }
+
+    /** The app launched a picker, the camera or a share sheet: coming back from it is not leaving the app (the lock waits). */
+    override fun startActivityForResult(intent: Intent, requestCode: Int, options: Bundle?) {
+        (application as HqApp).graph.lock.leavingForResult()
+        super.startActivityForResult(intent, requestCode, options)
+    }
+
+    override fun startActivity(intent: Intent, options: Bundle?) {
+        (application as HqApp).graph.lock.leavingForResult()
+        super.startActivity(intent, options)
     }
 
     /** A tap on an alert that came from a hub notification opens it, as a tap in the app's list does: it is read. */
     private fun markRead(i: Intent?) {
         val id = i?.getStringExtra(EXTRA_READ) ?: return
         i.removeExtra(EXTRA_READ)
+        if (!com.coinepro.hq.device.LaunchKey.trusted(this, i)) return
         val env = (application as HqApp).graph.env.value
         if (env.auth.signedIn.value) env.reads.open(id)
     }

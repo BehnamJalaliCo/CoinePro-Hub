@@ -115,9 +115,12 @@ class LinkDeviceTest {
     }
 
     @Test
-    fun withoutTheAppLockTheLockScreenFollowsThePhonesOwnSetting() {
+    fun theLockScreenShowsOnlyThePublicLineEvenWithoutTheAppLock() {
+        // 0.6.0's promise: on the lock screen only «پیام تازه از ستاد», whatever the app lock.
         AlertNotifier(app) { false }.post(Alert(AlertChannel.CARTABLE, "decision:D-1", "تصمیم تازه D-1", "پیشنهاد", "cartable/D-1"))
-        assertNull(nm.activeNotifications.single().notification.publicVersion)
+        val n = nm.activeNotifications.single().notification
+        assertEquals(Notification.VISIBILITY_PRIVATE, n.visibility)
+        assertEquals(AlertNotifier.PUBLIC_TITLE, n.publicVersion.title())
     }
 
     @Test
