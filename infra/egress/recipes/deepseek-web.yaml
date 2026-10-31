@@ -10,8 +10,13 @@
 # locale fa-IR, so the toggles read «تفکر عمیق» and «جستجو», and they are not
 # role=button (every council call failed at 2:click_unless). They carry
 # aria-pressed, which now finds them and their state, in English or Persian.
+# 2026-10-31.2: with .1 three calls came back "done" in 3-4 s holding the
+# half-written thinking (deep thinking writes its own .ds-markdown first, and
+# the 'Stop' button never matched). An answer is read only once the action bar
+# under the answer (the message with the thinking block) shows; checked on a
+# finished chat of the profile. The read takes the last .ds-markdown: the answer.
 key: deepseek-web
-version: "2026-10-31.1"
+version: "2026-10-31.2"
 site: chat.deepseek.com
 start_url: "https://chat.deepseek.com/"
 hosts:
@@ -56,5 +61,5 @@ tasks:
       - {do: fill, selector: "textarea", text: "{prompt}"}
       - {do: press, selector: "textarea", key: Enter}
       - {do: wait, selector: ".ds-markdown", timeout_s: 120}
-      - {do: wait_gone, selector: "div[role=button]:has-text('Stop')", timeout_s: 280}
+      - {do: wait, selector: ".ds-message:has([class*=ds-think]) + div div[role=button]", timeout_s: 280}
       - {do: read, selector: ".ds-markdown"}
