@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useMemo, useState } from 'react';
 import { Icon } from '@/components/icon';
 import { CompanyMark } from '@/components/brand/marks';
 import { Waveform, useVoiceInput, type VoiceResult } from '@/components/media/composer';
@@ -15,6 +15,8 @@ import { ApiError } from '@/lib/api/client';
 import { useEmployees } from '@/lib/api/hooks';
 import { sendOrder, useOrders, type OrderOut, type OrderRoute } from '@/lib/api/v13';
 import { clock } from '@/lib/recorder';
+import { applyPlayer, optionOf, recogniseOption, type PlayerOption } from '@/lib/players';
+import { PlayerPicker } from '@/components/work/player';
 import { ago, cx } from '@/lib/format';
 
 const KIND: Record<OrderRoute['kind'], { fa: string; icon: 'task' | 'code' | 'meeting' | 'advisor' }> = {
@@ -71,15 +73,22 @@ export function VoiceOrder({ open, onOpenChange }: { open: boolean; onOpenChange
   const [voice, setVoice] = useState<VoiceResult | null>(null);
   const [out, setOut] = useState<OrderOut | null>(null);
   const [busy, setBusy] = useState(false);
+  // ⟨1.9⟩ §27.1: «با جمنای / با جی‌پی‌تی / شورا» in the words picks the player; the owner sees what was heard and can change it.
+  const heard = useMemo(() => recogniseOption(text), [text]);
+  const [chosen, setChosen] = useState<PlayerOption | null>(null);
+  const option = chosen ?? heard?.option ?? optionOf('auto');
   const v = useVoiceInput({ purpose: 'order', onText: (r) => { setText(r.text); setVoice(r); setPhase('review'); } });
   const recording = v.state === 'recording' || v.state === 'asking';
 
-  const reset = () => { setPhase('ready'); setText(''); setVoice(null); setOut(null); };
+  const reset = () => { setPhase('ready'); setText(''); setVoice(null); setOut(null); setChosen(null); };
   const close = (x: boolean) => { if (!x) { v.cancel(); v.abort(); reset(); } onOpenChange(x); };
   const send = async () => {
     setBusy(true);
     try {
       const o = await sendOrder(text.trim(), voice ? 'voice' : 'text', voice?.fileId ?? null);
+      // The hub read the words; where the owner chose otherwise, the works it made follow the owner's choice.
+      const changed = await applyPlayer(o, option);
+      if (changed) toast({ tone: 'info', text: `بازیکن ${changed.toLocaleString('fa-IR')} کار به «${option.fa}» تغییر کرد.` });
       setOut(o);
       setPhase('sent');
       for (const k of ['orders', 'work', 'planner', 'workshop', 'decisions', 'inbox']) void qc.invalidateQueries({ queryKey: [k] });
@@ -136,6 +145,7 @@ export function VoiceOrder({ open, onOpenChange }: { open: boolean; onOpenChange
               <textarea value={text} onChange={(e) => setText(e.target.value)} rows={5} maxLength={4000} autoFocus={!voice}
                 className="w-full rounded-[12px] border border-strong bg-tile px-3 py-3 text-[15px] leading-7 text-ink outline-none focus:border-gold-ink" />
             </label>
+            <PlayerPicker value={option} onChange={setChosen} heard={heard} />
             <div className="flex flex-wrap items-center gap-3 text-[12px] text-sec">
               {voice ? <span className="flex items-center gap-1.5"><Icon name="mic" size={14} />صدای اصلی <span className="fig">{clock(voice.seconds)}</span> با فرمان میماند</span> : null}
               <span className="flex-1" />

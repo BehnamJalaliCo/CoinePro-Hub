@@ -11,6 +11,7 @@ import { WorkActions } from '@/components/v15/work-actions';
 import { OrderTrackerCard, TimelineCard, useTrack } from '@/components/v21/orders';
 import { PriorityTag } from '@/components/v21/priority';
 import { CouncilCard } from '@/components/v28/council';
+import { PlayerLine } from '@/components/work/player';
 import { useWorkRuns } from '@/lib/api/v15';
 import { isOwnerOrder } from '@/lib/api/v21';
 import { ACTOR_FA, WORK_KIND, WORK_STATUS } from '@/lib/labels';
@@ -45,6 +46,8 @@ export default function WorkPage({ params }: { params: Promise<{ id: string }> }
         {w.overdue ? <Pill tone="neg" icon="urgent">عقب‌افتاده، پله‌ی {w.escalation_level}</Pill> : null}
         {w.due_at ? <Pill tone="neutral" icon="time">موعد {jDateTime(w.due_at)}</Pill> : null}
       </div>
+      {/* ⟨1.9⟩ §27.1: who plays this order, and a named player that never came. */}
+      {order ? (() => { const x = w as { player?: string | null; mode?: string | null; media?: string | null; player_fallback?: boolean }; return <PlayerLine player={x.player} mode={x.mode} media={x.media} fallback={!!x.player_fallback} />; })() : null}
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-4">
           {order && track ? <OrderTrackerCard t={track} /> : null}

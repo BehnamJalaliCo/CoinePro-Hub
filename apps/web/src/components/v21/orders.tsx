@@ -17,6 +17,7 @@ import {
 import { ago, cx, jDate, jTime } from '@/lib/format';
 import { ownerDay, RefButton, useTick } from './bits';
 import { PriorityTag } from './priority';
+import { PlayerTag } from '@/components/work/player';
 
 // «فرمان‌های من» (0.4.0; contract §4 ⟨1.7.4⟩; the Android app's ui/work/Orders.kt): every order the owner gave, from the moment it is given
 // to the moment it is closed — the stage on a stepper, an honest estimate, who holds it now, when it last moved, and its output.
@@ -131,6 +132,8 @@ export function OrderCard({ w }: { w: Work }) {
           <span className="truncate">{co?.kind === 'holding' ? 'هلدینگ' : co?.name_fa ?? w.company}</span>
           <span className="text-muted">·</span><span className="fig text-muted">{w.ref}</span>
           <span className="flex-1" />
+          {/* ⟨1.9⟩ who plays it, when the owner named a player or called the council. */}
+          <PlayerTag player={(w as { player?: string | null }).player} mode={(w as { mode?: string | null }).mode} />
           <PriorityTag code={w.priority} compact />
         </span>
         <span className="line-clamp-2 text-[15px] font-semibold leading-7 hover:text-gold-ink">{w.title}</span>

@@ -170,6 +170,8 @@ type Node = {
   created: string; updated: string; progress: number | null; note: string | null; deliverable: string | null; events: WEv[]; runs: RunRec[];
   /** ⟨1.9⟩ §27.1: `council` runs the brief on every available player. */
   mode?: 'single' | 'council';
+  player?: string;
+  media?: string | null;
 };
 /** ⟨1.9⟩ §27.2 the councils of the demo's orders, by work ref. */
 const councils = new Map<string, any>();
@@ -367,7 +369,7 @@ function workJson(n: Node) {
     budget: { tokens: 400000, tokens_used: used, usd: null, usd_used: (0.21 * (n.runs.length + 1)).toFixed(2) }, escrow: null, schedule: null,
     depth: depthOf(n), parent_id: n.parent?.id ?? null, root_id: rootOf(n).id, requested_by_work_id: null,
     deliverable_ids: n.deliverable ? [`o-${n.deliverable.toLowerCase()}`] : [], deliverable_refs: n.deliverable ? [n.deliverable] : [], evidence: [], version: 1 + n.events.length,
-    player: 'auto', mode: n.mode ?? 'single',
+    player: n.player ?? 'auto', mode: n.mode ?? 'single', media: n.media ?? null, player_fallback: false,
   };
 }
 const kidsOf = (n: Node) => nodes.filter((x) => x.parent === n).sort((a, b) => a.created.localeCompare(b.created));
@@ -688,13 +690,14 @@ export async function handle(req: Request): Promise<Response> {
       (!q.get('status') || w.status === q.get('status')) && (!text || w.ref === text || String(w.title).includes(text))).slice(0, Number(q.get('limit') ?? 100))));
   }
   if (p === '/work' && m === 'POST') {
-    const b = await body<{ company: string; title: string; brief?: string; priority?: string }>();
+    const b = await body<{ company: string; title: string; brief?: string; priority?: string; player?: string; mode?: 'single' | 'council'; media?: string | null }>();
     if (!b.company) return problem(422, 'validation_failed', 'شرکت لازم است.');
     const ceo = E(`${b.company}-CEO`, b.company, 'ceo', null, 'مدیرعامل');
     const t = nowIso();
     const ref = `W-${String(++seq).padStart(6, '0')}`;
     const n: Node = { id: idOf(400 + seq), ref, company: b.company, title: b.title ?? '', brief: b.brief ?? '', priority: b.priority ?? 'P3', status: 'queued', assignee: ceo, owner: true, parent: null, created: t, updated: t, progress: null, note: null, deliverable: null, events: [], runs: [] };
     n.events.push({ at: t, kind: 'created', actor: 'owner', actor_kind: 'owner', data: { assignee: ceo.code } });
+    n.player = b.player ?? 'auto'; n.mode = b.mode ?? 'single'; n.media = b.media ?? null;
     nodes.push(n);
     // It moves on its own: taken, delegated, started and delivered over about half a minute.
     const mgr = E(`${b.company}-GROWTH-MGR`, b.company, 'manager', 'GROWTH', 'مدیر رشد');

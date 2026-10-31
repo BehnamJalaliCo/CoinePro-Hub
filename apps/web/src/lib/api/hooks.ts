@@ -70,7 +70,8 @@ export function useRate() {
 // ------------------------------------------------------------- organisation --
 export const useCompanies = () => useQuery({ queryKey: ['companies'], queryFn: () => ok(api.GET('/api/v1/companies')), staleTime: 30_000 });
 export const useCompany = (code: string) => useQuery({ queryKey: ['companies', code], queryFn: () => ok(api.GET('/api/v1/companies/{code}', { params: { path: { code } } })) });
-export const useDepartments = (code: string) => useQuery({ queryKey: ['companies', code, 'departments'], queryFn: () => ok(api.GET('/api/v1/companies/{code}/departments', { params: { path: { code } } })) });
+/** A company's departments; nothing is asked before a company is chosen (no `/companies//departments`). */
+export const useDepartments = (code: string | null | undefined) => useQuery({ queryKey: ['companies', code ?? '', 'departments'], enabled: !!code, queryFn: () => ok(api.GET('/api/v1/companies/{code}/departments', { params: { path: { code: code! } } })) });
 export const useOrgChart = (company: string) => useQuery({ queryKey: ['employees', 'chart', company], queryFn: () => ok(api.GET('/api/v1/org/{company}/chart', { params: { path: { company } } })) });
 export const useEmployees = (f: Query<'/api/v1/employees'> = {}) =>
   useQuery({ queryKey: ['employees', f], queryFn: () => ok(api.GET('/api/v1/employees', { params: { query: f } })) });

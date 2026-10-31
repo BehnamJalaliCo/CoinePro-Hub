@@ -61,7 +61,7 @@ function Chip({ it, companies }: { it: Item; companies: ReturnType<typeof useCom
 export default function PlannerPage() {
   const { company } = useScope();
   const { data: companies } = useCompanies();
-  const depts = useDepartments(company ?? '');
+  const depts = useDepartments(company);
   const [dept, setDept] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const [view, setView] = useState<'week' | 'month' | 'agenda'>('week');

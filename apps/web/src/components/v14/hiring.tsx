@@ -193,7 +193,7 @@ export function HireSheet({ open, onOpenChange }: { open: boolean; onOpenChange:
   const [model, setModel] = useState('');
   const [effort, setEffort] = useState('high');
   const [reason, setReason] = useState('');
-  const depts = useDepartments(company ?? '');
+  const depts = useDepartments(company);
   const co = companies?.find((c) => c.code === company);
   const fitting = useMemo(() => (co && department ? hireableRoles(roles ?? [], co.kind, department, co.code) : []), [roles, co, department]);
   const models = useMemo(() => {
