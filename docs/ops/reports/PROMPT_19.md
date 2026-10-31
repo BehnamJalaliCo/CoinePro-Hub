@@ -173,3 +173,66 @@
   - هر دو `signed_in` هستند.
   - recipeها: gemini `2026-10-31.3`، deepseek `2026-10-31.2`.
 - **هنوز رد میشوند و لازم هم نیستند:** `accounts.google.com`، `www.googleapis.com`، `ogs.google.com` و `android.clients.google.com`. کار با همین وضع `done` شد.
+
+## ۱۰. پیوست (12:00 تا 13:10): ChatGPT
+### Codex CLI (🟢)
+- **call آزمایشی اول** (`assistant_errand`، `gpt-5.3`):
+  - CLI جواب داد: `The 'gpt-5.3' model is not supported when using Codex with a ChatGPT account.`
+  - **برگشت خودکار کار کرد:** تلاش دوم با مدل پیش‌فرض CLI `done` شد و جواب «آزمایش» بود.
+- **مشکل جانبی:** همان رد شدن، طبق §۲۸.۴، هر دو مدل `gpt-5.5` و `gpt-5.3` را `available: false` کرد. صندلی‌ها هیچ مدل جایگزینی نداشتند.
+- **فهرست مدل‌ها از خود CLI:** `codex debug models` در کانتینر runner اجرا شد (فقط فهرست مدل‌ها). مدل‌های `list` این‌ها هستند:
+  - gpt-6.1-sol
+  - gpt-6-astra
+  - gpt-6.1-terra
+  - gpt-6-sol
+  - gpt-6-luna
+  - gpt-5.6-sol
+  - gpt-5.6-terra
+  - gpt-5.6-luna
+- **به‌روزرسانی (به دستور مالک):**
+  - همین‌ها در `substitutes.players.models` بازیکن gpt نشستند. luna‌ها `light` هستند و بقیه `strong`.
+  - `gpt-5.5` و `gpt-5.3` با `available: false` ماندند.
+  - صندلی‌ها با `apply_models` خود هاب جابه‌جا شدند: چهار صندلی قوی روی `gpt-6.1-sol`، و `assistant_errand` روی `gpt-6-luna`.
+- **call آزمایشی دوم:** `done` در تلاش اول، با `gpt-6-luna`، جواب «آزمایش».
+- **ایراد کد (پیشنهاد، انجام ندادم چون منطق است):**
+  - کار روزانه‌ی `models` همیشه با `the model listing was not JSON` شکست میخورد.
+  - **علت:** خروجی `codex debug models` حدود 645 KB است و `run_cli` فقط 200,000 نویسه (`MAX_OUTPUT`) نگه میدارد. JSON بریده میشود.
+  - **پیشنهاد:** برای `_models` سقف جدا، یا `codex debug models` با فیلتر.
+  - **ایراد دوم:** `apply_models` فقط در دسترس بودن مدل‌های از پیش‌شناخته را عوض میکند و مدل تازه‌ی CLI را اضافه نمیکند. پس بدون دست، صندلی‌ها جایی برای رفتن نداشتند.
+
+### chatgpt-web (🟢، نسخه‌ی `2026-10-31.5`)
+- **ورود:** `signed_in` و تازه بود: «Behnam Jalali · Plus» و «چت موقت». پس مشکل ورود نبود و به `make chatgpt-web-login` نیازی نیست.
+- **رد شدن آدرس:** فقط آدرس‌های Google (`accounts.google.com`، `www.google.com`، ...) رد میشدند. هیچ آدرس OpenAI رد نمیشد، پس آدرسی اضافه نشد.
+
+| قدم | قدیم | تازه |
+|---|---|---|
+| 1:wait، fill | `#prompt-textarea` (دیگر نیست) | `div[contenteditable=true]` |
+| click ارسال | `[data-testid=send-button]` (پیدا نمیشود) | `[data-testid=send-button], button[aria-label*='ارسال']` |
+| توقف | `[data-testid=stop-button]` | `[data-testid=stop-button], button[aria-label*='توقف']` |
+| پایان جواب | — | صبر برای دکمه‌ی «بلند خواندن» (`button[aria-label*='بلند']`) که فقط زیر جواب تمام‌شده میآید |
+| read | `[data-message-author-role=assistant]` (دیگر در DOM نیست) | XPath: در نوبت جوابِ بعد از آخرین تیتر پنهان «ChatGPT گفت:»، نخستین بلوکی که تیتر و برچسب «ChatGPT» را ندارد |
+
+- **چطور پیدا شد:** سه تست زنده و پنج call آزمایشی.
+  - کد عمومی خود ChatGPT در `chatgpt.com/cdn/assets` دیده شد: `data-message-author-role` فقط در یک مسیر قدیمی مانده است.
+  - **تصویرهای خود هاب (توصیف):** پیام و جواب «آزمایش» با نوار دکمه‌ها رسیده بود. پس شکست فقط در خواندن بود.
+- **call آزمایشی:** `done`، جواب دقیقاً «آزمایش» (حدود ۱۰ ثانیه).
+- **دکمه‌ی «توقف»:** با نسخه‌ی موقت سخت‌گیر سنجیده شد (ظاهر شدن اجباری ۲۰ ثانیه، رفتن تا ۶۰ ثانیه) و یک پرسش پنج‌خطی.
+  - **`done`:** دکمه ظاهر شد و رفت.
+  - **جواب:** هر پنج خط کامل خوانده شد.
+  - دستورالعمل به نسخه‌ی commitشده برگشت.
+- **commitها:**
+  - 2738518 (دستورالعمل)
+  - commit بعدی: همان XPath در چند خط برای yamllint (۴۸۵ > ۱۶۰). یک call آزمایشی دوباره `done` شد.
+  - آزمون‌های `test_substitutes_web.py` و yamllint سبز بودند.
+- ⚠️ **سهمیه:** صفحه‌ی ChatGPT «۲ تا ۳٪ از سهمیه‌ی استفاده باقی‌مانده» را نشان میدهد، تا ۱۳ آبان ۱۵:۰۵. callهای وب ChatGPT تا آن روز شاید محدود شوند.
+
+### Temporal (🟢، پیش‌آمد)
+- **از 12:06:** workflowهای schedule داخل خود سرور Temporal با `TMPRL1101 Potential deadlock` دچار panic میشدند (۱۹۶ بار).
+- **پیامد:** `hq-maintenance`، `hq-substitute-web` و چند schedule دیگر از حدود 12:30 اجرا نمیشدند.
+- **علت:** کانتینر temporal بعد از ۱۳ روز کار به سقف حافظه‌اش رسیده بود (766 از 768 MiB، CPU ۲۰۰٪). اندازه‌ی معمولش ۲۷۱ تا ۳۳۹ MiB است.
+- **کار من:** 12:40:57 فقط کانتینر temporal را دوباره بالا آوردم. وضعیت workflowها در Postgres است.
+- **نتیجه:**
+  - حافظه 428 MiB و CPU ۳٪.
+  - هر دو schedule دوباره اجرا شدند.
+  - در ۵ دقیقه‌ی بعد صفر panic.
+- **پیشنهاد:** سنجش رشد حافظه‌ی temporal در دیده‌بان. سقف را عوض نکردم، چون با بودجه‌ی حافظه است.
