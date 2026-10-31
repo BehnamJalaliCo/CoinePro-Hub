@@ -232,6 +232,27 @@ def test_garbage_from_the_cli_is_a_failure_without_its_words(s: R.Settings) -> N
     assert len(d["status_reason"]) <= R.REASON_CHARS
 
 
+def test_a_long_output_is_read_whole_and_a_huge_one_fails_plainly(tmp_path: Path) -> None:
+    """⟨1.10.1⟩ the CLI's output is read in full from a temporary file (the
+    Codex model listing is ~645 KB), never cut; past the hard stop the call
+    fails with that reason instead of a cut answer."""
+    script = tmp_path / "big.py"
+    script.write_text("import sys\nsys.stdout.write('x' * int(sys.argv[1]) + 'END')\n")
+    ran = R.run_cli([sys.executable, str(script), "700000"], "", tmp_path, dict(os.environ), 20)
+    assert ran.rc == 0 and len(ran.out) == 700_003 and ran.out.endswith("END") and not ran.too_large
+    big = R.run_cli(
+        [sys.executable, str(script), "3000"], "", tmp_path, dict(os.environ), 20, max_output=1000
+    )
+    assert big.too_large and big.out == "" and big.err == R.OUTPUT_TOO_LARGE
+    echo = tmp_path / "echo.py"
+    echo.write_text("import sys\nsys.stdout.write(sys.stdin.read())\n")
+    question = "پرسش " * 50_000
+    assert (
+        R.run_cli([sys.executable, str(echo)], question, tmp_path, dict(os.environ), 20).out
+        == question
+    )
+
+
 def test_models_codex_lists_what_the_account_offers(s: R.Settings) -> None:
     d = one(job(kind="models", seat=None, input_md=None, model=None), s)
     assert d["models"] == ["gpt-5.5", "gpt-6-sol"]  # the hidden one is not offered

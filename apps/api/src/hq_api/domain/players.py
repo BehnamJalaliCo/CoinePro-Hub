@@ -286,6 +286,29 @@ async def fall_back(tx: Tx, w: dict[str, Any], why: str) -> None:
         )
 
 
+# ⟨1.10.1⟩ nothing is cut: a text longer than the place it goes is kept whole
+# in the file store, attached, with its head in place
+BODY_LIMIT = 480_000  # a deliverable's body (the column holds 500 000)
+BRIEF_LIMIT = 48_000  # a work's brief (the column holds 50 000)
+
+
+async def store_text(tx: Tx, hub: Any, company_id: UUID, name: str, text: str) -> UUID:
+    data = text.encode("utf-8")
+    key, sha = await hub.storage.put(data)
+    fid: UUID = await tx.scalar(
+        """INSERT INTO files.files (company_id, name, mime, size, sha256, storage_key,
+               created_by_kind, created_by_code)
+           VALUES (:co, :name, 'text/markdown', :size, :sha, :key, 'service', 'players')
+           RETURNING id""",
+        co=company_id,
+        name=name[:200],
+        size=len(data),
+        sha=sha,
+        key=key,
+    )
+    return fid
+
+
 async def deliver(
     tx: Tx,
     w: dict[str, Any],
@@ -293,15 +316,23 @@ async def deliver(
     title: str,
     body: str,
     produced_with: dict[str, Any],
+    hub: Any = None,
 ) -> dict[str, Any]:
     """A deliverable on the work from its assignee (what a player made, or a
-    council's synthesis), the work delivered, its delivered children done."""
+    council's synthesis), the work delivered, its delivered children done. A
+    body longer than the column goes whole into an attachment (with `hub`)."""
     from hq_api.domain import work as W
 
+    attachments: list[str] = []
+    if len(body) > BODY_LIMIT and hub is not None:
+        fid = await store_text(tx, hub, w["company_id"], f"{w['ref']}-full.md", body)
+        attachments.append(str(fid))
+        body = body[:BODY_LIMIT] + "\n\n… متن کامل (بی‌هیچ برش) در فایل پیوست همین خروجی است."
     dl = await tx.one(
         """INSERT INTO cartable.deliverables (company_id, work_id, producer_id, title, summary, body,
-               produced_with, usage, evidence)
-           VALUES (:co, :w, :p, :title, :summary, :body, CAST(:pw AS jsonb), '{}', '[]')
+               attachments, produced_with, usage, evidence)
+           VALUES (:co, :w, :p, :title, :summary, :body, CAST(:att AS uuid[]), CAST(:pw AS jsonb),
+                   '{}', '[]')
            RETURNING id, ref""",
         co=w["company_id"],
         w=w["id"],
@@ -309,6 +340,7 @@ async def deliver(
         title=title[:300],
         summary=body.strip().split("\n", 1)[0][:500],
         body=body,
+        att=attachments,
         pw=json.dumps(produced_with, ensure_ascii=False),
     )
     await W.set_status(tx, w, "delivered", delivered_at=datetime.now(UTC))
@@ -342,14 +374,14 @@ async def deliver(
 async def on_call(tx: Tx, hub: Any, call: dict[str, Any]) -> None:
     """A substitute call of a work or a council finished (or ended)."""
     if call["purpose_kind"] == "work":
-        await _work_call(tx, call)
+        await _work_call(tx, hub, call)
     elif call["purpose_kind"] == "council":
         c = await _council_by_ref(tx, str(call["purpose_ref"]))
         if c is not None:
             await refresh(tx, hub, c)
 
 
-async def _work_call(tx: Tx, call: dict[str, Any]) -> None:
+async def _work_call(tx: Tx, hub: Any, call: dict[str, Any]) -> None:
     from hq_api.domain import work as W
 
     w = await W.load_ref(tx, str(call["purpose_ref"]))
@@ -362,7 +394,7 @@ async def _work_call(tx: Tx, call: dict[str, Any]) -> None:
             tx,
             w,
             title=w["title"],
-            body=str(res["text_md"]),
+            body=await S.full_text(tx, hub, res),
             produced_with={
                 "player": call["player"],
                 "model": call["model"],
@@ -370,6 +402,7 @@ async def _work_call(tx: Tx, call: dict[str, Any]) -> None:
                 "source": S.source(call),
                 "substitute_call": str(call["id"]),
             },
+            hub=hub,
         )
         return
     await tx.exec(
@@ -631,7 +664,7 @@ async def refresh(tx: Tx, hub: Any, c: dict[str, Any]) -> bool:
         if c.get("media"):
             state = "done" if answered else "failed"
         elif len(answered) >= 2:
-            synthesis_work_id = await _synthesis_work(tx, w, members)
+            synthesis_work_id = await _synthesis_work(tx, hub, w, members)
             state = "synthesising"
         elif len(answered) == 1:
             # one answer is not a council: said plainly, that answer is the result
@@ -641,7 +674,7 @@ async def refresh(tx: Tx, hub: Any, c: dict[str, Any]) -> bool:
                 f"فقط {name} جواب داد؛ بقیه‌ی اعضا جواب ندادند (دلیل هر کدام کنارش آمده). "
                 "این یک پاسخ است، نه جمع‌بندی شورا."
             )
-            synthesis_ref = only.get("deliverable_ref") or await _lone_answer(tx, w, only)
+            synthesis_ref = only.get("deliverable_ref") or await _lone_answer(tx, hub, w, only)
             state = "done"
         else:
             note = "هیچ عضوی جواب نداد؛ دلیل هر کدام کنارش آمده است."
@@ -677,7 +710,7 @@ async def refresh(tx: Tx, hub: Any, c: dict[str, Any]) -> bool:
     return changed
 
 
-async def _answer_of(tx: Tx, m: dict[str, Any]) -> str:
+async def _answer_of(tx: Tx, hub: Any, m: dict[str, Any]) -> str:
     if m["player"] == "claude" and m.get("deliverable_ref"):
         return str(
             await tx.scalar(
@@ -691,11 +724,11 @@ async def _answer_of(tx: Tx, m: dict[str, Any]) -> str:
             "SELECT result FROM substitutes.calls WHERE id = CAST(:id AS uuid)", id=m["call_id"]
         )
         if isinstance(res, dict):
-            return str(res.get("text_md") or "")
+            return await S.full_text(tx, hub, res)
     return ""
 
 
-async def _lone_answer(tx: Tx, w: dict[str, Any], m: dict[str, Any]) -> str | None:
+async def _lone_answer(tx: Tx, hub: Any, w: dict[str, Any], m: dict[str, Any]) -> str | None:
     """The one substitute that answered (Claude did not): its answer becomes
     the order's deliverable, labelled with its source; none when the order
     already ended."""
@@ -706,7 +739,7 @@ async def _lone_answer(tx: Tx, w: dict[str, Any], m: dict[str, Any]) -> str | No
     call = await tx.first(
         "SELECT * FROM substitutes.calls WHERE id = CAST(:id AS uuid)", id=m["call_id"]
     )
-    text = str(((call or {}).get("result") or {}).get("text_md") or "")
+    text = await S.full_text(tx, hub, (call or {}).get("result"))
     if call is None or not text:
         return None
     name = PLAYER_FA.get(call["player"], call["player"])
@@ -728,6 +761,7 @@ async def _lone_answer(tx: Tx, w: dict[str, Any], m: dict[str, Any]) -> str | No
             "source": S.source(call),
             "substitute_call": str(call["id"]),
         },
+        hub=hub,
     )
     return str(dl["ref"])
 
@@ -742,23 +776,36 @@ SYNTHESIS_FA = (
 )
 
 
-async def _synthesis_work(tx: Tx, w: dict[str, Any], members: list[dict[str, Any]]) -> UUID:
+async def _synthesis_work(
+    tx: Tx, hub: Any, w: dict[str, Any], members: list[dict[str, Any]]
+) -> UUID:
     from hq_api.domain import work as W
 
     parts = [SYNTHESIS_FA]
     for m in members:
         name = PLAYER_FA.get(m["player"], m["player"])
         if m["state"] == "done":
-            parts.append(f"\n## {name} ({m.get('model') or '—'})\n\n{await _answer_of(tx, m)}")
+            parts.append(f"\n## {name} ({m.get('model') or '—'})\n\n{await _answer_of(tx, hub, m)}")
         else:
             parts.append(f"\n## {name}: {m['state']} ({m.get('reason') or '—'})")
+    brief = "\n".join(parts)
+    if len(brief) > BRIEF_LIMIT:
+        # every answer whole, in a file the assignee reads (files.read)
+        fid = await store_text(tx, hub, w["company_id"], f"{w['ref']}-council-answers.md", brief)
+        listed = "\n".join(
+            f"- {PLAYER_FA.get(m['player'], m['player'])}: {m['state']}" for m in members
+        )
+        brief = (
+            f"{SYNTHESIS_FA}\nThe members' answers are too long for this brief; read them whole "
+            f"with files.read {fid} (Markdown, every answer under its model's heading).\n{listed}"
+        )
     child = await W.create(
         tx,
         SERVICE,
         company_id=w["company_id"],
         company_code=w["company"],
         title=f"جمع‌بندی شورا: {w['title']}"[:300],
-        brief="\n".join(parts)[:50000],
+        brief=brief,
         kind="one_off",
         priority=w["priority"],
         assignee_code=w["a_code"],

@@ -85,6 +85,7 @@ _REQUEST_ID = re.compile(r"^[A-Za-z0-9-]{8,64}$")
 UPLOAD_PATHS = ("/internal/v1/files", "/api/v1/files", "/api/v1/transcribe")
 RUNNER_RESULT_BYTES = 32 * 1024 * 1024  # 20 MB as base64 and its JSON
 RUNNER_EVENTS_BYTES = 8 * 1024 * 1024
+SUBSTITUTE_DONE_BYTES = 48 * 1024 * 1024
 
 
 def upload_limit(path: str, max_file: int, max_body: int) -> int:
@@ -92,6 +93,8 @@ def upload_limit(path: str, max_file: int, max_body: int) -> int:
         return mgmt.MAX_AUDIO  # ⟨1.5⟩ a briefing's Ogg from the TTS one-shot
     if path.startswith("/internal/v1/media/render/") and path.endswith("/output"):
         return media_routes.MAX_OUTPUT  # ⟨1.6⟩ a render's file from the render one-shot
+    if path.startswith("/internal/v1/substitutes/jobs/") and path.endswith("/done"):
+        return SUBSTITUTE_DONE_BYTES  # ⟨1.10.1⟩ a CLI's whole answer (≤ 20 MB) and its JSON
     if path == "/api/v1/files":
         return media.VIDEO.max_bytes  # the largest kind; each kind is held to its own
     if path == "/api/v1/transcribe":

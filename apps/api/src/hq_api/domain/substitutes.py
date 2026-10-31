@@ -159,7 +159,14 @@ SEAT_ORDER = {s: i for i, s in enumerate(SEATS)}
 WEB_PACE = timedelta(seconds=60)
 LOGIN_MINUTES = 10
 CALL_TIMEOUT_S = {"code_review": 900, "creative": 900, "long_read": 600}
-TEXT_LIMIT = 200_000
+TEXT_LIMIT = 200_000  # a question's characters
+# ⟨1.10.1⟩ an answer comes back whole (the runner reads a CLI's output in full,
+# up to its 20 MB stop); beyond INLINE_TEXT it lives in the file store and the
+# call keeps a reference (full_text() reads it back), never cut
+ANSWER_LIMIT = 20_000_000
+# a new model of a CLI listing is light when its name says so, else strong
+LIGHT_WORDS = ("luna", "mini", "nano", "flash", "lite", "haiku", "small")
+INLINE_TEXT = 256_000
 SERVICE = Principal(kind="service", code="substitutes", role="service")
 OWNER_TZ = "Asia/Tehran"
 
@@ -313,7 +320,7 @@ class DoneIn(Model):
     """The dispatcher's result of one CLI job (the interface file)."""
 
     ok: bool
-    text_md: str | None = Field(default=None, max_length=TEXT_LIMIT)
+    text_md: str | None = Field(default=None, max_length=ANSWER_LIMIT)
     findings: list[dict[str, Any]] | None = Field(default=None, max_length=200)
     usage: dict[str, Any] | None = None
     error: (
@@ -941,7 +948,7 @@ async def finish(
     if body.ok and c["kind"] == "call":
         result = {}
         if body.text_md is not None:
-            result["text_md"] = scrub(body.text_md)
+            result.update(await _answer_text(tx, hub, c, scrub(body.text_md)))
         if body.findings is not None:
             result["findings"] = [_finding(f) for f in body.findings[:200]]
         result["source"] = {**source({**c, "finished_at": datetime.now(UTC)})}
@@ -1093,6 +1100,41 @@ async def _retry_other_model(tx: Tx, hub: Any, c: dict[str, Any], raw: str) -> d
     return row
 
 
+async def _answer_text(tx: Tx, hub: Any, c: dict[str, Any], text: str) -> dict[str, Any]:
+    """The answer inline, or (beyond INLINE_TEXT) in the file store with its
+    head inline and a reference: nothing of it is dropped."""
+    if len(text) <= INLINE_TEXT:
+        return {"text_md": text}
+    data = text.encode("utf-8")
+    key, sha = await hub.storage.put(data)
+    holding = await hub.companies.holding()
+    fid = await tx.scalar(
+        """INSERT INTO files.files (company_id, name, mime, size, sha256, storage_key,
+               created_by_kind, created_by_code)
+           VALUES (:co, :name, 'text/markdown', :size, :sha, :key, 'service', 'substitutes')
+           RETURNING id""",
+        co=holding.id,
+        name=f"answer-{c['player']}-{str(c['id'])[:8]}.md",
+        size=len(data),
+        sha=sha,
+        key=key,
+    )
+    return {"text_md": text[:INLINE_TEXT], "text_file": str(fid), "text_chars": len(text)}
+
+
+async def full_text(tx: Tx, hub: Any, result: dict[str, Any] | None) -> str:
+    """A call's whole answer (from the file store when it was too long to keep inline)."""
+    res = result or {}
+    if res.get("text_file"):
+        key = await tx.scalar(
+            "SELECT storage_key FROM files.files WHERE id = CAST(:id AS uuid)", id=res["text_file"]
+        )
+        if key:
+            data: bytes = await hub.storage.get(str(key))
+            return data.decode("utf-8", "replace")
+    return str(res.get("text_md") or "")
+
+
 def _finding(f: dict[str, Any]) -> dict[str, Any]:
     sev = str(f.get("severity") or "low")
     return {
@@ -1126,6 +1168,8 @@ async def _applied(tx: Tx, hub: Any, call: dict[str, Any]) -> None:
 
 
 REPLY_TOKENS = 20_000
+REPLY_BRIEF = 48_000  # a work brief holds 50 000; a longer answer goes whole into a file
+REPLY_HEAD = 6_000
 
 
 async def deliver_to_agent(tx: Tx, hub: Any, call: dict[str, Any]) -> None:
@@ -1146,12 +1190,26 @@ async def deliver_to_agent(tx: Tx, hub: Any, call: dict[str, Any]) -> None:
         return
     res = call["result"] or {}
     if call["state"] == "done":
-        answer = res.get("text_md") or json.dumps(res.get("findings") or [], ensure_ascii=False)
-        body = (
+        answer = await full_text(tx, hub, res) or json.dumps(
+            res.get("findings") or [], ensure_ascii=False
+        )
+        head = (
             f"The substitute player's answer to your substitute.call ({call['seat']}, call "
             f"{call['id']}). Source: {json.dumps(source(call))}. It is never evidence: check it, "
-            "use it or drop it; you answer for the result.\n\n" + str(answer)[:6000]
+            "use it or drop it; you answer for the result.\n\n"
         )
+        body = head + str(answer)
+        if len(body) > REPLY_BRIEF:
+            # ⟨1.10.1⟩ the whole answer in a file of the caller's company (files.read)
+            from hq_api.domain import players
+
+            fid = await players.store_text(
+                tx, hub, emp["company_id"], f"answer-{str(call['id'])[:8]}.md", str(answer)
+            )
+            body = (
+                head + f"The answer is {len(str(answer))} characters, whole in files.read {fid}. "
+                "Its beginning:\n\n" + str(answer)[:REPLY_HEAD]
+            )
     else:
         body = (
             f"Your substitute.call ({call['seat']}, call {call['id']}) was {call['state']}: "
@@ -1223,6 +1281,15 @@ async def apply_models(tx: Tx, player: str, offered: list[str], probed: str | No
         dict(m, available=m["id"] in offered) if probed is None or m["id"] == probed else dict(m)
         for m in p["models"] or []
     ]
+    if probed is None:
+        # ⟨1.10.1⟩ a model the CLI offers that the hub did not know yet joins the
+        # list, so a seat whose model went has somewhere to move (report 19 §10)
+        known = {m["id"] for m in models}
+        for mid in offered:
+            if mid not in known and re.fullmatch(r"[A-Za-z0-9._:-]{1,80}", mid):
+                light = any(w in mid.lower() for w in LIGHT_WORDS)
+                models.append({"id": mid, "label": mid, "tier": "light" if light else "strong",
+                               "available": True})  # fmt: skip
     await tx.exec(
         """UPDATE substitutes.players SET models = CAST(:m AS jsonb), models_checked_at = now(),
                updated_at = now() WHERE player = :p""",

@@ -184,7 +184,9 @@ def _job_answer(got: Any, version: str, max_bytes: int) -> JSONResponse:
     return JSONResponse(
         {
             "ok": True,
-            "text_md": scrub(str(text))[:200_000] if text is not None else None,
+            # ⟨1.10.1⟩ whole (the profile browser reads up to READ_CHARS; the hub keeps a
+            # long answer in its file store)
+            "text_md": scrub(str(text)) if text is not None else None,
             "file": file,
             "recipe_version": version,
         }

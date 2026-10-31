@@ -61,7 +61,9 @@ XVFB_DISPLAY = ":99"
 PROFILES = Path(os.environ.get("BROWSER_WEB_PROFILES", "/profiles"))
 LOGIN_S = 15 * 60
 STEP_S = 30.0
-READ_CHARS = 200_000
+# ⟨1.10.1⟩ a player's answer is read whole; this only stops a page gone wrong,
+# and the answer then says it was cut (`[… cut at N characters]`)
+READ_CHARS = 5_000_000
 # Where the owner's sign-in window opens (their own pages; nothing else).
 LOGIN_PAGES = {
     "chatgpt-web": "https://chatgpt.com/",
@@ -407,7 +409,10 @@ async def _recipe_step(
         n = await loc.count()
         if n == 0:
             raise StepFailed(do, "nothing to read")
-        return str(await loc.nth(n - 1).inner_text(timeout=ms))[:READ_CHARS]
+        text = str(await loc.nth(n - 1).inner_text(timeout=ms))
+        if len(text) > READ_CHARS:
+            return text[:READ_CHARS] + f"\n[… cut at {READ_CHARS} characters]"
+        return text
     elif do == "download_image":
         return await _image(page, ctx, sel, str(st.get("attr") or "src"), ms, j, hosts)
     elif do == "download":

@@ -34,6 +34,7 @@ import re
 import select
 import signal
 import subprocess
+import tempfile
 import time
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
@@ -48,7 +49,10 @@ RUNNERS = ("codex_cli", "gemini_cli")
 PLAYERS = {"codex_cli": "gpt", "gemini_cli": "gemini"}
 SEVERITIES = ("low", "medium", "high", "critical")
 MAX_INPUT = 400_000  # characters of a masked question (a long read)
-MAX_OUTPUT = 200_000  # characters read back from a CLI
+# ⟨1.10.1⟩ a CLI's output is read in full from a temporary file (the Codex model
+# listing alone is ~645 KB); past this hard stop the call fails, never cut silently
+MAX_OUTPUT_BYTES = 20 * 1024 * 1024
+OUTPUT_TOO_LARGE = "the CLI's output was over 20 MB; nothing was cut, the call failed"
 MAX_FINDINGS = 50
 PROXY_ENV = ("HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY", "https_proxy", "http_proxy", "no_proxy",
              "NODE_USE_ENV_PROXY")  # fmt: skip
@@ -319,30 +323,66 @@ class Ran:
     rc: int | None  # None: the timeout stopped it
     out: str
     err: str
+    too_large: bool = False
 
 
-def run_cli(argv: list[str], stdin: str, cwd: Path, env: dict[str, str], timeout: float) -> Ran:
+POLL_S = 0.2
+
+
+def run_cli(
+    argv: list[str],
+    stdin: str,
+    cwd: Path,
+    env: dict[str, str],
+    timeout: float,
+    max_output: int = MAX_OUTPUT_BYTES,
+) -> Ran:
     """One CLI process: `stdin` on its stdin (never in argv), its own process
-    group, killed whole when it runs past `timeout`."""
-    proc = subprocess.Popen(  # noqa: S603 - argv is ours, never the input
-        argv,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        cwd=cwd,
-        env=env,
-        start_new_session=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    )
-    try:
-        out, err = proc.communicate(stdin, timeout=timeout)
-    except subprocess.TimeoutExpired:
-        _kill(proc)
-        proc.communicate()
-        return Ran(None, "", "")
-    return Ran(proc.returncode, out[:MAX_OUTPUT], err[-20_000:])
+    group, killed whole when it runs past `timeout`. Its output goes to
+    temporary files (private, removed after) and is read back in full; past
+    `max_output` bytes the process is killed and the call fails (`too_large`),
+    never cut."""
+    with (
+        tempfile.TemporaryFile() as fin,
+        tempfile.TemporaryFile() as fout,
+        tempfile.TemporaryFile() as ferr,
+    ):
+        fin.write(stdin.encode("utf-8"))
+        fin.seek(0)
+        proc = subprocess.Popen(  # noqa: S603 - argv is ours, never the input
+            argv,
+            stdin=fin,
+            stdout=fout,
+            stderr=ferr,
+            cwd=cwd,
+            env=env,
+            start_new_session=True,
+        )
+        deadline = time.monotonic() + timeout
+        too_large = False
+        while True:
+            try:
+                proc.wait(timeout=POLL_S)
+                break
+            except subprocess.TimeoutExpired:
+                pass
+            if os.fstat(fout.fileno()).st_size > max_output:
+                too_large = True
+                _kill(proc)
+                proc.wait()
+                break
+            if time.monotonic() >= deadline:
+                _kill(proc)
+                proc.wait()
+                return Ran(None, "", "")
+        if too_large or os.fstat(fout.fileno()).st_size > max_output:
+            return Ran(proc.returncode, "", OUTPUT_TOO_LARGE, too_large=True)
+        fout.seek(0)
+        out = fout.read().decode("utf-8", "replace")
+        size = os.fstat(ferr.fileno()).st_size
+        ferr.seek(max(0, size - 80_000))
+        err = ferr.read().decode("utf-8", "replace")[-20_000:]
+    return Ran(proc.returncode, out, err)
 
 
 def _kill(proc: subprocess.Popen[Any]) -> None:
@@ -560,6 +600,8 @@ def _call(job: Job, s: Settings) -> dict[str, Any]:
     ran = run_cli(argv, job.input_md or "", cwd, _env(job, s, review=review), job.timeout_s)
     if ran.rc is None:
         return done(False, error="timeout", status_reason="the CLI ran past its timeout")
+    if ran.too_large:
+        return done(False, error="failed", status_reason=OUTPUT_TOO_LARGE)
     text, usage, error = parse(ran.out)
     if error or ran.rc != 0 or text is None:
         return _failure(
@@ -571,7 +613,7 @@ def _call(job: Job, s: Settings) -> dict[str, Any]:
     findings = findings_of(text) if job.seat == "code_review" else None
     return done(
         True,
-        text_md=scrub(text)[:MAX_OUTPUT],
+        text_md=scrub(text),  # whole: the hub keeps a long answer in its file store
         findings=findings,
         usage={**usage, "estimated": estimated},
     )
@@ -584,6 +626,8 @@ def _models(job: Job, s: Settings) -> dict[str, Any]:
         ran = run_cli([s.codex_bin, "debug", "models"], "", s.work_dir, _env(job, s), job.timeout_s)
         if ran.rc is None:
             return done(False, error="timeout", status_reason="the model listing ran too long")
+        if ran.too_large:
+            return done(False, error="failed", status_reason=OUTPUT_TOO_LARGE)
         if ran.rc != 0:
             return _failure(ran.err or ran.out or f"exit {ran.rc}")
         try:
