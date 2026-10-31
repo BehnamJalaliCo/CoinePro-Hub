@@ -65,7 +65,15 @@ tasks:
       - {do: wait, selector: "[data-testid=stop-button], button[aria-label*='توقف']", timeout_s: 20, optional: true}
       - {do: wait_gone, selector: "[data-testid=stop-button], button[aria-label*='توقف']", timeout_s: 200}
       - {do: wait, selector: "button[aria-label*='بلند'], [data-testid=voice-play-turn-action-button]", timeout_s: 30}
-      - {do: read, selector: "xpath=(//*[(normalize-space(.)='ChatGPT گفت:' or normalize-space(.)='ChatGPT said:') and normalize-space(..)!=normalize-space(.)])[last()]/ancestor::*[not(contains(.,'شما گفتید')) and not(contains(.,'You said'))][last()]//*[not(contains(.,'ChatGPT گفت')) and not(contains(.,'ChatGPT said')) and (contains(..,'ChatGPT گفت') or contains(..,'ChatGPT said')) and normalize-space(.)!='' and normalize-space(.)!='ChatGPT' and not(ancestor-or-self::button)][1]"}
+      - do: read
+        selector: >-
+          xpath=(//*[(normalize-space(.)='ChatGPT گفت:' or normalize-space(.)='ChatGPT said:')
+          and normalize-space(..)!=normalize-space(.)])[last()]
+          /ancestor::*[not(contains(.,'شما گفتید')) and not(contains(.,'You said'))][last()]
+          //*[not(contains(.,'ChatGPT گفت')) and not(contains(.,'ChatGPT said'))
+          and (contains(..,'ChatGPT گفت') or contains(..,'ChatGPT said'))
+          and normalize-space(.)!='' and normalize-space(.)!='ChatGPT'
+          and not(ancestor-or-self::button)][1]
   image:
     timeout_s: 180
     steps:
