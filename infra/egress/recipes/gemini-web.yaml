@@ -2,11 +2,21 @@
 # §9.1.5, contract §21.13): text, images and short videos (at most 10 s) on
 # the owner's Google AI Pro plan. A reviewed file.
 # The selectors are written against gemini.google.com as documented on
-# 2026-10-22 and are NOT yet verified on the live site (no sign-in exists
-# until the owner's `make gemini-web-login`); a failing step falls back to one
-# Claude run with web.browse on this profile, which proposes the fix here.
+# 2026-10-22; a failing step falls back to one Claude run with web.browse on
+# this profile, which proposes the fix here.
+# 2026-10-31 (prompt 19), checked on the live site: the profile opens with
+# locale fa-IR, so Gemini's labels are Persian and `aria-label='Send message'`
+# matched nothing (every council call failed at 4:click). Each label selector
+# now takes the English and the Persian label; the send button's Persian one
+# («ارسال…») was seen live, the stop button's («توقف…») is Gemini's own wording,
+# not yet seen (it shows only while an answer is being written).
+# 2026-10-31.2: the first test call filled the box but the click on the send
+# button sent nothing (the hub's own screenshot: the text still in the box), so
+# the prompt goes with Enter in the box (no label, any language). An answer is
+# read only once its action bar (message-actions) shows, so a stop button that
+# is never matched cannot hand back half an answer.
 key: gemini-web
-version: "2026-10-22.1"
+version: "2026-10-31.2"
 site: gemini.google.com
 start_url: "https://gemini.google.com/app"
 hosts:
@@ -39,9 +49,10 @@ tasks:
       - {do: click, selector: "[data-test-id=temp-chat-button]", optional: true}
       - {do: wait, selector: "rich-textarea div[contenteditable=true]", timeout_s: 30}
       - {do: fill, selector: "rich-textarea div[contenteditable=true]", text: "{prompt}"}
-      - {do: click, selector: "button[aria-label='Send message']"}
-      - {do: wait, selector: "button[aria-label='Stop response']", timeout_s: 20, optional: true}
-      - {do: wait_gone, selector: "button[aria-label='Stop response']", timeout_s: 200}
+      - {do: press, selector: "rich-textarea div[contenteditable=true]", key: Enter}
+      - {do: wait, selector: "button[aria-label='Stop response'], button[aria-label*='توقف']", timeout_s: 20, optional: true}
+      - {do: wait_gone, selector: "button[aria-label='Stop response'], button[aria-label*='توقف']", timeout_s: 200}
+      - {do: wait, selector: "model-response message-actions", timeout_s: 30}
       - {do: read, selector: "model-response message-content"}
   image:
     timeout_s: 180
@@ -50,7 +61,7 @@ tasks:
       - {do: click, selector: "[data-test-id=temp-chat-button]", optional: true}
       - {do: wait, selector: "rich-textarea div[contenteditable=true]", timeout_s: 30}
       - {do: fill, selector: "rich-textarea div[contenteditable=true]", text: "{prompt}"}
-      - {do: click, selector: "button[aria-label='Send message']"}
+      - {do: press, selector: "rich-textarea div[contenteditable=true]", key: Enter}
       - {do: wait, selector: "generated-image img", timeout_s: 170}
       - {do: download_image, selector: "generated-image img", attr: src}
   video:
@@ -60,6 +71,6 @@ tasks:
       - {do: click, selector: "[data-test-id=temp-chat-button]", optional: true}
       - {do: wait, selector: "rich-textarea div[contenteditable=true]", timeout_s: 30}
       - {do: fill, selector: "rich-textarea div[contenteditable=true]", text: "{prompt}"}
-      - {do: click, selector: "button[aria-label='Send message']"}
+      - {do: press, selector: "rich-textarea div[contenteditable=true]", key: Enter}
       - {do: wait, selector: "button[aria-label='Download video']", timeout_s: 590}
       - {do: download, selector: "button[aria-label='Download video']", timeout_s: 60}
