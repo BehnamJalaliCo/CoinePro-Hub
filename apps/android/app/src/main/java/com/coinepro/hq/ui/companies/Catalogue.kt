@@ -121,8 +121,9 @@ fun CatalogueScreen(code: String) {
     var section by rememberSaveable { mutableStateOf<String?>(null) }
     val k = q.data
     // While it runs, the page follows it.
-    LaunchedEffect(k?.running) {
-        while (k?.running == true) {
+    val onScreen = com.coinepro.hq.ui.rememberOnScreen()
+    LaunchedEffect(k?.running, onScreen) {
+        while (k?.running == true && onScreen) {
             delay(4_000)
             q.refresh()
         }
@@ -198,11 +199,11 @@ private fun StateCard(k: Catalogue, companyFa: String) {
                     style = Divan.type.bodyStrong, color = if (k.state == "failed") c.negative else c.textPrimary,
                 )
                 Text(
-                    when {
+                    com.coinepro.hq.designsystem.timesFig(when {
                         k.running -> k.at?.let { "از ${ago(it)}؛ صفحه خودش به‌روز میشود" } ?: "صفحه خودش به‌روز میشود"
                         k.at != null -> "${jDateTime(k.at)}، ${ago(k.at)}"
                         else -> ""
-                    },
+                    }),
                     style = Divan.type.caption, color = c.textMuted,
                 )
             }

@@ -234,8 +234,9 @@ private fun FoundingDetail(ref: String) {
     }
     // Live while something moves: the audit, the build (every 2 s), until the server is ready.
     val building = run?.data?.state in setOf("queued", "running")
-    LaunchedEffect(f?.state, run?.data?.state) {
-        while (f?.state in setOf("auditing", "sealed", "provisioning") || building) {
+    val onScreen = com.coinepro.hq.ui.rememberOnScreen()
+    LaunchedEffect(f?.state, run?.data?.state, onScreen) {
+        while (onScreen && (f?.state in setOf("auditing", "sealed", "provisioning") || building)) {
             delay(if (building) 2_000 else 5_000)
             run?.refresh()
             q.refresh()
@@ -432,7 +433,7 @@ private fun PlanCard(pl: ServerPlan, rn: ProvisionRun?) {
             Text("تا این‌ها رفع نشود، طرح مُهر نمیشود", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.warning)
             for (x in pl.problems) Fig(x, style = Divan.type.figureSmall, color = c.textSecondary, maxLines = 4)
         }
-        if (pl.state == "proposed") HqButton("با گذرکلید مُهر کن و بساز" + (price?.let { " ($it در ماه)" } ?: ""), {
+        if (pl.state == "proposed") HqButton("با اثر انگشت مُهر کن و بساز" + (price?.let { " ($it در ماه)" } ?: ""), {
             action.run {
                 env.api.sealPlan(pl) { a, t -> env.auth.stepUp(act, a, t) }
                 env.cache.invalidate("founding")
@@ -472,7 +473,7 @@ private fun RunBlock(rn: ProvisionRun) {
                 Text(s.titleFa, style = Divan.type.small, color = if (s.state == "pending") c.textMuted else c.textPrimary)
                 if (s.logTail.isNotEmpty()) Text(s.logTail.takeLast(3).joinToString("\n"), style = Divan.type.figureSmall.copy(textDirection = TextDirection.Ltr), color = c.textMuted)
             }
-            s.finishedAt?.let { Text(jTime(it), style = Divan.type.micro, color = c.textMuted) }
+            s.finishedAt?.let { Text(com.coinepro.hq.designsystem.timesFig(jTime(it)), style = Divan.type.micro, color = c.textMuted) }
         }
     }
     if (rn.state == "failed") Column(

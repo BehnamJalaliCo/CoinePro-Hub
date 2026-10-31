@@ -232,7 +232,7 @@ fun ConnectionWizard(onClose: () -> Unit, draft: ConnectionDraft = remember { Co
                     Fig(d.key, style = Divan.type.figureSmall, color = c.textMuted)
                     Pill(if (d.kind == "api_key") "کلید API" else "اشتراک", Tone.NEUTRAL)
                 }
-                Text("passkey به SHA-256 همین بدنه بسته است؛ اگر چیزی عوض شود، مُهر دیگر نمیخورد. نتیجه اتصالی «منتظر کلید» است که هنوز هیچ کاری از آن نمیگذرد.", style = Divan.type.small, color = c.textSecondary)
+                Text("اثر انگشت به SHA-256 همین بدنه بسته است؛ اگر چیزی عوض شود، مُهر دیگر نمیخورد. نتیجه اتصالی «منتظر کلید» است که هنوز هیچ کاری از آن نمیگذرد.", style = Divan.type.small, color = c.textSecondary)
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                     Fig(PRETTY.encodeToString(ConnectionIn.serializer(), d.body()), Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.page).padding(12.dp), style = Divan.type.figureSmall, color = c.textPrimary, maxLines = 60)
                 }
@@ -243,7 +243,7 @@ fun ConnectionWizard(onClose: () -> Unit, draft: ConnectionDraft = remember { Co
             if (step > 0) HqButton("قبلی", { step-- }, variant = BtnVariant.GHOST, icon = DivanIcon.BACK)
             Box(Modifier.weight(1f))
             if (step < 2) HqButton("بعدی", { step++ }, variant = BtnVariant.PRIMARY, icon = DivanIcon.NEXT, enabled = if (step == 0) d.ok0 else d.ok1)
-            else HqButton("ساختن با passkey", {
+            else HqButton("ساختن با اثر انگشت", {
                 action.mgmt(toasts) {
                     val out = env.api.createConnection(d.body(), idem) { a, t -> env.auth.stepUp(act, a, t) }
                     made = out
@@ -279,7 +279,8 @@ fun SecretStep(x0: Connection, onDone: () -> Unit) {
     var secret by remember { mutableStateOf("") }
     val x = q.data?.firstOrNull { it.id == x0.id } ?: x0
     val checking = x.status == "verifying" || x.status == "pending_secret"
-    LaunchedEffect(checking) { while (checking) { delay(2_000); q.refresh() } }
+    val onScreen = com.coinepro.hq.ui.rememberOnScreen()
+    LaunchedEffect(checking, onScreen) { while (checking && onScreen) { delay(2_000); q.refresh() } }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (x.kind == "subscription") {
             Text("اشتراک کلید API ندارد؛ با ورود خود CLI وصل میشود (کد دستگاه از اپ، یا ترمینال خودت).", style = Divan.type.small, color = c.textSecondary)
@@ -301,7 +302,7 @@ fun SecretStep(x0: Connection, onDone: () -> Unit) {
             Text("کلید، همین‌جا", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
             SecretField(secret, { secret = it }, "sk-…", "کلید")
             Text("فقط‌نوشتنی: مستقیم به خزانه‌ی رمزها میرود و نه این‌جا، نه در پاسخ، نه در لاگ و نه در Audit برنمیگردد.", style = Divan.type.micro, color = c.textMuted)
-            HqButton("ذخیره با passkey", {
+            HqButton("ذخیره با اثر انگشت", {
                 action.mgmt(toasts) {
                     env.api.connectionSecret(x.id, secret.trim()) { a, t -> env.auth.stepUp(act, a, t) }
                     secret = ""

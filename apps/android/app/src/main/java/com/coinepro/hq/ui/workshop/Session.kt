@@ -114,7 +114,10 @@ class SessionFeed {
 @Composable
 private fun rememberSessionFeed(env: Env, ref: String): SessionFeed {
     val feed = remember(env, ref) { SessionFeed() }
-    DisposableEffect(feed) {
+    // Off screen nothing is kept open or polled; back on screen the live answer is opened again from the last event seen.
+    val onScreen = com.coinepro.hq.ui.rememberOnScreen()
+    DisposableEffect(feed, onScreen) {
+        if (!onScreen) return@DisposableEffect onDispose { }
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         var source: EventSource? = null
         fun add(e: SessionEvent) {
@@ -122,8 +125,9 @@ private fun rememberSessionFeed(env: Env, ref: String): SessionFeed {
             feed.events.add(e)
             if (e.type == "state" || e.type == "approval_result" || e.type == "approval_request") env.cache.invalidate("workshop")
         }
+        // Polling is not live: the page says so (the demo, or a hub whose live answer failed), and backs off with each empty round.
         suspend fun poll(every: Long) {
-            feed.live = true
+            feed.live = env.demo
             while (currentCoroutineContext().isActive) {
                 delay(every)
                 runCatching { env.api.sessionEvents(ref, feed.last).items }.getOrNull()?.forEach(::add)
@@ -131,7 +135,7 @@ private fun rememberSessionFeed(env: Env, ref: String): SessionFeed {
         }
         scope.launch {
             try {
-                env.api.sessionEvents(ref).items.forEach(::add)
+                env.api.sessionEvents(ref, feed.last.takeIf { it > 0 }).items.forEach(::add)
             } catch (e: ApiException) {
                 feed.error = e
                 return@launch
@@ -175,7 +179,7 @@ private fun ApprovalCard(e: SessionEvent, answered: SessionEvent?, busy: Boolean
             val allowed = answered.bool("allow") == true
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 DIcon(if (allowed) DivanIcon.SEAL else DivanIcon.REJECT, size = 14.dp, tint = if (allowed) c.positive else c.negative)
-                Text((if (allowed) "اجازه دادی" else "اجازه ندادی") + "، " + jTime(answered.at), style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = if (allowed) c.positive else c.negative)
+                Text(com.coinepro.hq.designsystem.timesFig((if (allowed) "اجازه دادی" else "اجازه ندادی") + "، " + jTime(answered.at)), style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = if (allowed) c.positive else c.negative)
             }
         } else {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -208,7 +212,7 @@ private fun EventItem(e: SessionEvent, driverKind: String) {
             Column(Modifier.widthIn(max = 320.dp), horizontalAlignment = if (mine) Alignment.End else Alignment.Start, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 val shape = if (mine) RoundedCornerShape(14.dp, 6.dp, 14.dp, 14.dp) else RoundedCornerShape(6.dp, 14.dp, 14.dp, 14.dp)
                 Box(Modifier.clip(shape).background(if (mine) c.raised else c.card).padding(horizontal = 14.dp, vertical = 10.dp)) { Md(e.summaryFa, color = c.textPrimary) }
-                Text((if (mine) "تو" else actorFa(e.actor)) + "، " + jTime(e.at), style = Divan.type.micro, color = c.textMuted)
+                Text(com.coinepro.hq.designsystem.timesFig((if (mine) "تو" else actorFa(e.actor)) + "، " + jTime(e.at)), style = Divan.type.micro, color = c.textMuted)
             }
         }
         "command" -> Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -238,7 +242,7 @@ private fun EventItem(e: SessionEvent, driverKind: String) {
         else -> Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.padding(top = 8.dp).size(6.dp).clip(CircleShape).background(c.silverInk))
             RichText(e.summaryFa, Modifier.weight(1f), style = Divan.type.small)
-            Text(jTime(e.at), style = Divan.type.micro, color = c.textMuted)
+            Text(com.coinepro.hq.designsystem.timesFig(jTime(e.at)), style = Divan.type.micro, color = c.textMuted)
         }
     }
 }

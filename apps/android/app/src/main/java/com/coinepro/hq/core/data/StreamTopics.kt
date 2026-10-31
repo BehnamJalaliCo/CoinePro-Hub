@@ -9,8 +9,9 @@ package com.coinepro.hq.core.data
  * topics never refreshed anything). Each lane is now one connection with a value the hub accepts; together they cover every topic.
  */
 object StreamTopics {
-    /** The hub's limit on `topics` (routes/stream.py). */
-    const val MAX = 200
+    /** The hub's limit on `topics` (routes/stream.py): 1000 characters since ⟨1.7.5⟩ (200 before), so the app's two lanes are the
+     *  alert lane, kept open in the background, and everything else in one connection. */
+    const val MAX = 1000
 
     val CORE = listOf("work", "decisions", "deliverables", "messages", "notifications", "activity", "llm", "control")
 

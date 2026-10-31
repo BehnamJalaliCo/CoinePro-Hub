@@ -141,7 +141,8 @@ fun MeetingScreen(ref: String) {
     val settings = rememberQuery("meetings:settings", "meetings", maxAgeMs = 60_000) { meetingSettings() }
     val live = q.data?.live == true
     // The room polls while it is live (the stream also refreshes it on meeting.turn).
-    LaunchedEffect(live) { while (live) { delay(4_000); t.refresh(); q.refresh() } }
+    val onScreen = com.coinepro.hq.ui.rememberOnScreen()
+    LaunchedEffect(live, onScreen) { while (live && onScreen) { delay(4_000); t.refresh(); q.refresh() } }
     val r = refresher(q, t)
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
         val m = q.data
@@ -183,7 +184,7 @@ private fun RoomHeader(m: Meeting, war: Boolean = false, actions: (@Composable (
             RoomSeal(m, 44.dp)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(buildAnnotatedString {
-                    append("اتاق جلسه · ${MEETING_TYPE[m.type]?.fa ?: m.type} · ${jWeekday(m.startsAt)}، ${jTime(m.startsAt)}  "); fig(m.ref)
+                    append("اتاق جلسه · ${MEETING_TYPE[m.type]?.fa ?: m.type} · ${jWeekday(m.startsAt)}، "); fig(jTime(m.startsAt)); append("  "); fig(m.ref)
                 }, style = Divan.type.caption, color = c.textMuted)
                 Text(m.titleFa, style = Divan.type.h2)
             }
@@ -837,7 +838,7 @@ private fun WarRoom(m: Meeting, turns: List<Turn>) {
             m.incident?.let { RefChip(it, tone = RefTone.NEG) }
             Pill(if (m.state == "ended") "مهار شد" else "در جریان", if (m.state == "ended") Tone.POS else Tone.NEG, dot = m.state != "live", live = m.state == "live")
         }
-        Text(buildAnnotatedString { append("از ${jTime(m.startsAt)} · اولویت "); priorityText("P0"); append(" · بی‌سقف جلسه، داخل سقف روزانه و کلید توقف") }, style = Divan.type.caption, color = c.textMuted)
+        Text(com.coinepro.hq.designsystem.timesFig(buildAnnotatedString { append("از ${jTime(m.startsAt)} · اولویت "); priorityText("P0"); append(" · بی‌سقف جلسه، داخل سقف روزانه و کلید توقف") }), style = Divan.type.caption, color = c.textMuted)
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("خط زمانی", style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold))
             for (t in turns) Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -857,7 +858,7 @@ private fun WarRoom(m: Meeting, turns: List<Turn>) {
                 Text(p.roleFa, style = Divan.type.small)
             }
             Text(buildAnnotatedString {
-                if (post != null) { append("کالبدشکافی ${jWeekday(post.startsAt)} ${jTime(post.startsAt)} در پلنر ثبت شد ("); fig(post.ref, c.goldInk); append("). ") }
+                if (post != null) { append("کالبدشکافی ${jWeekday(post.startsAt)} "); fig(jTime(post.startsAt)); append(" در پلنر ثبت شد ("); fig(post.ref, c.goldInk); append("). ") }
                 append(prose("هر مهار بیرونی یک کارت A3 است. هشدار فوری حتی در خلوت میرسد."))
             }, Modifier.clickable(enabled = post != null, role = Role.Button) { post?.let { nav.go("meetings/${it.ref}") } }, style = Divan.type.caption, color = c.textMuted)
         }

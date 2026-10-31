@@ -251,10 +251,17 @@ fun BrandBlock(code: String, nameFa: String, nameEn: String, title: String = "ن
         if (ctx.contentResolver.getType(uri) !in LOGO_TYPES) toasts.error("لوگو باید PNG (بهتر با زمینه‌ی شفاف)، WebP یا JPEG باشد.")
         else files.add(listOf(uri))
     }
+    val onScreen = com.coinepro.hq.ui.rememberOnScreen()
     LaunchedEffect(work?.version, work?.state) {
         val w = work?.takeIf { it.state == "processing" } ?: return@LaunchedEffect
-        while (true) {
-            delay(1_500)
+        // Bounded, and slower after each answer that is not ready (or a failed one): at most ten minutes of asking.
+        var wait = 1_500L
+        var spent = 0L
+        while (spent < 10 * 60_000L) {
+            delay(wait)
+            spent += wait
+            wait = (wait * 3 / 2).coerceAtMost(15_000L)
+            if (!onScreen) continue
             val next = runCatching { env.api.brandVersions(code).firstOrNull { it.version == w.version } }.getOrNull() ?: continue
             if (next.state != "processing") {
                 work = next

@@ -297,7 +297,9 @@ class HoldingStream(
 
     private fun dispatch(e: StreamEvent) {
         val tags = INVALIDATE.firstOrNull { e.type.startsWith(it.first) }?.second
-        if (tags != null) cache.invalidate(*tags)
+        // Coalesced: a burst of events (agents at work, every model call) refetches each tag once per window, not once per event; the
+        // treasury (every `llm.*`) once in fifteen seconds.
+        if (tags != null) cache.invalidateSoon(*tags, windowMs = if (e.type.startsWith("llm.")) TREASURY_WINDOW_MS else WINDOW_MS)
         activity.on(e)
         eventsFlow.tryEmit(e)
     }
@@ -331,6 +333,9 @@ class HoldingStream(
     companion object {
         /** No byte for this long (three of the hub's 15 s heartbeats and some) and the connection is taken for dead. */
         const val STALE_S = 50L
+        /** A stream event's refetch waits this long for the rest of its burst. */
+        const val WINDOW_MS = 2_000L
+        const val TREASURY_WINDOW_MS = 15_000L
 
         // Event type prefix -> query tags to refresh (mirrors apps/web/src/lib/stream.ts).
         private val INVALIDATE: List<Pair<String, Array<String>>> = listOf(

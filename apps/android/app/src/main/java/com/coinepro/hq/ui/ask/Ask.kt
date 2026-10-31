@@ -225,6 +225,7 @@ private fun AskOne(ref: String) {
     val q = rememberQuery("ask:$ref", "ask", maxAgeMs = 0) { asked(ref) }
     val a = q.data
     val live = a?.live == true
-    LaunchedEffect(live) { while (live) { delay(1_500); q.refresh() } }
+    val onScreen = com.coinepro.hq.ui.rememberOnScreen()
+    LaunchedEffect(live, onScreen) { while (live && onScreen) { delay(1_500); q.refresh() } }
     if (a == null) Skeleton(Modifier.fillMaxWidth().height(64.dp), radius = 12.dp) else AskAnswer(a)
 }

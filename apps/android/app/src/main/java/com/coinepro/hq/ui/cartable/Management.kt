@@ -243,7 +243,7 @@ fun DeployPayloadBlock(d: Decision, open0: String? = null) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
             if (p.headSha.isNotBlank()) Text(buildAnnotatedString { append("commit "); fig(p.headSha.take(10), c.textPrimary) }, style = Divan.type.caption, color = c.textSecondary)
             if (p.rollout.isNotBlank()) Text(buildAnnotatedString { append("روش "); fig(p.rollout, c.textPrimary) }, style = Divan.type.caption, color = c.textSecondary)
-            p.window?.let { Text("پنجره ${jDateTime(it.from)} تا ${jDateTime(it.to)}", style = Divan.type.caption, color = c.textSecondary) }
+            p.window?.let { Text(com.coinepro.hq.designsystem.timesFig("پنجره ${jDateTime(it.from)} تا ${jDateTime(it.to)}"), style = Divan.type.caption, color = c.textSecondary) }
             if (p.prUrl.isNotBlank()) Row(Modifier.clip(CircleShape).clickable(role = Role.Button, onClickLabel = "باز کردن PR") { runCatching { uri.openUri(p.prUrl) } }.padding(horizontal = 4.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 DIcon(DivanIcon.SHARE, size = 13.dp, tint = c.goldInk)
@@ -394,7 +394,8 @@ fun MemoBlock(d: Decision, mode0: String = "standard") {
     val m = q.data
     // Polls while the advisor writes.
     val writing = m?.state == "writing"
-    LaunchedEffect(writing) { while (writing) { delay(2_500); q.refresh() } }
+    val onScreen = com.coinepro.hq.ui.rememberOnScreen()
+    LaunchedEffect(writing, onScreen) { while (writing && onScreen) { delay(2_500); q.refresh() } }
     fun ask() = action.mgmt(toasts) {
         q.set(env.api.requestMemo(d.ref, mode))
         env.cache.invalidate("memos", "decisions")

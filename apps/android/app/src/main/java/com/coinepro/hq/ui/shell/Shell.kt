@@ -114,7 +114,13 @@ import com.coinepro.hq.ui.workshop.WorkshopScreen
 
 /** What the live stream looks like to screens: connection state, the last event, a short feed. */
 @Stable
-class Live(val state: StreamState, val last: StreamEvent?, val feed: List<StreamEvent>)
+class Live(state: StreamState = StreamState.CONNECTING, last: StreamEvent? = null, feed: List<StreamEvent> = emptyList()) {
+    // One object per session whose fields are snapshot state: a new event recomposes only what reads [last] or [feed], never the
+    // whole tree under the shell (a static local whose value changed with every event did).
+    var state by mutableStateOf(state)
+    var last by mutableStateOf(last)
+    var feed by mutableStateOf(feed)
+}
 
 val LocalLive = staticCompositionLocalOf { Live(StreamState.CONNECTING, null, emptyList()) }
 
@@ -122,7 +128,8 @@ private data class Tab(val route: String, val label: String, val icon: DivanIcon
 
 /** The bottom bar; the gold button in the middle ("order") is not a tab: a tap speaks an order, a long press types one. */
 private val TABS = listOf(
-    Tab("home", "فرمان", DivanIcon.COMMAND),
+    // «خانه»: the tab beside the gold order button is the home page, not a place to give an order.
+    Tab("home", "خانه", DivanIcon.COMMAND),
     Tab("cartable", "کارتابل", DivanIcon.CARTABLE, "decisions"),
     Tab("order", "فرمان صوتی", DivanIcon.MIC),
     Tab("companies", "شرکت‌ها", DivanIcon.COMPANIES),
@@ -220,14 +227,19 @@ private class NavImpl(private val nav: NavHostController) : Nav {
     override fun go(route: String) {
         // A ref of something else on its way to the work page goes to its own page (0.4.0 sent `MT-0077` there: a 422).
         val to = com.coinepro.hq.core.data.Refs.normalize(route) ?: return
-        if (to in TOP) {
-            nav.navigate(to) {
-                popUpTo("home") { saveState = true }
-                launchSingleTop = true
-                restoreState = true
+        // A route the app has no page for (an old link, a newer hub's ref) is ignored, never a crash.
+        try {
+            if (to in TOP) {
+                nav.navigate(to) {
+                    popUpTo("home") { saveState = true }
+                    launchSingleTop = true
+                    restoreState = true
+                }
+            } else {
+                nav.navigate(to)
             }
-        } else {
-            nav.navigate(to)
+        } catch (e: IllegalArgumentException) {
+            com.coinepro.hq.core.diag.Diag.note("app", com.coinepro.hq.core.diag.LEVEL_WARNING, "no page for a route", to.take(80))
         }
     }
 
@@ -249,13 +261,12 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
     val top = route in TOP
     val inbox = rememberQuery("inbox", "inbox", maxAgeMs = 30_000) { inbox() }
     val streamState by env.stream.state.collectAsStateWithLifecycle()
-    val feed = remember(env) { mutableStateListOf<StreamEvent>() }
-    var last by remember(env) { mutableStateOf<StreamEvent?>(null) }
+    val live = remember(env) { Live() }
+    LaunchedEffect(live, streamState) { live.state = streamState }
     LaunchedEffect(env) {
         env.stream.events.collect { e ->
-            last = e
-            feed.add(0, e)
-            while (feed.size > 20) feed.removeAt(feed.lastIndex)
+            live.last = e
+            live.feed = (listOf(e) + live.feed).take(20)
         }
     }
     var tools by remember { mutableStateOf(false) }
@@ -315,7 +326,7 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
     }
     LaunchedEffect(route) { graph.errors.screen = route }
 
-    CompositionLocalProvider(LocalNav provides navApi, LocalLive provides Live(streamState, last, feed.toList()), LocalBrands provides brands, com.coinepro.hq.designsystem.LocalRefLinks provides refLinks) {
+    CompositionLocalProvider(LocalNav provides navApi, LocalLive provides live, LocalBrands provides brands, com.coinepro.hq.designsystem.LocalRefLinks provides refLinks) {
         Column(Modifier.fillMaxSize()) {
             TopBar(
                 back = !top,
@@ -335,7 +346,7 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
             offlineSince?.takeIf { hubState != com.coinepro.hq.core.net.HubState.RESTARTING }?.let { at ->
                 Row(Modifier.fillMaxWidth().background(Divan.colors.softWarning).padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     com.coinepro.hq.designsystem.DIcon(DivanIcon.OFFLINE, size = 16.dp, tint = Divan.colors.warning)
-                    Text("آفلاین؛ آخرین وضعیت از ${com.coinepro.hq.core.format.jDateTime(at)}. هیچ اقدامی آفلاین انجام نمیشود.", style = Divan.type.caption, color = Divan.colors.textPrimary)
+                    Text(com.coinepro.hq.designsystem.timesFig("آفلاین؛ آخرین وضعیت از ${com.coinepro.hq.core.format.jDateTime(at)}. هیچ اقدامی آفلاین انجام نمیشود."), style = Divan.type.caption, color = Divan.colors.textPrimary)
                 }
             }
             Box(Modifier.weight(1f)) {

@@ -121,7 +121,9 @@ fun rememberOrders(): QueryHandle<List<Work>> {
 /** One order and what is under it; [full] adds its events and runs and its children's (the order's own page). */
 @Composable
 fun rememberTrack(id: String, full: Boolean = false): QueryHandle<OrderTrack> =
-    rememberQuery(if (full) "order:$id:full" else "order:$id", "work", "runs", "deliverables", maxAgeMs = 15_000) { orderTrack(id, full) }
+    // A list's card follows the work and its outputs; only the order's own page follows each run step too.
+    if (full) rememberQuery("order:$id:full", "work", "runs", "deliverables", maxAgeMs = 15_000) { orderTrack(id, true) }
+    else rememberQuery("order:$id", "work", "deliverables", maxAgeMs = 15_000) { orderTrack(id, false) }
 
 // ----------------------------------------------------------------- screen --
 /**

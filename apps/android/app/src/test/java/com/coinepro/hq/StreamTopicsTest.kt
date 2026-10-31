@@ -30,16 +30,18 @@ class StreamTopicsTest {
     )
 
     @Test
-    fun theOldSingleValueWasTooLongForTheHub() {
-        val old = StreamTopics.ALL.joinToString(",")
-        assertTrue(old.length > StreamTopics.MAX)
-        assertTrue(!StreamTopics.accepted(old))
+    fun everyTopicFitsInOneValueSince175() {
+        // ⟨1.7.5⟩ the hub takes 1000 characters: every topic fits in one connection (0.4.0's 339 were refused at 200).
+        val all = StreamTopics.ALL.joinToString(",")
+        assertTrue(all.length > 200)
+        assertTrue(StreamTopics.accepted(all))
+        assertTrue(!StreamTopics.accepted("a".repeat(1001)))
     }
 
     @Test
     fun everyLaneIsAcceptedAndTogetherTheyAskForEveryTopic() {
         val lanes = StreamTopics.lanes()
-        assertTrue(lanes.size >= 2)
+        assertEquals(1, lanes.size)
         for (l in lanes) assertTrue(l, StreamTopics.accepted(l))
         val asked = lanes.flatMap { it.split(',') }
         assertEquals(StreamTopics.ALL, asked)
@@ -53,6 +55,8 @@ class StreamTopicsTest {
     @Test
     fun theAlertLaneComesFirstAndNoTopicIsAskedTwice() {
         val lanes = StreamTopics.split()
+        // Two connections on screen (the hub keeps one heartbeat each): the alert lane and the rest.
+        assertEquals(2, lanes.size)
         // The lane the background link keeps open with the app closed: the alert topics alone, nothing chatty.
         assertEquals("work,decisions,deliverables,notifications,control", lanes.first())
         for (chatty in listOf("activity", "llm", "runs", "messages")) assertTrue(chatty !in lanes.first().split(','))
@@ -84,7 +88,7 @@ class StreamTopicsTest {
             assertEquals("/api/v1/stream", u.encodedPath)
             assertEquals(setOf("topics"), u.queryParameterNames)
             val topics = u.queryParameter("topics")!!
-            assertTrue("${topics.length} > 200", topics.length <= 200)
+            assertTrue("${topics.length} > ${StreamTopics.MAX}", topics.length <= StreamTopics.MAX)
             assertTrue(Regex("^[a-z]+(,[a-z]+)*$").matches(topics))
         }
         assertEquals(served, urls.flatMap { it.queryParameter("topics")!!.split(',') }.toSet())
