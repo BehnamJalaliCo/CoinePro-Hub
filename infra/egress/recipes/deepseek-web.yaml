@@ -4,11 +4,14 @@
 # ALWAYS on: deep thinking ("DeepThink") and web search; nothing else of the
 # site is used. A reviewed file.
 # The selectors are written against chat.deepseek.com as documented on
-# 2026-10-22 and are NOT yet verified on the live site (no sign-in exists
-# until the owner's `make deepseek-web-login`); a failing step falls back to
-# one Claude run with web.browse on this profile, which proposes the fix here.
+# 2026-10-22; a failing step falls back to one Claude run with web.browse on
+# this profile, which proposes the fix here.
+# 2026-10-31 (prompt 19), checked on the live site: the profile opens with
+# locale fa-IR, so the toggles read «تفکر عمیق» and «جستجو», and they are not
+# role=button (every council call failed at 2:click_unless). They carry
+# aria-pressed, which now finds them and their state, in English or Persian.
 key: deepseek-web
-version: "2026-10-22.1"
+version: "2026-10-31.1"
 site: chat.deepseek.com
 start_url: "https://chat.deepseek.com/"
 hosts:
@@ -45,11 +48,11 @@ tasks:
       - {do: wait, selector: "textarea", timeout_s: 30}
       # Both toggles on for every job (clicked only while off).
       - do: click_unless
-        selector: "div[role=button]:has-text('DeepThink')"
-        unless: "div[role=button][aria-pressed=true]:has-text('DeepThink')"
+        selector: "[aria-pressed]:has-text('DeepThink'), [aria-pressed]:has-text('تفکر عمیق')"
+        unless: "[aria-pressed=true]:has-text('DeepThink'), [aria-pressed=true]:has-text('تفکر عمیق')"
       - do: click_unless
-        selector: "div[role=button]:has-text('Search')"
-        unless: "div[role=button][aria-pressed=true]:has-text('Search')"
+        selector: "[aria-pressed]:has-text('Search'), [aria-pressed]:has-text('جستجو')"
+        unless: "[aria-pressed=true]:has-text('Search'), [aria-pressed=true]:has-text('جستجو')"
       - {do: fill, selector: "textarea", text: "{prompt}"}
       - {do: press, selector: "textarea", key: Enter}
       - {do: wait, selector: ".ds-markdown", timeout_s: 120}
