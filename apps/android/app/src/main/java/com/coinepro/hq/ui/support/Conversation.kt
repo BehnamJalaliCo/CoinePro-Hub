@@ -286,7 +286,7 @@ private fun Bubble(m: SupportMessage, onSend: (SupportMessage) -> Unit, onEdit: 
             verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically,
         ) {
             Text(AUTHOR_FA[m.author] ?: m.author, style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
-            Text(jTime(m.at), style = Divan.type.micro, color = c.textMuted)
+            Text(com.coinepro.hq.designsystem.timesFig(jTime(m.at)), style = Divan.type.micro, color = c.textMuted)
             if (!inbound) {
                 LabelPill(MSG_STATUS[m.status], m.status)
                 Check(m.checks.guard == "pass", "نگهبان")

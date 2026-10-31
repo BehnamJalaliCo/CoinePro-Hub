@@ -214,7 +214,7 @@ private fun Proposed(s: CharterScope, p: Charter) {
             LabelPill(CHARTER_STATUS["proposed"])
             Text(buildAnnotatedString { append("نسخه‌ی "); fig(p.version.toString()) }, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold))
         }
-        Text("${actorFa(p.createdBy)}، ${jDateTime(p.createdAt)}", style = Divan.type.caption, color = c.textMuted)
+        Text(com.coinepro.hq.designsystem.timesFig("${actorFa(p.createdBy)}، ${jDateTime(p.createdAt)}"), style = Divan.type.caption, color = c.textMuted)
         if (sealed != null) Segmented(listOf(SegOption("diff", "تفاوت با نسخه‌ی ${sealed.version}"), SegOption("text", "متن کامل")), view, { view = it }, Modifier.fillMaxWidth())
         if (view == "diff" && diff != null) {
             val d = diff.data

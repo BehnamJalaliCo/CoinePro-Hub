@@ -183,7 +183,7 @@ fun FoundingWizard(step0: Int = 1, draft0: FoundingDraft = FoundingDraft(), trie
                         { if (errors.isEmpty()) { step++; tried = false } else tried = true },
                         Modifier.weight(1f), variant = BtnVariant.PRIMARY, icon = DivanIcon.NEXT,
                     )
-                    d.path == FoundingPath.REGISTER -> HqButton("ثبت با گذرکلید", ::submit, Modifier.weight(1.4f), variant = BtnVariant.PRIMARY, icon = DivanIcon.SEAL, loading = busy)
+                    d.path == FoundingPath.REGISTER -> HqButton("ثبت با اثر انگشت", ::submit, Modifier.weight(1.4f), variant = BtnVariant.PRIMARY, icon = DivanIcon.SEAL, loading = busy)
                     else -> HqButton("شروع تأسیس", ::submit, Modifier.weight(1.4f), variant = BtnVariant.PRIMARY, icon = DivanIcon.FOUND, loading = busy)
                 }
             }

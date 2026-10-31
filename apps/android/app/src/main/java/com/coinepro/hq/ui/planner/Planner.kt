@@ -183,7 +183,7 @@ private fun PlanRow(i: PlannerItem, onClick: () -> Unit) {
         Column(Modifier.weight(1f)) {
             Text(i.title, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis, color = if (i.status == "done") c.textMuted else c.textPrimary)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(jTime(i.at), style = Divan.type.micro, color = c.textMuted)
+                Text(com.coinepro.hq.designsystem.timesFig(jTime(i.at)), style = Divan.type.micro, color = c.textMuted)
                 if (i.kind == "meeting") DIcon(DivanIcon.MEETING, size = 12.dp, tint = c.textMuted)
                 if (i.recurring) DIcon(DivanIcon.REFRESH, size = 12.dp, tint = c.textMuted)
                 Text(listOfNotNull(com.coinepro.hq.core.format.PLAN_KIND[i.kind], com.coinepro.hq.core.format.PLAN_STATUS[i.status] ?: i.status).distinct().joinToString("، "), style = Divan.type.micro, color = c.textMuted)

@@ -122,7 +122,6 @@ fun HomeScreen(onNewOrder: () -> Unit, onVoiceOrder: () -> Unit = {}) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                     HqButton("فرمان صوتی", onVoiceOrder, variant = BtnVariant.PRIMARY, icon = DivanIcon.MIC)
                     HqButton("فرمان تازه", onNewOrder, icon = DivanIcon.COMMAND)
-                    HqButton("فرمان‌های من", { nav.go("orders") }, icon = DivanIcon.TASK, variant = BtnVariant.TEXT)
                     if (presence.data?.khalvat == true) Pill("خلوت روشن؛ فقط فوری میرسد", Tone.LEARN, icon = DivanIcon.KHALVAT)
                 }
             }
@@ -158,7 +157,13 @@ fun HomeScreen(onNewOrder: () -> Unit, onVoiceOrder: () -> Unit = {}) {
                     StatTile("منتظر مُهر تو", i.decisionsPending.toString(), Modifier.weight(1f),
                         sub = if (i.decisionsByRisk.high > 0) "${i.decisionsByRisk.high} با ریسک بالا" else "بدون ریسک بالا",
                         tone = if (i.decisionsByRisk.high > 0) Tone.WARN else null, figure = false, onClick = { nav.go("cartable") }, subLines = 2, count = true)
-                    StatTile("خروجی بی‌امتیاز", i.deliverablesUnrated.toString(), Modifier.weight(1f), sub = "امتیاز تو ۴۰٪ نمره‌ی کارمند است", figure = false, onClick = { nav.go("outputs") }, subLines = 2, count = true)
+                    // One count for outputs everywhere: «تازه» (unseen), the same figure as the outputs page's tab and the tools badge.
+                    val fresh = i.deliverablesUnseen
+                    StatTile(
+                        if (fresh != null) "خروجی تازه" else "خروجی بی‌امتیاز", (fresh ?: i.deliverablesUnrated).toString(), Modifier.weight(1f),
+                        sub = if (fresh != null) "${i.deliverablesUnrated} بی‌امتیاز؛ امتیاز تو ۴۰٪ نمره‌ی کارمند است" else "امتیاز تو ۴۰٪ نمره‌ی کارمند است",
+                        figure = false, onClick = { nav.go("outputs") }, subLines = 2, count = true,
+                    )
                 }
                 StatRow {
                     StatTile("پیام نخوانده", i.messagesUnread.toString(), Modifier.weight(1f), sub = "از مدیرعامل‌ها و مشاور", figure = false, onClick = { nav.go("messages") }, subLines = 2, count = true)
@@ -216,7 +221,7 @@ fun HomeScreen(onNewOrder: () -> Unit, onVoiceOrder: () -> Unit = {}) {
                             // meeting's MT-… to the work page).
                             val to = com.coinepro.hq.core.data.Refs.forPlanner(it.kind, it.ref)
                             Row(Modifier.fillMaxWidth().then(if (to != null) Modifier.clickable { nav.go(to) } else Modifier).padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Text(jTime(it.at), style = Divan.type.caption, color = c.textMuted, modifier = Modifier.width(40.dp))
+                                Text(com.coinepro.hq.designsystem.timesFig(jTime(it.at)), style = Divan.type.caption, color = c.textMuted, modifier = Modifier.width(40.dp))
                                 Box(Modifier.size(8.dp).clip(CircleShape).background(if (it.status == "done") c.positive else if (com.coinepro.hq.core.format.isUrgentPriority(it.priority)) c.negative else c.silverInk))
                                 Text(it.title, style = Divan.type.small, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                                 if (it.kind == "meeting") DIcon(DivanIcon.MEETING, size = 14.dp, tint = c.textMuted)

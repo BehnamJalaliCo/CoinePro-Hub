@@ -271,7 +271,7 @@ private fun SeriesCard(s: Series, focus: Boolean, onChanged: () -> Unit, onEdit:
                 DIcon(DivanIcon.TIME, size = 14.dp, tint = c.textSecondary)
                 Text("بعدی:", style = Divan.type.caption, color = c.textSecondary)
                 s.nextAt.take(3).forEachIndexed { i, at ->
-                    Text(jDateTime(at) + if (i == 0) " (${until(at)})" else "", Modifier.clip(CircleShape).background(if (i == 0) c.softGold else c.tile).padding(horizontal = 8.dp, vertical = 2.dp), style = Divan.type.micro, color = if (i == 0) c.goldInk else c.textSecondary)
+                    Text(com.coinepro.hq.designsystem.timesFig(jDateTime(at) + if (i == 0) " (${until(at)})" else ""), Modifier.clip(CircleShape).background(if (i == 0) c.softGold else c.tile).padding(horizontal = 8.dp, vertical = 2.dp), style = Divan.type.micro, color = if (i == 0) c.goldInk else c.textSecondary)
                 }
                 s.today?.let { Text("· امروز ${it.made} ساخته، ${it.published} منتشر", style = Divan.type.micro, color = c.textMuted) }
             }
@@ -297,7 +297,7 @@ private fun SeriesCard(s: Series, focus: Boolean, onChanged: () -> Unit, onEdit:
                 s.status == "sealed" -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         DIcon(DivanIcon.SEAL, size = 16.dp, tint = c.positive)
-                        Text("مُهر خورد" + (s.sealedAt?.let { "، ${jDateTime(it)}" } ?: ""), style = Divan.type.caption, color = c.textSecondary)
+                        Text(com.coinepro.hq.designsystem.timesFig("مُهر خورد" + (s.sealedAt?.let { "، ${jDateTime(it)}" } ?: "")), style = Divan.type.caption, color = c.textSecondary)
                         s.decisionRef?.let { RefChip(it) }
                     }
                     Fig("digest ${s.digest.take(16)}…", style = Divan.type.figureSmall, color = c.textMuted)

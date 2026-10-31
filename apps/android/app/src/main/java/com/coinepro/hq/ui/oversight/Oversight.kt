@@ -456,7 +456,7 @@ internal fun FindingSheet(f: Finding, onClose: () -> Unit) {
         }
         if (f.history.isNotEmpty()) {
             Text("تاریخچه", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
-            for (h in f.history) Text("${jDateTime(h.at)}، ${actorFa(h.by)}، ${FINDING_STATUS[h.status]?.fa ?: h.status}${if (h.note.isNotBlank()) " — ${h.note}" else ""}", style = Divan.type.caption, color = c.textSecondary)
+            for (h in f.history) Text(com.coinepro.hq.designsystem.timesFig("${jDateTime(h.at)}، ${actorFa(h.by)}، ${FINDING_STATUS[h.status]?.fa ?: h.status}${if (h.note.isNotBlank()) " — ${h.note}" else ""}"), style = Divan.type.caption, color = c.textSecondary)
         }
         if (f.live()) {
             HqTextField(note, { note = it }, "یادداشت تو (اختیاری)", Modifier.fillMaxWidth(), singleLine = false, minLines = 2, maxLength = 2000)

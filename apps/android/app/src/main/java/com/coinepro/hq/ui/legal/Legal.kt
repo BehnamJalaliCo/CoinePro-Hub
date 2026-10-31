@@ -240,7 +240,7 @@ private fun CaseDetail(x: LegalCase, refresh: () -> Unit) {
                             DIcon(DivanIcon.TIME, size = 14.dp, tint = c.textSecondary)
                             Text(prose(d.whatFa), Modifier.weight(1f), style = Divan.type.caption, color = c.textPrimary)
                         }
-                        Text("${jDateTime(d.at)}، ${until(d.at)}", style = Divan.type.micro, color = if (soon) c.warning else c.textMuted)
+                        Text(com.coinepro.hq.designsystem.timesFig("${jDateTime(d.at)}، ${until(d.at)}"), style = Divan.type.micro, color = if (soon) c.warning else c.textMuted)
                     }
                 }
             }
@@ -267,7 +267,7 @@ private fun CaseDetail(x: LegalCase, refresh: () -> Unit) {
                         Column(Modifier.weight(1f).padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(2.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                                 Text(k.fa, style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
-                                Text(jDateTime(t.at), style = Divan.type.micro, color = c.textMuted)
+                                Text(com.coinepro.hq.designsystem.timesFig(jDateTime(t.at)), style = Divan.type.micro, color = c.textMuted)
                                 t.ref?.let { RefChip(it, tone = RefTone.NEUTRAL) }
                             }
                             RichText(t.summaryFa, style = Divan.type.small, color = c.textPrimary)
@@ -383,7 +383,7 @@ private fun EmailItem(e: CaseEmail) {
             com.coinepro.hq.designsystem.Chevron(open, tint = c.textMuted)
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(jDateTime(e.at), style = Divan.type.micro, color = c.textMuted)
+            Text(com.coinepro.hq.designsystem.timesFig(jDateTime(e.at)), style = Divan.type.micro, color = c.textMuted)
             when (e.state) {
                 "rejected" -> Pill("فرستاده نشد", Tone.NEUTRAL)
                 "superseded" -> Pill("جایگزین شد", Tone.NEUTRAL)

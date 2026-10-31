@@ -238,7 +238,7 @@ fun Fact(label: String, value: String, modifier: Modifier = Modifier, figure: Bo
         Text(label, style = Divan.type.micro, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (figure) Fig(value, style = Divan.type.figure, color = color ?: c.textPrimary, maxLines = 2)
         // Prose: counts and dates keep the text face's Persian digits; Latin words read as they are.
-        else Text(value, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = color ?: c.textPrimary)
+        else Text(com.coinepro.hq.designsystem.timesFig(value), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = color ?: c.textPrimary)
     }
 }
 

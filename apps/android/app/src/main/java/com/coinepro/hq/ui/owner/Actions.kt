@@ -206,7 +206,7 @@ private fun DismissSheet(e: Employee, onDismiss: () -> Unit, onChanged: () -> Un
             FilterChip("مدیرش", to == null, { to = null })
             peers.forEach { p -> FilterChip(p.displayName ?: p.titleFa, to == p.code, { to = p.code }) }
         }
-        HqButton("اخراج با گذرکلید", {
+        HqButton("اخراج با اثر انگشت", {
             action.run {
                 val out = env.api.dismiss(e.code, reason.trim(), to) { a, t -> env.auth.stepUp(act, a, t) }
                 env.cache.invalidate("employees", "companies", "stories", "work")

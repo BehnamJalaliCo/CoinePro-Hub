@@ -187,7 +187,7 @@ fun CartableScreen(company0: String? = null) {
     var coF by rememberSaveable { mutableStateOf(company0) }
     // Cartable age (M8): what expires first, what has waited longest, or the newest.
     var sort by rememberSaveable { mutableStateOf("expiry") }
-    val q = rememberQuery("decisions:$tab", "decisions") { decisions(if (tab == "pending") "pending" else null, limit = 100) }
+    val q = rememberQuery("decisions:$tab", "decisions") { if (tab == "pending") decisions("pending", limit = 100) else decisionsAll(limit = 100) }
     val r = refresher(q)
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
         item {
@@ -262,7 +262,7 @@ private fun Section(title: String, content: @Composable () -> Unit) {
 private fun Fact(label: String, value: String, modifier: Modifier = Modifier, figure: Boolean = false) {
     Column(modifier.clip(RoundedCornerShape(12.dp)).background(Divan.colors.tile).padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(label, style = Divan.type.micro, color = Divan.colors.textMuted)
-        if (figure) Fig(value, style = Divan.type.figure) else Text(value, style = Divan.type.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold))
+        if (figure) Fig(value, style = Divan.type.figure) else Text(com.coinepro.hq.designsystem.timesFig(value), style = Divan.type.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold))
     }
 }
 
@@ -534,7 +534,7 @@ private fun DecisionDetail(d: Decision, onChanged: (Decision) -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Seal(d.company, co.nameFa, co.nameEn, holding = co.holding, state = SealState.SEALED, size = 72.dp)
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("مُهر خورد، ${jDateTime(s.sealedAt)}", style = Divan.type.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold))
+                        Text(com.coinepro.hq.designsystem.timesFig("مُهر خورد، ${jDateTime(s.sealedAt)}"), style = Divan.type.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold))
                         d.resolution?.let { Text(buildAnnotatedString { append("مصوبه‌ی "); fig(it, c.goldInk) }, style = Divan.type.small, color = c.textSecondary) }
                         d.note?.let { Text(it, style = Divan.type.caption, color = c.textMuted) }
                     }
@@ -550,7 +550,7 @@ private fun DecisionDetail(d: Decision, onChanged: (Decision) -> Unit) {
                     )
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         val head = listOfNotNull(DECISION_STATUS[d.status] ?: d.status, d.decidedAt?.let { jDateTime(it) }, d.decidedBy?.let { actorFa(it) })
-                        Text(head.joinToString("، "), style = Divan.type.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold))
+                        Text(com.coinepro.hq.designsystem.timesFig(head.joinToString("، ")), style = Divan.type.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold))
                         d.note?.let { Text(it, style = Divan.type.caption, color = c.textMuted) }
                     }
                 }
@@ -634,7 +634,7 @@ fun SealButton(code: String, nameFa: String, nameEn: String, holding: Boolean, b
     ) {
         Seal(code, nameFa, nameEn, holding = holding, state = state, progress = p, size = size)
         Text(
-            when { sealed -> "مُهر خورد"; busy -> "در حال تأیید با passkey…"; else -> "فشار بده و نگه دار" },
+            when { sealed -> "مُهر خورد"; busy -> "در حال تأیید با اثر انگشت…"; else -> "فشار بده و نگه دار" },
             style = Divan.type.caption, color = Divan.colors.textMuted,
         )
     }

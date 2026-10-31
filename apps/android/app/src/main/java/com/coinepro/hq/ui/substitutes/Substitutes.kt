@@ -207,7 +207,7 @@ fun PlayerCard(s: Substitute) {
                     if (s.runner != null) {
                         Text(s.login.lastOkAt?.let { "آخرین موفق ${ago(it)}" } ?: "—", style = Divan.type.micro, color = c.textMuted)
                         if (s.login.state != "signed_in") HqButton("ورود", { login = true }, size = BtnSize.SM, icon = DivanIcon.LOCK, enabled = conn != null)
-                        else if (conn != null) HqButton("خروج با passkey", {
+                        else if (conn != null) HqButton("خروج با اثر انگشت", {
                             action.mgmt(toasts) {
                                 env.api.connectionLogout(conn.id) { a, t -> env.auth.stepUp(act, a, t) }
                                 env.cache.invalidate("substitutes", "treasury")
@@ -278,11 +278,11 @@ fun PlayerCard(s: Substitute) {
             Text(buildAnnotatedString {
                 append("پروفایل "); fig(s.web.account); append(" و کوکی‌هایش پاک میشود. جایگاه‌هایی که از وب کار میکنند تا وقتی خودت دوباره وارد شوی رد میشوند (")
                 fig(WEB_LOGIN_CMD[s.player].orEmpty()); append(").")
-                s.web.lastOkAt?.let { append(" آخرین کار: ${jDateTime(it)}.") }
+                s.web.lastOkAt?.let { append(" آخرین کار: "); append(com.coinepro.hq.designsystem.timesFig(jDateTime(it))); append(".") }
             }, style = Divan.type.small, color = c.textSecondary)
         },
         confirmButton = {
-            HqButton("پاک کن، با passkey", {
+            HqButton("پاک کن، با اثر انگشت", {
                 action.mgmt(toasts) {
                     env.api.webLogout(s.player) { a, t -> env.auth.stepUp(act, a, t) }
                     env.cache.invalidate("substitutes", "treasury")
@@ -338,7 +338,7 @@ fun SeatsEditor(s: Substitute, onDone: () -> Unit = {}) {
                 }
             }
         }
-        HqButton("ذخیره با passkey", {
+        HqButton("ذخیره با اثر انگشت", {
             action.mgmt(toasts) {
                 env.api.putSeats(s, rows.toList()) { a, t -> env.auth.stepUp(act, a, t) }
                 env.cache.invalidate("substitutes", "treasury")
@@ -374,8 +374,8 @@ fun LoginContent(s: Substitute, connectionId: String) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         val x = l
         if (x == null && !notReady) {
-            Text("با passkey شروع کن؛ runner ورود بی‌مرورگر خود CLI را شروع میکند و نشانی ورود را میدهد. روی گوشی وارد شو.", style = Divan.type.small, color = c.textSecondary)
-            HqButton("شروع ورود با passkey", {
+            Text("با اثر انگشت شروع کن؛ runner ورود بی‌مرورگر خود CLI را شروع میکند و نشانی ورود را میدهد. روی گوشی وارد شو.", style = Divan.type.small, color = c.textSecondary)
+            HqButton("شروع ورود با اثر انگشت", {
                 action.mgmt(toasts, onError = { e -> if (e.code == "not_ready") { notReady = true; true } else false }) {
                     l = env.api.connectionLogin(connectionId) { a, t -> env.auth.stepUp(act, a, t) }
                     env.cache.invalidate("substitutes")

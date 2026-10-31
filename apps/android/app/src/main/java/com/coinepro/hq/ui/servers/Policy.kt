@@ -94,7 +94,7 @@ fun ServerPolicyScreen(draft0: ServerPolicy? = null) {
                     style = Divan.type.caption, color = if (on) c.goldInk else c.warning,
                 )
                 HqButton(
-                    "با گذرکلید ذخیره کن", {
+                    "با اثر انگشت ذخیره کن", {
                         save.run(onError = { toasts.error(com.coinepro.hq.core.net.serverError(it)) }) {
                             val out = env.api.putServerPolicy(d!!) { a, t -> env.auth.stepUp(act, a, t) }
                             q.set(out)

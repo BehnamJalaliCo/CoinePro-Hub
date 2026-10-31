@@ -127,7 +127,7 @@ private fun ErrandSheet(e: Errand, onClose: () -> Unit) {
                     Box(Modifier.size(26.dp).clip(CircleShape).background(c.tile), contentAlignment = Alignment.Center) { DIcon(STEP_ICON[s.kind] ?: DivanIcon.TASK, size = 14.dp, tint = c.textSecondary) }
                     Column(Modifier.weight(1f)) {
                         RichText(s.summaryFa, style = Divan.type.small, color = c.textPrimary)
-                        Text(jTime(s.at), style = Divan.type.micro, color = c.textMuted)
+                        Text(com.coinepro.hq.designsystem.timesFig(jTime(s.at)), style = Divan.type.micro, color = c.textMuted)
                     }
                 }
             }

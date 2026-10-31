@@ -82,7 +82,7 @@ fun SettingsScreen(graph: AppGraph) {
         item { PageHeader("تنظیمات") }
         item {
             HqCard(Modifier.fillMaxWidth()) {
-                SectionTitle("دستگاه‌ها و passkeyها", note = "بدون رمز؛ دست‌کم دو دستگاه ثبت کن تا اگر یکی گم شد بیرون نمانی.")
+                SectionTitle("دستگاه‌های ثبت‌شده", note = "بدون رمز؛ دست‌کم دو دستگاه ثبت کن تا اگر یکی گم شد بیرون نمانی.")
                 Loadable(devices) { list ->
                     Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         list.items.filter { it.revokedAt == null }.forEach { d ->
@@ -108,12 +108,12 @@ fun SettingsScreen(graph: AppGraph) {
                         }
                     }
                 }
-                HqButton("ثبت همین گوشی به‌عنوان passkey تازه", {
+                HqButton("ثبت اثر انگشت همین گوشی", {
                     action.run {
                         val token = env.auth.stepUp(act, "passkey.register", "self")
                         env.auth.enrol(act, null, token)
                         env.cache.invalidate("devices")
-                        toasts.ok("passkey این گوشی ثبت شد.")
+                        toasts.ok("اثر انگشت این گوشی ثبت شد.")
                     }
                 }, Modifier.fillMaxWidth().padding(top = 12.dp), icon = DivanIcon.ADD, loading = action.busy)
             }
@@ -162,7 +162,7 @@ fun SettingsScreen(graph: AppGraph) {
         item { com.coinepro.hq.ui.owner.NotificationMatrixCard() }
         item {
             HqCard(Modifier.fillMaxWidth()) {
-                SectionTitle("این اپ", note = "برای فعال شدن passkey روی اندروید، این دو مقدار باید روی سرور ثبت شوند.")
+                SectionTitle("این اپ", note = "برای فعال شدن ورود با اثر انگشت روی اندروید، این دو مقدار باید روی سرور ثبت شوند.")
                 Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Line("نسخه") { Fig("${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})") }
                     Line("بسته") { Fig(BuildConfig.APPLICATION_ID) }

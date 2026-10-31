@@ -222,7 +222,7 @@ fun ReviewContent() {
                 Fig(r.ref, style = Divan.type.figureSmall, color = c.textMuted)
                 LabelPill(REVIEW_STATE[r.state], r.state)
                 Text("هفته‌ی ${weekFa(r.week)}", style = Divan.type.caption, color = c.textSecondary)
-                r.startedAt?.let { Text("شروع ${jTime(it)}", style = Divan.type.caption, color = c.textSecondary) }
+                r.startedAt?.let { Text(com.coinepro.hq.designsystem.timesFig("شروع ${jTime(it)}"), style = Divan.type.caption, color = c.textSecondary) }
                 r.briefMessageRef?.let { Fig(it, style = Divan.type.figureSmall, color = c.goldInk) }
                 r.minutesRef?.let { RefChip(it, note = "صورت‌جلسه") }
             }

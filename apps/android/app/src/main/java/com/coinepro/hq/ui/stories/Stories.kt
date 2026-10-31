@@ -309,9 +309,9 @@ fun StoryPlayer(live: List<StoryRing>, start: Int, onClose: () -> Unit, autoplay
         onDismissRequest = { confirm = false },
         containerColor = c.overlay,
         title = { Fig("${story.links.employee} برکنار شود؟", style = Divan.type.h3) },
-        text = { Text("کارهای بازش به مدیرش برمیگردد و کدش دوباره استفاده نمیشود. با گذرکلید تأیید میشود.", style = Divan.type.small, color = c.textSecondary) },
+        text = { Text("کارهای بازش به مدیرش برمیگردد و کدش دوباره استفاده نمیشود. با اثر انگشت تأیید میشود.", style = Divan.type.small, color = c.textSecondary) },
         confirmButton = {
-            HqButton("با گذرکلید برکنار کن", {
+            HqButton("با اثر انگشت برکنار کن", {
                 val code = story.links.employee ?: return@HqButton
                 action.run {
                     env.api.dismissEmployee(code, "مالک: از استوری") { a, t -> env.auth.stepUp(act, a, t) }

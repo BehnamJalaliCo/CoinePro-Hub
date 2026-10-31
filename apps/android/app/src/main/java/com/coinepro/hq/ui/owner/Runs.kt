@@ -101,7 +101,7 @@ fun RunRow(run: Run, showEmployee: Boolean = true, withSteps: Boolean = false) {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(s.summaryFa, style = Divan.type.small, color = c.textPrimary)
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text(jDateTime(s.at), style = Divan.type.micro, color = c.textMuted)
+                                Text(com.coinepro.hq.designsystem.timesFig(jDateTime(s.at)), style = Divan.type.micro, color = c.textMuted)
                                 s.actions.forEach { a ->
                                     val tint = when (a.outcome) { "ok" -> c.positive; "refused", "held" -> c.warning; "error" -> c.negative; else -> c.textMuted }
                                     Text(buildAnnotatedString { fig(a.tool); append(" "); fig(a.outcome, color = tint); a.ref?.let { append(" "); fig(it, color = c.textMuted) } },

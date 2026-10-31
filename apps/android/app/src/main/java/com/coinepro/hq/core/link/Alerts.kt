@@ -158,12 +158,14 @@ object AlertRules {
         if (t.by == null || t.by == "owner") return null
         val holding = t.scope == "holding"
         val code = t.scope.removePrefix("company:")
-        val who = agentTitleOf(t.by) ?: if (t.by.endsWith("-OVERSEER") || t.by.contains("OVERSEER")) "ناظر کل" else t.by
+        val who = agentTitleOf(t.by) ?: if (t.by.endsWith("-OVERSEER") || t.by.contains("OVERSEER")) "ناظر کل" else "یکی از ایجنت‌ها"
+        // The company by its name («تریدیار»), as the owner calls it; its code only when the app has not read the names yet.
+        val name = CompanyNames.of(code)
         val title = when {
             holding && t.engaged -> "کل هلدینگ متوقف شد"
             holding -> "هلدینگ دوباره راه افتاد"
-            t.engaged -> "شرکت $code متوقف شد"
-            else -> "شرکت $code دوباره راه افتاد"
+            t.engaged -> "$name متوقف شد"
+            else -> "$name دوباره راه افتاد"
         }
         val text = if (t.engaged) "کلید توقف را $who زد؛ کارها ایستاد تا تو یا او ادامه بدهید." else "کلید توقف را $who برداشت."
         return Alert(
@@ -364,4 +366,14 @@ class AlertCenter(
         const val OUTPUT_WINDOW_MS = 5 * 60_000L
         const val OUTPUT_BUDGET = 12
     }
+}
+
+/** The companies' Persian names as the app last read them (`GET /companies`), for words said outside a screen: an alert names
+ *  «تریدیار», not `TY`. Until the names are read, «شرکت TY». */
+object CompanyNames {
+    @Volatile private var names: Map<String, String> = emptyMap()
+
+    fun set(map: Map<String, String>) { names = map }
+
+    fun of(code: String): String = names[code]?.takeIf { it.isNotBlank() } ?: "شرکت $code"
 }

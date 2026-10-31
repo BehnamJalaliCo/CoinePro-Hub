@@ -449,7 +449,7 @@ private fun DetachDialog(s: HubServer, onDone: () -> Unit) {
             Text(isolated("اعتبار runner همین لحظه باطل میشود و runner در تماس بعدی‌اش میایستد؛ کارهای در صف لغو میشوند و دیگر هیچ ایجنتی کاری روی این سرور نمیکند. خود سرور دست نمیخورد: کاربر کاری، فایل‌ها و سرویس‌ها همان‌طور میمانند. تاریخچه‌ی کارها در Audit میماند."), style = Divan.type.small, color = c.textSecondary)
         },
         confirmButton = {
-            HqButton("با گذرکلید جدا کن", {
+            HqButton("با اثر انگشت جدا کن", {
                 action.run(onError = { toasts.error(serverError(it)) }) {
                     env.api.detachServer(s) { a, t -> env.auth.stepUp(act, a, t) }
                     env.cache.invalidate("servers")

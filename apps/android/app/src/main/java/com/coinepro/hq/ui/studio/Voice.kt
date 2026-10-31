@@ -172,7 +172,7 @@ private fun Activate(v: Voice) {
                 Text("مسئله‌ی حقوقی با خود توست؛ هاب فقط آنچه روی کارت مدل آمده را نشان میدهد.", style = Divan.type.caption, color = c.textMuted)
             }
         },
-        confirmButton = { HqButton("میدانم؛ با گذرکلید فعال کن", { go() }, variant = BtnVariant.PRIMARY, icon = DivanIcon.SEAL, loading = action.busy) },
+        confirmButton = { HqButton("میدانم؛ با اثر انگشت فعال کن", { go() }, variant = BtnVariant.PRIMARY, icon = DivanIcon.SEAL, loading = action.busy) },
         dismissButton = { HqButton("نه", { ask = false }, variant = BtnVariant.GHOST) },
     )
 }
@@ -297,7 +297,7 @@ private fun VoiceRegistry(voices: List<Voice>) {
                         append("   حافظه "); fig(v.memFa, c.textPrimary)
                         append("   نمره‌ی کور ${v.ownerScore ?: "—"}")
                     }, style = Divan.type.caption, color = c.textSecondary)
-                    v.measuredAt?.let { Text("اندازه‌گیری ${jDateTime(it)}", style = Divan.type.micro, color = c.textMuted) }
+                    v.measuredAt?.let { Text(com.coinepro.hq.designsystem.timesFig("اندازه‌گیری ${jDateTime(it)}"), style = Divan.type.micro, color = c.textMuted) }
                     v.noteFa?.let { note ->
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             DIcon(DivanIcon.INFO, Modifier.padding(top = 2.dp), size = 13.dp, tint = c.textMuted)

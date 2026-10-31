@@ -144,7 +144,7 @@ fun BackgroundLinkContent(ui: LinkUi, onToggle: (Boolean) -> Unit, onAllow: () -
                 if (ui.samsung) {
                     Notice(
                         DivanIcon.INFO, c.tile, c.textSecondary, "روی گوشی سامسونگ",
-                        "تنظیمات ← باتری ← محدودیت‌های استفاده در پس‌زمینه ← «برنامه‌هایی که هرگز به خواب نمیروند» (\u2066Never sleeping apps\u2069) و ستاد را اضافه کن؛ " +
+                        "تنظیمات ← باتری ← محدودیت‌های استفاده در پس‌زمینه ← «برنامه‌هایی که هرگز به خواب نمیروند» (در منوی انگلیسی \u2066Never sleeping apps\u2069) و ستاد را اضافه کن؛ " +
                             "وگرنه سامسونگ پس از چند روز اتصال را میخواباند.",
                     ) { HqButton("باتری اپ", onAppBattery, size = BtnSize.SM, variant = BtnVariant.GHOST) }
                 }

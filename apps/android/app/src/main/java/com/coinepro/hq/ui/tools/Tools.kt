@@ -96,7 +96,7 @@ fun ToolsScreen() {
                 items.forEachIndexed { i, e ->
                     if (i > 0) HorizontalDivider(color = c.lineDivider)
                     Row(Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(jTime(e.at), style = Divan.type.micro, color = c.textMuted, modifier = Modifier.width(34.dp))
+                        Text(com.coinepro.hq.designsystem.timesFig(jTime(e.at)), style = Divan.type.micro, color = c.textMuted, modifier = Modifier.width(34.dp))
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Fig("${e.method} ${e.host}", style = Divan.type.figureSmall, color = c.textPrimary)
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {

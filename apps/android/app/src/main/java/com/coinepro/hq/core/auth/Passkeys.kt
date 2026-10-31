@@ -65,7 +65,7 @@ object Passkeys {
     private fun ceremony(e: Exception): ApiException {
         val fa = when {
             e is CreateCredentialCancellationException || e is GetCredentialCancellationException -> "تأیید با اثر انگشت یا چهره لغو شد."
-            e is NoCredentialException -> "روی این دستگاه passkeyی برای ستاد نیست. اول با لینک ثبت‌نام، این دستگاه را اضافه کن."
+            e is NoCredentialException -> "روی این دستگاه اثر انگشتی برای ستاد ثبت نشده. اول با لینک ثبت‌نام، این دستگاه را اضافه کن."
             e is CreatePublicKeyCredentialDomException && e.domError is InvalidStateError -> "این دستگاه قبلاً ثبت شده است."
             (e is CreatePublicKeyCredentialDomException && e.domError is SecurityError) ||
                 (e is GetPublicKeyCredentialDomException && e.domError is SecurityError) ->

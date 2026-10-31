@@ -159,7 +159,7 @@ fun GrantSheet(initial: String?, onDismiss: () -> Unit) {
             Text("تا کی", style = Divan.type.caption, color = c.textMuted)
             Segmented(listOf(SegOption(1L, "۱ روز"), SegOption(3L, "۳ روز"), SegOption(7L, "۱ هفته"), SegOption(30L, "۱ ماه")), days, { days = it }, Modifier.fillMaxWidth())
             HqButton(
-                "با گذرکلید مجوز بده", {
+                "با اثر انگشت مجوز بده", {
                     action.run {
                         val body = GrantIn(ws!!, actions, driver, budget.toDouble(), Instant.now().plus(days, ChronoUnit.DAYS).toString())
                         val g = env.api.createGrant(body) { target -> env.auth.stepUp(act, "workshop.grant", target) }

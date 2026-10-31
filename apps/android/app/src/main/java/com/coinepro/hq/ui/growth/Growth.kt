@@ -211,7 +211,7 @@ private fun TemplatesTab(company: String?, data: List<Template>?, error: com.coi
                 }
             },
             confirmButton = {
-                HqButton("مُهر با passkey", {
+                HqButton("مُهر با اثر انگشت", {
                     action.go(toasts) {
                         env.api.sealTemplate(t) { a, x -> env.auth.stepUp(act, a, x) }
                         env.cache.invalidate("growth", "decisions")
@@ -338,7 +338,7 @@ private fun RulesTab(company: String?, data: List<LifecycleRule>?, error: com.co
                         when (r.status) {
                             "proposed" -> HqButton("مُهر و فعال", { doRule(r, "مُهر شد و فعال است.") { env.api.sealRule(r) { a, x -> env.auth.stepUp(act, a, x) } } }, variant = BtnVariant.PRIMARY, size = BtnSize.SM, icon = DivanIcon.SEAL, loading = mine)
                             "active" -> HqButton("توقف", { doRule(r, "متوقف شد.") { env.api.pauseRule(r.ref) } }, variant = BtnVariant.DANGER, size = BtnSize.SM, icon = DivanIcon.PAUSE, loading = mine)
-                            "paused" -> HqButton("ادامه با passkey", { doRule(r, "دوباره فعال شد.") { env.api.resumeRule(r) { a, x -> env.auth.stepUp(act, a, x) } } }, variant = BtnVariant.PRIMARY, size = BtnSize.SM, icon = DivanIcon.RESUME, loading = mine)
+                            "paused" -> HqButton("ادامه با اثر انگشت", { doRule(r, "دوباره فعال شد.") { env.api.resumeRule(r) { a, x -> env.auth.stepUp(act, a, x) } } }, variant = BtnVariant.PRIMARY, size = BtnSize.SM, icon = DivanIcon.RESUME, loading = mine)
                         }
                     }
                 }
@@ -381,7 +381,7 @@ private fun RuleSheet(company0: String?, onClose: () -> Unit) {
         RuleLimits(whole(per) ?: 0, whole(cap) ?: 0, listOf(quietFrom, quietTo), if (kind == "rescue") whole(follow) ?: 0 else 0),
     ) else null
     val valid = body != null && body.limits.dailyCap > 0 && body.limits.perCustomerDays > 0 && hhmm.matches(quietFrom) && hhmm.matches(quietTo)
-    HqSheet(onClose, "قاعده‌ی تازه", sub = "پیشنهادی ساخته میشود؛ با مُهر تو (passkey) و فقط وقتی قالبِ همان نسخه مُهرشده است فعال میشود.") {
+    HqSheet(onClose, "قاعده‌ی تازه", sub = "پیشنهادی ساخته میشود؛ با مُهر تو (اثر انگشت) و فقط وقتی قالبِ همان نسخه مُهرشده است فعال میشود.") {
         Labelled("شرکت") { CompanyChips(company, { company = it; template = null; channel = null }, all = false) }
         Labelled("نوع") { ChipRow { for (k in KINDS) FilterChip(PURPOSE_FA[k] ?: k, kind == k, { kind = k; template = null }) } }
         when (kind) {

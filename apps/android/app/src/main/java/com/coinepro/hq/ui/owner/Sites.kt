@@ -138,8 +138,8 @@ fun SitesScreen() {
                                 }
                                 Fig(x.url.removePrefix("https://"), style = Divan.type.figureSmall, color = c.textSecondary)
                                 FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    Text("از ${jDateTime(x.openedAt)}", style = Divan.type.micro, color = c.textMuted)
-                                    x.closedAt?.let { Text("تا ${jDateTime(it)}", style = Divan.type.micro, color = c.textMuted) }
+                                    Text(com.coinepro.hq.designsystem.timesFig("از ${jDateTime(x.openedAt)}"), style = Divan.type.micro, color = c.textMuted)
+                                    x.closedAt?.let { Text(com.coinepro.hq.designsystem.timesFig("تا ${jDateTime(it)}"), style = Divan.type.micro, color = c.textMuted) }
                                     x.lastError?.let { Fig(it, style = Divan.type.figureSmall, color = c.textMuted) }
                                     x.workRef?.let { w -> Fig(w, style = Divan.type.figureSmall, color = c.goldInk, modifier = Modifier.clickable { nav.go("work/$w") }) }
                                 }
@@ -188,7 +188,7 @@ private fun EditSitesSheet(company: String, current: List<Site>, onDismiss: () -
             }
         }
         if (rows.size < 50) HqButton("نشانی تازه", { rows.add(SiteIn("https://")) }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.ADD)
-        HqButton("ذخیره با گذرکلید", {
+        HqButton("ذخیره با اثر انگشت", {
             action.run {
                 env.api.putSites(company, rows.map { it.copy(url = it.url.trim()) }) { target -> env.auth.stepUp(act, "sites.update", target) }
                 env.cache.invalidate("ops")

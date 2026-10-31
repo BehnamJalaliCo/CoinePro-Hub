@@ -164,7 +164,7 @@ fun AuthorityScreen() {
             }
         },
         confirmButton = {
-            HqButton("مُهر با passkey", {
+            HqButton("مُهر با اثر انگشت", {
                 action.gov(toasts) {
                     env.api.putAuthority(changes) { a, x -> env.auth.stepUp(act, a, x) }
                     env.cache.invalidate("authority", "decisions")

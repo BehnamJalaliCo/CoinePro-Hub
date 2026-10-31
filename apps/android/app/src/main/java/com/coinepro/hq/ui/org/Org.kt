@@ -199,7 +199,7 @@ fun MandateEditor(company: String, d: Department, onDone: () -> Unit) {
         Field("سقف مدل") { Segmented(MODEL_CEILINGS.map { SegOption(it, modelLabel(it)) }, model, { model = it }, Modifier.fillMaxWidth()) }
         Field("شخصیت دپارتمان (لحن، سلیقه؛ هر عضو میخواند)") { HqTextField(identity, { identity = it }, "", Modifier.fillMaxWidth(), singleLine = false, minLines = 5) }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            HqButton("با گذرکلید ذخیره کن", {
+            HqButton("با اثر انگشت ذخیره کن", {
                 val body = MandateIn(Mandate(from.trim(), to.trim(), lines(outputs), lines(bounds), lines(tools), model), identity.trim())
                 action.media(toasts) {
                     env.api.putMandate(company, d, body) { a, t -> env.auth.stepUp(act, a, t) }
@@ -435,9 +435,9 @@ fun RoleDraftView(ref: String) {
         }
         if (d.state == "active" || d.approver != null) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
             DIcon(DivanIcon.SEAL, size = 14.dp, tint = c.textSecondary)
-            Text("تأیید ${actorFa(d.approver)}" + (d.activatedAt?.let { "، ${jDateTime(it)}" } ?: ""), style = Divan.type.caption, color = c.textSecondary)
+            Text(com.coinepro.hq.designsystem.timesFig("تأیید ${actorFa(d.approver)}" + (d.activatedAt?.let { "، ${jDateTime(it)}" } ?: "")), style = Divan.type.caption, color = c.textSecondary)
             d.decisionRef?.let { RefChip(it) }
-            d.retiredAt?.let { Text("· بازنشسته ${jDateTime(it)}", style = Divan.type.micro, color = c.textMuted) }
+            d.retiredAt?.let { Text(com.coinepro.hq.designsystem.timesFig("· بازنشسته ${jDateTime(it)}"), style = Divan.type.micro, color = c.textMuted) }
         }
         if (d.state == "active") Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(

@@ -22,9 +22,9 @@ import kotlinx.coroutines.launch
 enum class LinkShown { LIVE, CONNECTING, DOWN, OFF, PAUSED, NO_PERMISSION, SIGNED_OUT }
 
 data class LinkView(val shown: LinkShown, val why: String? = null) {
-    /** «وصل · زنده», «در حال اتصال…», «قطع: اینترنت نیست»… */
+    /** «وصل، زنده», «در حال اتصال…», «قطع: اینترنت نیست»… */
     val fa: String get() = when (shown) {
-        LinkShown.LIVE -> "وصل · زنده"
+        LinkShown.LIVE -> "وصل، زنده"
         LinkShown.CONNECTING -> "در حال اتصال…"
         LinkShown.DOWN -> "قطع: " + LinkPolicy.whyFa(why)
         LinkShown.OFF -> "خاموش"

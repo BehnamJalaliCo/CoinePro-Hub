@@ -110,7 +110,7 @@ private fun RegisterSheet(onClose: () -> Unit) {
     val list = ips.split(Regex("[\\s,]+")).map { it.trim() }.filter { it.isNotEmpty() }
     // Telegram is accepted only from its own published ranges; the others need their sources' addresses.
     val valid = company != null && list.all { IP.matches(it) } && (kind == "telegram" || list.isNotEmpty()) && (kind != "product" || events.isNotEmpty())
-    HqSheet(onClose, "ثبت منبع ورودی", sub = "ثبت با passkey و روی همین متن؛ رمز منبع هرگز از API نمیگذرد.") {
+    HqSheet(onClose, "ثبت منبع ورودی", sub = "ثبت با اثر انگشت و روی همین متن؛ رمز منبع هرگز از API نمیگذرد.") {
         Labelled("شرکت") { CompanyChips(company, { company = it }, all = false) }
         Labelled("نوع") { ChipRow { for ((k, fa) in INTAKE_KIND) FilterChip(fa, kind == k, { kind = k }) } }
         Labelled("IPهای مجاز (هر خط یکی، CIDR هم میشود)") {
@@ -129,7 +129,7 @@ private fun RegisterSheet(onClose: () -> Unit) {
             TerminalCommand("make intake-secret COMPANY=${company ?: "…"} SOURCE=$kind")
             Text(buildAnnotatedString { append("امضای بد یا timestamp کهنه بی‌هیچ جزئیاتی "); fig("401"); append(" میگیرد و هیچ ردیفی نمیسازد.") }, style = Divan.type.micro, color = c.textMuted)
         }
-        HqButton("ثبت با passkey", {
+        HqButton("ثبت با اثر انگشت", {
             val co = company ?: return@HqButton
             action.go(toasts) {
                 env.api.registerIntake(IntakeSourceIn(co, kind, list, if (kind == "product") events else emptyList())) { a, t -> env.auth.stepUp(act, a, t) }

@@ -169,7 +169,7 @@ val PART_UI: Map<String, PartUI> = linkedMapOf(
             Attr("color_index", "رنگ", AttrKind.COLOR),
             Attr("watermark", "ته‌نقش روی هر نمایش", AttrKind.BOOL),
             Attr("encrypt", "رمزگذاری با کلید OpenBao", AttrKind.BOOL),
-            Attr("step_up_to_view", "دیدن با passkey", AttrKind.BOOL),
+            Attr("step_up_to_view", "دیدن با اثر انگشت", AttrKind.BOOL),
             Attr("agents_max", "سقف مجوز ایجنت‌ها", AttrKind.BOOL, help = "هیچ ایجنتی بالاتر از این سطح مجوز نمیگیرد"),
         ),
         true,
@@ -184,12 +184,12 @@ val PART_UI: Map<String, PartUI> = linkedMapOf(
             buildAnnotatedString {
                 append("رتبه‌ی "); fig(r["rank"].prim.orEmpty())
                 if (r["watermark"].bool == true) append("، ته‌نقش"); if (r["encrypt"].bool == true) append("، رمزگذاری")
-                if (r["step_up_to_view"].bool == true) append("، passkey"); if (r["agents_max"].bool == true) append("، سقف ایجنت‌ها")
+                if (r["step_up_to_view"].bool == true) append("، اثر انگشت"); if (r["agents_max"].bool == true) append("، سقف ایجنت‌ها")
             }
         },
     ),
     "clearance" to PartUI(
-        "مجوز دیدن", DivanIcon.OWNER, "هر نقش یا کارمند تا چه سطحی در کدام دامنه میبیند؛ تو همه چیز را میبینی. ذخیره با passkey (archive.clearance).", "subject",
+        "مجوز دیدن", DivanIcon.OWNER, "هر نقش یا کارمند تا چه سطحی در کدام دامنه میبیند؛ تو همه چیز را میبینی. ذخیره با اثر انگشت (archive.clearance).", "subject",
         listOf(
             Attr("subject", "برای", AttrKind.SUBJECT, locked = { _, saved -> if (saved) "برای کس دیگر، ردیف تازه بساز" else null }),
             Attr("grants", "مجوزها", AttrKind.GRANTS),
@@ -821,7 +821,7 @@ fun RowEditorContent(part: String, ui: PartUI, row0: JsonObject?, onClose: () ->
         val ck = checked
         if (ck != null && fresh) ImpactLine(ck.second.impact, part) else if (ck != null) Text("بعد از بررسی عوض شد؛ دوباره بررسی کن.", style = Divan.type.caption, color = c.warning)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
-            if (ck != null && fresh) HqButton("ذخیره با passkey", {
+            if (ck != null && fresh) HqButton("ذخیره با اثر انگشت", {
                 failure = null
                 action.run(onError = { e -> checked = null; fail(e) }) {
                     val out = env.api.schemaSave(part, key, Api.json.parseToJsonElement(text) as JsonObject, version) { a, t -> env.auth.stepUp(act, a, t) }
@@ -850,7 +850,7 @@ fun RowEditorContent(part: String, ui: PartUI, row0: JsonObject?, onClose: () ->
                 }
             },
             confirmButton = {
-                HqButton("با passkey بازنشسته کن", {
+                HqButton("با اثر انگشت بازنشسته کن", {
                     val v = version ?: return@HqButton
                     action.run(onError = { e -> retiring = null; fail(e) }) {
                         env.api.schemaRetire(part, key, v) { a, t -> env.auth.stepUp(act, a, t) }

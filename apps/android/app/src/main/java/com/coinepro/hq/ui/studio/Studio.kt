@@ -182,7 +182,7 @@ private fun Overview(series: List<com.coinepro.hq.core.net.Series>?, voices: Lis
                 series == null && loading -> Skeleton(Modifier.fillMaxWidth().height(40.dp).padding(top = 6.dp))
                 next != null -> {
                     Text(next.second.titleFa, Modifier.padding(top = 4.dp), style = Divan.type.bodyStrong, color = c.textPrimary)
-                    Text(buildAnnotatedString { append("${jDateTime(next.first)}، ${until(next.first)} · "); fig(next.second.ref) }, style = Divan.type.caption, color = c.textSecondary)
+                    Text(com.coinepro.hq.designsystem.timesFig(buildAnnotatedString { append("${jDateTime(next.first)}، ${until(next.first)} · "); fig(next.second.ref) }), style = Divan.type.caption, color = c.textSecondary)
                 }
                 else -> Text("برنامه‌ی مُهرشده‌ای در صف نیست.", Modifier.padding(top = 4.dp), style = Divan.type.small, color = c.textSecondary)
             }
@@ -508,7 +508,7 @@ fun ItemView(ref: String) {
         if (!design) Block("برنامه‌ی انتشار") { PublishRows(x.publish) }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
             Text(buildAnnotatedString { append("هزینه: "); fig("${tokens(x.cost.tokens)} tok · ${usd(x.cost.usd)}", c.textSecondary); append(" (از پاکت ماهانه‌ی شرکت)") }, style = Divan.type.micro, color = c.textMuted)
-            Text("ساخته ${jDateTime(x.createdAt)}", style = Divan.type.micro, color = c.textMuted)
+            Text(com.coinepro.hq.designsystem.timesFig("ساخته ${jDateTime(x.createdAt)}"), style = Divan.type.micro, color = c.textMuted)
             x.deliverableRef?.let { RefChip(it, note = "تحویل") }
         }
     }
@@ -518,7 +518,7 @@ fun ItemView(ref: String) {
         title = { Text("پایین آوردن این آیتم", style = Divan.type.h3) },
         text = { Text("از همان API رسمی حذف میشود، هر جا پلتفرم اجازه بدهد؛ جایی که اجازه ندهد را خودت از اپ پایین میآوری. برنامه‌ی انتشار ادامه دارد.", style = Divan.type.small, color = c.textSecondary) },
         confirmButton = {
-            HqButton("با گذرکلید پایین بیاور", {
+            HqButton("با اثر انگشت پایین بیاور", {
                 other.media(toasts) {
                     q.set(env.api.unpublish(x.ref) { a, t -> env.auth.stepUp(act, a, t) })
                     env.cache.invalidate("media", "decisions")

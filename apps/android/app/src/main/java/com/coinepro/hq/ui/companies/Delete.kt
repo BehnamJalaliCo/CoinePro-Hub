@@ -118,7 +118,7 @@ fun DeleteContent(t: CoTarget, co: Company?, onDone: () -> Unit, onCancel: () ->
                         style = Divan.type.small, color = c.textSecondary,
                     )
                 }
-                HqButton("بایگانی شرکت با گذرکلید", ::archive, Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.LOCK, loading = busy)
+                HqButton("بایگانی شرکت با اثر انگشت", ::archive, Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.LOCK, loading = busy)
                 HqButton("انصراف", onCancel, Modifier.fillMaxWidth(), variant = BtnVariant.GHOST)
                 return@Column
             }

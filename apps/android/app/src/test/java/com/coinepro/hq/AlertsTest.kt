@@ -111,6 +111,11 @@ class AlertsTest {
         assertEquals("control:holding", holding.key)
         val company = AlertRules.ofSwitch(sw("company:FX", "engaged", "FX-CEO"))!!
         assertEquals("شرکت FX متوقف شد", company.title)
+        // Named as the owner calls it once the names are read; an unknown actor is not shown by its raw code.
+        com.coinepro.hq.core.link.CompanyNames.set(mapOf("TY" to "تریدیار"))
+        assertEquals("تریدیار متوقف شد", AlertRules.ofSwitch(sw("company:TY", "engaged", "TY-CEO"))!!.title)
+        assertTrue(AlertRules.ofSwitch(sw("company:TY", "engaged", "TY-X-9"))!!.text.contains("یکی از ایجنت‌ها"))
+        com.coinepro.hq.core.link.CompanyNames.set(emptyMap())
         assertTrue(company.text.contains("مدیرعامل"))
         assertEquals("companies/FX", company.route)
         // Released: the same notification is replaced (same key), not a second one.

@@ -370,7 +370,7 @@ private fun AccountSheet(account: RevenueAccount?, onClose: () -> Unit) {
     var title by rememberSaveable { mutableStateOf(account?.titleFa ?: "") }
     val valid = company != null && Regex("^[a-z0-9_-]+$").matches(exchange) && Regex("^[a-z0-9_.-]+$").matches(adapter) &&
         Regex("^[a-z0-9_.-]+$").matches(service) && title.trim().length >= 2
-    HqSheet(onClose, if (account != null) "تغییر حساب افیلیت" else "حساب افیلیت تازه", sub = "یک حساب برای هر صرافی و هر شرکت؛ ثبت با passkey و روی همین متن.") {
+    HqSheet(onClose, if (account != null) "تغییر حساب افیلیت" else "حساب افیلیت تازه", sub = "یک حساب برای هر صرافی و هر شرکت؛ ثبت با اثر انگشت و روی همین متن.") {
         Labelled("شرکت") { CompanyChips(company, { company = it }, all = false) }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Labelled("صرافی", Modifier.weight(1f)) { HqTextField(exchange, { exchange = it.trim().lowercase() }, "lbank", Modifier.fillMaxWidth(), maxLength = 40, figure = true) }
@@ -392,7 +392,7 @@ private fun AccountSheet(account: RevenueAccount?, onClose: () -> Unit) {
             TerminalCommand("make account-secret KEY=${service.ifBlank { "<service-account>" }}")
             Text(prose("و IP عمومی هاب را در whitelist API افیلیت همان صرافی بگذار؛ بدون آن صرافی جواب نمیدهد."), style = Divan.type.caption, color = c.textMuted)
         }
-        HqButton("ثبت با passkey", {
+        HqButton("ثبت با اثر انگشت", {
             val co = company ?: return@HqButton
             action.go(toasts) {
                 env.api.saveRevenueAccount(RevenueAccountIn(co, exchange, adapter, service, title.trim())) { a, t -> env.auth.stepUp(act, a, t) }
@@ -570,7 +570,7 @@ private fun RescueSheet(seed: RescueCase, onClose: () -> Unit) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(RESCUE_STEP[st.kind] ?: st.kind, style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
-                        Text(jDateTime(st.at), style = Divan.type.micro, color = c.textMuted)
+                        Text(com.coinepro.hq.designsystem.timesFig(jDateTime(st.at)), style = Divan.type.micro, color = c.textMuted)
                         st.template?.let { Fig(it, style = Divan.type.figureSmall, color = c.textMuted) }
                     }
                     Text(prose(st.resultFa), style = Divan.type.small, color = c.textPrimary)
@@ -578,8 +578,8 @@ private fun RescueSheet(seed: RescueCase, onClose: () -> Unit) {
             }
         }
         when {
-            r.rescuedAt != null -> Text("نجات یافت، ${jDateTime(r.rescuedAt)}", style = Divan.type.caption, color = c.positive)
-            r.closedAt != null -> Text("بسته شد، ${jDateTime(r.closedAt)}", style = Divan.type.caption, color = c.textMuted)
+            r.rescuedAt != null -> Text(com.coinepro.hq.designsystem.timesFig("نجات یافت، ${jDateTime(r.rescuedAt)}"), style = Divan.type.caption, color = c.positive)
+            r.closedAt != null -> Text(com.coinepro.hq.designsystem.timesFig("بسته شد، ${jDateTime(r.closedAt)}"), style = Divan.type.caption, color = c.textMuted)
         }
         Text("در این‌جا فقط نام مستعار مشتری است؛ UID و نام کاربری خام هرگز از شرکتش بیرون نمیاید.", style = Divan.type.micro, color = c.textMuted)
     }

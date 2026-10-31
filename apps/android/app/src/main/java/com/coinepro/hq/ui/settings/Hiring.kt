@@ -103,7 +103,7 @@ fun HiringCard() {
             if (h.envelopes.isNotEmpty()) EnvelopeRows(h, companies.data.orEmpty()) { envelopes = "edit" }
             Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (!delegated) Choice(DivanIcon.SEAL, "اختیار استخدام با مدیرعامل‌ها", "پاکت ماهانه‌ی هر شرکت را تعیین کن؛ از آن به بعد استخدام با خود مدیرعامل‌هاست.", primary = true) { envelopes = "open" }
-                Choice(DivanIcon.HIRE, "خودم استخدام میکنم", "نقش، دپارتمان، مدل و effort را خودت انتخاب میکنی و با گذرکلید مُهر میکنی.") { sheet = true }
+                Choice(DivanIcon.HIRE, "خودم استخدام میکنم", "نقش، دپارتمان، مدل و effort را خودت انتخاب میکنی و با اثر انگشت مُهر میکنی.") { sheet = true }
                 if (!open) Choice(DivanIcon.DECISION, "هر استخدام با مُهر من", "مدیرها پیشنهاد میدهند و هر استخدام یک کارت در کارتابل توست.") { confirm = true }
                 if (open) {
                     Choice(DivanIcon.CLOSE, "بستن استخدام", "پیشنهادهای منتظر پس گرفته میشوند؛ چیزی حذف نمیشود.", enabled = !action.busy) {
@@ -144,7 +144,7 @@ fun HiringCard() {
             )
         },
         confirmButton = {
-            HqButton("با گذرکلید باز کن", {
+            HqButton("با اثر انگشت باز کن", {
                 action.run {
                     hiring.set(env.api.startHiring("proposals") { a, t -> env.auth.stepUp(act, a, t) })
                     env.cache.invalidate("hiring", "work", "planner")
@@ -240,7 +240,7 @@ private fun EnvelopeSheet(h: Hiring, companies: List<Company>, opening: Boolean,
             Text(figs("جمع پاکت‌ها ${tokens(total)} در ماه. استخدام‌های خود هلدینگ همیشه با مُهر توست."), style = Divan.type.small, color = c.textSecondary,
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp))
             HqButton(
-                if (opening) "با گذرکلید ثبت کن و باز کن" else "با گذرکلید ثبت کن", {
+                if (opening) "با اثر انگشت ثبت کن و باز کن" else "با اثر انگشت ثبت کن", {
                     action.run {
                         if (changed.isNotEmpty()) env.api.setEnvelopes(changed) { target -> env.auth.stepUp(act, "budgets.update", target) }
                         if (opening) {
@@ -375,7 +375,7 @@ fun HireForm(onDone: () -> Unit, modifier: Modifier = Modifier, company0: String
             HqTextField(reason, { reason = it }, "مثلاً: پایش سایت و پنل کاربری", Modifier.fillMaxWidth(), singleLine = false, minLines = 3, maxLength = 5_000)
         }
         HqButton(
-            "با گذرکلید استخدام کن", {
+            "با اثر انگشت استخدام کن", {
                 val r = role ?: return@HqButton
                 action.run {
                     val body = HireIn(company!!, department!!, r.role, titleFa.trim(), model = model, effort = effort, reason = reason.trim().ifBlank { null })

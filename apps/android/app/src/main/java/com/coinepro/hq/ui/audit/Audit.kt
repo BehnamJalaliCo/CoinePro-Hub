@@ -79,7 +79,7 @@ fun AuditScreen() {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Fig("#${e.seq}", style = Divan.type.figureSmall, color = c.textMuted)
                                 Fig(e.action, style = Divan.type.figure, modifier = Modifier.weight(1f))
-                                if (e.stepUp) DIcon(DivanIcon.LOCK, size = 14.dp, tint = c.goldInk, label = "با passkey")
+                                if (e.stepUp) DIcon(DivanIcon.LOCK, size = 14.dp, tint = c.goldInk, label = "با اثر انگشت")
                                 Pill(e.actionClass, Tone.NEUTRAL, figure = true)
                             }
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

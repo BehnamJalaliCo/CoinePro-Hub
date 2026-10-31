@@ -291,7 +291,7 @@ fun DigitalCeoScreen() {
                                 p.rationaleFa?.let { RichText(it, style = Divan.type.caption) }
                                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                                     p.principles.forEach { Fig(it, style = Divan.type.figureSmall, color = c.textMuted) }
-                                    Text("مُهر ${jDateTime(p.madeAt)}", style = Divan.type.micro, color = c.textMuted)
+                                    Text(com.coinepro.hq.designsystem.timesFig("مُهر ${jDateTime(p.madeAt)}"), style = Divan.type.micro, color = c.textMuted)
                                     Fig("sha256 ${p.sealedHash.take(12)}…", style = Divan.type.figureSmall, color = c.textMuted)
                                 }
                             }

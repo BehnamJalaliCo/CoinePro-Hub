@@ -116,7 +116,7 @@ fun ResolutionsScreen() {
     open?.let { res ->
         HqSheet({ open = null }, res.title, ref = res.ref) {
             Md(res.body)
-            Text("مُهر: ${actorFa(res.sealedBy)}، ${jDateTime(res.sealedAt)}", style = Divan.type.caption, color = c.textMuted)
+            Text(com.coinepro.hq.designsystem.timesFig("مُهر: ${actorFa(res.sealedBy)}، ${jDateTime(res.sealedAt)}"), style = Divan.type.caption, color = c.textMuted)
             res.source["decision"]?.let { d -> HqButton("تصمیم $d", { open = null; nav.go("cartable/$d") }, size = BtnSize.SM, variant = BtnVariant.TEXT) }
             res.source["message"]?.let { m -> Text("از پیام $m", style = Divan.type.caption, color = c.textMuted) }
             if (res.sentTo.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {

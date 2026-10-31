@@ -100,6 +100,7 @@ import com.coinepro.hq.designsystem.Space
 import com.coinepro.hq.designsystem.collapseOut
 import com.coinepro.hq.designsystem.expandIn
 import com.coinepro.hq.designsystem.fig
+import com.coinepro.hq.designsystem.timesFig
 import com.coinepro.hq.designsystem.generated.DivanIcon
 import com.coinepro.hq.designsystem.motionShort
 import com.coinepro.hq.designsystem.rememberBreath
@@ -334,7 +335,7 @@ private fun StateLine(s: CoState, d: ControlData, holdingName: String?) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             DIcon(DivanIcon.LOCK, size = 12.dp, tint = c.warning)
             // A time is a figure (Latin); how long is left is a prose count (Persian).
-            Text(buildAnnotatedString { append("deploy بسته تا "); appendProse(jTime(f.until)); append("، ${until(f.until)}") }, style = Divan.type.caption, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(com.coinepro.hq.designsystem.timesFig(buildAnnotatedString { append("deploy بسته تا "); fig(jTime(f.until)); append("، ${until(f.until)}") }), style = Divan.type.caption, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -552,7 +553,7 @@ fun ActionsContent(t: CoTarget, s: CoState, ui: ControlUi, go: (String) -> Unit)
         if (!t.holding) ActionRow(DivanIcon.MESSAGES, "پیام به مدیرعامل", "گفت‌وگوی ${t.code}-CEO", c.textSecondary) { go("messages/${t.code}-CEO") }
         ActionRow(DivanIcon.SETTINGS, "اتاق کنترل", "وضعیت و تاریخچه، بودجه، استخدام، فعالیت زنده", c.textSecondary) { go("companies/${t.code}") }
         if (!t.holding && catalogueServed()) ActionRow(DivanIcon.KNOWLEDGE, "کاتالوگ کامل", "هرچه روی سرورهایش هست، جزءبه‌جزء؛ فقط خواندنی", c.goldInk) { go("catalogue/${t.code}") }
-        if (!t.holding) ActionRow(DivanIcon.DISMISS, "حذف شرکت", "برای شرکتی که اشتباهی ساخته شده؛ با کد و گذرکلید", c.negative) { ui.open(ControlSheet.Delete(t)) }
+        if (!t.holding) ActionRow(DivanIcon.DISMISS, "حذف شرکت", "برای شرکتی که اشتباهی ساخته شده؛ با کد و اثر انگشت", c.negative) { ui.open(ControlSheet.Delete(t)) }
     }
 }
 
@@ -684,7 +685,7 @@ fun UnfreezeContent(t: CoTarget, s: CoState, busy: Boolean, onOpen: (String) -> 
     Column(verticalArrangement = Arrangement.spacedBy(Space.md)) {
         s.freeze?.let { f ->
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.tile)).background(c.softWarning).padding(Space.sm), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(buildAnnotatedString { append("بسته تا "); appendProse(jTime(f.until)); append("، ${until(f.until)}، ${byFa(f.createdBy)}") }, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold))
+                Text(com.coinepro.hq.designsystem.timesFig(buildAnnotatedString { append("بسته تا "); fig(jTime(f.until)); append("، ${until(f.until)}، ${byFa(f.createdBy)}") }), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold))
                 f.reason.takeIf { it.isNotBlank() }?.let { Text("«$it»", style = Divan.type.small, color = c.textSecondary) }
             }
         }
@@ -800,7 +801,7 @@ private fun StateCard(co: Company, s: CoState, t: CoTarget, d: ControlData, ui: 
                 Box(Modifier.fillMaxWidth().padding(horizontal = Space.sm).height(1.dp).background(c.lineDivider))
                 SwitchRow(
                     DivanIcon.LOCK, "deploy",
-                    s.freeze?.let { buildAnnotatedString { append("بسته تا "); appendProse(jTime(it.until)); append("، ${until(it.until)}") } } ?: AnnotatedString("باز: انتشارها با مُهر تو بیرون میروند"),
+                    s.freeze?.let { buildAnnotatedString { append("بسته تا "); fig(jTime(it.until)); append("، ${until(it.until)}") } } ?: AnnotatedString("باز: انتشارها با مُهر تو بیرون میروند"),
                     if (s.frozen) c.warning else c.silverInk,
                 ) {
                     if (s.frozen) HqButton("باز کن", { ui.open(ControlSheet.Unfreeze(t)) }, size = BtnSize.SM, icon = DivanIcon.RESUME)
@@ -872,8 +873,8 @@ private fun HistoryRow(e: ControlEvent, why: String?, last: Boolean) {
             // When: how long ago (a prose count), then the date and time (figures).
             Text(
                 buildAnnotatedString {
-                    append(ago(e.at)); append("، "); appendProse(jDateTime(e.at))
-                    e.until?.let { append("، تا "); appendProse(jTime(it)) }
+                    append(ago(e.at)); append("، "); append(timesFig(jDateTime(e.at)))
+                    e.until?.let { append("، تا "); fig(jTime(it)) }
                 },
                 style = Divan.type.micro, color = c.textMuted,
             )
@@ -985,7 +986,7 @@ private fun LiveFeedCard(code: String, holding: Boolean, d: ControlData) {
     val nav = LocalNav.current
     val runs = rememberQuery("runs:company:$code", "runs", maxAgeMs = 15_000) { runs(company = code, limit = 12) }
     val outs = rememberQuery("deliverables:company:$code", "deliverables", maxAgeMs = 30_000) { deliverables(company = code, limit = 6) }
-    val cards = rememberQuery("decisions:company:$code", "decisions", maxAgeMs = 30_000) { decisions(status = null, company = code, limit = 20) }
+    val cards = rememberQuery("decisions:company:$code", "decisions", maxAgeMs = 30_000) { decisionsAll(company = code, limit = 20) }
     val rows = remember(d.pulses[code], runs.data, outs.data, cards.data) {
         feedOf(d.pulses[code]?.recent.orEmpty().map(::feedRowOf), runs.data?.items.orEmpty(), outs.data?.items.orEmpty().filter { it.company == code }, cards.data?.items.orEmpty().filter { it.company == code })
     }

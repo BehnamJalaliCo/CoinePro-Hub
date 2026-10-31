@@ -526,7 +526,7 @@ internal fun OutputRow(
         RichText(d.title, Modifier.padding(top = 8.dp), style = Divan.type.bodyStrong, color = if (seen) c.textSecondary else c.textPrimary, maxLines = 2)
         RichText(d.summary, Modifier.padding(top = 4.dp), style = Divan.type.small, color = if (seen) c.textMuted else c.textSecondary, maxLines = 2)
         Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(buildAnnotatedString { append(d.producer.titleFa); append("، "); append(jTime(d.createdAt)); append("، "); fig(d.ref) }, style = Divan.type.micro, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Text(com.coinepro.hq.designsystem.timesFig(buildAnnotatedString { append(d.producer.titleFa); append("، "); append(jTime(d.createdAt)); append("، "); fig(d.ref) }), style = Divan.type.micro, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             d.filedAs?.let { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) { DIcon(DivanIcon.DELIVERABLE, size = 12.dp, tint = c.textMuted); Fig(it, style = Divan.type.figureSmall, color = c.textMuted) } }
         }
     }
@@ -805,7 +805,7 @@ private fun OutputDetail(d: Deliverable, onDelete: () -> Unit = {}, onChanged: (
                 Avatar(agentKindOf(d.producer.code, d.producer.kind), dept = d.producer.department, size = 40.dp)
                 Column(Modifier.weight(1f)) {
                     Text(d.producer.titleFa, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold))
-                    Text(buildAnnotatedString { fig(d.producer.code); append("، " + jDateTime(d.createdAt)) }, style = Divan.type.micro, color = c.textMuted)
+                    Text(com.coinepro.hq.designsystem.timesFig(buildAnnotatedString { fig(d.producer.code); append("، " + jDateTime(d.createdAt)) }), style = Divan.type.micro, color = c.textMuted)
                 }
                 d.workId?.let { w -> HqButton(null, { nav.go("work/$w") }, variant = BtnVariant.GHOST, icon = DivanIcon.TASK, label = "کار مربوط") }
             }

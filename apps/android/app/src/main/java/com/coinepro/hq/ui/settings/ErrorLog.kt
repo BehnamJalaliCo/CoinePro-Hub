@@ -79,7 +79,7 @@ private val KINDS = mapOf(
     "hub" to KindFa("هاب برگشت", Tone.POS, DivanIcon.SERVER),
     "stream" to KindFa("استریم زنده", Tone.NEUTRAL, DivanIcon.REFRESH),
     "crash" to KindFa("از کار افتادن اپ", Tone.NEG, DivanIcon.URGENT),
-    "passkey" to KindFa("اثر انگشت و passkey", Tone.WARN, DivanIcon.LOCK),
+    "passkey" to KindFa("اثر انگشت", Tone.WARN, DivanIcon.LOCK),
     "speech" to KindFa("تشخیص گفتار", Tone.NEUTRAL, DivanIcon.MIC),
     "session" to KindFa("شروع اپ", Tone.LAPIS, DivanIcon.INFO),
 )

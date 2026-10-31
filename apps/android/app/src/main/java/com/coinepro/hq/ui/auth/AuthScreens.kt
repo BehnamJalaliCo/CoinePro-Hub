@@ -98,7 +98,7 @@ fun LoginScreen(graph: AppGraph) {
             }
         }
         HqButton(
-            "ورود با passkey", { action.run { env.auth.signIn(act) } },
+            "ورود با اثر انگشت", { action.run { env.auth.signIn(act) } },
             Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.LOCK, loading = action.busy,
         )
         Text("با اثر انگشت یا چهره‌ی همین گوشی.", style = Divan.type.caption, color = Divan.colors.textMuted, textAlign = TextAlign.Center)
@@ -130,7 +130,7 @@ private fun EnrolLinkDialog(onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            HqButton("ثبت با passkey", {
+            HqButton("ثبت با اثر انگشت", {
                 action.run { env.auth.enrol(act, token); toasts.ok("این گوشی ثبت شد."); onDismiss() }
             }, variant = BtnVariant.PRIMARY, enabled = token != null, loading = action.busy)
         },
@@ -150,11 +150,11 @@ fun EnrolScreen(token: String, onDone: () -> Unit) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 DIcon(DivanIcon.LOCK, tint = Divan.colors.goldInk)
                 Text("ثبت این گوشی برای ستاد", style = Divan.type.h3)
-                Text("یک passkey روی همین گوشی ساخته میشود: «${Passkeys.deviceName()}». هیچ رمزی وجود ندارد؛ از این به بعد با اثر انگشت یا چهره وارد میشوی.", style = Divan.type.small, color = Divan.colors.textSecondary)
+                Text("اثر انگشت همین گوشی برای ستاد ثبت میشود: «${Passkeys.deviceName()}». هیچ رمزی وجود ندارد؛ از این به بعد با اثر انگشت یا چهره وارد میشوی.", style = Divan.type.small, color = Divan.colors.textSecondary)
             }
         }
         HqButton(
-            "ساخت passkey و ورود", {
+            "ثبت اثر انگشت و ورود", {
                 action.run { env.auth.enrol(act, token); toasts.ok("گوشی ثبت شد. خوش آمدی."); onDone() }
             },
             Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.SEAL, loading = action.busy,

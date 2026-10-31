@@ -187,7 +187,7 @@ fun BudgetSheet(onDismiss: () -> Unit) {
                 }
             }
         }
-        HqButton("ذخیره با گذرکلید", {
+        HqButton("ذخیره با اثر انگشت", {
             action.run {
                 val rows = scopes.filter { s -> tok[key(s)].orEmpty().isNotBlank() || usdV[key(s)].orEmpty().isNotBlank() }.map { s ->
                     BudgetRowIn(s.second, s.first, s.second, s.third, parseMillions(tok[key(s)].orEmpty()), usdV[key(s)].orEmpty().takeIf { it.isNotBlank() }?.toDouble()?.let { String.format(java.util.Locale.US, "%.2f", it) })
@@ -234,7 +234,7 @@ fun ConnectionSheet(x: Connection, onDismiss: () -> Unit) {
             }
             Text("مستقیم به خزانه‌ی رمزها میرود؛ نه اینجا نمایش داده میشود و نه در Audit.", style = Divan.type.micro, color = c.textMuted)
         } else Text("اشتراک Claude کلید ندارد؛ اعتبارش روی خود سرور است.", style = Divan.type.caption, color = c.textMuted)
-        HqButton("ذخیره با گذرکلید", {
+        HqButton("ذخیره با اثر انگشت", {
             action.run {
                 if (changed) env.api.patchConnection(x, ConnectionPatch(displayName = name.trim().takeIf { it != x.displayName }, status = if (on != (x.status != "disabled")) (if (on) "enabled" else "disabled") else null)) { a, t -> env.auth.stepUp(act, a, t) }
                 if (secret.isNotBlank()) env.api.connectionSecret(x.id, secret.trim()) { a, t -> env.auth.stepUp(act, a, t) }
@@ -294,7 +294,7 @@ fun CallsCard() {
                             Fig(usd(x.equivCostUsd, 3), style = Divan.type.figureSmall.copy(fontWeight = FontWeight.SemiBold))
                         }
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text(jDateTime(x.startedAt), style = Divan.type.micro, color = c.textMuted)
+                            Text(com.coinepro.hq.designsystem.timesFig(jDateTime(x.startedAt)), style = Divan.type.micro, color = c.textMuted)
                             x.model?.let { com.coinepro.hq.designsystem.ModelName(it, size = 11.dp, style = Divan.type.figureSmall, color = c.textMuted) } ?: Fig("—", style = Divan.type.figureSmall, color = c.textMuted)
                             Fig("in ${tokens(x.inputTokens)} · out ${tokens(x.outputTokens)} · cache ${tokens(x.cacheReadTokens)}", style = Divan.type.figureSmall, color = c.textMuted)
                             x.latencyMs?.let { Fig(String.format(java.util.Locale.US, "%.1fs", it / 1000.0), style = Divan.type.figureSmall, color = c.textMuted) }

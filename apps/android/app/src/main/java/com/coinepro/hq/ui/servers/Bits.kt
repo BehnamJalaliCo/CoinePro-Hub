@@ -90,8 +90,9 @@ val SERVER_STATE = mapOf(
     "revoked" to ServerStateFa("باطل‌شده", Tone.NEUTRAL, DivanIcon.CLOSE),
 )
 
-/** The owner's monospace for a server's own text (commands, output): columns line up, Latin stays Latin, left to right. */
-val Mono = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.5.sp, lineHeight = 18.sp)
+/** A server's own text (commands, output) in the one typeface (IRANYekanX's figure cut, tabular digits): Latin stays Latin, left to
+ *  right, digits line up. No system monospace (the single-typeface rule). */
+val Mono = TextStyle(fontFamily = com.coinepro.hq.designsystem.FigureFace, fontFeatureSettings = "tnum", fontSize = 12.5.sp, lineHeight = 18.sp)
 
 @Composable
 fun rememberServers(): QueryHandle<List<com.coinepro.hq.core.net.HubServer>> = rememberQuery("servers", "servers", maxAgeMs = 30_000) { servers() }
@@ -276,7 +277,7 @@ fun CallLine(r: ServerCallRow, serverName: String? = null, onTranscript: ((Strin
                 }, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (r.summaryFa.isNotBlank()) RichText(r.summaryFa, style = Divan.type.caption, color = c.textSecondary, maxLines = 2)
             }
-            Text(jTime(r.at), style = Divan.type.micro, color = c.textMuted)
+            Text(com.coinepro.hq.designsystem.timesFig(jTime(r.at)), style = Divan.type.micro, color = c.textMuted)
         }
         when {
             r.cmd != null -> CodeBlock(r.cmd, prefix = (r.cwd?.let { "$it " } ?: "") + "$ ")
@@ -377,7 +378,7 @@ fun ServerSealCard(card: SealCard, modifier: Modifier = Modifier, compact: Boole
                 if (!compact) HqButton(null, { nav.go("cartable/${card.ref}") }, variant = BtnVariant.GHOST, size = BtnSize.SM, icon = DivanIcon.NEXT, label = "باز کردن کارت")
             }
         }
-        if (card.pending && done == null) Text("مُهر با اثر انگشت یا چهره؛ «نه» بی‌گذرکلید است.", style = Divan.type.micro, color = c.textMuted)
+        if (card.pending && done == null) Text("مُهر با اثر انگشت یا چهره؛ «نه» بی‌اثر انگشت است.", style = Divan.type.micro, color = c.textMuted)
     }
     if (reject) AlertDialog(
         onDismissRequest = { reject = false },

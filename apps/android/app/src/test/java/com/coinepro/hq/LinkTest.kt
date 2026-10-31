@@ -129,7 +129,7 @@ class LinkTest {
 
     @Test
     fun theStatusLineSaysWhy() {
-        assertEquals("وصل · زنده", LinkPolicy.view(i(), LaneStatus(LinkPhase.LIVE)).fa)
+        assertEquals("وصل، زنده", LinkPolicy.view(i(), LaneStatus(LinkPhase.LIVE)).fa)
         assertEquals("در حال اتصال…", LinkPolicy.view(i(), LaneStatus(LinkPhase.CONNECTING)).fa)
         assertEquals("قطع: اینترنت نیست؛ با برگشتنش وصل میشوم", LinkPolicy.view(i(), LaneStatus(LinkPhase.WAITING_NETWORK)).fa)
         assertEquals("قطع: ستاد جواب نمیدهد؛ خودکار دوباره تلاش میکنم", LinkPolicy.view(i(), LaneStatus(LinkPhase.RETRYING, "HTTP 502")).fa)

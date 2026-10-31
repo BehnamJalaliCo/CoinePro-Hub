@@ -178,7 +178,7 @@ private fun SkillSheet(s: Skill, onClose: () -> Unit) {
             }
         }
         when (s.status) {
-            "approved" -> HqButton("با گذرکلید فعال کن", {
+            "approved" -> HqButton("با اثر انگشت فعال کن", {
                 action.run {
                     env.api.activateSkill(s) { a, t -> env.auth.stepUp(act, a, t) }
                     env.cache.invalidate("skills", "academy")

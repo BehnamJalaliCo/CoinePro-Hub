@@ -181,7 +181,7 @@ fun NetworkScreen(selected0: String? = null, check0: NetCheckRun? = null, map0: 
                         }
                         Legend(Modifier.padding(top = 12.dp))
                         m.lastAt?.let { at ->
-                            Text(buildAnnotatedString { append("آخرین بررسی "); fig(jTime(at)); append(" · " + ago(at)) }, Modifier.padding(top = 8.dp), style = Divan.type.micro, color = Divan.colors.textMuted)
+                            Text(com.coinepro.hq.designsystem.timesFig(buildAnnotatedString { append("آخرین بررسی "); fig(jTime(at)); append(" · " + ago(at)) }), Modifier.padding(top = 8.dp), style = Divan.type.micro, color = Divan.colors.textMuted)
                         }
                     }
                 }
@@ -352,6 +352,8 @@ private fun CheckCard(x: NetCheckRun, names: (NetNode) -> ServerName) {
 private val NODE = 48.dp
 private val HUB_NODE = 60.dp
 private val NODE_W = 100.dp
+/** The height of a node's name under it (one line of caption and its gap). */
+private val NAME_H = 26.dp
 private val MAP_H = 380.dp
 
 /** The colour of a road's health. */
@@ -429,7 +431,9 @@ private fun NetworkMapView(m: NetworkMap, names: (NetNode) -> ServerName, select
                 val j = idx[p.to.id] ?: continue
                 val from = Offset(pos[i].first.toPx(), pos[i].second.toPx())
                 val to = Offset(pos[j].first.toPx(), pos[j].second.toPx())
-                val (a, b) = trim(from, to, NODE.toPx() / 2 + 6.dp.toPx(), NODE.toPx() / 2 + 6.dp.toPx())
+                // A node's name sits under it: a chord that leaves downward or arrives from below stops short of the name.
+                val name = NAME_H.toPx()
+                val (a, b) = trim(from, to, NODE.toPx() / 2 + 6.dp.toPx() + (if (to.y > from.y) name else 0f), NODE.toPx() / 2 + 6.dp.toPx() + (if (to.y > from.y) 0f else name))
                 drawLine(c.negative.copy(alpha = 0.75f), a, b, strokeWidth = 1.5.dp.toPx(), cap = StrokeCap.Round, pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 4.dp.toPx())))
                 // An arrow head at the far end: who could not reach whom.
                 val d = (b - a)
@@ -453,15 +457,27 @@ private fun NetworkMapView(m: NetworkMap, names: (NetNode) -> ServerName, select
         // The labels on the spokes: the road and the round trip.
         for ((i, l) in lines.withIndex()) {
             val (x, y) = pos[i]
-            val lx = cx + (x - cx) * 0.52f
-            val ly = cy + (y - cy) * 0.52f
+            // In the middle of the free part of the spoke: from the hub's ring to the node's ring, past the node's name when the name
+            // lies on the spoke (a node above the hub).
+            val dist = kotlin.math.hypot((x - cx).value, (y - cy).value).coerceAtLeast(1f)
+            val t0 = (HUB_NODE / 2 + 4.dp).value / dist
+            val t1 = 1f - (NODE / 2 + 4.dp + (if (y < cy) NAME_H else 0.dp)).value / dist
+            val t = ((t0 + t1) / 2).coerceIn(0.3f, 0.7f)
+            val lx = cx + (x - cx) * t
+            val ly = cy + (y - cy) * t
             SpokeLabel(l, colors[i], Modifier.absoluteOffset(x = lx - 30.dp, y = ly - 17.dp).width(60.dp))
         }
         for (p in chords) {
             val i = idx[p.from.id] ?: continue
             val j = idx[p.to.id] ?: continue
-            val lx = (pos[i].first + pos[j].first) / 2
-            val ly = (pos[i].second + pos[j].second) / 2
+            // Beside the chord's middle, not on it, so neither the line nor a node's name runs under the chip.
+            val mx = (pos[i].first + pos[j].first) / 2
+            val my = (pos[i].second + pos[j].second) / 2
+            val dx = (pos[j].first - pos[i].first).value
+            val dy = (pos[j].second - pos[i].second).value
+            val len = kotlin.math.hypot(dx, dy).coerceAtLeast(1f)
+            val lx = mx + (-dy / len * 16f).dp
+            val ly = my + (dx / len * 16f).dp
             Box(Modifier.absoluteOffset(x = lx - 28.dp, y = ly - 10.dp).width(56.dp), contentAlignment = Alignment.Center) {
                 Row(Modifier.clip(RoundedCornerShape(10.dp)).background(c.softNegative).padding(horizontal = 6.dp, vertical = 1.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                     Tick(false, c.negative, 9.dp)
@@ -554,10 +570,8 @@ private fun Legend(modifier: Modifier = Modifier) {
             }
             Text("از راه عمومی", style = Divan.type.micro, color = c.textSecondary)
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Fig(">${Network.SLOW_MS.toInt()} ms", style = Divan.type.figureSmall, color = c.textMuted)
-            Text("یعنی کند", style = Divan.type.micro, color = c.textMuted)
-        }
+        // One sentence, the figure isolated left to right: «بیش از 150 ms یعنی کند».
+        Text(buildAnnotatedString { append("بیش از "); fig("${Network.SLOW_MS.toInt()} ms"); append(" یعنی کند") }, style = Divan.type.micro, color = c.textMuted)
     }
 }
 

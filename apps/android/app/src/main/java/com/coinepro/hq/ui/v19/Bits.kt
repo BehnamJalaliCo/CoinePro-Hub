@@ -350,7 +350,7 @@ fun PublishRows(rows: List<PublishRow>) {
                     }
                 }
                 if (r.at != null || (r.externalId != null && r.externalId != "manual")) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    r.at?.let { Text(jDateTime(it), style = Divan.type.micro, color = c.textMuted) }
+                    r.at?.let { Text(com.coinepro.hq.designsystem.timesFig(jDateTime(it)), style = Divan.type.micro, color = c.textMuted) }
                     Box(Modifier.weight(1f))
                     if (r.externalId != null && r.externalId != "manual") Fig(r.externalId, style = Divan.type.figureSmall, color = if (r.url != null) c.goldInk else c.textMuted)
                 }
