@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.semantics.Role
+import com.coinepro.hq.core.net.gated
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -84,7 +85,7 @@ private val LEVELS = listOf("urgent", "decision", "report", "info", "learning")
  * the cartable.
  */
 @Composable
-fun NotificationsScreen(tab0: String = "unread", open0: Set<String> = emptySet()) {
+fun NotificationsScreen(tab0: String = "unread", open0: Set<String> = emptySet(), selectAll0: Boolean = false) {
     // [open0]: the groups shown open at first ("*": every one; the screenshots).
     val env = LocalEnv.current
     val nav = LocalNav.current
@@ -108,9 +109,32 @@ fun NotificationsScreen(tab0: String = "unread", open0: Set<String> = emptySet()
     LaunchedEffect(env) { env.reads.failures.collect { toasts.error(it) } }
     LaunchedEffect(readQ.data) { readQ.data?.items?.filter { it.readAt != null }?.map { it.id }?.let(env.reads::confirmed) }
 
+    // ⟨1.10.1⟩ §28.5 selection: a long press on a row (a folded row stands for all its times), «انتخاب همه», then «خوانده‌شده» or
+    // «حذف» on the unread tab and «حذف» on the read one. Deleting is for good; a hub without it (404/405) hides «حذف».
+    var sel by remember { mutableStateOf(com.coinepro.hq.core.data.Selection()) }
+    var deleting by remember { mutableStateOf<List<NotificationGroup>?>(null) }
+    val gone = remember { mutableStateListOf<String>() }
+    val gaps by env.api.gaps.missing.collectAsStateWithLifecycle()
+    val canDelete = com.coinepro.hq.core.net.HubFeature.DELETE_NOTIFICATIONS !in gaps
+    val haptics = com.coinepro.hq.designsystem.rememberHaptics()
+    LaunchedEffect(tab, lvl) { sel = sel.exit() }
+    androidx.activity.compose.BackHandler(sel.active) { sel = sel.exit() }
+    fun keyOf(g: NotificationGroup) = g.key + ":" + g.latest.id
+    fun select(next: com.coinepro.hq.core.data.Selection) {
+        if (next != sel) haptics.tick()
+        if (next.active && !sel.active) undo = null
+        sel = next
+    }
+
     val loaded = unreadQ.data?.items
     val (unread, read) = NotificationGroups.split(loaded.orEmpty(), readQ.data?.items.orEmpty() + more, marked)
-    val groups = NotificationGroups.group(if (tab == "unread") unread else read)
+    val groups = NotificationGroups.group((if (tab == "unread") unread else read).filter { it.id !in gone })
+    val keys = groups.map(::keyOf)
+    var autoSelected by remember { mutableStateOf(false) }
+    LaunchedEffect(keys) {
+        // [selectAll0]: the screenshots open with every row selected.
+        sel = if (selectAll0 && !autoSelected && keys.isNotEmpty()) { autoSelected = true; sel.all(keys) } else sel.retain(keys)
+    }
 
     fun markRead(g: NotificationGroup) {
         val ids = g.ids.filter { it !in marked }
@@ -167,12 +191,25 @@ fun NotificationsScreen(tab0: String = "unread", open0: Set<String> = emptySet()
                     }
                     items(groups, key = { it.key + ":" + it.latest.id }) { g -> Box(itemMotion()) {
                         val unreadTab = tab == "unread"
+                        val k = keyOf(g)
+                        // On the read tab the only action is «حذف»: no selection there while the hub cannot delete.
+                        val longPress: (() -> Unit)? = if (unreadTab || canDelete) ({ select(sel.start(k)) }) else null
                         val row: @Composable () -> Unit = {
-                            if (g.folded) GroupCard(g, g.key in open || "*" in open, unreadTab, onToggle = { if (g.key in open) open.remove(g.key) else open.add(g.key) }, onOpen = ::openOne, onRead = { markRead(g) })
-                            else NotificationCard(g.latest, unreadTab, onOpen = { openOne(g.latest) }, onRead = { markRead(g) })
+                            if (g.folded) GroupCard(g, g.key in open || "*" in open, unreadTab, onToggle = { if (g.key in open) open.remove(g.key) else open.add(g.key) }, onOpen = ::openOne, onRead = { markRead(g) }, onLongClick = longPress)
+                            else NotificationCard(g.latest, unreadTab, onOpen = { openOne(g.latest) }, onRead = { markRead(g) }, onLongClick = longPress)
                         }
-                        if (unreadTab) SwipeToSee(seen = false, onSwipe = { markRead(g) }) { row() } else row()
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            AnimatedVisibility(sel.active, enter = com.coinepro.hq.designsystem.expandIn(), exit = com.coinepro.hq.designsystem.collapseOut()) {
+                                Box(Modifier.padding(end = 10.dp)) { com.coinepro.hq.ui.outputs.SelectCheck(k in sel) }
+                            }
+                            Box(Modifier.weight(1f)) {
+                                if (unreadTab && !sel.active) SwipeToSee(seen = false, onSwipe = { markRead(g) }) { row() } else row()
+                                // In selection mode a tap anywhere on the row selects it (a folded row: all its times).
+                                if (sel.active) Box(Modifier.matchParentSize().clickable(role = Role.Checkbox, onClickLabel = if (k in sel) "برداشتن از انتخاب" else "انتخاب") { select(sel.toggle(k)) })
+                            }
+                        }
                     }}
+                    if (sel.active) item(key = "sel-room") { Box(Modifier.height(64.dp)) }
                     if (tab == "read" && cursor != null) item {
                         HqButton("بیشتر", {
                             if (!loadingMore) scope.launch {
@@ -191,6 +228,87 @@ fun NotificationsScreen(tab0: String = "unread", open0: Set<String> = emptySet()
         UndoBar(undo, Modifier.align(Alignment.BottomCenter), onTimeout = { if (undo?.id == it) undo = null }) { u ->
             undo = null
             env.reads.undo(u.id)
+        }
+        com.coinepro.hq.ui.outputs.SelectionTop(
+            sel, sel.allOf(keys), Modifier.align(Alignment.TopCenter), onClose = { select(sel.exit()) },
+            onAll = { select(if (sel.allOf(keys)) sel.none() else sel.all(keys)) }, allLabel = "انتخاب همه",
+        )
+        val chosen = groups.filter { keyOf(it) in sel }
+        NotificationActions(
+            sel.active, chosen.isNotEmpty(), tab == "unread", canDelete, Modifier.align(Alignment.BottomCenter),
+            onRead = {
+                val ids = chosen.flatMap { it.ids }.filter { it !in marked }
+                sel = sel.exit()
+                if (ids.isNotEmpty()) {
+                    val token = env.reads.mark(ids)
+                    undo = Undo(token, ids, true, "${ids.size} اعلان خوانده شد")
+                }
+            },
+            onDelete = { deleting = chosen },
+        )
+    }
+    deleting?.let { ds ->
+        val all = tab == "read" && sel.allOf(keys)
+        val n = ds.sumOf { it.count }
+        com.coinepro.hq.ui.v14.HqSheet({ deleting = null }, if (all) "حذف همه‌ی خوانده‌شده‌ها" else "حذف $n اعلان") {
+            DeleteNotificationsContent(
+                n, all,
+                onCancel = { deleting = null },
+                delete = {
+                    val ids = ds.flatMap { it.ids }
+                    val out = env.api.gated(com.coinepro.hq.core.net.HubFeature.DELETE_NOTIFICATIONS) {
+                        // «انتخاب همه» on the read tab: every read one up to the newest on screen (pages not loaded included).
+                        if (all) deleteNotifications(allReadBefore = read.maxOf { it.createdAt }) else deleteNotifications(ids)
+                    }
+                    deleting = null
+                    sel = sel.exit()
+                    if (out != null) {
+                        gone.addAll(ids)
+                        env.cache.invalidate("notifications", "inbox")
+                        haptics.confirm()
+                        toasts.ok("${out.deleted} اعلان برای همیشه پاک شد.")
+                    }
+                },
+            )
+        }
+    }
+}
+
+/** Selection mode's actions: «خوانده‌شده» on the unread tab, and «حذف» on both (while the hub has it). */
+@Composable
+private fun NotificationActions(active: Boolean, some: Boolean, unreadTab: Boolean, canDelete: Boolean, modifier: Modifier, onRead: () -> Unit, onDelete: () -> Unit) {
+    val c = Divan.colors
+    val reduced = com.coinepro.hq.designsystem.LocalReducedMotion.current
+    AnimatedVisibility(
+        active, modifier,
+        enter = if (reduced) androidx.compose.animation.EnterTransition.None else androidx.compose.animation.fadeIn(com.coinepro.hq.designsystem.Motion.emphasised()) + androidx.compose.animation.slideInVertically(com.coinepro.hq.designsystem.Motion.emphasised()) { it },
+        exit = if (reduced) androidx.compose.animation.ExitTransition.None else androidx.compose.animation.fadeOut(com.coinepro.hq.designsystem.Motion.exit()) + androidx.compose.animation.slideOutVertically(com.coinepro.hq.designsystem.Motion.exit()) { it },
+    ) {
+        Row(
+            Modifier.padding(12.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.raised).padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (unreadTab) HqButton("خوانده‌شده", onRead, Modifier.weight(1f), variant = BtnVariant.SECONDARY, size = BtnSize.SM, enabled = some)
+            if (canDelete) HqButton("حذف", onDelete, Modifier.weight(1f), variant = BtnVariant.DANGER, size = BtnSize.SM, enabled = some)
+        }
+    }
+}
+
+/** «حذف»'s confirmation: what goes, said plainly; no Audit line is needed (a notification copies an event kept elsewhere). */
+@Composable
+internal fun DeleteNotificationsContent(n: Int, all: Boolean, onCancel: () -> Unit, delete: suspend () -> Unit) {
+    val c = Divan.colors
+    val action = rememberAction()
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text("از دیتابیس پاک میشود و برنمیگردد.", style = Divan.type.bodyStrong, color = c.textPrimary)
+        Text(
+            if (all) "همه‌ی اعلان‌های خوانده‌شده تا همین لحظه پاک میشوند، حتی آن‌هایی که هنوز در فهرست بارگذاری نشده‌اند."
+            else "$n اعلان پاک میشود. خود رویدادها (کارت‌ها، کارها، یافته‌ها) سر جایشان میمانند؛ فقط اعلانشان میرود.",
+            style = Divan.type.small, color = c.textSecondary,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            HqButton("حذف برای همیشه", { action.run { delete() } }, Modifier.weight(1f), variant = BtnVariant.DANGER, icon = DivanIcon.CLOSE, loading = action.busy)
+            HqButton("انصراف", onCancel, Modifier.weight(1f), variant = BtnVariant.GHOST)
         }
     }
 }
@@ -216,7 +334,7 @@ private fun LevelBadge(n: Notification) {
 
 /** One notification. On «خوانده‌نشده» a tap opens it (and it leaves the list); one with nowhere to go has «خوانده شد» instead. */
 @Composable
-private fun NotificationCard(n: Notification, unreadTab: Boolean, onOpen: () -> Unit, onRead: () -> Unit) {
+private fun NotificationCard(n: Notification, unreadTab: Boolean, onOpen: () -> Unit, onRead: () -> Unit, onLongClick: (() -> Unit)? = null) {
     val env = LocalEnv.current
     val c = Divan.colors
     val answer = rememberAction()
@@ -225,6 +343,7 @@ private fun NotificationCard(n: Notification, unreadTab: Boolean, onOpen: () -> 
     HqCard(
         Modifier.fillMaxWidth(), onClick = if (route != null || unread) onOpen else null,
         tahrir = unread && n.level == "urgent", onClickLabel = if (route != null) "باز کن" else "خوانده شد",
+        onLongClick = onLongClick, onLongClickLabel = "انتخاب چندتایی",
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             LevelBadge(n)
@@ -257,11 +376,11 @@ private fun NotificationCard(n: Notification, unreadTab: Boolean, onOpen: () -> 
 
 /** The same alert raised [NotificationGroup.count] times: its latest words, «۵ بار، آخرین …», and every time on opening the row. */
 @Composable
-private fun GroupCard(g: NotificationGroup, expanded: Boolean, unreadTab: Boolean, onToggle: () -> Unit, onOpen: (Notification) -> Unit, onRead: () -> Unit) {
+private fun GroupCard(g: NotificationGroup, expanded: Boolean, unreadTab: Boolean, onToggle: () -> Unit, onOpen: (Notification) -> Unit, onRead: () -> Unit, onLongClick: (() -> Unit)? = null) {
     val c = Divan.colors
     val n = g.latest
     val unread = g.items.any { it.readAt == null }
-    HqCard(Modifier.fillMaxWidth(), onClick = onToggle, onClickLabel = if (expanded) "بستن" else "همه‌ی دفعه‌ها") {
+    HqCard(Modifier.fillMaxWidth(), onClick = onToggle, onClickLabel = if (expanded) "بستن" else "همه‌ی دفعه‌ها", onLongClick = onLongClick, onLongClickLabel = "انتخاب چندتایی") {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Box {
                 LevelBadge(n)

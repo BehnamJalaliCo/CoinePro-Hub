@@ -59,8 +59,6 @@ import androidx.compose.ui.unit.sp
 // The block parser is MdParse.kt.
 
 private val REF = Regex("(?<![/\\w-])([DMOWIFSGNPHQELCKB]-\\d{3,6}|A-\\d{4}|AR-\\d{6}|(?:AP|FI|PR|CH|SO|SK|EV|TE|PV|MT|KB|OB|KR|OR|RK|CE|DM|AK|WR|BR|HR|NT|CL|DP|CR|SR|MI|LC|RD|FP|PT|RR|LH|RM|AU)-\\d{3,4}|[A-Z]{2,5}(?:-[A-Z]{2,8})?-(?:\\d{2,3}|MGR|CEO|ADV|OVR|PA|LGL|ARC|SYS)(?:-\\d{4})?)\\b")
-// ⟨1.7.3⟩ also a date (2026-10-17, 1405/07/25) and a count of tokens or dollars ("182400 توکن", "12 USD"): figures, Latin.
-private val LATIN = Regex("((?:Opus|Sonnet|Haiku|Fable|Claude|GPT|Gemini) \\d+(?:\\.\\d+)*|(?:\\$|[A-Za-z])[A-Za-z0-9._%$/@-]*\\d[A-Za-z0-9._%/@-]*|\\d+(?:[.,]\\d+)*[A-Za-z][A-Za-z0-9._-]*|\\b\\d{4}[-/]\\d{1,2}[-/]\\d{1,2}\\b|\\d[\\d,.]*(?=\\s?(?:توکن|USDT?\\b)))")
 private val INLINE = Regex("(\\*\\*[^*]+\\*\\*|`[^`]+`|\\[[^\\]\\n]+]\\([^)\\s]+\\))")
 private val LINK = Regex("^\\[([^\\]]+)]\\(([^)\\s]+)\\)$")
 
@@ -90,24 +88,21 @@ private fun AnnotatedString.Builder.refs(text: String, k: MdColors) {
     latin(text.substring(last))
 }
 
-private fun AnnotatedString.Builder.latin(text: String) {
-    var last = 0
-    for (m in LATIN.findAll(text)) {
-        append(text.substring(last, m.range.first))
-        fig(m.value)
-        last = m.range.last + 1
-    }
-    append(text.substring(last))
-}
+/** Every Latin run (a model name and its version, a path, a URL, a command), date, count and clock time Latin and isolated ([bidi]). */
+private fun AnnotatedString.Builder.latin(text: String) = bidi(text)
 
 // A middle dot between Persian words or beside a count is drawn by the text face like the Persian zero ("· ۶" reads "۰ ۶"): there it
 // becomes the Persian comma. Between Latin words ("Chrome · Android") it stays.
 private val DOT = Regex(" · (?=[\u0600-\u06FF0-9])|(?<=[\u0600-\u06FF0-9]) · ")
 
 /** A decimal inside Persian prose ("disk 90.4%") takes the Persian separator, so «۹۰٫۴٪» does not read as «۹۰.۴». */
-private val DECIMAL = Regex("(?<![\\w.:/-])(\\d+)\\.(\\d+)(?=%|٪|\\s|$|[،؛,;)])")
+// Never inside a Latin run: "GPT 5.5", "disk 90.4%" keep their Latin point (a number after a Latin word belongs to it).
+private val DECIMAL = Regex("(?<![\\w.:/$-])(?<![A-Za-z] )(\\d+)\\.(\\d+)(?=%|٪|\\s|$|[،؛,;)])")
 
-private fun inline(raw: String, k: MdColors): AnnotatedString = timesFig(inlineText(raw, k))
+private fun inline(raw: String, k: MdColors): AnnotatedString = inlineText(raw, k)
+
+/** The inline rendering of [raw] as the app draws it (refs, Latin runs, code), colours aside: for the tests. */
+internal fun inlineOf(raw: String): AnnotatedString = inline(raw, MdColors(Color.Unspecified, Color.Unspecified, Color.Unspecified, Color.Unspecified, null))
 
 private fun inlineText(raw: String, k: MdColors): AnnotatedString = buildAnnotatedString {
     val text = DECIMAL.replace(DOT.replace(raw, "، "), "$1٫$2")
@@ -117,7 +112,8 @@ private fun inlineText(raw: String, k: MdColors): AnnotatedString = buildAnnotat
         val t = m.value
         when {
             t.startsWith("**") -> withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = k.ink)) { refs(t.substring(2, t.length - 2), k) }
-            t.startsWith("`") -> withStyle(SpanStyle(fontFamily = FigureFace, background = k.codeBg, color = k.ink)) { append("⁦" + t.substring(1, t.length - 1) + "⁩") }
+            // Inline code in the figure face and ink, isolated left to right; no background box, so the line keeps its rhythm.
+            t.startsWith("`") -> withStyle(SpanStyle(fontFamily = FigureFace, fontFeatureSettings = "tnum", color = k.ink)) { append("⁦" + keepTogether(t.substring(1, t.length - 1)) + "⁩") }
             else -> link(t, k)
         }
         last = m.range.last + 1
@@ -182,7 +178,8 @@ private fun Blocks(blocks: List<MdBlock>, modifier: Modifier, style: TextStyle, 
                         style = hs, color = c.textPrimary,
                     )
                 }
-                is MdBlock.Para -> Text(remember(b.text, k) { inline(b.text, k) }, style = style, color = color)
+                // A paragraph is justified (its last line at the start), in the text's comfortable line height.
+                is MdBlock.Para -> Text(remember(b.text, k) { inline(b.text, k) }, style = style.copy(textAlign = alignOf(b.text), lineHeight = paraLine(style)), color = color)
                 is MdBlock.ListBlock -> MdList(b, style, color, k, depth)
                 is MdBlock.Quote -> {
                     val bar = c.lineTahrir
@@ -215,6 +212,20 @@ private fun Blocks(blocks: List<MdBlock>, modifier: Modifier, style: TextStyle, 
     }
 }
 
+/** Justified, unless a long Latin run or code (a path, a URL, a command over 28 characters) is in it: stretching the line before such a
+ *  run would open wide gaps, so that paragraph starts at the start. */
+internal fun alignOf(raw: String): TextAlign {
+    val long = latinRanges(raw).any { it.last - it.first + 1 > 28 } || Regex("`[^`]{29,}`").containsMatchIn(raw)
+    return if (long) TextAlign.Start else TextAlign.Justify
+}
+
+/** A paragraph's line height: at least 1.65 × its size, so justified lines breathe. */
+private fun paraLine(style: TextStyle): androidx.compose.ui.unit.TextUnit {
+    val size = style.fontSize.takeIf { it.isSp }?.value ?: 13f
+    val want = (size * 1.65f).sp
+    return if (style.lineHeight.isSp && style.lineHeight.value >= want.value) style.lineHeight else want
+}
+
 @Composable
 private fun MdList(b: MdBlock.ListBlock, style: TextStyle, color: Color, k: MdColors, depth: Int) {
     val c = Divan.colors
@@ -224,7 +235,7 @@ private fun MdList(b: MdBlock.ListBlock, style: TextStyle, color: Color, k: MdCo
                 val marker = if (b.ordered) "${b.start + i}." else when (depth) { 0 -> "•"; 1 -> "◦"; else -> "▪" }
                 Text(marker, style = style, color = c.textMuted, modifier = Modifier.width(if (b.ordered) 22.dp else 18.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    if (item.text.isNotBlank()) Text(remember(item.text, k) { inline(item.text, k) }, style = style, color = color)
+                    if (item.text.isNotBlank()) Text(remember(item.text, k) { inline(item.text, k) }, style = style.copy(textAlign = alignOf(item.text), lineHeight = paraLine(style)), color = color)
                     if (item.children.isNotEmpty()) Blocks(item.children, Modifier, style, color, k, depth + 1)
                 }
             }

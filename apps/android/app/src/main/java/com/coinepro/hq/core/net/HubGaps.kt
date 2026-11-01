@@ -15,6 +15,8 @@ enum class HubFeature {
     CATALOGUE,
     /** `POST /client/errors`; without it the error log keeps its entries queued for a later app start. */
     CLIENT_ERRORS,
+    /** ⟨1.10.1⟩ `DELETE /notifications`; without it «حذف» is hidden. */
+    DELETE_NOTIFICATIONS,
 }
 
 /**

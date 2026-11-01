@@ -65,6 +65,15 @@ internal class NotificationsDemo(private val store: MutableMap<String, Pair<Int,
             val hit = rows.filter { (unread == null || (it.str("read_at") == null) == unread) && (level == null || it.str("level") == level) }
             return 200 to buildJsonObject { put("items", JsonArray(hit.take(limit))); put("next_cursor", JsonNull) }
         }
+        // ⟨1.10.1⟩ §28.5: deleted for good, by ids or every read one up to `before`.
+        if (method == "DELETE" && path == "/notifications") {
+            val ids = body?.get("ids")?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull }?.toSet()
+            val allRead = body?.get("all_read")?.jsonPrimitive?.contentOrNull == "true"
+            val before = body?.get("before")?.jsonPrimitive?.contentOrNull
+            val n = rows.size
+            rows.removeAll { r -> (ids != null && r.str("id") in ids) || (allRead && r.str("read_at") != null && (before == null || r.str("created_at")!! <= before)) }
+            return 200 to buildJsonObject { put("deleted", n - rows.size) }
+        }
         if (method != "POST") return null
         val stamp = HqClock.now().toString()
         Regex("^/notifications/([^/]+)/read$").find(path)?.let { m ->

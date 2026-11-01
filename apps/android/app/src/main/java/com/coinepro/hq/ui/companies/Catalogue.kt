@@ -298,7 +298,7 @@ internal fun ProseOrData(text: String, modifier: Modifier = Modifier, caption: B
 /** A cell's width from its column's longest text (the header included), between a narrow and a wide limit; a long cell wraps. */
 internal fun columnWidths(t: CatalogueTable): List<Int> = t.header.indices.map { i ->
     val longest = (listOf(t.header[i]) + t.rows.indices.map { r -> t.cell(r, i) }).maxOf { it.length }
-    (longest * 7 + 28).coerceIn(84, 220)
+    (longest * 8 + 28).coerceIn(84, 240)
 }
 
 /**
@@ -313,7 +313,7 @@ internal fun CatalogueGrid(t: CatalogueTable, modifier: Modifier = Modifier) {
     val scroll = rememberScrollState()
     val headed = header.any { it.isNotBlank() }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        t.titleFa?.takeIf { it.isNotBlank() }?.let { Text(it, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary) }
+        t.titleFa?.takeIf { it.isNotBlank() }?.let { Text(com.coinepro.hq.designsystem.timesFig(it), style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary) }
         if (header.isNotEmpty()) Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.tile)).background(c.tile)) {
             @Composable
             fun Line(r: Int?, bg: androidx.compose.ui.graphics.Color) {
@@ -348,11 +348,9 @@ private fun Cell(text: String, width: Int, header: Boolean = false) {
         else -> Divan.type.small
     }
     // A Persian cell with Latin in it ("۳۸ مسیر؛ /v1/signals") keeps each Latin run whole and left to right.
-    if (!header && !latin) RichText(text, Modifier.width(width.dp).padding(horizontal = 10.dp), style = style, color = c.textPrimary, maxLines = 6)
-    else Text(
-        text, Modifier.width(width.dp).padding(horizontal = 10.dp), style = style,
-        color = if (header) c.textSecondary else c.textPrimary, maxLines = if (header) 2 else 6, overflow = TextOverflow.Ellipsis,
-    )
+    // A cell wraps to show all of itself (a long token like «Restart=on-failure» breaks), never clipped.
+    if (!header && !latin) RichText(text, Modifier.width(width.dp).padding(horizontal = 10.dp), style = style, color = c.textPrimary)
+    else Text(if (header) com.coinepro.hq.designsystem.timesFig(text) else androidx.compose.ui.text.AnnotatedString(text), Modifier.width(width.dp).padding(horizontal = 10.dp), style = style, color = if (header) c.textSecondary else c.textPrimary)
 }
 
 /** The control room's entry: the latest catalogue in one line, and the way to it. */

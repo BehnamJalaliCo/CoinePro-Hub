@@ -67,6 +67,21 @@ class CleanupScreensTest(private val name: String, private val night: Boolean) {
             // A large n8n table (sticky first column, long cells wrapped) and notes, one with JSON drawn as a table, never raw.
             "catalogue-n8n" to { _ -> com.coinepro.hq.ui.companies.CatalogueScreen("TY", section0 = "automations") },
             "catalogue-notes" to { _ -> com.coinepro.hq.ui.companies.CatalogueScreen("TY", section0 = "interfaces") },
+            // §28.5: every unread row selected, «خوانده‌شده» and «حذف» at the bottom; the delete's confirmation.
+            "notifications-select" to { _ -> com.coinepro.hq.ui.notifications.NotificationsScreen(selectAll0 = true) },
+            "notifications-delete" to { _ ->
+                Sheetlike {
+                    androidx.compose.material3.Text("حذف همه‌ی خوانده‌شده‌ها", style = Divan.type.h2)
+                    com.coinepro.hq.ui.notifications.DeleteNotificationsContent(12, all = true, onCancel = {}) {}
+                }
+            },
+            // The owner's line: models and their versions whole, in Latin, in a justified paragraph.
+            "bidi-line" to { _ ->
+                Cardlike {
+                    com.coinepro.hq.designsystem.Md("**ChatGPT:** مدل‌های در دسترس نیست: GPT 5.5، GPT 5.3. فایل `/opt/tradeyar/docker-compose.yml` و نشانی https://hq.coinepro.com/api/v1/stream؛ نسخه‌ی v0.10.1 روی Pillow 10.2 با disk 90.4% پر. این بند باید مرتب و هم‌تراز در چند خط تمام شود و آخرین خطش از ابتدای سطر شروع شود.")
+                    com.coinepro.hq.designsystem.Md("- یک بند فهرست با یک دستور `hq-runner pair --company TY --name ty-web` که بلند است و باید بشکند.\n- بند دوم با GPT 5.5 و Claude Opus 4.7.")
+                }
+            },
             "catalogue-empty" to { _ -> com.coinepro.hq.ui.companies.CatalogueScreen("FX") },
             "watch" to { _ -> com.coinepro.hq.ui.oversight.WatchScreen() },
             "council-failed" to { _ ->

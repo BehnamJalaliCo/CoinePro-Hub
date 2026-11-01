@@ -109,17 +109,73 @@ fun AnnotatedString.Builder.fig(text: String, color: Color? = null, weight: Font
 /** A clock time inside a sentence ("10:50", "08:00–09:30"): drawn with Latin digits like every figure, whatever face the sentence has. */
 private val CLOCK = Regex("(?<![\\d:])\\d{1,2}:\\d{2}(?![\\d:])")
 
-/** [text] with every clock time in it set as a figure: the rule that a time reads in Latin digits, as code and money do. */
-fun timesFig(text: String): AnnotatedString = timesFig(AnnotatedString(text))
+/**
+ * A Latin run inside Persian text: a model name with its version ("GPT 5.5"), a path ("/opt/tradeyar"), a URL, a command, a version
+ * ("v0.10.1"), an English phrase ("Never sleeping apps", "down: otel-collector, tempo"). It starts with a letter, `$ @ # / ~` or digits
+ * glued to letters ("8GB", "2FA"), may hold spaces and Latin punctuation, ends on a letter, a digit, `%`, `/` or `$`, and has a letter
+ * in it (a bare prose number stays Persian).
+ */
+private val LATIN_RUN = Regex("(?:[A-Za-z$@#/~]|\\d[\\d.,]*(?=[A-Za-z]))[A-Za-z0-9 ._%$/@:+#=~&?,'*\\\\-]*[A-Za-z0-9%/$]|[A-Za-z]")
+/** A date written in figures ("2026-10-17", "1405/07/25"). */
+private val DATE = Regex("(?<![\\d/-])\\d{4}[-/]\\d{1,2}[-/]\\d{1,2}(?![\\d/-])")
+/** A count of tokens or dollars ("182400 توکن", "12 USD"): money and tokens are figures. */
+private val COUNT = Regex("(?<![\\d.,])\\d[\\d,.]*(?=\\s?(?:توکن|USDT?\\b))")
 
-/** [text] with every clock time set as a figure (spans already there kept). */
-fun timesFig(text: AnnotatedString): AnnotatedString {
-    val hits = CLOCK.findAll(text.text).toList()
-    if (hits.isEmpty()) return text
-    return buildAnnotatedString {
-        append(text)
-        for (m in hits) addStyle(SpanStyle(fontFamily = FigureFace, fontFeatureSettings = "tnum"), m.range.first, m.range.last + 1)
+/**
+ * Where [text] must read left to right in Latin figures: its Latin runs, dates, counts of tokens or money, and clock times, in order and
+ * never overlapping (the longest first where two start together). A Latin run's digits stay Latin («GPT 5.5», never «GPT ۵٫۵»).
+ */
+fun latinRanges(text: String): List<IntRange> {
+    val found = buildList {
+        for (m in LATIN_RUN.findAll(text)) if (m.value.any { it in 'A'..'Z' || it in 'a'..'z' } || m.value.startsWith("$")) add(m.range)
+        for (re in listOf(DATE, COUNT, CLOCK)) for (m in re.findAll(text)) add(m.range)
+    }.sortedWith(compareBy<IntRange>({ it.first }, { -it.last }))
+    val out = mutableListOf<IntRange>()
+    for (r in found) if (out.isEmpty() || r.first > out.last().last) out += r
+    return out
+}
+
+/** [text] with every Latin run (and date, count, clock) set as a figure inside a left-to-right isolate (U+2066 … U+2069), so it keeps
+ *  its order and its Latin digits inside a right-to-left sentence. */
+fun AnnotatedString.Builder.bidi(text: String, color: Color? = null) {
+    var last = 0
+    for (r in latinRanges(text)) {
+        append(text.substring(last, r.first))
+        fig(keepTogether(text.substring(r.first, r.last + 1)), color)
+        last = r.last + 1
     }
+    append(text.substring(last))
+}
+
+/** A Latin run never splits at its spaces: each space is followed by a word joiner (U+2060, invisible; the face has no no-break space
+ *  glyph), so «GPT 5.5» or a command stays whole on its line (a line break inside an isolate can reorder its neutral marks, «--name»
+ *  drawn «name--»); a run longer than the line still breaks at its hyphens. */
+fun keepTogether(run: String): String = run.replace(" ", " \u2060")
+
+/** [text] as it should read inside a Persian line: Latin runs isolated and Latin, clock times Latin (see [bidi]). */
+fun timesFig(text: String): AnnotatedString = buildAnnotatedString { bidi(text) }
+
+/** [text] with its Latin runs and clock times isolated and set as figures; the spans it already has are kept, and runs already isolated
+ *  (inside U+2066 … U+2069) are left as they are. */
+fun timesFig(text: AnnotatedString): AnnotatedString {
+    val ranges = latinRanges(text.text).filter { r -> !insideIsolate(text.text, r.first) }
+    if (ranges.isEmpty()) return text
+    return buildAnnotatedString {
+        var last = 0
+        for (r in ranges) {
+            append(text.subSequence(last, r.first))
+            withStyle(SpanStyle(fontFamily = FigureFace, fontFeatureSettings = "tnum")) { append("\u2066"); append(keepTogether(text.text.substring(r.first, r.last + 1))); append("\u2069") }
+            last = r.last + 1
+        }
+        append(text.subSequence(last, text.length))
+    }
+}
+
+/** Whether [at] lies inside an isolate already (an LRI/FSI/RLI not yet closed before it). */
+private fun insideIsolate(t: String, at: Int): Boolean {
+    var depth = 0
+    for (i in 0 until at) when (t[i]) { '\u2066', '\u2067', '\u2068' -> depth++; '\u2069' -> if (depth > 0) depth-- }
+    return depth > 0
 }
 
 /** A figure (money, tokens, codes, model names): Latin digits, tabular. */
@@ -180,7 +236,7 @@ fun HqButton(
             }
             if (text != null) {
                 Text(
-                    text,
+                    timesFig(text),
                     style = Divan.type.small.copy(fontSize = size.font.sp, fontWeight = if (variant == BtnVariant.PRIMARY) FontWeight.Bold else FontWeight.SemiBold),
                     color = fg,
                     maxLines = 1,
@@ -303,7 +359,7 @@ fun FilterChip(text: String, selected: Boolean, onClick: () -> Unit, modifier: M
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         // A figure (an hour, a code) reads in Latin digits left to right; prose in the text face.
-        Text(text, style = (if (figure) Divan.type.figureSmall.copy(textDirection = TextDirection.Ltr) else Divan.type.small).copy(fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal), color = if (selected) c.goldInk else c.textSecondary)
+        Text(if (figure) AnnotatedString(text) else timesFig(text), style = (if (figure) Divan.type.figureSmall.copy(textDirection = TextDirection.Ltr) else Divan.type.small).copy(fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal), color = if (selected) c.goldInk else c.textSecondary)
         if (count != null) Text(count.toString(), style = Divan.type.caption, color = (if (selected) c.goldInk else c.textSecondary).copy(alpha = 0.8f))
     }
 }
@@ -331,7 +387,7 @@ fun <T> Segmented(options: List<SegOption<T>>, value: T, onChange: (T) -> Unit, 
                     DIcon(o.icon, size = 16.dp, tint = if (on) c.textPrimary else c.textSecondary)
                     Spacer(Modifier.width(6.dp))
                 }
-                Text(o.label, style = Divan.type.small.copy(fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal), color = if (on) c.textPrimary else c.textSecondary)
+                Text(timesFig(o.label), style = Divan.type.small.copy(fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal), color = if (on) c.textPrimary else c.textSecondary)
             }
         }
     }
@@ -461,7 +517,7 @@ fun Empty(title: String, modifier: Modifier = Modifier, icon: DivanIcon = DivanI
     val c = Divan.colors
     Column(modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 40.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Box(Modifier.size(56.dp).clip(CircleShape).background(c.tile), contentAlignment = Alignment.Center) { DIcon(icon, size = 26.dp, tint = c.textMuted) }
-        Text(title, style = Divan.type.bodyStrong, textAlign = TextAlign.Center)
+        Text(timesFig(title), style = Divan.type.bodyStrong, textAlign = TextAlign.Center)
         if (body != null) Text(body, style = Divan.type.caption, color = c.textMuted, textAlign = TextAlign.Center)
         action?.invoke()
     }
@@ -486,13 +542,13 @@ fun StatTile(label: String, value: String, modifier: Modifier = Modifier, sub: S
     // Label, figure and note sit on the same lines in every tile of a row: one label line, one 32sp figure line, and the note
     // starting on the same baseline (the tile fills the row's height when the row is a [StatRow]).
     HqCard(if (LocalStatFill.current) modifier.fillMaxHeight() else modifier, onClick = onClick) {
-        Text(label, style = Divan.type.caption, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(timesFig(label), style = Divan.type.caption, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.height(4.dp))
         val col = when (tone) { Tone.NEG -> c.negative; Tone.WARN -> c.warning; Tone.POS -> c.positive; else -> c.textPrimary }
         val big = (if (figure) Divan.type.figureL else Divan.type.h2).copy(fontSize = 24.sp, lineHeight = 32.sp)
         if (count) CountingText(value, big, color = col) else Text(value, style = big, color = col, maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (subRich != null) Text(subRich, style = Divan.type.caption, color = c.textMuted, maxLines = 2, minLines = subLines, overflow = TextOverflow.Ellipsis)
-        else if (sub != null) Text(sub, style = Divan.type.caption, color = c.textMuted, maxLines = 2, minLines = subLines, overflow = TextOverflow.Ellipsis)
+        else if (sub != null) Text(timesFig(sub), style = Divan.type.caption, color = c.textMuted, maxLines = 2, minLines = subLines, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -515,7 +571,7 @@ fun SectionTitle(title: String, modifier: Modifier = Modifier, note: String? = n
     Row(modifier.fillMaxWidth().padding(top = Space.xxs), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.xs)) {
         if (icon != null) DIcon(icon, size = 20.dp, tint = c.textSecondary)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, style = Divan.type.h3, modifier = Modifier.semantics { heading() })
+            Text(timesFig(title), style = Divan.type.h3, modifier = Modifier.semantics { heading() })
             if (note != null) Text(timesFig(note), style = Divan.type.caption, color = c.textMuted)
         }
         action?.invoke(this)
@@ -527,8 +583,8 @@ fun PageHeader(title: String, modifier: Modifier = Modifier, eyebrow: String? = 
     val c = Divan.colors
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Column {
-            if (eyebrow != null) Text(eyebrow, style = Divan.type.caption, color = c.textMuted)
-            Text(title, style = Divan.type.h1, modifier = Modifier.semantics { heading() })
+            if (eyebrow != null) Text(timesFig(eyebrow), style = Divan.type.caption, color = c.textMuted)
+            Text(timesFig(title), style = Divan.type.h1, modifier = Modifier.semantics { heading() })
         }
         if (actions != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), content = actions)
     }

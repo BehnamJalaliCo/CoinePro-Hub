@@ -518,6 +518,8 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
          *  counters stop where they rest, so no frame of a loop is caught mid-way. */
         private val STILL = setOf(
             "companies", "companies-list", "company-control", "company-control-live", "company-control-stopped", "company-control-holding", "holding-card",
+            // The control page's activity rings turn while agents run: held still, as on the company pages.
+            "control",
         )
 
         /** A sheet's title as [com.coinepro.hq.ui.v14.HqSheet] sets it. */

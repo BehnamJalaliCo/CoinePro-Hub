@@ -236,7 +236,7 @@ class ReviewFixesTest {
     @Test
     fun everyClockTimeIsAFigure() {
         val a = com.coinepro.hq.designsystem.timesFig("خوانده شد، ۲۵ مهر، 10:50؛ تا 08:00–09:30")
-        val figured = a.spanStyles.filter { it.item.fontFamily == com.coinepro.hq.designsystem.FigureFace }.map { a.text.substring(it.start, it.end) }
+        val figured = a.spanStyles.filter { it.item.fontFamily == com.coinepro.hq.designsystem.FigureFace }.map { a.text.substring(it.start, it.end).trim('\u2066', '\u2069') }
         assertEquals(listOf("10:50", "08:00", "09:30"), figured)
         assertNull(com.coinepro.hq.designsystem.timesFig("بی‌ساعت").spanStyles.firstOrNull())
         // No screen draws a time in the prose face: never `Text(jTime(…))` or `appendProse(jTime(…))` (review §15).

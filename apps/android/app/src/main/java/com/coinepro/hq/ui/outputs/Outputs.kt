@@ -558,7 +558,10 @@ internal fun SelectCheck(on: Boolean) {
 
 /** Selection mode's top bar: close, «۳ انتخاب‌شده», and all or none. */
 @Composable
-internal fun SelectionTop(sel: com.coinepro.hq.core.data.Selection, all: Boolean, modifier: Modifier, onClose: () -> Unit, onAll: () -> Unit) {
+internal fun SelectionTop(
+    sel: com.coinepro.hq.core.data.Selection, all: Boolean, modifier: Modifier, onClose: () -> Unit, onAll: () -> Unit,
+    allLabel: String = "همه", noneLabel: String = "هیچ",
+) {
     val c = Divan.colors
     val reduced = com.coinepro.hq.designsystem.LocalReducedMotion.current
     AnimatedVisibility(
@@ -575,7 +578,7 @@ internal fun SelectionTop(sel: com.coinepro.hq.core.data.Selection, all: Boolean
                 if (sel.count == 0) "هیچ‌کدام انتخاب نشده" else "${sel.count} انتخاب‌شده",
                 style = Divan.type.bodyStrong, color = c.textPrimary, modifier = Modifier.weight(1f).semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite },
             )
-            HqButton(if (all) "هیچ" else "همه", onAll, variant = BtnVariant.TEXT, size = BtnSize.SM)
+            HqButton(if (all) noneLabel else allLabel, onAll, variant = BtnVariant.TEXT, size = BtnSize.SM)
         }
     }
 }

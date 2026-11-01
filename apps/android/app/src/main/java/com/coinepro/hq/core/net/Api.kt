@@ -333,6 +333,12 @@ class Api(
     // ------------------------------------------------------ notifications --
     suspend fun notifications(unread: Boolean? = null, level: String? = null, limit: Int = 50, cursor: String? = null): NotificationPage =
         get("/notifications", mapOf("unread" to unread, "level" to level, "limit" to limit, "cursor" to cursor))
+    /** ⟨1.10.1⟩ §28.5 deletes for good (the owner only): these [ids], or with [allReadBefore] every read one up to that moment (the
+     *  newest the screen shows). */
+    suspend fun deleteNotifications(ids: List<String>? = null, allReadBefore: String? = null): DeletedOut =
+        call(write("DELETE", "/notifications", buildJsonObject {
+            if (allReadBefore != null) { put("all_read", true); put("before", allReadBefore) } else put("ids", ids(ids.orEmpty().distinct()))
+        }, null), serializer())
     /** Everything unread up to [before] (the newest the owner saw, so what arrives meanwhile stays unread), of one [level] or all. */
     suspend fun readAll(before: String? = null, level: String? = null): JsonObject =
         post("/notifications/read-all", buildJsonObject { before?.let { put("before", it) }; level?.let { put("level", it) } })
