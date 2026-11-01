@@ -1,5 +1,6 @@
 'use client';
 
+import { bidi } from '@/components/ui/bidi';
 import { safeHref } from '@/lib/format';
 import { useState } from 'react';
 import { Icon } from '@/components/icon';
@@ -82,7 +83,7 @@ function LoginSheet({ s, connectionId, onClose }: { s: Substitute; connectionId:
                 </div>
               )}
             </div>
-          ) : <p className="rounded-[12px] bg-warn-soft p-3 text-ink">{l.state === 'expired' ? 'وقتش گذشت؛ دوباره شروع کن.' : `نشد: ${l.status_reason ?? '—'}`}</p>
+          ) : <p className="rounded-[12px] bg-warn-soft p-3 text-ink">{l.state === 'expired' ? 'وقتش گذشت؛ دوباره شروع کن.' : <>نشد: {bidi(l.status_reason ?? '—')}</>}</p>
         ) : null}
         {CLI_LOGIN[s.player] && !notReady ? <div className="flex flex-col gap-1.5 text-[12px] text-muted"><span>یا از ترمینال خودت:</span><Cmd text={CLI_LOGIN[s.player]!} /></div> : null}
       </div>
@@ -156,7 +157,7 @@ export function PlayerCard({ s }: { s: Substitute }) {
         </div>
         <Pill tone={st.tone} dot>{st.fa}</Pill>
       </div>
-      {s.status_reason ? <p className="rounded-[10px] bg-warn-soft px-3 py-2 text-[12px] leading-5 text-ink">{s.status_reason}{s.limited_until ? <> · {until(s.limited_until)}</> : null}</p> : null}
+      {s.status_reason ? <p className="rounded-[10px] bg-warn-soft px-3 py-2 text-[12px] leading-5 text-ink">{bidi(s.status_reason)}{s.limited_until ? <> · {until(s.limited_until)}</> : null}</p> : null}
 
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-2 text-[12px]">

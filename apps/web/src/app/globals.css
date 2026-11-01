@@ -128,6 +128,19 @@
 @layer utilities {
   /* Figures: Latin digits, tabular, isolated from the RTL run. */
   .fig { font-family: var(--font-fig); font-feature-settings: "tnum" 1; unicode-bidi: isolate; direction: ltr; }
+  /* ⟨1.10.1⟩ A Latin run inside Persian text (components/ui/bidi.tsx): isolated, its own direction, Latin digits; not tabular. */
+  .latin { font-family: var(--font-fig); unicode-bidi: isolate; }
+  /* Inline code that keeps the line's rhythm: no taller box, no forced line break; a long path breaks anywhere. */
+  .hq-code {
+    font-family: var(--font-fig); unicode-bidi: isolate; font-size: 0.9em; line-height: inherit; padding: 0 0.3em; border-radius: 5px;
+    background: var(--hq-surface-tile); color: var(--hq-text-primary); overflow-wrap: anywhere; -webkit-box-decoration-break: clone; box-decoration-break: clone;
+  }
+  /* Agent-written prose (components/ui/md.tsx): justified with the last line flush to the start, words never clipped, tables wrap. */
+  .hq-prose { overflow-wrap: break-word; min-width: 0; }
+  .hq-prose p, .hq-prose li, .hq-prose blockquote { text-align: justify; text-align-last: start; text-justify: inter-word; }
+  .hq-prose p { line-height: 1.9; }
+  .hq-prose table { max-width: 100%; }
+  .hq-prose td:not(.fig), .hq-prose th { white-space: normal; }
   .tahrir { box-shadow: inset 0 0 0 1px var(--hq-line-tahrir); }
   .scroll-fade-top { mask-image: linear-gradient(to bottom, transparent 0, #000 28px); }
   .no-scrollbar { scrollbar-width: none; }

@@ -5,6 +5,7 @@
 // Each choice wears its provider's logo; a substitute that is signed out, limited or off is greyed with the reason (chosen anyway, the run
 // waits up to 30 minutes for it and then falls back to the router, and a notification says so).
 
+import { bidi } from '@/components/ui/bidi';
 import { Icon } from '@/components/icon';
 import { ModelMark } from '@/components/brand/model-mark';
 import { useSubstitutes } from '@/lib/api/v18';
@@ -62,11 +63,11 @@ export function PlayerPicker({ value, onChange, heard }: { value: PlayerOption; 
           );
         })}
       </div>
-      <p className={cx('text-[12px] leading-6', a.ok ? 'text-sec' : 'text-warn')}>{optionNoteFa(value, a, seats.length)}</p>
+      <p className={cx('text-[12px] leading-6', a.ok ? 'text-sec' : 'text-warn')}>{bidi(optionNoteFa(value, a, seats.length))}</p>
       {greyed.length ? (
         <ul className="flex flex-col gap-0.5">
           {greyed.map(([o, x]) => (
-            <li key={o.key} className="flex items-start gap-1.5 text-[11px] leading-5 text-muted"><span className="mt-0.5 inline-flex opacity-50"><PlayerLogo o={o} size={12} /></span>{o.fa}: {x.stateFa}؛ {x.reasonFa}</li>
+            <li key={o.key} className="flex items-start gap-1.5 text-[11px] leading-5 text-muted"><span className="mt-0.5 inline-flex opacity-50"><PlayerLogo o={o} size={12} /></span>{o.fa}: {x.stateFa}؛ {bidi(x.reasonFa)}</li>
           ))}
         </ul>
       ) : null}

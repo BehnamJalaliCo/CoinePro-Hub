@@ -4,6 +4,7 @@
 // hub's reason when it wrote one, «پاسخ نداد» otherwise, the raw text kept under «جزئیات», never shown as JSON); and the synthesis that
 // says so plainly when only one player answered instead of pretending there was a council.
 
+import { bidi } from '@/components/ui/bidi';
 import Link from 'next/link';
 import { useState } from 'react';
 import { Icon } from '@/components/icon';
@@ -27,7 +28,7 @@ function Member({ m }: { m: CouncilMember }) {
           <span className={cx('text-[13px] font-semibold', out ? 'text-sec' : 'text-ink')}>{playerFa(m.player)}</span>
           {m.model ? <span className="fig text-[11px] text-muted">{m.player === 'claude' ? modelLabel(m.model) : m.model}</span> : null}
         </span>
-        {why ? <span className={cx('text-[12px] leading-5', m.state === 'failed' ? 'text-neg' : 'text-muted')}>{why.text}</span> : null}
+        {why ? <span className={cx('text-[12px] leading-5', m.state === 'failed' ? 'text-neg' : 'text-muted')}>{bidi(why.text)}</span> : null}
         {why?.raw ? (
           <>
             <button type="button" aria-expanded={details} onClick={() => setDetails(!details)} className="inline-flex items-center gap-1 self-start text-[11px] font-semibold text-sec hover:text-ink">

@@ -121,6 +121,8 @@ const MORNING = `# گزارش صبحگاهی — شنبه ۲۵ مهر ۱۴۰۵ (
 
 ## بازیکن‌های ذخیره
 - ChatGPT Plus: 41 فراخوانی این ماه، معادل $12.40
+- ChatGPT: مدل‌های در دسترس نیست: GPT 5.5، GPT 5.3
+- مسیر پشتیبان: \`/srv/backups/hq/2026-10-31/postgres-full.dump\`؛ 3 فایل، رابط \`api.v1\` نسخه‌ی 2.14.1
 - Google AI Pro: سهمیه‌ی امروز تمام شد
 
 **کلید توقف فعال:** PC
@@ -745,6 +747,15 @@ export async function handle(req: Request): Promise<Response> {
     const unread = q.get('unread');
     const level = q.get('level');
     return json(page(rows.filter((n) => (unread == null || (!n.read_at) === (unread === 'true')) && (!level || n.level === level)).slice(0, Number(q.get('limit') ?? 50))));
+  }
+  // ⟨1.10.1⟩ §28.5: delete for good, by ids or every read one up to the newest shown.
+  if (p === '/notifications' && m === 'DELETE') {
+    const rows = await notifications(req);
+    const b = await body<{ ids?: string[]; all_read?: boolean; before?: string }>();
+    if (!b.ids?.length && !(b.all_read && b.before)) return problem(422, 'validation_failed', 'ids یا all_read با before لازم است.');
+    const gone = rows.filter((r) => (b.ids?.includes(r.id)) || (b.all_read && r.read_at && r.created_at <= b.before!));
+    notes = rows.filter((r) => !gone.includes(r));
+    return json({ deleted: gone.length });
   }
   if (p === '/notifications/read' && m === 'POST') {
     const rows = await notifications(req);

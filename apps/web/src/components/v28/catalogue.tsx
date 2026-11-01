@@ -7,6 +7,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { Icon } from '@/components/icon';
+import { bidi } from '@/components/ui/bidi';
 import { Button } from '@/components/ui/button';
 import { Md } from '@/components/ui/md';
 import { Card, Empty, ErrorState, FilterChip, Pill, SectionTitle, Skeleton } from '@/components/ui/primitives';
@@ -23,7 +24,8 @@ function Cell({ v }: { v: CatalogueCell }) {
   if (v == null || v === '') return <span className="text-muted">—</span>;
   if (typeof v === 'boolean') return <span>{v ? 'بله' : 'نه'}</span>;
   if (typeof v === 'number') return <span className="fig">{v.toLocaleString('en-US')}</span>;
-  return <span className={cx(!PERSIAN.test(v) && 'fig')}>{v}</span>;
+  // Latin alone reads as a figure; Persian with Latin inside keeps each run its own direction and digits.
+  return PERSIAN.test(v) ? <>{bidi(v)}</> : <span className="fig">{v}</span>;
 }
 
 /**

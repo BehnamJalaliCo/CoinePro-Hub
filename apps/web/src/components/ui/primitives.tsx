@@ -1,5 +1,6 @@
 'use client';
 
+import { bidi } from './bidi';
 import { type ReactNode } from 'react';
 import { Icon } from '@/components/icon';
 import type { IconName } from '@/generated/icons';
@@ -183,7 +184,7 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
   return (
     <div role="alert" className="flex flex-col items-center gap-3 px-6 py-10 text-center">
       <span className="flex size-14 items-center justify-center rounded-full bg-neg-soft text-neg"><Icon name="urgent" size={26} /></span>
-      <p className="text-body font-semibold text-ink">{fa}</p>
+      <p className="text-body font-semibold text-ink">{bidi(fa)}</p>
       {/* The technical code (and the request id «خطاخوان» keeps) under «جزئیات», not under the Persian sentence. */}
       {code || rid ? (
         <details className="text-micro text-muted">

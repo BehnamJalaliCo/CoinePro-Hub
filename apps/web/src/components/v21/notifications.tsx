@@ -16,11 +16,17 @@ import { categoryOf, countLine, groupNotifications, splitNotifications, type Not
 import { linkRoute } from '@/lib/refs';
 import { ago, cx, jTime } from '@/lib/format';
 import { UndoBar, type Undo } from './bits';
+import { Dialog } from '@/components/ui/overlay';
+import { IconButton } from '@/components/ui/button';
+import { RowCheck, SelectAll, useSelection } from '@/components/v28/outputs';
+import { useDeleteNotifications, useServed } from '@/lib/api/v28';
 
 // Notifications (0.5.0; contract §6, §25; the Android app's ui/notifications): «خوانده‌نشده» holds only what the owner has not read; opening
 // one reads it and it leaves the list, a row's «خوانده شد» marks it read (with a few seconds to undo), «همه خوانده شد» moves everything there.
 // «خوانده‌شده» keeps the rest. The same alert raised again and again is one row with its count, opened to see each time. A label says what
 // each one is about (from its link). Approvals never happen here: a card only opens the cartable.
+// ⟨1.10.1⟩ §28.5: on both tabs the owner chooses rows (a box each, shift for a range, «انتخاب همه»): unread ones are marked read or
+// deleted for good, read ones deleted for good (`DELETE /notifications`, after a plain confirmation; hidden on a hub without it).
 
 const LEVELS = ['urgent', 'decision', 'report', 'info', 'learning'] as const;
 const TONE: Record<string, string> = { neg: 'text-neg bg-neg-soft', warn: 'text-warn bg-warn-soft', lapis: 'text-lapis bg-lapis-soft', pos: 'text-pos bg-pos-soft', learn: 'text-learn bg-learn-soft' };
@@ -98,24 +104,29 @@ function Head({ n, unread, time }: { n: Notification; unread: boolean; time: str
   );
 }
 
-function Row({ g, unreadTab, expanded, onToggle, onOpen, onRead, onAnswer }: {
+type Check = { on: boolean; onToggle: (range: boolean) => void };
+function Row({ g, unreadTab, expanded, onToggle, onOpen, onRead, onAnswer, check }: {
   g: NotificationGroup; unreadTab: boolean; expanded: boolean; onToggle: () => void; onOpen: (n: Notification) => void; onRead: () => void; onAnswer: (n: Notification, choice: string) => void;
+  check?: Check | null;
 }) {
+  const box = check ? <RowCheck on={check.on} label={`انتخاب: ${g.latest.title_fa}`} onToggle={check.onToggle} /> : null;
   const n = g.latest;
   const unread = g.items.some((x) => !x.read_at);
   const route = linkRoute(n.link?.kind, n.link?.ref);
   if (g.folded) {
     // The same alert raised [count] times: its latest words, «۵ بار، آخرین …», and every time on opening the row.
     return (
-      <div className="hq-rise flex flex-col rounded-[14px] bg-card p-3">
-        <button type="button" onClick={onToggle} aria-expanded={expanded} className="flex gap-3 text-start">
+      <div className={cx('hq-rise flex flex-col rounded-[14px] bg-card p-3', check?.on && 'ring-1 ring-[var(--hq-line-tahrir)]')}>
+        <div className="flex gap-2">{box}
+        <button type="button" onClick={onToggle} aria-expanded={expanded} className="flex min-w-0 flex-1 gap-3 text-start">
           <Badge n={n} count={g.count} />
           <span className="flex min-w-0 flex-1 flex-col gap-0.5">
             <Head n={n} unread={unread} time={countLine(g)} />
             <span className={cx('text-[14px] leading-6', unread ? 'font-bold text-ink' : 'font-semibold text-sec')}><MdInline text={n.title_fa} /></span>
-            {n.body_fa && !expanded ? <span className="line-clamp-2 text-[12px] leading-5 text-sec">{n.body_fa}</span> : null}
+            {n.body_fa && !expanded ? <span className="line-clamp-2 text-[12px] leading-5 text-sec"><MdInline text={n.body_fa} links={false} /></span> : null}
           </span>
         </button>
+        </div>
         <span className="flex items-center gap-1 ps-12 pt-1 text-[12px] text-muted">
           <span className={cx('transition-transform', expanded && 'rotate-180')}><Icon name="chevron" size={14} /></span>
           <span className="flex-1">{expanded ? 'بستن' : `هر ${g.count} بار`}</span>
@@ -144,7 +155,8 @@ function Row({ g, unreadTab, expanded, onToggle, onOpen, onRead, onAnswer }: {
   }
   const choices = n.choices ?? [];
   return (
-    <div className={cx('hq-rise flex gap-3 rounded-[14px] p-3', unread ? 'bg-card' : 'bg-card/60', unread && n.level === 'urgent' && 'tahrir')}>
+    <div className={cx('hq-rise flex gap-3 rounded-[14px] p-3', unread ? 'bg-card' : 'bg-card/60', (unread && n.level === 'urgent') || check?.on ? 'tahrir' : null)}>
+      {box}
       <Badge n={n} />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <button type="button" onClick={() => onOpen(n)} disabled={!route && !unread} className="flex flex-col gap-0.5 text-start" aria-label={route ? 'باز کن' : 'خوانده شد'}>
@@ -180,6 +192,37 @@ export function NotificationsView({ onNavigate, compact }: { onNavigate?: () => 
   const [unread, read] = useMemo(() => splitNotifications(unreadQ.data?.pages.flatMap((p) => p.items) ?? [], readQ.data?.pages.flatMap((p) => p.items) ?? [], r.marked), [unreadQ.data, readQ.data, r.marked]);
   const groups = useMemo(() => groupNotifications(tab === 'unread' ? unread : read), [tab, unread, read]);
   const q = tab === 'unread' ? unreadQ : readQ;
+  // ⟨1.10.1⟩ Choosing rows (the page only; the bell's sheet stays a quick look).
+  const order = useMemo(() => groups.map((g) => g.key), [groups]);
+  const pick = useSelection(order);
+  const { clear: clearPick } = pick;
+  useEffect(() => { clearPick(); }, [tab, level, clearPick]);
+  const chosen = groups.filter((g) => pick.has(g.key) && order.includes(g.key));
+  const chosenIds = chosen.flatMap((g) => g.ids);
+  const remove = useDeleteNotifications();
+  const canDelete = useServed('notifications.delete');
+  const [confirm, setConfirm] = useState(false);
+  const del = async () => {
+    // Every read row chosen: every read one up to the newest shown (rows further down, not loaded yet, go too); otherwise by ids.
+    const allRead = tab === 'read' && pick.all;
+    const before = read.reduce((a, n) => (n.created_at > a ? n.created_at : a), '');
+    try {
+      const n = await remove.mutateAsync(allRead && before ? { all_read: true, before } : { ids: chosenIds });
+      setConfirm(false);
+      pick.clear();
+      if (n === null) return; // a hub before ⟨1.10.1⟩: the action is hidden from now on
+      toast({ tone: 'ok', text: `${n.toLocaleString('fa-IR')} اعلان برای همیشه پاک شد.` });
+    } catch (e) {
+      toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : 'پاک نشد.' });
+    }
+  };
+  const readChosen = () => {
+    const ids = chosenIds.filter((id) => !r.marked[id]);
+    if (!ids.length) return;
+    const token = r.mark(ids);
+    setUndo({ id: token, text: `${ids.length.toLocaleString('fa-IR')} اعلان خوانده شد`, run: () => r.undo(token) });
+    pick.clear();
+  };
 
   const markRead = (g: NotificationGroup) => {
     const ids = g.ids.filter((id) => !r.marked[id]);
@@ -219,17 +262,34 @@ export function NotificationsView({ onNavigate, compact }: { onNavigate?: () => 
           : <Empty icon="bell" title="هنوز اعلانی خوانده نشده" body="اعلانی را باز کن یا «خوانده شد» را بزن تا این‌جا بیاید." />) : (
           <>
             {tab === 'unread' && !compact ? <span className="text-[12px] text-muted">بزن تا باز شود؛ «خوانده شد» آن را به خوانده‌شده میبرد؛ تکراری‌ها یک ردیف‌اند.</span> : null}
+            {!compact ? <SelectAll all={pick.all} some={pick.some} count={groups.length} onToggle={pick.toggleAll} /> : null}
             <div className="flex flex-col gap-2">
               {groups.map((g) => (
                 <Row key={`${g.key}:${g.latest.id}`} g={g} unreadTab={tab === 'unread'} expanded={open.has(g.key)} onToggle={() => setOpen((s) => { const n = new Set(s); if (n.has(g.key)) n.delete(g.key); else n.add(g.key); return n; })}
-                  onOpen={openOne} onRead={() => markRead(g)}
+                  onOpen={openOne} onRead={() => markRead(g)} check={compact ? null : { on: pick.has(g.key), onToggle: (range) => pick.toggle(g.key, range) }}
                   onAnswer={(n, c) => r.answer.mutate({ id: n.id, choice: c }, { onError: (e) => toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : 'ثبت نشد.' }) })} />
               ))}
             </div>
             {tab === 'read' && readQ.hasNextPage ? <Button variant="secondary" icon="next" loading={readQ.isFetchingNextPage} onClick={() => readQ.fetchNextPage()}>بیشتر</Button> : null}
+            {!compact && chosen.length ? (
+              <div role="toolbar" aria-label="کار با اعلان‌های انتخاب‌شده" className="hq-rise sticky bottom-[5.5rem] z-20 flex flex-wrap items-center gap-2 rounded-[14px] bg-raised p-2 shadow-[0_12px_32px_rgba(0,0,0,.35)] ring-1 ring-[var(--hq-line-tahrir)] md:bottom-3">
+                <IconButton icon="close" label="لغو انتخاب" size={32} onClick={pick.clear} />
+                <span className="flex-1 text-[13px] font-semibold text-ink" aria-live="polite">{chosen.length.toLocaleString('fa-IR')} انتخاب‌شده</span>
+                {tab === 'unread' ? <Button variant="secondary" size="sm" icon="seal" onClick={readChosen}>خوانده‌شده</Button> : null}
+                {canDelete ? <Button variant="danger" size="sm" icon="reject" onClick={() => setConfirm(true)}>حذف</Button> : null}
+              </div>
+            ) : null}
           </>
         )}
       <UndoBar undo={undo} onDone={(id) => setUndo((u) => (u?.id === id ? null : u))} />
+      <Dialog open={confirm} onOpenChange={setConfirm} title={tab === 'read' && pick.all ? 'همه‌ی اعلان‌های خوانده‌شده پاک شود؟' : `${chosenIds.length.toLocaleString('fa-IR')} اعلان پاک شود؟`}
+        actions={<>
+          <Button variant="danger" icon="reject" loading={remove.isPending} onClick={del}>حذف</Button>
+          <Button variant="ghost" onClick={() => setConfirm(false)}>انصراف</Button>
+        </>}>
+        <p className="font-semibold text-ink">از دیتابیس پاک میشود و برنمیگردد.</p>
+        <p className="pt-1 text-[13px] text-sec">خود رویدادها (کارت، کار، یافته) سر جایشان میمانند؛ فقط این اعلان‌ها میروند.</p>
+      </Dialog>
     </div>
   );
 }

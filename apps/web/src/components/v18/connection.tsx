@@ -1,5 +1,6 @@
 'use client';
 
+import { bidi } from '@/components/ui/bidi';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Icon } from '@/components/icon';
@@ -72,7 +73,7 @@ function SecretStep({ c, onDone }: { c: Connection18; onDone: () => void }) {
       {live.status === 'ready' || live.status === 'enabled' ? (
         <p className="flex items-start gap-2 rounded-[12px] bg-pos-soft p-3 leading-6 text-ink"><Icon name="seal" size={16} className="mt-1 text-pos" />مسیریاب کلید را با یک فراخوانی بی‌هزینه سنجید. استفاده از این اتصال فقط با تخصیص (PUT /assignments) و مُهر توست.</p>
       ) : live.status === 'error' ? (
-        <p className="rounded-[12px] bg-neg-soft p-3 leading-6 text-ink">سنجش نشد: {live.status_reason ?? '—'}. کلید تازه بده.</p>
+        <p className="rounded-[12px] bg-neg-soft p-3 leading-6 text-ink">سنجش نشد: {bidi(live.status_reason ?? '—')}. کلید تازه بده.</p>
       ) : live.status === 'verifying' ? (
         <p className="rounded-[12px] bg-lapis-soft p-3 leading-6 text-ink">کلید رسید؛ مسیریاب با فهرست مدل‌ها (بی‌هزینه، از درگاه خروجی) آن را میسنجد…</p>
       ) : null}

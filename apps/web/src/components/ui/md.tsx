@@ -1,5 +1,7 @@
 import { Fragment, type ReactNode } from 'react';
 import { RefLink } from './ref-link';
+import { bidi } from './bidi';
+import { cx } from '@/lib/format';
 import { refRoute } from '@/lib/refs';
 
 /** A small, safe Markdown subset for agent-written text: paragraphs, ### headings, - lists, ⟨0.3.0⟩ GFM tables and > quotes,
@@ -18,7 +20,8 @@ function inline(text: string, key: string, links = true): ReactNode[] {
     if (m.index! > last) out.push(...refs(text.slice(last, m.index), `${key}t${i}`, links));
     const t = m[0];
     if (t.startsWith('**')) out.push(<strong key={`${key}b${i}`} className="font-semibold text-ink">{refs(t.slice(2, -2), `${key}bb${i}`, links)}</strong>);
-    else out.push(<code key={`${key}c${i}`} className="fig whitespace-nowrap rounded-[5px] bg-tile px-1 py-px text-[0.92em] text-ink">{t.slice(1, -1)}</code>);
+    // ⟨1.10.1⟩ Inline code keeps the line's rhythm (no taller box, no forced line of its own) and a long path may break anywhere.
+    else out.push(<code key={`${key}c${i}`} dir="ltr" className="hq-code">{t.slice(1, -1)}</code>);
     last = m.index! + t.length;
     i++;
   }
@@ -26,15 +29,14 @@ function inline(text: string, key: string, links = true): ReactNode[] {
   return out;
 }
 
-// Latin tokens that carry digits (hashes, versions, model names, money) keep Latin digits.
-const LATIN = /((?:Opus|Sonnet|Haiku|Fable|Claude|GPT|Gemini) \d+(?:\.\d+)*|(?:\$|[A-Za-z])[A-Za-z0-9._%$/-]*\d[A-Za-z0-9._%/-]*|\d+(?:[.,]\d+)*[A-Za-z][A-Za-z0-9._-]*)/;
 
 function refs(text: string, key: string, links = true): ReactNode[] {
   const parts = text.split(new RegExp(REF.source, 'g'));
   return parts.flatMap((p, i) =>
     i % 2 === 1
       ? [links ? refLink(p, `${key}${i}`) : <span key={`${key}${i}`} className="fig whitespace-nowrap text-gold-ink">{p}</span>]
-      : p.split(new RegExp(LATIN.source, 'g')).map((q, j) => (j % 2 === 1 ? <span key={`${key}${i}l${j}`} className="fig whitespace-nowrap">{q}</span> : <Fragment key={`${key}${i}l${j}`}>{q}</Fragment>)),
+      // ⟨1.10.1⟩ Latin runs (model names and versions, paths, URLs, money) keep Latin digits and are isolated from the Persian around them.
+      : bidi(p, `${key}${i}l`),
   );
 }
 
@@ -59,16 +61,16 @@ function Table({ lines, bi }: { lines: string[]; bi: string }) {
   const rows = lines.slice(2).map(cells);
   return (
     <div className="-mx-1 overflow-x-auto px-1">
-      <table className="w-full min-w-max border-collapse text-[13px] leading-6">
+      <table className="w-full border-collapse text-[13px] leading-6">
         <thead>
-          <tr className="border-b border-strong">{head.map((h, i) => <th key={i} className="whitespace-nowrap px-3 py-2 text-start text-[12px] font-semibold text-ink" style={align[i] ? { textAlign: align[i]! } : undefined}>{inline(h, `${bi}h${i}`)}</th>)}</tr>
+          <tr className="border-b border-strong">{head.map((h, i) => <th key={i} className="min-w-[5.5rem] px-3 py-2 text-start align-bottom text-[12px] font-semibold text-ink" style={align[i] ? { textAlign: align[i]! } : undefined}>{inline(h, `${bi}h${i}`)}</th>)}</tr>
         </thead>
         <tbody>
           {rows.map((r, ri) => (
             <tr key={ri} className="border-b border-div last:border-0 even:bg-tile/40">
               {head.map((_, ci) => {
                 const c = r[ci] ?? '';
-                return <td key={ci} className={FIGURE.test(c) ? 'fig whitespace-nowrap px-3 py-1.5 text-ink' : 'px-3 py-1.5 text-sec'} style={align[ci] ? { textAlign: align[ci]! } : undefined}>{c === '—' ? <span className="text-muted">—</span> : inline(c, `${bi}r${ri}c${ci}`)}</td>;
+                return <td key={ci} className={FIGURE.test(c) ? 'fig whitespace-nowrap px-3 py-1.5 align-top text-ink' : 'min-w-[5.5rem] px-3 py-1.5 align-top text-sec [overflow-wrap:anywhere]'} style={align[ci] ? { textAlign: align[ci]! } : undefined}>{c === '—' ? <span className="text-muted">—</span> : inline(c, `${bi}r${ri}c${ci}`)}</td>;
               })}
             </tr>
           ))}
@@ -120,7 +122,8 @@ export function Md({ text, className }: { text: string | null | undefined; class
   if (!text) return null;
   const blocks = text.replace(/\r\n/g, '\n').split(/\n{2,}/);
   return (
-    <div className={className ?? 'flex flex-col gap-2 text-[14px] leading-7 text-sec'}>
+    // ⟨1.10.1⟩ hq-prose: justified paragraphs that end flush with the start, a comfortable line, nothing clipped (globals.css).
+    <div className={cx('hq-prose', className ?? 'flex flex-col gap-2 text-[14px] leading-7 text-sec')}>
       {blocks.map((b, bi) => <Block key={bi} b={b} bi={String(bi)} />)}
     </div>
   );

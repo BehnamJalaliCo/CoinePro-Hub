@@ -22,7 +22,7 @@ export const notServed = (e: unknown) => { const yes = e instanceof ApiError && 
 
 // The hub deploys §28 after the panel. A §28 action whose route answers 404/405 is hidden from then on (this tab's session; a reload
 // after the hub's update asks again) and never shown to the owner as an error.
-export type Feature28 = 'delete' | 'catalogue';
+export type Feature28 = 'delete' | 'catalogue' | 'notifications.delete';
 const MISSING_KEY = 'hq.v28.missing';
 const missingListeners = new Set<() => void>();
 let missing: ReadonlySet<Feature28> | null = null;
@@ -96,6 +96,19 @@ export function useBulkOutputs() {
       onSettled: done,
     }),
   };
+}
+
+// ======================================================================================= §28.5 notifications, delete for good ==
+/** Which notifications go: chosen ones by id, or (every read one chosen) all read ones up to the newest shown. */
+export type NotificationsDelete = { ids: string[] } | { all_read: true; before: string };
+/** `DELETE /notifications` (owner only) → the number deleted; null on a hub before ⟨1.10.1⟩ (404/405: the action is hidden from then on). */
+export async function deleteNotifications(b: NotificationsDelete): Promise<number | null> {
+  const out = await gated('notifications.delete', () => call<{ deleted?: number } | undefined>('DELETE', '/notifications', b, { 'Idempotency-Key': crypto.randomUUID() }));
+  return out === null ? null : out?.deleted ?? ('ids' in b ? b.ids.length : 0);
+}
+export function useDeleteNotifications() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: deleteNotifications, onSettled: () => Promise.all(['notifications', 'inbox'].map((k) => qc.invalidateQueries({ queryKey: [k] }))) });
 }
 
 // =========================================================================================== §28.2 the company catalogue ==
