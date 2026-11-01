@@ -10,7 +10,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, Field, field_validator
 
-from hq_api import pagination
+from hq_api import events, pagination
 from hq_api.context import Ctx, owner_ctx
 from hq_api.domain.notify import COLUMNS, LEVELS
 from hq_api.errors import ApiError, responses
@@ -70,6 +70,19 @@ class ReadManyIn(BaseModel):
     """⟨1.7.5⟩ several notifications read in one request (contract §25)."""
 
     ids: list[UUID] = Field(min_length=1, max_length=500)
+
+
+class DeleteIn(BaseModel):
+    """⟨1.10.1⟩ §28.5: `{ids}` (any notification, read or not), or
+    `{all_read: true, before}`: every read one up to the newest shown."""
+
+    ids: list[UUID] | None = Field(default=None, min_length=1, max_length=500)
+    all_read: bool = False
+    before: datetime | None = None
+
+
+class Deleted(BaseModel):
+    deleted: int
 
 
 class AnswerIn(BaseModel):
@@ -323,6 +336,63 @@ async def read_all_notifications(body: ReadAllIn, ctx: Ctx = Depends(owner_ctx))
             data={"count": n},
         )
     return Count(updated=n)
+
+
+@router.delete("/notifications", response_model=Deleted, responses=responses(401, 422))
+async def delete_notifications(body: DeleteIn, ctx: Ctx = Depends(owner_ctx)) -> Deleted:
+    """⟨1.10.1⟩ §28.5 Owner only: deletes notifications from the database for
+    good, the given `ids` (read or not) or, with `{all_read: true, before}`,
+    every read one shown up to `before` -> {deleted: n}. No tombstone (a
+    notification is a copy of an event that stays in its own record); one
+    audit row; `notification.deleted` on the stream so other devices drop
+    them."""
+    if (body.ids is None) == (not body.all_read):
+        raise ApiError(422, "validation_failed", fields={"ids": "either ids or all_read: true"})
+    if body.all_read and body.before is None:
+        raise ApiError(422, "validation_failed", fields={"before": "required with all_read"})
+    holding = await ctx.hub.companies.holding()
+    ids = [str(i) for i in dict.fromkeys(body.ids or [])] or None
+    async with ctx.tx() as tx:
+        n = int(
+            await tx.scalar(
+                "SELECT notify.owner_delete_notifications(CAST(:ids AS uuid[]), CAST(:b AS timestamptz))",
+                ids=ids,
+                b=None if ids else body.before,
+            )
+            or 0
+        )
+        what = (
+            f"{len(ids)} ids"
+            if ids
+            else f"read up to {body.before.isoformat() if body.before else ''}"
+        )
+        await ctx.audit(
+            tx,
+            company_id=holding.id,
+            action="notification.delete",
+            action_class="A1",
+            target_kind="notifications",
+            target_ref=what[:100],
+            summary=f"{n} deleted",
+        )
+        await ctx.interaction(
+            tx,
+            company_id=holding.id,
+            kind="edit",
+            action="notification.delete",
+            target_kind="notifications",
+            target_ref=what[:100],
+            data={"count": n},
+        )
+        await events.emit(
+            tx,
+            holding.code,
+            "notification.deleted",
+            "notifications",
+            {"ids": ids, "all_read": body.all_read,
+             "before": body.before.isoformat() if body.before and not ids else None, "count": n},
+        )  # fmt: skip
+    return Deleted(deleted=n)
 
 
 @router.post(
