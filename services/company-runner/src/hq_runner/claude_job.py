@@ -3,6 +3,13 @@ brief, in the repository folder `args.cwd`, under that repository's CLAUDE.md.
 
     claude -p <brief> --output-format stream-json --verbose --settings <tmp>/settings.json
            [--resume <session_id>] [--model M] [--permission-mode P] [--max-turns N]
+           [--allowedTools <tool> ...]
+
+⟨0.2.1⟩ `args.allowed_tools` (contract §28.6): the hub's allow-list of tools
+and read-only Bash prefixes, handed to Claude Code as --allowedTools and as
+the settings' `permissions.allow`, so a non-interactive session is not
+refused a read it was asked for. The PreToolUse hook still sees every Bash
+call (an allowed prefix is never past the hub's destructive classifier).
 
 The temporary settings file adds one PreToolUse hook for Bash that runs
 `hq-runner classify-hook`: it asks the hub to classify the command and blocks
@@ -17,6 +24,7 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import re
 import shlex
 import shutil
 import sys
@@ -44,6 +52,22 @@ MAX_TEXT = EVENT_TEXT  # (the name earlier versions used)
 MAX_ANSWER_CHARS = 8_000_000
 JSON_LINE_BYTES = 64 * 1024 * 1024  # one stream-json line (the final answer) read whole
 FILE_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
+ALLOWED_TOOL = re.compile(r"^(?:[A-Z][A-Za-z]{1,30}|Bash\([^()\n\x00]{1,200}\))$")
+MAX_ALLOWED_TOOLS = 200
+
+
+def allowed_tools(value: Any) -> list[str]:
+    """The hub's allow-list, checked: a tool name or a Bash(<prefix>) pattern
+    each; anything else refuses the job (never a widened permission)."""
+    if value is None:
+        return []
+    if (
+        not isinstance(value, list)
+        or len(value) > MAX_ALLOWED_TOOLS
+        or not all(isinstance(t, str) and ALLOWED_TOOL.match(t) for t in value)
+    ):
+        raise JobError("فهرست ابزارهای مجاز (allowed_tools) درست نیست.")
+    return list(dict.fromkeys(value))
 
 
 def find_claude(configured: str | None = None) -> str | None:
@@ -76,8 +100,9 @@ def hook_command(job_id: str) -> str:
     )
 
 
-def hook_settings(job_id: str) -> dict[str, Any]:
-    return {
+def hook_settings(job_id: str, allow: list[str] | None = None) -> dict[str, Any]:
+    out: dict[str, Any] = {"permissions": {"allow": list(allow)}} if allow else {}
+    return out | {
         "hooks": {
             "PreToolUse": [
                 {
@@ -211,6 +236,7 @@ async def run_claude(ctx: JobContext) -> JobResult:
         raise JobError("شرح کار (brief) داده نشده است.")
     cwd = _cwd(args.get("cwd"))
     timeout = _timeout(args, CLAUDE_DEFAULT_TIMEOUT_S, CLAUDE_MAX_TIMEOUT_S)
+    allow = allowed_tools(args.get("allowed_tools"))
     claude = find_claude(ctx.cfg.claude_bin)
     if not claude:
         raise JobError("Claude Code روی این سرور پیدا نشد.", 127)
@@ -218,7 +244,7 @@ async def run_claude(ctx: JobContext) -> JobResult:
     os.chmod(tmp, 0o700)
     settings = tmp / "settings.json"
     hook_log = tmp / "hook-events.jsonl"
-    settings.write_text(json.dumps(hook_settings(ctx.id)), encoding="utf-8")
+    settings.write_text(json.dumps(hook_settings(ctx.id, allow)), encoding="utf-8")
     argv = [
         claude,
         "-p",
@@ -238,6 +264,8 @@ async def run_claude(ctx: JobContext) -> JobResult:
         argv += ["--permission-mode", str(args["permission_mode"])]
     if args.get("max_turns"):
         argv += ["--max-turns", str(int(args["max_turns"]))]
+    if allow:  # last: the option takes every value after it
+        argv += ["--allowedTools", *allow]
     env = dict(ctx.env)
     env.update(
         {

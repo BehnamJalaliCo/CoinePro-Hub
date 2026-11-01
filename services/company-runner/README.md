@@ -54,6 +54,8 @@ mkdir -p ~/.local/bin && ln -sf ~/.local/share/hq-runner/venv/bin/hq-runner ~/.l
 - بعد همان دستور نصب، با `--force`: `pipx install --force …`، یا در venv `pip install --no-deps --force-reinstall .`.
 - بعد `sudo systemctl restart hq-runner@$USER`.
 - جزئیات: `docs/server-prompts/COMPANY_SERVER_ACCESS_SETUP.md`، بخش «به‌روزرسانی runner».
+- **0.2.1:**
+  - کار `claude` فهرست ابزارهای مجاز هاب (`allowed_tools`) را به Claude Code میدهد (`--allowedTools` و `permissions.allow`)، تا نشست غیرتعاملی دستورهای خواندنی کاتالوگ را رد نکند. hook دستورهای ویرانگر سر جایش است.
 - **0.2.0:**
   - جواب Claude کامل برمیگردد.
   - خروجی بیش از ۱۰ مگابایت به‌شکل فایل gzip پیوست نتیجه میآید.

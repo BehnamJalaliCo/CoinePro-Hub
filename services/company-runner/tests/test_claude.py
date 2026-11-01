@@ -215,3 +215,46 @@ def test_session_event_conversion() -> None:
     usage = usage_from_result({"type": "result", "usage": {"input_tokens": 1, "output_tokens": 2}})
     assert usage["input_tokens"] == 1 and usage["cache_read_tokens"] == 0
     assert hook_settings("j")["hooks"]["PreToolUse"][0]["matcher"] == "Bash"
+
+
+def test_the_hubs_allow_list_reaches_claude_code_and_the_hook_stays(
+    fake_hub: FakeHub, cfg: Config, cfg_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """⟨0.2.1⟩ contract §28.6: `allowed_tools` goes to Claude Code as
+    --allowedTools (last, every value) and as the settings' permissions.allow,
+    next to the destructive hook; a malformed list refuses the job."""
+    record = tmp_path / "argv.json"
+    monkeypatch.setenv("FAKE_CLAUDE_RECORD", str(record))
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    cfg.claude_bin = str(FAKE_CLAUDE)
+    save(cfg, cfg_path)
+    allow = ["Read", "Glob", "Bash(crontab -l:*)", "Bash(docker compose ls:*)", "Bash(find /etc:*)"]
+    fake_hub.jobs.append(
+        {"id": "cl11", "kind": "claude",
+         "args": {"brief": "catalogue", "cwd": str(repo), "allowed_tools": allow}}
+    )  # fmt: skip
+    runner = Runner(cfg, make_route(fake_hub), cfg_path=cfg_path, persist_state=False)
+    run(drive(runner, lambda: "cl11" in fake_hub.results, within=60))
+    rec = json.loads(record.read_text())
+    argv = rec["argv"]
+    i = argv.index("--allowedTools")
+    assert argv[i + 1 :] == allow and argv[:2] == ["-p", "catalogue"]
+    assert rec["settings"]["permissions"]["allow"] == allow
+    assert rec["settings"]["hooks"]["PreToolUse"][0]["matcher"] == "Bash"
+    assert fake_hub.results["cl11"]["exit_code"] == 0
+
+    for bad in (["Bash(rm -rf /) ; x)"], "Read", ["read"], ["Bash(a\nb)"], [1]):
+        jid = f"cl-bad-{len(fake_hub.results)}"
+        fake_hub.jobs.append(
+            {"id": jid, "kind": "claude",
+             "args": {"brief": "x", "cwd": str(repo), "allowed_tools": bad}}
+        )  # fmt: skip
+        runner = Runner(cfg, make_route(fake_hub), cfg_path=cfg_path, persist_state=False)
+        run(drive(runner, lambda jid=jid: jid in fake_hub.results, within=30))
+        assert fake_hub.results[jid]["exit_code"] != 0, bad
+
+
+def test_without_an_allow_list_nothing_is_widened() -> None:
+    s = hook_settings("j1")
+    assert "permissions" not in s and s["hooks"]["PreToolUse"][0]["matcher"] == "Bash"
