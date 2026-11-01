@@ -343,10 +343,6 @@ async def test_a_hold_stops_the_card_and_only_the_owner_releases_it(
     h = r.json()
     assert h["state"] == "held" and h["held_by"]["code"] == OVR and h["action"]["ref"] == d["ref"]
     assert (await _hold(client, "decision", d["ref"])).json()["ref"] == h["ref"]  # one open hold
-    r = await client.post(
-        f"/api/v1/decisions/{d['ref']}/approve", headers={**owner, **idem()}, json={}
-    )
-    assert r.status_code == 423 and r.json()["code"] == "held"
     # The overseer cannot approve the card nor release its own hold.
     ovr = await agent_headers(OVR)
     r = await client.post(
@@ -371,6 +367,15 @@ async def test_a_hold_stops_the_card_and_only_the_owner_releases_it(
         f"/api/v1/decisions/{d['ref']}/approve", headers={**owner, **idem()}, json={}
     )
     assert r.status_code == 200, r.text
+    # Prompt 19.2: the owner's own approval of a held card is the release.
+    d2 = await _proposal(client, co)
+    h2 = (await _hold(client, "decision", d2["ref"])).json()
+    r = await client.post(
+        f"/api/v1/decisions/{d2['ref']}/approve", headers={**owner, **idem()}, json={}
+    )
+    assert r.status_code == 200, r.text
+    r = await client.get("/api/v1/oversight/holds?state=released", headers=owner)
+    assert h2["ref"] in {x["ref"] for x in r.json()}
     # An approved card whose effect is still due waits while held.
     b = await _proposal(
         client, co, "budget_change",
