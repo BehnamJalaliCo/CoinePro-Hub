@@ -34,6 +34,7 @@ from hq_api.db import Tx
 from hq_api.domain import servers as SV
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
+from hq_common.redact import scrub
 
 log = logging.getLogger("hq_api.catalogue")
 SERVICE = Principal(kind="service", code="catalogue", role="service")
@@ -93,6 +94,41 @@ SECTIONS: tuple[tuple[str, str, str], ...] = (
 SECTION_FA = {k: fa for k, fa, _ in SECTIONS}
 SECTION_WHAT = {k: what for k, _, what in SECTIONS}
 
+# ⟨19.3⟩ contract §28.6: the read-only catalogue job runs with this allow-list
+# (`allowed_tools` in its args; runner 0.2.1 passes it to Claude Code), so a
+# non-interactive session is not refused a read. Every Bash call still passes
+# the runner's PreToolUse hook (the hub's destructive classifier).
+_SCOPES = ("/etc", "/opt", "/srv", "/home")
+ALLOWED_TOOLS: tuple[str, ...] = (
+    "Read", "Glob", "Grep",
+    "Bash(crontab -l)", "Bash(crontab -l:*)", "Bash(crontab -u:*)",
+    "Bash(systemctl list-units:*)", "Bash(systemctl list-timers:*)",
+    "Bash(systemctl list-unit-files:*)", "Bash(systemctl list-sockets:*)", "Bash(systemctl status:*)",
+    "Bash(docker ps:*)", "Bash(docker compose ls:*)", "Bash(docker compose ps:*)",
+    "Bash(docker compose config:*)", "Bash(docker inspect:*)", "Bash(docker images:*)",
+    "Bash(docker volume ls:*)", "Bash(docker network ls:*)", "Bash(docker exec:*)",
+    "Bash(ls:*)", "Bash(cat:*)", "Bash(head:*)", "Bash(tail:*)", "Bash(wc:*)", "Bash(stat:*)",
+    *(f"Bash(find {d}:*)" for d in _SCOPES),
+    "Bash(n8n export:workflow --all:*)", "Bash(ss:*)", "Bash(ps:*)",
+    "Bash(journalctl --since:*)", "Bash(journalctl -u:*)", "Bash(journalctl --no-pager:*)",
+    "Bash(git log:*)", "Bash(git status:*)", "Bash(git remote:*)", "Bash(git branch:*)", "Bash(git -C:*)",
+    "Bash(df:*)", "Bash(du:*)", "Bash(free:*)", "Bash(uname:*)", "Bash(hostname:*)",
+    "Bash(openssl x509:*)", "Bash(dpkg -l:*)", "Bash(apt list:*)",
+)  # fmt: skip
+# an ssh remote's fixed user is not a person's address: `git@github.com:o/r` reads
+# as `ssh://github.com/o/r` before the masker, so the catalogue keeps the host
+_GIT_SSH = re.compile(
+    r"(?<![A-Za-z0-9._%+\-])git@([A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,24}):(?=\S)"
+)
+
+
+def mask(text: str) -> str:
+    """⟨19.3⟩ contract §28.6: everything a catalogue keeps passes the hub's
+    whole masker (credentials and personal data alike: the overseer's
+    PR-030 reads with the same one), never only part of it."""
+    return scrub(_GIT_SSH.sub(r"ssh://\1/", text or ""))
+
+
 BRIEF = """You are cataloguing this server for the owner of the holding (contract §28.2). READ ONLY:
 run only commands that read (ls, cat, ps, ss, docker ps/inspect/compose ls, systemctl list-*/status,
 journalctl, crontab -l, git log/status/remote, psql/mysql with SELECT on catalogs and count(*), n8n
@@ -119,7 +155,9 @@ Rules the hub checks (an answer that breaks them is sent back to you once):
 - every row has exactly as many cells as its table has columns; one table per kind of item;
 - `summary_fa` and every note are plain Persian sentences: never JSON, a code block, a table or a
   list of rows inside them; every item you found goes in a table row;
-- column names, titles and notes in Persian; names, paths, commands and versions as they are."""
+- column names, titles and notes in Persian; names, paths, commands and versions as they are;
+- when a command is refused (no permission, blocked by the hub), do not work around it: add one
+  note per refused command, «اجرا نشد: <the exact command> — <why>», and go on with the rest."""
 
 RETRY = """
 
@@ -278,15 +316,21 @@ def _done_id(c: dict[str, Any] | None) -> UUID | None:
     return out
 
 
-# ⟨1.10.1⟩ a runner before 0.2.0 cut a Claude answer at 4 000 characters
+# ⟨1.10.1⟩ a runner before 0.2.0 cut a Claude answer at 4 000 characters;
+# ⟨19.3⟩ one before 0.2.1 does not hand the allow-list on (§28.6), so the
+# session is refused the reads it is asked for
 OLD_RUNNER_FA = (
-    "runner این سرور قدیمی است (پیش از 0.2.0) و جواب‌های بلند را کوتاه میکند؛ runner را به‌روز کنید."
+    "runner این سرور قدیمی است (پیش از 0.2.1): جواب‌های بلند را کوتاه میکند یا اجازه‌ی "
+    "دستورهای خواندنی را به Claude نمیدهد؛ runner را به‌روز کنید."
 )
+CURRENT_RUNNER = (0, 2, 1)
 
 
 def _old_runner(version: Any) -> bool:
-    m = re.match(r"^(\d+)\.(\d+)", str(version or ""))
-    return m is not None and (int(m.group(1)), int(m.group(2))) < (0, 2)
+    m = re.match(r"^(\d+)\.(\d+)(?:\.(\d+))?", str(version or ""))
+    return (
+        m is not None and (int(m.group(1)), int(m.group(2)), int(m.group(3) or 0)) < CURRENT_RUNNER
+    )
 
 
 def _job_entry(j: dict[str, Any], s: dict[str, Any], section: str) -> dict[str, Any]:
@@ -397,7 +441,7 @@ def _text(v: Any) -> str:
 
 
 def _cell(v: Any) -> str:
-    return SV.mask(_text(v))
+    return mask(_text(v))
 
 
 def clean_prose(text: Any) -> tuple[str, bool]:
@@ -418,7 +462,7 @@ def clean_prose(text: Any) -> tuple[str, bool]:
     out = re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
     if dirty:  # what a cut fragment left behind: a lone comma or colon
         out = re.sub(r"^[\s:،,;]+$", "", out, flags=re.M).strip()
-    return SV.mask(out), dirty
+    return mask(out), dirty
 
 
 def _notes(v: Any) -> tuple[list[str], bool]:
@@ -680,12 +724,56 @@ def _tagged(sec: dict[str, Any], e: dict[str, Any]) -> dict[str, Any]:
     return {**sec, "server": e["server"], "server_name": e["server_name"]}
 
 
+REFUSED = re.compile(
+    r"requested permissions|haven't granted|permission (?:was |is )?denied|not allowed|"
+    r"Blocked by HQ|operation not permitted",
+    re.I,
+)
+
+
+async def refused_commands(tx: Tx, job_id: UUID) -> list[tuple[str, str]]:
+    """⟨19.3⟩ §28.6: the Bash calls of a claude job that were not run (the
+    session's permissions, or the hub's hook), from the job's own events:
+    (the command, why), each once, in order."""
+    rows = await tx.all(
+        """SELECT data FROM infra.server_job_events
+           WHERE job_id = :j AND type = 'session_event'
+             AND data ->> 'type' IN ('command', 'progress') ORDER BY seq""",
+        j=job_id,
+    )
+    cmds: dict[str, str] = {}
+    out: list[tuple[str, str]] = []
+    for r in rows:
+        ev = r["data"] or {}
+        d = ev.get("data") or {}
+        tid = str(d.get("tool_use_id") or "")
+        if ev.get("type") == "command" and tid:
+            cmds[tid] = str(d.get("cmd") or "")
+        elif ev.get("type") == "progress" and d.get("is_error") and tid in cmds:
+            text = str(d.get("text") or "")
+            if REFUSED.search(text):
+                why = (
+                    "مُهر مالک میخواهد"
+                    if "Blocked by HQ" in text
+                    else "اجازه‌ی اجرا در این نشست نبود"
+                )
+                item = (cmds[tid], why)
+                if item not in out:
+                    out.append(item)
+    return out
+
+
 async def _answer_section(tx: Tx, hub: Any, e: dict[str, Any], j: dict[str, Any]) -> dict[str, Any]:
     """The last word on a claude job's answer: the section in its one shape,
-    with a plain note when the hub had to put it in order."""
+    with a plain note when the hub had to put it in order, and one note per
+    command the session was refused (contract §28.6)."""
     sec, errors = parse_answer(e["section"], await SV.full_answer(tx, hub, j))
     if errors and sec["tables"] and LOOSE_FA not in sec["notes_fa"]:
         sec["notes_fa"].append(LOOSE_FA)
+    for cmd, why in await refused_commands(tx, j["id"]):
+        note = mask(f"اجرا نشد: {' '.join(cmd.split())[:500]} — {why}.")
+        if note not in sec["notes_fa"]:
+            sec["notes_fa"].append(note)
     return _tagged(sec, e)
 
 
@@ -707,6 +795,7 @@ def _claude_args(company: str, key: str, errors: list[str] | None = None) -> dic
         "title": f"کاتالوگ {company}: {title}" + (" (دوباره)" if errors else ""),
         "timeout_s": JOB_TIMEOUT_S,
         "max_turns": 60,
+        "allowed_tools": list(ALLOWED_TOOLS),
     }
 
 
@@ -964,6 +1053,13 @@ async def _diff_from_previous(
     return diff_of(previous["sections"] or [], sections) if previous else None
 
 
+def clean_body(body: str) -> str:
+    """The deliverable as the overseer reads it (PR-030): when anything in the
+    whole text (a pattern that spans two cells) still reads as a secret or
+    personal data, the whole is masked once more."""
+    return body if scrub(body) == body else scrub(body)
+
+
 async def _deliver(
     tx: Tx, hub: Any, c: dict[str, Any], sections: list[dict[str, Any]], diff: dict[str, Any] | None
 ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -989,7 +1085,7 @@ async def _deliver(
         tx,
         {**w, "company": holding.code},
         title=f"کاتالوگ کامل شرکت {c['company']}",
-        body=markdown(c["company"], sections, diff),
+        body=clean_body(markdown(c["company"], sections, diff)),
         produced_with={
             "label_fa": "کاتالوگ از سرورهای شرکت (Claude Code و نقشه‌ی runner)",
             "source": "catalogue",
@@ -1135,6 +1231,14 @@ async def rerender(hub: Any, catalogue_id: UUID, *, deliver: bool) -> dict[str, 
         diff = await _diff_from_previous(tx, c, sections) if c["state"] == "done" else None
         dl_ref = c["deliverable_ref"]
         record = c["record_ref"]
+        if not deliver and c["state"] == "done" and c["deliverable_ref"]:
+            # a deliverable that still carries a pattern is made again, masked
+            dl_now = await tx.first(
+                "SELECT body, summary FROM cartable.deliverables WHERE ref = :r",
+                r=c["deliverable_ref"],
+            )
+            text = f"{dl_now['body'] or ''} {dl_now['summary'] or ''}" if dl_now else ""
+            deliver = bool(text) and scrub(text) != text
         if deliver and c["state"] == "done" and any(_has_content(s) for s in sections):
             dl, _ = await _deliver(tx, hub, c, sections, diff)
             dl_ref, record = dl["ref"], None
@@ -1179,4 +1283,68 @@ async def rerender_all(hub: Any, *, deliver_all: bool = False) -> list[dict[str,
         except Exception as exc:  # one broken catalogue never stops the rest
             log.exception("catalogue: not re-rendered", extra={"catalogue": str(r["id"])})
             out.append({"catalogue": str(r["id"]), "error": type(exc).__name__})
+    async with hub.db.tx(ids) as tx:
+        closed = await close_masked_findings(tx)
+    if closed:
+        out.append({"findings_closed": closed})
+    return out
+
+
+SUPERSEDED_SQL = """
+    d.produced_with ->> 'source' = 'catalogue'
+    AND NOT EXISTS (SELECT 1 FROM infra.catalogues k WHERE k.deliverable_ref = d.ref)
+"""
+
+
+async def close_masked_findings(tx: Tx) -> list[str]:
+    """⟨19.3⟩ §28.6: the overseer's «الگوی رمز در خروجی ایجنت» (PR-030) on
+    catalogue outputs closes once each output it names was made again,
+    masked (its catalogue points at a new deliverable). Only a finding whose
+    every named output is such a superseded catalogue output; -> the refs."""
+    rows = await tx.all(
+        """SELECT f.id, f.ref, f.company_id, c.code AS company, f.severity,
+                  (SELECT array_agg(DISTINCT e ->> 'ref') FROM jsonb_array_elements(f.evidence) e
+                    WHERE e ->> 'kind' = 'link') AS refs
+           FROM oversight.findings f JOIN core.companies c ON c.id = f.company_id
+           WHERE f.dedupe_key LIKE 'PR-030:%' AND f.status NOT IN ('verified', 'closed')"""
+    )
+    out = []
+    for f in rows:
+        refs = [r for r in f["refs"] or [] if r]
+        if not refs:
+            continue
+        superseded = await tx.scalar(
+            "SELECT count(*) FROM cartable.deliverables d WHERE d.ref = ANY(:refs) AND "  # noqa: S608 - a constant
+            + SUPERSEDED_SQL,
+            refs=refs,
+        )
+        if int(superseded or 0) != len(refs):
+            continue
+        note = (
+            "خروجی‌های کاتالوگ "
+            + "، ".join(sorted(refs))
+            + " با پوشاندن کامل دوباره ساخته شدند؛ کاتالوگ به خروجی‌های تازه اشاره میکند."
+        )
+        await tx.exec(
+            """UPDATE oversight.findings SET status = 'closed', closed_at = now(), updated_at = now()
+               WHERE id = :id""",
+            id=f["id"],
+        )
+        await tx.exec(
+            """INSERT INTO oversight.finding_history (finding_id, company_id, by_kind, by_code, status, note,
+                   evidence)
+               VALUES (:f, :co, 'system', 'catalogue', 'closed', :n, CAST(:ev AS jsonb))""",
+            f=f["id"],
+            co=f["company_id"],
+            n=note[:5000],
+            ev=json.dumps([{"kind": "link", "ref": r, "note": "superseded, masked"} for r in refs]),
+        )
+        await events.emit(
+            tx,
+            f["company"],
+            "oversight.finding",
+            f["ref"],
+            {"severity": f["severity"], "status": "closed"},
+        )
+        out.append(str(f["ref"]))
     return out

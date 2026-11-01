@@ -765,6 +765,20 @@ async def check_lock(tx: Tx, company_id: UUID, *, deploy: bool) -> str | None:
     return str(lock) if lock else None
 
 
+# ⟨19.3⟩ §28.6: a claude job's allow-list (runner 0.2.1 hands it to Claude Code
+# as --allowedTools); the same shape the runner accepts
+ALLOWED_TOOL = re.compile(r"^(?:[A-Z][A-Za-z]{1,30}|Bash\([^()\n\x00]{1,200}\))$")
+MAX_ALLOWED_TOOLS = 200
+
+
+def allowed_tools_ok(v: Any) -> bool:
+    return (
+        isinstance(v, list)
+        and len(v) <= MAX_ALLOWED_TOOLS
+        and all(isinstance(t, str) and ALLOWED_TOOL.match(t) for t in v)
+    )
+
+
 def check_args(kind: str, args: dict[str, Any]) -> None:
     bad: dict[str, str] = {}
     if kind == "exec" and not str(args.get("cmd") or "").strip():
@@ -775,6 +789,8 @@ def check_args(kind: str, args: dict[str, Any]) -> None:
         bad["brief"] = "required"
     if kind == "publish" and not str(args.get("command") or "").strip():
         bad["command"] = "required"
+    if kind == "claude" and "allowed_tools" in args and not allowed_tools_ok(args["allowed_tools"]):
+        bad["allowed_tools"] = "a list of tool names or Bash(<prefix>) patterns"
     if bad:
         raise ApiError(422, "validation_failed", fields=bad)
 

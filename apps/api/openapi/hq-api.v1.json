@@ -9918,6 +9918,60 @@
         "title": "Delegate",
         "type": "object"
       },
+      "DeleteIn": {
+        "description": "⟨1.10.1⟩ §28.5: `{ids}` (any notification, read or not), or\n`{all_read: true, before}`: every read one up to the newest shown.",
+        "properties": {
+          "all_read": {
+            "default": false,
+            "title": "All Read",
+            "type": "boolean"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before"
+          },
+          "ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 500,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ids"
+          }
+        },
+        "title": "DeleteIn",
+        "type": "object"
+      },
+      "Deleted": {
+        "properties": {
+          "deleted": {
+            "title": "Deleted",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "deleted"
+        ],
+        "title": "Deleted",
+        "type": "object"
+      },
       "DeletedOut": {
         "properties": {
           "deleted": {
@@ -76850,6 +76904,68 @@
       }
     },
     "/api/v1/notifications": {
+      "delete": {
+        "description": "⟨1.10.1⟩ §28.5 Owner only: deletes notifications from the database for\ngood, the given `ids` (read or not) or, with `{all_read: true, before}`,\nevery read one shown up to `before` -> {deleted: n}. No tombstone (a\nnotification is a copy of an event that stays in its own record); one\naudit row; `notification.deleted` on the stream so other devices drop\nthem.",
+        "operationId": "delete_notifications",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "all_read": false,
+                "before": "2026-10-17T05:42:00Z",
+                "ids": [
+                  "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                ]
+              },
+              "schema": {
+                "$ref": "#/components/schemas/DeleteIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "deleted": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Deleted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Delete Notifications",
+        "tags": [
+          "notifications"
+        ]
+      },
       "get": {
         "description": "Notifications shown in the app (newest first). Held or queued items appear\nonce they are released (Khalvat off, digest).",
         "operationId": "list_notifications",

@@ -418,8 +418,12 @@ async def no_secrets_in_outputs(ctx: CheckCtx) -> Checked:
         """SELECT company_id, ref, body FROM msg.messages
              WHERE author_kind = 'agent' AND created_at > now() - interval '1 day'
            UNION ALL
-           SELECT company_id, ref, coalesce(body, '') || ' ' || coalesce(summary, '') FROM cartable.deliverables
-             WHERE created_at > now() - interval '1 day'
+           SELECT d.company_id, d.ref, coalesce(d.body, '') || ' ' || coalesce(d.summary, '')
+             FROM cartable.deliverables d
+             WHERE d.created_at > now() - interval '1 day'
+               -- ⟨19.3⟩ a catalogue output made again, masked (§28.6), is not read again
+               AND NOT (d.produced_with ->> 'source' = 'catalogue'
+                        AND NOT EXISTS (SELECT 1 FROM infra.catalogues k WHERE k.deliverable_ref = d.ref))
            LIMIT 2000""",
     )
     hits: dict[UUID, list[str]] = {}
