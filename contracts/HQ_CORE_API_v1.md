@@ -2872,3 +2872,27 @@ through the TradeYar server and extract everything" was shallow, and three of fo
   - The substitute's state becomes `error`, so the next council skips it with that reason up front.
 - **Synthesis:** never waits for members that ended. With one answer it says so plainly and does not pretend there was a council.
 - **The app:** shows each failure in plain Persian, never raw JSON.
+
+### 28.5 Notifications: several at once, delete for good ⟨1.10.1⟩ (owner, 2026-11-01)
+- **Delete:** `DELETE /notifications {ids: [..]}` (owner only) deletes those notifications from the database → `{deleted: n}`.
+  - **Scope:** any notification may be deleted, read or unread. The apps offer it on the «خوانده‌شده» tab.
+  - **«همه» selected:** `{all_read: true}` deletes every read notification up to the newest one shown, and must be sent with `{before: <ts>}` from the screen.
+  - **What stays:** no Audit tombstone is needed (notifications are copies of events that stay in their own records).
+- **Selection:** both apps add long-press / checkbox selection with «انتخاب همه» to both tabs.
+  - **«خوانده‌نشده» tab:** the actions are «خوانده‌شده» and «حذف».
+  - **«خوانده‌شده» tab:** the action is «حذف».
+
+### 28.6 Catalogue jobs read everything they are asked to, and never carry a secret
+- **Permissions:** the read-only `claude` catalogue job runs with an allow-list of read commands, so a non-interactive session is not refused. The list includes:
+  - `crontab -l`
+  - `systemctl list-*` and `status`
+  - `docker ps`, `docker compose ls`, `ps`, `config` and `docker inspect`
+  - read-only `docker exec … cat|ls`
+  - `ls`, `cat`, `head` and `find` under `/etc`, `/opt`, `/srv` and `/home`
+  - `n8n export:workflow --all` to stdout
+  - `ss` and `journalctl --since`
+
+  Everything else stays under the existing destructive-command hook.
+- **Missing access:** what the job still cannot read is listed in the section's `notes_fa`, with the exact command that was refused.
+- **No secrets:** every catalogue answer passes the hub's secret masker before it is stored or shown.
+  - The overseer's «الگوی رمز در خروجی ایجنت» finding on a catalogue therefore closes once the catalogue is re-rendered masked.
