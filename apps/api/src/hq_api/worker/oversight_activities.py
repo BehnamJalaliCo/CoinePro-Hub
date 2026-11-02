@@ -181,7 +181,13 @@ class OversightActivities:
             if await self._over_count(tx, p, run, tz):
                 return {"protocol": ref, "deferred": "daily_cap"}
             prefer = O.QC if p["method"] in O.QC_METHODS else O.OVERSEER
-            handed = await self._hand(tx, p, run, holding, prefer, self._brief(p))
+            brief = self._brief(p)
+            if ref == "PR-140":  # ⟨20.1⟩ what the rules found: the model starts there
+                found = await C.security_signals(tx)
+                brief += "\n\nWhat the hub's rules found today (start there): " + "; ".join(
+                    found[:40]
+                )
+            handed = await self._hand(tx, p, run, holding, prefer, brief)
             if handed is None:
                 await O.finish_run(tx, run["id"], "deferred", notes="no overseer to run it")
                 return {"protocol": ref, "deferred": "no_overseer"}

@@ -344,6 +344,7 @@ async def seed_protocols(tx: Tx, holding_id: UUID, root: str | Path) -> int:
         )
         added += 1
     await activate_pr082(tx)
+    await monthly_code_review(tx)
     from hq_api.domain import dceo  # ⟨1.5⟩ prompt 12 §13: PR-121 on a fresh database
 
     await dceo.activate(tx)
@@ -361,6 +362,52 @@ PR082_CHECK = (
     "monthly HR report, and an `evaluation` card for every flagged employee (and only with "
     "evidence and `override_reason` for an unflagged one)."
 )
+
+
+# ⟨20.1⟩ the watch's code review of every repository (PR-142) goes from weekly
+# to the 1st of the Jalali month: a new version over the seeded weekly one
+# (an owner's own version is left as it is).
+PR142 = "PR-142"
+PR142_SCHEDULE = "FREQ=MONTHLY;BYMONTHDAY=1;BYHOUR=9;BYMINUTE=30"
+PR142_TITLE = "بازبینی ماهانه‌ی کد هر مخزن"
+
+
+async def monthly_code_review(tx: Tx) -> bool:
+    await tx.exec("SELECT pg_advisory_xact_lock(hashtextextended('hq:protocol:PR-142', 0))")
+    cur = await tx.first("SELECT * FROM oversight.current_protocols WHERE ref = :r", r=PR142)
+    if cur is None or cur["source"] != "seed" or not str(cur["schedule"]).startswith("FREQ=WEEKLY"):
+        return False
+    await tx.exec(
+        """INSERT INTO oversight.protocols (company_id, ref, version, title_fa, area, check_md, method,
+               schedule, scope, evidence_md, severity, answerable, status, source, created_by_kind,
+               created_by_code, calendar)
+           VALUES (:co, :ref, :v, :title, :area, :check, :method, :schedule, :scope, :evidence,
+                   :severity, :answerable, :status, 'seed', 'service', 'prompt-20.1', 'jalali')""",
+        co=cur["company_id"],
+        ref=PR142,
+        v=int(cur["version"]) + 1,
+        title=PR142_TITLE,
+        area=cur["area"],
+        check=cur["check_md"],
+        method=cur["method"],
+        schedule=PR142_SCHEDULE,
+        scope=cur["scope"],
+        evidence=cur["evidence_md"],
+        severity=cur["severity"],
+        answerable=cur["answerable"],
+        status=cur["status"],
+    )
+    await audit.record(
+        tx,
+        audit.SYSTEM,
+        company_id=cur["company_id"],
+        action="oversight.protocol_update",
+        action_class="A1",
+        target_kind="protocol",
+        target_ref=f"{PR142}@{int(cur['version']) + 1}",
+        summary="prompt 20.1: the code review runs monthly (the 1st of the Jalali month)",
+    )
+    return True
 
 
 async def activate_pr082(tx: Tx) -> bool:
