@@ -258,3 +258,50 @@ def test_the_hubs_allow_list_reaches_claude_code_and_the_hook_stays(
 def test_without_an_allow_list_nothing_is_widened() -> None:
     s = hook_settings("j1")
     assert "permissions" not in s and s["hooks"]["PreToolUse"][0]["matcher"] == "Bash"
+
+
+def test_the_token_cap_stops_the_session_and_says_what_it_spent(
+    fake_hub: FakeHub, cfg: Config, cfg_path: Path, tmp_path: Path
+) -> None:
+    """⟨0.2.2⟩ contract §28.6: `token_cap` stops the session the moment its
+    messages pass it (a message's repeated usage counts once); the job ends
+    125 with the usage it reached; a malformed cap refuses the job."""
+    cfg.claude_bin = str(FAKE_CLAUDE)
+    save(cfg, cfg_path)
+    fake_hub.jobs.append(
+        {"id": "cap1", "kind": "claude",
+         "args": {"brief": "[[fake:spend:9]]", "cwd": str(tmp_path), "token_cap": 25_000}}
+    )  # fmt: skip
+    runner = Runner(cfg, make_route(fake_hub), cfg_path=cfg_path, persist_state=False)
+    start = time.monotonic()
+    run(drive(runner, lambda: "cap1" in fake_hub.results, within=30))
+    assert time.monotonic() - start < 15
+    res = fake_hub.results["cap1"]
+    assert res["exit_code"] == 125 and "سقف" in res["summary_fa"]
+    usage = res["usage"]
+    total = sum(usage[k] for k in ("input_tokens", "output_tokens", "cache_read_tokens",
+                                   "cache_write_tokens"))  # fmt: skip
+    assert total == 30_000 and usage["cache_read_tokens"] == 21_000
+    out = fake_hub.result_output("cap1")
+    assert out["token_cap"] == 25_000 and out["token_cap_reached"] is True
+
+    for bad in (0, -5, "100", True, 1.5):
+        jid = f"cap-bad-{len(fake_hub.results)}"
+        fake_hub.jobs.append(
+            {"id": jid, "kind": "claude",
+             "args": {"brief": "x", "cwd": str(tmp_path), "token_cap": bad}}
+        )  # fmt: skip
+        runner = Runner(cfg, make_route(fake_hub), cfg_path=cfg_path, persist_state=False)
+        run(drive(runner, lambda jid=jid: jid in fake_hub.results, within=30))
+        assert fake_hub.results[jid]["exit_code"] != 0, bad
+
+
+def test_under_its_cap_a_session_ends_as_usual() -> None:
+    from hq_runner.claude_job import TokenMeter
+
+    m = TokenMeter()
+    msg = {"id": "a", "model": "claude-x", "usage": {"input_tokens": 3, "output_tokens": 4}}
+    m.add({"type": "assistant", "message": msg})
+    m.add({"type": "assistant", "message": msg})
+    m.add({"type": "user", "message": msg})
+    assert m.total == 7 and m.usage("s")["model"] == "claude-x"

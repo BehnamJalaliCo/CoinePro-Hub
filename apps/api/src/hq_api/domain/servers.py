@@ -1520,6 +1520,10 @@ async def record_usage(tx: Tx, j: dict[str, Any], usage: dict[str, Any]) -> None
                 "server_job": str(j["id"]),
                 "server": j["server_name"],
                 "session": j.get("session_ref"),
+                # ⟨20.1⟩ prompt 20 finding 6: whose quota it spent (the
+                # server's own Claude Code login, never the hub's) and for what
+                "quota": "company_server",
+                "via": "catalogue" if j["actor_code"] == "catalogue" else "server_claude",
             }
         ),
     )

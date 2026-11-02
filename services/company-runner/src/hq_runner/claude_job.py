@@ -5,6 +5,13 @@ brief, in the repository folder `args.cwd`, under that repository's CLAUDE.md.
            [--resume <session_id>] [--model M] [--permission-mode P] [--max-turns N]
            [--allowedTools <tool> ...]
 
+⟨0.2.2⟩ `args.token_cap` (contract §28.6, prompt 20.1): the session's token
+cap. Every assistant message's usage (input + output + cache reads and
+writes, counted once per message id) is added up as it streams; the moment
+the total passes the cap the session is stopped like a cancel and the job
+ends `token_cap` with the usage it reached, so no run spends past the cap
+the hub gave it (a catalogue once spent 50M tokens in an hour without one).
+
 ⟨0.2.1⟩ `args.allowed_tools` (contract §28.6): the hub's allow-list of tools
 and read-only Bash prefixes, handed to Claude Code as --allowedTools and as
 the settings' `permissions.allow`, so a non-interactive session is not
@@ -21,6 +28,7 @@ from the final result line and goes back with the result.
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import json
 import os
@@ -54,6 +62,7 @@ JSON_LINE_BYTES = 64 * 1024 * 1024  # one stream-json line (the final answer) re
 FILE_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
 ALLOWED_TOOL = re.compile(r"^(?:[A-Z][A-Za-z]{1,30}|Bash\([^()\n\x00]{1,200}\))$")
 MAX_ALLOWED_TOOLS = 200
+EXIT_TOKEN_CAP = 125  # the session passed its token cap and was stopped
 
 
 def allowed_tools(value: Any) -> list[str]:
@@ -68,6 +77,11 @@ def allowed_tools(value: Any) -> list[str]:
     ):
         raise JobError("فهرست ابزارهای مجاز (allowed_tools) درست نیست.")
     return list(dict.fromkeys(value))
+
+
+async def _relay(cancel: asyncio.Event, stop: asyncio.Event) -> None:
+    await cancel.wait()
+    stop.set()
 
 
 def find_claude(configured: str | None = None) -> str | None:
@@ -213,6 +227,65 @@ def session_events(obj: dict[str, Any], masker: Masker) -> list[dict[str, Any]]:
     return out
 
 
+def token_cap(value: Any) -> int | None:
+    """The hub's token cap of the session: a positive integer, or none."""
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise JobError("سقف توکن (token_cap) درست نیست.")
+    return value
+
+
+class TokenMeter:
+    """⟨0.2.2⟩ The session's tokens so far, from each assistant message's
+    usage. Claude Code repeats a message's usage on every content block of it,
+    so a message counts once (its latest usage)."""
+
+    def __init__(self) -> None:
+        self.by_message: dict[str, dict[str, int]] = {}
+        self.model: str | None = None
+
+    def add(self, obj: dict[str, Any]) -> None:
+        if obj.get("type") != "assistant":
+            return
+        msg = obj.get("message") or {}
+        u = msg.get("usage") if isinstance(msg, dict) else None
+        if not isinstance(u, dict):
+            return
+        key = str(msg.get("id") or f"m{len(self.by_message)}")
+        self.model = self.model or msg.get("model")
+
+        def n(k: str) -> int:
+            v = u.get(k)
+            return max(0, int(v)) if isinstance(v, int | float) and not isinstance(v, bool) else 0
+
+        self.by_message[key] = {
+            "input_tokens": n("input_tokens"),
+            "output_tokens": n("output_tokens"),
+            "cache_read_tokens": n("cache_read_input_tokens"),
+            "cache_write_tokens": n("cache_creation_input_tokens"),
+        }
+
+    def sum(self, k: str) -> int:
+        return sum(m[k] for m in self.by_message.values())
+
+    @property
+    def total(self) -> int:
+        return sum(sum(m.values()) for m in self.by_message.values())
+
+    def usage(self, session_id: Any) -> dict[str, Any]:
+        return {
+            "input_tokens": self.sum("input_tokens"),
+            "output_tokens": self.sum("output_tokens"),
+            "cache_read_tokens": self.sum("cache_read_tokens"),
+            "cache_write_tokens": self.sum("cache_write_tokens"),
+            "thinking_tokens": 0,
+            "cost_usd": 0.0,
+            "model": self.model,
+            "session_id": session_id,
+        }
+
+
 def usage_from_result(obj: dict[str, Any]) -> dict[str, Any]:
     u = obj.get("usage") or {}
     details = u.get("output_tokens_details") or {}
@@ -237,6 +310,7 @@ async def run_claude(ctx: JobContext) -> JobResult:
     cwd = _cwd(args.get("cwd"))
     timeout = _timeout(args, CLAUDE_DEFAULT_TIMEOUT_S, CLAUDE_MAX_TIMEOUT_S)
     allow = allowed_tools(args.get("allowed_tools"))
+    cap = token_cap(args.get("token_cap"))
     claude = find_claude(ctx.cfg.claude_bin)
     if not claude:
         raise JobError("Claude Code روی این سرور پیدا نشد.", 127)
@@ -276,6 +350,12 @@ async def run_claude(ctx: JobContext) -> JobResult:
         }
     )
     final: dict[str, Any] = {}
+    meter = TokenMeter()
+    capped = False
+    session_id: Any = None
+    # the session stops on the job's cancel or once it passes its token cap
+    stop = asyncio.Event()
+    relay = asyncio.ensure_future(_relay(ctx.cancel, stop))
     files_changed: list[str] = []
     hook_seen = 0
     stderr_masker = StreamMasker(ctx.masker)
@@ -305,6 +385,7 @@ async def run_claude(ctx: JobContext) -> JobResult:
             hook_seen = len(lines)
 
     def on_stdout(line: str) -> None:
+        nonlocal capped, session_id
         drain_hook_log()
         s = line.strip()
         if not s:
@@ -316,6 +397,20 @@ async def run_claude(ctx: JobContext) -> JobResult:
             return
         if not isinstance(obj, dict):
             return
+        session_id = obj.get("session_id") or session_id
+        meter.add(obj)
+        if cap is not None and not capped and meter.total > cap:
+            capped = True
+            ctx.sink.emit(
+                "session_event",
+                {
+                    "type": "state",
+                    "at": _now(),
+                    "summary_fa": "نشست Claude به سقف توکنش رسید و متوقف شد.",
+                    "data": {"state": "failed", "token_cap": cap, "tokens": meter.total},
+                },
+            )
+            stop.set()
         if obj.get("type") == "result":
             final.clear()
             final.update(obj)
@@ -332,16 +427,22 @@ async def run_claude(ctx: JobContext) -> JobResult:
             cwd=cwd,
             env=env,
             limit_s=timeout,
-            cancel=ctx.cancel,
+            cancel=stop,
             on_stdout=on_stdout,
             on_stderr=ctx.line_sink("stderr"),
             max_line=JSON_LINE_BYTES,
         )
         drain_hook_log()
     finally:
+        relay.cancel()
         shutil.rmtree(tmp, ignore_errors=True)
-    usage = usage_from_result(final) if final else None
+    if final:
+        usage: dict[str, Any] | None = usage_from_result(final)
+    else:  # stopped (cap, cancel, timeout): what the messages counted so far
+        usage = meter.usage(session_id) if meter.by_message else None
     exit_code = res.exit_code
+    if capped and not ctx.cancel.is_set():
+        exit_code = EXIT_TOKEN_CAP
     if final.get("is_error") and exit_code == 0:
         exit_code = 1
     whole = str(final.get("result") or "")
@@ -356,7 +457,12 @@ async def run_claude(ctx: JobContext) -> JobResult:
         "num_turns": final.get("num_turns"),
         "stop_reason": final.get("stop_reason"),
     }
-    if res.reason == "timeout":
+    if cap is not None:
+        output["token_cap"] = cap
+        output["token_cap_reached"] = capped
+    if capped and not ctx.cancel.is_set():
+        summary = f"نشست Claude به سقف {cap} توکن رسید و متوقف شد."
+    elif res.reason == "timeout":
         summary = "نشست Claude به سقف زمان رسید و متوقف شد."
     elif res.reason == "cancelled":
         summary = "نشست Claude لغو شد."

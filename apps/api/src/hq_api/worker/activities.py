@@ -947,7 +947,7 @@ class Activities:
 
     @activity.defn(name="watch_sweep")
     async def watch_sweep(self) -> dict[str, Any]:
-        """⟨1.10⟩ contract §28.2-§28.3: the weekly catalogue refresh and growth
+        """⟨1.10⟩ contract §28.2-§28.3: ⟨20.1⟩ no catalogue any more (owner only); the growth
         memo per company, the monthly holding proposal (each once per its
         period), and catalogue runs left waiting on a server that is off."""
         from hq_api.domain import watch

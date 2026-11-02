@@ -27,7 +27,7 @@ pytestmark = pytest.mark.usefixtures("relay")
 
 # ------------------------------------------------------------- §28.6 --
 def test_the_job_carries_the_read_allow_list() -> None:
-    args = CAT._claude_args("TY", "automations")
+    args = CAT._claude_args("TY", "automations", cap=CAT.MIN_JOB_TOKENS)
     allow = args["allowed_tools"]
     for want in ("Read", "Glob", "Grep", "Bash(crontab -l)", "Bash(systemctl list-timers:*)",
                  "Bash(docker compose ls:*)", "Bash(docker exec:*)", "Bash(find /etc:*)",

@@ -8,6 +8,9 @@ The brief chooses the behaviour:
     [[bash:<command>]]   a Bash tool call with that command (hooks run first)
     [[fake:sleep]]       never finishes (cancel and timeout tests)
     [[fake:error]]       ends with an error result and exit code 1
+    [[fake:spend:N]]     N assistant messages of 10 000 tokens each (every one
+                         repeated once, as Claude Code repeats a message's usage
+                         on each content block), then never finishes (token cap)
     anything else        one text answer, then a success result with usage
 If FAKE_CLAUDE_RECORD is set, argv, cwd and the settings file go to that JSON file.
 """
@@ -87,6 +90,24 @@ def main() -> int:
         }
     )
     if "[[fake:sleep]]" in brief:
+        time.sleep(3600)
+    spend = re.search(r"\[\[fake:spend:(\d+)\]\]", brief)
+    if spend:
+        for i in range(int(spend.group(1))):
+            message = {
+                "id": f"msg_{i}",
+                "model": model,
+                "content": [{"type": "text", "text": f"step {i}"}],
+                "usage": {
+                    "input_tokens": 1000,
+                    "output_tokens": 1000,
+                    "cache_read_input_tokens": 7000,
+                    "cache_creation_input_tokens": 1000,
+                },
+            }
+            emit({"type": "assistant", "session_id": session, "message": message})
+            emit({"type": "assistant", "session_id": session, "message": message})
+            time.sleep(0.05)
         time.sleep(3600)
     for i, command in enumerate(re.findall(r"\[\[bash:(.+?)\]\]", brief)):
         tool_id = f"toolu_{i}"

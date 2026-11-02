@@ -6,7 +6,8 @@
 #   catalogue.start      a CEO for its own company ("go through the server and
 #                        extract everything" starts the catalogue, §28.2); the
 #                        holding's overseer, advisor and platform SRE for any
-#                        company (the watch)
+#                        company; ⟨20.1⟩ the api starts a run only for an
+#                        order of the owner (§28.6), else answers the latest
 #   client_errors.read   the oversight roles of the holding (the daily app
 #                        health, §28.3) and the platform SRE
 package hq.internal

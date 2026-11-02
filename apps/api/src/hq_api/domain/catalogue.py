@@ -12,8 +12,16 @@ summary.
   catalogue is rendered as one deliverable of the holding's system employee
   (category `report`) and filed in the archive as a `report` record; the
   difference from the company's previous catalogue goes with it.
-- The CEO starts it when an order asks to "go through / extract everything"
-  (tool `company.catalogue`); the owner from the app; the watch every week.
+- ⟨20.1⟩ Only on the owner's order: the owner from the app, or an agent
+  (tool `company.catalogue`) whose work comes from an order of the owner.
+  Nothing starts it on a schedule any more (the watch's weekly run spent 50M
+  tokens in an hour, prompt 20 finding 6).
+- ⟨20.1⟩ Every run has a token cap (HQ_CATALOGUE_RUN_TOKENS, every server
+  and section together): each `claude` job gets its share as `token_cap`
+  (runner 0.2.2 stops the session past it) and at most MAX_TURNS turns
+  (older runners keep to that); a second try is asked only while the run
+  has room for it. The jobs run on the company's own server and its own
+  Claude Code login, never on the hub's quota.
 Nothing of a row's contents, no secret: the brief forbids them and every
 answer is masked again here.
 """
@@ -45,6 +53,10 @@ STALE = timedelta(hours=6)  # a job still waiting then (a server off) ends as fa
 # only these guards against a broken answer stop it, and then the section says so
 MAX_ROWS = 100_000
 MAX_COLUMNS = 200
+# ⟨20.1⟩ §28.6 the run's cap: turns of one section's session (an older runner
+# keeps to this one only), and the least a job's share of the run's tokens is
+MAX_TURNS = 25
+MIN_JOB_TOKENS = 60_000
 
 SECTIONS: tuple[tuple[str, str, str], ...] = (
     (
@@ -273,6 +285,7 @@ async def start(
         return current, False
     await SV.check_lock(tx, company.id, deploy=False)
     servers = await _paired(tx, company.id)
+    cap = job_cap(hub.settings.catalogue_run_tokens, len(servers) * len(SECTIONS))
     jobs: list[dict[str, Any]] = []
     for s in servers:
         for key, title, _ in SECTIONS:
@@ -280,13 +293,13 @@ async def start(
                 tx,
                 server=s,
                 kind="claude",
-                args=_claude_args(company.code, key),
+                args=_claude_args(company.code, key, cap=cap),
                 actor_kind="service",
                 actor_code="catalogue",
                 summary=f"کاتالوگ شرکت: {title}",
                 timeout_s=JOB_TIMEOUT_S,
             )
-            jobs.append(_job_entry(j, s, key))
+            jobs.append(_job_entry(j, s, key, cap, hub.settings.catalogue_run_tokens))
     state = "running" if jobs else "failed"
     row = await tx.one(
         """INSERT INTO infra.catalogues (company_id, state, reason_fa, jobs, previous_id,
@@ -307,6 +320,27 @@ async def start(
     c = await tx.one(CAT_SQL + " WHERE k.id = :id", id=row["id"])
     await _emit(tx, c)
     return c, True
+
+
+async def owner_ordered(tx: Tx, run_id: str | None) -> bool:
+    """⟨20.1⟩ §28.6 an agent may start a catalogue only for an order of the
+    owner: the work of its run, or a work it was requested or split from (up
+    the chain), was created by the owner."""
+    if not run_id:
+        return False
+    found = await tx.scalar(
+        """WITH RECURSIVE up(id, by, n) AS (
+               SELECT w.id, w.created_by_kind, 0 FROM agents.runs r
+                 JOIN work.work w ON w.id = r.work_id WHERE r.id = CAST(:r AS uuid)
+               UNION ALL
+               SELECT p.id, p.created_by_kind, up.n + 1 FROM up
+                 JOIN work.work c ON c.id = up.id
+                 JOIN work.work p ON p.id IN (c.parent_id, c.requested_by_work_id, c.root_id)
+               WHERE up.n < 8 AND p.id <> up.id)
+           SELECT 1 FROM up WHERE by = 'owner' LIMIT 1""",
+        r=run_id,
+    )
+    return found is not None
 
 
 def _done_id(c: dict[str, Any] | None) -> UUID | None:
@@ -333,8 +367,14 @@ def _old_runner(version: Any) -> bool:
     )
 
 
-def _job_entry(j: dict[str, Any], s: dict[str, Any], section: str) -> dict[str, Any]:
-    return {
+def _job_entry(
+    j: dict[str, Any],
+    s: dict[str, Any],
+    section: str,
+    cap: int | None = None,
+    run_cap: int | None = None,
+) -> dict[str, Any]:
+    e = {
         "job": str(j["id"]),
         "server": str(s["id"]),
         "server_name": s["name"],
@@ -343,6 +383,9 @@ def _job_entry(j: dict[str, Any], s: dict[str, Any], section: str) -> dict[str, 
         "kind": j["kind"],
         "state": "queued",
     }
+    if cap is not None:  # ⟨20.1⟩ §28.6 the job's token cap and its run's
+        e |= {"token_cap": cap, "run_cap": run_cap}
+    return e
 
 
 async def _emit(tx: Tx, c: dict[str, Any]) -> None:
@@ -785,7 +828,15 @@ def _unread_section(e: dict[str, Any]) -> dict[str, Any]:
     }, e)  # fmt: skip
 
 
-def _claude_args(company: str, key: str, errors: list[str] | None = None) -> dict[str, Any]:
+def job_cap(run_tokens: int, jobs: int) -> int:
+    """⟨20.1⟩ §28.6 a job's share of the run's token cap (never below
+    MIN_JOB_TOKENS: a section must be able to answer at all)."""
+    return max(MIN_JOB_TOKENS, int(run_tokens) // max(1, jobs))
+
+
+def _claude_args(
+    company: str, key: str, errors: list[str] | None = None, *, cap: int
+) -> dict[str, Any]:
     title, what = SECTION_FA[key], SECTION_WHAT[key]
     brief = BRIEF.format(title=title, what=what)
     if errors:
@@ -794,9 +845,25 @@ def _claude_args(company: str, key: str, errors: list[str] | None = None) -> dic
         "brief": brief,
         "title": f"کاتالوگ {company}: {title}" + (" (دوباره)" if errors else ""),
         "timeout_s": JOB_TIMEOUT_S,
-        "max_turns": 60,
+        "max_turns": MAX_TURNS,
+        "token_cap": cap,
         "allowed_tools": list(ALLOWED_TOOLS),
     }
+
+
+async def run_spent(tx: Tx, jobs: list[dict[str, Any]]) -> int:
+    """⟨20.1⟩ the tokens the run's jobs have spent so far (the Token
+    Treasury's rows of their Claude Code sessions)."""
+    ids = [str(e["job"]) for e in jobs if e.get("kind") == "claude"]
+    if not ids:
+        return 0
+    n = await tx.scalar(
+        """SELECT COALESCE(sum(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)
+                              + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0)), 0)
+           FROM llm.calls WHERE task_class = 'server_claude' AND meta->>'server_job' = ANY(:ids)""",
+        ids=ids,
+    )
+    return int(n or 0)
 
 
 async def _retry(
@@ -805,12 +872,16 @@ async def _retry(
     """Once per section: the same server is asked again, told why its answer
     could not be read. None when it cannot be asked (the company locked)."""
     srv = await SV.load_server(tx, UUID(e["server"]))
+    run_tokens = int(e.get("run_cap") or 0)
+    cap = int(e.get("token_cap") or MIN_JOB_TOKENS)
+    if run_tokens and await run_spent(tx, list(c["jobs"])) + cap > run_tokens:
+        return None  # ⟨20.1⟩ no room left in the run's cap for a second try
     try:
         r = await SV.create_job(
             tx,
             server=srv,
             kind="claude",
-            args=_claude_args(c["company"], e["section"], errors),
+            args=_claude_args(c["company"], e["section"], errors, cap=cap),
             actor_kind="service",
             actor_code="catalogue",
             summary=f"کاتالوگ شرکت، دوباره: {SECTION_FA[e['section']]}",
@@ -818,7 +889,11 @@ async def _retry(
         )
     except ApiError:
         return None
-    return {**_job_entry(r, srv, e["section"]), "attempt": 2, "retry_of": e["job"]}
+    return {
+        **_job_entry(r, srv, e["section"], cap, run_tokens or None),
+        "attempt": 2,
+        "retry_of": e["job"],
+    }
 
 
 async def on_job(tx: Tx, hub: Any, job_id: UUID) -> bool:

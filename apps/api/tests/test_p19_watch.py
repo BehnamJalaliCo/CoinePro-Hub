@@ -218,6 +218,39 @@ async def test_a_catalogue_runs_on_every_server_and_is_filed_with_its_diff(
     assert got["diff"]["products"]["removed"] == ["api"]
 
 
+async def _on_owner_order(su: Any, code: str, co: dict[str, Any]) -> None:
+    """The employee's running run works on a work the owner ordered (a
+    request from the owner's root, one hop down)."""
+    root = await su.fetchval(
+        """INSERT INTO work.work (company_id, kind, title, created_by_kind, created_by_code, root_id)
+           VALUES ($1, 'one_off', 'فرمان مالک', 'owner', 'owner', gen_random_uuid()) RETURNING id""",
+        co["id"],
+    )
+    await su.execute("UPDATE work.work SET root_id = id WHERE id = $1", root)
+    child = await su.fetchval(
+        """INSERT INTO work.work (company_id, kind, title, created_by_kind, created_by_code, root_id,
+               requested_by_work_id)
+           VALUES ($1, 'one_off', 'کار ارجاعی', 'agent', 'X-CEO', gen_random_uuid(), $2) RETURNING id""",
+        co["id"],
+        root,
+    )
+    await su.execute("UPDATE work.work SET root_id = id WHERE id = $1", child)
+    # a run's work never changes: the running run ends, one on the work starts
+    await su.execute(
+        """UPDATE agents.runs r SET state = 'refused', finished_at = now(), error_code = 'test_cleanup'
+           FROM core.employees e WHERE e.id = r.employee_id AND e.code = $1 AND r.state = 'running'""",
+        code,
+    )
+    await su.execute(
+        """INSERT INTO agents.runs (company_id, employee_id, work_id, trigger, reason, state,
+               started_at, token_expires_at)
+           SELECT company_id, id, $2, 'work', 'test', 'running', now(), now() + interval '1 hour'
+           FROM core.employees WHERE code = $1""",
+        code,
+        child,
+    )
+
+
 async def test_a_company_without_a_server_and_who_may_start_one(
     client: httpx.AsyncClient,
     hub: Hub,
@@ -232,6 +265,11 @@ async def test_a_company_without_a_server_and_who_may_start_one(
     assert r.status_code == 202 and r.json()["state"] == "failed" and r.json()["reason_fa"]
     # the CEO starts its own company's (company.catalogue); a manager may not
     await pair(client, hub, owner_session, co, "db-1")
+    ceo = await agent_headers(f"{co['code']}-CEO")
+    # ⟨20.1⟩ §28.6 not on its own: only for an order of the owner
+    r = await client.post("/internal/v1/catalogue", headers={**ceo, **idem()}, json={"start": True})
+    assert r.status_code == 409 and r.json()["code"] == "owner_order_required", r.text
+    await _on_owner_order(su, f"{co['code']}-CEO", co)
     ceo = await agent_headers(f"{co['code']}-CEO")
     r = await client.post("/internal/v1/catalogue", headers={**ceo, **idem()}, json={"start": True})
     assert r.status_code == 200, r.text
@@ -348,12 +386,14 @@ async def test_the_watch_runs_each_duty_once_per_period(
     month = WATCH.owner_month(now, tz)  # the owner's month (UTC's can still be the last one)
     keys = {r["key"] for r in await su.fetch(
         "SELECT key FROM ops.watch_runs WHERE key LIKE $1", f"%:{co['code']}:%")}  # fmt: skip
-    assert keys == {f"catalogue:{co['code']}:{week}", f"growth_memo:{co['code']}:{week}"}
-    assert second["catalogues"] == 0 and second["growth_memos"] == 0 and second["proposal"] is None
-    cat = await su.fetchrow(
-        "SELECT state, started_by_code FROM infra.catalogues WHERE company_id = $1", co["id"]
+    # ⟨20.1⟩ §28.6 the catalogue is no duty of the watch: only the owner orders one
+    assert keys == {f"growth_memo:{co['code']}:{week}"}
+    assert "catalogues" not in first
+    assert second["growth_memos"] == 0 and second["proposal"] is None
+    assert (
+        await su.fetchval("SELECT count(*) FROM infra.catalogues WHERE company_id = $1", co["id"])
+        == 0
     )
-    assert cat["state"] == "running" and cat["started_by_code"] == "watch"
     memo = await su.fetchrow(
         """SELECT w.brief, e.code FROM work.work w JOIN core.employees e ON e.id = w.assignee_id
            WHERE w.title = $1""",

@@ -191,6 +191,18 @@ class Settings:
         default_factory=lambda: _int("AGENT_DAILY_TOKEN_CAP", 2_000_000)
     )
     agent_max_run_s: int = field(default_factory=lambda: _int("AGENT_MAX_RUN_S", 3000))
+    # ⟨20.1⟩ contract §28.6: one catalogue run of a company spends at most this
+    # many tokens on its servers' Claude Code (every server and section
+    # together, a second try included); each job gets its share as its cap.
+    catalogue_run_tokens: int = field(
+        default_factory=lambda: _int("HQ_CATALOGUE_RUN_TOKENS", 1_500_000)
+    )
+    # ⟨20.1⟩ a company's own agent runs per UTC day (input + output + cache
+    # tokens) when its row sets no cap of its own (core.companies.
+    # daily_token_cap); 0 = only the hub's cap applies.
+    company_daily_token_cap: int = field(
+        default_factory=lambda: _int("AGENT_COMPANY_DAILY_TOKEN_CAP", 400_000)
+    )
     # The token budget of an incident's work (site checks): the responder's run stops at it.
     incident_budget_tokens: int = field(
         default_factory=lambda: _int("AGENT_INCIDENT_BUDGET_TOKENS", 60_000)
