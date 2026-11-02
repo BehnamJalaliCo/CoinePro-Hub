@@ -16,6 +16,8 @@
 | **Claude سشن مشورت** | مشورت، سندها، طراحی، قرارداد API، اپ اندروید، وب Next.js، نوشتن پرامپت‌های سرور، بازبینی کد سرور | `docs/` (سندهای طراحی و تصمیم)، `design/`، `contracts/`، `agents/` (منشور نقش‌ها)، `apps/web/`، `apps/android/` |
 | **Claude سرور هاب** | زیرساخت، بک‌اند، سرویس‌ها و deploy، طبق پرامپت‌های شماره‌دار | `infra/`، `apps/api/`، `services/`، `automations/`، `scripts/`، `docs/ops/` |
 
+| **Claude ساخت** (حساب دوم مالک، از ۲۰۲۶-۱۱-۰۲) | جانشین Claude سشن مشورت برای اجرای `docs/PLAN_2026-11-02_OWNER_FOCUS.md`، طبق `docs/server-prompts/BUILDER_W1_OWNER_FOCUS.md`. روی سرور هاب کار میکند، در worktree جدای `/home/Hub/CoinePro-Hub-build`. **deploy نمیکند**؛ پرامپت deploy مینویسد. | همه‌ی پوشه‌های سشن مشورت، به‌علاوه‌ی کد هاب (`apps/api`، `services/`، `automations/`، `scripts/`، پیکربندی `infra/`) به اجازه‌ی مالک؛ **نه `docs/ops/`** |
+
 **هیچ Claude پوشه‌های مال دیگری را تغییر نمیدهد.** اگر لازم بود، در گزارش پیشنهاد میدهد.
 
 ## قوانین مالک (همیشه)
