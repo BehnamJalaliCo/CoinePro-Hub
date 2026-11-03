@@ -308,6 +308,9 @@ class Settings:
     # "media": while it is off a render waits in its queue (the item says so)
     # and an agent's preview answers channel_not_configured.
     media: bool = field(default_factory=lambda: _env("HQ_MEDIA", "off") == "on")
+    # ⟨21⟩ §29.11 the working groups' routines run (the worker's tick) only once
+    # the deploy switches them on, a step of its own after the checks (prompt 21)
+    groups: bool = field(default_factory=lambda: _env("HQ_GROUPS", "off") == "on")
     tts_voice: str = field(default_factory=lambda: _env("HQ_TTS_VOICE", "fa_IR-amir-medium"))
     # The deploy card's diff (§21.6): fetched with the hub's existing git access
     # (a workspace's token in OpenBao) into mirrors under this directory; the

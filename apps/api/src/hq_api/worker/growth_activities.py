@@ -38,6 +38,8 @@ class GrowthActivities:
 
     @activity.defn(name="groups_tick")
     async def groups_tick(self) -> dict[str, Any]:
+        if not self.hub.settings.groups:  # HQ_GROUPS=off: nothing runs yet (prompt 21's step 2)
+            return {"skipped": "groups_off"}
         return await GR.tick(self.hub)
 
     @activity.defn(name="connections_read")

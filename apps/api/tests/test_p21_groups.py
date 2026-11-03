@@ -433,3 +433,18 @@ def test_each_routine_is_due_once_in_its_window(routine: str) -> None:
         if occ is not None and occ.astimezone(TEHRAN).date() == day:
             hits.add(occ)
     assert 1 <= len(hits) <= 2  # one occurrence a day (publishing: twice)
+
+
+async def test_the_workers_tick_waits_for_the_switch(hub: Hub) -> None:
+    """Prompt 21's deploy: HQ_GROUPS=off (the default) runs nothing; on, the tick runs."""
+    from dataclasses import replace
+
+    from hq_api.worker.growth_activities import GrowthActivities
+
+    real = hub.settings
+    acts = GrowthActivities(hub, lambda: hub.db.tx([]))
+    try:
+        hub.settings = replace(real, groups=False)
+        assert await acts.groups_tick() == {"skipped": "groups_off"}
+    finally:
+        hub.settings = real
