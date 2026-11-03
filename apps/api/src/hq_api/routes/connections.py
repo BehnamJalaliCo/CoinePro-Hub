@@ -58,7 +58,7 @@ class SecretOut(Model):
 
 
 @router.get("/companies/{code}/connections", response_model=list[CN.Connection], responses=E)
-async def list_connections(code: str, ctx: Ctx = Depends(owner_ctx)) -> list[CN.Connection]:
+async def list_company_connections(code: str, ctx: Ctx = Depends(owner_ctx)) -> list[CN.Connection]:
     """Every kind in the contract's order of work; a kind the company has
     not started reads `not_connected` with what it needs."""
     company = await ctx.hub.companies.by_code(code)

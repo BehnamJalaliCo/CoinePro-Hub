@@ -135,7 +135,7 @@ async def set_member(
 
 
 @router.get("/groups/{key}/runs", response_model=Page[GR.RoutineRun], responses=E)
-async def list_runs(
+async def list_group_runs(
     key: str,
     company: str | None = Query(default=None, pattern=CODE),
     routine: str | None = Query(default=None, pattern=KEY),

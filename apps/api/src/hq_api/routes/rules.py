@@ -116,7 +116,7 @@ async def add_rule(body: RuleIn, request: Request, ctx: Ctx = Depends(owner_ctx)
 
 
 @router.get("/rules", response_model=list[R.Rule], responses=E)
-async def list_rules(ctx: Ctx = Depends(owner_ctx)) -> list[R.Rule]:
+async def list_owner_rules(ctx: Ctx = Depends(owner_ctx)) -> list[R.Rule]:
     """⟨1.11⟩ §29.3 the owner's rules (every standing order), newest first,
     each with its counts: the runs it applied to since its seal, the
     violations found and how many were fixed."""

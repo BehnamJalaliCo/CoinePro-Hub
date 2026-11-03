@@ -58447,7 +58447,7 @@
     "/api/v1/companies/{code}/connections": {
       "get": {
         "description": "Every kind in the contract's order of work; a kind the company has\nnot started reads `not_connected` with what it needs.",
-        "operationId": "list_connections",
+        "operationId": "list_company_connections",
         "parameters": [
           {
             "in": "path",
@@ -58492,7 +58492,7 @@
                   "items": {
                     "$ref": "#/components/schemas/hq_api__domain__connections__Connection"
                   },
-                  "title": "Response List Connections",
+                  "title": "Response List Company Connections",
                   "type": "array"
                 }
               }
@@ -58566,7 +58566,7 @@
             "description": "Problem"
           }
         },
-        "summary": "List Connections",
+        "summary": "List Company Connections",
         "tags": [
           "connections"
         ]
@@ -71346,7 +71346,7 @@
     "/api/v1/groups/{key}/runs": {
       "get": {
         "description": "The routines' history, newest period first: each run, the work item it made\n(or why it was skipped).",
-        "operationId": "list_runs",
+        "operationId": "list_group_runs",
         "parameters": [
           {
             "in": "path",
@@ -71515,7 +71515,7 @@
             "description": "Problem"
           }
         },
-        "summary": "List Runs",
+        "summary": "List Group Runs",
         "tags": [
           "groups"
         ]
@@ -94357,7 +94357,7 @@
     "/api/v1/rules": {
       "get": {
         "description": "⟨1.11⟩ §29.3 the owner's rules (every standing order), newest first,\neach with its counts: the runs it applied to since its seal, the\nviolations found and how many were fixed.",
-        "operationId": "list_rules",
+        "operationId": "list_owner_rules",
         "responses": {
           "200": {
             "content": {
@@ -94390,7 +94390,7 @@
                   "items": {
                     "$ref": "#/components/schemas/Rule"
                   },
-                  "title": "Response List Rules",
+                  "title": "Response List Owner Rules",
                   "type": "array"
                 }
               }
@@ -94453,7 +94453,7 @@
             "description": "Problem"
           }
         },
-        "summary": "List Rules",
+        "summary": "List Owner Rules",
         "tags": [
           "rules"
         ]
@@ -104583,7 +104583,7 @@
     "/api/v1/transcribe/sessions/{id}": {
       "get": {
         "description": "⟨additive⟩ a long voice's session: its chunks so far (to resume after\na dropped connection).",
-        "operationId": "get_session",
+        "operationId": "get_voice_session",
         "parameters": [
           {
             "in": "path",
@@ -104728,7 +104728,7 @@
             "description": "Problem"
           }
         },
-        "summary": "Get Session",
+        "summary": "Get Voice Session",
         "tags": [
           "files"
         ]

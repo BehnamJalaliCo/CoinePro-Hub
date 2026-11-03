@@ -254,7 +254,7 @@ async def finish_session(id: UUID, ctx: Ctx = Depends(owner_ctx)) -> LongTranscr
 
 
 @router.get("/transcribe/sessions/{id}", response_model=Session, responses=E)
-async def get_session(id: UUID, ctx: Ctx = Depends(owner_ctx)) -> Session:
+async def get_voice_session(id: UUID, ctx: Ctx = Depends(owner_ctx)) -> Session:
     """⟨additive⟩ a long voice's session: its chunks so far (to resume after
     a dropped connection)."""
     async with ctx.tx() as tx:
