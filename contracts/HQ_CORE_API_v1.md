@@ -3021,6 +3021,17 @@ Blocker { kind: "no_employee"|"hiring_closed"|"locked"|"series_unsealed"|"budget
 - The overseer watches them (PR-095, now daily and rule-first: a violation found by a rule is a finding; a model only samples), and the
   **first enforcement report** comes 24 hours after the seal (a `report` notification: how many runs it applied to, violations, fixed).
 - `GET /rules` (= standing orders, newest first, with their counts), `PUT /rules/{ref}` (a new version, 🔏), `POST /rules/{ref}/retire`.
+- **As built (prompt 21):**
+  ```
+  Rule { id, ref, text_md, owner_text|null, source, file_id|null, applies_to, status: "proposed"|"sealed"|"retired", version,
+         sealed_at|null, created_at, counts: {runs, violations, fixed}, report_at|null, history: [{version, text_md, applies_to,
+         applies_codes, status, sealed_at}] }
+  ```
+  `owner_text` keeps the owner's own words. `PUT /rules/{ref} {text_md?, applies_to?}`: the 🔏 is the new version's seal (step-up
+  `rule.seal` or `oversight.order`, target = ref; the seal route takes either too); the previous version goes to `history`, the first
+  report comes 24 hours after this seal; a retired rule answers 409. `counts.violations` = findings that name the rule (its ref in
+  their evidence or text); `fixed` = those fixed, verified or closed. The report is stream `rule.report` (topic `oversight`) and one
+  `report` notification (`link_kind: "rule"`). `StandingOrder.applies_to` (§18.1) is the same union.
 
 ### 29.4 The holding's secretary (dispatcher, chief of staff)
 - `POST /orders/preview {text, source}` (owner) → a `Route` and one line:
@@ -3039,6 +3050,17 @@ Blocker { kind: "no_employee"|"hiring_closed"|"locked"|"series_unsealed"|"budget
   director, never to AI operations; finding 1 of prompt 20).
 - **Several companies:** one root work in the first company, one child work per collaborator (on that company's CEO or department; its
   server's Claude through the runner when the work is on the server, §26), and one `OrderReport` over all of them.
+- **As built (prompt 21, additive):**
+  - `Route` adds `kind: "work"|"code"|"meeting"|"question"|"server"`: how it is carried out (`question` single = the advisor,
+    `question` council = the council v2 on the company's CEO, `server` = an inside question to the company's own Claude on its
+    server). `companies[0]` holds the root work; every other company in `companies` or `collaborators` gets one requested work
+    (`requested_by_work_id` = the root; its department when it has one, else its CEO) with the output kind's base budget.
+  - `POST /orders` answers its `route` too (`OrderOut.route`, also on `GET /orders` items); the order keeps it.
+  - An edited route that changes what the rules were sure of (company, collaborators, department, output kind, mode, player, kind)
+    is remembered (`correction`, {from, to}); a like order (≥ 60% of its words shared) then follows the correction. An unknown
+    company or department in a sent route answers 422; `kind: "server"` without an online server too.
+  - The «نه» reasons of the home's cards are written with `dispatch.remember(tx, "no", text_fa, data)` and read with
+    `dispatch.recall(tx, "no", text)`.
 
 ### 29.5 Long voice
 - **On the phone:** continuous recognition that restarts itself at every pause until the owner stops; the text grows on screen.
@@ -3047,6 +3069,12 @@ Blocker { kind: "no_employee"|"hiring_closed"|"locked"|"series_unsealed"|"budget
   ≤ 90 s each, in order, idempotent per n); `POST /transcribe/sessions/{id}/finish` → `{text, duration_s, chunks, segments}`. Up to
   `STT_SESSION_MAX_S` (default 1 200 s, 20 minutes); STT starts on demand (§27.3). A session unused for 30 minutes expires.
 - **Before sending,** the whole text is shown and editable.
+- **As built (prompt 21):** `POST /transcribe/sessions` → `201 {id, purpose, state: "open"|"finished"|"expired", chunks, seconds,
+  max_s, chunk_max_s, expires_at}` (owner, `Idempotency-Key`; 503 while speech is off). Chunk numbers start at 0 or 1 and follow in
+  order (a gap: 422); a chunk sent again with the same bytes changes nothing, with other bytes replaces it; answer
+  `{n, file_id, duration_s, chunks, seconds}`; a chunk over 90 s or a session over `STT_SESSION_MAX_S`: 413. `finish` adds
+  `engine`; a finished session answers its text again; a chunk after it: 409. An expired session answers **410 `session_expired`**.
+  `GET /transcribe/sessions/{id}` (additive) shows a session to resume after a dropped connection.
 
 ### 29.6 The delegation budget
 - **A floor:** a work request's token budget is never below the target role's floor: `3 × tokens_per_step` of its charter, or the median
@@ -3060,6 +3088,9 @@ Blocker { kind: "no_employee"|"hiring_closed"|"locked"|"series_unsealed"|"budget
 - **Every player answers in Persian.** An answer whose letters are less than 60% Persian, or holding CJK characters, is refused and asked
   again once with the instruction repeated; a second failure ends that member `failed` («پاسخ فارسی نبود»). A web player's page residue
   (a trailing offer such as «مایلید …؟», buttons' text) is cut before the answer is kept.
+  - **As built (prompt 21):** checked on every answer of a work's or a council's seat call (what reaches the owner); a code review,
+    a cross-check's JSON verdict and an agent's own errand keep the language their task asks for. The member's reason code is
+    `not_persian_retry` while asked again, `not_persian` when it failed. The residue patterns are data: `apps/api/seed/web_residue.yaml`.
 - **Rewrite for the owner** («بازنویسی برای مدیر کل»): every text that reaches the owner (notification, card, order report, summary,
   council plan, home card) passes `humanize`: code first, the light model only when the code cannot fix it.
   - **Forbidden:** refs (`W-…`, `O-…`, `D-…`, `FI-…`, `H-…`, `RK-…`, `AR-…`, ids, uuids), table, service and tool names, error codes
@@ -3082,6 +3113,15 @@ Blocker { kind: "no_employee"|"hiring_closed"|"locked"|"series_unsealed"|"budget
   «چه کسی · چه کاری · تا کی». Persian only (§29.7).
 - **Output to the owner:** the plan in 5–10 lines with «اجرا کن», which makes an order (§29.4) from it. Each member's answer stays under
   «جزئیات». `Council` (§27.2) adds `round: 1|2|3`, `roles: {player: role}`, `fact_pack_ref`, `plan_md`.
+- **As built (prompt 21, additive):** each member adds `role`; `Council` adds `rounds: [{round, members}]` (the rounds before the
+  current one, each answer under «جزئیات») and `order_ref` (the order «اجرا کن» made). In round 2 each substitute that proposed reads
+  the others' proposals; the captain reads every proposal and critique in round 3 (a child work of the council's assignee); with one
+  answer the council says so plainly (§28.4). `POST /work/{id}/council/run` (owner, `Idempotency-Key`) is «اجرا کن»: `201 OrderOut`,
+  the plan as an order of the council's company (its CEO), single mode, the output's budget; 409 before the plan or once it ran.
+  `GET /fact-packs/{ref}` (owner) → `{ref, work_ref, company, at, figures, recent_posts, notes_fa}`; `fact_pack_ref` is `FP-` and
+  the council work's number. `owner.settings.council_roles` is in `GET/PUT /owner/settings` (a player left out has no seat). A media
+  council (images, video) keeps §27.2. An inside question's server job is read-only (the catalogue's allow-list), `max_turns` 15,
+  `token_cap` the route's budget (at least 60 000); its answer is the work's deliverable (`produced_with.via: "server"`).
 
 ### 29.9 Readiness of each company for each working group
 ```
