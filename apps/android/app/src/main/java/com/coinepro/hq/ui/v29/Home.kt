@@ -172,7 +172,8 @@ private fun Fact(label: String, value: String, icon: DivanIcon, tint: Color, mod
             }
             Text(label, style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = tint)
         }
-        Text(plain(value), style = Divan.type.small.copy(textAlign = TextAlign.Justify), color = c.textPrimary)
+        // Not justified: in a half-width tile a short sentence would stretch into gaps.
+        Text(plain(value), style = Divan.type.small, color = c.textPrimary)
     }
 }
 
