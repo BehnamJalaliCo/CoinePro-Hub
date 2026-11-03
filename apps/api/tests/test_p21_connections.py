@@ -112,7 +112,9 @@ class FakeEgress:
         if host == "www.googleapis.com" and "/youtube/" in url:
             assert acct.get("secret") == YT_KEY and acct["inject"]["name"] == "X-goog-api-key"
             stats = {"subscriberCount": "880", "viewCount": "120000", "videoCount": "42"}
-            return CN.Answer("ok", 200, json.dumps({"items": [{"statistics": stats}]}), None, [entry])
+            return CN.Answer(
+                "ok", 200, json.dumps({"items": [{"statistics": stats}]}), None, [entry]
+            )
         if host == "www.googleapis.com" and "/pagespeedonline/" in url:
             lh = {"lighthouseResult": {"categories": {"performance": {"score": 0.87}},
                   "audits": {"largest-contentful-paint": {"numericValue": 2350.4},
@@ -143,7 +145,9 @@ async def conn(su: Any, company_id: UUID, kind: str) -> Any:
     )
 
 
-async def put_config(su: Any, company_id: UUID, kind: str, config: dict[str, Any], **cols: Any) -> None:
+async def put_config(
+    su: Any, company_id: UUID, kind: str, config: dict[str, Any], **cols: Any
+) -> None:
     await su.execute(
         """INSERT INTO growth.connections (company_id, kind, label_fa, config, secret_set)
            VALUES ($1, $2, 'اتصال', $3::jsonb, $4)
@@ -267,8 +271,12 @@ async def test_every_kind_has_its_one_page_guide(
     assert "گام" in g["body_md"] or "هنوز ساخته نشده" in g["body_md"]
 
 
-async def test_an_unknown_guide_is_refused(client: httpx.AsyncClient, owner: dict[str, str]) -> None:
-    assert (await client.get("/api/v1/connections/guides/myspace", headers=owner)).status_code == 422
+async def test_an_unknown_guide_is_refused(
+    client: httpx.AsyncClient, owner: dict[str, str]
+) -> None:
+    assert (
+        await client.get("/api/v1/connections/guides/myspace", headers=owner)
+    ).status_code == 422
 
 
 # ---------------------------------------------------------------- readers --
@@ -299,7 +307,9 @@ async def test_each_reader_through_egress_writes_its_daily_figures(
         for kind in ("telegram", "search_console", "ga4", "youtube", "pagespeed"):
             after = await CN.read_one(hub, cid, kind)
             assert after["state"] == "connected" and after["last_error_fa"] is None, (kind, after)
-            assert after["last_read_at"] is not None and after["secret_set"] is (kind != "pagespeed")
+            assert after["last_read_at"] is not None and after["secret_set"] is (
+                kind != "pagespeed"
+            )
     assert await metrics(su, cid, "telegram") == {
         ("followers", "@ty_signal"): 1500.0, ("followers", "@ty_news"): 300.0
     }  # fmt: skip
@@ -341,7 +351,9 @@ async def test_a_failing_reader_leaves_a_persian_error(
     CN.OVERRIDE = fake
     hub.bao = FakeBao({f"hq/growth/{c}/telegram": TOKEN, f"hq/growth/{c}/search_console": sa,
                        f"hq/growth/{c}/ga4": "not json"})  # fmt: skip
-    await put_config(su, cid, "telegram", {"channels": [{"title_fa": "کانال", "chat": "@ty_signal"}]})
+    await put_config(
+        su, cid, "telegram", {"channels": [{"title_fa": "کانال", "chat": "@ty_signal"}]}
+    )
     await put_config(su, cid, "search_console", {"site_url": "https://example.com/"})
     await put_config(su, cid, "ga4", {"property_id": "42"})
     await put_config(su, cid, "x", {"handle": "@tradeyar"}, secret_set=False)
@@ -356,7 +368,9 @@ async def test_a_failing_reader_leaves_a_persian_error(
     assert "JSON" in (await conn(su, cid, "ga4"))["last_error_fa"]
     # a locked company reads nothing: no outside call
     calls = len(fake.calls)
-    await su.execute("UPDATE control.kill_switches SET state = 'engaged' WHERE company_id = $1", cid)
+    await su.execute(
+        "UPDATE control.kill_switches SET state = 'engaged' WHERE company_id = $1", cid
+    )
     try:
         async with holding_switch(su, "released"):
             after = await CN.read_one(hub, cid, "telegram")
@@ -389,7 +403,7 @@ async def test_instagram_is_read_through_ig_hubs_runner_job(
         )
         assert job["kind"] == "exec" and json.loads(job["args"])["cmd"] == cmd
         assert job["actor_code"] == "growth-read" and job["state"] == "queued"
-        assert json.loads(first["pending"])["job_id"] == str(job["id"])
+        assert first["pending"]["job_id"] == str(job["id"])
         assert first["last_read_at"] is None and first["last_error_fa"] is None
         again = await CN.read_one(hub, co["id"], "instagram")  # still running: no second job
         assert await su.fetchval("SELECT count(*) FROM infra.server_jobs WHERE server_id = $1",
@@ -411,7 +425,9 @@ async def test_instagram_is_read_through_ig_hubs_runner_job(
     assert figures == {("followers", "tradeyar"): 5400.0, ("reach", "tradeyar"): 12000.0,
                        ("views", "tradeyar"): 30000.0}  # fmt: skip
     # a command that is not read-only is never run
-    await put_config(su, co["id"], "instagram", {**cfg, "command": "rm -rf /srv/ig"}, secret_set=False)
+    await put_config(
+        su, co["id"], "instagram", {**cfg, "command": "rm -rf /srv/ig"}, secret_set=False
+    )
     async with holding_switch(su, "released"):
         bad = await CN.read_one(hub, co["id"], "instagram")
     assert bad["state"] == "error" and "فقط‌خواندنی" in bad["last_error_fa"]
@@ -432,7 +448,9 @@ async def test_the_daily_read_reads_once_a_day_and_the_owners_test_reads_now(
     fake = FakeEgress()
     CN.OVERRIDE = fake
     hub.bao = FakeBao({f"hq/growth/{co['code']}/telegram": TOKEN})
-    await put_config(su, co["id"], "telegram", {"channels": [{"title_fa": "کانال", "chat": "@ty_news"}]})
+    await put_config(
+        su, co["id"], "telegram", {"channels": [{"title_fa": "کانال", "chat": "@ty_news"}]}
+    )
     async with holding_switch(su, "released"):
         out = await CN.read_due(hub)
         mine = [x for x in fake.calls if x["company"] == co["code"]]
@@ -453,8 +471,27 @@ async def test_the_daily_read_reads_once_a_day_and_the_owners_test_reads_now(
     assert none.status_code == 404
 
 
+@pytest.mark.parametrize(
+    ("cmd", "ok"),
+    [
+        ("cat /srv/ig/daily.json", True),
+        ("python3 /opt/ig-hub/read_figures.py --yesterday 2>/dev/null | jq -c .", True),
+        ("rm -rf /srv/ig", False),
+        ("cat a > /srv/ig/out.json", False),
+        ("sudo cat /etc/x", False),
+        ("cd /srv && git pull", False),
+        ("python3 read.py; curl -X POST https://example.com", False),
+        ("", False),
+    ],
+)
+def test_only_a_read_only_command_runs_on_ig_hub(cmd: str, ok: bool) -> None:
+    assert CN.read_only(cmd) is ok
+
+
 def test_widening_is_any_new_value() -> None:
     assert CN.widens({}, {"site_url": "https://a"})
     assert CN.widens({"channels": [{"chat": "@a"}]}, {"channels": [{"chat": "@a"}, {"chat": "@b"}]})
-    assert not CN.widens({"channels": [{"chat": "@a"}, {"chat": "@b"}]}, {"channels": [{"chat": "@a"}]})
+    assert not CN.widens(
+        {"channels": [{"chat": "@a"}, {"chat": "@b"}]}, {"channels": [{"chat": "@a"}]}
+    )
     assert CN.widens({"site_url": "https://a"}, {"site_url": "https://b"})

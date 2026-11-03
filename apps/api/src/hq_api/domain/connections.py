@@ -40,6 +40,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
@@ -129,6 +130,29 @@ IG_JOB_STALE = timedelta(hours=6)
 IG_KEYS = ("followers", "reach", "views", "impressions", "likes", "comments", "saves", "shares",
            "posts", "profile_views")  # fmt: skip
 CHAT = r"^(@[A-Za-z0-9_]{4,64}|-?[0-9]{5,20})$"
+# What a read-only command never does (§29.12: IG-Hub's job only reads): a
+# program that changes files, processes, services or packages, sudo, or an
+# output redirect other than onto /dev/null (besides the destructive
+# categories of server_classify).
+WRITERS = re.compile(
+    r"(?:^|[;&|(`]|\$\()\s*(?:sudo|su|rm|mv|cp|dd|tee|chmod|chown|chgrp|ln|mkdir|rmdir|touch|"
+    r"truncate|install|kill|pkill|killall|systemctl|service|docker|podman|reboot|shutdown|"
+    r"poweroff|crontab|git|apt|apt-get|yum|dnf|pip|npm|curl|wget|scp|rsync|sed\s+-i)\b"
+)
+REDIRECT = re.compile(r"(?<![0-9&<>])>{1,2}(?!&)(?!\s*/dev/null)")
+
+
+def read_only(cmd: str) -> bool:
+    """A command the hub may run on IG-Hub for the daily read."""
+    from hq_api.domain.server_classify import classify_detail
+
+    text = cmd.strip()
+    return (
+        bool(text)
+        and classify_detail(text) is None
+        and not WRITERS.search(text)
+        and not (REDIRECT.search(text))
+    )
 
 
 # ------------------------------------------------------------------ shapes --
@@ -771,10 +795,9 @@ async def read_instagram(ctx: ReadCtx) -> list[Figure]:
     """Through IG-Hub's runner: queue the fixed read-only command once a day,
     collect its stdout when it is done (the next tick)."""
     from hq_api.domain import servers as SV
-    from hq_api.domain.server_classify import classify_detail
 
     cmd = str(ctx.config["command"])
-    if classify_detail(cmd) is not None:
+    if not read_only(cmd):
         raise ReadError("دستور خواندن IG-Hub فقط‌خواندنی نیست؛ هاب آن را اجرا نمیکند.")
     srv_cfg = ctx.config.get("server") or {}
     srv_company, srv_name = srv_cfg.get("company") or "IG", srv_cfg.get("name") or "IG-Hub"

@@ -35,9 +35,18 @@ def at(day: date, hour: int, minute: int = 0) -> datetime:
 
 async def channel(client: httpx.AsyncClient, hub: Hub, owner: dict[str, Any], co: str) -> None:
     """A publishing channel (a Telegram channel) for the company: it joins."""
-    body = {"config": {"channels": [{"role": "signal", "title_fa": "کانال آزمایشی", "chat": "@test_ch"}]}}
+    body = {
+        "config": {
+            "channels": [{"role": "signal", "title_fa": "کانال آزمایشی", "chat": "@test_ch"}]
+        }
+    }
     r = await signed_put(
-        client, hub, owner, f"/api/v1/companies/{co}/connections/telegram", body, "connection.config"
+        client,
+        hub,
+        owner,
+        f"/api/v1/companies/{co}/connections/telegram",
+        body,
+        "connection.config",
     )
     assert r.status_code == 200, r.text
 
@@ -72,9 +81,11 @@ def test_the_content_group_is_data_as_the_management_review_says() -> None:
     assert r["review"]["task_class"] == "media_review" and "BYHOUR=14;" in r["review"]["schedule"]
     assert r["publishing"]["seat"] == "publisher" and r["publishing"]["needs"] == "sealed_series"
     assert "BYHOUR=20;" in r["evening_line"]["schedule"]
-    assert "BYDAY=SA" in r["weekly_review"]["schedule"] and "BYDAY=SA" in r["weekly_plan"]["schedule"]
+    assert (
+        "BYDAY=SA" in r["weekly_review"]["schedule"] and "BYDAY=SA" in r["weekly_plan"]["schedule"]
+    )
     assert r["weekly_review"]["seat"] == "content_analyst"
-    assert [k["key"] for k in d["kpis"]][0] == "published"
+    assert d["kpis"][0]["key"] == "published"
     assert {"published", "followers", "views", "first_pass", "on_time", "experiments"} <= {
         k["key"] for k in d["kpis"]
     }
@@ -95,7 +106,9 @@ async def test_a_changed_file_is_a_new_version_and_the_owners_pause_survives(
     async with hub.db.tx(await hub.companies.ids()) as tx:
         assert await GR.seed(tx, holding.id, tmp_path) == 1
         assert await GR.seed(tx, holding.id, tmp_path) == 0  # idempotent
-    r = await client.put(f"/api/v1/groups/{key}/routines/plan", headers=owner, json={"state": "paused"})
+    r = await client.put(
+        f"/api/v1/groups/{key}/routines/plan", headers=owner, json={"state": "paused"}
+    )
     assert r.status_code == 200, r.text
     assert next(x for x in r.json()["routines"] if x["key"] == "plan")["state"] == "paused"
     (tmp_path / "g.yaml").write_text(body.replace("max_tokens: 120000", "max_tokens: 110000"),
@@ -114,7 +127,9 @@ async def test_a_changed_file_is_a_new_version_and_the_owners_pause_survives(
     assert [v["version"] for v in versions] == [1, 2]
     bad = tmp_path / "bad"
     bad.mkdir()
-    (bad / "b.yaml").write_text(src.replace("seat: publisher\n", "seat: nobody\n"), encoding="utf-8")
+    (bad / "b.yaml").write_text(
+        src.replace("seat: publisher\n", "seat: nobody\n"), encoding="utf-8"
+    )
     assert GR.load_files(bad) == []  # a file that does not hold together is refused whole
     shutil.rmtree(bad)
     listed = (await client.get("/api/v1/groups", headers=owner)).json()
@@ -182,7 +197,11 @@ async def test_routines_make_one_work_item_per_period_for_the_seats_employee(
     assert (meta["group"], meta["routine"]) == ("content", "plan") and "task_class" not in meta
     assert "شرکت آزمایشی" in plan["brief"] and "group.plan" in plan["brief"]
     review = found[2]
-    meta = json.loads(review["run_meta"]) if isinstance(review["run_meta"], str) else review["run_meta"]
+    meta = (
+        json.loads(review["run_meta"])
+        if isinstance(review["run_meta"], str)
+        else review["run_meta"]
+    )
     assert meta["task_class"] == "media_review"
     page = (
         await client.get(
@@ -239,7 +258,9 @@ async def test_nothing_runs_while_locked_or_paused(
         try:
             await GR.tick(hub, now=at(day, 8, 0), only=only)
         finally:
-            await client.put("/api/v1/groups/content/routines/plan", headers=h, json={"state": "on"})
+            await client.put(
+                "/api/v1/groups/content/routines/plan", headers=h, json={"state": "on"}
+            )
         assert [x["routine"] for x in await runs(su, co["id"])] == ["numbers"]  # plan was paused
         # a locked company runs nothing either
         await su.execute(
@@ -249,10 +270,13 @@ async def test_nothing_runs_while_locked_or_paused(
             await GR.tick(hub, now=at(day, 14, 0), only=only)
         finally:
             await su.execute(
-                "UPDATE control.kill_switches SET state = 'released' WHERE company_id = $1", co["id"]
+                "UPDATE control.kill_switches SET state = 'released' WHERE company_id = $1",
+                co["id"],
             )
         assert "review" not in [x["routine"] for x in await runs(su, co["id"])]
-    bad = await client.put("/api/v1/groups/content/routines/nope", headers=h, json={"state": "paused"})
+    bad = await client.put(
+        "/api/v1/groups/content/routines/nope", headers=h, json={"state": "paused"}
+    )
     assert bad.status_code == 404
 
 
@@ -311,7 +335,11 @@ async def test_experiments_and_the_leads_plan_through_the_agent_tools(
         r = await client.post(
             "/internal/v1/experiments",
             headers=lead,
-            json={"hypothesis_fa": "ریلز ۱۵ ثانیه‌ای بیشتر دیده میشود", "metric": "views", "target": 1000},
+            json={
+                "hypothesis_fa": "ریلز ۱۵ ثانیه‌ای بیشتر دیده میشود",
+                "metric": "views",
+                "target": 1000,
+            },
         )
         assert r.status_code == 200, r.text
         e = r.json()
