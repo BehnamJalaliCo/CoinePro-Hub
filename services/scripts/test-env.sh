@@ -107,6 +107,9 @@ run() {
     mounts+=(-v "$REPO_DIR/infra/mcp:/mcp:ro" -v "$REPO_DIR/infra/compose/mcp.yaml:/mcp-compose/mcp.yaml:ro")
     extra+=(-e HQ_MCP_ALLOWLIST=/mcp/servers.yaml)
   fi
+  # The API fuzz's depth (tests/test_openapi.py): CI sets it per run (push light, nightly deep); unset, the
+  # test's own default. A bare -e passes the variable only when it is set here.
+  extra+=(-e HQ_FUZZ_EXAMPLES -e HQ_FUZZ_PHASES)
   docker run --rm --network "$NET" --env-file "$STATE" \
     -e TEST_DB_HOST=postgres -e TEST_NATS_URL=nats://nats:4222 "${extra[@]}" \
     "${mounts[@]}" "$TEST_IMAGE" "$@"

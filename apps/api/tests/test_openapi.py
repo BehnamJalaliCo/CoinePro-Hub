@@ -68,6 +68,10 @@ async def _schemathesis(url: str, headers: dict[str, str], *args: str) -> tuple[
         "4040",
         *args,
     ]
+    # The coverage and stateful phases ignore --max-examples (~20,000 cases, ~28 minutes in CI even at one
+    # example): a push runs the examples and fuzzing phases, the nightly every phase (builder, 2026-11-03).
+    if phases := os.environ.get("HQ_FUZZ_PHASES"):
+        cmd += ["--phases", phases]
     for k, v in headers.items():
         cmd += ["-H", f"{k}: {v}"]
     proc = await asyncio.create_subprocess_exec(
