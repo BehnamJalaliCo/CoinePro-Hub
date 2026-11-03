@@ -437,6 +437,10 @@ async def runner_result(
         from hq_api.domain import catalogue
 
         await catalogue.after_job(hub, j["id"])  # ⟨1.10⟩ §28.2, after the commit
+    elif j["actor_code"] == "secretary" and j["state"] in SV.FINAL:
+        from hq_api.domain import dispatch
+
+        await dispatch.after_server_job(hub, j["id"])  # ⟨1.11⟩ §29.8 an inside question
     return {"state": j["state"]}
 
 

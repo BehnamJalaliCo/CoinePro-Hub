@@ -36,11 +36,11 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from hq_api import events
 from hq_api.db import Tx
-from hq_api.domain import notify
+from hq_api.domain import humanize, notify
 from hq_api.domain import substitutes as S
 from hq_api.principal import Principal
 
@@ -80,6 +80,15 @@ class Member(BaseModel):
     reason_code: str | None = None
     # ⟨additive⟩ a media council's version (Creative) of this player
     creative_ref: str | None = None
+    # ⟨1.11⟩ §29.8 its role in the council v2 (captain, researcher, numbers, devil)
+    role: str | None = None
+
+
+class Round(BaseModel):
+    """⟨1.11⟩ §29.8 a past round of the council v2 (each answer under «جزئیات»)."""
+
+    round: int
+    members: list[Member]
 
 
 class Council(BaseModel):
@@ -90,6 +99,16 @@ class Council(BaseModel):
     media: Literal["image", "video"] | None = None
     # ⟨1.10⟩ §28.4 said plainly when fewer than two answered (no synthesis then)
     note_fa: str | None = None
+    # ⟨1.11⟩ §29.8 the council v2: the round it is in (1 proposals, 2 critique,
+    # 3 the captain's plan; null for a council from before v2), each player's
+    # role, the fact pack the members read, the plan (5–10 lines, plain
+    # Persian) and the order «اجرا کن» made of it; the rounds before this one
+    round: int | None = None
+    roles: dict[str, str] = Field(default_factory=dict)
+    fact_pack_ref: str | None = None
+    plan_md: str | None = None
+    order_ref: str | None = None
+    rounds: list[Round] = Field(default_factory=list)
 
 
 # ----------------------------------------------------------- reasons (§28.4) --
@@ -113,6 +132,9 @@ REASON_FA = {
     "failed": "این بازیکن خطا داد و جوابی نداد.",
     "cancelled": "این کار لغو شد.",
     "claude_failed": "Claude این کار را تمام نکرد.",
+    # ⟨1.11⟩ §29.7 every player answers in Persian
+    "not_persian": "پاسخ فارسی نبود",
+    "not_persian_retry": "پاسخ فارسی نبود؛ با تکرار دستور فارسی یک بار دیگر پرسیده شد.",
 }
 
 
@@ -134,6 +156,8 @@ def reason_of(raw: str | None, model: str | None = None) -> tuple[str | None, st
         return "policy_denied", REASON_FA["policy_denied"]
     if low.startswith("recipe_failed") and "retrying" in low:
         return "recipe_retry", REASON_FA["recipe_retry"]
+    if low.startswith("not_persian") and "again" in low:
+        return "not_persian_retry", REASON_FA["not_persian_retry"]
     code = re.split(r"[:\s;]", low, maxsplit=1)[0] or "failed"
     for key in REASON_FA:
         if code == key:
@@ -200,6 +224,14 @@ async def player_turn(tx: Tx, hub: Any, run: dict[str, Any]) -> str | None:
            WHERE w.id = :id FOR UPDATE OF w""",
         id=run["work_id"],
     )
+    if w is not None and w["status"] in ("queued", "in_progress", "waiting"):
+        from hq_api.domain import dispatch
+
+        job = await dispatch.server_job_of(tx, w["ref"])
+        if job is not None and job["state"] in ("queued", "running", "awaiting_seal"):
+            # ⟨1.11⟩ §29.8 an inside question: the company's own Claude on its
+            # server answers it; the assignee's run makes no model call meanwhile
+            return "server_answer"
     if (
         w is None
         or w["player"] not in SUBSTITUTES
@@ -454,7 +486,39 @@ async def sweep(tx: Tx, hub: Any, now: datetime | None = None) -> dict[str, int]
     ):
         if await refresh(tx, hub, c):
             out["councils"] += 1
+    out["server_fallback"] = await _server_fallback(tx)
     return out
+
+
+async def _server_fallback(tx: Tx) -> int:
+    """⟨1.11⟩ §29.8 an inside question whose server job ended without an
+    answer (failed, cancelled, empty): its assignee answers it as usual (one
+    run, once)."""
+    from hq_api.domain import work as W
+
+    n = 0
+    for w in await tx.all(
+        W.WORK_SQL  # noqa: S608 - module constants; values are bound
+        + """ WHERE w.status = ANY(:open) AND w.assignee_id IS NOT NULL
+                AND EXISTS (SELECT 1 FROM infra.server_jobs j WHERE j.work_ref = w.ref
+                              AND j.actor_kind = 'service' AND j.actor_code = 'secretary')
+                AND NOT EXISTS (SELECT 1 FROM infra.server_jobs j WHERE j.work_ref = w.ref
+                              AND j.actor_kind = 'service' AND j.actor_code = 'secretary'
+                              AND (j.state IN ('queued', 'running', 'awaiting_seal')
+                                   OR j.finished_at > now() - interval '2 minutes'))
+                AND NOT EXISTS (SELECT 1 FROM work.work_events e WHERE e.work_id = w.id
+                              AND e.kind = 'server_fallback')
+              ORDER BY w.created_at LIMIT 50""",
+        open=list(W.OPEN),
+    ):
+        await W.event(tx, w, "server_fallback", SERVICE, {})
+        await tx.exec(
+            "SELECT agents.queue_run(:e, 'work', :w, NULL, 'server_fallback', NULL)",
+            e=w["assignee_id"],
+            w=w["id"],
+        )
+        n += 1
+    return n
 
 
 # ---------------------------------------------------------------- council --
@@ -473,20 +537,35 @@ async def council_of(tx: Tx, work_id: UUID) -> dict[str, Any] | None:
     return await tx.first(COUNCIL_SQL + " WHERE k.work_id = :w", w=work_id)
 
 
-def render(c: dict[str, Any]) -> Council:
-    members = []
-    for m in c["members"] or []:
-        m = dict(m)
+def _members(rows: list[dict[str, Any]] | None) -> list[Member]:
+    out = []
+    for m in rows or []:
+        m = {k: v for k, v in dict(m).items() if k in Member.model_fields}
         if m.get("reason") and not m.get("reason_code"):
             _set_reason(m, m["reason"], m.get("model"))  # a council from before ⟨1.10⟩
-        members.append(Member(**m))
+        if m.get("reason"):
+            m["reason"] = humanize.humanize(m["reason"])  # ⟨1.11⟩ §29.7 for the owner
+        out.append(Member(**m))
+    return out
+
+
+def render(c: dict[str, Any]) -> Council:
     return Council(
         work_ref=c["work_ref"],
-        members=members,
+        members=_members(c["members"]),
         synthesis_ref=c["synthesis_ref"],
         state=c["state"],
         media=c.get("media"),
-        note_fa=c.get("note_fa"),
+        note_fa=humanize.humanize(c["note_fa"]) if c.get("note_fa") else None,
+        round=c.get("round"),
+        roles=dict(c.get("roles") or {}),
+        fact_pack_ref=c.get("fact_pack_ref"),
+        plan_md=c.get("plan_md"),
+        order_ref=c.get("order_ref"),
+        rounds=[
+            Round(round=int(r.get("round") or 0), members=_members(r.get("members")))
+            for r in c.get("rounds") or []
+        ],
     )
 
 
@@ -498,19 +577,41 @@ async def start_council(tx: Tx, hub: Any, w: dict[str, Any]) -> dict[str, Any]:
         return existing
     members: list[dict[str, Any]] = []
     media = w.get("media")
+    v2: dict[str, Any] = {"round": None, "roles": {}, "pack": None, "pack_ref": None}
     if media:
         members += await _media_members(tx, hub, w, media)
     else:
-        members.append({"player": "claude", "model": None, "state": "queued"})
-        text = brief_of(w)
+        # ⟨1.11⟩ §29.8 the council v2: roles, the fact pack, round 1 (proposals)
+        from hq_api.domain import council as CV
+
+        roles = await CV.roles(tx)
+        pack = await CV.fact_pack(tx, w["company_id"], w["company"])
+        await tx.exec(
+            "UPDATE work.work SET brief = :b WHERE id = :id",
+            b=CV.captain_brief(w, roles, pack),
+            id=w["id"],
+        )
+        members.append({"player": "claude", "model": None, "state": "queued",
+                        "role": roles.get("claude", "captain")})  # fmt: skip
         for p in SUBSTITUTES:
-            members.append(await _text_member(tx, hub, w, p, text))
+            if p not in roles:
+                continue  # the owner gave this player no seat in the council
+            m = await _text_member(tx, hub, w, p, CV.proposal_prompt(w, p, roles, pack))
+            m["role"] = roles[p]
+            members.append(m)
+        v2 = {"round": 1, "roles": roles, "pack": pack, "pack_ref": CV.pack_ref(w["ref"])}
     await tx.exec(
-        """INSERT INTO work.councils (company_id, work_id, members)
-           VALUES (:co, :w, CAST(:m AS jsonb))""",
+        """INSERT INTO work.councils (company_id, work_id, members, round, roles, fact_pack,
+               fact_pack_ref)
+           VALUES (:co, :w, CAST(:m AS jsonb), :rnd, CAST(:roles AS jsonb), CAST(:pack AS jsonb),
+                   :pref)""",
         co=w["company_id"],
         w=w["id"],
         m=json.dumps(members, ensure_ascii=False),
+        rnd=v2["round"],
+        roles=json.dumps(v2["roles"]),
+        pack=json.dumps(v2["pack"], ensure_ascii=False) if v2["pack"] is not None else None,
+        pref=v2["pack_ref"],
     )
     c = await council_of(tx, w["id"])
     assert c is not None
@@ -589,17 +690,11 @@ async def _media_members(tx: Tx, hub: Any, w: dict[str, Any], media: str) -> lis
     return out
 
 
-async def refresh(tx: Tx, hub: Any, c: dict[str, Any]) -> bool:
-    """Bring a council's members up to date from their calls, creatives and
-    deliverables; start the synthesis once every member ended; close it
-    when the synthesis is delivered. True when anything changed."""
-    from hq_api.domain import work as W
-
-    c = await tx.first(COUNCIL_SQL + " WHERE k.id = :id FOR UPDATE OF k", id=c["id"]) or c
-    if c["state"] in ("done", "failed"):
-        return False
-    w = await W.load(tx, c["work_id"])
-    members = [dict(m) for m in c["members"] or []]
+async def _update_members(
+    tx: Tx, hub: Any, w: dict[str, Any], members: list[dict[str, Any]]
+) -> None:
+    """Each member up to date from its call, creative or (Claude) the
+    deliverable of `w`, the work its Claude member answers on."""
     for m in members:
         if m["state"] in FINAL_MEMBER:
             continue
@@ -624,7 +719,7 @@ async def refresh(tx: Tx, hub: Any, c: dict[str, Any]) -> bool:
                 m["state"] = "working"
         elif m.get("call_id"):
             call = await tx.first(
-                """SELECT state, state_reason, model, attempt FROM substitutes.calls
+                """SELECT state, state_reason, model, attempt, lang_retried FROM substitutes.calls
                    WHERE id = CAST(:id AS uuid)""",
                 id=m["call_id"],
             )
@@ -638,7 +733,7 @@ async def refresh(tx: Tx, hub: Any, c: dict[str, Any]) -> bool:
                 m["model"] = call["model"] or m.get("model")
                 if m["state"] in ("failed", "skipped"):
                     _set_reason(m, call["state_reason"] or "failed", call["model"])
-                elif call["attempt"] > 1 and call["state_reason"]:
+                elif (call["attempt"] > 1 or call["lang_retried"]) and call["state_reason"]:
                     _set_reason(m, call["state_reason"], call["model"])  # tried again
         elif m.get("creative_ref"):
             cr = await tx.first(
@@ -653,61 +748,187 @@ async def refresh(tx: Tx, hub: Any, c: dict[str, Any]) -> bool:
                 }.get(cr["state"], "working")  # fmt: skip
                 if m["state"] == "failed":
                     _set_reason(m, cr["state_reason"] or "failed", m.get("model"))
+
+
+async def refresh(tx: Tx, hub: Any, c: dict[str, Any]) -> bool:
+    """Bring a council's members up to date from their calls, creatives and
+    deliverables; start the synthesis once every member ended; close it
+    when the synthesis is delivered. ⟨1.11⟩ §29.8 a council v2 (`round` set)
+    goes through its three rounds instead. True when anything changed."""
+    from hq_api.domain import work as W
+
+    c = await tx.first(COUNCIL_SQL + " WHERE k.id = :id FOR UPDATE OF k", id=c["id"]) or c
+    if c["state"] in ("done", "failed"):
+        return False
+    w = await W.load(tx, c["work_id"])
+    members = [dict(m) for m in c["members"] or []]
+    v2 = c.get("round") is not None
+    answers_on = w
+    if v2 and c["round"] == 3 and c["synthesis_work_id"] is not None:
+        answers_on = await W.load(tx, c["synthesis_work_id"])
+    await _update_members(tx, hub, answers_on, members)
     state = c["state"]
     synthesis_ref = c["synthesis_ref"]
     synthesis_work_id = c["synthesis_work_id"]
     note = c.get("note_fa")
-    ended = all(m["state"] in FINAL_MEMBER for m in members)
-    answered = [m for m in members if m["state"] == "done"]
-    if state == "running" and ended:
-        # ⟨1.10⟩ §28.4 never waits for members that ended, whatever their outcome
-        if c.get("media"):
-            state = "done" if answered else "failed"
-        elif len(answered) >= 2:
-            synthesis_work_id = await _synthesis_work(tx, hub, w, members)
-            state = "synthesising"
-        elif len(answered) == 1:
-            # one answer is not a council: said plainly, that answer is the result
-            only = answered[0]
-            name = PLAYER_FA.get(only["player"], only["player"])
-            note = (
-                f"فقط {name} جواب داد؛ بقیه‌ی اعضا جواب ندادند (دلیل هر کدام کنارش آمده). "
-                "این یک پاسخ است، نه جمع‌بندی شورا."
-            )
-            synthesis_ref = only.get("deliverable_ref") or await _lone_answer(tx, hub, w, only)
-            state = "done"
-        else:
-            note = "هیچ عضوی جواب نداد؛ دلیل هر کدام کنارش آمده است."
-            state = "failed"
-    if state == "synthesising" and synthesis_work_id is not None:
-        dl = await tx.scalar(
-            "SELECT ref FROM cartable.deliverables WHERE work_id = :w ORDER BY created_at LIMIT 1",
-            w=synthesis_work_id,
+    extra: dict[str, Any] = {}
+    if v2:
+        state, synthesis_ref, synthesis_work_id, note, members, extra = await _advance(
+            tx, hub, c, w, members
         )
-        if dl:
-            synthesis_ref, state = dl, "done"
+    else:
+        ended = all(m["state"] in FINAL_MEMBER for m in members)
+        answered = [m for m in members if m["state"] == "done"]
+        if state == "running" and ended:
+            # ⟨1.10⟩ §28.4 never waits for members that ended, whatever their outcome
+            if c.get("media"):
+                state = "done" if answered else "failed"
+            elif len(answered) >= 2:
+                synthesis_work_id = await _synthesis_work(tx, hub, w, members)
+                state = "synthesising"
+            elif len(answered) == 1:
+                note, synthesis_ref = await _lone(tx, hub, w, answered[0])
+                state = "done"
+            else:
+                note = "هیچ عضوی جواب نداد؛ دلیل هر کدام کنارش آمده است."
+                state = "failed"
+        if state == "synthesising" and synthesis_work_id is not None:
+            dl = await tx.scalar(
+                "SELECT ref FROM cartable.deliverables WHERE work_id = :w ORDER BY created_at LIMIT 1",
+                w=synthesis_work_id,
+            )
+            if dl:
+                synthesis_ref, state = dl, "done"
     changed = (
         members != list(c["members"] or [])
         or state != c["state"]
         or synthesis_ref != c["synthesis_ref"]
         or synthesis_work_id != c["synthesis_work_id"]
         or note != c.get("note_fa")
+        or any(extra[k] != c.get(k) for k in extra)
     )
     if changed:
         await tx.exec(
             """UPDATE work.councils SET members = CAST(:m AS jsonb), state = :st, synthesis_ref = :sr,
-                   synthesis_work_id = :sw, note_fa = :n, updated_at = now() WHERE id = :id""",
+                   synthesis_work_id = :sw, note_fa = :n, updated_at = now(),
+                   round = COALESCE(:rnd, round), rounds = COALESCE(CAST(:rounds AS jsonb), rounds),
+                   plan_md = COALESCE(:plan, plan_md)
+               WHERE id = :id""",
             m=json.dumps(members, ensure_ascii=False),
             st=state,
             sr=synthesis_ref,
             sw=synthesis_work_id,
             n=note,
+            rnd=extra.get("round"),
+            rounds=json.dumps(extra["rounds"], ensure_ascii=False) if "rounds" in extra else None,
+            plan=extra.get("plan_md"),
             id=c["id"],
         )
         fresh = await tx.first(COUNCIL_SQL + " WHERE k.id = :id", id=c["id"])
         assert fresh is not None
         await _emit(tx, w["company"], fresh)
     return changed
+
+
+async def _lone(
+    tx: Tx, hub: Any, w: dict[str, Any], only: dict[str, Any]
+) -> tuple[str, str | None]:
+    """One answer is not a council: said plainly, that answer is the result."""
+    name = PLAYER_FA.get(only["player"], only["player"])
+    note = (
+        f"فقط {name} جواب داد؛ بقیه‌ی اعضا جواب ندادند (دلیل هر کدام کنارش آمده). "
+        "این یک پاسخ است، نه جمع‌بندی شورا."
+    )
+    return note, only.get("deliverable_ref") or await _lone_answer(tx, hub, w, only)
+
+
+async def _advance(
+    tx: Tx, hub: Any, c: dict[str, Any], w: dict[str, Any], members: list[dict[str, Any]]
+) -> tuple[str, str | None, UUID | None, str | None, list[dict[str, Any]], dict[str, Any]]:
+    """⟨1.11⟩ §29.8 the council v2's rounds: 1 proposals -> 2 critique (each
+    substitute that proposed reads the others') -> 3 the captain's plan (a
+    child work of the council's assignee). Never waits for a member that
+    ended; with one answer it says so plainly (§28.4)."""
+    from hq_api.domain import council as CV
+
+    rnd = int(c["round"])
+    state, synthesis_ref = c["state"], c["synthesis_ref"]
+    synthesis_work_id, note = c["synthesis_work_id"], c.get("note_fa")
+    roles: dict[str, str] = dict(c.get("roles") or {})
+    pack: dict[str, Any] = dict(c.get("fact_pack") or {})
+    rounds: list[dict[str, Any]] = [dict(r) for r in c.get("rounds") or []]
+    plan: str | None = None
+
+    def ended(ms: list[dict[str, Any]]) -> bool:
+        return all(m["state"] in FINAL_MEMBER for m in ms)
+
+    async def said(ms: list[dict[str, Any]]) -> list[tuple[str, str, str]]:
+        return [
+            (m["player"], PLAYER_FA.get(m["player"], m["player"]), await _answer_of(tx, hub, m))
+            for m in ms
+            if m["state"] == "done"
+        ]
+
+    if rnd == 1 and state == "running" and ended(members):
+        answered = [m for m in members if m["state"] == "done"]
+        if len(answered) >= 2 and not await tx.scalar("SELECT 1 FROM substitutes.players LIMIT 1"):
+            # an agent's transaction (its deliverable) does not see the holding's
+            # bench: the next refresh with the whole scope (the owner, the
+            # worker's sweep, a call's answer) starts round 2
+            return state, synthesis_ref, synthesis_work_id, note, members, {}
+        if len(answered) >= 2:
+            proposals = await said(members)
+            rounds.append({"round": 1, "members": members})
+            critics: list[dict[str, Any]] = []
+            for m in answered:
+                if m["player"] not in SUBSTITUTES:
+                    continue
+                others = [p for p in proposals if p[0] != m["player"]]
+                text = CV.critique_prompt(w, m["player"], roles, pack, others)
+                critic = await _text_member(tx, hub, w, m["player"], text)
+                critic["role"] = m.get("role")
+                critics.append(critic)
+            rnd, members = 2, critics
+        elif len(answered) == 1:
+            note, synthesis_ref = await _lone(tx, hub, w, answered[0])
+            state = "done"
+        else:
+            note, state = "هیچ عضوی جواب نداد؛ دلیل هر کدام کنارش آمده است.", "failed"
+    if rnd == 2 and state == "running" and ended(members):
+        first: list[dict[str, Any]] = next(
+            (list(r["members"]) for r in rounds if r.get("round") == 1), []
+        )
+        proposals = await said(first)
+        critiques = await said(members)
+        skipped = [
+            f"{PLAYER_FA.get(m['player'], m['player'])}: {m.get('reason') or m['state']}"
+            for m in [*first, *members]
+            if m["state"] in ("failed", "skipped")
+        ]
+        rounds.append({"round": 2, "members": members})
+        brief = CV.plan_brief(w, roles, pack, proposals, critiques, list(dict.fromkeys(skipped)))
+        synthesis_work_id = await _synthesis_work(
+            tx, hub, w, [], brief=brief, title=f"برنامه‌ی شورا: {w['title']}"
+        )
+        rnd, state = 3, "synthesising"
+        members = [{"player": "claude", "model": None, "state": "queued",
+                    "role": roles.get("claude", "captain")}]  # fmt: skip
+    if rnd == 3 and state == "synthesising" and synthesis_work_id is not None:
+        dl = await tx.first(
+            """SELECT ref, body FROM cartable.deliverables WHERE work_id = :w
+               ORDER BY created_at LIMIT 1""",
+            w=synthesis_work_id,
+        )
+        if dl is not None:
+            synthesis_ref, state = dl["ref"], "done"
+            plan = CV.plan_of(str(dl["body"] or ""))
+            for m in members:
+                if m["player"] == "claude" and m["state"] not in FINAL_MEMBER:
+                    m.update(state="done", deliverable_ref=dl["ref"])
+    extra: dict[str, Any] = {"round": rnd, "rounds": rounds}
+    if plan is not None:
+        extra["plan_md"] = plan
+    return state, synthesis_ref, synthesis_work_id, note, members, extra
 
 
 async def _answer_of(tx: Tx, hub: Any, m: dict[str, Any]) -> str:
@@ -777,18 +998,28 @@ SYNTHESIS_FA = (
 
 
 async def _synthesis_work(
-    tx: Tx, hub: Any, w: dict[str, Any], members: list[dict[str, Any]]
+    tx: Tx,
+    hub: Any,
+    w: dict[str, Any],
+    members: list[dict[str, Any]],
+    *,
+    brief: str | None = None,
+    title: str | None = None,
 ) -> UUID:
+    """The synthesis (v1) or ⟨1.11⟩ the captain's plan (v2, its `brief`
+    given): a child work of the council's assignee, on Claude."""
     from hq_api.domain import work as W
 
-    parts = [SYNTHESIS_FA]
-    for m in members:
-        name = PLAYER_FA.get(m["player"], m["player"])
-        if m["state"] == "done":
-            parts.append(f"\n## {name} ({m.get('model') or '—'})\n\n{await _answer_of(tx, hub, m)}")
-        else:
-            parts.append(f"\n## {name}: {m['state']} ({m.get('reason') or '—'})")
-    brief = "\n".join(parts)
+    if brief is None:
+        parts = [SYNTHESIS_FA]
+        for m in members:
+            name = PLAYER_FA.get(m["player"], m["player"])
+            if m["state"] == "done":
+                answer = await _answer_of(tx, hub, m)
+                parts.append(f"\n## {name} ({m.get('model') or '—'})\n\n{answer}")
+            else:
+                parts.append(f"\n## {name}: {m['state']} ({m.get('reason') or '—'})")
+        brief = "\n".join(parts)
     if len(brief) > BRIEF_LIMIT:
         # every answer whole, in a file the assignee reads (files.read)
         fid = await store_text(tx, hub, w["company_id"], f"{w['ref']}-council-answers.md", brief)
@@ -804,7 +1035,7 @@ async def _synthesis_work(
         SERVICE,
         company_id=w["company_id"],
         company_code=w["company"],
-        title=f"جمع‌بندی شورا: {w['title']}"[:300],
+        title=(title or f"جمع‌بندی شورا: {w['title']}")[:300],
         brief=brief,
         kind="one_off",
         priority=w["priority"],

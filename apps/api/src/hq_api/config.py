@@ -65,6 +65,9 @@ class Settings:
     stt_cold_start_s: int = field(default_factory=lambda: _int("HQ_STT_COLD_START_S", 120))
     # How long POST /transcribe waits for the worker (a 15-minute recording on CPU).
     transcribe_wait_s: int = field(default_factory=lambda: _int("HQ_TRANSCRIBE_WAIT_S", 600))
+    # ⟨1.11⟩ contract §29.5: one long voice sent in chunks (≤ 90 s each) holds at
+    # most this many seconds in all (20 minutes)
+    stt_session_max_s: int = field(default_factory=lambda: _int("STT_SESSION_MAX_S", 1200))
     # Prompt 14 §4: OCR on the hub (Tesseract 5, the opt-in `ocr` profile), reached
     # by the worker only on the internal hq-ocr network (empty: the profile is
     # off; scans stay text_state "none"); how long an archive intake waits for an

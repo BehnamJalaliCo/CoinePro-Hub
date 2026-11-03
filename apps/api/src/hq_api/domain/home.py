@@ -438,23 +438,19 @@ async def choose(
 
 
 async def remember_no(tx: Tx, s: dict[str, Any], reason_fa: str | None) -> None:
-    """The secretary's memory (prompt 21 part 2's dispatch.remember), told
-    defensively; the reason is kept on the suggestion either way."""
-    try:
-        from hq_api.domain import dispatch  # type: ignore[attr-defined]
-    except ImportError:
-        return
-    fn = getattr(dispatch, "remember", None)
-    if fn is None:
-        return
+    """The secretary's memory (§29.4, dispatch.remember kind `no`): read first
+    by every preview; the reason is kept on the suggestion either way."""
+    from hq_api.domain import dispatch
+
     try:
         async with tx.conn.begin_nested():
-            await fn(
+            await dispatch.remember(
                 tx,
-                "suggestion_no",
+                "no",
                 reason_fa or s["title_fa"],
-                {"suggestion": str(s["id"]), "company": s["company"], "title_fa": s["title_fa"]},
-            )
+                {"suggestion": str(s["id"]), "company": s["company"], "title_fa": s["title_fa"],
+                 "reason_fa": reason_fa},
+            )  # fmt: skip
     except Exception:  # noqa: BLE001 - the suggestion keeps its own reason
         log.warning("dispatch memory refused a no")
 

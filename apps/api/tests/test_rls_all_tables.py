@@ -535,6 +535,9 @@ HOLDING_ONLY = {
     "growth.groups",
     "growth.group_versions",
     "growth.home_mornings",
+    # prompt 21 (§29.4, §29.5): the secretary's memory and the owner's long voice
+    "owner.dispatch_memory",
+    "owner.voice_sessions",
 }
 
 

@@ -70,6 +70,7 @@ from hq_api.routes import archive as archive_routes  # prompt 14: the archive
 from hq_api.routes import archive_agents as archive_agent_routes  # prompt 14: its agent tools
 from hq_api.routes import ask as ask_routes  # prompt 12 §2, §3, §13 (on prompt 11)
 from hq_api.routes import connections as connection_routes  # prompt 21 part 3: §29.12
+from hq_api.routes import council as council_routes  # prompt 21: the council v2
 from hq_api.routes import dceo as dceo_routes
 from hq_api.routes import groups as group_routes  # prompt 21 part 3: §29.9, §29.11
 from hq_api.routes import home as home_routes  # prompt 21 part 3: §29.13
@@ -77,8 +78,10 @@ from hq_api.routes import legal as legal_routes  # prompt 13: the legal counsel
 from hq_api.routes import media as media_routes  # prompt 13, the media half
 from hq_api.routes import reviews as review_routes
 from hq_api.routes import role_drafts as role_draft_routes  # prompt 13 §1.1
+from hq_api.routes import rules as rule_routes  # prompt 21: the owner's rules
 from hq_api.routes import servers as server_routes  # prompt 17: company server runners
 from hq_api.routes import substitutes as substitute_routes  # prompt 12 part A
+from hq_api.routes import voice as voice_session_routes  # prompt 21: long voice
 from hq_api.routes import voices as voice_routes  # prompt 13: the voice registry
 from hq_api.routes import watch as watch_routes  # prompt 19: catalogue, client errors
 
@@ -100,8 +103,10 @@ def upload_limit(path: str, max_file: int, max_body: int) -> int:
         return SUBSTITUTE_DONE_BYTES  # ⟨1.10.1⟩ a CLI's whole answer (≤ 20 MB) and its JSON
     if path == "/api/v1/files":
         return media.VIDEO.max_bytes  # the largest kind; each kind is held to its own
-    if path == "/api/v1/transcribe":
-        return media.AUDIO.max_bytes
+    if path == "/api/v1/transcribe" or (
+        path.startswith("/api/v1/transcribe/sessions/") and "/chunks/" in path
+    ):
+        return media.AUDIO.max_bytes  # ⟨1.11⟩ §29.5 a long voice's chunk too
     if path.startswith("/api/v1/runners/jobs/"):
         # ⟨1.8⟩ a runner's output batch, or a read's ≤ 20 MB file in its result
         return RUNNER_RESULT_BYTES if path.endswith("/result") else RUNNER_EVENTS_BYTES
@@ -273,6 +278,10 @@ def create_app(
     # ⟨1.7⟩ prompt 14 (contract §23): the archive of record and its agent tools.
     app.include_router(archive_routes.router, prefix="/api/v1")
     app.include_router(archive_agent_routes.internal_router, prefix="/internal/v1")
+    # ⟨1.11⟩ prompt 21 (contract §29.3, §29.5, §29.8): the owner's rules, long
+    # voice, the council v2's «اجرا کن» and fact packs
+    for p21b in (rule_routes, voice_session_routes, council_routes):
+        app.include_router(p21b.router, prefix="/api/v1")
     app.state.version = __version__
 
     plain_openapi = app.openapi

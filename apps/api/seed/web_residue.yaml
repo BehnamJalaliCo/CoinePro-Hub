@@ -1,0 +1,62 @@
+# What a web player's page adds after its answer (contract §29.7): data, not
+# code. Cut from the END of an answer only, before it is kept (prompt 20: a
+# Gemini answer ended with «مایلید … بررسی کنیم؟ بله»).
+#
+# buttons: a whole last line that is only a button's label (any case,
+#   optional trailing punctuation), dropped while the last line is one.
+# offer_starts: the start of a trailing offer or question of the page («shall
+#   I go on?»). From such a start to the end of the answer is cut when it
+#   holds a question mark and only button labels follow it.
+buttons:
+  - بله
+  - خیر
+  - آره
+  - نه
+  - کپی
+  - اشتراک‌گذاری
+  - اشتراک گذاری
+  - ویرایش
+  - بازسازی
+  - دوباره امتحان کنید
+  - نمایش پیش‌نویس‌ها
+  - نمایش پیش نویس ها
+  - پاسخ‌های دیگر
+  - منابع
+  - "Yes"
+  - "No"
+  - Sure
+  - Copy
+  - Copy code
+  - Share
+  - Edit
+  - Retry
+  - Regenerate
+  - Show drafts
+  - Sources
+  - Good response
+  - Bad response
+  - Like
+  - Dislike
+offer_starts:
+  - مایلید
+  - مایل هستید
+  - مایلی
+  - آیا مایلید
+  - آیا می‌خواهید
+  - آیا میخواهید
+  - آیا می خواهید
+  - می‌خواهید
+  - میخواهید
+  - می خواهید
+  - اگر بخواهید
+  - اگر مایل باشید
+  - اگر دوست دارید
+  - دوست دارید
+  - Would you like
+  - Do you want
+  - Shall I
+  - Should I
+  - Want me to
+  - If you want
+  - If you'd like
+  - Let me know if

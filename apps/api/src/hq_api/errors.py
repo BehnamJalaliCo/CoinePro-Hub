@@ -64,6 +64,8 @@ CODES: dict[str, tuple[int, str, str]] = {
         "این کد پیدا نشد؛ همان کدی را بنویس که روی سرور آمد.",
     ),
     "code_used": (409, "Code used", "این کد یک بار تأیید شده است."),
+    # ⟨1.11⟩ contract §29.5: a long voice's session unused for 30 minutes
+    "session_expired": (410, "Session expired", "این ضبط طولانی منقضی شد؛ دوباره ضبط کن."),
     "runner_revoked": (410, "Runner revoked", "این سرور از ستاد جدا شده است."),
     "job_cancelled": (409, "Job cancelled", "این کار لغو شده است."),
     "job_finished": (409, "Job finished", "این کار تمام شده است."),

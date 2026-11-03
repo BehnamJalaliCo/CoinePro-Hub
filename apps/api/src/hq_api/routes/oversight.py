@@ -368,6 +368,17 @@ async def add_standing_order(body: OrderIn, request: Request, ctx: Ctx = Depends
     return result
 
 
+async def seal_step_up(tx: Any, request: Request, who: Any, ref: str) -> UUID:
+    """🔏 of a standing order's seal: `oversight.order` on its ref, or ⟨1.11⟩
+    §29.16 its other name `rule.seal` (the app's rules screen)."""
+    try:
+        return await stepup.consume(tx, request, who, "oversight.order", ref)
+    except ApiError as exc:
+        if exc.code != "step_up_invalid":
+            raise
+        return await stepup.consume(tx, request, who, "rule.seal", ref)
+
+
 async def _order_state(
     ctx: Ctx, request: Request, ref: str, state: Literal["sealed", "retired"]
 ) -> O.StandingOrder:
@@ -378,7 +389,7 @@ async def _order_state(
         if state == "sealed":
             if o["status"] != "proposed":
                 raise ApiError(409, "validation_failed", f"{ref} is {o['status']}")
-            su = await stepup.consume(tx, request, ctx.who, "oversight.order", ref)
+            su = await seal_step_up(tx, request, ctx.who, ref)
             row = await tx.one(
                 """UPDATE oversight.orders SET status = 'sealed', sealed_at = now(), sealed_step_up_id = :su,
                        updated_at = now() WHERE id = :id RETURNING *""",

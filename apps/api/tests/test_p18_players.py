@@ -288,19 +288,27 @@ async def test_a_council_asks_every_ready_player_and_claude_writes_the_synthesis
         job = (await claim(client))["job"]
         assert "قیمت دوره" in job["input_md"]
         await done(client, job["id"], ok=True, text_md="پاسخ جی‌پی‌تی: قیمت ۲ میلیون")
-    m = by_player(await council(client, owner, w["id"]))
-    assert m["gpt"]["state"] == "done" and m["claude"]["state"] in ("queued", "working")
-    # Claude's member: the assignee's own deliverable on the order.
-    ceo = await agent_headers(f"{co}-CEO")
-    r = await client.post(
-        f"/internal/v1/work/{w['id']}/deliver",
-        headers={**ceo, **idem()},
-        json={"title": "نظر Claude", "summary": "قیمت ۳ میلیون", "body": "پاسخ Claude: قیمت ۳ میلیون",
-              "produced_with": {"connection": "claude-max", "model": "claude-sonnet-5-5"}},
-    )  # fmt: skip
-    assert r.status_code == 200, r.text
+        m = by_player(await council(client, owner, w["id"]))
+        assert m["gpt"]["state"] == "done" and m["claude"]["state"] in ("queued", "working")
+        # Claude's member: the assignee's own deliverable on the order.
+        ceo = await agent_headers(f"{co}-CEO")
+        r = await client.post(
+            f"/internal/v1/work/{w['id']}/deliver",
+            headers={**ceo, **idem()},
+            json={"title": "نظر Claude", "summary": "قیمت ۳ میلیون", "body": "پاسخ Claude: قیمت ۳ میلیون",
+                  "produced_with": {"connection": "claude-max", "model": "claude-sonnet-5-5"}},
+        )  # fmt: skip
+        assert r.status_code == 200, r.text
+        # ⟨1.11⟩ §29.8 round 2: GPT (which proposed) critiques Claude's proposal
+        c = await council(client, owner, w["id"])
+        assert c["state"] == "running" and c["round"] == 2
+        assert [x["player"] for x in c["members"]] == ["gpt"]
+        assert by_player(c["rounds"][0])["claude"]["deliverable_ref"]
+        job = (await claim(client))["job"]
+        assert "پاسخ Claude" in job["input_md"] and "پاسخ جی‌پی‌تی" not in job["input_md"]
+        await done(client, job["id"], ok=True, text_md="نقد جی‌پی‌تی: قیمت ۳ میلیون زیاد است")
     c = await council(client, owner, w["id"])
-    assert c["state"] == "synthesising" and by_player(c)["claude"]["deliverable_ref"]
+    assert c["state"] == "synthesising" and c["round"] == 3
     syn = await su.fetchrow(
         """SELECT w.id, w.brief, w.player, w.parent_id, e.code FROM work.councils k
            JOIN work.work w ON w.id = k.synthesis_work_id JOIN core.employees e ON e.id = w.assignee_id
@@ -310,6 +318,7 @@ async def test_a_council_asks_every_ready_player_and_claude_writes_the_synthesis
     assert syn["player"] == "claude" and syn["code"] == f"{co}-CEO"
     assert str(syn["parent_id"]) == w["id"]
     assert "پاسخ جی‌پی‌تی" in syn["brief"] and "پاسخ Claude" in syn["brief"]
+    assert "نقد جی‌پی‌تی" in syn["brief"]
     assert "سقف روزانه" in syn["brief"]  # a skipped member says why
     r = await client.post(
         f"/internal/v1/work/{syn['id']}/deliver",
@@ -319,6 +328,7 @@ async def test_a_council_asks_every_ready_player_and_claude_writes_the_synthesis
     assert r.status_code == 200, r.text
     c = await council(client, owner, w["id"])
     assert c["state"] == "done" and c["synthesis_ref"] == r.json()["deliverable"]
+    assert c["plan_md"] and len(c["rounds"]) == 2
     stream = await su.fetch(
         """SELECT payload->'data'->>'state' AS state FROM core.outbox
            WHERE subject LIKE '%.work.council' AND payload->>'ref' = $1 ORDER BY id""",

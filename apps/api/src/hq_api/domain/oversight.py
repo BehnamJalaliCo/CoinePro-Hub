@@ -182,7 +182,8 @@ class StandingOrder(BaseModel):
     text_md: str
     source: str
     file_id: UUID | None
-    applies_to: str
+    # ⟨1.11⟩ §29.3 "all" | "overseer" | {roles: [role]} | {companies: [code]}
+    applies_to: str | dict[str, list[str]]
     status: str
     version: int
     sealed_at: datetime | None
@@ -1107,21 +1108,25 @@ def render_order(r: dict[str, Any]) -> StandingOrder:
         text_md=r["text_md"],
         source=r["source"],
         file_id=r["file_id"],
-        applies_to=r["applies_to"],
+        applies_to=(
+            {r["applies_to"]: list(r.get("applies_codes") or [])}
+            if r["applies_to"] in ("roles", "companies")
+            else r["applies_to"]
+        ),
         status=r["status"],
         version=r["version"],
         sealed_at=r["sealed_at"],
     )
 
 
-async def sealed_orders(tx: Tx, role_kind: str) -> list[dict[str, Any]]:
-    """Sealed standing orders for a role: the overseer's own and those for all."""
-    applies = ["all", "overseer"] if role_kind == "overseer" else ["all"]
-    return await tx.all(
-        "SELECT ref, text_md, applies_to FROM oversight.orders WHERE status = 'sealed'"
-        " AND applies_to = ANY(:a) ORDER BY sealed_at, ref",
-        a=applies,
-    )
+async def sealed_orders(
+    tx: Tx, role_kind: str, role: str | None = None, company: str | None = None
+) -> list[dict[str, Any]]:
+    """Sealed standing orders for a run: those for all, the overseer's own,
+    and ⟨1.11⟩ §29.3 those for its charter role or its company (given)."""
+    from hq_api.domain import rules
+
+    return await rules.for_run(tx, role_kind, role, company)
 
 
 def orders_section(orders: list[dict[str, Any]]) -> str:
