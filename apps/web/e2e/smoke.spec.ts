@@ -108,7 +108,8 @@ test('speaks in a live meeting and moves it to the next round', async ({ page })
 
 test('asks the hub and gets a cited answer', async ({ page }) => {
   await clean(page, async () => {
-    await page.goto('/');
+    // ⟨1.11⟩ «از هاب بپرس» moved from the home to the knowledge page.
+    await page.goto('/knowledge');
     await page.getByLabel('پرسش از هاب').fill('حداقل موجودی VIP کجا تعریف شده؟');
     await page.getByRole('button', { name: 'بپرس', exact: true }).click();
     await expect(page.getByText('src/bot/handlers/vip.py', { exact: false }).first()).toBeVisible();

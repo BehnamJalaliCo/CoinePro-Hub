@@ -1,32 +1,22 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Icon } from '@/components/icon';
-import { CompanyMark } from '@/components/brand/marks';
-import { Orbit } from '@/components/live/orbit';
-import { DecisionRow } from '@/components/cartable/decision-row';
-import { SessionRow, isOpen } from '@/components/workshop/parts';
 import { useVoiceOrder } from '@/components/work/voice-order';
+import { DecisionRow } from '@/components/cartable/decision-row';
 import { Button } from '@/components/ui/button';
-import { Bar, Card, Empty, ErrorState, Pill, SectionTitle, Skeleton, StatTile, budgetTone } from '@/components/ui/primitives';
-import { useAway, useCompanies, useDecisions, useInbox, usePlanner, usePresence, useTreasury } from '@/lib/api/hooks';
-import { useGrants, useSessions, useWorkspaces } from '@/lib/api/v13';
-import { useOversight } from '@/lib/api/v14';
+import { Card, Empty, ErrorState, Pill, SectionTitle, Skeleton } from '@/components/ui/primitives';
 import { StoriesBar } from '@/components/v14/stories';
-import { AskBox } from '@/components/v18/ask';
-import { Sentinel } from '@/components/brand/avatar';
-import { MdInline } from '@/components/ui/md';
-import { useLive } from '@/lib/live';
-import { FeedLine, feedRowOf } from '@/components/v21/feed';
 import { HomeOrdersCard } from '@/components/v21/orders';
-import { HomeWatchCard } from '@/components/v28/watch';
-import { PriorityTag } from '@/components/v21/priority';
-import type { Inbox21 } from '@/lib/api/v21';
-import { isUrgentPriority } from '@/lib/priority';
+import { CriticalCard, GroupKpiCard, HomeNotServed, HomeOrders, HomeSkeleton, MorningCard, ProgressCard, SuggestionCard } from '@/components/v29/home';
+import { useDecisions, usePresence } from '@/lib/api/hooks';
+import { useHome } from '@/lib/api/v29';
 import { useScope } from '@/lib/scope';
-import { WORK_STATUS } from '@/lib/labels';
-import { ago, cx, jTime, jWeekday, tokens, usd } from '@/lib/format';
+import { jWeekday } from '@/lib/format';
+
+// ⟨1.11⟩ Contract §29.13, the owner's home: the business, not the servers (the owner, 2026-11-02: «کل اپ شده مسائل فنی سرورها … میخوام به
+// سئو، محصولات، پیشرفت و درآمد فکر کنم»). Three cards on top, the morning's five lines, each working group's KPI per company, the orders
+// with their state, the cards waiting for the seal, and only critical items. Servers, the watch, the workshop, the live orbit and the
+// technical findings moved to «شرکت ← فنی» and their own pages; nothing technical is re-added here.
 
 function Greeting() {
   const { data: presence } = usePresence();
@@ -42,190 +32,64 @@ function Greeting() {
         <h1 className="text-display font-semibold">{hello}، مدیر کل</h1>
       </div>
       {presence?.khalvat ? <Pill tone="learn" icon="khalvat">خلوت روشن؛ فقط فوری میرسد</Pill> : null}
-      <Button variant="primary" icon="mic" onClick={voice} className="max-sm:w-full">فرمان صوتی</Button>
+      {/* The golden button and, beside it, a new rule for the holding (§29.3), by voice or in words. */}
+      <div className="flex flex-wrap gap-2 max-sm:w-full">
+        <Button variant="primary" icon="mic" onClick={() => voice()} className="max-sm:flex-1">فرمان صوتی</Button>
+        <Button variant="secondary" icon="seal" onClick={() => voice({ mode: 'rule' })} className="max-sm:flex-1">قانون تازه برای هلدینگ</Button>
+      </div>
     </header>
   );
 }
 
-function AwayBanner() {
-  const { data } = useAway();
-  if (!data) return null;
-  const n = data.decisions.new + data.deliverables.new + data.messages.new;
-  if (!n) return null;
-  return (
-    <Card className="flex flex-wrap items-center gap-4 p-4">
-      <span className="flex size-10 items-center justify-center rounded-full bg-gold-soft text-gold-ink"><Icon name="khalvat" size={20} /></span>
-      <div className="flex min-w-0 flex-[1_1_12rem] flex-col">
-        <span className="text-[14px] font-semibold">در نبودت چه گذشت</span>
-        <span className="text-caption text-sec">از {ago(data.since)}: {data.decisions.new} تصمیم تازه، {data.deliverables.new} خروجی، {data.messages.new} پیام</span>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {data.companies.filter((c) => c.decisions_new + c.deliverables_new + c.messages_new > 0).map((c) => (
-          <span key={c.company} className="inline-flex h-8 items-center gap-2 rounded-full bg-tile px-3 text-[12px] text-sec">
-            <CompanyMark code={c.company} height={13} mono />{c.decisions_new + c.deliverables_new + c.messages_new}
-          </span>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-function Stats() {
-  const { data: inbox, isLoading } = useInbox();
-  const { data: t } = useTreasury({ period: 'day' });
-  if (isLoading || !inbox) return <div className="grid auto-rows-fr grid-cols-2 gap-3 lg:grid-cols-4">{Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-[104px] rounded-[14px]" />)}</div>;
-  const r = inbox.decisions_by_risk;
-  const unseen = (inbox as Inbox21).deliverables_unseen;
-  // 0.3.0: the four tiles are the same size, whatever their lines say.
-  const tile = 'h-full rounded-[14px] focus-visible:outline-2 [&>div]:h-full';
-  return (
-    <div className="grid auto-rows-fr grid-cols-2 gap-3 lg:grid-cols-4">
-      <Link href="/cartable" className={tile}><StatTile label="منتظر مُهر تو" value={inbox.decisions_pending} sub={r.high ? <span className="text-neg">{r.high} با ریسک بالا</span> : 'بدون ریسک بالا'} /></Link>
-      {unseen != null
-        ? <Link href="/outputs" className={tile}><StatTile label="خروجی تازه" value={unseen} sub={`${inbox.deliverables_unrated} بی‌امتیاز؛ امتیاز تو ۴۰٪ نمره‌ی کارمند است`} /></Link>
-        : <Link href="/outputs" className={tile}><StatTile label="خروجی بی‌امتیاز" value={inbox.deliverables_unrated} sub="امتیاز تو ۴۰٪ نمره‌ی کارمند است" /></Link>}
-      <Link href="/messages" className={tile}><StatTile label="پیام نخوانده" value={inbox.messages_unread} sub="از مدیرعامل‌ها و مشاور" /></Link>
-      <Link href="/treasury" className={tile}><StatTile label="مصرف امروز (معادل)" value={<span className="fig">{usd(t?.totals.equiv_cost_usd)}</span>} sub={<span><span className="fig">{tokens((t?.totals.input_tokens ?? 0) + (t?.totals.output_tokens ?? 0))}</span> توکن، {t?.totals.calls ?? 0} فراخوانی</span>} /></Link>
-    </div>
-  );
-}
-
+/** The cards that wait for the owner's seal (the hub lists only what is the owner's, §29.1). */
 function Cartable() {
   const router = useRouter();
   const { company } = useScope();
   const q = useDecisions({ status: 'pending', company: company ? [company] : undefined });
   return (
     <Card className="flex flex-col gap-2 p-4">
-      <SectionTitle title="کارتابل" note="فقط چیزهایی که مُهر تو را لازم دارند" action={<Button variant="text" size="sm" iconEnd="next" onClick={() => router.push('/cartable')}>همه</Button>} />
-      {q.isLoading ? <div className="flex flex-col gap-2">{Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-[72px]" />)}</div>
+      <SectionTitle title="منتظر مُهر تو" note="فقط تصمیم‌هایی که با توست" action={<Button variant="text" size="sm" iconEnd="next" onClick={() => router.push('/cartable')}>کارتابل</Button>} />
+      {q.isLoading ? <div className="flex flex-col gap-2">{Array.from({ length: 2 }, (_, i) => <Skeleton key={i} className="h-[72px]" />)}</div>
         : q.error ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
-        : !q.data?.items.length ? <Empty icon="seal" title="کارتابل خالی است" body="هر تصمیمی که امضای تو را بخواهد این‌جا میاید." />
-        : <div className="flex flex-col gap-0.5">{q.data.items.slice(0, 5).map((d) => <DecisionRow key={d.ref} d={d} href={`/cartable?ref=${d.ref}`} />)}</div>}
+        : !q.data?.items.length ? <Empty icon="seal" title="چیزی منتظر مُهر تو نیست" />
+        : <div className="flex flex-col gap-0.5">{q.data.items.slice(0, 4).map((d) => <DecisionRow key={d.ref} d={d} href={`/cartable?ref=${d.ref}`} />)}</div>}
     </Card>
   );
 }
 
-function Live() {
-  const { data: companies } = useCompanies();
-  const { last, feed, state } = useLive();
-  return (
-    <Card className="flex flex-col gap-3 p-4">
-      <SectionTitle title="استریم زنده‌ی هلدینگ" note="ذره‌ی طلایی فرمان تو، نقره‌ای تحویل ایجنت‌ها" action={<Pill tone={state === 'live' ? 'pos' : 'warn'} live={state === 'live'}>{state === 'live' ? 'زنده' : 'در حال اتصال'}</Pill>} />
-      {companies ? <Orbit companies={companies} lastEvent={last} size={460} /> : <Skeleton className="mx-auto aspect-square w-full max-w-[520px] rounded-full" />}
-      {/* 0.4.0: each line in words — who did what to which work, by its ref and title; never an id. */}
-      <ul className="flex flex-col border-t border-div pt-2" aria-label="آخرین رویدادها">
-        {feed.filter((e) => e.type !== 'activity.changed' && e.type !== 'run.step').slice(0, 4).map((e) => (
-          <li key={e.id} className="flex items-center gap-2">
-            {e.company ? <span className="text-sec"><CompanyMark code={e.company} height={12} mono /></span> : null}
-            <span className="min-w-0 flex-1"><FeedLine r={feedRowOf(e)} compact /></span>
-          </li>
-        ))}
-        {!feed.some((e) => e.type !== 'activity.changed' && e.type !== 'run.step') ? <li className="py-1 text-[12px] text-muted">هنوز رویدادی نرسیده؛ ایجنت‌ها تا رسیدن کار خواب‌اند.</li> : null}
-      </ul>
-    </Card>
-  );
-}
-
-/** The Chief Overseer at a glance: what is held for the owner, critical findings, and the last "while you were away". */
-function Overseer() {
-  const router = useRouter();
-  const { data } = useOversight();
-  if (!data) return null;
-  const crit = data.findings_open.critical + data.findings_open.high;
-  return (
-    <Card className={cx('flex flex-col gap-3 p-4', data.holds_waiting ? 'ring-1 ring-[var(--hq-gold-ink)]' : undefined)}>
-      <div className="flex items-center gap-3">
-        <Sentinel size={36} state={data.watch.on ? 'working' : 'idle'} />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <span className="text-[14px] font-semibold">ناظر کل</span>
-          <span className="text-caption text-muted">{data.holds_waiting ? <span className="text-gold-ink">{data.holds_waiting} اقدام نگه‌داشته منتظر تو</span> : 'چیزی منتظر تو نیست'}{crit ? <> · <span className="text-neg">{crit} یافته‌ی جدی</span></> : null}</span>
-        </div>
-        <Button variant="text" size="sm" iconEnd="next" onClick={() => router.push('/oversight')}>ناظر</Button>
-      </div>
-      {data.watch.summary_md ? <p className="line-clamp-3 text-[13px] leading-6 text-sec"><MdInline text={data.watch.summary_md} /></p> : null}
-    </Card>
-  );
-}
-
-/** Code Workshop sessions that are moving or waiting for the owner; hidden when nothing is. */
-function Workshop() {
-  const router = useRouter();
-  const { data } = useSessions();
-  const { data: workspaces } = useWorkspaces();
-  const { data: grants } = useGrants();
-  const open = (data?.items ?? []).filter((s) => isOpen(s.state)).sort((a, b) => Number(b.state === 'waiting_approval') - Number(a.state === 'waiting_approval'));
-  if (!open.length) return null;
-  const waiting = open.filter((s) => s.state === 'waiting_approval').length;
-  return (
-    <Card className="flex flex-col gap-3 p-4">
-      <SectionTitle title="کارگاه کد" note={waiting ? <span className="text-gold-ink">{waiting} جلسه منتظر اجازه‌ی تو</span> : `${open.length} جلسه در جریان`} action={<Button variant="text" size="sm" iconEnd="next" onClick={() => router.push('/workshop')}>کارگاه</Button>} />
-      <div className="flex flex-col gap-2">{open.slice(0, 3).map((s) => <SessionRow key={s.ref} s={s} workspaces={workspaces} grant={grants?.find((g) => g.ref === s.grant)} />)}</div>
-    </Card>
-  );
-}
-
-function Today() {
-  const router = useRouter();
-  const { company } = useScope();
-  const { data } = usePlanner({});
-  const items = (data?.days[0]?.items ?? []).filter((i) => !company || i.company === company);
-  return (
-    <Card className="flex flex-col gap-2 p-4">
-      <SectionTitle title="امروز" note="از پلنر" action={<Button variant="text" size="sm" iconEnd="next" onClick={() => router.push('/planner')}>پلنر</Button>} />
-      {!data ? <Skeleton className="h-24" /> : !items.length ? <p className="py-4 text-center text-caption text-muted">برای امروز کاری ثبت نشده.</p> : (
-        <ol className="flex flex-col">
-          {items.map((i) => (
-            <li key={i.ref} className="flex items-center gap-3 border-b border-div py-2.5 last:border-0">
-              <span className="w-11 text-[12px] text-muted">{jTime(i.at)}</span>
-              {i.status === 'done' ? <span className="size-2 rounded-full bg-pos" /> : isUrgentPriority(i.priority) ? <PriorityTag code={i.priority} compact /> : <span className="size-2 rounded-full bg-silver-ink" />}
-              <span className="flex-1 truncate text-[13px]">{i.title}</span>
-              {i.recurring ? <span className="text-muted" title="دائمی"><Icon name="refresh" size={14} /></span> : null}
-              <span className="text-sec"><CompanyMark code={i.company} height={12} mono /></span>
-              <span className="text-[11px] text-muted">{WORK_STATUS[i.status] ?? (i.status === 'live' ? 'زنده' : i.status === 'reminder' ? 'یادآوری' : i.status)}</span>
-            </li>
-          ))}
-        </ol>
-      )}
-    </Card>
-  );
-}
-
-function Budgets() {
-  const router = useRouter();
-  const { data } = useTreasury({ period: 'month' });
-  const { data: companies } = useCompanies();
-  return (
-    <Card className="flex flex-col gap-3 p-4">
-      <SectionTitle title="بودجه‌ی ماه" note="هشدار در ۷۰٪ و ۹۰٪" action={<Button variant="text" size="sm" iconEnd="next" onClick={() => router.push('/treasury')}>خزانه</Button>} />
-      {!data ? <Skeleton className="h-28" /> : data.budgets.map((b) => (
-        <div key={`${b.scope_type}-${b.scope_ref}`} className="flex flex-col gap-1.5">
-          <div className="flex items-center gap-2 text-[12px]">
-            {b.scope_type === 'holding' ? <span className="text-sec">کل هلدینگ</span> : <span className="flex items-center gap-1.5 text-sec"><CompanyMark code={b.company} height={13} mono />{companies?.find((c) => c.code === b.company)?.name_fa ?? b.scope_ref}</span>}
-            <span className="flex-1" />
-            <span className="fig text-muted">{tokens(b.tokens_used)} / {tokens(b.token_limit)}</span>
-            <span className={cx('w-10 text-left', (b.pct ?? 0) >= 90 ? 'text-neg' : (b.pct ?? 0) >= 70 ? 'text-warn' : 'text-sec')}>{Math.round(b.pct ?? 0)}٪</span>
-          </div>
-          <Bar pct={b.pct ?? 0} tone={budgetTone(b.pct)} label={`بودجه ${b.scope_ref}`} />
-        </div>
-      ))}
-    </Card>
-  );
-}
-
-export default function CommandCenter() {
+export default function OwnerHome() {
   const voice = useVoiceOrder();
+  const home = useHome();
+  const h = home.data;
   return (
     <>
       <Greeting />
-      <StoriesBar />
-      <AwayBanner />
-      <Stats />
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-        {/* ⟨1.5⟩ §21.2: ask the hub, above the cartable. 0.3.0: the two columns end together. */}
-        <div className="flex min-w-0 flex-col gap-4 [&>*:last-child]:flex-1"><AskBox /><Cartable /><Live /></div>
-        {/* 0.4.0: the owner's orders, live, first in the second column. */}
-        <div className="flex min-w-0 flex-col gap-4 [&>*:last-child]:flex-1"><HomeOrdersCard onNewOrder={voice} /><Overseer /><HomeWatchCard /><Workshop /><Today /><Budgets /></div>
-      </div>
+      {home.isLoading ? <HomeSkeleton /> : home.error ? <ErrorState error={home.error} onRetry={() => home.refetch()} /> : !h ? (
+        <>
+          <HomeNotServed />
+          <div className="grid gap-4 xl:grid-cols-2"><HomeOrdersCard onNewOrder={() => voice()} /><Cartable /></div>
+        </>
+      ) : (
+        <>
+          <CriticalCard items={h.critical} />
+          <div className="grid items-stretch gap-4 lg:grid-cols-3">
+            <SuggestionCard kind="effective" s={h.cards.effective} />
+            <SuggestionCard kind="good" s={h.cards.good} />
+            <ProgressCard p={h.cards.progress} />
+          </div>
+          <StoriesBar />
+          <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+            <div className="flex min-w-0 flex-col gap-4">
+              <MorningCard lines={h.morning} />
+              {h.groups.map((g) => <GroupKpiCard key={g.key} g={g} />)}
+            </div>
+            <div className="flex min-w-0 flex-col gap-4">
+              <HomeOrders orders={h.orders} onNewOrder={() => voice()} />
+              <Cartable />
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 }

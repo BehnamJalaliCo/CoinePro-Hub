@@ -7,6 +7,7 @@ import { ErrorState, FilterChip, PageHeader, Skeleton } from '@/components/ui/pr
 import { NewOrder } from '@/components/work/new-order';
 import { ACTIVE, DELIVERED, ENDED, OrderCard, OrdersEmpty } from '@/components/v21/orders';
 import { BrowserNotifyCard } from '@/components/v21/push';
+import { OrderReportsCard } from '@/components/v29/report';
 import { useOwnerOrders } from '@/lib/api/v21';
 
 type Tab = 'active' | 'delivered' | 'ended' | 'all';
@@ -34,6 +35,8 @@ export default function OrdersPage() {
         <Button variant="text" icon="cartable" onClick={() => router.push('/cartable')}>کارتابل</Button>
       </>} />
       <BrowserNotifyCard />
+      {/* ⟨1.11⟩ §29.2: every order is answered; each opens its report. */}
+      <OrderReportsCard />
       <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1">
         {TABS.map(([k, l]) => <FilterChip key={k} selected={tab === k} onClick={() => setTab(k)} count={q.data ? groups[k].length : undefined}>{l}</FilterChip>)}
       </div>

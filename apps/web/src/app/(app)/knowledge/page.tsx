@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { AskBox } from '@/components/v18/ask';
 import { Empty, ErrorState, FilterChip, PageHeader, Skeleton, Switch } from '@/components/ui/primitives';
 import { KNOWLEDGE_KIND, KNOWLEDGE_STATUS, LAYER_FA, ScopeChips, daysFrom } from '@/components/v17/bits';
 import { EntryCard, EntryEditor, EntrySheet, ExpiringCard } from '@/components/v17/knowledge';
@@ -38,6 +39,8 @@ function KnowledgeInner() {
       <PageHeader eyebrow="چهار لایه؛ هر ورودی با منبع و تاریخ انقضا" title="دانشنامه" actions={<Button variant="primary" icon="add" onClick={() => setEdit('new')}>ورودی تازه</Button>}>
         <p className="max-w-3xl text-[13px] leading-6 text-sec">هلدینگ برای همه، شرکت برای همان شرکت و هلدینگ، دپارتمان برای همان دپارتمان و مدیرعاملش. لایه‌ی کارمند همان حافظه‌ی خود اوست و فقط دیده میشود؛ مقاله‌های پشتیبانی هم این‌جا فقط دیده میشوند و ویرایششان از <Link href="/support" className="text-gold-ink">پشتیبانی</Link> است. ورودی منقضی به ایجنت‌ها نمیرسد و منبع پذیرفته نمیشود.</p>
       </PageHeader>
+      {/* ⟨1.11⟩ «از هاب بپرس» (§21.2) moved here from the home: answers from resolutions, outputs, documents and code. */}
+      <AskBox />
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <input value={text} onChange={(e) => setText(e.target.value)} placeholder="جستجو در عنوان و متن…" aria-label="جستجو در دانشنامه" className="h-9 w-full max-w-xs rounded-[10px] border border-strong bg-tile px-3 text-[13px] text-ink outline-none focus:border-gold-ink" />

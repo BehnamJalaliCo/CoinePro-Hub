@@ -25,7 +25,8 @@ test('reads every event on one connection, resumes with Last-Event-ID and surviv
     if (!reply) { refused = true; return route.fulfill({ status: 502, contentType: 'text/html', body: '<html>502 Bad Gateway</html>' }); }
     return route.fulfill(reply);
   });
-  await page.goto('/');
+  // ⟨1.11⟩ the live orbit and its feed moved from the home to the companies' page.
+  await page.goto('/companies');
   const feed = page.getByRole('list', { name: 'آخرین رویدادها' });
   await expect(feed.getByText(/W-000209/).first()).toBeVisible({ timeout: 30_000 });
   await expect(feed.getByText('رویداد تازه در کاتالوگ شرکت')).toBeVisible();

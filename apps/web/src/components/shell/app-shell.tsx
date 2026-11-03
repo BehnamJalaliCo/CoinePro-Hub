@@ -15,7 +15,7 @@ import { useHoldingStream, type StreamEvent, type StreamState } from '@/lib/stre
 import { LiveContext } from '@/lib/live';
 import { useTheme } from '@/lib/theme';
 import { cx } from '@/lib/format';
-import { VoiceOrder, VoiceOrderContext } from '@/components/work/voice-order';
+import { VoiceOrder, VoiceOrderContext, type VoiceOpen } from '@/components/work/voice-order';
 import { ServersWatcher } from '@/components/v26/watcher';
 import { PulsesProvider } from '@/lib/pulses';
 import { HubBanner, ShellExtras, ToolsSheet } from '@/components/v21/shell';
@@ -111,6 +111,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [bell, setBell] = useState(false);
   const [more, setMore] = useState(false);
   const [voice, setVoice] = useState(false);
+  // ⟨1.11⟩ the golden button opens as an order or a rule, optionally with words (a council's plan).
+  const [voiceInit, setVoiceInit] = useState<{ n: number; o: VoiceOpen }>({ n: 0, o: {} });
+  const openVoice = (o?: VoiceOpen) => { setVoiceInit((v) => ({ n: v.n + 1, o: o ?? {} })); setVoice(true); };
 
   useEffect(() => {
     if (session.error instanceof ApiError && session.error.status === 401) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
@@ -126,19 +129,19 @@ export function AppShell({ children }: { children: ReactNode }) {
     <ScopeProvider>
       <LiveContext.Provider value={{ state: stream, last: feed[0] ?? null, feed }}>
       <PulsesProvider feed={feed}>
-      <VoiceOrderContext.Provider value={() => setVoice(true)}>
+      <VoiceOrderContext.Provider value={openVoice}>
       <div className="flex min-h-dvh">
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">
-          <TopBar onPalette={() => setPalette(true)} onBell={() => setBell(true)} onMore={() => setMore(true)} onVoice={() => setVoice(true)} stream={stream} urgent={urgent} />
+          <TopBar onPalette={() => setPalette(true)} onBell={() => setBell(true)} onMore={() => setMore(true)} onVoice={() => openVoice()} stream={stream} urgent={urgent} />
           {/* 0.4.0: a hub restart is one calm line, not an error on every card. */}
           <HubBanner />
           <main id="main" className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col gap-6 px-4 pb-28 pt-5 md:px-6 lg:pb-10">{children}</main>
         </div>
       </div>
       <BottomNav counts={counts} />
-      <CommandPalette open={palette} onOpenChange={setPalette} onVoice={() => setVoice(true)} />
-      <VoiceOrder open={voice} onOpenChange={setVoice} />
+      <CommandPalette open={palette} onOpenChange={setPalette} onVoice={() => openVoice()} />
+      <VoiceOrder key={voiceInit.n} open={voice} onOpenChange={setVoice} initial={voiceInit.o} />
       <NotificationsSheet open={bell} onOpenChange={setBell} />
       {/* 0.3.0–0.6.0: «خطاخوان», the hub's health and the alerts (toasts on screen, the browser's notifications otherwise). */}
       <ShellExtras feed={feed} stream={stream} />
