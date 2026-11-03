@@ -1,6 +1,6 @@
 # وضعیت کار Claude ساخت (هفته‌ی ۱، برنامه‌ی تمرکز مدیر کل)
 
-> به‌روز: ۲۰۲۶-۱۱-۰۳ 06:00 UTC. اگر نشست قطع شد، Claude بعدی از همین‌جا ادامه میدهد.
+> به‌روز: ۲۰۲۶-۱۱-۰۳ 08:20 UTC. اگر نشست قطع شد، Claude بعدی از همین‌جا ادامه میدهد.
 
 ## مرحله‌ها
 | مرحله | وضعیت | کجا |
@@ -20,9 +20,9 @@
 - **E:** `build/w1-e-web` و `build/w1-e-android`. شرح کار: `apps.md`.
 
 ## کارهای مانده (به ترتیب)
-1. CI `quality` و `clients` روی `build/w1-owner-focus` سبز شود.
-2. `git merge --no-ff build/w1-owner-focus` در `claude/coinepro-hub-setup-hsvnw7`، و push. APK 0.11.0 را CI شاخه‌ی اصلی در `android-latest` منتشر میکند.
-3. گزارش کوتاه D، E و F به مالک: پرامپت‌های `PROMPT_20_1_DEPLOY.md` و `PROMPT_21_DEPLOY.md` برای Claude سرور هاب، و `OWNER_STEPS.md`.
+- **ساخت تمام است:** CI `quality` (12999aa9) و `clients` (4529f8e2) روی `build/w1-owner-focus` سبز شدند و شاخه با `--no-ff` در `claude/coinepro-hub-setup-hsvnw7` merge شد.
+- **deploy با Claude سرور هاب:** اول `PROMPT_20_1_DEPLOY.md`، بعد `PROMPT_21_DEPLOY.md` (مرحله‌ی ۱، بعد مرحله‌ی ۲).
+- **مالک:** `OWNER_STEPS.md`. هفته‌ی پذیرش از روشن شدن کارگروه (مرحله‌ی ۲ پرامپت ۲۱) شروع میشود.
 
 ## نکته‌های محیط (نشست ابری، بی سرور هاب)
 - **Docker:** `dockerd` دستی بالا میآید. Docker Hub محدودیت دارد؛ image‌ها از `mirror.gcr.io/...` گرفته و با نام اصلی tag شدند.
@@ -32,3 +32,7 @@
   - **علت:** `HQ_FUZZ_EXAMPLES` هرگز به کانتینر تست نمیرسید (`services/scripts/test-env.sh` آن را رد نمیکرد). پس fuzz همیشه با ۸ نمونه و همه‌ی فازها اجرا میشد: حدود ۲۰٬۰۰۰ مورد و ۲۸ دقیقه.
   - **درست شد (6889d258):** `test-env.sh` حالا `HQ_FUZZ_EXAMPLES` و `HQ_FUZZ_PHASES` را رد میکند. push فقط فازهای `examples,fuzzing` را اجرا میکند و nightly همه‌ی فازها را.
 - **اندروید:** SDK نصب نمیشود؛ CI کامپایل میکند و اجرای دستی `clients.yml` با `record: true` عکس‌ها را میسازد و به شاخه commit میکند.
+- **دو تست وابسته به ترتیب (درست شد):**
+  - `test_orders` متن «تازه» داشت و شرکتی به همین نام از `test_founding_review` میماند.
+  - `test_precedence` اجرای صف‌شده‌ی مانده روی رشته‌ی N و کار بعدی ناظر را میخواند.
+- **سقف زمان CI:** `quality` و اندروید ۶۰ دقیقه است.
