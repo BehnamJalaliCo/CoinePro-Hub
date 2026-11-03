@@ -114,7 +114,7 @@ function Seats({ g, list }: { g: Group; list: Membership[] }) {
     <Card className="flex flex-col gap-2 p-5" aria-label="جایگاه‌ها">
       <SectionTitle title="جایگاه‌ها و کسی که پر میکند" note="جای خالی را مدیرعامل در پاکت ماه، خودکار پر میکند" />
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[520px] border-collapse text-[13px]">
+        <table className="w-full min-w-[440px] border-collapse text-[13px]">
           <thead><tr className="text-right text-[11px] text-muted"><th className="px-2 py-2 font-semibold">جایگاه</th>{list.map((m) => <th key={m.company} className="px-2 py-2 font-semibold"><span className="inline-flex items-center gap-1.5"><CompanyMark code={m.company} height={11} mono />{name(m.company)}</span></th>)}</tr></thead>
           <tbody>
             {g.seats.map((s) => (
@@ -209,7 +209,7 @@ function Kpis({ g, company }: { g: Group; company: string | null }) {
           return (
             <section key={k.key} className="flex flex-col gap-2" aria-label={k.title_fa}>
               <h3 className="text-[14px] font-semibold">{k.title_fa}</h3>
-              <LinesChart label={`روند ${k.title_fa}`} days={days.map((d) => ({ key: d, label: dayLabel.format(new Date(`${d}T12:00:00Z`)) }))} lines={lines} fmt={(v) => fig(Math.round(v))} height={200} />
+              <LinesChart label={`روند ${k.title_fa}`} days={days.map((d) => ({ key: d, label: dayLabel.format(new Date(`${d}T12:00:00Z`)) }))} lines={lines} fmt={(v) => fig(Math.round(v))} tick={(v) => (v < 10 && v % 1 ? v.toFixed(1) : fig(Math.round(v)))} height={200} />
             </section>
           );
         })
@@ -264,11 +264,11 @@ export function GroupDetail({ groupKey, company, onCompany }: { groupKey: string
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-4">
           <Kpis g={g} company={company} />
-          <Routines g={g} company={company} />
+          <Seats g={g} list={shown} />
         </div>
         <div className="flex min-w-0 flex-col gap-4">
           {members.isLoading ? <Skeleton className="h-40 rounded-[16px]" /> : <Members g={g} list={list} onPick={(c) => onCompany(c)} />}
-          <Seats g={g} list={shown} />
+          <Routines g={g} company={company} />
           <Experiments g={g} company={company} />
         </div>
       </div>

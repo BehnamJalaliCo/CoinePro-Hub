@@ -148,7 +148,7 @@ function SecretaryLine({ preview, loading, edits, onEdits, option }: { preview: 
               </label>
             </div>
           </fieldset>
-          <span className="text-[11px] text-muted">بودجه: <span className="fig">{unitsFa(r.budget_tokens)}</span> واحد، از جدول نوع خروجی؛ هرگز کمتر از کف دپارتمان. حالت و بازیکن از «با کدام مدل؟».</span>
+          <span className="text-[11px] text-muted">بودجه: <FaText text={`${unitsFa(r.budget_tokens)} واحد`} />، از جدول نوع خروجی؛ هرگز کمتر از کف دپارتمان. حالت و بازیکن از «با کدام مدل؟».</span>
         </div>
       ) : null}
     </section>

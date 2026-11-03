@@ -39,7 +39,7 @@ export function RouteLine({ r, count }: { r: OrderRouteFields; count?: number | 
       <span className="text-muted">؛</span>
       <span>خروجی: {count ? <span className="fig">{count}</span> : null} {OUTPUT_KIND_FA[r.output_kind as OutputKind] ?? r.output_kind}</span>
       <span className="text-muted">؛</span>
-      <span>بودجه: <span className="fig">{unitsFa(r.budget_tokens)}</span> واحد</span>
+      <span>بودجه: <FaText text={`${unitsFa(r.budget_tokens)} واحد`} /></span>
       <span className="text-muted">؛</span>
       <span>{r.mode === 'council' ? 'شورای مشاوران' : 'تک‌نفره'}، {playerFa(r.player)}</span>
     </span>
