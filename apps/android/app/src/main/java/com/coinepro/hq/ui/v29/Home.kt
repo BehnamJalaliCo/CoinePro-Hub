@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -25,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -65,6 +68,7 @@ import com.coinepro.hq.designsystem.Radius
 import com.coinepro.hq.designsystem.SectionTitle
 import com.coinepro.hq.designsystem.Skeleton
 import com.coinepro.hq.designsystem.generated.DivanIcon
+import com.coinepro.hq.designsystem.springIn
 import com.coinepro.hq.ui.LocalEnv
 import com.coinepro.hq.ui.LocalNav
 import com.coinepro.hq.ui.LocalToasts
@@ -85,9 +89,9 @@ fun rememberHome() = rememberQuery("home", "home", "orders", maxAgeMs = 30_000) 
 @Composable
 fun HomeCardsBlock(h: Home) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        h.cards.effective?.let { SuggestionCard(it, effective = true) }
-        h.cards.good?.let { SuggestionCard(it, effective = false) }
-        h.cards.progress?.let { ProgressCard(it) }
+        h.cards.effective?.let { SuggestionCard(it, effective = true, modifier = Modifier.springIn(0)) }
+        h.cards.good?.let { SuggestionCard(it, effective = false, modifier = Modifier.springIn(1)) }
+        h.cards.progress?.let { ProgressCard(it, Modifier.springIn(2)) }
         if (h.cards.effective == null && h.cards.good == null && h.cards.progress == null) HqCard(Modifier.fillMaxWidth()) {
             Text("پیشنهاد تازه‌ای نیست", style = Divan.type.bodyStrong)
             Text(
@@ -118,9 +122,10 @@ fun SuggestionCard(s: HomeSuggestion, effective: Boolean, modifier: Modifier = M
         }
         Text(plain(s.titleFa), style = Divan.type.bodyStrong, color = c.textPrimary, modifier = Modifier.padding(top = 12.dp))
         if (s.whyFa.isNotBlank()) Para(s.whyFa, Modifier.padding(top = 6.dp))
-        if (s.impactFa.isNotBlank() || s.costFa.isNotBlank()) Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (s.impactFa.isNotBlank()) Fact("اثر", s.impactFa, Modifier.weight(1f))
-            if (s.costFa.isNotBlank()) Fact("هزینه", s.costFa, Modifier.weight(1f))
+        // The two facts side by side, always of one height (the taller one's), each arriving a beat after the other.
+        if (s.impactFa.isNotBlank() || s.costFa.isNotBlank()) Row(Modifier.padding(top = 12.dp).height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (s.impactFa.isNotBlank()) Fact("اثر", s.impactFa, DivanIcon.CHART, c.positive, Modifier.weight(1f).fillMaxHeight().springIn(0))
+            if (s.costFa.isNotBlank()) Fact("هزینه", s.costFa, DivanIcon.BUDGET, c.goldInk, Modifier.weight(1f).fillMaxHeight().springIn(1))
         }
         Box(Modifier.padding(top = 12.dp)) {
             when (s.state) {
@@ -153,11 +158,21 @@ fun SuggestionCard(s: HomeSuggestion, effective: Boolean, modifier: Modifier = M
     if (asking) NoReasonSheet(s, onDone = { asking = false })
 }
 
+/** One fact of a suggestion (its effect, its cost): an icon and a label in the fact's own colour above the plain sentence. */
 @Composable
-private fun Fact(label: String, value: String, modifier: Modifier) {
+private fun Fact(label: String, value: String, icon: DivanIcon, tint: Color, modifier: Modifier) {
     val c = Divan.colors
-    Column(modifier.clip(RoundedCornerShape(Radius.small)).background(c.tile).padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(label, style = Divan.type.micro, color = c.textMuted)
+    Column(
+        modifier.clip(RoundedCornerShape(Radius.tile)).background(c.tile).padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Box(Modifier.size(22.dp).clip(CircleShape).background(tint.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+                DIcon(icon, size = 12.dp, tint = tint)
+            }
+            Text(label, style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = tint)
+        }
+        // Not justified: in a half-width tile a short sentence would stretch into gaps.
         Text(plain(value), style = Divan.type.small, color = c.textPrimary)
     }
 }
@@ -259,6 +274,7 @@ fun GroupKpiCard(g: HomeGroup) {
             label = "${g.titleFa}: ${k?.titleFa.orEmpty()}",
             fmt = { numberText(it, k?.unit.orEmpty()) },
             modifier = Modifier.padding(top = 10.dp),
+            unit = k?.unit.orEmpty(),
         )
     }
 }

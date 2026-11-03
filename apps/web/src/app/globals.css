@@ -164,6 +164,11 @@
   animation: hq-shimmer 1.4s linear infinite;
 }
 .hq-rise { animation: hq-rise var(--hq-dur-transition) var(--hq-ease-standard) both; }
+/* 0.11.1: a chart's lines draw in (pathLength 1), then their end dots and labels settle in. */
+@keyframes hq-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes hq-settle { from { opacity: 0; } to { opacity: 1; } }
+.hq-draw { stroke-dasharray: 1; animation: hq-draw 900ms cubic-bezier(.05, .7, .1, 1) both; }
+.hq-settle { animation: hq-settle 300ms var(--hq-ease-standard) 650ms both; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }

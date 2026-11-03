@@ -245,7 +245,7 @@ private fun KpisCard(g: WorkGroup, series: List<com.coinepro.hq.core.net.KpiSeri
                     val mine = series.orEmpty().filter { it.key == k.key }
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(plain(k.titleFa), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold))
-                        CompanyKpiChart(mine.map { it.company to it.series }, label = k.titleFa, fmt = { numberText(it, k.unit) })
+                        CompanyKpiChart(mine.map { it.company to it.series }, label = k.titleFa, fmt = { numberText(it, k.unit) }, unit = k.unit)
                     }
                 }
             }

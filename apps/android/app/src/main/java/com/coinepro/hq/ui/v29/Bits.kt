@@ -4,8 +4,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -16,8 +20,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -41,12 +51,15 @@ import com.coinepro.hq.designsystem.BtnSize
 import com.coinepro.hq.designsystem.BtnVariant
 import com.coinepro.hq.designsystem.ChartLine
 import com.coinepro.hq.designsystem.CompanyMark
+import com.coinepro.hq.designsystem.CountingText
 import com.coinepro.hq.designsystem.DIcon
 import com.coinepro.hq.designsystem.Divan
 import com.coinepro.hq.designsystem.HqButton
 import com.coinepro.hq.designsystem.LinesChart
 import com.coinepro.hq.designsystem.Pill
+import com.coinepro.hq.designsystem.Radius
 import com.coinepro.hq.designsystem.generated.DivanIcon
+import com.coinepro.hq.designsystem.springIn
 import com.coinepro.hq.designsystem.timesFig
 import com.coinepro.hq.ui.LocalEnv
 import com.coinepro.hq.ui.LocalNav
@@ -156,9 +169,11 @@ fun CoName(code: String, modifier: Modifier = Modifier, height: Dp = 12.dp, colo
     }
 }
 
-/** One series per company over the same days (a gap where a day has no figure, never a zero), in each company's palette slot. */
+/** One series per company over the same days (a gap where a day has no figure, never a zero), in each company's palette slot.
+ *  While there is nothing to compare (a single day, or nothing but zeros) the companies' figures stand as tiles instead of a
+ *  flat line under a heap of labels. [unit] names what is counted (under each tile's figure). */
 @Composable
-fun CompanyKpiChart(series: List<Pair<String, List<DayValue>>>, label: String, fmt: (Double) -> String, modifier: Modifier = Modifier, height: Dp = 180.dp) {
+fun CompanyKpiChart(series: List<Pair<String, List<DayValue>>>, label: String, fmt: (Double) -> String, modifier: Modifier = Modifier, height: Dp = 180.dp, unit: String = "") {
     val c = Divan.colors
     val companies = rememberCompanies()
     val days = series.flatMap { (_, s) -> s.map { it.day } }.distinct().sorted()
@@ -166,11 +181,54 @@ fun CompanyKpiChart(series: List<Pair<String, List<DayValue>>>, label: String, f
         Text("هنوز عددی از اتصال‌ها نرسیده؛ با اولین خواندن روزانه این‌جا پر میشود.", style = Divan.type.caption, color = c.textMuted, modifier = modifier)
         return
     }
+    if (days.size < 2 || series.all { (_, s) -> s.all { it.value == null || it.value == 0.0 } }) {
+        KpiSnapshot(series, days, fmt, unit, label, modifier)
+        return
+    }
     val lines = series.map { (co, s) ->
         val byDay = s.associate { it.day to it.value }
         ChartLine(co, companyOf(companies, co).nameFa, com.coinepro.hq.ui.v16.companyColor(co), days.map { byDay[it] }, mark = { CompanyMark(co, height = 11.dp, mono = true, ink = c.textSecondary) })
     }
     LinesChart(days.map { jDate(it) }, lines, fmt = fmt, label = label, modifier = modifier, tick = { com.coinepro.hq.ui.v16.compact(it) }, height = height)
+}
+
+/** Each company's latest figure as a tile (its colour, mark and name, the figure counting up as it arrives), two to a row, with
+ *  one plain line on why there is no chart yet. */
+@Composable
+private fun KpiSnapshot(series: List<Pair<String, List<DayValue>>>, days: List<String>, fmt: (Double) -> String, unit: String, label: String, modifier: Modifier) {
+    val c = Divan.colors
+    val companies = rememberCompanies()
+    Column(modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = label }, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        series.chunked(2).forEachIndexed { r, row ->
+            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEachIndexed { k, (co, s) ->
+                    val last = s.filter { it.value != null }.maxByOrNull { it.day }?.value
+                    val tint = com.coinepro.hq.ui.v16.companyColor(co)
+                    Column(
+                        Modifier.weight(1f).fillMaxHeight().springIn(r * 2 + k)
+                            .clip(RoundedCornerShape(Radius.tile)).background(c.tile)
+                            .drawBehind { drawRect(tint, size = Size(size.width, 3.dp.toPx())) }
+                            .padding(start = 12.dp, end = 12.dp, top = 13.dp, bottom = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            CompanyMark(co, height = 12.dp, mono = true, ink = c.textSecondary)
+                            Text(companyOf(companies, co).nameFa, style = Divan.type.caption, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        // The figure alone, big; a worded unit («آیتم در روز») goes under it (a % stays with the figure).
+                        val text = last?.let(fmt)
+                        val worded = unit.isNotBlank() && text != null && text.endsWith(" $unit")
+                        CountingText(if (worded) text!!.removeSuffix(" $unit") else text ?: "—", Divan.type.figureM, color = if (last == null || last == 0.0) c.textMuted else c.textPrimary)
+                        if (worded) Text(unit, style = Divan.type.micro, color = c.textMuted, maxLines = 1)
+                    }
+                }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+        val why = if (days.size < 2) "فعلاً عدد یک روز (${jDate(days.last())}) رسیده؛ نمودار از روز دوم کشیده میشود."
+        else "در ${days.size} روز گذشته عدد همه‌ی شرکت‌ها صفر بوده؛ نمودار با اولین عدد غیرصفر کشیده میشود."
+        Text(why, style = Divan.type.caption.copy(textAlign = TextAlign.Justify), color = c.textMuted, modifier = Modifier.padding(top = 2.dp))
+    }
 }
 
 /** A small round icon tile, as the app's cards begin. */

@@ -448,3 +448,24 @@ async def test_the_workers_tick_waits_for_the_switch(hub: Hub) -> None:
         assert await acts.groups_tick() == {"skipped": "groups_off"}
     finally:
         hub.settings = real
+
+
+async def test_a_refused_auto_hire_says_why_in_the_log(
+    hub: Hub, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The hub's report (prompt 21 §5): a seat not filled names its reason
+    (the refusal's code and its fields), not only «failed»."""
+    from hq_api.errors import ApiError
+
+    async def refuse(*_: Any) -> None:
+        raise ApiError(
+            422, "validation_failed", fields={"payload.model": "no enabled connection offers it"}
+        )
+
+    holding = await hub.companies.holding()
+    async with hub.db.raw() as tx:
+        with caplog.at_level("WARNING", logger=GR.log.name):
+            assert await GR._auto_fill(tx, refuse, holding.id, "publisher", "ناشر") is None
+    [rec] = [r for r in caplog.records if r.getMessage() == "auto fill of a seat failed"]
+    assert rec.__dict__["role"] == "publisher" and rec.__dict__["code"] == "validation_failed"
+    assert rec.__dict__["fields"] == ["payload.model: no enabled connection offers it"]

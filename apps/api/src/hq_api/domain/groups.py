@@ -453,8 +453,14 @@ async def _auto_fill(tx: Tx, fill: Any, company_id: UUID, role: str, seat_title:
     try:
         async with tx.conn.begin_nested():
             return await fill(tx, company_id, role, seat_title)
-    except Exception:  # noqa: BLE001 - a refused hire is the hiring module's to report
-        log.warning("auto fill of a seat failed", extra={"role": role})
+    except Exception as e:  # noqa: BLE001 - a refused hire is the hiring module's to report
+        # Why, in the log (hub, prompt 21 §5): the code and the fields' reasons, never a value.
+        why = (
+            {"code": e.code, "fields": sorted(f"{k}: {v}" for k, v in (e.fields or {}).items())}
+            if isinstance(e, ApiError)
+            else {"code": type(e).__name__}
+        )
+        log.warning("auto fill of a seat failed", extra={"role": role, **why})
         return None
 
 

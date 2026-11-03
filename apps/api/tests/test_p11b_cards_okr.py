@@ -74,7 +74,9 @@ async def test_a_health_kpi_is_measured_by_code_with_no_model(
     assert k["source_ref"]["kind"] == "query" and k["source_ref"]["ref"].startswith(
         "health.uptime_24h:"
     )
-    assert k["at"] and k["trend"][-1] == 75.0 and len(k["trend"]) == 30
+    # The trend's days are the owner's (Tehran): measured just before midnight there and read just after, the value sits in
+    # the day before the last (CI, 2026-11-03 23:56 Tehran).
+    assert k["at"] and 75.0 in k["trend"][-2:] and len(k["trend"]) == 30
     assert await llm_calls(su) == before  # by code: no model, no agent run
 
 

@@ -53,11 +53,21 @@ async def test_a_jobs_output_past_the_stream_and_a_long_answer_are_kept_whole(
                          "tables": [{"title_fa": "سرویس‌ها", "columns": ["نام", "شرح"], "rows": rows}]},
                         ensure_ascii=False)  # fmt: skip
     jobs = [await take(client, rn) for _ in CAT.SECTIONS]
+    # Two long sections (past the body's column), named by section: the runner takes the jobs
+    # in no fixed order, so «the first two taken» were not always products (hub, prompt 21 §1).
+    entries = json.loads(
+        await su.fetchval(
+            "SELECT jobs FROM infra.catalogues WHERE company_id = $1 AND state = 'running'",
+            co["id"],
+        )
+    )
+    section_of = {str(e["job"]): e["section"] for e in entries}
+    jobs.sort(key=lambda j: section_of[str(j["id"])] != "products")  # products' job first
     small = json.dumps({"summary_fa": "کم", "count": 1,
                         "tables": [{"title_fa": "یک", "columns": ["نام"], "rows": [["تنها"]]}]},
                        ensure_ascii=False)  # fmt: skip
-    for n, j in enumerate(jobs):
-        text = answer if n < 2 else small  # two long sections: past the body's column
+    for j in jobs:
+        text = answer if section_of[str(j["id"])] in ("products", "code") else small
         rest = ("خط خروجی بعد از ۱۰ مگابایت\n" * 20_000).encode()
         body = {"exit_code": 0, "data": {
             "result_fa": text, "answer_chars": len(text), "answer_truncated": False,
