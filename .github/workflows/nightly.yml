@@ -13,9 +13,10 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    # 40 examples per operation never finished within 90 minutes (8 take ~40 minutes on their own).
+    timeout-minutes: 120
     env:
-      HQ_FUZZ_EXAMPLES: "40"
+      HQ_FUZZ_EXAMPLES: "10"
     steps:
       - name: Checkout (full history for gitleaks)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
