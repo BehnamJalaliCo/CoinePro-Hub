@@ -871,6 +871,11 @@ async def _advance(
 
     if rnd == 1 and state == "running" and ended(members):
         answered = [m for m in members if m["state"] == "done"]
+        if len(answered) >= 2 and not await tx.scalar("SELECT 1 FROM substitutes.players LIMIT 1"):
+            # an agent's transaction (its deliverable) does not see the holding's
+            # bench: the next refresh with the whole scope (the owner, the
+            # worker's sweep, a call's answer) starts round 2
+            return state, synthesis_ref, synthesis_work_id, note, members, {}
         if len(answered) >= 2:
             proposals = await said(members)
             rounds.append({"round": 1, "members": members})
