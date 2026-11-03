@@ -428,7 +428,9 @@ async def test_a_ceo_hires_inside_the_envelope(
            JOIN core.employees e ON e.id = w.assignee_id WHERE w.title LIKE $1""",
         f"%{emp}%PR-098%",
     )
-    assert review["code"] == "HQ-OVR" and review["due"] <= timedelta(hours=24)
+    # ⟨21⟩ PR-098 is paused by the management review §5.1 (hiring is automatic):
+    # no review item (test_review8_people resumes it and sees one)
+    assert review is None
     # An estimate that does not fit the envelope: 409, no employee.
     await _envelope(su, company, 2_000_000)  # 1.5M committed + 0.9M > 2M
     r = await client.post(
