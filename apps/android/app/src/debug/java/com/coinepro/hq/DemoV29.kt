@@ -144,7 +144,7 @@ internal class V29Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         }
         Regex("^/transcribe/sessions/([^/]+)/chunks/(\\d+)$").find(path)?.let { m ->
             sessions[m.groupValues[1]] = (sessions[m.groupValues[1]] ?: 0) + 1
-            return 204 to JsonObject(emptyMap())
+            return 200 to JsonObject(emptyMap())
         }
         Regex("^/transcribe/sessions/([^/]+)/finish$").find(path)?.let { m ->
             val n = sessions.remove(m.groupValues[1]) ?: 0
@@ -190,7 +190,7 @@ internal class V29Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
             }
             return when (m.groupValues[3]) {
                 "/test" -> 200 to jo("ok" to true, "message_fa" to "وصل است؛ از فردا هر روز خوانده میشود.", "state" to "connected")
-                "/secret" -> 204 to JsonObject(emptyMap())
+                "/secret" -> 200 to JsonObject(emptyMap())
                 else -> 200 to list[i]
             }
         }
@@ -565,10 +565,10 @@ internal class V29Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         ))
 
         val PLAN_MD = """
-            ۱. اشتراک طلایی را با «یک هفته‌ی رایگان» برای دنبال‌کننده‌های اینستاگرام عرضه کن؛ پژوهشگر نشان داد سه رقیب همین کار را کرده‌اند.
-            ۲. قیمت را تا سه ماه ثابت نگه دار و به‌جایش گزارش هفتگی طلا را به اشتراک اضافه کن (حساب و عدد: تمدید تا 8% بیشتر).
-            ۳. هر هفته دو ریلز از سیگنال‌های موفق، با منبع؛ منتقد: بدون منبع اعتماد را از دست میدهیم.
-            ۴. بعد از سه ماه، با عددهای تمدید تصمیم بگیر.
+            1. اشتراک طلایی را با «یک هفته‌ی رایگان» برای دنبال‌کننده‌های اینستاگرام عرضه کن؛ پژوهشگر نشان داد سه رقیب همین کار را کرده‌اند.
+            2. قیمت را تا سه ماه ثابت نگه دار و به‌جایش گزارش هفتگی طلا را به اشتراک اضافه کن (حساب و عدد: تمدید تا 8% بیشتر).
+            3. هر هفته دو ریلز از سیگنال‌های موفق، با منبع؛ منتقد: بدون منبع اعتماد را از دست میدهیم.
+            4. بعد از سه ماه، با عددهای تمدید تصمیم بگیر.
 
             | چه کسی | چه کاری | تا کی |
             |---|---|---|
