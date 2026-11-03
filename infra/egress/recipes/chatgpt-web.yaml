@@ -74,7 +74,11 @@ tasks:
       - {do: click, selector: "[data-testid=send-button]", optional: true}
       - {do: wait, selector: "[data-testid=stop-button], button[aria-label*='توقف'], button[aria-label*='Stop']", timeout_s: 20, optional: true}
       - {do: wait_gone, selector: "[data-testid=stop-button], button[aria-label*='توقف'], button[aria-label*='Stop']", timeout_s: 200}
-      - {do: wait, selector: "[data-testid=copy-turn-action-button], [data-testid=voice-play-turn-action-button], button[aria-label*='بلند'], button[aria-label*='Read aloud']", timeout_s: 30}
+      - do: wait
+        selector: >-
+          [data-testid=copy-turn-action-button], [data-testid=voice-play-turn-action-button],
+          button[aria-label*='بلند'], button[aria-label*='Read aloud']
+        timeout_s: 30
       - do: read
         selector: "[data-message-author-role=assistant] .markdown, div.markdown"
         alt:

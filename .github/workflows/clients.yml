@@ -15,6 +15,13 @@ on:
       - "design/**"
       - ".github/workflows/clients.yml"
   workflow_dispatch:
+    inputs:
+      record:
+        # Prompt 21: the builder has no Android SDK (the hub's memory is production's), so new screens'
+        # screenshots are recorded here and committed back to the branch the run was started on.
+        description: "Android: record the screenshots (recordRoborazziDebug) and commit them to this branch"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -46,7 +53,7 @@ jobs:
 
   web:
     needs: changes
-    if: needs.changes.outputs.web == 'true'
+    if: needs.changes.outputs.web == 'true' && !inputs.record
     runs-on: ubuntu-24.04
     container: node:22.22.0-trixie-slim
     timeout-minutes: 20
@@ -65,7 +72,7 @@ jobs:
   # Every page of the demo holding renders without errors and the owner's main actions work end to end.
   web-e2e:
     needs: changes
-    if: needs.changes.outputs.web == 'true'
+    if: needs.changes.outputs.web == 'true' && !inputs.record
     runs-on: ubuntu-24.04
     container: mcr.microsoft.com/playwright:v1.63.0-noble
     timeout-minutes: 25
@@ -81,7 +88,7 @@ jobs:
 
   android:
     needs: changes
-    if: needs.changes.outputs.android == 'true'
+    if: needs.changes.outputs.android == 'true' && !inputs.record
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
@@ -137,3 +144,31 @@ jobs:
           fi
           gh release edit android-latest --title "Android $v" --notes "$notes"
           gh release upload android-latest coinepro-hq.apk "coinepro-hq-$v.apk" coinepro-hq-debug.apk --clobber
+
+  # Prompt 21: record the screenshots of every screen (night and day) and commit them to the branch the manual run
+  # was started on; the next push then verifies against them like any other run.
+  android-record:
+    if: github.event_name == 'workflow_dispatch' && inputs.record
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Record
+        working-directory: apps/android
+        run: |
+          export JAVA_HOME="$JAVA_HOME_21_X64"
+          ./gradlew --no-daemon --console=plain recordRoborazziDebug
+
+      - name: Commit the recorded screenshots
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/android/app/src/test/screenshots
+          if git diff --cached --quiet; then echo "no screenshot changed"; exit 0; fi
+          git commit -m "Android: screenshots recorded by CI (recordRoborazziDebug)"
+          git push origin "HEAD:$BRANCH"
