@@ -1,6 +1,6 @@
 # وضعیت کار Claude ساخت (هفته‌ی ۱، برنامه‌ی تمرکز مدیر کل)
 
-> به‌روز: ۲۰۲۶-۱۱-۰۳ 04:15 UTC. اگر نشست قطع شد، Claude بعدی از همین‌جا ادامه میدهد.
+> به‌روز: ۲۰۲۶-۱۱-۰۳ 06:00 UTC. اگر نشست قطع شد، Claude بعدی از همین‌جا ادامه میدهد.
 
 ## مرحله‌ها
 | مرحله | وضعیت | کجا |
@@ -8,8 +8,8 @@
 | A کاهش هزینه و GPT وب (۲۰.۱) | ✅ ساخته و آزموده؛ در شاخه‌ی اصلی merge شد (2741c81) | `docs/server-prompts/PROMPT_20_1_DEPLOY.md` |
 | B بازبینی مدیریت | ✅ | `docs/MANAGEMENT_REVIEW_2026-11.md`، منشورهای `publisher` و `content_analyst` |
 | C قرارداد §۲۹ (v1.11) | ✅ | `contracts/HQ_CORE_API_v1.md` §۲۸.۷ و §۲۹ |
-| D ساخت هاب (۲۱) | ✅ هر سه بخش در `build/w1-owner-focus` merge شد، با تست سرتاسری فرمان کلیپ؛ مسیر `readiness/fix` و کلید `HQ_GROUPS` اضافه شد؛ اجرای کامل تست‌ها در جریان | `PROMPT_21_DEPLOY.md` |
-| E اپ‌ها (0.11.0) | 🟡 وب merge شد (CI سبز)؛ نسخه 0.11.0 و CHANGELOG؛ اندروید کامپایل میشود، عکس‌ها با اجرای `record` در CI ساخته میشوند و بعد merge | `build/w1-e-android` |
+| D ساخت هاب (۲۱) | ✅ هر سه بخش merge شد، با تست سرتاسری فرمان کلیپ؛ مسیر `readiness/fix` و کلید `HQ_GROUPS`؛ ۹ شکست اجرای کامل درست شد؛ ۵۰۳های طراحی‌شده‌ی صدا و اتصال حالا ۴۰۹ `channel_not_configured` هستند | `PROMPT_21_DEPLOY.md` |
+| E اپ‌ها (0.11.0) | ✅ وب و اندروید هر دو در `build/w1-owner-focus` merge شدند؛ عکس‌های v29 با اجرای `record` در CI ساخته و دیده شدند | `apps/CHANGELOG.md` |
 | F هفته‌ی پذیرش | 🟡 فهرست کارهای یک‌باره‌ی مالک آماده است | `OWNER_STEPS.md` |
 
 ## شاخه‌ها
@@ -20,17 +20,15 @@
 - **E:** `build/w1-e-web` و `build/w1-e-android`. شرح کار: `apps.md`.
 
 ## کارهای مانده (به ترتیب)
-1. سه شاخه‌ی D را در `build/w1-owner-focus` merge کن؛ تعارض‌ها معمولاً در `app.py`، `worker/schedules.py`، `agents/tools.md`، ابزارهای gateway و OPA است.
-   - تابع‌هایی که بخش‌ها از هم صدا میزنند: `order_report.on_order_routed`، `hiring.auto_fill`، `dispatch.remember`. هر کدام با `ImportError` محافظت شده؛ بعد از merge مستقیم وصلشان کن.
-2. `apps/api/openapi/hq-api.v1.json` را یک بار از کد بساز (`python -m hq_api.openapi_export` در image تست).
-3. تست سرتاسری: فرمان کلیپ تریدیار (متن دقیق در `docs/ops/reports/PROMPT_20.md` §1.1) از منشی تا کارگروه و گزارش فرمان؛ بازنویسی انسانی روی همه‌ی انواع اعلان؛ هیچ یافته‌ی فنی غیربحرانی در خانه.
-4. `docs/server-prompts/PROMPT_21_DEPLOY.md`: deploy مرحله‌ای (migration 0037 تا 0039)، روشن کردن کارگروه و روال‌ها جدا، سنجش با عدد، گزارش `docs/ops/reports/PROMPT_21.md`.
-5. E: دو شاخه را merge کن، `apps/VERSION` و `package.json` (و lock) را 0.11.0 کن، یک خط در `apps/CHANGELOG.md`. APK فقط از CI شاخه‌ی اصلی منتشر میشود.
-6. F: فهرست کارهای یک‌باره‌ی مالک (کدام اتصال با کدام حساب، کدام سری انتشار را مُهر کند).
+1. CI `quality` و `clients` روی `build/w1-owner-focus` سبز شود.
+2. `git merge --no-ff build/w1-owner-focus` در `claude/coinepro-hub-setup-hsvnw7`، و push. APK 0.11.0 را CI شاخه‌ی اصلی در `android-latest` منتشر میکند.
+3. گزارش کوتاه D، E و F به مالک: پرامپت‌های `PROMPT_20_1_DEPLOY.md` و `PROMPT_21_DEPLOY.md` برای Claude سرور هاب، و `OWNER_STEPS.md`.
 
 ## نکته‌های محیط (نشست ابری، بی سرور هاب)
 - **Docker:** `dockerd` دستی بالا میآید. Docker Hub محدودیت دارد؛ image‌ها از `mirror.gcr.io/...` گرفته و با نام اصلی tag شدند.
 - **image تست:** با CA پروکسی ساخته میشود (Dockerfile موقت در scratchpad)؛ `services/scripts/test-env.sh` در نسخه‌ی scratchpad گام build را ندارد.
 - **pytest:** `addopts` خودش `-q` دارد؛ `-q` دوم خلاصه را پنهان میکند. از `-rA` استفاده کن.
-- **CI `quality` چند روز است همیشه با سقف ۴۵ دقیقه لغو میشود** (روی شاخه‌ی اصلی هم، پیش از این کار). علت: آزمون fuzz کل API (`tests/test_openapi.py`) طولانی است؛ nightly با ۹۰ دقیقه هم لغو میشود. باید یا fuzz روی push سبک شود یا سقف زمان بالا برود (تصمیم کوچک CI). سنجش‌ها تا آن موقع محلی است و `make check` روی هاب هنگام deploy.
+- **CI `quality` چند روز همیشه با سقف ۴۵ دقیقه لغو میشد.**
+  - **علت:** `HQ_FUZZ_EXAMPLES` هرگز به کانتینر تست نمیرسید (`services/scripts/test-env.sh` آن را رد نمیکرد). پس fuzz همیشه با ۸ نمونه و همه‌ی فازها اجرا میشد: حدود ۲۰٬۰۰۰ مورد و ۲۸ دقیقه.
+  - **درست شد (6889d258):** `test-env.sh` حالا `HQ_FUZZ_EXAMPLES` و `HQ_FUZZ_PHASES` را رد میکند. push فقط فازهای `examples,fuzzing` را اجرا میکند و nightly همه‌ی فازها را.
 - **اندروید:** SDK نصب نمیشود؛ CI کامپایل میکند و اجرای دستی `clients.yml` با `record: true` عکس‌ها را میسازد و به شاخه commit میکند.
