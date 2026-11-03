@@ -104,6 +104,15 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
                 .body("".toResponseBody("text/plain".toMediaType())).build()
         }
         val path = req.url.encodedPath.removePrefix("/api/v1").let { java.net.URLDecoder.decode(it, "UTF-8") }
+        // ⟨1.11⟩ §29: the home, order reports, the secretary, rules, long voice, the council v2, groups and connections, before the orders'
+        // demo (which answers every /work path it knows). A chunk of audio is not JSON: its body is not read as such.
+        run {
+            val isJson = req.body?.contentType()?.subtype == "json"
+            val b = if (!isJson) null else req.body?.let { rb -> Buffer().also { rb.writeTo(it) }.readUtf8() }?.takeIf { it.isNotBlank() }
+                ?.let { runCatching { Api.json.parseToJsonElement(it) as? JsonObject }.getOrNull() }
+            val q = req.url.queryParameterNames.associateWith { req.url.queryParameter(it) }
+            v29.handle(req.method, path, q, b)?.let { Thread.sleep(60); return respond(req, it) }
+        }
         // The owner's orders answer quickly: a list of orders asks for several details at once.
         if (path == "/work" || path.startsWith("/work/")) {
             val q0 = req.url.queryParameterNames.associateWith { req.url.queryParameter(it) }
@@ -278,6 +287,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     private val companies = CompaniesDemo(store)
     /** Eager too: the owner's orders in every stage, and their live progress on the stream. */
     private val orders = OrdersDemo(store)
+    /** ⟨1.11⟩ §29: eager, so the employees' states are on the chart and the employee pages from the first read. */
+    private val v29 = V29Demo(store)
     /** ⟨1.8⟩ before [scripts]: wakes on the first look at a server, so other screens see the holding as before. */
     private val servers = ServersDemo(store)
 

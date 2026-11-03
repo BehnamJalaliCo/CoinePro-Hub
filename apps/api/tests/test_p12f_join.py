@@ -56,8 +56,12 @@ async def test_the_chain_runs_through_prompt_11_then_prompt_12(su: Any) -> None:
     assert rev["0033"] == "0032"  # 18: the player of an order, the council
     assert rev["0034"] == "0033"  # 19: clean-up, catalogue, the watch
     assert rev["0035"] == "0034"  # 19.3: notifications deleted for good
-    assert heads == {"0035"}
-    assert await su.fetchval("SELECT version_num FROM alembic_version_api") == "0035"
+    assert rev["0036"] == "0035"  # 20.1: what the holding spends, GPT on the web
+    assert rev["0037"] == "0036"  # 21: routing by domain, the order report
+    assert rev["0038"] == "0037"  # 21: the secretary, rules, long voice
+    assert rev["0039"] == "0038"  # 21: working groups, connections, the home
+    assert heads == {"0039"}
+    assert await su.fetchval("SELECT version_num FROM alembic_version_api") == "0039"
 
 
 async def test_the_kind_check_holds_every_kind_and_is_validated(su: Any) -> None:

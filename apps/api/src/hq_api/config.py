@@ -65,6 +65,9 @@ class Settings:
     stt_cold_start_s: int = field(default_factory=lambda: _int("HQ_STT_COLD_START_S", 120))
     # How long POST /transcribe waits for the worker (a 15-minute recording on CPU).
     transcribe_wait_s: int = field(default_factory=lambda: _int("HQ_TRANSCRIBE_WAIT_S", 600))
+    # ⟨1.11⟩ contract §29.5: one long voice sent in chunks (≤ 90 s each) holds at
+    # most this many seconds in all (20 minutes)
+    stt_session_max_s: int = field(default_factory=lambda: _int("STT_SESSION_MAX_S", 1200))
     # Prompt 14 §4: OCR on the hub (Tesseract 5, the opt-in `ocr` profile), reached
     # by the worker only on the internal hq-ocr network (empty: the profile is
     # off; scans stay text_state "none"); how long an archive intake waits for an
@@ -131,9 +134,19 @@ class Settings:
     # The Chief Overseer (prompt 08 §2): protocol runs handed to a model per
     # owner day (the rest are code, skipped or deferred), and each run's token
     # budget, never above the assignee's charter (overseer v2: 200K a run).
+    # ⟨21⟩ the management review §5.1: one a day (a critical protocol always runs).
     oversight_model_runs_per_day: int = field(
-        default_factory=lambda: _int("HQ_OVERSIGHT_MODEL_RUNS_PER_DAY", 3)
+        default_factory=lambda: _int("HQ_OVERSIGHT_MODEL_RUNS_PER_DAY", 1)
     )
+    # ⟨21⟩ contract §29.2: every order is answered. More than this many agent
+    # runs on one order without a deliverable stop the order's open runs
+    # (`talk_loop`); the acknowledgement is due within ORDER_ACK_MINUTES; a step
+    # within ORDER_PROGRESS_HOURS (the CEO must report), and after
+    # ORDER_OWNER_HOURS the owner hears why.
+    order_talk_limit: int = field(default_factory=lambda: _int("ORDER_TALK_LIMIT", 12))
+    order_ack_minutes: int = field(default_factory=lambda: _int("ORDER_ACK_MINUTES", 10))
+    order_progress_hours: int = field(default_factory=lambda: _int("ORDER_PROGRESS_HOURS", 2))
+    order_owner_hours: int = field(default_factory=lambda: _int("ORDER_OWNER_HOURS", 6))
     oversight_run_tokens: int = field(
         default_factory=lambda: _int("HQ_OVERSIGHT_RUN_TOKENS", 60_000)
     )
@@ -295,6 +308,9 @@ class Settings:
     # "media": while it is off a render waits in its queue (the item says so)
     # and an agent's preview answers channel_not_configured.
     media: bool = field(default_factory=lambda: _env("HQ_MEDIA", "off") == "on")
+    # ⟨21⟩ §29.11 the working groups' routines run (the worker's tick) only once
+    # the deploy switches them on, a step of its own after the checks (prompt 21)
+    groups: bool = field(default_factory=lambda: _env("HQ_GROUPS", "off") == "on")
     tts_voice: str = field(default_factory=lambda: _env("HQ_TTS_VOICE", "fa_IR-amir-medium"))
     # The deploy card's diff (§21.6): fetched with the hub's existing git access
     # (a workspace's token in OpenBao) into mirrors under this directory; the

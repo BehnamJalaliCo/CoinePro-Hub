@@ -283,11 +283,12 @@ async def test_a_judgement_protocol_is_the_overseers_work_within_the_daily_cap(
         again = await acts.protocol_run(llm["ref"])  # an hourly one would be the same
         assert again["skipped"] == "once_a_day"
         # No CEO approved a hire for review (or another test already ran it today).
-        # PR-098: nothing to review, already handed today, or a CEO's hire to review.
+        # PR-098: nothing to review, already handed today, or a CEO's hire to review;
+        # ⟨21⟩ paused by the management review §5.1 (hiring is automatic)
         pr98 = await acts.protocol_run("PR-098")
         assert (
             pr98.get("why") == "nothing_to_review"
-            or pr98.get("skipped") == "once_a_day"
+            or pr98.get("skipped") in ("once_a_day", "paused")
             or (pr98.get("work") and pr98.get("assignee") == OVR)
         ), pr98
         hub.settings = replace(real, oversight_model_runs_per_day=0)

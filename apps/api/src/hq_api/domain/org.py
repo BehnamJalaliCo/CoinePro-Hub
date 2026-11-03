@@ -4,7 +4,7 @@ dismissal (contract §3, OPERATING_MODEL §1.1–§1.3)."""
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -78,6 +78,19 @@ class CharterRef(BaseModel):
     version: int | None
 
 
+class StuckFix(BaseModel):
+    action: str
+    label_fa: str
+    target: str | None = None
+
+
+class Stuck(BaseModel):
+    """⟨21⟩ §29.14: why an employee is stuck, and the one-tap fix (§29.2)."""
+
+    reason_fa: str
+    fix: StuckFix | None = None
+
+
 class Employee(BaseModel):
     id: UUID
     code: str
@@ -105,6 +118,11 @@ class Employee(BaseModel):
     # ⟨1.4⟩ computed precedence (§18.0); null for the system author
     rank: int | None = None
     version: int
+    # ⟨21⟩ contract §29.14: what it is doing now (thinking: a model call in a
+    # running run; working: a server job; waiting: on someone else or a card;
+    # stuck: a blocker of §29.2; done: delivered today, nothing open)
+    state: Literal["idle", "thinking", "working", "waiting", "stuck", "done"] = "idle"
+    stuck: Stuck | None = None
 
 
 class Assignments:

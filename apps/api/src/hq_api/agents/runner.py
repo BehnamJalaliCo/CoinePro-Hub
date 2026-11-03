@@ -51,9 +51,11 @@ from hq_api.domain import decisions as D
 from hq_api.domain import departments as DM
 from hq_api.domain import files as F
 from hq_api.domain import meeting_flow as MF
+from hq_api.domain import order_report as OR
 from hq_api.domain import oversight as O
 from hq_api.domain import role_drafts as RD
 from hq_api.domain import skills as SK
+from hq_api.domain import work as W
 from hq_api.errors import sqlstate_of
 from hq_api.hub import Hub
 from hq_api.routes.messages import LINK_TABLES
@@ -192,6 +194,10 @@ class RunCtx:
     # ⟨1.6⟩ the charters of the run's company: the files plus its role drafts
     # (contract §22.5); None = the files only
     lib: Any = None
+    # ⟨21⟩ §29.6: the last call's cache reads (the next prompt reads them again,
+    # at a tenth), and why the steps stopped short ("budget": the run's cap)
+    last_cache_read: int = 0
+    stop: str | None = None
 
     @property
     def token_cap(self) -> int:
@@ -268,6 +274,8 @@ class Runner:
                     refuse = "daily_cap"  # ⟨20.1⟩ §28.6 the company's own cap
                 elif run["work_id"] is not None:
                     refuse = await self._work_refusal(tx, run["work_id"])
+                    if refuse is None and await OR.stopped(tx, run["work_id"]):
+                        refuse = "talk_loop"  # ⟨21⟩ §29.2: its order talked without output
             if refuse is None and await tx.scalar(
                 "SELECT 1 FROM agents.runs WHERE employee_id = :e AND state = 'running'",
                 e=run["employee_id"],
@@ -488,7 +496,11 @@ class Runner:
             outcome = ("failed", "runtime_error", None)
         state, code, note = outcome
         return await self.finish(
-            run_id, state, code, note=note, partial=state == "done" and code == "limit_reached"
+            run_id,
+            state,
+            code,
+            note=note,
+            partial=state == "done" and code in ("limit_reached", "budget"),
         )
 
     async def _steps(self, rc: RunCtx, deadline: float) -> tuple[str, str | None, str | None]:
@@ -570,12 +582,22 @@ class Runner:
                 )
             if time.monotonic() > deadline:
                 break
+            if await self._talk_stopped(rc):
+                return (
+                    "refused",
+                    "talk_loop",
+                    "the order was stopped: too many runs without an output",
+                )
             left = token_cap - rc.used_tokens
             if left < min(per_step, token_cap) // 4 or left <= 0:
+                rc.stop = "budget"
                 break
-            # Hard: the next prompt plus its capped output must fit in what is left.
-            room = min(per_step, left - prompt_tokens(system, rc.messages))
+            # Hard: the next prompt plus its capped output must fit in what is
+            # left; ⟨21⟩ §29.6 what the last call read from the cache comes back
+            # at a tenth.
+            room = min(per_step, left - self._prompt_cost(rc, system))
             if room < MIN_OUTPUT_TOKENS:
+                rc.stop = "budget"
                 break
             if await self._daily_cap_reached(rc.run["company_id"]):
                 return (
@@ -923,9 +945,81 @@ class Runner:
             "deliver",
             {"work_ref": work_ref, "title_fa": "خروجی ناقص: سقف اجرا رسید", "body_md": body},
         )
+        if rc.stop == "budget":
+            # ⟨21⟩ §29.6: stopped cleanly on its cap; the work waits for more
+            # budget and the CEO is asked «بودجه کم است، +X بدهم؟»
+            await self._budget_stop(rc, work_ref)
+            return "done", "budget", "partial deliverable " + str(out.get("ref") or "")
         if out.get("outcome") == "ok":
             return "done", "limit_reached", "partial deliverable " + str(out.get("ref") or "")
         return "failed", "limit_reached", None
+
+    def _prompt_cost(self, rc: RunCtx, system: str) -> int:
+        """⟨21⟩ §29.6 the next prompt as the run's cap counts it: what the last
+        call read from the cache (the same context, sent again) at a tenth."""
+        est = prompt_tokens(system, rc.messages)
+        cached = min(rc.last_cache_read, est)
+        return est - cached + round(cached * W.CACHE_READ_SHARE)
+
+    async def _talk_stopped(self, rc: RunCtx) -> bool:
+        if rc.run["work_id"] is None:
+            return False
+        async with await self._tx() as tx:
+            return await OR.stopped(tx, rc.run["work_id"])
+
+    async def _budget_stop(self, rc: RunCtx, work_ref: str) -> None:
+        """The work waits (`waiting`, a `budget` blocker in its order) and its
+        company's CEO gets one small work item to add budget (work.budget)."""
+        async with await self._tx() as tx:
+            w = await tx.first(
+                """SELECT w.id, w.ref, w.status, w.company_id, w.budget_tokens, w.tokens_used,
+                          c.code AS company
+                   FROM work.work w JOIN core.companies c ON c.id = w.company_id
+                   WHERE w.ref = :r FOR UPDATE OF w""",
+                r=work_ref,
+            )
+            if w is None or w["status"] not in W.OPEN:
+                return
+            await tx.exec("UPDATE work.work SET status = 'waiting' WHERE id = :id", id=w["id"])
+            ceo = await tx.first(
+                """SELECT code FROM core.employees WHERE company_id = :co AND kind = 'ceo'
+                     AND status = 'active' ORDER BY hired_at LIMIT 1""",
+                co=w["company_id"],
+            )
+            limits = rc.charter.limits
+            add = max(limits.tokens_per_run, W.FLOOR_STEPS * limits.tokens_per_step)
+            title = f"بودجه کم است، +{add:,} بدهم؟ ({work_ref})"
+            if (
+                ceo is None
+                or ceo["code"] == rc.emp["code"]
+                or await tx.scalar(
+                    """SELECT 1 FROM work.work
+                       WHERE title = :t AND status IN ('queued', 'in_progress', 'waiting')""",
+                    t=title,
+                )
+            ):
+                return
+            spent = (
+                f"{int(w['tokens_used']):,} از {int(w['budget_tokens']):,}"
+                if w["budget_tokens"] is not None
+                else "سقف یک اجرا"
+            )
+            await W.create(
+                tx,
+                OR.SERVICE,
+                company_id=w["company_id"],
+                company_code=w["company"],
+                title=title,
+                brief=(
+                    f"کار {work_ref} ({rc.emp['code']}) در میانه ماند چون سقف مصرفش رسید "
+                    f"({spent}). اگر کار ارزشش را دارد و در پاکت ماه شرکت جا میشود، با "
+                    f"work.budget (ref={work_ref}, add_tokens={add}) بودجه بده تا ادامه دهد؛ "
+                    "وگرنه با یک یادداشت بگو چرا نه."
+                ),
+                kind="one_off",
+                priority="P2",
+                assignee_code=ceo["code"],
+            )
 
     # ------------------------------------------------------------- context --
     async def _skills(self, rc: RunCtx) -> str:
@@ -1254,8 +1348,15 @@ class Runner:
 
     # ------------------------------------------------------------ records --
     async def _book(self, rc: RunCtx, call: ModelCall) -> None:
-        """A step's usage on the run and on its work (budget accounting)."""
-        rc.used_tokens += call.tokens
+        """A step's usage on the run and on its work (budget accounting).
+        ⟨21⟩ §29.6: the cap and the work's budget count a cache read at a
+        tenth; the run's own counters (and the Token Treasury) keep the full
+        figures."""
+        tokens = W.effective_tokens(
+            call.input_tokens, call.output_tokens, call.cache_read_tokens, call.cache_write_tokens
+        )
+        rc.used_tokens += tokens
+        rc.last_cache_read = int(call.cache_read_tokens or 0)
         usd = Decimal(call.equiv_cost_usd or 0) + Decimal(call.cost_usd or 0)
         async with await self._tx() as tx:
             await tx.exec(
@@ -1271,13 +1372,13 @@ class Runner:
                 eq=Decimal(call.equiv_cost_usd or 0),
                 c=Decimal(call.cost_usd or 0),
             )
-        if rc.run["work_id"] is not None and call.tokens:
+        if rc.run["work_id"] is not None and tokens:
             try:
                 async with await self._tx() as tx:
                     await tx.exec(
                         "UPDATE work.work SET tokens_used = tokens_used + :t, usd_used = usd_used + :u WHERE id = :id",
                         id=rc.run["work_id"],
-                        t=call.tokens,
+                        t=tokens,
                         u=usd,
                     )
             except DBAPIError as exc:

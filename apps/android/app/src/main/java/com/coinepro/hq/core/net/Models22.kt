@@ -46,6 +46,13 @@ data class Council(
     val state: String = "running",
     /** image · video for a media council; null for words. */
     val media: String? = null,
+    /** ⟨1.11⟩ §29.8 the council v2: the round it is in (1 proposals, 2 critique, 3 the captain's plan), each player's role
+     *  (captain · researcher · numbers · devil), the fact pack it started from, and the captain's plan for the owner. */
+    val round: Int? = null,
+    val roles: Map<String, String> = emptyMap(),
+    val factPackRef: String? = null,
+    val factPack: FactPack? = null,
+    val planMd: String? = null,
 ) {
     /** Images or videos: the members answer with Creatives, and the owner picks one. */
     val mediaCouncil: Boolean get() = media != null || members.any { it.creative }

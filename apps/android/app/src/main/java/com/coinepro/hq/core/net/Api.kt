@@ -440,8 +440,12 @@ class Api(
     }
 
     // ------------------------------------------------ voice orders ⟨1.3⟩ --
-    suspend fun order(text: String, source: String, fileId: String?): Order =
-        post("/orders", buildJsonObject { put("text", text); put("source", source); put("file_id", fileId) })
+    /** ⟨1.11⟩ §29.4 with [route] (the secretary's preview, maybe edited by the owner) the hub follows it exactly; without, it decides. */
+    suspend fun order(text: String, source: String, fileId: String?, route: OrderRoute29? = null): Order =
+        post("/orders", buildJsonObject {
+            put("text", text); put("source", source); put("file_id", fileId)
+            if (route != null) put("route", json.encodeToJsonElement(OrderRoute29.serializer(), route))
+        })
     suspend fun orders(): Page<Order> = get("/orders")
 
     // ------------------------------------------------- oversight ⟨1.4⟩ --
@@ -1366,6 +1370,119 @@ class Api(
         return execute(Request.Builder().url(target).get().header("Accept", "text/plain, application/json").build()).use { r -> check(r); r.body.string() }
     }
 
+    // ------------------------------------------------- ⟨1.11⟩ §29 the business --
+    /** §29.13 the owner's home: three cards, the morning, each group's KPIs per company, the orders, only critical items. */
+    suspend fun home(): Home = get("/home")
+
+    /** §29.13 `run` (makes an order) · `later` · `no` with the owner's reason (the secretary remembers it). */
+    suspend fun suggestion(id: String, action: String, reasonFa: String? = null): JsonObject? =
+        writeLoose("POST", "/home/suggestions/${seg(id)}", buildJsonObject { put("action", action); if (reasonFa != null) put("reason_fa", reasonFa) })
+
+    /** §29.2 an order's report: state, receipt and plan, steps, blockers, outputs, the end summary. */
+    suspend fun orderReport(ref: String): OrderReport = get("/orders/${seg(ref)}/report")
+
+    /** §29.2 a blocker's one-tap fix; `budget.add` carries [tokens]. A sealed fix (`hiring.open`) is signed on its action and target. */
+    suspend fun orderFix(ref: String, fix: Fix, tokens: Long? = null, stepUp: StepUp? = null): JsonObject? {
+        val token = if (stepUp != null) stepUp(fix.action, fix.target ?: ref) else null
+        return writeLoose("POST", "/orders/${seg(ref)}/fix", buildJsonObject {
+            put("action", fix.action); put("target", fix.target); if (tokens != null) put("tokens", tokens)
+        }, token)
+    }
+
+    /** §29.4 the secretary's route and its one line, before the order goes. */
+    suspend fun orderPreview(text: String, source: String): OrderRoute29 =
+        post("/orders/preview", buildJsonObject { put("text", text); put("source", source) })
+
+    /** §29.3 the owner's rules (standing orders, newest first, with their counts). */
+    suspend fun rules(): List<OwnerRule> = items("/rules", OwnerRule.serializer())
+
+    /** §29.3 a rule in the owner's words (text or voice): `proposed`, made precise by the hub; the seal is one tap ([sealRule]). */
+    suspend fun newRule(text: String, source: String, fileId: String? = null): OwnerRule =
+        post("/rules", buildJsonObject { put("text", text); put("source", source); if (fileId != null) put("file_id", fileId) })
+
+    /** 🔏 the standing order's own seal (`oversight.order` on the ref), read as a rule (its `applies_to` may be an object now). */
+    suspend fun sealRule(ref: String, stepUp: StepUp): OwnerRule =
+        post("/oversight/orders/${seg(ref)}/seal", JsonObject(emptyMap()), stepUp("oversight.order", ref))
+
+    /** §29.3 🔏 a new version of a rule (`rule.seal` on the ref). */
+    suspend fun putRule(ref: String, text: String, stepUp: StepUp): OwnerRule {
+        val body = json.encodeToString(JsonElement.serializer(), buildJsonObject { put("text", text); put("text_md", text) })
+        return send("PUT", "/rules/${seg(ref)}", body, stepUp = stepUp("rule.seal", ref))
+    }
+
+    suspend fun retireRule(ref: String): OwnerRule = post("/rules/${seg(ref)}/retire", JsonObject(emptyMap()))
+
+    /** §29.9 a company's readiness for a working group: each check, and the fix of a failed one. */
+    suspend fun readiness(code: String, group: String): Readiness = get("/companies/${seg(code)}/readiness", mapOf("group" to group))
+
+    // §29.11 working groups.
+    suspend fun groups(): List<WorkGroup> = items("/groups", WorkGroup.serializer())
+    suspend fun group(key: String): WorkGroup = get("/groups/${seg(key)}")
+    suspend fun groupMembers(key: String): List<Membership> = items("/groups/${seg(key)}/members", Membership.serializer())
+    suspend fun setGroupMember(key: String, code: String, state: String): JsonObject? =
+        writeLoose("PUT", "/groups/${seg(key)}/members/${seg(code)}", buildJsonObject { put("state", state) })
+    suspend fun groupRuns(key: String, company: String? = null, limit: Int = 30): List<RoutineRun> =
+        items("/groups/${seg(key)}/runs", RoutineRun.serializer(), mapOf("company" to company, "limit" to limit))
+    suspend fun setRoutine(key: String, routine: String, state: String): JsonObject? =
+        writeLoose("PUT", "/groups/${seg(key)}/routines/${seg(routine)}", buildJsonObject { put("state", state) })
+    suspend fun groupKpis(key: String, company: String? = null, days: Int = 30): List<KpiSeries> {
+        val e: JsonElement = get("/groups/${seg(key)}/kpis", mapOf("company" to company, "days" to days))
+        return decoded("/groups/$key/kpis") { kpiSeriesOf(e, company) }
+    }
+    suspend fun groupExperiments(key: String, company: String? = null): List<Experiment> =
+        items("/groups/${seg(key)}/experiments", Experiment.serializer(), mapOf("company" to company))
+
+    // §29.12 connections: each kind with its state, last read and daily figures; the secret is write-only.
+    suspend fun companyConnections(code: String): List<CompanyConnection> = items("/companies/${seg(code)}/connections", CompanyConnection.serializer())
+    suspend fun connectionGuide(kind: String): ConnectionGuide = get("/connections/guides/${seg(kind)}")
+
+    /** 🔏 `connection.config` on `CODE/kind` (the hub asks for it when the change widens what is read; the app always signs). */
+    suspend fun putConnectionConfig(code: String, kind: String, config: JsonObject, stepUp: StepUp): JsonObject? {
+        val token = stepUp("connection.config", "$code/$kind")
+        return writeLoose("PUT", "/companies/${seg(code)}/connections/${seg(kind)}", buildJsonObject { put("config", config) }, token)
+    }
+
+    /** 🔏 `connection.secret` on `CODE/kind`: write-only, never read back (only `set` or `missing`). */
+    suspend fun putConnectionSecret(code: String, kind: String, secret: String, stepUp: StepUp) {
+        val token = stepUp("connection.secret", "$code/$kind")
+        writeLoose("PUT", "/companies/${seg(code)}/connections/${seg(kind)}/secret", buildJsonObject { put("secret", secret) }, token)
+    }
+
+    suspend fun testConnection(code: String, kind: String): ConnectionTest =
+        post("/companies/${seg(code)}/connections/${seg(kind)}/test", JsonObject(emptyMap()))
+
+    /** §29.1 the company's technical findings («شرکت ← فنی»): every domain of tech, infra and security, not only what reaches the owner. */
+    suspend fun techFindings(company: String): List<Finding> = kotlinx.coroutines.coroutineScope {
+        TECH_DOMAINS.map { d ->
+            async { get<Page<Finding>>("/oversight/findings", mapOf("scope" to "all", "domain" to d, "company" to company)).items }
+        }.flatMap { it.await() }.distinctBy { it.ref }.sortedByDescending { it.openedAt }
+    }
+
+    // §29.5 long voice: a session, its chunks (≤ 90 s each, in order, idempotent per n), then the whole text.
+    suspend fun sttStart(purpose: String): SttSession = post("/transcribe/sessions", buildJsonObject { put("purpose", purpose) })
+
+    suspend fun sttChunk(id: String, n: Int, audio: File, mime: String = "audio/mp4") {
+        val req = Request.Builder().url(url("/transcribe/sessions/${seg(id)}/chunks/$n")).put(audio.asRequestBody(mime.toMediaType())).build()
+        execute(req, transferClient).use { check(it) }
+    }
+
+    suspend fun sttFinish(id: String): SttDone =
+        call(write("POST", "/transcribe/sessions/${seg(id)}/finish", JsonObject(emptyMap()), null), serializer<SttDone>(), transferClient)
+
+    /** A write whose answer the app does not need whole (a 204, or a shape a newer hub may change): the object when there is one. */
+    private suspend fun writeLoose(method: String, path: String, body: JsonElement, stepUp: String? = null): JsonObject? =
+        execute(write(method, path, body, stepUp)).use { r ->
+            check(r)
+            val t = r.body.string()
+            if (t.isBlank()) null else runCatching { json.parseToJsonElement(t) as? JsonObject }.getOrNull()
+        }
+
+    /** A list the hub may answer bare or as a page. */
+    private suspend fun <T> items(path: String, s: KSerializer<T>, query: Map<String, Any?> = emptyMap()): List<T> {
+        val e: JsonElement = get(path, query)
+        return decoded(path) { e.itemsOrSelf().map { json.decodeFromJsonElement(s, it) } }
+    }
+
     // ------------------------------------------------------------ plumbing --
     private fun seg(s: String): String = java.net.URLEncoder.encode(s, "UTF-8").replace("+", "%20")
     private fun ids(xs: List<String>) = JsonArray(xs.map(::JsonPrimitive))
@@ -1506,6 +1623,9 @@ class Api(
                 val ref = (o["ref"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return@mapNotNull null
                 ref to ((o["reason"] as? JsonPrimitive)?.content ?: "")
             }.orEmpty()
+
+        /** ⟨1.11⟩ §29.1 the technical domains, which reach the owner only under «شرکت ← فنی» (or when critical). */
+        val TECH_DOMAINS = listOf("tech", "infra", "security")
 
         /** Every status `GET /decisions` takes. */
         val DECISION_STATUSES = listOf("pending", "approved", "rejected", "returned", "expired", "withdrawn")

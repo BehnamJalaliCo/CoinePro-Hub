@@ -221,6 +221,7 @@ async def test_agents_cannot_propose_a_hire_while_hiring_is_closed(
 ) -> None:
     company = await new_company()
     co = company["code"]
+    await _set_hiring(su, "closed")  # ⟨21⟩ migration 0037 opens it (auto): closed here first
     for who in (f"{co}-TECH-MGR", f"{co}-CEO"):
         r = await client.post(
             "/internal/v1/decisions",
@@ -246,6 +247,7 @@ async def test_company_state_tells_agents_the_hiring_state(
 ) -> None:
     co = (await new_company())["code"]
     h = await agent_headers(f"{co}-CEO")
+    await _set_hiring(su, "closed")  # ⟨21⟩ migration 0037 opens it (auto): closed here first
     r = await client.get("/internal/v1/company/state", headers=h)
     assert r.status_code == 200 and r.json()["hiring"] == "closed"
     await _set_hiring(su, "open")
@@ -598,9 +600,10 @@ async def test_a_close_waits_for_a_hire_proposal_in_flight(
 
 
 async def test_a_retried_hire_proposal_while_closed_answers_the_same(
-    client: httpx.AsyncClient, new_company: Callable[..., Any]
+    client: httpx.AsyncClient, su: Any, new_company: Callable[..., Any]
 ) -> None:
     co = (await new_company())["code"]
+    await _set_hiring(su, "closed")  # ⟨21⟩ migration 0037 opens it (auto)
     h = {**await agent_headers(f"{co}-TECH-MGR"), **idem()}
     first = await client.post("/internal/v1/decisions", headers=h, json=_hire(co))
     again = await client.post("/internal/v1/decisions", headers=h, json=_hire(co))

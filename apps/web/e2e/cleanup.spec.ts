@@ -149,10 +149,13 @@ test('the watch filters by group, and growth reads as advice', async ({ page }) 
   await expect(growth.getByText(/\+۰٫۶ واحد نرخ تبدیل/).first()).toBeVisible();
 });
 
-test('the home page shows the watch at a glance', async ({ page }) => {
+// ⟨1.11⟩ §29.13: nothing technical on the home any more; the company's technical findings live under «شرکت ← فنی».
+test('the watch is no longer on the home; a technical finding lives under the company\'s technical tab', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByText('دیده‌بان', { exact: true }).first()).toBeVisible();
-  await expect(page.getByRole('link', { name: /پورت 5432 پرو-چارت روی اینترنت باز است/ })).toBeVisible();
+  await expect(page.getByRole('article', { name: /^پیشنهاد مؤثر/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /پورت 5432 پرو-چارت روی اینترنت باز است/ })).toHaveCount(0);
+  await page.goto('/companies/PC?tab=tech');
+  await expect(page.getByRole('region', { name: 'یافته‌های فنی' }).getByText('پورت دیتابیس پرو-چارت روی اینترنت باز است')).toBeVisible();
 });
 
 test('a council where only Claude answered says so, and its failures read in Persian', async ({ page }) => {

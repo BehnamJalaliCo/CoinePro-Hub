@@ -648,6 +648,8 @@ services:
       # and one catalogue run's tokens on the company's servers.
       AGENT_COMPANY_DAILY_TOKEN_CAP: ${AGENT_COMPANY_DAILY_TOKEN_CAP:-400000}
       HQ_CATALOGUE_RUN_TOKENS: ${HQ_CATALOGUE_RUN_TOKENS:-1500000}
+      # Prompt 21 (contract §29.11): the working groups' routines, switched on after the deploy's checks.
+      HQ_GROUPS: ${HQ_GROUPS:-off}
       OWNER_ZONE_DAILY_SHARE: ${OWNER_ZONE_DAILY_SHARE:-0.25}
       CONNECTION_SECRET_ROUTE: ${CONNECTION_SECRET_ROUTE:-api}
       # Prompt 12 §9.1: hq.sh sets it on only while the substitutes runner's
@@ -660,6 +662,8 @@ services:
       # 15 §2.3: /transcribe answers 503 at once and /meta says speech is off
       # while hq.sh leaves this empty (HQ_STT off).
       STT_URL: ${STT_URL:-}
+      # Prompt 21 (contract §29.5): a long voice in chunks holds at most this many seconds.
+      STT_SESSION_MAX_S: ${STT_SESSION_MAX_S:-1200}
       HQ_TTS_VOICE: ${HQ_TTS_VOICE:-fa_IR-amir-medium}
       # Prompt 13 §2.3: renders are queued only while the opt-in profile
       # "media" runs (hq.sh sets HQ_MEDIA_ACTIVE); else media.render answers
@@ -722,6 +726,8 @@ services:
       # and one catalogue run's tokens on the company's servers.
       AGENT_COMPANY_DAILY_TOKEN_CAP: ${AGENT_COMPANY_DAILY_TOKEN_CAP:-400000}
       HQ_CATALOGUE_RUN_TOKENS: ${HQ_CATALOGUE_RUN_TOKENS:-1500000}
+      # Prompt 21 (contract §29.11): the working groups' routines, switched on after the deploy's checks.
+      HQ_GROUPS: ${HQ_GROUPS:-off}
       OVERSIGHT_DAILY_SHARE: ${OVERSIGHT_DAILY_SHARE:-0.2}
       # Prompt 11 §1.2: the meetings' share of the daily cap (a meeting that does not fit is `written`).
       MEETINGS_DAILY_SHARE: ${MEETINGS_DAILY_SHARE:-0.15}

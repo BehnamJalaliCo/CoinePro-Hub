@@ -14,6 +14,8 @@ import { Card, Pill, SectionTitle, Skeleton } from '@/components/ui/primitives';
 import { useOutput } from '@/lib/api/v21';
 import { COUNCIL_STATE, MEMBER_STATE, PROVIDER_OF, councilProgressFa, humanReason, playerFa, soloOf, useCouncil, type Council, type CouncilMember } from '@/lib/api/v28';
 import { cx, modelLabel } from '@/lib/format';
+import { CouncilV2 } from '@/components/v29/council';
+import type { Council29 } from '@/lib/api/v29';
 
 function Member({ m }: { m: CouncilMember }) {
   const [details, setDetails] = useState(false);
@@ -83,12 +85,15 @@ function Synthesis({ c }: { c: Council }) {
 }
 
 /** The «شورا» card of an order given with `mode: "council"`; nothing for a single-player order or a hub without councils. */
-export function CouncilCard({ work, mode }: { work: string; mode?: string | null }) {
+export function CouncilCard({ work, mode, title }: { work: string; mode?: string | null; title?: string | null }) {
   const q = useCouncil(mode === 'council' ? work : null);
   if (mode !== 'council') return null;
   const c = q.data;
   if (q.isLoading) return <Skeleton className="h-56 rounded-[16px]" />;
   if (!c) return null;
+  // ⟨1.11⟩ §29.8: a council v2 (outside advisors with a fact pack) leads with the captain's plan and «اجرا کن».
+  const v2 = c as Council29;
+  if (v2.plan_md || v2.round || v2.fact_pack_ref) return <CouncilV2 c={v2} title={title} />;
   const moving = c.state === 'running' || c.state === 'synthesising';
   return (
     <Card className={cx('flex flex-col gap-3 p-5', c.state === 'done' && 'tahrir')}>

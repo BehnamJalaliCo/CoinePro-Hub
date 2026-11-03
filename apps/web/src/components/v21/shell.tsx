@@ -82,6 +82,12 @@ type Group = { key: string; title: string; note: string; tools: Tool[] };
 
 /** Everything beyond the main bar, grouped by what the owner does with it; each place says in one line what it is for (the Android app's GROUPS). */
 export const GROUPS: Group[] = [
+  // ⟨1.11⟩ §29: the business — the working groups, what they measure, and the owner's rules.
+  { key: 'business', title: 'رشد کسب‌وکار', note: 'کارگروه‌ها، عددهای واقعی و قانون‌های تو', tools: [
+    { href: '/groups', label: 'کارگروه‌ها', icon: 'companies', hint: 'تیم ثابت هر کار رشد، با روال روزانه، شاخص و آزمایش هفتگی' },
+    { href: '/connections', label: 'اتصال‌ها', icon: 'globe', hint: 'سئو، آمار سایت، اینستاگرام، تلگرام و بقیه؛ با راهنمای وصل کردن' },
+    { href: '/rules', label: 'قانون‌های من', icon: 'seal', hint: 'آنچه دیگر نباید تکرار شود؛ ناظر هر روز میپاید' },
+  ] },
   { key: 'work', title: 'فرمان و کار', note: 'آنچه دادی و آنچه تحویل گرفتی', tools: [
     { href: '/orders', label: 'فرمان‌های من', icon: 'command', hint: 'هر فرمانی که دادی، از ثبت تا تحویل' },
     { href: '/outputs', label: 'خروجی‌ها', icon: 'deliverable', hint: 'گزارش‌ها و کارهای تحویل‌شده؛ بخوان، امتیاز بده، بایگانی یا پاک کن', badge: 'outputs' },
@@ -89,12 +95,10 @@ export const GROUPS: Group[] = [
     { href: '/runs', label: 'اجرای ایجنت‌ها', icon: 'agent', hint: 'هر ایجنت الان چه میکند، قدم‌به‌قدم' },
     { href: '/notifications', label: 'اعلان‌ها', icon: 'bell', hint: 'هشدارها، گزارش‌ها و پرسش‌های یک‌ضربه‌ای' },
     { href: '/resolutions', label: 'دفتر مصوبات', icon: 'seal', hint: 'تصمیم‌های ثبت‌شده، با جست‌وجو و خروجی اکسل' },
-    { href: '/workshop', label: 'کارگاه کد', icon: 'code', hint: 'جلسه‌های کدنویسی ایجنت‌ها و اجازه‌ی push' },
   ] },
   { key: 'org', title: 'سازمان', note: 'کسانی که کنار تو کار میکنند و آنچه یاد میگیرند', tools: [
     { href: '/advisor', label: 'مشاور کل', icon: 'advisor', hint: 'با او فکر کن و نظر دوم بگیر' },
     { href: '/oversight', label: 'ناظر کل', icon: 'overseer', hint: 'چه کسی کجا خطا کرد و چه نگه داشته شد' },
-    { href: '/watch', label: 'دیده‌بان', icon: 'scope', hint: 'امنیت، سلامت اپ، کد، رشد و پیشنهاد هلدینگ، با اصلاح پیشنهادی' },
     { href: '/assistant', label: 'دستیار', icon: 'assistant', hint: 'کارهای بیرونی تو را در اینترنت پیگیری میکند' },
     { href: '/stars', label: 'ستاره‌ها', icon: 'star', hint: 'بهترین شرکت و کارمندهای هفته و ماه' },
     { href: '/founding', label: 'تأسیس شرکت', icon: 'found', hint: 'شرکت تازه قدم‌به‌قدم: از ایده، ریپو یا فقط با نام' },
@@ -141,6 +145,9 @@ export const GROUPS: Group[] = [
   ] },
   { key: 'system', title: 'سیستم و ایمنی', note: 'کلیدهای توقف، سلامت و ردّ هر اقدام', tools: [
     { href: '/control', label: 'کنترل', icon: 'lock', hint: 'توقف و ادامه‌ی شرکت‌ها و انتشارها' },
+    // ⟨1.11⟩ technical: each company's own part lives under «شرکت ← فنی»; these are the holding-wide views.
+    { href: '/watch', label: 'دیده‌بان', icon: 'scope', hint: 'امنیت، سلامت اپ، کد، رشد و پیشنهاد هلدینگ، با اصلاح پیشنهادی' },
+    { href: '/workshop', label: 'کارگاه کد', icon: 'code', hint: 'جلسه‌های کدنویسی ایجنت‌ها و اجازه‌ی push' },
     // ⟨1.8⟩ §26: the companies' servers under the holding's control, and the few things that wait for the owner's seal there.
     { href: '/servers', label: 'همه‌ی سرورها', icon: 'server', hint: 'نقشه، کارهای زنده، ترمینال و Claude روی سرور شرکت‌ها' },
     { href: '/network', label: 'شبکه‌ی هلدینگ', icon: 'globe', hint: 'راه هر سرور به هاب و به سرورهای دیگر' },

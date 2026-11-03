@@ -265,12 +265,12 @@ async def test_pr098_review_only_while_the_protocol_is_active(
     assert (await _decide(client, ceo, ref)).status_code == 200
     owner = Principal(kind="owner", code="owner", role="owner")
 
-    async def pause(tx: Any, protocol: str) -> None:
+    async def pause(tx: Any, protocol: str, status: str = "paused") -> None:
         current = await O.load_protocol(tx, protocol)
         holding = await tx.scalar("SELECT id FROM core.companies WHERE kind = 'holding'")
         fields = {k: current[k] for k in O.ProtocolIn.model_fields}
         await O.new_version(
-            tx, owner, holding, {**fields, "status": "paused"}, ref=protocol, source="owner"
+            tx, owner, holding, {**fields, "status": status}, ref=protocol, source="owner"
         )
 
     class Undo(Exception):
@@ -291,12 +291,16 @@ async def test_pr098_review_only_while_the_protocol_is_active(
                 "SELECT count(*) FROM oversight.findings WHERE company_id = :co", co=company["id"]
             )
             raise Undo
-    async with hub.db.tx(await hub.companies.ids()) as tx:  # active again: both run
-        assert (await O.protocol_in_force(tx, "PR-098")) is not None
-        emp = (await D.apply_effect(tx, ref, SYSTEM))["employee"]
-        assert await tx.scalar(
-            "SELECT count(*) FROM work.work WHERE title LIKE :t", t=f"%{emp}%PR-098%"
-        )
+    # ⟨21⟩ paused by the management review §5.1; the owner turns it on again: it runs
+    with pytest.raises(Undo):
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            await pause(tx, "PR-098", "active")
+            assert (await O.protocol_in_force(tx, "PR-098")) is not None
+            emp = (await D.apply_effect(tx, ref, SYSTEM))["employee"]
+            assert await tx.scalar(
+                "SELECT count(*) FROM work.work WHERE title LIKE :t", t=f"%{emp}%PR-098%"
+            )
+            raise Undo
     await _end_test_runs(su, f"{co}-TECH-MGR", f"{co}-CEO")
 
 

@@ -17,8 +17,10 @@ const ROUTES: Record<string, string> = {
   W: '/work/$', D: '/cartable?ref=$', O: '/outputs?ref=$', MT: '/meetings/$', PL: '/planner',
   // the workshop, founding (§17, §18.8)
   S: '/workshop/$', G: '/workshop', AP: '/workshop', C: '/founding/$', PV: '/founding',
+  // ⟨1.11⟩ §29: an order's report, the owner's rules, a suggestion on the home
+  F: '/orders/$', SG: '/',
   // the overseer, inquiries, errands, incidents, teachings (§18)
-  FI: '/oversight', H: '/oversight', CH: '/oversight', SO: '/oversight', Q: '/advisor', E: '/assistant', I: '/sites', TE: '/academy',
+  FI: '/oversight', H: '/oversight', CH: '/oversight', SO: '/rules', Q: '/advisor', E: '/assistant', I: '/sites', TE: '/academy',
   // revenue, support and growth (§19)
   SC: '/support/$', FB: '/feedback', TM: '/growth', LR: '/growth', RC: '/growth',
   // governance (§20)
@@ -83,6 +85,12 @@ export function linkRoute(kind: string | null | undefined, ref: string | null | 
     case 'backup': return '/control';
     case 'audit': return '/audit';
     case 'device': return '/settings';
+    // ⟨1.11⟩ §29: an order's report, a rule, a working group, a connection, a suggestion.
+    case 'order': return p === 'F' ? `/orders/${r}` : '/orders';
+    case 'standing_order': case 'rule': return '/rules';
+    case 'group': return r ? `/groups/${encodeURIComponent(r)}` : '/groups';
+    case 'connection': return '/connections';
+    case 'suggestion': return '/';
     default: return r ? refRoute(r) : null;
   }
 }

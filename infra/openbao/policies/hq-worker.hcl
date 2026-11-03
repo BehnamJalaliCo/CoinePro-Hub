@@ -40,6 +40,12 @@ path "kv/data/tools/accounts/*" {
   capabilities = ["read"]
 }
 
+# Prompt 21 part 3 (contract §29.12): the growth connections' secrets, read for
+# one daily read at a time and handed to egress only (the call's account).
+path "kv/data/hq/growth/*" {
+  capabilities = ["read"]
+}
+
 # Prompt 14 §3: the archive's `secret` files (envelope encryption). A data key
 # for one file and the decryption of a stored one; nothing else of transit
 # (no key read, no export, no rotation): the key never leaves OpenBao.

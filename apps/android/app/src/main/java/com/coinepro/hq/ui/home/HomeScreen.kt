@@ -91,25 +91,25 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 
-/** The command center (D2): greeting, what happened while away, the four numbers, the cartable, the live
- *  holding orbit, today from the planner, and the month's budgets. */
+/**
+ * The owner's home (⟨1.11⟩ contract §29.13): the greeting and the two ways to give an order, the companies' stories, then the business
+ * only: the three cards (the most effective suggestion, a good one, a real move of a figure), the morning in five lines, each working
+ * group's KPI per company, the owner's orders with their state, and only critical items. Nothing technical: servers, the watch, the
+ * overseer's findings and the live stream are under «شرکت ← فنی» and the tools sheet. A hub before ⟨1.11⟩ (no `/home`) shows the
+ * owner's numbers, orders and cartable, still without the technical cards.
+ */
 @Composable
 fun HomeScreen(onNewOrder: () -> Unit, onVoiceOrder: () -> Unit = {}) {
     val nav = LocalNav.current
+    val home = com.coinepro.hq.ui.v29.rememberHome()
+    val business = com.coinepro.hq.ui.v29.served(com.coinepro.hq.core.net.HubFeature.HOME)
     val inbox = rememberQuery("inbox", "inbox", maxAgeMs = 30_000) { inbox() }
     val away = rememberQuery("away", "away") { away() }
     val presence = rememberQuery("presence", "presence") { presence() }
     val day = rememberQuery("treasury:day", "treasury") { treasury("day") }
-    val month = rememberQuery("treasury:month", "treasury") { treasury("month") }
     val pending = rememberQuery("decisions:pending", "decisions") { decisions("pending") }
-    val today = com.coinepro.hq.core.format.HqClock.today().toString()
-    val planner = rememberQuery("planner:$today", "planner", "work") { planner(today, today) }
     val companies = rememberCompanies()
-    val sessions = rememberSessions()
-    val workspaces = rememberWorkspaces()
-    val grants = rememberGrants()
-    val watch = com.coinepro.hq.ui.oversight.rememberWatchGroups()
-    val r = refresher(inbox, away, presence, day, month, pending, planner, sessions)
+    val r = if (business) refresher(home, inbox, presence) else refresher(home, inbox, away, presence, day, pending)
     val c = Divan.colors
 
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
@@ -128,118 +128,78 @@ fun HomeScreen(onNewOrder: () -> Unit, onVoiceOrder: () -> Unit = {}) {
         }
         // ⟨1.4.3⟩ the companies' stories, at the top like Instagram (contract §18.12)
         item { StoriesBar() }
-        // What happened while away slides open when it arrives, instead of pushing the page down in one jump.
-        item(key = "away") {
-            val a = away.data
-            val n = a?.let { it.decisions.new + it.deliverables.new + it.messages.new } ?: 0
-            androidx.compose.animation.AnimatedVisibility(a != null && n > 0, enter = com.coinepro.hq.designsystem.expandIn(), exit = com.coinepro.hq.designsystem.collapseOut()) {
-                if (a != null) HqCard(Modifier.fillMaxWidth()) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Box(Modifier.size(40.dp).clip(CircleShape).background(c.softGold), contentAlignment = Alignment.Center) { DIcon(DivanIcon.KHALVAT, size = 20.dp, tint = c.goldInk) }
-                        Column(Modifier.weight(1f)) {
-                            Text("در نبودت چه گذشت", style = Divan.type.bodyStrong)
-                            Text("از ${ago(a.since)}: ${a.decisions.new} تصمیم تازه، ${a.deliverables.new} خروجی، ${a.messages.new} پیام", style = Divan.type.caption, color = c.textSecondary)
-                        }
-                    }
+        val h = home.data
+        if (business) {
+            // ⟨1.11⟩ §29.13 the business home; a critical item (a data leak, a product down, money, legal) comes first when there is one.
+            when {
+                h == null && home.error != null -> item(key = "home-error") { com.coinepro.hq.designsystem.ErrorBlock(home.error, { home.refresh() }) }
+                h == null -> item(key = "home-skeleton") { com.coinepro.hq.ui.v29.HomeSkeleton() }
+                else -> {
+                    if (h.critical.isNotEmpty()) item(key = "critical") { com.coinepro.hq.ui.v29.CriticalCard(h.critical) }
+                    item(key = "cards") { com.coinepro.hq.ui.v29.HomeCardsBlock(h) }
+                    if (h.morning.isNotEmpty()) item(key = "morning") { com.coinepro.hq.ui.v29.MorningCard(h.morning) }
+                    for (g in h.groups) item(key = "group-${g.key}") { com.coinepro.hq.ui.v29.GroupKpiCard(g) }
+                    item(key = "orders") { com.coinepro.hq.ui.v29.HomeOrdersBlock(h.orders, onNewOrder) }
                 }
             }
-        }
-        item {
-            val i = inbox.data
-            // The skeleton has the tiles' own shape and height, so nothing moves when the figures arrive.
-            if (i == null) Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                repeat(2) { Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { repeat(2) { Skeleton(Modifier.weight(1f).height(136.dp), radius = 16.dp) } } }
-            }
-            // Four tiles of one height (two note lines each, and each row's tallest sets the row): label, figure and note on the same lines.
-            // The figures count up to their value when they arrive and when they change.
-            else Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                StatRow {
-                    StatTile("منتظر مُهر تو", i.decisionsPending.toString(), Modifier.weight(1f),
-                        sub = if (i.decisionsByRisk.high > 0) "${i.decisionsByRisk.high} با ریسک بالا" else "بدون ریسک بالا",
-                        tone = if (i.decisionsByRisk.high > 0) Tone.WARN else null, figure = false, onClick = { nav.go("cartable") }, subLines = 2, count = true)
-                    // One count for outputs everywhere: «تازه» (unseen), the same figure as the outputs page's tab and the tools badge.
-                    val fresh = i.deliverablesUnseen
-                    StatTile(
-                        if (fresh != null) "خروجی تازه" else "خروجی بی‌امتیاز", (fresh ?: i.deliverablesUnrated).toString(), Modifier.weight(1f),
-                        sub = if (fresh != null) "${i.deliverablesUnrated} بی‌امتیاز؛ امتیاز تو ۴۰٪ نمره‌ی کارمند است" else "امتیاز تو ۴۰٪ نمره‌ی کارمند است",
-                        figure = false, onClick = { nav.go("outputs") }, subLines = 2, count = true,
-                    )
-                }
-                StatRow {
-                    StatTile("پیام نخوانده", i.messagesUnread.toString(), Modifier.weight(1f), sub = "از مدیرعامل‌ها و مشاور", figure = false, onClick = { nav.go("messages") }, subLines = 2, count = true)
-                    val t = day.data?.totals
-                    StatTile("مصرف امروز (معادل)", usd(t?.equivCostUsd), Modifier.weight(1f), onClick = { nav.go("treasury") }, subLines = 2, count = true,
-                        subRich = t?.let { buildAnnotatedString { fig(tokens(it.inputTokens + it.outputTokens)); append(" توکن، ${it.calls} فراخوانی") } })
-                }
-            }
-        }
-        // The owner's orders, followed from given to delivered: prominent, under the four numbers.
-        item(key = "orders") { com.coinepro.hq.ui.work.HomeOrdersCard(onNewOrder) }
-        item { OverseerCard() }
-        // ⟨1.10⟩ §28.3: the watch, only while it has something open.
-        if (watch.isNotEmpty()) item(key = "watch") { com.coinepro.hq.ui.oversight.WatchHomeCard(watch) }
-        // ⟨1.5⟩ §21.2: ask the hub, above the cartable.
-        item { com.coinepro.hq.ui.ask.AskBox() }
-        item {
-            HqCard(Modifier.fillMaxWidth()) {
-                SectionTitle("کارتابل", note = "فقط چیزهایی که مُهر تو را لازم دارند") {
-                    HqButton("همه", { nav.go("cartable") }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.NEXT)
-                }
-                Loadable(pending) { page ->
-                    if (page.items.isEmpty()) Empty("کارتابل خالی است", icon = DivanIcon.SEAL, body = "هر تصمیمی که امضای تو را بخواهد این‌جا میاید.")
-                    else Column(Modifier.padding(top = 6.dp)) {
-                        page.items.take(5).forEach { d -> DecisionRow(d, companies) { nav.go("cartable/${d.ref}") } }
-                    }
-                }
-            }
-        }
-        // Code Workshop sessions that are moving or waiting for the owner; nothing when none are.
-        val open = sessions.data.orEmpty().filter { it.open }.sortedByDescending { it.state == "waiting_approval" }
-        if (open.isNotEmpty()) item {
-            HqCard(Modifier.fillMaxWidth()) {
-                val waiting = open.count { it.state == "waiting_approval" }
-                SectionTitle("کارگاه کد", note = if (waiting > 0) "$waiting جلسه منتظر اجازه‌ی تو" else "${open.size} جلسه در جریان") {
-                    HqButton("کارگاه", { nav.go("workshop") }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.NEXT)
-                }
-                Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    open.take(3).forEach { s -> SessionRow(s, workspaces.data, grants.data?.firstOrNull { it.ref == s.grant }) { nav.go("workshop/${s.ref}") } }
-                }
-            }
-        }
-        item { LiveCard(companies) }
-        item {
-            HqCard(Modifier.fillMaxWidth()) {
-                SectionTitle("امروز", note = "از پلنر") { HqButton("پلنر", { nav.go("planner") }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.NEXT) }
-                val items = planner.data?.days?.firstOrNull()?.items.orEmpty()
-                when {
-                    planner.data == null -> Skeleton(Modifier.fillMaxWidth().height(80.dp).padding(top = 8.dp))
-                    items.isEmpty() -> Text("برای امروز کاری ثبت نشده.", style = Divan.type.caption, color = c.textMuted, modifier = Modifier.padding(vertical = 16.dp).fillMaxWidth())
-                    else -> Column(Modifier.padding(top = 6.dp)) {
-                        items.forEachIndexed { idx, it ->
-                            if (idx > 0) HorizontalDivider(color = c.lineDivider)
-                            // A planner row is a work item, a meeting, a reminder or a calendar event: each opens its own page (0.4.0 sent a
-                            // meeting's MT-… to the work page).
-                            val to = com.coinepro.hq.core.data.Refs.forPlanner(it.kind, it.ref)
-                            Row(Modifier.fillMaxWidth().then(if (to != null) Modifier.clickable { nav.go(to) } else Modifier).padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Text(com.coinepro.hq.designsystem.timesFig(jTime(it.at)), style = Divan.type.caption, color = c.textMuted, modifier = Modifier.width(40.dp))
-                                Box(Modifier.size(8.dp).clip(CircleShape).background(if (it.status == "done") c.positive else if (com.coinepro.hq.core.format.isUrgentPriority(it.priority)) c.negative else c.silverInk))
-                                Text(it.title, style = Divan.type.small, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                                if (it.kind == "meeting") DIcon(DivanIcon.MEETING, size = 14.dp, tint = c.textMuted)
-                                if (it.recurring) DIcon(DivanIcon.REFRESH, size = 14.dp, tint = c.textMuted)
-                                CompanyMark(it.company, height = 12.dp, mono = true, ink = c.textSecondary)
-                                Text(com.coinepro.hq.core.format.PLAN_STATUS[it.status] ?: it.status, style = Divan.type.micro, color = c.textMuted)
+        } else {
+            // A hub before ⟨1.11⟩: what happened while away, the four numbers, the orders and the cartable (nothing technical).
+            item(key = "away") {
+                val a = away.data
+                val n = a?.let { it.decisions.new + it.deliverables.new + it.messages.new } ?: 0
+                androidx.compose.animation.AnimatedVisibility(a != null && n > 0, enter = com.coinepro.hq.designsystem.expandIn(), exit = com.coinepro.hq.designsystem.collapseOut()) {
+                    if (a != null) HqCard(Modifier.fillMaxWidth()) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Box(Modifier.size(40.dp).clip(CircleShape).background(c.softGold), contentAlignment = Alignment.Center) { DIcon(DivanIcon.KHALVAT, size = 20.dp, tint = c.goldInk) }
+                            Column(Modifier.weight(1f)) {
+                                Text("در نبودت چه گذشت", style = Divan.type.bodyStrong)
+                                Text("از ${ago(a.since)}: ${a.decisions.new} تصمیم تازه، ${a.deliverables.new} خروجی، ${a.messages.new} پیام", style = Divan.type.caption, color = c.textSecondary)
                             }
                         }
                     }
                 }
             }
-        }
-        item {
-            HqCard(Modifier.fillMaxWidth()) {
-                SectionTitle("بودجه‌ی ماه", note = "هشدار در ۷۰٪ و ۹۰٪") { HqButton("خزانه", { nav.go("treasury") }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.NEXT) }
-                Loadable(month) { m ->
-                    Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        m.budgets.forEach { b -> BudgetLine(b.scopeType == "holding", b.company, companyOf(companies, b.company).nameFa, b.tokensUsed, b.tokenLimit, b.pct) }
+            item(key = "numbers") {
+                val i = inbox.data
+                // The skeleton has the tiles' own shape and height, so nothing moves when the figures arrive.
+                if (i == null) Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    repeat(2) { Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { repeat(2) { Skeleton(Modifier.weight(1f).height(136.dp), radius = 16.dp) } } }
+                }
+                // Four tiles of one height (two note lines each, and each row's tallest sets the row): label, figure and note on the same lines.
+                // The figures count up to their value when they arrive and when they change.
+                else Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    StatRow {
+                        StatTile("منتظر مُهر تو", i.decisionsPending.toString(), Modifier.weight(1f),
+                            sub = if (i.decisionsByRisk.high > 0) "${i.decisionsByRisk.high} با ریسک بالا" else "بدون ریسک بالا",
+                            tone = if (i.decisionsByRisk.high > 0) Tone.WARN else null, figure = false, onClick = { nav.go("cartable") }, subLines = 2, count = true)
+                        // One count for outputs everywhere: «تازه» (unseen), the same figure as the outputs page's tab and the tools badge.
+                        val fresh = i.deliverablesUnseen
+                        StatTile(
+                            if (fresh != null) "خروجی تازه" else "خروجی بی‌امتیاز", (fresh ?: i.deliverablesUnrated).toString(), Modifier.weight(1f),
+                            sub = if (fresh != null) "${i.deliverablesUnrated} بی‌امتیاز؛ امتیاز تو ۴۰٪ نمره‌ی کارمند است" else "امتیاز تو ۴۰٪ نمره‌ی کارمند است",
+                            figure = false, onClick = { nav.go("outputs") }, subLines = 2, count = true,
+                        )
+                    }
+                    StatRow {
+                        StatTile("پیام نخوانده", i.messagesUnread.toString(), Modifier.weight(1f), sub = "از مدیرعامل‌ها و مشاور", figure = false, onClick = { nav.go("messages") }, subLines = 2, count = true)
+                        val t = day.data?.totals
+                        StatTile("مصرف امروز (معادل)", usd(t?.equivCostUsd), Modifier.weight(1f), onClick = { nav.go("treasury") }, subLines = 2, count = true,
+                            subRich = t?.let { buildAnnotatedString { fig(tokens(it.inputTokens + it.outputTokens)); append(" توکن، ${it.calls} فراخوانی") } })
+                    }
+                }
+            }
+            // The owner's orders, followed from given to delivered: prominent, under the four numbers.
+            item(key = "orders") { com.coinepro.hq.ui.work.HomeOrdersCard(onNewOrder) }
+            item(key = "cartable") {
+                HqCard(Modifier.fillMaxWidth()) {
+                    SectionTitle("کارتابل", note = "فقط چیزهایی که مُهر تو را لازم دارند") {
+                        HqButton("همه", { nav.go("cartable") }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.NEXT)
+                    }
+                    Loadable(pending) { page ->
+                        if (page.items.isEmpty()) Empty("کارتابل خالی است", icon = DivanIcon.SEAL, body = "هر تصمیمی که امضای تو را بخواهد این‌جا میاید.")
+                        else Column(Modifier.padding(top = 6.dp)) {
+                            page.items.take(5).forEach { d -> DecisionRow(d, companies) { nav.go("cartable/${d.ref}") } }
+                        }
                     }
                 }
             }

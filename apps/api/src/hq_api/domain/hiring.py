@@ -45,7 +45,12 @@ from hq_api.worker.jalali import to_jalali
 NOTE = "مالک: استخدام با شروع خود مالک"
 PROPOSALS_KEY = "hiring_proposals"
 
-Mode = Literal["proposals", "delegated"]  # proposals first: the one served (examples)
+# proposals first: the one served (examples); ⟨21⟩ `auto` (contract §29.10, the
+# owner's decision of 2026-11-02): open to every company, a CEO's own hire
+# inside the month envelope approved by code, a working group's empty seat
+# filled by code (auto_fill); a manager's hire card is its CEO's (as delegated)
+Mode = Literal["proposals", "delegated", "auto"]
+SERVICE = Principal(kind="service", code="hiring", role="service")
 
 
 class Envelope(BaseModel):
@@ -103,7 +108,7 @@ async def require_envelopes(tx: Tx, mode_: str) -> None:
 async def approver_for(tx: Tx, company_id: UUID, company_kind: str) -> str | None:
     """Who decides a new hire card: an operating company's CEO while hiring is
     delegated (contract §18.11), else the owner (None)."""
-    if company_kind != "company" or await mode(tx) != "delegated":
+    if company_kind != "company" or await mode(tx) not in ("delegated", "auto"):
         return None
     ceo: str | None = await tx.scalar(
         """SELECT code FROM core.employees
@@ -384,13 +389,118 @@ async def return_to_owner(tx: Tx) -> list[str]:
     """Hiring switched to `proposals`: the pending hire cards a CEO was to
     decide return to the owner's cartable (approver cleared)."""
     rows = await tx.all(
-        """UPDATE cartable.decisions SET approver_kind = NULL, approver_code = NULL
+        """UPDATE cartable.decisions SET approver_kind = NULL, approver_code = NULL,
+               owner_visible = true, routed_to = NULL
            WHERE kind = 'hire' AND status = 'pending' AND approver_code IS NOT NULL
            RETURNING ref"""
     )
     refs = [str(r["ref"]) for r in rows]
     await close_decide_items(tx, refs, "مالک: حالت استخدام «پیشنهاد» شد؛ تصمیم با مالک است")
     return refs
+
+
+async def approve_by_code(tx: Tx, d: dict[str, Any], charters: Any) -> dict[str, Any]:
+    """⟨21⟩ §29.10: a hire card approved by code (hiring `auto`): every hard
+    check of an approval, the company's month envelope required and kept
+    (409 envelope_exceeded, 422 envelope_required: nothing is made), then the
+    employee at once. A story tells the owner; the weekly summary lists it."""
+    from hq_api.domain import decisions as D
+
+    lib = await D.company_charters(tx, charters, d["company_id"])
+    await check_approval(tx, d, d["payload"], lib, by_ceo=True)
+    await D.decide(
+        tx,
+        SERVICE,
+        d,
+        "approved",
+        note="استخدام خودکار در پاکت ماه شرکت (§29.10)",
+        charters=charters,
+    )
+    await D.apply_effect(tx, d["ref"], SERVICE)
+    return await D.load(tx, d["ref"])
+
+
+async def auto_fill(
+    tx: Tx,
+    company_id: UUID,
+    role: str,
+    seat_title: str | None = None,
+    *,
+    charters: Any = None,
+    reason: str | None = None,
+) -> dict[str, Any]:
+    """⟨21⟩ §29.10: a working group's empty seat filled by code: an approved
+    hire of the seat's charter with its default model and effort, in its
+    department, inside the company's month envelope. Idempotent: an active
+    employee of that charter already there is the answer. Returns
+    {employee, decision, hired}. Refused (nothing made) while hiring is not
+    `auto` (403 hiring_closed), over or without the envelope (409
+    envelope_exceeded / 422 envelope_required), or for a charter that is not
+    an employee of a company (422)."""
+    from hq_api.domain import decisions as D
+
+    if await mode(tx) != "auto":
+        raise ApiError(403, "hiring_closed", "hiring is not automatic")
+    have = await tx.scalar(
+        """SELECT code FROM core.employees WHERE company_id = :co AND role = :r AND status = 'active'
+           ORDER BY hired_at LIMIT 1""",
+        co=company_id,
+        r=role,
+    )
+    if have:
+        return {"employee": str(have), "decision": None, "hired": False}
+    if charters is None:
+        from hq_common import charters as C
+
+        charters = C.load()
+    company = await tx.one(
+        "SELECT id, code, kind FROM core.companies WHERE id = :co", co=company_id
+    )
+    lib = await D.company_charters(tx, charters, company_id)
+    charter = lib.get(role) if lib is not None else None
+    if charter is None or charter.kind != "employee" or not charter.department:
+        raise ApiError(
+            422,
+            "validation_failed",
+            fields={"role": f"{role}: not an employee charter of a department"},
+        )
+    limits = charter.limits
+    payload = {
+        "company": company["code"],
+        "department": charter.department,
+        "role": role,
+        "title_fa": (seat_title or charter.title_fa)[:200],
+        "title_en": charter.title_en[:200],
+        "reason": (reason or f"جایگاه خالی «{seat_title or charter.title_fa}» در کارگروه")[:5000],
+        "model": charter.model,
+        "effort": charter.effort,
+        # a run a working day: what the month envelope must hold for the seat
+        "quota_estimate_month": {"tokens": int(limits.tokens_per_run) * 20},
+    }
+    D.check_hire_role(payload, company["kind"], lib, required=True)
+    d = await D.propose(
+        tx,
+        SERVICE,
+        company_id=company_id,
+        company_code=company["code"],
+        body=D.DecisionIn(
+            kind="hire",
+            title=f"استخدام خودکار: {payload['title_fa']}"[:300],
+            what=payload["reason"],
+            why="استخدام خودکار (§29.10): جایگاه خالی کارگروه، در پاکت ماه شرکت.",
+            risk="low",
+            payload=payload,
+        ),
+        thread_code=None,
+        charters=charters,
+        company_kind=company["kind"],
+        notify_owner=False,
+    )
+    d = await approve_by_code(tx, d, charters)
+    emp = await tx.scalar(
+        "SELECT code FROM core.employees WHERE hired_by_decision_id = :d", d=d["id"]
+    )
+    return {"employee": str(emp), "decision": d["ref"], "hired": True}
 
 
 async def withdraw_pending(tx: Tx) -> list[str]:
@@ -414,8 +524,10 @@ async def start(
     await _set(tx, holding_id, who, "open", mode)
     if mode == "proposals":
         await return_to_owner(tx)
-    out = await bootstrap.apply(tx, bootstrap.load(PROPOSALS_KEY), who=who, charters=charters)
-    work: list[dict[str, str]] = out["created"]
+    work: list[dict[str, str]] = []
+    if mode != "auto":  # ⟨21⟩ auto: seats fill by code, nobody is asked to propose a team
+        out = await bootstrap.apply(tx, bootstrap.load(PROPOSALS_KEY), who=who, charters=charters)
+        work = out["created"]
     await events.emit(
         tx, holding_code, "hiring.changed", None, {"state": "open", "mode": mode, "work": work}
     )

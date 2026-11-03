@@ -351,6 +351,10 @@ data class Employee(
     val hiredAt: String = "",
     val recentRatings: List<RatingBrief> = emptyList(),
     val recentWork: List<JsonObject> = emptyList(),
+    /** ⟨1.11⟩ §29.14 idle · thinking · working · waiting · stuck · done; null from a hub before ⟨1.11⟩ (the app reads [activity]). */
+    val state: String? = null,
+    /** ⟨1.11⟩ why it is stuck, and its one-tap fix. */
+    val stuck: Stuck? = null,
 )
 
 @Serializable
@@ -363,6 +367,9 @@ data class ChartNode(
     val activity: String = "idle",
     val status: String = "active",
     val children: List<ChartNode> = emptyList(),
+    /** ⟨1.11⟩ §29.14, as on [Employee]. */
+    val state: String? = null,
+    val stuck: Stuck? = null,
 )
 
 @Serializable
@@ -540,6 +547,14 @@ data class Notification(
     val link: Link? = null,
     val choices: List<Choice>? = null,
     val answer: String? = null,
+    /** ⟨1.11⟩ §29.1 business · media · revenue · product · tech · security · infra; null from a hub before ⟨1.11⟩. */
+    val domain: String? = null,
+    val ownerVisible: Boolean = true,
+    val routedTo: String? = null,
+    /** ⟨1.11⟩ a technical item that reaches the owner: data_leak · product_down · money · legal. */
+    val criticalReason: String? = null,
+    /** ⟨1.11⟩ §29.7 the original words behind «جزئیات». */
+    val detailsMd: String? = null,
 )
 
 @Serializable
@@ -818,4 +833,8 @@ data class Order(
     val source: String = "text",
     val fileId: String? = null,
     val createdAt: String? = null,
+    /** ⟨1.11⟩ §29.2 the order's state and its end summary (`GET /orders` items), and the route it was given (§29.4). */
+    val state: String? = null,
+    val summary: OrderSummary? = null,
+    val route: OrderRoute29? = null,
 )

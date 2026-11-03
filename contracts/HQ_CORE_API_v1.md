@@ -3021,6 +3021,17 @@ Blocker { kind: "no_employee"|"hiring_closed"|"locked"|"series_unsealed"|"budget
 - The overseer watches them (PR-095, now daily and rule-first: a violation found by a rule is a finding; a model only samples), and the
   **first enforcement report** comes 24 hours after the seal (a `report` notification: how many runs it applied to, violations, fixed).
 - `GET /rules` (= standing orders, newest first, with their counts), `PUT /rules/{ref}` (a new version, 🔏), `POST /rules/{ref}/retire`.
+- **As built (prompt 21):**
+  ```
+  Rule { id, ref, text_md, owner_text|null, source, file_id|null, applies_to, status: "proposed"|"sealed"|"retired", version,
+         sealed_at|null, created_at, counts: {runs, violations, fixed}, report_at|null, history: [{version, text_md, applies_to,
+         applies_codes, status, sealed_at}] }
+  ```
+  `owner_text` keeps the owner's own words. `PUT /rules/{ref} {text_md?, applies_to?}`: the 🔏 is the new version's seal (step-up
+  `rule.seal` or `oversight.order`, target = ref; the seal route takes either too); the previous version goes to `history`, the first
+  report comes 24 hours after this seal; a retired rule answers 409. `counts.violations` = findings that name the rule (its ref in
+  their evidence or text); `fixed` = those fixed, verified or closed. The report is stream `rule.report` (topic `oversight`) and one
+  `report` notification (`link_kind: "rule"`). `StandingOrder.applies_to` (§18.1) is the same union.
 
 ### 29.4 The holding's secretary (dispatcher, chief of staff)
 - `POST /orders/preview {text, source}` (owner) → a `Route` and one line:
@@ -3039,14 +3050,32 @@ Blocker { kind: "no_employee"|"hiring_closed"|"locked"|"series_unsealed"|"budget
   director, never to AI operations; finding 1 of prompt 20).
 - **Several companies:** one root work in the first company, one child work per collaborator (on that company's CEO or department; its
   server's Claude through the runner when the work is on the server, §26), and one `OrderReport` over all of them.
+- **As built (prompt 21, additive):**
+  - `Route` adds `kind: "work"|"code"|"meeting"|"question"|"server"`: how it is carried out (`question` single = the advisor,
+    `question` council = the council v2 on the company's CEO, `server` = an inside question to the company's own Claude on its
+    server). `companies[0]` holds the root work; every other company in `companies` or `collaborators` gets one requested work
+    (`requested_by_work_id` = the root; its department when it has one, else its CEO) with the output kind's base budget.
+  - `POST /orders` answers its `route` too (`OrderOut.route`, also on `GET /orders` items); the order keeps it.
+  - An edited route that changes what the rules were sure of (company, collaborators, department, output kind, mode, player, kind)
+    is remembered (`correction`, {from, to}); a like order (≥ 60% of its words shared) then follows the correction. An unknown
+    company or department in a sent route answers 422; `kind: "server"` without an online server too.
+  - The «نه» reasons of the home's cards are written with `dispatch.remember(tx, "no", text_fa, data)` and read with
+    `dispatch.recall(tx, "no", text)`.
 
 ### 29.5 Long voice
 - **On the phone:** continuous recognition that restarts itself at every pause until the owner stops; the text grows on screen.
 - **Over one minute,** or when the phone's recogniser fails: the audio goes to the hub's STT in chunks:
-  `POST /transcribe/sessions {purpose: "order"|"rule"|"message"|"note"}` → `{id}`; `PUT /transcribe/sessions/{id}/chunks/{n}` (raw audio,
+  `POST /transcribe/sessions {purpose: "order"|"rule"|"message"|"note"}` → `{id}` (speech off on the hub: `409 channel_not_configured`,
+  the app keeps the phone's text); `PUT /transcribe/sessions/{id}/chunks/{n}` (raw audio,
   ≤ 90 s each, in order, idempotent per n); `POST /transcribe/sessions/{id}/finish` → `{text, duration_s, chunks, segments}`. Up to
   `STT_SESSION_MAX_S` (default 1 200 s, 20 minutes); STT starts on demand (§27.3). A session unused for 30 minutes expires.
 - **Before sending,** the whole text is shown and editable.
+- **As built (prompt 21):** `POST /transcribe/sessions` → `201 {id, purpose, state: "open"|"finished"|"expired", chunks, seconds,
+  max_s, chunk_max_s, expires_at}` (owner, `Idempotency-Key`; 503 while speech is off). Chunk numbers start at 0 or 1 and follow in
+  order (a gap: 422); a chunk sent again with the same bytes changes nothing, with other bytes replaces it; answer
+  `{n, file_id, duration_s, chunks, seconds}`; a chunk over 90 s or a session over `STT_SESSION_MAX_S`: 413. `finish` adds
+  `engine`; a finished session answers its text again; a chunk after it: 409. An expired session answers **410 `session_expired`**.
+  `GET /transcribe/sessions/{id}` (additive) shows a session to resume after a dropped connection.
 
 ### 29.6 The delegation budget
 - **A floor:** a work request's token budget is never below the target role's floor: `3 × tokens_per_step` of its charter, or the median
@@ -3060,6 +3089,9 @@ Blocker { kind: "no_employee"|"hiring_closed"|"locked"|"series_unsealed"|"budget
 - **Every player answers in Persian.** An answer whose letters are less than 60% Persian, or holding CJK characters, is refused and asked
   again once with the instruction repeated; a second failure ends that member `failed` («پاسخ فارسی نبود»). A web player's page residue
   (a trailing offer such as «مایلید …؟», buttons' text) is cut before the answer is kept.
+  - **As built (prompt 21):** checked on every answer of a work's or a council's seat call (what reaches the owner); a code review,
+    a cross-check's JSON verdict and an agent's own errand keep the language their task asks for. The member's reason code is
+    `not_persian_retry` while asked again, `not_persian` when it failed. The residue patterns are data: `apps/api/seed/web_residue.yaml`.
 - **Rewrite for the owner** («بازنویسی برای مدیر کل»): every text that reaches the owner (notification, card, order report, summary,
   council plan, home card) passes `humanize`: code first, the light model only when the code cannot fix it.
   - **Forbidden:** refs (`W-…`, `O-…`, `D-…`, `FI-…`, `H-…`, `RK-…`, `AR-…`, ids, uuids), table, service and tool names, error codes
@@ -3082,6 +3114,15 @@ Blocker { kind: "no_employee"|"hiring_closed"|"locked"|"series_unsealed"|"budget
   «چه کسی · چه کاری · تا کی». Persian only (§29.7).
 - **Output to the owner:** the plan in 5–10 lines with «اجرا کن», which makes an order (§29.4) from it. Each member's answer stays under
   «جزئیات». `Council` (§27.2) adds `round: 1|2|3`, `roles: {player: role}`, `fact_pack_ref`, `plan_md`.
+- **As built (prompt 21, additive):** each member adds `role`; `Council` adds `rounds: [{round, members}]` (the rounds before the
+  current one, each answer under «جزئیات») and `order_ref` (the order «اجرا کن» made). In round 2 each substitute that proposed reads
+  the others' proposals; the captain reads every proposal and critique in round 3 (a child work of the council's assignee); with one
+  answer the council says so plainly (§28.4). `POST /work/{id}/council/run` (owner, `Idempotency-Key`) is «اجرا کن»: `201 OrderOut`,
+  the plan as an order of the council's company (its CEO), single mode, the output's budget; 409 before the plan or once it ran.
+  `GET /fact-packs/{ref}` (owner) → `{ref, work_ref, company, at, figures, recent_posts, notes_fa}`; `fact_pack_ref` is `FP-` and
+  the council work's number. `owner.settings.council_roles` is in `GET/PUT /owner/settings` (a player left out has no seat). A media
+  council (images, video) keeps §27.2. An inside question's server job is read-only (the catalogue's allow-list), `max_turns` 15,
+  `token_cap` the route's budget (at least 60 000); its answer is the work's deliverable (`produced_with.via: "server"`).
 
 ### 29.9 Readiness of each company for each working group
 ```
@@ -3091,6 +3132,17 @@ Readiness { company, group, ready: bool, checks: [{key, ok, title_fa, detail_fa,
   set; at least one sealed series per channel; the publishing channels connected (IG-Hub, Telegram); the media tools available (render
   and voice on the hub, started on demand like STT); the players; the runner online.
 - Every failed check has a fix button (`hire`, `series.propose`, `connection.guide`, `media.on`, …).
+- `POST /companies/{code}/readiness/fix {group, action, target}` (owner) runs a fix on the hub and answers the readiness again:
+  `hire` (automatic hiring, §29.10), `hiring.open` 🔏, `lock.open` 🔏, `group.resume`, `series.propose` (a work item for the company's
+  media director). A fix the app does itself (`connection.guide`, `envelope.set`, `media.on`, `runner.check`) answers it unchanged.
+- **A sealed fix** (here and in `POST /orders/{ref}/fix`) accepts the step-up of the hub's own action (`hiring.start` on `holding`,
+  `media.series` on the series digest) or of the fix itself (`hiring.open` / `series.seal` on the fix's target).
+- ⟨1.11.1, as built⟩ check keys: `group`, `seat:<seat>` (required seats only), `hiring`, `envelope`, `channels`,
+  `connection:<kind>` and `series:<kind>` per publishing channel, `media_tools`, `players`, `runner`. Fix actions:
+  `group.resume` (target `<group>:<CODE>`), `hire` (`<CODE>:<role>`), `hiring.open` (`holding`), `envelope.set` (`<CODE>`),
+  `connection.guide` (`<kind>`), `series.propose` (`<CODE>:<kind>`), `media.on` (`media`), `lock.open` (`holding`),
+  `runner.check` (`<CODE>:<server>`). An ok check has `fix: null`. Render and voice are the opt-in profiles `media` and
+  `tts`; the hub does not start them on demand yet (STT's host starter is not reused), so `media.on` is the owner's.
 
 ### 29.10 Automatic hiring (owner's decision, 2026-11-02)
 - Hiring is `open` with `mode: "auto"` for every company: a CEO's `hire` within the company's month envelope is approved by code, and a
@@ -3117,6 +3169,15 @@ Experiment { id, group, company, week, hypothesis_fa, metric, target, result|nul
 - Routes: `GET /groups`, `GET /groups/{key}`, `GET /groups/{key}/members`, `PUT /groups/{key}/members/{code} {state}`, `GET /groups/{key}/runs`,
   `PUT /groups/{key}/routines/{routine} {state}`, `GET /groups/{key}/kpis?company&days`, `GET /groups/{key}/experiments?company`.
 - Seeded data (owner's answers, 2026-11-02): **the signal channel belongs to TradeYar**; **every Instagram account is on IG-Hub**.
+- ⟨1.11.1, as built⟩ additive fields: `Group.version`, `Group.lead`; `Seat.optional` (`video_director`, `voice_producer`:
+  no readiness gap); `Routine.task_class|null`, `Routine.needs|null` (`sealed_series`: the publishing routine runs only
+  when the company has a sealed series, else a `skipped` run says why); `Kpi.seat`; `Membership.name_fa`, `.plan`,
+  `.plan_at` (the content lead's `group.plan`), `MemberSeat {seat, role, title_fa, employee, optional}`;
+  `RoutineRun.occurrence_at`, `.employee` (runs are listed newest period first). A routine's occurrence that the tick
+  reaches more than 2 hours late is left (no backlog). `GET /groups/{key}/kpis` answers
+  `{group, days, companies: [{code, name_fa, kpis: [{key, title_fa, unit, source, series: [{day, value}]}]}]}`.
+  Experiment additive: `baseline`, `note_fa`, `closed_at`. Agent tools: `group.plan` (A1: the content lead or the CEO),
+  `experiment.write` (A1: the analyst or the lead), `connection.read` (A0: own company; holding readers any).
 
 ### 29.12 Connections: what can be measured and managed
 ```
@@ -3133,6 +3194,16 @@ Connection { company, kind: "search_console"|"ga4"|"instagram"|"telegram"|"youtu
 - **Daily read** by code (no model): each connected kind's free API into `growth.metrics_daily (company, kind, day, key, value, source)`.
   Instagram is read through IG-Hub's own runner (a fixed read-only job of its config), never with a token on the hub.
 - No model guesses a figure a connection gives.
+- ⟨1.11.1, as built⟩ `Connection` adds `missing_fa: [str]` (what it still needs), `reader: bool` (the hub reads it by
+  itself), `secret_needed: true|false|null` (null: optional); `Daily` adds `subject` (the channel, site, property or
+  account). `PUT …/{kind}` takes `{config, label_fa?}` (a secret-like key is refused); 🔏 `connection.config` targets the
+  SHA-256 of the body; 🔏 `connection.secret` targets `<CODE>:<kind>`; its answer is `{company, kind, secret: "set"}`.
+  `GET /connections/guides/{kind}` → `{kind, title_fa, body_md}`. `growth.metrics_daily` holds
+  `(company, kind, day, key, subject, value, source)`; kind `hub` is the hub's own count (items published, cost per
+  published item, experiments closed). Readers built: telegram (members per channel; a bot sees no post views),
+  pagespeed, search_console, ga4, youtube, instagram (IG-Hub's read-only `exec` job; its command must read only);
+  x, trends, bing, play_console: «خواندن خودکار این اتصال هنوز ساخته نشده». Every read leaves through egress
+  (`POST /v1/http`, the call's own account) and is in the egress log.
 
 ### 29.13 The owner's home
 ```
@@ -3148,6 +3219,11 @@ Progress   { id, company, title_fa, before: {value, at}, after: {value, at}, kpi
 - `POST /home/suggestions/{id} {action: "run"|"later"|"no", reason_fa?}`: `run` makes an order (§29.4); `no` keeps the reason.
 - **Morning** (5 lines, 08:00 Tehran, rule-based, §29.7 applied): yesterday's outputs, the best KPI move, what waits for the owner.
 - Nothing technical is on the home but `critical` (§29.1). Stream `home.updated`.
+- ⟨1.11.1, as built⟩ `Suggestion.name_fa`, `Progress.name_fa` additive; `HomeKpi.source` additive. `critical` holds
+  the unread urgent notifications of the last 7 days (owner-visible only once §29.1's columns exist). `run` needs an
+  `Idempotency-Key` (the order is made through `POST /orders` with it, once); `later` hides it 3 days. A suggestion
+  whose text is not plain Persian after `humanize` is never stored or shown. Progress: a series' latest point (the
+  last 3 days) against the point about a week before; `position`, `lcp_ms`, `cls` are better when they fall.
 
 ### 29.14 Employee state (as Grok Bot shows it)
 - Each employee in `GET /companies/{code}/employees` and `GET /employees/{code}` adds
@@ -3166,5 +3242,6 @@ Progress   { id, company, title_fa, before: {value, at}, after: {value, at}, kpi
 
 ### 29.16 Stream types, decision kinds and step-up targets added
 - Stream: `order.report`, `home.updated`, `group.run`, `connection.updated`, `suggestion.updated`, `rule.report`.
+  ⟨1.11.1⟩ SSE topics: `home` (`home.`, `suggestion.`) and `groups` (`group.`, `connection.`).
 - Agent tools: `order.ack`, `order.progress`, `work.budget`, `card.decide`, `group.plan`, `connection.read`, `experiment.write`.
 - Step-up: `settings.destructive`, `connection.secret`, `connection.config`, `rule.seal` (= the standing order's seal).

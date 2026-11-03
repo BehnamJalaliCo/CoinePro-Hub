@@ -73,6 +73,12 @@ ops := {
 	"server.read", "server.run",
 	# ⟨1.10⟩ prompt 19 (watch.rego): the company catalogue, the apps' error reports
 	"catalogue.start", "client_errors.read",
+	# ⟨1.11⟩ prompt 21 part 3 (groups.rego): the content lead's plan, the week's
+	# experiment, a company's connections
+	"group.plan", "experiment.write", "connection.read",
+	# ⟨1.11⟩ prompt 21 part 1 (routing.rego): every order answered, the delegation
+	# budget, the destructive cards a CTO decides
+	"order.ack", "order.progress", "work.budget", "card.decide",
 }
 
 # The oversight roles of the holding: the overseer, QC (the inspector) and

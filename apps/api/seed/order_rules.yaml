@@ -18,6 +18,7 @@ companies:
   TY: [تریدیار, ترید یار]
   FX: [اف ایکس, افایکس, کوینه پرو اف ایکس]
   PC: [پروچارت, پرو چارت]
+  IG: [آی جی, ای جی, آیجی, آی جی هاب, ig hub]
 roles:
   advisor: [مشاور کل, مشاور]
   ceo: [مدیرعامل, مدیر عامل, ceo]
@@ -28,6 +29,8 @@ roles:
   FIN: [مدیر مالی, cfo, مالی, حسابداری]
   QUANT: [مدیر کوانت, کوانت]
   AIOPS: [مدیر عملیات ai, عملیات هوش مصنوعی]
+  MEDIA: [مدیر رسانه, مدیر محتوا, رسانه, محتوا, کلیپ, ریلز, ویدیو, ویدئو, موشن, پست, استوری, اینستاگرام,
+          تلگرام, انتشار, سناریو, صداگذاری, صدا گذاری, کاور, کاروسل]
   HR: [مدیر منابع انسانی, منابع انسانی]
 kinds:
   code: [باگ, ریپو, ریپوی, کامیت, پول ریکوئست, pr, ریفکتور, refactor, کارگاه کد, کدنویسی, کد برنامه, برنچ]
@@ -49,3 +52,69 @@ due:
     هفته آینده: 7
     ماه بعد: 30
     ماه آینده: 30
+# ---------------------------------------------------------------------------
+# ⟨prompt 21⟩ contract §29.4, the holding's secretary: what the order makes,
+# who owns that output, what it may spend, and which questions go where.
+#
+# outputs: the output kinds an order asks for and their words (the first kind
+#   of this list found wins: a reel order that also says «پست» is a reel). A
+#   number right before the word is the count («۳ ریلز», «سه تا پست»).
+# output_department: the department that owns each output; a production
+#   order goes there (a media order to the company's media director), never
+#   to AI operations (finding 1 of prompt 20).
+# budgets: tokens of the order's work per output kind: `base` for one item,
+#   `per_extra` for each further item, never above `max`. A collaborator's
+#   child work gets the kind's `base`. The department's floor (§29.6) still
+#   raises a budget below it.
+# questions: an `inside` question (servers, data, code, real figures) goes to
+#   the company's own Claude on its server (a capped claude job, §29.8); an
+#   `outside` one (market, competitors, trends, ideas, SEO, ads, pricing) to
+#   the council. Inside words win when both are found.
+# model_never: departments the light model may not choose by itself (only a
+#   word of the owner names them).
+# memory: how alike an order must be to a remembered correction (the share
+#   of shared words) for the secretary to follow that correction.
+outputs:
+  reel: [ریلز, ریل, reel, reels, کلیپ, ویدیو, ویدئو, ویدیوها, ویدئوها, موشن, موشن گرافی, موشنگرافی]
+  story: [استوری, story]
+  post: [پست, کاروسل, کاور, پوستر, post]
+  article: [مقاله, بلاگ, وبلاگ]
+  report: [گزارش]
+  plan: [برنامه, طرح, نقشه راه, استراتژی]
+output_department:
+  reel: MEDIA
+  story: MEDIA
+  post: MEDIA
+  article: GROWTH
+  code: TECH
+budgets:
+  reel: {base: 400000, per_extra: 100000, max: 1200000}
+  story: {base: 120000, per_extra: 40000, max: 400000}
+  post: {base: 150000, per_extra: 50000, max: 600000}
+  article: {base: 250000, per_extra: 150000, max: 900000}
+  report: {base: 200000, per_extra: 100000, max: 600000}
+  plan: {base: 200000, per_extra: 0, max: 200000}
+  code: {base: 300000, per_extra: 0, max: 300000}
+  answer: {base: 80000, per_extra: 0, max: 80000}
+  other: {base: 200000, per_extra: 0, max: 200000}
+numbers:
+  یک: 1
+  یه: 1
+  دو: 2
+  سه: 3
+  چهار: 4
+  پنج: 5
+  شش: 6
+  هفت: 7
+  هشت: 8
+  نه: 9
+  ده: 10
+questions:
+  inside: [سرور, سرورها, دیتابیس, پایگاه داده, کد, باگ, خطا, لاگ, دیپلوی, فروش, درآمد, کاربر, کاربرها,
+           کاربران, آمار, ثبت نام, سفارش, پرداخت, ترافیک, بازدید, مشترک, مشترکها]
+  outside: [بازار, بازارها, رقبا, رقیب, رقیبها, رقابت, روند, ترند, ایده, ایدهها, کلیدواژه, کلمه کلیدی,
+            سئو, seo, تبلیغ, تبلیغات, متن تبلیغ, قیمت گذاری, قیمتگذاری, مخاطب, مخاطبان, برندینگ]
+model_never: [AIOPS]
+memory:
+  similarity: 0.6
+  look_back: 200

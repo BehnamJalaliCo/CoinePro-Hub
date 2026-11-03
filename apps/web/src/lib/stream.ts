@@ -32,7 +32,13 @@ const INVALIDATE: Array<[string, Array<string | readonly string[]>]> = [
   // ⟨1.9⟩ `file.transcribed`: the hub's transcript of a voice message (§27.3).
   ['file.', ['messages', 'files']],
   ['workshop.', ['workshop']],
-  ['order.', ['orders', 'planner', 'work']],
+  ['order.', ['orders', 'planner', 'work', 'home']],
+  // ⟨1.11⟩ §29.16
+  ['home.', ['home']],
+  ['suggestion.', ['home']],
+  ['group.', ['groups', 'home']],
+  ['connection.', ['connections', 'groups']],
+  ['rule.', ['rules']],
   ['hiring.', ['hiring']],
   ['story.', ['stories']],
   ['oversight.', ['oversight']],
