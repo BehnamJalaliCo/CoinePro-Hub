@@ -149,7 +149,9 @@ async def test_the_light_model_routes_through_the_worker(
     hub.settings = dataclasses.replace(hub.settings, task_queue=wk["tq"])
     wk["acts"].router = fake_router
     try:
-        r = await order(client, owner, f"یک کمپین برای مشتری‌های تازه بساز؛ کلیدش {SECRET} است")
+        # «جدید», not «تازه»: an earlier test's company is named «تازه» and the secretary would
+        # rightly take the order as naming it (a company's name in the text wins, §29.4).
+        r = await order(client, owner, f"یک کمپین برای مشتری‌های جدید بساز؛ کلیدش {SECRET} است")
     finally:
         hub.temporal, hub.settings, wk["acts"].router = saved
     assert r.status_code == 201, r.text
