@@ -18,7 +18,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # The API fuzz (tests/test_openapi.py) with 8 examples per operation alone took ~40 minutes and every push
+      # run hit the 45-minute limit (builder, 2026-11-03): one example per operation on push, the deep fuzz nightly.
       - name: make check
+        env:
+          HQ_FUZZ_EXAMPLES: "1"
         run: make check
 
   # The web panel's production image (prompt 05 §10): built only when apps/web
