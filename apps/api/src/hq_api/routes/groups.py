@@ -10,6 +10,8 @@ company's readiness for them.
     GET  /groups/{key}/kpis?company&days      each member's KPI series (real figures)
     GET  /groups/{key}/experiments?company
     GET  /companies/{code}/readiness?group=content
+    POST /companies/{code}/readiness/fix      {group, action, target}: one tap on
+                                              a failed check's fix (§29.9)
     /internal/v1/groups/plan                  group.plan (A1): the content lead's
                                               plan of the day, and a suggestion for
                                               the owner's home
@@ -22,7 +24,7 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
 from hq_api import pagination
@@ -257,6 +259,90 @@ async def get_readiness(
     company = await ctx.hub.companies.by_code(code)
     async with ctx.tx() as tx:
         return await RD.check(tx, ctx.hub, company, group)
+
+
+class ReadinessFixIn(Model):
+    group: str = Field(default="content", pattern=KEY)
+    action: str = Field(pattern=r"^[a-z]+(\.[a-z]+)?$", max_length=40)
+    target: str | None = Field(default=None, max_length=120)
+
+
+# what the app does itself (a guide, a page, a setting): nothing to run here
+APP_FIXES = ("connection.guide", "envelope.set", "media.on", "runner.check")
+
+
+@router.post("/companies/{code}/readiness/fix", response_model=RD.Readiness, responses=E)
+async def fix_readiness(
+    code: str, body: ReadinessFixIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+) -> RD.Readiness:
+    """§29.9 one tap on a failed check's fix, with the same actions (and the
+    same step-ups) as the order report's: `hire` fills the seat (automatic
+    hiring, §29.10), `hiring.open` (🔏), `lock.open` (🔏), `group.resume`,
+    `series.propose` (a work item for the company's media director). A fix the
+    app does itself (a guide, the month's envelope, the media tools, the
+    runner) answers the readiness unchanged."""
+    from hq_api.domain import work as W
+    from hq_api.routes import order_report as ORR
+
+    company = await ctx.hub.companies.by_code(code)
+    async with ctx.tx() as tx:
+        target = body.target or ""
+        if body.action == "group.resume":
+            key = target.partition(":")[0] or body.group
+            grow = await _group(ctx, tx, key)
+            await GR.set_member_state(tx, grow, company.id, "on")
+            summary = f"membership of {key} on"
+        elif body.action == "series.propose":
+            mgr = await tx.first(
+                """SELECT e.code FROM core.employees e JOIN core.departments d ON d.id = e.department_id
+                   WHERE e.company_id = :co AND d.code = 'MEDIA' AND e.role = 'media_director'
+                     AND e.status = 'active' LIMIT 1""",
+                co=company.id,
+            )
+            if mgr is None:
+                raise ApiError(409, "not_ready", "no media director yet: hire the seat first")
+            kind = target.partition(":")[2] or "instagram"
+            w = await W.create(
+                tx,
+                ctx.who,
+                company_id=company.id,
+                company_code=company.code,
+                title="پیشنهاد سری انتشار",
+                brief=(
+                    f"Propose a publishing series for the company's {kind} channel with series.propose "
+                    "(start with auto_publish false), from the content group's plan and the analyst's numbers."
+                ),
+                kind="one_off",
+                priority="P2",
+                assignee_code=mgr["code"],
+                budget=W.BudgetIn(tokens=120_000),
+            )
+            summary = f"series proposal asked ({w['ref']})"
+        elif body.action in ("hire", "hiring.open", "lock.open"):
+            summary = await ORR._apply_fix(
+                ctx,
+                tx,
+                request,
+                ORR.FixIn(action=body.action, target=body.target),
+                body.target,
+                {},
+                [],
+            )
+        elif body.action in APP_FIXES:
+            return await RD.check(tx, ctx.hub, company, body.group)
+        else:
+            raise ApiError(422, "validation_failed", fields={"action": "not a readiness fix"})
+        await ctx.audit(
+            tx,
+            company_id=company.id,
+            action="readiness.fix",
+            action_class="A2",
+            target_kind="company",
+            target_ref=company.code,
+            summary=f"{body.action} {target}: {summary}"[:500],
+            step_up=body.action in ("hiring.open", "lock.open"),
+        )
+        return await RD.check(tx, ctx.hub, company, body.group)
 
 
 # ------------------------------------------------------------ agent tools --

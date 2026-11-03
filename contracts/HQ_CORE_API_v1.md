@@ -3131,6 +3131,11 @@ Readiness { company, group, ready: bool, checks: [{key, ok, title_fa, detail_fa,
   set; at least one sealed series per channel; the publishing channels connected (IG-Hub, Telegram); the media tools available (render
   and voice on the hub, started on demand like STT); the players; the runner online.
 - Every failed check has a fix button (`hire`, `series.propose`, `connection.guide`, `media.on`, …).
+- `POST /companies/{code}/readiness/fix {group, action, target}` (owner) runs a fix on the hub and answers the readiness again:
+  `hire` (automatic hiring, §29.10), `hiring.open` 🔏, `lock.open` 🔏, `group.resume`, `series.propose` (a work item for the company's
+  media director). A fix the app does itself (`connection.guide`, `envelope.set`, `media.on`, `runner.check`) answers it unchanged.
+- **A sealed fix** (here and in `POST /orders/{ref}/fix`) accepts the step-up of the hub's own action (`hiring.start` on `holding`,
+  `media.series` on the series digest) or of the fix itself (`hiring.open` / `series.seal` on the fix's target).
 - ⟨1.11.1, as built⟩ check keys: `group`, `seat:<seat>` (required seats only), `hiring`, `envelope`, `channels`,
   `connection:<kind>` and `series:<kind>` per publishing channel, `media_tools`, `players`, `runner`. Fix actions:
   `group.resume` (target `<group>:<CODE>`), `hire` (`<CODE>:<role>`), `hiring.open` (`holding`), `envelope.set` (`<CODE>`),

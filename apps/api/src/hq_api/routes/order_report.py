@@ -44,6 +44,7 @@ from hq_api.errors import ApiError, responses
 from hq_api.routes.internal import allow
 from hq_api.schemas import Model
 from hq_api.security import stepup
+from hq_common.tokens import digest
 
 router = APIRouter(tags=["orders"])
 internal_router = APIRouter(tags=["internal"])
@@ -149,7 +150,9 @@ async def _apply_fix(
         out = await hiring.auto_fill(tx, company.id, role, charters=ctx.hub.charters)
         return f"employee {out['employee']}"
     if body.action == "hiring.open":
-        await stepup.consume(tx, request, ctx.who, "hiring.start", "holding")
+        await _consume_either(
+            tx, request, ctx, [("hiring.start", "holding"), ("hiring.open", target or "holding")]
+        )
         await hiring.start(
             tx, ctx.who, holding_id=holding.id, holding_code=holding.code, mode="auto",
             charters=ctx.hub.charters,
@@ -161,7 +164,9 @@ async def _apply_fix(
         from hq_api.domain import studio as S
 
         s = await S.load_series(tx, target or "", lock=True)
-        su = await stepup.consume(tx, request, ctx.who, "media.series", s["digest"])
+        su = await _consume_either(
+            tx, request, ctx, [("media.series", s["digest"]), ("series.seal", target or "")]
+        )
         out = await S.seal_series(tx, ctx.hub, ctx.who, s, s["digest"], su)
         if out.get("decision_ref"):
             later.append(str(out["decision_ref"]))
@@ -182,6 +187,22 @@ async def _apply_fix(
         await W.add_budget(tx, w, 0, ctx.who)  # goes on, with the hub's own player
         return f"{w['ref']} plays auto"
     return "guide"  # connection.guide: the app opens /connections/guides/{kind}
+
+
+async def _consume_either(tx: Any, request: Request, ctx: Ctx, pairs: list[tuple[str, str]]) -> Any:
+    """A fix's step-up: signed on the hub's own action and target (the first
+    pair) or on the fix's own action and target (the apps sign a fix as it
+    is named); either is single-use, bound to the session, 120 s."""
+    token = request.headers.get(stepup.HEADER)
+    if token:
+        row = await tx.first(
+            "SELECT action, target FROM auth.step_ups WHERE token_sha256 = :h",
+            h=digest(token),
+        )
+        for action, tgt in pairs:
+            if row is not None and row["action"] == action and row["target"] == tgt:
+                return await stepup.consume(tx, request, ctx.who, action, tgt)
+    return await stepup.consume(tx, request, ctx.who, *pairs[0])
 
 
 async def _open_lock(ctx: Ctx, tx: Any, request: Request, target: str) -> str:

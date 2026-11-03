@@ -30,6 +30,16 @@ def checks(r: httpx.Response) -> dict[str, dict[str, Any]]:
     return {c["key"]: c for c in body["checks"]}
 
 
+async def auto_hiring(su: Any) -> None:
+    """§29.10 hiring open in mode auto, as migration 0037 leaves it (another
+    test may have closed it)."""
+    await su.execute(
+        """INSERT INTO core.hiring (company_id, state, mode)
+           SELECT id, 'open', 'auto' FROM core.companies WHERE kind = 'holding'
+           ON CONFLICT (company_id) DO UPDATE SET state = 'open', mode = 'auto'"""
+    )
+
+
 async def test_every_check_and_its_fix_for_a_company_without_a_channel(
     client: httpx.AsyncClient,
     owner: dict[str, str],
@@ -37,6 +47,7 @@ async def test_every_check_and_its_fix_for_a_company_without_a_channel(
     new_company: Callable[..., Any],
 ) -> None:
     co = await new_company()
+    await auto_hiring(su)
     async with holding_switch(su, "engaged"):
         r = await client.get(f"/api/v1/companies/{co['code']}/readiness", headers=owner,
                              params={"group": "content"})  # fmt: skip
@@ -56,7 +67,8 @@ async def test_every_check_and_its_fix_for_a_company_without_a_channel(
             "target": f"{co['code']}:{role}",
         }
     assert "seat:video_director" not in c  # optional seats are no gap
-    assert c["hiring"]["fix"]["action"] == "hiring.open"
+    # ⟨21⟩ §29.10: hiring is automatic for every company from migration 0037 on
+    assert c["hiring"]["ok"] is True
     assert c["envelope"]["fix"] == {"action": "envelope.set", "label_fa": "تعیین پاکت ماه",
                                     "target": co["code"]}  # fmt: skip
     assert c["media_tools"]["fix"]["action"] == "media.on"  # render and voice are off here
@@ -120,3 +132,40 @@ async def test_a_member_with_channels_series_runner_and_envelope(
     missing = await client.get(f"/api/v1/companies/{c}/readiness", headers=h,
                                params={"group": "nogroup"})  # fmt: skip
     assert missing.status_code == 404
+
+
+async def test_a_failed_checks_fix_is_one_tap(
+    client: httpx.AsyncClient,
+    owner: dict[str, str],
+    su: Any,
+    new_company: Callable[..., Any],
+) -> None:
+    """§29.9 `POST /companies/{code}/readiness/fix`: `hire` fills the seat by
+    automatic hiring (§29.10), a fix the app does itself answers unchanged,
+    an unknown action is refused."""
+    co = await new_company()
+    await auto_hiring(su)
+    url = f"/api/v1/companies/{co['code']}/readiness"
+    await su.execute(  # automatic hiring stays inside the company's month envelope
+        """INSERT INTO llm.budgets (company_id, scope_type, scope_ref, period, token_limit)
+           VALUES ($1, 'company', $2, 'month', 2000000)""",
+        co["id"],
+        co["code"],
+    )
+    r = await client.post(f"{url}/fix", headers=owner,
+                          json={"group": "content", "action": "hire", "target": f"{co['code']}:publisher"})  # fmt: skip
+    c = checks(r)
+    assert c["seat:publisher"]["ok"] is True, c["seat:publisher"]
+    assert (
+        await su.fetchval(
+            """SELECT count(*) FROM core.employees e JOIN core.companies c ON c.id = e.company_id
+           WHERE c.code = $1 AND e.role = 'publisher' AND e.status = 'active'""",
+            co["code"],
+        )
+        == 1
+    )
+    r = await client.post(f"{url}/fix", headers=owner,
+                          json={"group": "content", "action": "connection.guide", "target": "instagram"})  # fmt: skip
+    assert r.status_code == 200 and checks(r)["channels"]["ok"] is False
+    r = await client.post(f"{url}/fix", headers=owner, json={"action": "delete.everything"})
+    assert r.status_code == 422

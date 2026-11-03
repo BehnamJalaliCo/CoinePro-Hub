@@ -750,6 +750,11 @@ async def test_blockers_and_their_fixes(
     sh = await step_up(hub, sid, "hiring.start", "holding")
     r = await fix({"action": "hiring.open"}, sh)
     assert r.status_code == 200, r.text
+    # the apps sign a fix by its own name and target: that seal opens it too, once
+    sh = await step_up(hub, sid, "hiring.open", "holding")
+    r = await fix({"action": "hiring.open", "target": "holding"}, sh)
+    assert r.status_code in (200, 409), r.text  # no blocker left is 409, never a step-up error
+    assert r.json().get("code") not in ("step_up_required", "step_up_invalid"), r.text
     assert await su.fetchval("SELECT core.hiring_mode()") == "auto"
     r = await fix({"action": "hire", "target": f"{co}:motion_designer"})
     assert r.status_code == 200, r.text
