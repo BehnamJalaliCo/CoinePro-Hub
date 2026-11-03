@@ -128,9 +128,15 @@ private fun ConnectionCard(x: CompanyConnection, onOpen: () -> Unit) {
     }
 }
 
-/** One connection: its guide, its settings (non-secret), the write-only key and a test. */
+/** One connection in its sheet. */
 @Composable
 private fun ConnectionSheet(code: String, x: CompanyConnection, onDone: () -> Unit) {
+    com.coinepro.hq.ui.v14.HqSheet(onDone, connectionKindFa(x.kind, x.labelFa), sub = "راهنمای یک‌صفحه‌ای، تنظیم و کلید") { ConnectionBody(code, x) }
+}
+
+/** One connection: its guide, its settings (non-secret), the write-only key and a test. */
+@Composable
+fun ConnectionBody(code: String, x: CompanyConnection) {
     val env = LocalEnv.current
     val toasts = LocalToasts.current
     val c = Divan.colors
@@ -141,7 +147,7 @@ private fun ConnectionSheet(code: String, x: CompanyConnection, onDone: () -> Un
     val save = rememberAction()
     val key = rememberAction()
     val test = rememberAction()
-    com.coinepro.hq.ui.v14.HqSheet(onDone, connectionKindFa(x.kind, x.labelFa), sub = "راهنمای یک‌صفحه‌ای، تنظیم و کلید") {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Loadable(guide, skeleton = { Skeleton(Modifier.fillMaxWidth().height(140.dp)) }) { g ->
             if (g != null) Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (g.titleFa.isNotBlank()) Text(plain(g.titleFa), style = Divan.type.bodyStrong)

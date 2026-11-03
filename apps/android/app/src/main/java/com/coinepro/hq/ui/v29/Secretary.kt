@@ -68,9 +68,9 @@ class Preview {
 @Composable
 fun rememberPreview(text: String, source: String, on: Boolean, preview0: OrderRoute29? = null): Preview {
     val env = LocalEnv.current
-    val p = remember { Preview().apply { route = preview0; edited = preview0 != null } }
+    val p = remember { Preview().apply { route = preview0 } }
     LaunchedEffect(text, on) {
-        if (!on || p.edited || text.trim().length < 8 || !env.api.gaps.has(HubFeature.PREVIEW)) return@LaunchedEffect
+        if (!on || p.edited || preview0 != null || text.trim().length < 8 || !env.api.gaps.has(HubFeature.PREVIEW)) return@LaunchedEffect
         delay(650)
         p.loading = true
         try {
@@ -110,15 +110,21 @@ fun PreviewLine(p: Preview, onEdit: () -> Unit, modifier: Modifier = Modifier) {
     }
 }
 
-/** The route's editor: company, department, who works with it, the output and its count, single or council, and the player. */
+/** The route's editor in its sheet. */
 @Composable
 fun RouteEditor(r0: OrderRoute29, onDone: (OrderRoute29) -> Unit, onCancel: () -> Unit) {
+    com.coinepro.hq.ui.v14.HqSheet(onCancel, "مسیر فرمان", sub = "منشی پیشنهاد داد؛ هر چه را بخواهی عوض کن. فرمان دقیقاً همین‌طور میرود.") { RouteEditorBody(r0, onDone) }
+}
+
+/** The route's editor: company, department, who works with it, the output and its count, single or council, and the player. */
+@Composable
+fun RouteEditorBody(r0: OrderRoute29, onDone: (OrderRoute29) -> Unit) {
     val c = Divan.colors
     val companies = rememberCompanies().filter { it.kind != "holding" }
     var r by remember(r0) { mutableStateOf(r0) }
     val first = r.companies.firstOrNull()
     val depts = if (first != null) rememberQuery("departments:$first", "companies") { departments(first) }.data.orEmpty() else emptyList()
-    com.coinepro.hq.ui.v14.HqSheet(onCancel, "مسیر فرمان", sub = "منشی پیشنهاد داد؛ هر چه را بخواهی عوض کن. فرمان دقیقاً همین‌طور میرود.") {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Label("شرکت")
         com.coinepro.hq.ui.v16.ChipRow {
             for (co in companies) com.coinepro.hq.ui.v16.CoChip(co.code, co.nameFa ?: co.code, first == co.code) {
