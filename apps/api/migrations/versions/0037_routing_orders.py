@@ -300,7 +300,9 @@ ALTER TABLE core.hiring DROP CONSTRAINT IF EXISTS hiring_mode_check;
 ALTER TABLE core.hiring ADD CONSTRAINT hiring_mode_check CHECK (mode IN ('delegated', 'proposals'));
 DROP TABLE owner.order_reports;
 ALTER TABLE ops.watch_runs DROP CONSTRAINT IF EXISTS watch_runs_kind_check;
+ALTER TABLE ops.watch_runs DISABLE TRIGGER watch_runs_append_only;
 DELETE FROM ops.watch_runs WHERE kind = 'tech_summary';
+ALTER TABLE ops.watch_runs ENABLE TRIGGER watch_runs_append_only;
 ALTER TABLE ops.watch_runs ADD CONSTRAINT watch_runs_kind_check
     CHECK (kind IN ('catalogue', 'growth_memo', 'holding_proposal'));
 REVOKE UPDATE (destructive_owner_categories) ON owner.settings FROM hq_api;

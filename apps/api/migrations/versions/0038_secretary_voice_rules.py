@@ -139,6 +139,9 @@ GRANT UPDATE (council_roles) ON owner.settings TO hq_api;
 """
 
 DOWNGRADE = f"""
+-- a rule for some roles or companies reads as one for every role again
+UPDATE oversight.orders SET applies_to = 'all', applies_codes = '{{}}'
+ WHERE applies_to IN ('roles', 'companies');
 REVOKE UPDATE (council_roles) ON owner.settings FROM hq_api;
 ALTER TABLE owner.settings DROP COLUMN council_roles;
 REVOKE UPDATE (round, rounds, plan_md, order_ref) ON work.councils FROM {APP_ROLES};

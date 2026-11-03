@@ -7,8 +7,6 @@ every string the owner reads passes humanize.check."""
 
 from __future__ import annotations
 
-import sys
-import types
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
@@ -99,20 +97,17 @@ async def test_three_cards_and_a_no_is_remembered_and_never_shown_again(
         home["cards"]["effective"]["kind"] == "effective"
         and home["cards"]["good"]["kind"] == "good"
     )
-    # «نه»: the reason kept, the secretary's memory told, never shown again
-    told: list[tuple[str, str, dict[str, Any]]] = []
-    fake = types.ModuleType("hq_api.domain.dispatch")
-
-    async def remember(tx: Any, kind: str, text_fa: str, data: dict[str, Any]) -> None:
-        told.append((kind, text_fa, data))
-
-    fake.remember = remember  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "hq_api.domain.dispatch", fake)
+    # «نه»: the reason kept, the secretary's memory told (kind `no`), never shown again
     r = await client.post(f"/api/v1/home/suggestions/{big['id']}", headers=owner,
                           json={"action": "no", "reason_fa": "این شرکت هنوز تیم رسانه ندارد"})  # fmt: skip
     assert r.status_code == 200, r.text
     assert (r.json()["state"], r.json()["reason_fa"]) == ("no", "این شرکت هنوز تیم رسانه ندارد")
-    assert told and told[0][0] == "suggestion_no" and "تیم رسانه" in told[0][1]
+    told = await su.fetchrow(
+        """SELECT text_fa FROM owner.dispatch_memory
+           WHERE kind = 'no' AND data->>'suggestion' = $1""",
+        str(big["id"]),
+    )
+    assert told is not None and "تیم رسانه" in told["text_fa"]
     home = (await client.get("/api/v1/home", headers=owner)).json()
     shown = {home["cards"]["effective"]["id"], (home["cards"]["good"] or {}).get("id")}
     assert str(big["id"]) not in shown and str(mid["id"]) in shown
