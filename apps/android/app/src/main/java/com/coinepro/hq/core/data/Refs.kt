@@ -13,6 +13,8 @@ object Refs {
     private val ROUTES: List<Pair<String, String>> = listOf(
         // the work and the owner's day
         "W" to "work/$", "D" to "cartable/$", "O" to "outputs/$", "MT" to "meetings/$", "PL" to "planner",
+        // ⟨1.11⟩ §29.2 an owner's order opens its report
+        "F" to "order/$",
         // the workshop, founding and servers (§17, §18.8)
         "S" to "workshop/$", "G" to "workshop", "AP" to "workshop", "C" to "founding/$", "PV" to "founding/$",
         // the overseer (findings, holds, challenges, standing orders), inquiries, errands, incidents (§18)
@@ -59,6 +61,10 @@ object Refs {
             "decision" -> r?.let { "cartable/$it" } ?: "cartable"
             "deliverable" -> r?.let { "outputs/$it" } ?: "outputs"
             "work" -> r?.let { if (isWork(it) || isUuid(it)) "work/$it" else route(it) } ?: "orders"
+            // ⟨1.11⟩ §29.2 an order's report (its end summary's notification links it).
+            "order", "order_report" -> r?.takeIf { prefix(it) == "F" }?.let { "order/$it" } ?: "orders"
+            "rule", "standing_order" -> "rules"
+            "group" -> r?.let { "groups/$it" } ?: "groups"
             "thread" -> r?.let { "messages/$it" } ?: "messages"
             "message" -> "advisor"
             "finding", "hold", "challenge" -> "oversight"

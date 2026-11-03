@@ -70,6 +70,11 @@ data class Finding(
     val fixMd: String? = null,
     /** ⟨1.10⟩ the fix as something to approve: a work item, a Code Workshop session or a card for the seal. */
     val fix: FindingFix? = null,
+    /** ⟨1.11⟩ §29.1 the finding's domain and who handles it (technical ones go to the company's CTO and SRE). */
+    val domain: String? = null,
+    val ownerVisible: Boolean = true,
+    val routedTo: String? = null,
+    val criticalReason: String? = null,
 )
 
 @Serializable
@@ -98,13 +103,17 @@ data class StandingOrder(
     val textMd: String,
     val source: String = "text",
     val fileId: String? = null,
-    val appliesTo: String = "overseer",
+    /** `all` · `overseer`; ⟨1.11⟩ §29.3 also `{roles: [...]}` or `{companies: [...]}`, so it is read as JSON. */
+    val appliesTo: JsonElement = JsonPrimitive("overseer"),
     val status: String,
     val version: Int = 1,
     val sealedAt: String? = null,
     /** The hub's `StandingOrder` has no `created_at`; kept for the demo and a later hub. */
     val createdAt: String = "",
-)
+) {
+    /** `all`, `overseer`, or `custom` for a list of roles or companies. */
+    val appliesToKey: String get() = (appliesTo as? JsonPrimitive)?.contentOrNull ?: "custom"
+}
 
 @Serializable
 data class HeldAction(val kind: String, val summaryFa: String, val payloadDigest: String = "")

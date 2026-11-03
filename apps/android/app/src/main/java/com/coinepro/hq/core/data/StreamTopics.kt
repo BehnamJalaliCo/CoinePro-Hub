@@ -22,6 +22,9 @@ object StreamTopics {
         "reviews", "briefings", "people", "notes", "quality", "dceo", "treasury", "creatives", "media", "legal", "archive",
         // ⟨1.8⟩ §26.4: the companies' servers (`server.state`, `server.call`, `server.awaiting_seal`).
         "servers",
+        // ⟨1.11⟩ §29.16: the home and its suggestions, the working groups' runs, the connections, the owner's rules (`order.report`
+        // comes on `orders`). A hub that does not serve a topic yet ignores it.
+        "home", "groups", "connections", "rules",
     )
 
     /**
