@@ -3065,7 +3065,8 @@ Blocker { kind: "no_employee"|"hiring_closed"|"locked"|"series_unsealed"|"budget
 ### 29.5 Long voice
 - **On the phone:** continuous recognition that restarts itself at every pause until the owner stops; the text grows on screen.
 - **Over one minute,** or when the phone's recogniser fails: the audio goes to the hub's STT in chunks:
-  `POST /transcribe/sessions {purpose: "order"|"rule"|"message"|"note"}` → `{id}`; `PUT /transcribe/sessions/{id}/chunks/{n}` (raw audio,
+  `POST /transcribe/sessions {purpose: "order"|"rule"|"message"|"note"}` → `{id}` (speech off on the hub: `409 channel_not_configured`,
+  the app keeps the phone's text); `PUT /transcribe/sessions/{id}/chunks/{n}` (raw audio,
   ≤ 90 s each, in order, idempotent per n); `POST /transcribe/sessions/{id}/finish` → `{text, duration_s, chunks, segments}`. Up to
   `STT_SESSION_MAX_S` (default 1 200 s, 20 minutes); STT starts on demand (§27.3). A session unused for 30 minutes expires.
 - **Before sending,** the whole text is shown and editable.

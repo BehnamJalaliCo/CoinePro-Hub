@@ -191,7 +191,7 @@ async def run_test(hub: Any, company_id: Any, kind: str) -> None:
     """One read on the worker (only it reaches egress), awaited."""
     client = getattr(hub, "temporal", None)
     if client is None:
-        raise ApiError(503, "channel_not_configured", "the worker is not reachable from here")
+        raise ApiError(409, "channel_not_configured", "the worker is not reachable from here")
     try:
         await client.execute_workflow(
             TEST_WORKFLOW,

@@ -79,7 +79,7 @@ def _session(ctx: Ctx, s: dict[str, Any]) -> Session:
 
 def _speech_on(ctx: Ctx) -> None:
     if not ctx.hub.settings.stt_url:
-        raise ApiError(503, "channel_not_configured", "speech recognition is off on this hub")
+        raise ApiError(409, "channel_not_configured", "speech recognition is off on this hub")
 
 
 @router.post("/transcribe/sessions", response_model=Session, status_code=201, responses=E)

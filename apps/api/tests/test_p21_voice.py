@@ -157,4 +157,5 @@ async def test_owner_only_and_off_while_speech_is_off(
     r = await client.post(
         "/api/v1/transcribe/sessions", headers={**owner, **idem()}, json={"purpose": "rule"}
     )
-    assert r.status_code == 503
+    # speech off on the hub: a state the apps read by its code (they keep the phone's text)
+    assert r.status_code == 409 and r.json()["code"] == "channel_not_configured"
