@@ -1,5 +1,7 @@
 package com.coinepro.hq.designsystem
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -22,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -38,6 +41,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -60,6 +64,7 @@ import kotlin.math.floor
 import kotlin.math.log10
 import kotlin.math.pow
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 
 /** One segment of a stacked bar; identity is never by colour alone (legend with words). */
 data class Seg(val key: String, val label: String, val value: Double, val color: Color, val valueText: String)
@@ -212,6 +217,20 @@ private fun niceCeil(v: Double): Double {
     return e * when { m <= 1 -> 1.0; m <= 2 -> 2.0; m <= 2.5 -> 2.5; m <= 5 -> 5.0; else -> 10.0 }
 }
 
+/** The axis of [LinesChart]: its top and the step of its four grid lines. Whole-number series (counts) get whole steps (1, 2, 5,
+ *  10…), so no two ticks read alike («1, 1, 2, 2» was 0.5 steps rounded); others keep [niceCeil]'s top in quarters. */
+internal fun axisOf(values: List<Double>): Pair<Double, Double> {
+    val top = maxOf(1.0, values.maxOrNull() ?: 0.0) * 1.06
+    if (values.isNotEmpty() && values.all { abs(it - it.roundToLong()) < 1e-9 }) {
+        val raw = top / 4
+        val e = 10.0.pow(floor(log10(maxOf(1.0, raw))))
+        val step = e * listOf(1.0, 2.0, 5.0, 10.0).first { it * e >= raw }
+        return step * 4 to step
+    }
+    val y = niceCeil(top)
+    return y to y / 4
+}
+
 /** Several series over the same days on one axis (the web's LinesChart): a legend above (identity is never by colour alone; a
  *  press focuses one line), each line's last value as a direct label in the end gutter (a leader joins a label that had to move,
  *  or a line that ended early), and press or drag for a crosshair with every line's value. Time runs left to right; a missing
@@ -225,7 +244,13 @@ fun LinesChart(days: List<String>, lines: List<ChartLine>, fmt: (Double) -> Stri
     var focus by remember { mutableStateOf<String?>(null) }
     var width by remember { mutableIntStateOf(0) }
     val n = days.size
-    val yMax = remember(lines) { niceCeil(maxOf(1.0, lines.flatMap { it.values.filterNotNull() }.maxOrNull() ?: 0.0) * 1.06) }
+    val data = lines.map { it.key to it.values }  // not the lines themselves: their marks are new lambdas on every composition
+    val (yMax, yStep) = remember(data) { axisOf(lines.flatMap { it.values.filterNotNull() }) }
+    // The lines draw in from the start of time to the last day, then their end dots and labels settle in (still when animations
+    // are removed). Keyed on the data, so new figures draw again.
+    val reduced = LocalReducedMotion.current
+    val reveal = remember(data) { Animatable(if (reduced) 1f else 0f) }
+    LaunchedEffect(data, reduced) { if (reduced) reveal.snapTo(1f) else reveal.animateTo(1f, tween(900, easing = Motion.Emphasised)) }
     val axis = TextStyle(fontFamily = FigureFace, fontSize = 11.sp, color = c.textMuted)
     val endText = axis.copy(color = c.textSecondary, fontWeight = FontWeight.SemiBold)
     val padL = 44.dp; val padR = 64.dp; val padT = 12.dp; val padB = 24.dp
@@ -266,14 +291,21 @@ fun LinesChart(days: List<String>, lines: List<ChartLine>, fmt: (Double) -> Stri
                 ) {
                     val l = padL.toPx(); val r = padR.toPx(); val t = padT.toPx(); val b = padB.toPx()
                     val w = size.width; val h = size.height
-                    fun x(i: Int) = l + (if (n <= 1) 0f else i.toFloat() / (n - 1) * (w - l - r))
+                    // A single day stands at the end of time (its label in the end gutter), never on the axis.
+                    fun x(i: Int) = if (n <= 1) w - r else l + i.toFloat() / (n - 1) * (w - l - r)
                     fun y(v: Double) = (h - b - (v / yMax) * (h - t - b)).toFloat()
+                    var prevTick: String? = null
                     for (k in 0..4) {
-                        val v = yMax * k / 4
-                        drawLine(c.lineDivider, Offset(l, y(v)), Offset(x(n - 1), y(v)), 1f)
-                        val lay = measurer.measure(tick(v), axis)
+                        val v = yStep * k
+                        drawLine(c.lineDivider, Offset(l, y(v)), Offset(maxOf(x(n - 1), w - r), y(v)), 1f)
+                        val text = tick(v)
+                        if (text == prevTick) continue
+                        prevTick = text
+                        val lay = measurer.measure(text, axis)
                         drawText(lay, topLeft = Offset(l - 6.dp.toPx() - lay.size.width, y(v) - lay.size.height / 2))
                     }
+                    val p = reveal.value
+                    val shown = (p - 0.7f).coerceIn(0f, 0.3f) / 0.3f
                     val every = maxOf(1, ceil(n / 4.0).toInt())
                     days.forEachIndexed { i, d ->
                         if ((i % every == 0 || i == n - 1) && (i == n - 1 || n - 1 - i >= every / 2.0)) {
@@ -292,7 +324,9 @@ fun LinesChart(days: List<String>, lines: List<ChartLine>, fmt: (Double) -> Stri
                                 pen = true
                             }
                         }
-                        drawPath(path, ln.color.copy(alpha = if (dim) 0.25f else 1f), style = Stroke(2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+                        clipRect(right = l + (w - l - r) * p + 6.dp.toPx()) {
+                            drawPath(path, ln.color.copy(alpha = if (dim) 0.25f else 1f), style = Stroke(2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+                        }
                     }
                     hi?.let { i -> drawLine(c.lineStrong, Offset(x(i), t), Offset(x(i), h - b), 1f) }
                     // End labels: sorted top to bottom, each pushed down until it clears the one above.
@@ -303,15 +337,20 @@ fun LinesChart(days: List<String>, lines: List<ChartLine>, fmt: (Double) -> Stri
                     }.sortedBy { it.at }
                     val gap = 14.dp.toPx()
                     ends.forEachIndexed { k, e -> if (k > 0 && e.ly - ends[k - 1].ly < gap) e.ly = ends[k - 1].ly + gap }
+                    // Labels pushed below the plot come back up as one stack, so none sits on the days' labels or leaves the canvas.
+                    ends.lastOrNull()?.let { last -> (last.ly - (h - b)).takeIf { it > 0f }?.let { over -> ends.forEach { it.ly = maxOf(t, it.ly - over) } } }
                     val gx = x(n - 1) + 10.dp.toPx()
+                    val room = w - gx - 2.dp.toPx()
                     for (e in ends) {
-                        val a = if (focus != null && focus != e.key) 0.3f else 1f
+                        val a = (if (focus != null && focus != e.key) 0.3f else 1f) * shown
                         if (e.i < n - 1 || abs(e.ly - e.at) > 1f) {
                             drawLine(c.lineStrong.copy(alpha = c.lineStrong.alpha * a), Offset(x(e.i) + 5.dp.toPx(), e.at), Offset(gx - 3.dp.toPx(), e.ly), 1f)
                         }
-                        drawCircle(c.card, 5.5.dp.toPx(), Offset(x(e.i), e.at))
-                        drawCircle(e.color.copy(alpha = a), 4.dp.toPx(), Offset(x(e.i), e.at))
-                        val lay = measurer.measure(fmt(e.v), endText.copy(color = endText.color.copy(alpha = a)))
+                        drawCircle(c.card.copy(alpha = shown), 5.5.dp.toPx(), Offset(x(e.i), e.at))
+                        drawCircle(e.color.copy(alpha = a), 4.dp.toPx() * (0.6f + 0.4f * shown), Offset(x(e.i), e.at))
+                        // The whole figure when it fits the gutter; its short form otherwise («0 آیتم در روز» → «0»).
+                        val style = endText.copy(color = endText.color.copy(alpha = a))
+                        val lay = measurer.measure(fmt(e.v), style).takeIf { it.size.width <= room } ?: measurer.measure(tick(e.v), style)
                         drawText(lay, topLeft = Offset(gx, e.ly - lay.size.height / 2))
                     }
                     hi?.let { i ->
@@ -325,7 +364,7 @@ fun LinesChart(days: List<String>, lines: List<ChartLine>, fmt: (Double) -> Stri
                 if (i != null && width > 0 && n > 0) {
                     val boxW = with(density) { 176.dp.toPx() }
                     val l = with(density) { padL.toPx() }; val r = with(density) { padR.toPx() }; val edge = with(density) { 8.dp.toPx() }
-                    val x = l + (if (n <= 1) 0f else i.toFloat() / (n - 1) * (width - l - r))
+                    val x = if (n <= 1) width - r else l + i.toFloat() / (n - 1) * (width - l - r)
                     val left = (x - boxW / 2).coerceIn(edge, maxOf(edge, width - boxW - edge))
                     Column(
                         Modifier

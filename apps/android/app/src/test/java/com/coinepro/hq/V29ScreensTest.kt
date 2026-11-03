@@ -18,6 +18,11 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import com.coinepro.hq.core.AppGraph
+import com.coinepro.hq.core.net.DayValue
+import com.coinepro.hq.core.net.HomeGroup
+import com.coinepro.hq.core.net.HomeGroupCompany
+import com.coinepro.hq.core.net.HomeKpi
+import com.coinepro.hq.core.net.HomeSuggestion
 import com.coinepro.hq.core.net.OrderRoute29
 import com.coinepro.hq.core.net.OwnerRule
 import com.coinepro.hq.core.net.Work
@@ -74,6 +79,20 @@ class V29ScreensTest(private val name: String, private val night: Boolean) {
             id = "w-000222", ref = "W-000222", company = "TY", title = "برای فروش اشتراک طلایی تریدیار در سه ماه آینده چه کنیم؟", status = "delivered", mode = "council",
         )
 
+        private val FIRST_SUGGESTION = HomeSuggestion(
+            id = "s-first", kind = "effective", company = "TY", source = "council",
+            titleFa = "اجرای برنامه‌ی شورا: خط تولید ویدیوی خودکار برای کانال سیگنال تریدیار، با صداگذاری و موشن‌گرافی",
+            whyFa = "برنامه‌ی نهایی شورای مدل‌ها آماده است.",
+            impactFa = "برنامه‌ی شورا با گام‌ها و زمان‌بندی‌اش.",
+            costFa = "چند کار برای همان شرکت؛ هزینه در برنامه آمده است.",
+        )
+        private val FIRST_GROUP = HomeGroup(
+            key = "content", titleFa = "تولید محتوا و انتشار",
+            companies = listOf("FX", "PC", "TY").map { co ->  // an odd count: the last tile keeps its half
+                HomeGroupCompany(co, kpi = HomeKpi("published", "خروجی منتشرشده", "آیتم در روز", listOf(DayValue("2026-11-03", 0.0))))
+            },
+        )
+
         private val SCREENS: Map<String, @Composable (AppGraph) -> Unit> = linkedMapOf(
             "v29-home-lower" to { _ ->
                 Cardlike {
@@ -82,6 +101,14 @@ class V29ScreensTest(private val name: String, private val night: Boolean) {
                         for (g in h.groups) com.coinepro.hq.ui.v29.GroupKpiCard(g)
                         com.coinepro.hq.ui.v29.HomeOrdersBlock(h.orders) {}
                     }
+                }
+            },
+            // The owner's first day after the deploy (2026-11-03): a suggestion whose cost runs longer than its effect (the two facts
+            // stay one height), and a group whose KPI has a single day of zeros (tiles, not a flat line under a heap of labels).
+            "v29-home-first-day" to { _ ->
+                Cardlike {
+                    com.coinepro.hq.ui.v29.SuggestionCard(FIRST_SUGGESTION, effective = true)
+                    com.coinepro.hq.ui.v29.GroupKpiCard(FIRST_GROUP)
                 }
             },
             "v29-order-blocked" to { _ -> com.coinepro.hq.ui.v29.OrderReportScreen("F-0042") },
