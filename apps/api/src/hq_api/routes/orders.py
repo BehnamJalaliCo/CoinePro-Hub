@@ -436,7 +436,9 @@ async def carry_out(
                     mode="council", assignee=lead)  # fmt: skip
         return [r]
     if rt.kind == "code" and co["workspaces"]:
-        ws = s.draft.workspace if s.draft.workspace in co["workspaces"] else co["workspaces"][0]
+        ws = str(
+            s.draft.workspace if s.draft.workspace in co["workspaces"] else co["workspaces"][0]
+        )
         r = O.Route(first, ws, "code", workspace=ws)
         await _code(ctx, tx, r, ref, text, title, later, s.routed_by)
         return [r]
