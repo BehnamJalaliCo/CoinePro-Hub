@@ -10,6 +10,13 @@ path "kv/data/llm-connections/*" {
   capabilities = ["create", "update"]
 }
 
+# Prompt 21 part 3 (contract §29.12): a company's growth connection secret
+# (kv/hq/growth/<company>/<kind>), write-only here: the owner sets it through
+# the API (step-up) or `make growth-secret`; only the worker reads it.
+path "kv/data/hq/growth/*" {
+  capabilities = ["create", "update"]
+}
+
 # Holding service accounts (prompt 07 §2.5): read for one agent call at a time,
 # handed to the egress service through the gateway; the owner writes them
 # (make account-secret), never through the API.

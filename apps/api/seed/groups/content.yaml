@@ -1,0 +1,125 @@
+# The content working group («تولید محتوا و انتشار»), contract §29.11 and the
+# management review (docs/MANAGEMENT_REVIEW_2026-11.md §4): data, not code. A
+# new group is a new file here, no new code. Loaded at startup and on every
+# reconcile of the groups' tick; a changed file makes a new version, and the
+# owner's pauses (a membership, a routine) are kept.
+#
+# seats      §4.1: one person per seat in each member company (count), the
+#            seat's charter (agents/roles/<role>.md); `optional: true` seats
+#            are not a readiness gap (filled when the work needs them).
+# routines   §4.2: the daily and weekly rhythm, in the owner's time zone
+#            (RRULE, contract §4 subset). Each run is ONE small work item for
+#            the seat's employee, within `max_tokens`; code makes the item, the
+#            model runs only in the employee's run. `task_class` only where a
+#            media class fits (the router's assignments), `needs` the hub's
+#            condition for the run (a sealed series to publish in).
+# kpis       §4.3: read daily from the connections (growth.metrics_daily);
+#            `hub` figures come from the hub's own tables.
+# connections  what the group reads and publishes through (§29.12).
+# eligible   has_channel: every active company with at least one publishing
+#            channel (§29.12 rows) joins by itself, a new company too.
+key: content
+title_fa: تولید محتوا و انتشار
+purpose_fa: >-
+  هر روز، چه فرمانی برسد چه نرسد، شرکت دست‌کم یک پست یا ریلز درست و زیبا منتشر کند؛ از عددهای واقعی
+  دیروز یاد بگیرد و هر هفته یک آزمایش عمدی با نتیجه‌ی عددی انجام دهد.
+state: "on"
+eligible: has_channel
+lead: media_director
+seats:
+  - {seat: media_director, role: media_director, title_fa: مدیر محتوا, count: 1}
+  - {seat: scriptwriter, role: scriptwriter, title_fa: نویسنده, count: 1}
+  - {seat: visual_designer, role: visual_designer, title_fa: طراح تصویر, count: 1}
+  - {seat: motion_designer, role: motion_designer, title_fa: سازنده‌ی ریلز و موشن, count: 1}
+  - {seat: video_director, role: video_director, title_fa: کارگردان ریلز, count: 1, optional: true}
+  - {seat: voice_producer, role: voice_producer, title_fa: سازنده‌ی صدا, count: 1, optional: true}
+  - {seat: publisher, role: publisher, title_fa: مسئول انتشار, count: 1}
+  - {seat: content_analyst, role: content_analyst, title_fa: تحلیلگر عملکرد, count: 1}
+routines:
+  - key: numbers
+    title_fa: عددهای دیروز
+    seat: content_analyst
+    schedule: FREQ=DAILY;BYHOUR=7;BYMINUTE=30
+    max_tokens: 60000
+    brief_md: |
+      Yesterday's numbers for {company_name} (the content working group's 07:30 routine, docs/MANAGEMENT_REVIEW_2026-11.md §4.2).
+      Read the connected accounts with `connection.read` (Instagram through IG-Hub, the Telegram channels, and where they exist
+      Search Console and Analytics) and the hub's own record of what was published. Deliver ONE short Persian table: per item
+      published yesterday and per channel, views or reach, likes, saves, shares, comments and follows gained, each figure with its
+      source and the time it was read. A channel that is not connected reads «وصل نیست», never zero; never estimate a number.
+      Then one line for the content lead: yesterday's best and worst item and the one difference the numbers support. Finish by
+      08:00 (Tehran).
+  - key: plan
+    title_fa: برنامه‌ی امروز
+    seat: media_director
+    schedule: FREQ=DAILY;BYHOUR=8;BYMINUTE=0
+    max_tokens: 120000
+    brief_md: |
+      Today's content plan for {company_name} (the 08:00 routine of the content working group; you are its lead).
+      Read the analyst's table of yesterday (`connection.read` for the figures), the open items and the sealed series. Plan at most
+      THREE items for today, each with its seat (scriptwriter, visual designer, reels maker), its series and why it (a figure, a trend
+      or a competitor's move; an idea without evidence is marked as a test). Store the plan with `group.plan` (items), then hand each
+      item to its seat with `work.delegate`. When a seat is empty, say so in the plan's first line; never do a seat's work yourself
+      beyond one item. If the numbers show a move the owner should decide on, file it with `group.plan` as a suggestion (title, why,
+      the expected impact as a figure, the cost).
+  - key: review
+    title_fa: بازبینی ساعت ۱۴
+    seat: media_director
+    schedule: FREQ=DAILY;BYHOUR=14;BYMINUTE=0
+    max_tokens: 80000
+    task_class: media_review
+    brief_md: |
+      The 14:00 review of {company_name}'s items (the content working group). Review every item waiting in `review` with
+      `media.review`: pass, or changes with the exact place (shot or second), the rule it breaks, the change and the seat that owns
+      it. Nothing is published by you; a sealed series publishes by code.
+  - key: publishing
+    title_fa: انتشار و سنجش زنده
+    seat: publisher
+    schedule: FREQ=DAILY;BYHOUR=14,20;BYMINUTE=30
+    max_tokens: 40000
+    needs: sealed_series
+    brief_md: |
+      The publishing check of {company_name} (the content working group; per sealed series). See the reviewed items of today's
+      sealed series out (code publishes them on schedule); check each published item live from its public link, confirm the
+      caption, cover and risk warning, and record its link and the counters it shows (`kpi.record` with the source). Deliver the
+      day's publishing line (one row per item: series, channel by its name, time, state, link) and one line for the content lead.
+      Nothing outside a sealed series: a one-off post is the owner's (`propose`).
+  - key: evening_line
+    title_fa: یک خط برای مدیر کل
+    seat: media_director
+    schedule: FREQ=DAILY;BYHOUR=20;BYMINUTE=0
+    max_tokens: 30000
+    brief_md: |
+      The evening line of {company_name}'s content working group: ONE plain Persian line for the owner in your deliverable —
+      what went out today (by channel), yesterday's best item and its figure, and only what only the owner can do (a series to
+      seal, an account to connect). No ids, no English terms, Latin digits.
+  - key: weekly_review
+    title_fa: مرور هفته و نتیجه‌ی آزمایش
+    seat: content_analyst
+    schedule: FREQ=WEEKLY;BYDAY=SA;BYHOUR=9;BYMINUTE=0
+    max_tokens: 100000
+    brief_md: |
+      The weekly review of {company_name}'s content (Saturday). Which format, hour and topic did best (figures before and after,
+      with the arithmetic, from `connection.read`); the cost per published item (`treasury.usage`); last week's experiment: close it
+      with `experiment.write` (its result as a figure, kept or not). Then propose the next experiment to the content lead: one
+      change, one hypothesis, one figure to beat, one week.
+  - key: weekly_plan
+    title_fa: برنامه‌ی هفته و آزمایش تازه
+    seat: media_director
+    schedule: FREQ=WEEKLY;BYDAY=SA;BYHOUR=10;BYMINUTE=0
+    max_tokens: 100000
+    brief_md: |
+      The week's plan of {company_name}'s content working group (Saturday, after the analyst's review). Write the week's plan and
+      ONE deliberate experiment with `experiment.write` (hypothesis, the metric, the figure to beat), e.g. «ریلز ۱۵ ثانیه‌ای در برابر
+      ۳۰ ثانیه‌ای، معیار: نگه‌داشت». A move the owner should decide goes to the home as a suggestion with `group.plan`.
+kpis:
+  # §4.3: the lead's main KPI first (the home's chart of the group); `seat` is
+  # whose KPI it is. A KPI the hub cannot read yet has no series (never a guess).
+  - {key: published, title_fa: خروجی منتشرشده, unit: آیتم در روز, source: hub, seat: media_director}
+  - {key: followers, title_fa: دنبال‌کننده, unit: نفر, source: "instagram,telegram,youtube", seat: media_director}
+  - {key: views, title_fa: بازدید, unit: بار, source: "instagram,telegram,youtube", seat: media_director}
+  - {key: cost_per_post, title_fa: هزینه‌ی هر پست, unit: هزار واحد مصرف, source: hub, seat: media_director}
+  - {key: first_pass, title_fa: پذیرش در بازبینی اول, unit: درصد, source: hub, seat: scriptwriter}
+  - {key: on_time, title_fa: انتشار سر وقت, unit: درصد, source: hub, seat: publisher}
+  - {key: experiments, title_fa: آزمایش با نتیجه, unit: آزمایش, source: hub, seat: content_analyst}
+connections: [instagram, telegram, youtube, search_console, ga4]

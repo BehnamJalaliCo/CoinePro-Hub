@@ -69,7 +69,10 @@ from hq_api.routes import advisor as advisor_routes  # prompt 12 part A
 from hq_api.routes import archive as archive_routes  # prompt 14: the archive
 from hq_api.routes import archive_agents as archive_agent_routes  # prompt 14: its agent tools
 from hq_api.routes import ask as ask_routes  # prompt 12 §2, §3, §13 (on prompt 11)
+from hq_api.routes import connections as connection_routes  # prompt 21 part 3: §29.12
 from hq_api.routes import dceo as dceo_routes
+from hq_api.routes import groups as group_routes  # prompt 21 part 3: §29.9, §29.11
+from hq_api.routes import home as home_routes  # prompt 21 part 3: §29.13
 from hq_api.routes import legal as legal_routes  # prompt 13: the legal counsel
 from hq_api.routes import media as media_routes  # prompt 13, the media half
 from hq_api.routes import reviews as review_routes
@@ -261,6 +264,12 @@ def create_app(
     app.include_router(server_routes.internal_router, prefix="/internal/v1")
     app.include_router(watch_routes.router, prefix="/api/v1")
     app.include_router(watch_routes.internal_router, prefix="/internal/v1")
+    # ⟨1.11⟩ prompt 21 part 3 (contract §29.9, §29.11-§29.13): working groups,
+    # readiness, connections, the owner's home; their agent tools.
+    for p21c in (group_routes, connection_routes):
+        app.include_router(p21c.router, prefix="/api/v1")
+        app.include_router(p21c.internal_router, prefix="/internal/v1")
+    app.include_router(home_routes.router, prefix="/api/v1")
     # ⟨1.7⟩ prompt 14 (contract §23): the archive of record and its agent tools.
     app.include_router(archive_routes.router, prefix="/api/v1")
     app.include_router(archive_agent_routes.internal_router, prefix="/internal/v1")

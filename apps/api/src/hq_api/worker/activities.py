@@ -100,6 +100,9 @@ class Activities:
         from hq_api.worker.archive_activities import ArchiveActivities
 
         self.archive = ArchiveActivities(hub, self._tx)  # prompt 14, the archive (rule-only)
+        from hq_api.worker.growth_activities import GrowthActivities
+
+        self.growth = GrowthActivities(hub, self._tx)  # prompt 21 part 3 (rule-only)
 
     def all(self) -> list[Any]:
         return [
@@ -111,6 +114,7 @@ class Activities:
             *self.owner_tools.all(),
             *self.legal_voice.all(),
             *self.archive.all(),
+            *self.growth.all(),
             *self.media.all(),
             *self.brand.all(),
             *self.people.all(),

@@ -139,6 +139,10 @@ GATEWAY_TOOLS: frozenset[str] = frozenset(
         # prompt 19 (contract §28.2-§28.3): the company catalogue, the apps' error reports
         "company.catalogue",
         "client.errors",
+        # prompt 21 part 3 (contract §29.11-§29.12): the working groups' tools
+        "group.plan",
+        "experiment.write",
+        "connection.read",
     }
 )
 # Tools whose traffic leaves the hub through the egress service (contract §18.7).

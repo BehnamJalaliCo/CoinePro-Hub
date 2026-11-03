@@ -106,6 +106,11 @@ TOPICS: dict[str, tuple[str, ...]] = {
     # ⟨1.8⟩ prompt 17 (contract §26.4): server.state, server.call (one per job
     # start and end, and per command inside a claude job), server.awaiting_seal
     "servers": ("server.",),
+    # ⟨1.11⟩ prompt 21 part 3 (contract §29.16): the owner's home (home.updated,
+    # suggestion.updated); the working groups' runs and the connections'
+    # reads (group.run, connection.updated)
+    "home": ("home.", "suggestion."),
+    "groups": ("group.", "connection."),
 }
 
 

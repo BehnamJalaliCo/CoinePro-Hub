@@ -11,7 +11,7 @@ ENV_FILE := infra/compose/.env
 	install-systemd llm-provision claude-token llm-smoke test-services lock owner-enroll openapi \
 	audit-reanchor verify-live bootstrap-month1 prompt-check stt-fetch stt-eval tracing-on tracing-off \
 	backup-hourly restore-weekly pitr-test disk-hygiene gdrive-auth backup-password openbao-snapshot-token mcp-secret account-secret \
-	hetzner-token owner-ssh-key intake-secret telegram-bot-token connection-secret \
+	hetzner-token owner-ssh-key intake-secret telegram-bot-token connection-secret growth-secret \
 	chatgpt-login gemini-login chatgpt-web-login gemini-web-login deepseek-web-login
 .PHONY: mcp-build mcp-test mcp-index catalogue-rerender
 
@@ -272,6 +272,11 @@ account-secret: ## OWNER: the secret of one holding service account (KEY=<key>; 
 
 connection-secret: ## OWNER: a new LLM connection's API key (KEY=<key>; hidden input -> OpenBao)
 	@infra/openbao/connection-secret.sh "$(KEY)"
+
+# Prompt 21 part 3 (contract §29.12): a company's growth connection (Search
+# Console, Analytics, Telegram bot, ...), by the owner in their own terminal.
+growth-secret: ## OWNER: a growth connection's secret (COMPANY=<CODE> KIND=<kind> [FILE=<json>]; hidden input)
+	@infra/openbao/growth-secret.sh "$(COMPANY)" "$(KIND)" "$(FILE)"
 
 # Prompt 12 §9.1 (contract §21.13): the substitute players' sign-ins, by the
 # owner in their own terminal only (never Claude); also from the app.

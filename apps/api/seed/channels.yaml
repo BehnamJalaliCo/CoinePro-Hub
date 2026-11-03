@@ -1,0 +1,36 @@
+# The companies' publishing channels (contract §29.11-§29.12; the owner's
+# answers, 2026-11-02, docs/PLAN_2026-11-02_OWNER_FOCUS.md «ترتیب اجرا» 7):
+# data, not code. Each row becomes a connection of its company (state
+# `not_connected` until the owner gives what it needs: the handles, the bot,
+# the account) and makes the company eligible for the content working group.
+#
+# - The signal channel belongs to TradeYar: a Telegram channel of TY.
+# - Every company's Instagram accounts are on IG-Hub: the server `IG-Hub` of
+#   company `IG`; the hub never holds an Instagram token (config.via: ig_hub,
+#   read through IG-Hub's own runner, a fixed read-only job, §29.12).
+# A code that does not exist in the database is skipped; a row is only added,
+# never overwritten (the owner's later config and secret stay as they are).
+ig_hub: {company: IG, server: IG-Hub}
+channels:
+  - company: TY
+    kind: telegram
+    label_fa: کانال‌های تلگرام تریدیار
+    config:
+      channels:
+        - {role: signal, title_fa: کانال سیگنال تریدیار, chat: null}
+  - company: TY
+    kind: instagram
+    label_fa: اینستاگرام تریدیار (از راه IG-Hub)
+    config: {via: ig_hub, accounts: []}
+  - company: FX
+    kind: instagram
+    label_fa: اینستاگرام کوینه‌پرو اف‌ایکس (از راه IG-Hub)
+    config: {via: ig_hub, accounts: []}
+  - company: PC
+    kind: instagram
+    label_fa: اینستاگرام پروچارت (از راه IG-Hub)
+    config: {via: ig_hub, accounts: []}
+  - company: IG
+    kind: instagram
+    label_fa: حساب‌های اینستاگرام IG-Hub
+    config: {via: ig_hub, accounts: []}

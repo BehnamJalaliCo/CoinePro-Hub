@@ -62,6 +62,12 @@ Schedule ids:
     hq-archive-sources        every 15 min  ArchiveSources (prompt 14 §7: system sources)
                               (rule-only: no model, no outside call; what would wake an
                               agent inside them waits while the holding is locked)
+    hq-groups-tick            every 10 min  GroupsTick (prompt 21 part 3, §29.11: the group
+                              files, members, the routines due -> one work item each)
+    hq-connections-read       hourly        ConnectionsRead (§29.12: each connection's daily
+                              read through egress; both do nothing while locked)
+    hq-home-morning           daily 08:00 (owner's zone)  HomeMorning (§29.13: suggestions,
+                              progress, the morning's lines; rule-only, no outside call)
     recurring-<work ref>      the work's RRULE as a calendar spec in its zone,
                               end = min(UNTIL, escrow expiry); paused while the
                               company or the holding is locked
@@ -135,6 +141,10 @@ ARCHIVE_FIXITY = "hq-archive-fixity"
 ARCHIVE_OCR = "hq-archive-ocr"
 ARCHIVE_SOURCES = "hq-archive-sources"
 P14 = (ARCHIVE_DAILY, ARCHIVE_FIXITY, ARCHIVE_OCR, ARCHIVE_SOURCES)
+GROUPS_TICK = "hq-groups-tick"  # prompt 21 part 3
+CONNECTIONS_READ = "hq-connections-read"
+HOME_MORNING = "hq-home-morning"
+P21C = (GROUPS_TICK, CONNECTIONS_READ, HOME_MORNING)
 FIXED = (
     SUPPORT_SWEEP,
     MAINTENANCE,
@@ -164,6 +174,7 @@ FIXED = (
     MEDIA_SWEEP,
     *P13B,
     *P14,
+    *P21C,
 )
 
 
@@ -332,6 +343,7 @@ def fixed(
         *studio_fixed(),
         *p13b_fixed(tz),
         *p14_fixed(tz),
+        *p21c_fixed(tz),
     ]
 
 
@@ -550,6 +562,32 @@ def p14_fixed(tz: str) -> list[Desired]:
             every(15),
             timedelta(minutes=20),
             timedelta(minutes=14),
+        ),
+    ]
+
+
+def p21c_fixed(tz: str) -> list[Desired]:
+    """Prompt 21 part 3 (contract §29.11-§29.13): rule-based; the two that act
+    (routines, outside reads) gate themselves (hq_api.domain.gate)."""
+    return [
+        Desired(
+            GROUPS_TICK, "GroupsTick", (), every(10), timedelta(minutes=10), timedelta(minutes=9)
+        ),
+        Desired(
+            CONNECTIONS_READ,
+            "ConnectionsRead",
+            (),
+            every(60),
+            timedelta(minutes=30),
+            timedelta(minutes=30),
+        ),
+        Desired(
+            HOME_MORNING,
+            "HomeMorning",
+            (),
+            daily_at(time(8, 0), tz),
+            timedelta(hours=6),
+            timedelta(minutes=12),
         ),
     ]
 
