@@ -6,6 +6,7 @@ technical finding raised meanwhile never reaches the owner's lists or home."""
 
 from __future__ import annotations
 
+import secrets
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Any
@@ -65,7 +66,8 @@ async def test_the_tradeyar_clip_order_end_to_end(
     ty = await su.fetchrow("SELECT id, code FROM core.companies WHERE code = 'TY'")
     assert ty is not None
     await channel(client, hub, owner_session, "TY")
-    day = datetime.now(TEHRAN).date() + timedelta(days=2)
+    # a day no earlier run used (the routines run once per period; the database outlives a run)
+    day = datetime.now(TEHRAN).date() + timedelta(days=secrets.randbelow(3000) + 30)
     async with holding_switch(su, "released"):
         await GR.tick(hub, now=at(day, 3, 0), only={ty["id"]})
         ran = await GR.tick(hub, now=at(day, 8, 0), only={ty["id"]})
