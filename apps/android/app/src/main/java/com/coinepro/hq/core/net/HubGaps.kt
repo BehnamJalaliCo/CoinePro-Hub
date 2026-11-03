@@ -17,6 +17,22 @@ enum class HubFeature {
     CLIENT_ERRORS,
     /** ⟨1.10.1⟩ `DELETE /notifications`; without it «حذف» is hidden. */
     DELETE_NOTIFICATIONS,
+    /** ⟨1.11⟩ §29.13 `GET /home`; without it the home shows the owner's orders and the cartable, as before. */
+    HOME,
+    /** ⟨1.11⟩ §29.2 `GET /orders/{ref}/report`; without it an order is followed on its work page only. */
+    ORDER_REPORT,
+    /** ⟨1.11⟩ §29.4 `POST /orders/preview`; without it the order goes as before and the hub decides. */
+    PREVIEW,
+    /** ⟨1.11⟩ §29.3 `/rules`; without it «قانون تازه» is hidden. */
+    RULES,
+    /** ⟨1.11⟩ §29.11 `/groups`; without it the working groups are hidden. */
+    GROUPS,
+    /** ⟨1.11⟩ §29.12 `/companies/{code}/connections`; without it the connections are hidden. */
+    CONNECTIONS,
+    /** ⟨1.11⟩ §29.9 `/companies/{code}/readiness`. */
+    READINESS,
+    /** ⟨1.11⟩ §29.5 `/transcribe/sessions`; without it a long dictation stays on the phone's recogniser. */
+    STT_SESSIONS,
 }
 
 /**

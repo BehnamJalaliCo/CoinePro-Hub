@@ -94,14 +94,29 @@ fun CouncilCard(w: Work) {
         Spacer(Modifier.height(Space.sm))
         Loadable(q, skeleton = { Skeleton(Modifier.fillMaxWidth().height(180.dp), radius = Radius.tile) }) { k ->
             Column(Modifier.smoothSize(), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-                Text(councilProgressFa(k), style = Divan.type.caption, color = Divan.colors.textSecondary)
-                Column {
-                    k.members.forEachIndexed { i, m ->
-                        if (i > 0) HorizontalDivider(color = Divan.colors.lineDivider)
-                        MemberRow(m)
+                Text(com.coinepro.hq.ui.v29.councilRoundFa(k) ?: councilProgressFa(k), style = Divan.type.caption, color = Divan.colors.textSecondary)
+                val members: @Composable () -> Unit = {
+                    Column {
+                        k.members.forEachIndexed { i, m ->
+                            if (i > 0) HorizontalDivider(color = Divan.colors.lineDivider)
+                            MemberRow(m, com.coinepro.hq.ui.v29.councilRoleFa(k, m.player))
+                        }
                     }
                 }
-                if (k.mediaCouncil) MediaGallery(k) else Synthesis(k)
+                // ⟨1.11⟩ §29.8 the council v2: the captain's plan first (with «اجرا کن»), the fact pack, and each member's answer behind
+                // «جزئیات»; a council before v2 shows its members and Claude's synthesis as before.
+                if (k.planMd != null) {
+                    com.coinepro.hq.ui.v29.CouncilPlan(k)
+                    k.factPack?.let { com.coinepro.hq.ui.v29.FactPackView(it) }
+                    com.coinepro.hq.ui.v29.CouncilDetails(k) {
+                        members()
+                        if (!k.mediaCouncil) Synthesis(k)
+                    }
+                } else {
+                    k.factPack?.let { com.coinepro.hq.ui.v29.FactPackView(it) }
+                    members()
+                    if (k.mediaCouncil) MediaGallery(k) else Synthesis(k)
+                }
             }
         }
     }
@@ -122,7 +137,7 @@ private fun CouncilState(k: Council) {
 
 /** One player of the council: its logo, name and model, its state (and why, when it was skipped or failed), a way to its answer. */
 @Composable
-private fun MemberRow(m: CouncilMember) {
+private fun MemberRow(m: CouncilMember, role: String? = null) {
     val nav = LocalNav.current
     val c = Divan.colors
     val out = m.state == "skipped" || m.state == "failed"
@@ -136,6 +151,8 @@ private fun MemberRow(m: CouncilMember) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(playerFa(m.player), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = if (out) c.textSecondary else c.textPrimary)
+                // ⟨1.11⟩ §29.8 its role in the council.
+                role?.let { Text(it, style = Divan.type.micro, color = c.goldInk) }
                 if (m.model.isNotBlank()) Fig(if (m.player == "claude") com.coinepro.hq.core.format.modelLabel(m.model) else subModel(m.model), style = Divan.type.figureSmall, color = c.textMuted)
             }
             if (out) memberReasonFa(m.reason)?.let { ReasonLine(it, if (m.state == "failed") c.negative else c.textMuted) }

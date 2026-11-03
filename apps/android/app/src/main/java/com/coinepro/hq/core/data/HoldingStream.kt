@@ -355,7 +355,15 @@ class HoldingStream(
             // ⟨1.9⟩ §27.3 `file.transcribed`: the hub's transcript of a voice message, a voice note or an audio file.
             "file." to arrayOf("messages", "files", "notes"),
             "workshop." to arrayOf("workshop"),
+            // ⟨1.11⟩ §29.16: an order's report changed (its page, the home's orders), before the rest of `order.`.
+            "order.report" to arrayOf("order-report", "orders", "home"),
             "order." to arrayOf("orders", "planner", "work"),
+            // ⟨1.11⟩ §29.16: the home and its suggestions, a group's routine run, a connection read or changed, a rule's report.
+            "home." to arrayOf("home"),
+            "suggestion." to arrayOf("home"),
+            "group." to arrayOf("groups", "home"),
+            "connection." to arrayOf("connections", "readiness", "home"),
+            "rule." to arrayOf("rules", "oversight"),
             // ⟨1.4⟩ §18.10 and ⟨1.4.2⟩ §18.11
             "hiring." to arrayOf("hiring"),
             "story." to arrayOf("stories"),

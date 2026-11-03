@@ -138,7 +138,7 @@ fun CompaniesScreen() {
 /** One company: departments, people (org chart), its open work and ⟨1.4.6⟩ its brand and seal (not the holding's: fixed).
  *  ⟨1.6⟩ §22.1: a department opens with its mandate, identity and the roles its manager wrote ([dept0]); [role0] opens a draft. */
 @Composable
-fun CompanyScreen(code: String, tab0: String = "control", dept0: String? = null, role0: String? = null) {
+fun CompanyScreen(code: String, tab0: String = "control", dept0: String? = null, role0: String? = null, kind0: String? = null) {
     val nav = LocalNav.current
     val c = Divan.colors
     val d = rememberControlData()
@@ -147,7 +147,7 @@ fun CompanyScreen(code: String, tab0: String = "control", dept0: String? = null,
     val depts = rememberQuery("departments:$code", "companies") { departments(code) }
     val chart = rememberQuery("chart:$code", "employees") { orgChart(code) }
     val work = rememberQuery("work:company:$code", "work") { work(company = code) }
-    var tab by rememberSaveable { mutableStateOf(if (role0 != null) "people" else tab0) }
+    var tab by rememberSaveable { mutableStateOf(if (role0 != null) "people" else if (tab0 == "tech") "servers" else tab0) }
     var dept by rememberSaveable { mutableStateOf(dept0) }
     var role by rememberSaveable { mutableStateOf(role0) }
     val r = refresher(co, depts, chart, work)
@@ -173,7 +173,11 @@ fun CompanyScreen(code: String, tab0: String = "control", dept0: String? = null,
             val brand = co.data?.let { it.kind != "holding" } == true
             // ⟨control⟩ the control room first: the owner opens a company to see it and steer it.
             com.coinepro.hq.designsystem.ScrollRow {
-                (listOf("control" to "اتاق کنترل") + (if (brand) listOf("servers" to "سرورها") else emptyList()) + listOf("departments" to "دپارتمان‌ها", "people" to "کارمندها", "work" to "کارها") + (if (brand) listOf("brand" to "نشان و مُهر") else emptyList()))
+                // ⟨1.11⟩ §29: the business first (its working groups and the connections that measure them); the technical (servers, the
+                // catalogue, technical findings) lives under «فنی» only.
+                (listOf("control" to "اتاق کنترل") + (if (brand) listOf("growth" to "کارگروه‌ها", "connections" to "اتصال‌ها") else emptyList()) +
+                    listOf("departments" to "دپارتمان‌ها", "people" to "کارمندها", "work" to "کارها") +
+                    (if (brand) listOf("servers" to "فنی", "brand" to "نشان و مُهر") else emptyList()))
                     .forEach { (k, l) -> com.coinepro.hq.designsystem.FilterChip(l, tab == k, { tab = k }) }
                 // The company's conversations: the messages page, opened on this company's section.
                 com.coinepro.hq.designsystem.FilterChip("پیام‌ها", false, { nav.go("messages-co/$code") })
@@ -203,8 +207,11 @@ fun CompanyScreen(code: String, tab0: String = "control", dept0: String? = null,
                     }
                 }
             }
-            // ⟨1.8⟩ §26: the company's servers, under the holding's control.
-            "servers" -> item(key = "servers") { com.coinepro.hq.ui.servers.CompanyServers(code) }
+            // ⟨1.8⟩ §26: the company's servers, under the holding's control; ⟨1.11⟩ §29.1 with everything technical of the company.
+            "servers", "tech" -> item(key = "servers") { com.coinepro.hq.ui.v29.CompanyTech(code) }
+            // ⟨1.11⟩ §29.9, §29.11 its working groups and readiness; §29.12 its connections.
+            "growth" -> item(key = "growth") { com.coinepro.hq.ui.v29.CompanyGroups(code) }
+            "connections" -> item(key = "connections") { com.coinepro.hq.ui.v29.CompanyConnections(code, kind0) }
             "brand" -> item {
                 Loadable(co) { x -> HqCard(Modifier.fillMaxWidth()) { BrandBlock(x.code, x.nameFa ?: x.code, x.nameEn ?: x.code) } }
             }
@@ -254,11 +261,15 @@ private fun Node(n: ChartNode, depth: Int, open: (String) -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Avatar(agentKindOf(n.code, n.kind), dept = n.department, size = 40.dp, state = n.activity)
-        Column(Modifier.weight(1f)) {
+        Avatar(agentKindOf(n.code, n.kind), dept = n.department, size = 40.dp, state = n.state?.let { com.coinepro.hq.core.data.avatarStateOf(it) } ?: n.activity)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(n.displayName ?: n.titleFa, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold))
-            Text(buildAnnotatedString { fig(n.code); append("، " + (ACTIVITY[n.activity] ?: n.activity)) }, style = Divan.type.micro, color = c.textMuted)
+            Text(buildAnnotatedString { fig(n.code) }, style = Divan.type.micro, color = c.textMuted)
+            // ⟨1.11⟩ §29.14 why it is stuck, in the owner's words.
+            n.stuck?.takeIf { n.state == "stuck" }?.let { Text(com.coinepro.hq.designsystem.timesFig(it.reasonFa), style = Divan.type.micro, color = c.negative, maxLines = 2) }
         }
+        // ⟨1.11⟩ §29.14 idle · thinking · working · waiting · stuck · done.
+        com.coinepro.hq.ui.v29.EmployeeStatePill(n.state, n.activity)
     }
     n.children.forEach { Node(it, depth + 1, open) }
 }
@@ -294,16 +305,18 @@ fun EmployeeScreen(code: String) {
             Loadable(q) { e: Employee ->
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Avatar(agentKindOf(e.code, e.kind), dept = e.department, size = 72.dp, state = e.activity)
+                        Avatar(agentKindOf(e.code, e.kind), dept = e.department, size = 72.dp, state = e.state?.let { com.coinepro.hq.core.data.avatarStateOf(it) } ?: e.activity)
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(e.displayName ?: e.titleFa, style = Divan.type.h2)
                             Text(buildAnnotatedString { fig(e.code); append(" · " + (EMPLOYEE_KIND[e.kind] ?: e.kind)) }, style = Divan.type.caption, color = c.textMuted)
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Pill(ACTIVITY[e.activity] ?: e.activity, if (e.activity == "working") Tone.GOLD else if (e.activity == "error") Tone.NEG else Tone.SILVER, live = e.activity == "working")
+                                // ⟨1.11⟩ §29.14 the employee's state (the older activity when the hub has none).
+                                com.coinepro.hq.ui.v29.EmployeeStatePill(e.state, e.activity)
                                 if (e.status != "active") Pill(com.coinepro.hq.ui.owner.EMPLOYEE_STATUS[e.status] ?: e.status, if (e.status == "dismissed") Tone.NEG else Tone.WARN)
                             }
                         }
                     }
+                    e.stuck?.takeIf { e.state == "stuck" }?.let { com.coinepro.hq.ui.v29.StuckLine(it, e.company) }
                     com.coinepro.hq.ui.owner.EmployeeActions(e) { q.refresh() }
                     e.activityNote?.let { Text("الان: $it", style = Divan.type.small, color = c.textSecondary) }
                     // Two tiles of one height, their lines on the same baselines.
@@ -386,6 +399,8 @@ fun WorkScreen(id: String) {
                         null -> Skeleton(Modifier.fillMaxWidth().height(196.dp), radius = 16.dp)
                         else -> com.coinepro.hq.ui.work.OrderTrackerCard(t)
                     }
+                    // ⟨1.11⟩ §29.2 the order's report: receipt, plan, steps, what blocks it and the end summary.
+                    com.coinepro.hq.ui.v29.OrderReportOnWork(w)
                     // ⟨1.9⟩ §27.2: the council of models, live.
                     if (w.mode == "council") com.coinepro.hq.ui.work.CouncilCard(w)
                     w.progressPct?.let { p ->

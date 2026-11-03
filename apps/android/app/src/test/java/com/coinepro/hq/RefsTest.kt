@@ -23,7 +23,7 @@ class RefsTest {
             "CL-0009" to "runs", "AK-0002" to "home", "SR-0001" to "series/SR-0001", "MI-0004" to "studio/MI-0004", "LC-0002" to "legal/LC-0002",
             "RD-0001" to "roles/RD-0001", "L-0003" to "messages/L", "LH-0002" to "archive-holds/LH-0002", "PT-0007" to "archive-in/party/PT-0007",
             "FP-0001" to "archive-in/folder/FP-0001", "RR-0002" to "archive-settings/retention/RR-0002", "RM-0003" to "archive-settings/reminders/RM-0003",
-            "AU-0001" to "archive-settings/automations/AU-0001", "TY@3" to "charter", "holding@2" to "charter",
+            "AU-0001" to "archive-settings/automations/AU-0001", "TY@3" to "charter", "holding@2" to "charter", "F-0001" to "order/F-0001",
         )
         for ((ref, route) in cases) assertEquals(ref, route, Refs.route(ref))
     }
@@ -39,7 +39,7 @@ class RefsTest {
 
     @Test
     fun whatIsNotARefHasNoPage() {
-        for (s in listOf("", "FX-CEO", "W-", "w0", "0193b1c2-0005-7d4f-8a2e-0000005a1005", "ZZ-0001", "MT 0077", "F-0001", "TY")) assertNull(s, Refs.route(s))
+        for (s in listOf("", "FX-CEO", "W-", "w0", "0193b1c2-0005-7d4f-8a2e-0000005a1005", "ZZ-0001", "MT 0077", "TY")) assertNull(s, Refs.route(s))
     }
 
     @Test
@@ -50,8 +50,10 @@ class RefsTest {
         assertEquals("meetings/MT-0077", Refs.normalize("work/MT-0077"))
         assertEquals("cartable/D-000017", Refs.normalize("work/D-000017"))
         assertEquals("founding/C-0002", Refs.normalize("work/C-0002"))
+        // ⟨1.11⟩ §29.2 an owner's order (`F-`) opens its report, never the work page.
+        assertEquals("order/F-0001", Refs.normalize("work/F-0001"))
         // A ref with no page goes nowhere rather than to a 422.
-        assertNull(Refs.normalize("work/F-0001"))
+        assertNull(Refs.normalize("work/ZZ-0001"))
         assertNull(Refs.normalize("work/"))
         // Other routes pass untouched.
         assertEquals("meetings/MT-0012", Refs.normalize("meetings/MT-0012"))

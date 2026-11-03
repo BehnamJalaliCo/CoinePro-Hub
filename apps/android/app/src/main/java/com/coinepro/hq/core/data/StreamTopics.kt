@@ -22,6 +22,9 @@ object StreamTopics {
         "reviews", "briefings", "people", "notes", "quality", "dceo", "treasury", "creatives", "media", "legal", "archive",
         // ⟨1.8⟩ §26.4: the companies' servers (`server.state`, `server.call`, `server.awaiting_seal`).
         "servers",
+        // ⟨1.11⟩ §29.16: the home and its suggestions (`home`), the working groups' runs and the connections (`groups`); the
+        // owner's rules come on `oversight` (`rule.report`) and the order report on `orders` (`order.report`), as events.py serves them.
+        "home", "groups",
     )
 
     /**

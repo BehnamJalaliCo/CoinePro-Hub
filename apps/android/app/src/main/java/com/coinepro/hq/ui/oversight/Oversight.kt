@@ -332,7 +332,7 @@ fun OversightScreen() {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Fig(o.ref, style = Divan.type.figureSmall, color = c.textMuted)
                                 if (o.source == "voice") DIcon(DivanIcon.MIC, size = 12.dp, tint = c.textMuted)
-                                Text(if (o.appliesTo == "all") "برای همه" else "برای ناظر", style = Divan.type.micro, color = c.textMuted, modifier = Modifier.weight(1f))
+                                Text(com.coinepro.hq.core.data.appliesToFa(o.appliesTo), style = Divan.type.micro, color = c.textMuted, modifier = Modifier.weight(1f))
                                 LabelPill(ORDER_STATUS[o.status], o.status)
                             }
                             RichText(o.textMd, style = Divan.type.body, color = c.textPrimary)

@@ -146,6 +146,9 @@ private data class ToolGroupDef(val key: String, val title: String, val note: St
 private val GROUPS = listOf(
     ToolGroupDef("work", "فرمان و کار", "آنچه دادی و آنچه تحویل گرفتی", listOf(
         Tool("orders", "فرمان‌های من", DivanIcon.COMMAND, "هر فرمانی که دادی، از ثبت تا تحویل"),
+        // ⟨1.11⟩ §29.3 and §29.11: the owner's rules for the holding, and the working groups (content and publishing first).
+        Tool("rules", "قانون‌های من", DivanIcon.SEAL, "آنچه همه‌ی هلدینگ باید رعایت کند، با مُهر تو"),
+        Tool("groups", "کارگروه‌ها", DivanIcon.DEPARTMENT, "محتوا و انتشار و رشد؛ شاخص‌ها و آزمایش هفته"),
         Tool("outputs", "خروجی‌ها", DivanIcon.DELIVERABLE, "گزارش‌ها و کارهای تحویل‌شده؛ بخوان و امتیاز بده"),
         Tool("planner", "پلنر", DivanIcon.PLANNER, "کارهای امروز و این هفته در یک تقویم"),
         Tool("runs", "اجرای ایجنت‌ها", DivanIcon.AGENT, "هر ایجنت الان چه میکند، قدم‌به‌قدم"),
@@ -415,6 +418,13 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     composable("catalogue/{code}") { com.coinepro.hq.ui.companies.CatalogueScreen(it.arguments?.getString("code").orEmpty()) }
                     composable("watch") { com.coinepro.hq.ui.oversight.WatchScreen() }
                     composable("companies/{code}/{tab}") { CompanyScreen(it.arguments?.getString("code").orEmpty(), tab0 = it.arguments?.getString("tab") ?: "control") }
+                    // ⟨1.11⟩ §29.12 a connection's guide opened at once (a blocker's or a readiness check's «وصل کن»).
+                    composable("companies/{code}/connections/{kind}") { CompanyScreen(it.arguments?.getString("code").orEmpty(), tab0 = "connections", kind0 = it.arguments?.getString("kind")) }
+                    // ⟨1.11⟩ §29.2 an order's report; §29.3 the owner's rules; §29.11 the working groups.
+                    composable("order/{ref}") { com.coinepro.hq.ui.v29.OrderReportScreen(it.arguments?.getString("ref").orEmpty()) }
+                    composable("rules") { com.coinepro.hq.ui.v29.RulesScreen() }
+                    composable("groups") { com.coinepro.hq.ui.v29.GroupsScreen() }
+                    composable("groups/{key}") { com.coinepro.hq.ui.v29.GroupScreen(it.arguments?.getString("key").orEmpty()) }
                     composable("employees/{code}") { EmployeeScreen(it.arguments?.getString("code").orEmpty()) }
                     composable("work/{id}") { WorkScreen(it.arguments?.getString("id").orEmpty()) }
                     composable("treasury") { TreasuryScreen() }
