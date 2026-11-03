@@ -43,7 +43,7 @@ function Findings({ code }: { code: string }) {
   const now = useNow();
   const open = (q.data ?? []).filter(isOpenFinding);
   return (
-    <Card className="flex flex-col gap-2 p-5" aria-label="یافته‌های فنی">
+    <Card as="section" className="flex flex-col gap-2 p-5" aria-label="یافته‌های فنی">
       <SectionTitle title="یافته‌های فنی" note="فنی، زیرساخت و امنیت؛ هر کدام دست مدیر فنی همین شرکت" action={<Link href="/oversight" className="text-[12px] font-semibold text-gold-ink hover:underline">ناظر کل</Link>} />
       {q.isLoading ? <Skeleton className="h-32" /> : q.error ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : !open.length ? <Empty icon="seal" title="یافته‌ی فنی بازی نیست" /> : (
         <ul className="flex flex-col">
@@ -72,7 +72,7 @@ function Notifications({ code }: { code: string }) {
   const now = useNow();
   const list = q.data ?? [];
   return (
-    <Card className="flex flex-col gap-2 p-5" aria-label="اعلان‌های فنی">
+    <Card as="section" className="flex flex-col gap-2 p-5" aria-label="اعلان‌های فنی">
       <SectionTitle title="اعلان‌های فنی" note="آنچه دیگر به اعلان‌های عادی تو نمیاید" />
       {q.isLoading ? <Skeleton className="h-28" /> : q.error ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : !list.length ? <Empty icon="bell" title="اعلان فنی‌ای نیست" /> : (
         <ul className="flex flex-col">

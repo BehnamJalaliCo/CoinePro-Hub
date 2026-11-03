@@ -28,7 +28,7 @@ export function CompanyReadiness({ code, group: initial }: { code: string; group
       {q.isLoading ? <Skeleton className="h-72 rounded-[16px]" /> : q.error ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : !r ? (
         <Card><Empty icon="seal" title="آمادگی هنوز سنجیده نمیشود" body="بعد از به‌روزرسانی ستاد، هر کمبود این شرکت برای کارگروه با دکمه‌ی رفعش این‌جا میاید." /></Card>
       ) : (
-        <Card className={cx('flex flex-col gap-3 p-5', r.ready && 'tahrir')} aria-label="آمادگی">
+        <Card as="section" className={cx('flex flex-col gap-3 p-5', r.ready && 'tahrir')} aria-label="آمادگی">
           <SectionTitle title={groups.data?.find((g) => g.key === r.group)?.title_fa ?? 'آمادگی'}
             note={r.ready ? 'همه‌چیز آماده است' : <><span className="fig">{bad}</span> کمبود، هر کدام با دکمه‌ی رفعش</>}
             action={<Pill tone={r.ready ? 'pos' : 'warn'} icon={r.ready ? 'seal' : 'urgent'}>{r.ready ? 'آماده' : 'هنوز آماده نیست'}</Pill>} />
