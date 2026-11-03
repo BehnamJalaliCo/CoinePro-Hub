@@ -9,6 +9,8 @@
 >
 > **v1.2 (۲۰۲۶-۱۰-۱۷):** ایجنت‌ها سر کار (§۱۶، پرامپت ۵). **v1.3 (۲۰۲۶-۱۰-۱۷):** عکس و فیلم و صوت در پیام‌ها، تبدیل دقیق صدای فارسی به متن، کارگاه کد و فرمان صوتی (§۱۷، پرامپت ۶). **v1.4 (۲۰۲۶-۱۰-۱۷):** تصمیم‌های دور دوم مالک: ناظر کل، مشاور نسخه‌ی ۲، دستیار شخصی، ستاره‌ها، مهارت‌ها، آکادمی، اینترنت کامل و MCP برای ایجنت‌ها، تأسیس شرکت و ساخت سرور، backup ساعتی (§۱۸، پرامپت‌های ۷ تا ۹). **v1.4.1 (۲۰۲۶-۱۰-۱۷):** آنچه پرامپت ۵ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۶.۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_05_1_FIXES.md`. **v1.4.2 (۲۰۲۶-۱۰-۱۷):** استخدام با شروع خود مالک (§۱۸.۱۱). **v1.4.3 (۲۰۲۶-۱۰-۱۷):** مدیرعامل‌ها با اختیار کامل در پاکت بودجه‌ی ماهانه استخدام میکنند و مدل هر کار را خودشان انتخاب میکنند (§۱۸.۱۱)؛ استوری شرکت‌ها (§۱۸.۱۲)؛ ستاره برای مصرف درست بودجه (§۱۸.۴). **v1.4.4 (۲۰۲۶-۱۰-۱۷):** پروتکل‌هایی که قابلیتشان هنوز ساخته نشده `paused` میمانند و نظارت سهم توکن خودش را دارد (§۱۸.۱)؛ ممیزی دوم در `docs/GAP_ANALYSIS_v2.md`. **v1.4.5 (۲۰۲۶-۱۰-۱۸):** آنچه پرامپت ۷ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۳)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_07_1_FIXES.md`. **v1.4.6 (۲۰۲۶-۱۰-۱۹):** نشان و مُهر هر شرکت از PNG خود مالک ساخته میشود و داده است (§۱۸.۱۴، پرامپت ۹.۱). **v1.4.7 (۲۰۲۶-۱۰-۲۲):** آنچه پرامپت ۸ ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۵)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_08_1_FIXES.md`. **v1.4.8 (۲۰۲۶-۱۰-۲۲):** آنچه پرامپت ۹ ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_09_2_FIXES.md`. **v1.6 (۲۰۲۶-۱۰-۲۲):** دپارتمان رسانه و طراحی در هر شرکت با برنامه‌ی انتشار مُهرشده، صدای متن‌باز روی هاب، و مشاور حقوقی هلدینگ با مکاتبه‌ی ایمیلی (§۲۲، پرامپت ۱۳). **v1.5 (۲۰۲۶-۱۰-۱۸):** درآمد و پشتیبانی: رادار درآمد، قیف و نجات رفرال، میز پشتیبانی با حالت آموزش و آزمون سایه، قالب‌ها و قاعده‌های چرخه‌ی عمر، NPS، صندوق بازخورد، نگهبان خروجی (§۱۹، پرامپت ۱۰)؛ حاکمیت: اتاق جلسه، اساسنامه، دانشنامه‌ی چهارلایه، سه کارت و کارت امتیاز، OKR، بازبینی نتیجه‌ی تصمیم، ماتریس اختیار، دفتر ریسک، تقویم تغییرات، مُهر گروهی (§۲۰، پرامپت ۱۱)؛ ابزار مدیریت: مشاور پریمیوم، «از هاب بپرس»، گزارش صوتی، ارزیابی ماهانه، هدررفت، ROI، پیش‌بینی مدیر کل دیجیتال، MCP کانتینری، و ChatGPT و Gemini به‌عنوان «بازیکن ذخیره» (§۲۱، پرامپت ۱۲).
 
+> **v1.10.2 (۲۰۲۶-۱۱-۰۲):** هزینه‌ی هلدینگ (§۲۸.۷، پرامپت ۲۰.۱): کاتالوگ فقط با دستور مالک و با سقف توکن، دیده‌بان اول با قاعده، سقف روزانه‌ی هر شرکت، سهم هر حوزه در گزارش، و متن GPT از چت وب ChatGPT.
+
 > **v1.7 (۲۰۲۶-۱۰-۲۲):** بایگانی رسمی هلدینگ و هر شرکت (§۲۳، پرامپت ۱۴): سند، نسخه و مُهر، طرح بایگانی، سطح محرمانگی و مجوز دیدن، نگهداری و امحا با مُهر مالک، توقیف قانونی، یادآور سررسید، OCR فارسی روی هاب؛ «لایه‌ی باز»: نوع سند، فیلد، پوشه، سطح، قاعده، یادآور و اتوماسیون، همه داده و از اپ قابل گسترش.
 
 ---
@@ -2896,3 +2898,45 @@ through the TradeYar server and extract everything" was shallow, and three of fo
 - **Missing access:** what the job still cannot read is listed in the section's `notes_fa`, with the exact command that was refused.
 - **No secrets:** every catalogue answer passes the hub's secret masker before it is stored or shown.
   - The overseer's «الگوی رمز در خروجی ایجنت» finding on a catalogue therefore closes once the catalogue is re-rendered masked.
+
+### 28.7 What the holding spends ⟨1.10.2⟩ (2026-11-02, prompt 20.1)
+Prompt 20's diagnosis: 97.6% of the week's tokens went to one catalogue run (24 Claude Code jobs, 50M tokens in an hour, started
+by the watch after the owner's clean-up cleared the week's claim); the owner's clip order got 0.5%. Every rule below is code.
+- **The catalogue (§28.2) runs only on the owner's order.**
+  - `POST /companies/{code}/catalogue` (the owner) is unchanged.
+  - `company.catalogue {start: true}` starts a run only when the agent's run works on a work item created by the owner, or one
+    requested or split from it (up the `parent_id` / `requested_by_work_id` chain). Otherwise it answers the latest catalogue, or
+    `409 owner_order_required` when there is none.
+  - The watch no longer refreshes it weekly; it only ends runs left waiting on a server that is off.
+- **A token cap per run:** `HQ_CATALOGUE_RUN_TOKENS` (default 1 500 000) for every server and section of one run together.
+  - Each `claude` job gets its share as `token_cap` (at least 60 000) and `max_turns: 25`.
+  - A second try of a section is asked only while the run's spent tokens plus that share fit the cap.
+  - **Runner 0.2.2:** adds up every assistant message's usage (input + output + cache reads and writes, a message once) and stops
+    the session the moment it passes `token_cap`: exit code `125`, `output.token_cap_reached: true`, the usage it reached.
+    An older runner keeps to `max_turns` only.
+  - The jobs run on the company's own server and its own Claude Code login: their `llm.calls` rows carry
+    `meta.quota = "company_server"` and `meta.via = "catalogue" | "server_claude"`, and never count against the hub's daily cap.
+- **The watch, rule first (§28.3):**
+  - The daily security sweep (PR-140) reads every paired server's map (a port bound publicly other than 22, 80, 443; a disk at 80%
+    or more) and the sites' certificates (fewer than 21 days) by code. Nothing found: the run passes with no model. Something found:
+    the model's brief starts with what the rules found.
+  - The daily app health (PR-141) calls a model only on a day an app reported an `error`.
+  - The code review of every repository (PR-142) runs on the 1st of the Jalali month, not weekly.
+- **A daily cap per company:** `core.companies.daily_token_cap` (`NULL` = `AGENT_COMPANY_DAILY_TOKEN_CAP`, default 400 000; `0` =
+  only the hub's cap). A company's agent runs of the UTC day (input + output + cache tokens) stop at it, checked when a run is
+  claimed and before every model call (`daily_cap`), next to the hub's own `AGENT_DAILY_TOKEN_CAP`.
+- **Spend by domain:** every `llm.calls` row falls in one domain, by rule: `catalogue`, `server`, `oversight`, `advisor`, `council`,
+  `meetings`, `media`, `work`. The morning report shows yesterday's share and, on the owner's Saturday, the past week's; a
+  warning line when `catalogue`, `oversight` or `server` leads.
+- **`treasury.usage`** (finding 7): `{scope?: company|holding|<CODE>, period?: day|week|month, company?, department?, role?}`, any
+  case; the answer adds `by_domain` and `by_department`.
+- **GPT's text on ChatGPT's web chat** (the owner, 2026-11-02), not Codex:
+  - `DEFAULT_PLAYERS.gpt.capabilities.text = "web"`. Its text seats (`advisor_second_opinion`, `overseer_cross_check`,
+    `assistant_errand`) run `via: "web"` on the signed-in `chatgpt-web` profile.
+  - Codex (`via: "cli"`) keeps only `code_review`, off until the owner turns it on.
+  - GPT is ready once its web profile is signed in. A Codex limit never stops the web chat; the web chat's own limit is a hold on
+    the web path (`web_error_until`, reason `limited`).
+  - Migration `0036` moves the seeded seats only (not seats the owner edited by hand), one Audit row per seat.
+  - **The recipe stands on the page's structure** (the lesson of 19.3, the profile is fa-IR): Enter sends; testids first; the answer
+    is the last rendered answer block. A label is only a fallback beside a structural selector, in Persian and English. A recipe's
+    `read` step may name `alt` selectors, tried in turn when the first matches nothing.
