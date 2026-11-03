@@ -496,7 +496,11 @@ class Runner:
             outcome = ("failed", "runtime_error", None)
         state, code, note = outcome
         return await self.finish(
-            run_id, state, code, note=note, partial=state == "done" and code == "limit_reached"
+            run_id,
+            state,
+            code,
+            note=note,
+            partial=state == "done" and code in ("limit_reached", "budget"),
         )
 
     async def _steps(self, rc: RunCtx, deadline: float) -> tuple[str, str | None, str | None]:
