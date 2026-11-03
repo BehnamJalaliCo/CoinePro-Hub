@@ -64,6 +64,8 @@ async def test_owner_settings_validation_and_versions(
         "advisor",
         "substitutes",
         "version",
+        # ⟨1.11⟩ prompt 21 (contract §29.8): the council v2's roles
+        "council_roles",
         # ⟨1.5⟩ prompt 12 part B (contract §21.12)
         "audio_briefings",
         "ceo_weekly_letter",

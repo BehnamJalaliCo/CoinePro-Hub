@@ -638,6 +638,11 @@ async def test_score_job_and_maintenance(hub: Hub, wk: dict[str, Any], owner_db:
         "backups_ingest",
         "inquiries_late",
         "oversight_tick",
+        # ⟨1.11⟩ prompt 21: the rules' first reports and voice expiry, the order
+        # reports' timers, the weekly technical summary
+        "secretary_tick",
+        "order_tick",
+        "tech_summary",
     }
     assert res["inquiries_late"] == {"late": 0}
     assert res["purge"]["idempotency_keys"] >= 1

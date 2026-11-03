@@ -70,6 +70,8 @@ def destructive_target(categories: list[Any]) -> str:
 
 @router.get("/owner/settings/destructive", response_model=DestructiveSettings, responses=E)
 async def get_destructive(ctx: Ctx = Depends(owner_ctx)) -> DestructiveSettings:
+    """§29.1 the destructive categories that stay the owner's (the rest a
+    company's CTO decides); default server_delete and db_drop."""
     async with ctx.tx() as tx:
         cats = await tx.scalar(
             "SELECT destructive_owner_categories FROM owner.settings WHERE id = 1"

@@ -84,6 +84,8 @@ async def list_groups(ctx: Ctx = Depends(owner_ctx)) -> list[GR.Group]:
 
 @router.get("/groups/{key}", response_model=GR.Group, responses=E)
 async def get_group(key: str, ctx: Ctx = Depends(owner_ctx)) -> GR.Group:
+    """§29.11 one working group as its data defines it: seats, routines,
+    KPIs, the connections it needs, who may join."""
     async with ctx.tx() as tx:
         return GR.render(await _group(ctx, tx, key))
 

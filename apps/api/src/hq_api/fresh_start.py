@@ -81,6 +81,10 @@ WIPE: tuple[str, ...] = (
     "owner.decision_reminders", "owner.errands", "owner.notes", "owner.orders",
     "owner.planner_items", "owner.reviews", "owner.stories",
     "owner.voice_sessions",  # ⟨1.11⟩ §29.5 a long voice's chunks (30 minutes at most)
+    # ⟨1.11⟩ prompt 21: what ran (an order's report, the groups' runs, figures and
+    # experiments, the home's mornings, suggestions and progress) goes
+    "owner.order_reports", "owner.suggestions", "owner.progress",
+    "growth.routine_runs", "growth.experiments", "growth.metrics_daily", "growth.home_mornings",
     "people.department_ranks", "people.hr_rounds", "people.role_drafts", "people.star_rollups",
     "people.stars",
     "quality.claims",
@@ -132,6 +136,9 @@ KEEP: tuple[str, ...] = (
     "oversight.protocols",
     "owner.presence", "owner.settings",
     "owner.dispatch_memory",  # ⟨1.11⟩ §29.4 the owner's corrections and «نه» reasons: his preferences
+    # ⟨1.11⟩ prompt 21: what the hub is made of (the groups as data, their members,
+    # the companies' connections and their non-secret config) stays
+    "growth.groups", "growth.group_versions", "growth.memberships", "growth.connections",
     "people.star_rubrics",
     "public.alembic_version_api", "public.alembic_version_llm_router",
     "revenue.accounts",

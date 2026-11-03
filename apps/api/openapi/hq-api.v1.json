@@ -30369,6 +30369,40 @@
         "title": "Readiness",
         "type": "object"
       },
+      "ReadinessFixIn": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "maxLength": 40,
+            "pattern": "^[a-z]+(\\.[a-z]+)?$",
+            "title": "Action",
+            "type": "string"
+          },
+          "group": {
+            "default": "content",
+            "pattern": "^[a-z][a-z0-9_]{1,40}$",
+            "title": "Group",
+            "type": "string"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "ReadinessFixIn",
+        "type": "object"
+      },
       "Reason": {
         "additionalProperties": false,
         "properties": {
@@ -59723,6 +59757,138 @@
         ]
       }
     },
+    "/api/v1/companies/{code}/readiness/fix": {
+      "post": {
+        "description": "§29.9 one tap on a failed check's fix, with the same actions (and the\nsame step-ups) as the order report's: `hire` fills the seat (automatic\nhiring, §29.10), `hiring.open` (🔏), `lock.open` (🔏), `group.resume`,\n`series.propose` (a work item for the company's media director). A fix the\napp does itself (a guide, the month's envelope, the media tools, the\nrunner) answers the readiness unchanged.",
+        "operationId": "fix_readiness",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "action": "decision.approve",
+                "group": "x",
+                "target": "D-000123"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ReadinessFixIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "checks": [
+                    {
+                      "detail_fa": "x",
+                      "fix": {
+                        "action": "decision.approve",
+                        "label_fa": "x",
+                        "target": "D-000123"
+                      },
+                      "key": "x",
+                      "ok": false,
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "company": "TY",
+                  "group": "x",
+                  "ready": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Readiness"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Fix Readiness",
+        "tags": [
+          "groups"
+        ]
+      }
+    },
     "/api/v1/connections": {
       "get": {
         "description": "The registry without secrets (keys are never readable).",
@@ -70326,6 +70492,7 @@
     },
     "/api/v1/groups/{key}": {
       "get": {
+        "description": "§29.11 one working group as its data defines it: seats, routines,\nKPIs, the connections it needs, who may join.",
         "operationId": "get_group",
         "parameters": [
           {
@@ -89268,6 +89435,7 @@
     },
     "/api/v1/owner/settings/destructive": {
       "get": {
+        "description": "§29.1 the destructive categories that stay the owner's (the rest a\ncompany's CTO decides); default server_delete and db_drop.",
         "operationId": "get_destructive",
         "responses": {
           "200": {
