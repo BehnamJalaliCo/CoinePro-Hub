@@ -186,6 +186,8 @@ class OwnerSettings(BaseModel):
     # ⟨1.5⟩ prompt 12 §3, §13 (contract §21.12)
     weekly_review: dict[str, Any] | None = None
     digital_ceo: dict[str, Any] | None = None
+    # ⟨1.11⟩ §29.8 the council v2's seats: {player: captain|researcher|numbers|devil}
+    council_roles: dict[str, str] = Field(default_factory=dict)
 
 
 class WeeklyReviewIn(BaseModel):
@@ -247,6 +249,14 @@ class OwnerSettingsIn(BaseModel):
     reminders: RemindersIn | None = None
     weekly_review: WeeklyReviewIn | None = None
     digital_ceo: DigitalCeoIn | None = None
+    # ⟨1.11⟩ §29.8 the whole map (a player left out has no seat in the council)
+    council_roles: (
+        dict[
+            Literal["claude", "gpt", "gemini", "deepseek"],
+            Literal["captain", "researcher", "numbers", "devil"],
+        ]
+        | None
+    ) = Field(default=None, min_length=1)
 
     @field_validator("provision_ssh_sources")
     @classmethod
@@ -414,6 +424,7 @@ def _settings_out(row: dict[str, Any]) -> OwnerSettings:
         reminders=row.get("reminders"),
         weekly_review=row.get("weekly_review"),
         digital_ceo=row.get("digital_ceo"),
+        council_roles=dict(row.get("council_roles") or {}),
     )
 
 
@@ -421,6 +432,7 @@ SETTINGS_COLS = (
     "timezone, morning_report_at, digest_minutes, ceo_daily_attention, learning_daily_cap, "
     "calendars, watch_after_hours, provision_ssh_sources, advisor, substitutes, version"
     ", audio_briefings, ceo_weekly_letter, reminders, weekly_review, digital_ceo"
+    ", council_roles"
 )
 
 
@@ -470,7 +482,8 @@ async def put_owner_settings(
                    ceo_weekly_letter = ceo_weekly_letter || COALESCE(CAST(:cwl AS jsonb), '{{}}'),
                    reminders = reminders || COALESCE(CAST(:rem AS jsonb), '{{}}'),
                    weekly_review = weekly_review || COALESCE(CAST(:wr AS jsonb), '{{}}'),
-                   digital_ceo = digital_ceo || COALESCE(CAST(:dc AS jsonb), '{{}}')
+                   digital_ceo = digital_ceo || COALESCE(CAST(:dc AS jsonb), '{{}}'),
+                   council_roles = COALESCE(CAST(:cr AS jsonb), council_roles)
                WHERE id = 1 AND version = :v RETURNING {SETTINGS_COLS}""",  # noqa: S608 - constant column list, values are bound
             adv=_merged(blocks["advisor"], body.advisor),
             subs=_merged(blocks["substitutes"], body.substitutes),
@@ -487,6 +500,7 @@ async def put_owner_settings(
             rem=_block(body.reminders),
             wr=_block(body.weekly_review),
             dc=_block(body.digital_ceo),
+            cr=json.dumps(body.council_roles) if body.council_roles else None,
             v=version,
         )
         if row is None:

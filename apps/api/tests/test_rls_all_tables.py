@@ -530,6 +530,9 @@ HOLDING_ONLY = {
     "archive.sources",
     "archive.fixity_runs",
     "archive.holds",
+    # prompt 21 (§29.4, §29.5): the secretary's memory and the owner's long voice
+    "owner.dispatch_memory",
+    "owner.voice_sessions",
 }
 
 

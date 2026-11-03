@@ -80,6 +80,7 @@ WIPE: tuple[str, ...] = (
     "oversight.protocol_runs", "oversight.watch",
     "owner.decision_reminders", "owner.errands", "owner.notes", "owner.orders",
     "owner.planner_items", "owner.reviews", "owner.stories",
+    "owner.voice_sessions",  # ⟨1.11⟩ §29.5 a long voice's chunks (30 minutes at most)
     "people.department_ranks", "people.hr_rounds", "people.role_drafts", "people.star_rollups",
     "people.stars",
     "quality.claims",
@@ -130,6 +131,7 @@ KEEP: tuple[str, ...] = (
     "org.company_brands",
     "oversight.protocols",
     "owner.presence", "owner.settings",
+    "owner.dispatch_memory",  # ⟨1.11⟩ §29.4 the owner's corrections and «نه» reasons: his preferences
     "people.star_rubrics",
     "public.alembic_version_api", "public.alembic_version_llm_router",
     "revenue.accounts",

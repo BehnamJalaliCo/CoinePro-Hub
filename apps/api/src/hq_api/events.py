@@ -61,7 +61,8 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "skills": ("skill.",),
     "academy": ("academy.",),
     # ⟨1.4⟩ the Chief Overseer: oversight.finding, oversight.hold, oversight.watch
-    "oversight": ("oversight.",),
+    # ⟨1.11⟩ §29.3 rule.report: the first enforcement report of an owner's rule
+    "oversight": ("oversight.", "rule."),
     # ⟨1.4⟩ prompt 09: founding.updated, provision.step (contract §18.10)
     "founding": ("founding.", "provision."),
     # ⟨1.5⟩ prompt 10 (contract §19.9): revenue.day, revenue.alert; support.message,

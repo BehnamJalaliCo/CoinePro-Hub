@@ -39,15 +39,18 @@ import logging
 import re
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from functools import lru_cache
+from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
+import yaml
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from hq_api import audit, events
 from hq_api.db import Tx
-from hq_api.domain import gate, notify
+from hq_api.domain import gate, humanize, notify
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
 from hq_api.schemas import Model
@@ -173,6 +176,7 @@ LIGHT_WORDS = ("luna", "mini", "nano", "flash", "lite", "haiku", "small")
 INLINE_TEXT = 256_000
 SERVICE = Principal(kind="service", code="substitutes", role="service")
 OWNER_TZ = "Asia/Tehran"
+RESIDUE_FILE = Path(__file__).resolve().parents[3] / "seed" / "web_residue.yaml"
 
 
 # ------------------------------------------------------------------ shapes --
@@ -945,6 +949,17 @@ async def finish(
         and refused_model(raw)
     ):
         return await _retry_other_model(tx, hub, c, raw)
+    if needs_persian(c, body) and not humanize.is_persian_answer(body.text_md or ""):
+        # ⟨1.11⟩ §29.7 every player answers in Persian: asked once more with the
+        # instruction repeated; a second answer that is not Persian ends the call
+        if not c.get("lang_retried"):
+            return await _retry_language(tx, hub, c)
+        log.info("substitute answer not Persian twice", extra={"call": str(c["id"])})
+        body = DoneIn(
+            ok=False,
+            status_reason="not_persian: the answer was not Persian twice",
+            usage=body.usage,
+        )
     if raw and not body.ok:
         log.info(
             "substitute call failed",
@@ -1127,6 +1142,91 @@ async def _retry_other_model(tx: Tx, hub: Any, c: dict[str, Any], raw: str) -> d
 
         await players.on_call(tx, hub, row)
     return row
+
+
+# ⟨1.11⟩ §29.7 the answers that must be Persian: a work's or a council's
+# (what reaches the owner); a code review, a cross-check's JSON verdict and an
+# agent's own errand keep the language their task asks for
+PERSIAN_PURPOSES = ("work", "council")
+PERSIAN_AGAIN = (
+    "\n\n---\nپاسخ قبلی تو فارسی نبود. همین کار را دوباره انجام بده و فقط به زبان فارسی جواب بده "
+    "(نام برندها، پیوندها و کد به همان شکل). هیچ جمله‌ای به زبان دیگر ننویس."
+)
+
+
+def needs_persian(c: dict[str, Any], body: DoneIn) -> bool:
+    return (
+        body.ok
+        and c["kind"] == "call"
+        and c["purpose_kind"] in PERSIAN_PURPOSES
+        and (c.get("task") or "text") == "text"
+        and body.text_md is not None
+    )
+
+
+async def _retry_language(tx: Tx, hub: Any, c: dict[str, Any]) -> dict[str, Any]:
+    """The answer was not Persian: the same call once more, its question with
+    the Persian instruction repeated (the first answer stays in the run log)."""
+    row: dict[str, Any] = await tx.one(
+        """UPDATE substitutes.calls SET state = 'queued', lang_retried = true, claimed_at = NULL,
+               state_reason = 'not_persian: asked again in Persian',
+               input_md = left(COALESCE(input_md, '') || :again, 200000)
+           WHERE id = :id RETURNING *""",
+        again=PERSIAN_AGAIN,
+        id=c["id"],
+    )
+    holding = await hub.companies.holding()
+    await events.emit(
+        tx,
+        holding.code,
+        "substitute.updated",
+        c["player"],
+        {"call": str(c["id"]), "state": "queued", "reason": "not_persian"},
+    )
+    if c["purpose_kind"] == "council":  # the member shows the second try
+        from hq_api.domain import players
+
+        await players.on_call(tx, hub, row)
+    return row
+
+
+@lru_cache(maxsize=1)
+def _residue() -> tuple[re.Pattern[str], re.Pattern[str]]:
+    data: dict[str, Any] = yaml.safe_load(RESIDUE_FILE.read_text(encoding="utf-8")) or {}
+    buttons = sorted({str(b) for b in data.get("buttons") or []}, key=len, reverse=True)
+    starts = sorted({str(x) for x in data.get("offer_starts") or []}, key=len, reverse=True)
+    b = "|".join(re.escape(x) for x in buttons) or "(?!)"
+    st = "|".join(re.escape(x) for x in starts) or "(?!)"
+    button_line = re.compile(rf"^\s*(?:{b})\s*[.!،,]?\s*$", re.I)
+    offer = re.compile(
+        rf"(?:^|(?<=[\s.!؟?،:؛]))(?:{st})[^?؟\n]*[?؟](?:\s*(?:{b})\s*[.!،,]?)*\s*$", re.I
+    )
+    return button_line, offer
+
+
+def cut_residue(text: str | None) -> str | None:
+    """⟨1.11⟩ §29.7 a web player's page residue cut from the end of its answer:
+    trailing button labels and a trailing offer («مایلید … ؟ بله», «Would you
+    like …?»); the patterns are data (seed/web_residue.yaml). An answer that
+    is nothing but residue is kept as it is."""
+    if not text:
+        return text
+    button_line, offer = _residue()
+    lines = text.rstrip().split("\n")
+    for _ in range(12):
+        before = list(lines)
+        while lines and not lines[-1].strip():
+            lines.pop()
+        while lines and button_line.match(lines[-1]):
+            lines.pop()
+            while lines and not lines[-1].strip():
+                lines.pop()
+        if lines and (m := offer.search(lines[-1])):
+            lines[-1] = lines[-1][: m.start()].rstrip()
+        if lines == before:
+            break
+    out = "\n".join(lines).rstrip()
+    return out if out.strip() else text
 
 
 async def _answer_text(tx: Tx, hub: Any, c: dict[str, Any], text: str) -> dict[str, Any]:
@@ -1993,7 +2093,7 @@ async def apply_web(hub: Any, c: dict[str, Any], account: str, answer: dict[str,
             )
             body = DoneIn(
                 ok=True,
-                text_md=answer.get("text_md"),
+                text_md=cut_residue(answer.get("text_md")),  # ⟨1.11⟩ §29.7 the page's residue
                 usage={
                     "input_tokens": len(c["input_md"] or "") // 4,
                     "output_tokens": len(str(answer.get("text_md") or "")) // 4,

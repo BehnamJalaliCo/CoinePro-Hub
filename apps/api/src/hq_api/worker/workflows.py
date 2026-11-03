@@ -137,6 +137,7 @@ class Maintenance:
             "reconcile_schedules",
             "requeue_runs",
             "players_sweep",
+            "secretary_tick",  # ⟨1.11⟩ §29.3 the rules' first reports, §29.5 voice expiry
             "watch_sweep",
             "purge",
             "backups_ingest",

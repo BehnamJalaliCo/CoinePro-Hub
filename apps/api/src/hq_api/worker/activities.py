@@ -141,6 +141,7 @@ class Activities:
             self.run_finalize,
             self.requeue_runs,
             self.players_sweep,
+            self.secretary_tick,
             self.watch_sweep,
             self.site_checks,
             self.hub_health,
@@ -944,6 +945,19 @@ class Activities:
 
         async with self._tx() as tx:
             return await players.sweep(tx, self.hub)
+
+    @activity.defn(name="secretary_tick")
+    async def secretary_tick(self) -> dict[str, Any]:
+        """⟨1.11⟩ contract §29.3, §29.5: the first enforcement report of every
+        owner's rule sealed 24 hours ago, and long-voice sessions unused for 30
+        minutes expired. Rule-based, no model."""
+        from hq_api.domain import rules, voice
+
+        async with self._tx() as tx:
+            return {
+                "rule_reports": await rules.report_due(tx),
+                "voice_expired": await voice.expire(tx),
+            }
 
     @activity.defn(name="watch_sweep")
     async def watch_sweep(self) -> dict[str, Any]:
