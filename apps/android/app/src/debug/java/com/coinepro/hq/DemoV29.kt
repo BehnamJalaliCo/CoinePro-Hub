@@ -493,19 +493,23 @@ internal class V29Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         fun stamp(o: JsonObject): JsonObject {
             val code = o.str("code") ?: return o
             val s = stateOf(code, o.str("activity"))
-            val kids = (o["children"] as? JsonArray)?.map { (it as? JsonObject)?.let(::stamp) ?: it }
-            return JsonObject(o + mapOf("state" to JsonPrimitive(s), "stuck" to (if (s == "stuck") STUCK else JsonNull)) + (if (kids != null) mapOf("children" to JsonArray(kids)) else emptyMap()))
+            val kids = (o["children"] as? JsonArray)?.map { (it as? JsonObject)?.let { x -> stamp(x) } ?: it }
+            val out = LinkedHashMap<String, JsonElement>(o)
+            out["state"] = JsonPrimitive(s)
+            out["stuck"] = if (s == "stuck") STUCK else JsonNull
+            if (kids != null) out["children"] = JsonArray(kids)
+            return JsonObject(out)
         }
         for (key in store.keys.toList()) {
             val (status, body) = store.getValue(key)
             when {
                 Regex("^/org/[A-Z]+/chart$").matches(key) -> (body as? JsonObject)?.let { b ->
-                    store[key] = status to JsonObject(b + ("roots" to JsonArray((b["roots"] as? JsonArray).orEmpty().map { (it as? JsonObject)?.let(::stamp) ?: it })))
+                    store[key] = status to JsonObject(b + ("roots" to JsonArray((b["roots"] as? JsonArray).orEmpty().map { (it as? JsonObject)?.let { x -> stamp(x) } ?: it })))
                 }
                 Regex("^/employees/[A-Z0-9-]+$").matches(key) -> (body as? JsonObject)?.let { store[key] = status to stamp(it) }
                 key.startsWith("/employees") -> (body as? JsonObject)?.let { b ->
                     val items = (b["items"] as? JsonArray) ?: return@let
-                    store[key] = status to JsonObject(b + ("items" to JsonArray(items.map { (it as? JsonObject)?.let(::stamp) ?: it })))
+                    store[key] = status to JsonObject(b + ("items" to JsonArray(items.map { (it as? JsonObject)?.let { x -> stamp(x) } ?: it })))
                 }
             }
         }

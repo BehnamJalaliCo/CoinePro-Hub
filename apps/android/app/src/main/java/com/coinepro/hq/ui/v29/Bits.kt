@@ -129,10 +129,11 @@ fun FixButton(fix: Fix, company: String?, orderRef: String?, modifier: Modifier 
         when {
             way == FixWay.OPEN || orderRef == null -> if (to != null) nav.go(to) else toasts.info("این را مدیرعامل همان شرکت درست میکند؛ در گزارش هفته میبینی.")
             else -> action.run {
+                val ref = orderRef ?: return@run
                 val add = if (fix.action == "budget.add") budgetTokens ?: fix.target?.toLongOrNull() else null
                 val sign: com.coinepro.hq.core.net.StepUp = { a, t -> env.auth.stepUp(act, a, t) }
                 val out = env.api.gated(HubFeature.ORDER_REPORT) {
-                    orderFix(orderRef, fix, add, if (way == FixWay.SIGNED) sign else null)
+                    orderFix(ref, fix, add, if (way == FixWay.SIGNED) sign else null)
                 }
                 if (out == null && !env.api.gaps.has(HubFeature.ORDER_REPORT)) toasts.info("هاب هنوز این اصلاح را ندارد؛ بعد از به‌روزرسانی هاب.")
                 else {
