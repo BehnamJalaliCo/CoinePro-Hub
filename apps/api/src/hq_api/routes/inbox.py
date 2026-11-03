@@ -59,7 +59,8 @@ FROM (SELECT count(*) FILTER (WHERE level = 'urgent') AS urgent,
              count(*) FILTER (WHERE level = 'report') AS report,
              count(*) FILTER (WHERE level = 'info') AS info,
              count(*) FILTER (WHERE level = 'learning') AS learning
-      FROM notify.notifications WHERE read_at IS NULL AND delivered_in_app) AS n
+      -- ⟨21⟩ §29.1: only what reaches the owner (owner_visible)
+      FROM notify.notifications WHERE read_at IS NULL AND delivered_in_app AND owner_visible) AS n
 """
 
 

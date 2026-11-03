@@ -371,7 +371,8 @@ async def test_the_charter_token_cap_and_a_partial_deliverable(
     run_row = (await runs_of(su, f"{co}-CEO"))[-1]
     agents.fake.enqueue(f"{co}-CEO", *[step(f"قدم {i}", done=False) for i in range(10)])
     out = await run(agents, run_row["id"])
-    assert out == {"state": "done", "code": "limit_reached"}, out
+    # ⟨21⟩ §29.6: out of tokens it stops cleanly (`budget`): a partial output, the work waits
+    assert out == {"state": "done", "code": "budget"}, out
     r = await su.fetchrow("SELECT * FROM agents.runs WHERE id = $1", run_row["id"])
     assert r["partial"] is True and r["token_cap"] == 20_000
     limits = charters.load().roles["ceo"].limits
@@ -393,7 +394,7 @@ async def test_the_charter_token_cap_and_a_partial_deliverable(
     assert dl["title"].startswith("خروجی ناقص") and "قدم 0" in dl["body"]
     assert (
         await su.fetchval("SELECT status FROM work.work WHERE id = $1", uuid.UUID(w["id"]))
-        == "delivered"
+        == "waiting"  # ⟨21⟩ a partial output never closes a work; it waits for budget (§29.6)
     )
     # Steps per run: the charter's limit, then failed (nothing to deliver for a message).
     r2 = await client.post(

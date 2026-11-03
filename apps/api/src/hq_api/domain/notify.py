@@ -16,6 +16,11 @@ Muted (settings matrix muted_until in the future): held unless urgent.
 CEO attention quota: non-urgent items from one CEO beyond
 owner.settings.ceo_daily_attention per (owner's) day wait for the digest.
 The stream (`notification.created`) carries metadata only, never a body.
+⟨21⟩ Routing by domain (contract §29.1): every notification carries its
+domain, its handler and whether it reaches the owner. One that does not (a
+technical item that is not critical) is stored for its handler's queue and
+the app's «فنی» page (`?scope=all`), never pushed and never announced on the
+stream; one that does is written for the owner (§29.7, `humanize`).
 """
 
 from __future__ import annotations
@@ -29,6 +34,8 @@ from uuid import UUID
 
 from hq_api import audit, events
 from hq_api.db import Tx
+from hq_api.domain import humanize as HZ
+from hq_api.domain import routing
 
 if TYPE_CHECKING:
     from hq_api.hub import Hub
@@ -50,7 +57,12 @@ URGENT_RETRY_WINDOW = timedelta(minutes=10)
 COLUMNS = """n.id, n.company_id, c.code AS company, n.level, n.title_fa, n.body_fa, n.link_kind,
     n.link_ref, n.source_kind, n.source_code, n.choices, n.answer, n.answered_at, n.state,
     n.queue_reason, n.delivered_in_app, n.delivered_web_push, n.delivered_fcm,
-    n.delivered_telegram, n.sound, n.delivered_at, n.batch_id, n.read_at, n.created_at"""
+    n.delivered_telegram, n.sound, n.delivered_at, n.batch_id, n.read_at, n.created_at,
+    n.domain, n.owner_visible, n.routed_to, n.critical_reason"""
+# A notification only its handler sees: stored, shown on «فنی», never pushed.
+HANDLER_ONLY = {"state": "delivered", "queue_reason": None, "in_app": True, "push": False,
+                "sound": False}  # fmt: skip
+UNTITLED_FA = "یک مورد تازه برای شما"
 
 
 @dataclass(frozen=True)
@@ -226,14 +238,35 @@ async def raise_notification(
     source_kind: str = "system",
     source_code: str = "system",
     choices: list[dict[str, str]] | None = None,
+    domain: str | None = None,
+    critical_reason: str | None = None,
+    category: str | None = None,
+    owner_action: bool = False,
 ) -> dict[str, Any]:
     """Store a notification and decide how it is delivered (in the caller's tx).
 
     Returns the row (id, level, state, queue_reason, delivered_in_app, ...) plus
     `push_now`: when true, call `deliver_pending(hub, [id])` after commit.
+    ⟨21⟩ `domain` (else by rule from the link, the source or an incident
+    `category`), `critical_reason` and `owner_action` (only the owner can act
+    on it) decide whether the owner sees it (contract §29.1).
     """
     if level not in LEVELS:
         raise ValueError(f"unknown level {level}")
+    r = await routing_of(
+        tx,
+        company_id,
+        link_kind=link_kind,
+        link_ref=link_ref,
+        source_code=source_code,
+        domain=domain,
+        critical_reason=critical_reason,
+        category=category,
+        owner_action=owner_action,
+    )
+    if r["owner_visible"]:  # written for the owner (§29.7)
+        title_fa = HZ.humanize(title_fa) or UNTITLED_FA
+        body_fa = HZ.humanize(body_fa)
     ctx = await _context(tx)
     now: datetime = ctx["now"]
     setting = level_setting(ctx["matrix"] or {}, company_code, level)
@@ -250,13 +283,22 @@ async def raise_notification(
         ceo_over_quota=ceo_over,
         learning_over_cap=learning_over,
     )
+    if not r["owner_visible"]:
+        d = dict(HANDLER_ONLY)
     row = await tx.one(
         """INSERT INTO notify.notifications (company_id, level, title_fa, body_fa, link_kind,
                link_ref, source_kind, source_code, choices, state, queue_reason,
-               delivered_in_app, sound, delivered_at)
+               delivered_in_app, sound, delivered_at, domain, owner_visible, routed_to,
+               critical_reason)
            VALUES (:co, :level, :title, :body, :lk, :lr, :sk, :sc, CAST(:choices AS jsonb),
-                   :state, :reason, :in_app, :sound, CASE WHEN :in_app THEN now() END)
-           RETURNING id, level, state, queue_reason, delivered_in_app, sound, created_at""",
+                   :state, :reason, :in_app, :sound, CASE WHEN :in_app THEN now() END,
+                   :domain, :visible, :routed_to, :critical)
+           RETURNING id, level, state, queue_reason, delivered_in_app, sound, created_at,
+                     domain, owner_visible, routed_to, critical_reason""",
+        domain=r["domain"],
+        visible=r["owner_visible"],
+        routed_to=r["routed_to"],
+        critical=r["critical_reason"],
         co=company_id,
         level=level,
         title=title_fa,
@@ -271,10 +313,44 @@ async def raise_notification(
         in_app=d["in_app"],
         sound=d["sound"],
     )
-    if d["in_app"]:
+    if d["in_app"] and r["owner_visible"]:
         await _emit_created(tx, company_code, row["id"], level, link_kind, link_ref)
     row["push_now"] = bool(d["push"])
     return row
+
+
+async def routing_of(
+    tx: Tx,
+    company_id: UUID,
+    *,
+    link_kind: str | None,
+    link_ref: str | None,
+    source_code: str | None,
+    domain: str | None = None,
+    critical_reason: str | None = None,
+    category: str | None = None,
+    owner_action: bool = False,
+) -> dict[str, Any]:
+    """⟨21⟩ §29.1 a notification's routing: a finding's or a card's own when
+    it links one (what the owner sees of it is the same), else by rule."""
+    if domain is None and link_ref and link_kind in ("finding", "decision"):
+        table = "oversight.findings" if link_kind == "finding" else "cartable.decisions"
+        linked = await tx.first(
+            f"""SELECT domain, owner_visible, routed_to, critical_reason FROM {table}
+                WHERE ref = :r""",  # noqa: S608 - one of two constant table names
+            r=link_ref,
+        )
+        if linked is not None:
+            return {
+                **linked,
+                "owner_visible": bool(linked["owner_visible"])
+                or owner_action
+                or routing.clean_critical(critical_reason) is not None,
+            }
+    if domain is None:
+        domain = routing.notification_domain(link_kind, source_code, category)
+    critical = critical_reason or routing.critical_of(category=category)
+    return await routing.classify(tx, company_id, domain, critical, owner_action=owner_action)
 
 
 async def _emit_created(
@@ -325,7 +401,7 @@ async def deliver_pending(hub: Hub, ids: list[UUID]) -> dict[str, Any]:
         rows = await tx.all(
             f"""SELECT {COLUMNS} FROM notify.notifications n
                 JOIN core.companies c ON c.id = n.company_id
-                WHERE n.id = ANY(:ids) AND n.level = 'urgent'
+                WHERE n.id = ANY(:ids) AND n.level = 'urgent' AND n.owner_visible
                   AND NOT (n.delivered_web_push OR n.delivered_fcm OR n.delivered_telegram)""",  # noqa: S608 - constant column list, values are bound
             ids=ids,
         )
@@ -363,7 +439,8 @@ async def flush_digest(hub: Hub) -> dict[str, Any]:
         ctx = await _context(tx)
         recent_urgent = await tx.all(
             """SELECT id FROM notify.notifications
-               WHERE level = 'urgent' AND created_at > now() - make_interval(secs => :w)
+               WHERE level = 'urgent' AND owner_visible
+                 AND created_at > now() - make_interval(secs => :w)
                  AND NOT (delivered_web_push OR delivered_fcm OR delivered_telegram)""",
             w=int(URGENT_RETRY_WINDOW.total_seconds()),
         )
@@ -525,8 +602,9 @@ async def away_summary(tx: Tx, since: datetime) -> dict[str, Any]:
     `since`. Deterministic (fixed ordering), no model involved."""
     totals = await tx.one(
         """SELECT
-             (SELECT count(*) FROM cartable.decisions WHERE created_at >= :s) AS decisions_new,
-             (SELECT count(*) FROM cartable.decisions WHERE status = 'pending')
+             (SELECT count(*) FROM cartable.decisions WHERE created_at >= :s AND owner_visible)
+               AS decisions_new,
+             (SELECT count(*) FROM cartable.decisions WHERE status = 'pending' AND owner_visible)
                AS decisions_pending,
              (SELECT count(*) FROM cartable.deliverables WHERE created_at >= :s)
                AS deliverables_new,
@@ -537,21 +615,21 @@ async def away_summary(tx: Tx, since: datetime) -> dict[str, Any]:
                AS messages_new,
              (SELECT COALESCE(sum(last_seq - owner_read_seq), 0) FROM msg.threads)
                AS messages_unread,
-             (SELECT count(*) FROM notify.notifications WHERE created_at >= :s AND state = 'held')
-               AS notifications_held""",
+             (SELECT count(*) FROM notify.notifications
+               WHERE created_at >= :s AND state = 'held' AND owner_visible) AS notifications_held""",
         s=since,
     )
     by_level = dict.fromkeys(LEVELS, 0)
     for r in await tx.all(
         """SELECT level, count(*) AS n FROM notify.notifications
-           WHERE created_at >= :s AND state <> 'suppressed' GROUP BY level""",
+           WHERE created_at >= :s AND state <> 'suppressed' AND owner_visible GROUP BY level""",
         s=since,
     ):
         by_level[r["level"]] = int(r["n"])
     top_decisions = await tx.all(
         """SELECT d.ref, d.title, d.kind, d.risk, d.status, c.code AS company, d.created_at
            FROM cartable.decisions d JOIN core.companies c ON c.id = d.company_id
-           WHERE d.created_at >= :s
+           WHERE d.created_at >= :s AND d.owner_visible
            ORDER BY CASE d.risk WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END,
                     d.created_at DESC, d.ref
            LIMIT :n""",
@@ -579,7 +657,7 @@ async def away_summary(tx: Tx, since: datetime) -> dict[str, Any]:
         """SELECT n.id, n.level, n.title_fa, c.code AS company, n.created_at, n.link_kind,
                   n.link_ref
            FROM notify.notifications n JOIN core.companies c ON c.id = n.company_id
-           WHERE n.created_at >= :s AND n.state <> 'suppressed'
+           WHERE n.created_at >= :s AND n.state <> 'suppressed' AND n.owner_visible
            ORDER BY CASE n.level WHEN 'urgent' THEN 0 WHEN 'decision' THEN 1 WHEN 'report' THEN 2
                                  WHEN 'learning' THEN 3 ELSE 4 END,
                     n.created_at DESC, n.id

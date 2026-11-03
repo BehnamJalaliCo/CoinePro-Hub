@@ -589,12 +589,10 @@ async def place_order(
 
 
 async def _report(tx: Tx, ref: str) -> None:
-    """§29.2 the order report (prompt 21 part 1) hears of every routed order;
-    its module is wired in at the merge (absent: nothing to tell)."""
-    try:
-        from hq_api.domain import order_report  # type: ignore[attr-defined, unused-ignore]
-    except ImportError:
-        return
+    """§29.2 the order report hears of every routed order (the secretary's
+    receipt: «دریافت شد؛ به … سپرده شد»)."""
+    from hq_api.domain import order_report
+
     await order_report.on_order_routed(tx, ref)
 
 

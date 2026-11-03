@@ -8,7 +8,7 @@ protocols:
   - ref: PR-001
     area: truth
     method: sample
-    schedule: "FREQ=DAILY;BYHOUR=10;BYMINUTE=0"
+    schedule: "FREQ=WEEKLY;BYDAY=SA;BYHOUR=10;BYMINUTE=0"  # management review 2026-11 §5.1
     scope: company
     severity: high
     answerable: manager
@@ -40,7 +40,7 @@ protocols:
   - ref: PR-004
     area: truth
     method: sample
-    schedule: "FREQ=DAILY;BYHOUR=12;BYMINUTE=0"
+    schedule: "FREQ=WEEKLY;BYDAY=SA;BYHOUR=12;BYMINUTE=0"  # management review 2026-11 §5.1
     scope: company
     severity: high
     answerable: ceo
@@ -53,6 +53,7 @@ protocols:
     area: truth
     method: llm
     schedule: "FREQ=WEEKLY;BYDAY=TH;BYHOUR=10;BYMINUTE=0"
+    status: paused  # management review 2026-11 §5.1: costly, no effect yet
     scope: holding
     severity: medium
     answerable: ceo
@@ -251,6 +252,7 @@ protocols:
     area: quality
     method: blind_test
     schedule: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=10;BYMINUTE=0"
+    status: paused  # management review 2026-11 §5.1: costly, no effect yet
     scope: company
     severity: high
     answerable: ceo
@@ -425,6 +427,7 @@ protocols:
     area: people
     method: llm
     schedule: "FREQ=WEEKLY;BYDAY=SA;BYHOUR=8;BYMINUTE=30"
+    status: paused  # management review 2026-11 §5.1: costly, no effect yet
     scope: company
     severity: low
     answerable: ceo
@@ -487,7 +490,7 @@ protocols:
   - ref: PR-095
     area: owner
     method: sample
-    schedule: "FREQ=WEEKLY;BYDAY=TH;BYHOUR=15;BYMINUTE=0"
+    schedule: "FREQ=DAILY;BYHOUR=15;BYMINUTE=0"  # management review 2026-11 §5.1
     scope: holding
     severity: high
     answerable: ceo
@@ -519,6 +522,7 @@ protocols:
     area: people
     method: llm
     schedule: "FREQ=HOURLY"
+    status: paused  # management review 2026-11 §5.1: costly, no effect yet
     scope: company
     severity: high
     answerable: ceo
@@ -544,7 +548,7 @@ protocols:
   - ref: PR-100
     area: truth
     method: sample
-    schedule: "FREQ=DAILY;BYHOUR=20;BYMINUTE=0"
+    schedule: "FREQ=WEEKLY;BYDAY=TH;BYHOUR=20;BYMINUTE=0"  # management review 2026-11 §5.1
     scope: company
     severity: medium
     answerable: ceo

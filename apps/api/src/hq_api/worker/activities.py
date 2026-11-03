@@ -104,8 +104,13 @@ class Activities:
 
         self.growth = GrowthActivities(hub, self._tx)  # prompt 21 part 3 (rule-only)
 
+        from hq_api.worker.routing_activities import RoutingActivities
+
+        self.routing = RoutingActivities(hub, self._tx)  # prompt 21: orders, the tech summary
+
     def all(self) -> list[Any]:
         return [
+            *self.routing.all(),
             *self.meetings.all(),
             *self.studio.all(),
             *self.management.all(),

@@ -78,7 +78,9 @@ async def test_each_tool_reaches_its_route_with_the_runs_token(
 
     def read(request: httpx.Request) -> httpx.Response:
         params.append(dict(request.url.params))
-        return httpx.Response(200, json=[{"kind": "telegram", "state": "connected", "secret": "set"}])
+        return httpx.Response(
+            200, json=[{"kind": "telegram", "state": "connected", "secret": "set"}]
+        )
 
     mock.get(f"{API}/internal/v1/connections").mock(side_effect=read)
     out = await call(gw, "connection.read", {"kind": "telegram", "days": 3})

@@ -509,7 +509,7 @@ async def tool_treasury_usage(
         await allow(ctx, "treasury.read", {"company": ctx.who.company})
     co = None if every else await _company(ctx, "treasury.read", target)
     start = datetime.now(UTC) - timedelta(days=7) if period == "week" else period_start(period)
-    f = {"s": start, "co": co.id if co else None, "dep": department, "role": role}
+    f: dict[str, Any] = {"s": start, "co": co.id if co else None, "dep": department, "role": role}
     async with read_tx(ctx) as tx:
         totals = await tx.one(
             f"SELECT {TOTALS} FROM llm.calls c WHERE {USAGE_WHERE}",  # noqa: S608 - module constants

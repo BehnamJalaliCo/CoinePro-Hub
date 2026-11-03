@@ -76,6 +76,7 @@ from hq_api.routes import groups as group_routes  # prompt 21 part 3: §29.9, §
 from hq_api.routes import home as home_routes  # prompt 21 part 3: §29.13
 from hq_api.routes import legal as legal_routes  # prompt 13: the legal counsel
 from hq_api.routes import media as media_routes  # prompt 13, the media half
+from hq_api.routes import order_report as order_report_routes  # prompt 21: §29.1-§29.2, §29.6
 from hq_api.routes import reviews as review_routes
 from hq_api.routes import role_drafts as role_draft_routes  # prompt 13 §1.1
 from hq_api.routes import rules as rule_routes  # prompt 21: the owner's rules
@@ -282,6 +283,10 @@ def create_app(
     # voice, the council v2's «اجرا کن» and fact packs
     for p21b in (rule_routes, voice_session_routes, council_routes):
         app.include_router(p21b.router, prefix="/api/v1")
+    # ⟨1.11⟩ prompt 21 part 1 (contract §29.1, §29.2, §29.6): the order report and
+    # its fixes; order.ack, order.progress, work.budget, card.decide.
+    app.include_router(order_report_routes.router, prefix="/api/v1")
+    app.include_router(order_report_routes.internal_router, prefix="/internal/v1")
     app.state.version = __version__
 
     plain_openapi = app.openapi

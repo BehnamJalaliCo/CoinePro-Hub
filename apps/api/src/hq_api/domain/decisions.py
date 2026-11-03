@@ -28,6 +28,7 @@ from hq_api.domain import (
     org,
     oversight,
     recurring,
+    routing,
     stars,
 )
 from hq_api.domain import substitutes as S
@@ -760,6 +761,19 @@ class Decision(BaseModel):
     # ⟨1.5⟩ cartable reminders (contract §21.8): hours waiting, the thresholds sent
     waiting_h: float | None = None
     reminders: list[dict[str, Any]] = Field(default_factory=list)
+    # ⟨21⟩ contract §29.1: its domain; the owner sees it only when the owner
+    # decides it (`approver` null); `routed_to` the one who does otherwise
+    domain: Literal["business", "media", "revenue", "product", "tech", "security", "infra"] = (
+        "business"
+    )
+    owner_visible: bool = True
+    routed_to: str | None = None
+    critical_reason: Literal["data_leak", "product_down", "money", "legal"] | None = None
+
+
+# ⟨21⟩ §29.1 / §29.15: the card kinds an agent approver decides with `card.decide`
+# (a hire card keeps its own `hire.decide`).
+AGENT_CARD_KINDS = ("server_destructive",)
 
 
 DECISION_SQL = """
@@ -828,6 +842,7 @@ def render(r: dict[str, Any]) -> Decision:
         memos=list(r.get("memos") or []),
         waiting_h=_waiting_h(r),
         reminders=list(r.get("reminders") or []),
+        **routing.fields(r),
     )
 
 
@@ -1130,14 +1145,22 @@ async def propose(
         if body.kind == "hire" and who.is_agent
         else None
     )
+    if body.kind == "server_destructive":
+        # ⟨21⟩ §29.1 / §29.15: the company's CTO decides, but for the categories
+        # the owner keeps (owner.settings.destructive_owner_categories)
+        approver = await destructive_approver(tx, company_id, company_kind, payload["category"])
+    # ⟨21⟩ §29.1: the card's domain; the owner sees it when the owner decides it
+    domain = routing.decision_domain(body.kind)
     row = await tx.one(
         """INSERT INTO cartable.decisions (company_id, kind, action_class, title, what, why,
                proposer_kind, proposer_code, work_id, quota_tokens, quota_usd, risk, risk_note,
                reversible, payload, expires_at, thread_code, approver_kind, approver_code, expected,
-               warnings)
+               warnings, domain, owner_visible, routed_to)
            VALUES (:co, :kind, :cls, :title, :what, :why, :pk, :pc, :work, :qt, :qu, :risk, :rn, :rev,
-                   CAST(:payload AS jsonb), :exp, :thread, :ak, :ac, CAST(:expected AS jsonb), :warnings)
+                   CAST(:payload AS jsonb), :exp, :thread, :ak, :ac, CAST(:expected AS jsonb), :warnings,
+                   :domain, CAST(:ac AS text) IS NULL, :ac)
            RETURNING ref""",
+        domain=domain,
         expected=json.dumps(expected, ensure_ascii=False) if expected else None,
         warnings=warnings,
         ak="agent" if approver else None,
@@ -1197,6 +1220,35 @@ async def propose(
             ref=payload["lesson"],
             co=company_id,
         )
+    if (
+        approver
+        and body.kind == "hire"
+        and approver == who.code
+        and await hiring.mode(tx) == "auto"
+    ):
+        # ⟨21⟩ §29.10: a CEO's own hire inside the month envelope is approved by
+        # code (no card for anyone); over the envelope it is refused
+        # (409 envelope_exceeded, nothing made) and the order shows a budget blocker.
+        return await hiring.approve_by_code(tx, d, charters)
+    if approver and body.kind == "server_destructive":
+        await W.create(
+            tx,
+            Principal(kind="service", code="servers", role="service"),
+            company_id=company_id,
+            company_code=company_code,
+            title=f"تصمیم درباره‌ی {d['ref']}: {d['title']}"[:300],
+            brief=(
+                f"کار ویرانگر {d['ref']} روی سرور شرکت با تو است (مدیر فنی). دستور دقیق، سرور، "
+                "دسته و درخواست‌کننده در کارت است. با card.decide (approve / reject / return) و یک "
+                "یادداشت تصمیم بگیر: آیا لازم است، پشتیبان تازه دارد، و برگشت‌پذیر است؟ تا تصمیم "
+                "تو، کار اجرا نمیشود."
+            ),
+            kind="one_off",
+            priority="P1",
+            assignee_code=approver,
+        )
+        await oversight.hold_if_watching(tx, d)
+        return d
     if approver:
         # The CEO is woken by a work item for the card (contract §18.11); the
         # owner hears of the hire through its story and the digest.
@@ -1221,19 +1273,40 @@ async def propose(
     if not notify_owner:  # the owner wrote it (a direct hire): nothing to tell them
         return d
     await oversight.hold_if_watching(tx, d)
+    risk_fa = {"low": "کم", "medium": "متوسط", "high": "زیاد"}.get(d["risk"], d["risk"])
     await notify.raise_notification(
         tx,
         company_id=company_id,
         company_code=company_code,
         level="decision",
         title_fa=f"تصمیم تازه {d['ref']}: {d['title'][:120]}",
-        body_fa=f"پیشنهاد {who.code} · ریسک {d['risk']} · {'برگشت‌پذیر' if d['reversible'] else 'برگشت‌ناپذیر'}",
+        body_fa=f"پیشنهاد {who.code} · ریسک {risk_fa} · {'برگشت‌پذیر' if d['reversible'] else 'برگشت‌ناپذیر'}",
         link_kind="decision",
         link_ref=d["ref"],
         source_kind=who.kind,
         source_code=who.code,
     )
     return d
+
+
+async def destructive_approver(
+    tx: Tx, company_id: UUID, company_kind: str, category: str
+) -> str | None:
+    """⟨21⟩ §29.1: who decides a destructive command on a company's server:
+    its CTO, unless the owner keeps the category (owner.settings
+    .destructive_owner_categories; every company server is production) or
+    the company has no CTO (then the owner). The hub's own stay the owner's."""
+    if company_kind != "company":
+        return None
+    keep = await tx.scalar("SELECT destructive_owner_categories FROM owner.settings WHERE id = 1")
+    if category in list(keep or ["server_delete", "db_drop"]):
+        return None
+    cto: str | None = await tx.scalar(
+        """SELECT code FROM core.employees WHERE company_id = :co AND role = 'cto'
+             AND status = 'active' ORDER BY hired_at LIMIT 1""",
+        co=company_id,
+    )
+    return cto
 
 
 # ------------------------------------------------------------------ decide --
@@ -1359,6 +1432,15 @@ async def decide(
     if d["kind"] == "hire" and d.get("approver_code") and who.code != d["approver_code"]:
         # The owner decided a CEO's card first: the CEO's «decide D-…» item closes.
         await hiring.close_decide_items(tx, [d["ref"]], f"{d['ref']}: مالک خودش تصمیم گرفت")
+    if d["kind"] in AGENT_CARD_KINDS and d.get("approver_code") and who.code != d["approver_code"]:
+        # ⟨21⟩ the owner decided a CTO's card first: the CTO's item closes.
+        await tx.exec(
+            """UPDATE work.work SET status = 'cancelled', close_reason = :r, closed_at = now()
+               WHERE starts_with(title, :t) AND created_by_kind = 'service'
+                 AND created_by_code = 'servers' AND status IN ('queued', 'in_progress', 'waiting')""",
+            t=f"تصمیم درباره‌ی {d['ref']}:",
+            r=f"{d['ref']}: مالک خودش تصمیم گرفت",
+        )
     effect = "pending" if verdict == "approved" and d["kind"] in EFFECT_KINDS else "none"
     server = None
     sealed_as_is = d["kind"] in (

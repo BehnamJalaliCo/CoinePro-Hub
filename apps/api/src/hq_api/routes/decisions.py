@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from hq_api import idempotency, pagination, workflows_client
 from hq_api.context import Ctx, owner_ctx
-from hq_api.domain import dceo, gov_authority
+from hq_api.domain import dceo, gov_authority, routing
 from hq_api.domain import decisions as D
 from hq_api.errors import ApiError, responses
 from hq_api.schemas import Model, Page
@@ -44,6 +44,74 @@ class Posted(BaseModel):
 
 def needs_step_up(d: dict[str, Any]) -> bool:
     return d["action_class"] == "A3" or d["kind"] in D.STEP_UP_KINDS
+
+
+Category = Literal[
+    "db_drop", "volume_delete", "backup_delete", "disk_wipe", "access_change", "server_delete"
+]
+
+
+class DestructiveSettings(BaseModel):
+    """⟨21⟩ contract §29.1 / §29.15: the destructive categories (on a company's
+    server; every one is production) that stay the owner's; every other one
+    is the company's CTO's to decide (`card.decide`)."""
+
+    owner_categories: list[Category]
+
+
+class DestructiveSettingsIn(Model):
+    owner_categories: list[Category] = Field(max_length=6)
+
+
+def destructive_target(categories: list[Any]) -> str:
+    """The step-up target of `settings.destructive`: the sorted list, joined."""
+    return ",".join(sorted(set(categories))) or "none"
+
+
+@router.get("/owner/settings/destructive", response_model=DestructiveSettings, responses=E)
+async def get_destructive(ctx: Ctx = Depends(owner_ctx)) -> DestructiveSettings:
+    async with ctx.tx() as tx:
+        cats = await tx.scalar(
+            "SELECT destructive_owner_categories FROM owner.settings WHERE id = 1"
+        )
+    return DestructiveSettings(owner_categories=sorted(cats or []))
+
+
+@router.put("/owner/settings/destructive", response_model=DestructiveSettings, responses=E)
+async def put_destructive(
+    body: DestructiveSettingsIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+) -> DestructiveSettings:
+    """🔏 `settings.destructive`, target = the categories sorted and joined with
+    commas (`none` for an empty list). Cards already made keep their approver."""
+    cats = sorted(set(body.owner_categories))
+    holding = await ctx.hub.companies.holding()
+    async with ctx.tx() as tx:
+        su = await stepup.consume(
+            tx, request, ctx.who, "settings.destructive", destructive_target(cats)
+        )
+        await tx.exec(
+            "UPDATE owner.settings SET destructive_owner_categories = :c WHERE id = 1", c=cats
+        )
+        await ctx.audit(
+            tx,
+            company_id=holding.id,
+            action="settings.destructive",
+            action_class="A2",
+            target_kind="settings",
+            target_ref="destructive",
+            summary="owner keeps: " + (", ".join(cats) or "none"),
+            step_up=su is not None,
+        )
+        await ctx.interaction(
+            tx,
+            company_id=holding.id,
+            kind="setting",
+            action="settings.destructive",
+            target_kind="settings",
+            target_ref="destructive",
+            data={"owner_categories": cats},
+        )
+    return DestructiveSettings(owner_categories=cats)
 
 
 @router.get("/decisions", response_model=Page[D.Decision], responses=E)
@@ -93,16 +161,24 @@ async def list_decisions(
     approver: Literal["owner", "all"] = "owner",
     limit: int = Query(default=50, ge=1, le=pagination.MAX_LIMIT),
     cursor: str | None = None,
+    scope: Literal["owner", "all"] = "owner",
+    domain: list[str] | None = Query(default=None, max_length=7),
     ctx: Ctx = Depends(owner_ctx),
 ) -> Page[D.Decision]:
     """Default `status=pending`, oldest first. ⟨1.4.3⟩ by default only the cards
-    the owner decides (`approver` null); `?approver=all` adds the CEOs' (§18.11)."""
+    the owner decides (`approver` null); `?approver=all` adds the CEOs' (§18.11).
+    ⟨21⟩ §29.1: `?scope=all` adds every card someone else decides (a CEO's
+    hire, a CTO's destructive command), `&domain=` narrows by domain."""
     after_t, after_id = pagination.time_id(cursor)
+    domains = routing.parse_domains(domain)
+    if scope == "all":
+        approver = "all"
     async with ctx.tx() as tx:
         rows = await tx.all(
             D.DECISION_SQL
             + """ WHERE d.status = :status
                     AND (:approver = 'all' OR d.approver_code IS NULL)
+                    AND (CAST(:domains AS text[]) IS NULL OR d.domain = ANY(CAST(:domains AS text[])))
                     AND (CAST(:companies AS text[]) IS NULL OR c.code = ANY(:companies))
                     AND (CAST(:kind AS text) IS NULL OR d.kind = :kind)
                     AND (CAST(:risk AS text) IS NULL OR d.risk = :risk)
@@ -113,6 +189,7 @@ async def list_decisions(
                   ORDER BY d.created_at, d.id LIMIT :lim""",
             status=status,
             approver=approver,
+            domains=domains,
             companies=company,
             kind=kind,
             risk=risk,

@@ -4,6 +4,7 @@ org chart. Companies are data: adding one is a record plus a template."""
 from __future__ import annotations
 
 import hashlib
+import json
 from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
@@ -692,9 +693,98 @@ async def _render_many(ctx: Ctx, tx: Tx, rows: list[dict[str, Any]]) -> list[org
     holding = await ctx.hub.companies.holding()
     assignments = await org.Assignments.load(tx, holding.code)
     trend = await org.trends(tx, [r["id"] for r in rows])
+    states = await employee_states(tx, [r["id"] for r in rows])
     return [
-        org.render(r, assignments, trend.get(r["id"], [None] * 12), ctx.hub.charters) for r in rows
+        org.render(r, assignments, trend.get(r["id"], [None] * 12), ctx.hub.charters).model_copy(
+            update=states.get(r["id"], {})
+        )
+        for r in rows
     ]
+
+
+# ⟨21⟩ contract §29.14: the codes of a run a blocker stopped (§29.2), and the fix
+STUCK_CODES = {
+    "budget": "budget",
+    "budget_used_up": "budget",
+    "daily_cap": "budget",
+    "token_cap": "budget",
+    "budget_exhausted": "budget",
+    "locked": "locked",
+    "talk_loop": "talk_loop",
+}
+STUCK_FA = {
+    "budget": "بودجه‌ی کارش تمام شد",
+    "locked": "شرکتش قفل است",
+    "talk_loop": "کارش متوقف شد چون بی‌خروجی تکرار میشد",
+}
+
+
+async def employee_states(tx: Tx, ids: list[UUID]) -> dict[UUID, dict[str, Any]]:
+    """Each employee's `state` and `stuck` (contract §29.14), by code: a
+    running run is `thinking`, or `working` while a server job of its runs;
+    a blocker on its open work is `stuck`; work waiting on someone else, or
+    a card or a seal it waits for, is `waiting`; delivered today with
+    nothing open is `done`; else `idle`."""
+    if not ids:
+        return {}
+    rows = await tx.all(
+        """SELECT e.id, e.code, c.code AS company,
+                  EXISTS (SELECT 1 FROM agents.runs r WHERE r.employee_id = e.id
+                            AND r.state = 'running') AS running,
+                  EXISTS (SELECT 1 FROM infra.server_jobs j WHERE j.actor_code = e.code
+                            AND j.state = 'running') AS job,
+                  control.lock_state(e.company_id) AS lock,
+                  (SELECT jsonb_build_object('ref', w.ref, 'code', last.error_code)
+                     FROM work.work w
+                     CROSS JOIN LATERAL (SELECT r.error_code FROM agents.runs r
+                                          WHERE r.work_id = w.id AND r.employee_id = e.id
+                                            AND r.state IN ('done', 'failed', 'refused')
+                                          ORDER BY r.created_at DESC LIMIT 1) last
+                    WHERE w.assignee_id = e.id AND w.status IN ('queued', 'in_progress', 'waiting')
+                      AND last.error_code = ANY(:codes)
+                    ORDER BY w.updated_at DESC LIMIT 1) AS stuck,
+                  EXISTS (SELECT 1 FROM work.work w WHERE w.assignee_id = e.id
+                            AND w.status = 'waiting') AS waiting_work,
+                  EXISTS (SELECT 1 FROM cartable.decisions d WHERE d.proposer_kind = 'agent'
+                            AND d.proposer_code = e.code AND d.status = 'pending') AS waiting_card,
+                  EXISTS (SELECT 1 FROM infra.server_jobs j WHERE j.actor_code = e.code
+                            AND j.state = 'awaiting_seal') AS waiting_seal,
+                  EXISTS (SELECT 1 FROM work.work w WHERE w.assignee_id = e.id
+                            AND w.status IN ('queued', 'in_progress', 'waiting')) AS open,
+                  EXISTS (SELECT 1 FROM cartable.deliverables d WHERE d.producer_id = e.id
+                            AND d.created_at >= (date_trunc('day', now() AT TIME ZONE s.timezone)
+                                                 AT TIME ZONE s.timezone)) AS delivered_today
+           FROM core.employees e JOIN core.companies c ON c.id = e.company_id
+           CROSS JOIN owner.settings s
+           WHERE e.id = ANY(:ids) AND s.id = 1""",
+        ids=ids,
+        codes=list(STUCK_CODES),
+    )
+    out: dict[UUID, dict[str, Any]] = {}
+    for r in rows:
+        stuck = r["stuck"] if isinstance(r["stuck"], dict) else None
+        if isinstance(r["stuck"], str):
+            stuck = json.loads(r["stuck"])
+        state, why = "idle", None
+        if r["running"]:
+            state = "working" if r["job"] else "thinking"
+        elif stuck is not None or (r["lock"] is not None and r["open"]):
+            kind = STUCK_CODES.get(str((stuck or {}).get("code")), "locked")
+            if kind == "budget":
+                fix = {"action": "budget.add", "label_fa": "بودجه را بیشتر کن",
+                       "target": (stuck or {}).get("ref")}  # fmt: skip
+            elif kind == "locked":
+                scope = "holding" if r["lock"] == "holding" else f"company:{r['company']}"
+                fix = {"action": "lock.open", "label_fa": "قفل را باز کن", "target": scope}
+            else:
+                fix = None
+            state, why = "stuck", {"reason_fa": STUCK_FA[kind], "fix": fix}
+        elif r["waiting_work"] or r["waiting_card"] or r["waiting_seal"]:
+            state = "waiting"
+        elif r["delivered_today"] and not r["open"]:
+            state = "done"
+        out[r["id"]] = {"state": state, "stuck": org.Stuck.model_validate(why) if why else None}
+    return out
 
 
 @router.get("/employees", response_model=Page[org.Employee], responses=E)
@@ -738,6 +828,29 @@ async def list_employees(
         )
         items, nxt = pagination.page(rows, limit, ("code",))
         return Page(items=await _render_many(ctx, tx, items), next_cursor=nxt)
+
+
+@router.get("/companies/{code}/employees", response_model=list[org.Employee], responses=E)
+async def company_employees(
+    code: str,
+    status: Literal["active", "paused", "dismissed"] | None = "active",
+    ctx: Ctx = Depends(owner_ctx),
+) -> list[org.Employee]:
+    """⟨21⟩ contract §29.14: a company's employees (active by default), each
+    with its `state` (idle, thinking, working, waiting, stuck, done) and why
+    it is stuck, with the fix."""
+    company = await ctx.hub.companies.find(code)
+    if company is None:
+        raise ApiError(404, "not_found", f"company {code}")
+    async with ctx.tx() as tx:
+        rows = await tx.all(
+            org.EMPLOYEE_SQL
+            + """ WHERE e.company_id = :co AND (CAST(:status AS text) IS NULL OR e.status = :status)
+                  ORDER BY e.code""",
+            co=company.id,
+            status=status,
+        )
+        return await _render_many(ctx, tx, rows)
 
 
 @router.get("/employees/{code}", response_model=EmployeeDetail, responses=E)

@@ -741,7 +741,7 @@ async def agent_hire_decide(
         current = await hiring.mode(tx)
         if current is None:
             raise ApiError(403, "hiring_closed")
-        if current != "delegated":
+        if current not in ("delegated", "auto"):  # ⟨21⟩ §29.10: auto as delegated
             raise ApiError(403, "policy_denied", "hiring is in mode proposals: the owner decides")
         if d["approver_code"] != ctx.who.code:
             raise ApiError(403, "policy_denied", "this card is not yours to decide")

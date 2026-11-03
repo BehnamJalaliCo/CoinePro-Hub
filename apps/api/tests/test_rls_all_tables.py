@@ -434,8 +434,17 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
         session,
         co["id"],
     )
+    order = await su.fetchrow(
+        """INSERT INTO owner.orders (company_id, text, source) VALUES ($1, 'o', 'text')
+           RETURNING id, ref""",
+        co["id"],
+    )
+    # ⟨21⟩ §29.2 the order's report (the holding's in production; any company's here)
     await su.execute(
-        "INSERT INTO owner.orders (company_id, text, source) VALUES ($1, 'o', 'text')", co["id"]
+        "INSERT INTO owner.order_reports (company_id, order_id, ref) VALUES ($1, $2, $3)",
+        co["id"],
+        order["id"],
+        order["ref"],
     )
     # Prompt 08 §6-§7: the skill library and the academy (the holding's in
     # production; any company's here, to prove the isolation).

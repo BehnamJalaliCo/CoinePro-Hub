@@ -360,10 +360,14 @@ async def test_agent_requests_get_a_budget_and_a_bounded_chain(
     r1 = await request(w0["id"])
     assert r1.status_code == 201, r1.text
     w1 = r1.json()["work"]
-    assert w1["budget"]["tokens"] == 50_000  # what the requester had left
+    # what the requester had left, ⟨21⟩ raised to the CTO's floor (§29.6: 3 steps at least)
+    floor = 3 * charters.load().roles["cto"].limits.tokens_per_step
+    assert w1["budget"]["tokens"] >= max(50_000, floor)
     r = await request(w0["id"], budget={"tokens": 10**9})
     assert r.status_code == 201
-    assert r.json()["work"]["budget"]["tokens"] <= hub.settings.agent_request_budget_tokens
+    assert r.json()["work"]["budget"]["tokens"] <= max(
+        hub.settings.agent_request_budget_tokens, w1["budget"]["tokens"]
+    )
     r2 = await request(w1["id"])
     assert r2.status_code == 201, r2.text
     w2 = r2.json()["work"]

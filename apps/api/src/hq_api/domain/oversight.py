@@ -35,7 +35,7 @@ from pydantic import BaseModel, Field
 
 from hq_api import audit, events, interactions
 from hq_api.db import Tx
-from hq_api.domain import notify
+from hq_api.domain import notify, routing
 from hq_api.domain import recurrence as R
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
@@ -159,6 +159,13 @@ class Finding(BaseModel):
     kind: Literal["security", "app_health", "code", "growth", "holding"] | None = None
     fix_md: str | None = None
     fix: FindingFix | None = None
+    # ⟨21⟩ contract §29.1: its domain, whether the owner sees it, its handler
+    domain: Literal["business", "media", "revenue", "product", "tech", "security", "infra"] = (
+        "business"
+    )
+    owner_visible: bool = True
+    routed_to: str | None = None
+    critical_reason: Literal["data_leak", "product_down", "money", "legal"] | None = None
 
 
 class Challenge(BaseModel):
@@ -346,6 +353,7 @@ async def seed_protocols(tx: Tx, holding_id: UUID, root: str | Path) -> int:
         added += 1
     await activate_pr082(tx)
     await monthly_code_review(tx)
+    await management_review(tx)
     from hq_api.domain import dceo  # ⟨1.5⟩ prompt 12 §13: PR-121 on a fresh database
 
     await dceo.activate(tx)
@@ -409,6 +417,74 @@ async def monthly_code_review(tx: Tx) -> bool:
         summary="prompt 20.1: the code review runs monthly (the 1st of the Jalali month)",
     )
     return True
+
+
+# ⟨21⟩ the management review §5.1 (docs/MANAGEMENT_REVIEW_2026-11.md): costly
+# protocols with no effect are paused, daily samples become weekly, and the
+# owner's standing orders are watched daily. Each change is a new version over
+# the seeded one (a version the owner made is never touched; the owner turns a
+# paused one back on with one tap).
+REVIEW_21: dict[str, dict[str, str]] = {
+    "PR-005": {"status": "paused"},  # the companies' claims read together (weekly, a model)
+    "PR-081": {"status": "paused"},  # the star rubric applied alike (weekly, a model)
+    "PR-098": {"status": "paused"},  # every CEO hire reviewed (hourly, a model): hiring is auto
+    "PR-041": {"status": "paused"},  # the blind test (weekly): PR-040 stays
+    "PR-001": {"schedule": "FREQ=WEEKLY;BYDAY=SA;BYHOUR=10;BYMINUTE=0"},
+    "PR-004": {"schedule": "FREQ=WEEKLY;BYDAY=SA;BYHOUR=12;BYMINUTE=0"},
+    "PR-100": {"schedule": "FREQ=WEEKLY;BYDAY=TH;BYHOUR=20;BYMINUTE=0"},
+    "PR-095": {"schedule": "FREQ=DAILY;BYHOUR=15;BYMINUTE=0"},  # the owner's rules, daily
+}
+
+
+async def management_review(tx: Tx) -> list[str]:
+    """The changes of REVIEW_21 that are not in force yet, each a new seed
+    version of its protocol with one Audit row; idempotent (a second call,
+    or a fresh database seeded from the file with them, changes nothing)."""
+    await tx.exec("SELECT pg_advisory_xact_lock(hashtextextended('hq:protocol:review-21', 0))")
+    changed: list[str] = []
+    for ref, change in REVIEW_21.items():
+        cur = await tx.first("SELECT * FROM oversight.current_protocols WHERE ref = :r", r=ref)
+        if cur is None or cur["source"] != "seed":
+            continue
+        status = change.get("status", cur["status"])
+        schedule = change.get("schedule", cur["schedule"])
+        if status == cur["status"] and schedule == cur["schedule"]:
+            continue
+        version = int(cur["version"]) + 1
+        await tx.exec(
+            """INSERT INTO oversight.protocols (company_id, ref, version, title_fa, area, check_md,
+                   method, schedule, scope, evidence_md, severity, answerable, status, source,
+                   created_by_kind, created_by_code, calendar)
+               VALUES (:co, :ref, :v, :title, :area, :check, :method, :schedule, :scope, :evidence,
+                       :severity, :answerable, :status, 'seed', 'service', 'prompt-21', :calendar)""",
+            co=cur["company_id"],
+            ref=ref,
+            v=version,
+            title=cur["title_fa"],
+            area=cur["area"],
+            check=cur["check_md"],
+            method=cur["method"],
+            schedule=schedule,
+            scope=cur["scope"],
+            evidence=cur["evidence_md"],
+            severity=cur["severity"],
+            answerable=cur["answerable"],
+            status=status,
+            calendar=cur.get("calendar") or "gregorian",
+        )
+        what = "paused" if status != cur["status"] else f"schedule {schedule}"
+        await audit.record(
+            tx,
+            audit.SYSTEM,
+            company_id=cur["company_id"],
+            action="oversight.protocol_update",
+            action_class="A1",
+            target_kind="protocol",
+            target_ref=f"{ref}@{version}",
+            summary=f"prompt 21 (management review §5.1): {what}",
+        )
+        changed.append(ref)
+    return changed
 
 
 async def activate_pr082(tx: Tx) -> bool:
@@ -692,6 +768,7 @@ def render_finding(r: dict[str, Any], history: list[dict[str, Any]] | None = Non
         kind=r.get("kind"),
         fix_md=r.get("fix_md"),
         fix=FindingFix.model_validate(r["fix"]) if r.get("fix") else None,
+        **routing.fields(r),
     )
 
 
@@ -750,6 +827,8 @@ async def raise_finding(
     kind: str | None = None,
     fix_md: str | None = None,
     fix: dict[str, Any] | None = None,
+    domain: str | None = None,
+    critical_reason: str | None = None,
 ) -> tuple[dict[str, Any], bool]:
     """(the finding, created?). A finding still open with the same key is the
     same finding: ⟨1.7.5⟩ its evidence brought up to date, not duplicated (an
@@ -784,13 +863,35 @@ async def raise_finding(
     else:
         ak, ac = await answerer(tx, company_id, role)
     hours = due_in_hours or SEVERITY_DUE_H.get(severity, 72)
+    # ⟨21⟩ §29.1: its domain and handler; a technical one the owner does not
+    # see is answered by its handler, never by the owner
+    pref = (protocol or {}).get("ref")
+    r = await routing.classify(
+        tx,
+        company_id,
+        routing.clean_domain(domain)
+        or routing.finding_domain(
+            protocol=pref,
+            area=(protocol or {}).get("area"),
+            answerable=role if role and "-" not in role else None,
+            kind=kind,
+        ),
+        critical_reason or routing.critical_of(protocol=pref, severity=severity),
+    )
+    if not r["owner_visible"] and r["routed_to"] and ak == "owner":
+        ak, ac = "agent", r["routed_to"]
     row = await tx.one(
         """INSERT INTO oversight.findings (company_id, protocol_id, run_id, severity, title_fa, body_md,
                evidence, answerable_kind, answerable_code, raised_by_kind, raised_by_code, dedupe_key,
-               due_at, kind, fix_md, fix)
+               due_at, kind, fix_md, fix, domain, owner_visible, routed_to, critical_reason)
            VALUES (:co, :p, :run, :sev, :t, :b, CAST(:ev AS jsonb), :ak, :ac, :bk, :bc, :k,
-                   now() + make_interval(hours => :h), :kind, :fix_md, CAST(:fix AS jsonb))
+                   now() + make_interval(hours => :h), :kind, :fix_md, CAST(:fix AS jsonb),
+                   :domain, :visible, :routed_to, :critical)
            RETURNING id, ref""",
+        domain=r["domain"],
+        visible=r["owner_visible"],
+        routed_to=r["routed_to"],
+        critical=r["critical_reason"],
         kind=kind,
         fix_md=fix_md[:20000] if fix_md else None,
         fix=json.dumps(fix, ensure_ascii=False) if fix else None,
