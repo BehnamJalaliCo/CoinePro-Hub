@@ -264,6 +264,8 @@ class Runner:
                     or await self._spent_today(tx) >= self.s.agent_daily_token_cap
                 ):
                     refuse = "daily_cap"
+                elif await self._company_cap_reached(tx, run["company_id"]):
+                    refuse = "daily_cap"  # ⟨20.1⟩ §28.6 the company's own cap
                 elif run["work_id"] is not None:
                     refuse = await self._work_refusal(tx, run["work_id"])
             if refuse is None and await tx.scalar(
@@ -575,8 +577,12 @@ class Runner:
             room = min(per_step, left - prompt_tokens(system, rc.messages))
             if room < MIN_OUTPUT_TOKENS:
                 break
-            if await self._daily_cap_reached():
-                return "failed", "daily_cap", "the hub's daily agent token cap was reached"
+            if await self._daily_cap_reached(rc.run["company_id"]):
+                return (
+                    "failed",
+                    "daily_cap",
+                    "the hub's or the company's daily token cap was reached",
+                )
             n += 1
             self.heartbeat()
             call = await self._model_step(rc, system, n, max_output=room)
@@ -652,13 +658,37 @@ class Runner:
             return "done", None, None
         return await self._partial(rc, n)
 
-    async def _daily_cap_reached(self) -> bool:
+    async def _daily_cap_reached(self, company_id: Any = None) -> bool:
         """The hub's daily agent token cap, checked before EVERY model call
-        (prompt 5.1 §2.6), not only when a run is claimed."""
+        (prompt 5.1 §2.6), not only when a run is claimed; ⟨20.1⟩ and the
+        run's company's own daily cap (§28.6)."""
         if self.s.agent_daily_token_cap <= 0:  # 0 = nothing at all (prompt 08.1)
             return True
         async with await self._tx() as tx:  # every company's runs (RLS)
-            return await self._spent_today(tx) >= self.s.agent_daily_token_cap
+            if await self._spent_today(tx) >= self.s.agent_daily_token_cap:
+                return True
+            return company_id is not None and await self._company_cap_reached(tx, company_id)
+
+    async def _company_cap_reached(self, tx: Tx, company_id: Any) -> bool:
+        """⟨20.1⟩ §28.6 a company's own agent runs of today (UTC) against its
+        cap: core.companies.daily_token_cap, else AGENT_COMPANY_DAILY_TOKEN_CAP
+        (0 = only the hub's cap). One company never eats every other's day."""
+        cap = await tx.scalar(
+            "SELECT daily_token_cap FROM core.companies WHERE id = :co", co=company_id
+        )
+        cap = int(cap) if cap is not None else self.s.company_daily_token_cap
+        if cap <= 0:
+            return False
+        n = await tx.scalar(
+            """SELECT COALESCE(sum(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)
+                                   + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0)), 0)
+               FROM llm.calls
+               WHERE company_id = :co
+                 AND started_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+                 AND meta ? 'run_id'""",
+            co=company_id,
+        )
+        return int(n or 0) >= cap
 
     async def _model_step(
         self, rc: RunCtx, system: str, n: int, *, max_output: int | None = None
@@ -791,8 +821,8 @@ class Runner:
             stop = ("failed", "time_limit", None)
         elif room < MIN_OUTPUT_TOKENS:
             stop = ("failed", "token_cap", None)
-        elif await self._daily_cap_reached():
-            stop = ("failed", "daily_cap", "the hub's daily agent token cap was reached")
+        elif await self._daily_cap_reached(rc.run["company_id"]):
+            stop = ("failed", "daily_cap", "the hub's or the company's daily token cap was reached")
         if stop is not None:
             await self._live(thread, rc, "reply.failed", {"code": stop[1]})
             return stop

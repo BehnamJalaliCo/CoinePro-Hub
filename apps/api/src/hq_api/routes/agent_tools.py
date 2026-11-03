@@ -32,6 +32,7 @@ from hq_api.db import Tx
 from hq_api.domain import backups, hiring, oversight
 from hq_api.domain import departments as DM
 from hq_api.domain import files as F
+from hq_api.domain import spend as SPEND
 from hq_api.domain import work as W
 from hq_api.errors import ApiError, responses
 from hq_api.routes.backups import BackupStatus
@@ -472,16 +473,32 @@ class Usage(BaseModel):
     by_model: list[dict[str, Any]]
     top_actors: list[dict[str, Any]]
     budgets: list[dict[str, Any]]
+    # ⟨20.1⟩ §28.6: where the tokens went (the catalogue, the watch, the work ...)
+    by_domain: list[dict[str, Any]] = Field(default_factory=list)
+    by_department: list[dict[str, Any]] = Field(default_factory=list)
+    department: str | None = None
+    role: str | None = None
+
+
+# ⟨20.1⟩ one filter for every query of the tool: the period, the company, and
+# (optionally) a department (llm.calls.department) or a role (its charter)
+USAGE_WHERE = """c.started_at >= :s AND (CAST(:co AS uuid) IS NULL OR c.company_id = :co)
+    AND (CAST(:dep AS text) IS NULL OR upper(c.department) = :dep)
+    AND (CAST(:role AS text) IS NULL OR split_part(c.meta->>'charter', '@', 1) = :role)"""
 
 
 @router.get("/treasury/usage", response_model=Usage, responses=E)
 async def tool_treasury_usage(
     scope: str = Query(default="company", pattern=r"^(company|holding|[A-Z][A-Z0-9]{1,9})$"),
-    period: Literal["day", "month"] = "month",
+    period: Literal["day", "week", "month"] = "month",
+    department: str | None = Query(default=None, pattern=r"^[A-Z][A-Z0-9_-]{0,29}$"),
+    role: str | None = Query(default=None, pattern=r"^[a-z][a-z0-9_]{0,40}$"),
     ctx: Ctx = Depends(internal_ctx),
 ) -> Usage:
     """treasury.usage: tokens and equivalent cost of a company (own; another one
-    or `holding` for holding-scope roles) by model and top actors, budget use %."""
+    or `holding` for holding-scope roles) by model, domain, department and top
+    actors, budget use %. ⟨20.1⟩ `week` (the last 7 days), and a department or
+    a role to narrow it (prompt 20 finding 7)."""
     _agent(ctx)
     assert ctx.who.company is not None
     target = ctx.who.company if scope == "company" else scope
@@ -491,31 +508,37 @@ async def tool_treasury_usage(
     if every:
         await allow(ctx, "treasury.read", {"company": ctx.who.company})
     co = None if every else await _company(ctx, "treasury.read", target)
-    start = period_start(period)
+    start = datetime.now(UTC) - timedelta(days=7) if period == "week" else period_start(period)
+    f = {"s": start, "co": co.id if co else None, "dep": department, "role": role}
     async with read_tx(ctx) as tx:
         totals = await tx.one(
-            f"SELECT {TOTALS} FROM llm.calls c WHERE c.started_at >= :s "  # noqa: S608 - module constant
-            "AND (CAST(:co AS uuid) IS NULL OR c.company_id = :co)",
-            s=start,
-            co=co.id if co else None,
+            f"SELECT {TOTALS} FROM llm.calls c WHERE {USAGE_WHERE}",  # noqa: S608 - module constants
+            **f,
         )
         by_model = await tx.all(
-            f"SELECT c.model, {TOTALS} FROM llm.calls c WHERE c.started_at >= :s "  # noqa: S608 - module constant
-            "AND (CAST(:co AS uuid) IS NULL OR c.company_id = :co) GROUP BY c.model ORDER BY calls DESC",
-            s=start,
-            co=co.id if co else None,
+            f"SELECT c.model, {TOTALS} FROM llm.calls c WHERE {USAGE_WHERE} "  # noqa: S608 - module constants
+            "GROUP BY c.model ORDER BY calls DESC",
+            **f,
         )
         top = await tx.all(
-            """SELECT c.actor_ref AS actor, count(*) AS calls,
-                      COALESCE(sum(COALESCE(c.input_tokens, 0) + COALESCE(c.output_tokens, 0)
-                          + COALESCE(c.cache_read_tokens, 0) + COALESCE(c.cache_write_tokens, 0)), 0) AS tokens,
+            f"""SELECT c.actor_ref AS actor, count(*) AS calls, {SPEND.TOKENS_SQL} AS tokens,
                       COALESCE(sum(COALESCE(c.cost_usd, 0) + COALESCE(c.equiv_cost_usd, 0)), 0) AS usd
-               FROM llm.calls c WHERE c.started_at >= :s AND (CAST(:co AS uuid) IS NULL OR c.company_id = :co)
-               GROUP BY c.actor_ref ORDER BY tokens DESC LIMIT 10""",
-            s=start,
-            co=co.id if co else None,
+               FROM llm.calls c WHERE {USAGE_WHERE}
+               GROUP BY c.actor_ref ORDER BY tokens DESC LIMIT 10""",  # noqa: S608 - module constants
+            **f,
         )
-        budgets = await _budget_use(tx, co.id, period) if co else []
+        by_domain = await tx.all(
+            f"""SELECT {SPEND.DOMAIN_SQL} AS domain, count(*) AS calls, {SPEND.TOKENS_SQL} AS tokens
+               FROM llm.calls c WHERE {USAGE_WHERE} GROUP BY 1 ORDER BY tokens DESC""",  # noqa: S608 - module constants
+            **f,
+        )
+        by_dep = await tx.all(
+            f"""SELECT COALESCE(c.department, '-') AS department, count(*) AS calls,
+                      {SPEND.TOKENS_SQL} AS tokens
+               FROM llm.calls c WHERE {USAGE_WHERE} GROUP BY 1 ORDER BY tokens DESC LIMIT 20""",  # noqa: S608 - module constants
+            **f,
+        )
+        budgets = await _budget_use(tx, co.id, "day" if period == "day" else "month") if co else []
     return Usage(
         scope=co.code if co else "holding",
         period=period,
@@ -524,6 +547,13 @@ async def tool_treasury_usage(
         by_model=[_plain(r) for r in by_model],
         top_actors=[_plain(r) for r in top],
         budgets=budgets,
+        by_domain=[
+            {**_plain(r), "title_fa": SPEND.DOMAIN_FA.get(r["domain"], r["domain"])}
+            for r in by_domain
+        ],
+        by_department=[_plain(r) for r in by_dep],
+        department=department,
+        role=role,
     )
 
 

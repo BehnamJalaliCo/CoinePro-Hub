@@ -191,3 +191,45 @@ async def test_the_code_review_of_every_repository_is_monthly(su: Any, owner_db:
         assert await O.monthly_code_review(tx) is False  # once
     cur = await su.fetchrow("SELECT * FROM oversight.current_protocols WHERE ref = 'PR-142'")
     assert cur["schedule"] == O.PR142_SCHEDULE and cur["title_fa"] == O.PR142_TITLE
+
+
+# ------------------------------------------------ §28.6 spend by domain --
+async def test_every_token_falls_in_one_domain_and_the_report_says_which_led(
+    hub: Hub, su: Any, new_company: Callable[..., Any]
+) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from hq_api.domain import spend as SPEND
+
+    co = await new_company()
+    rows = [  # (task_class, caller, actor, meta, tokens)
+        ("server_claude", "company_runner", "catalogue", {"via": "catalogue"}, 7000),
+        ("server_claude", "company_runner", "X-CTO", {"via": "server_claude"}, 100),
+        ("general", "agent_runner", "HQ-OVR", {"run_id": "r", "protocol": "PR-140"}, 500),
+        ("advisor", "agent_runner", "HQ-ADV", {"run_id": "r", "charter": "advisor@3"}, 300),
+        ("media_script", "agent_runner", "X-MEDIA-MGR", {"run_id": "r"}, 200),
+        ("sub_errand", "substitutes", "players", {"seat": "assistant_errand"}, 150),
+        ("general", "agent_runner", "X-CEO", {"run_id": "r", "meeting": "MT-1"}, 120),
+        ("general", "agent_runner", "X-CEO", {"run_id": "r", "charter": "ceo@10"}, 1630),
+    ]
+    for tc, caller, actor, meta, tokens in rows:
+        await su.execute(
+            """INSERT INTO llm.calls (id, started_at, company_id, actor_ref, task_class, priority, caller,
+                   input_tokens, output_tokens, status, meta)
+               VALUES (gen_random_uuid(), now(), $1, $2, $3, 3, $4, $5, 0, 'ok', $6::jsonb)""",
+            co["id"], actor, tc, caller, tokens, json.dumps(meta),
+        )  # fmt: skip
+    now = datetime.now(UTC)
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        got = await SPEND.by_domain(
+            tx, now - timedelta(hours=1), now + timedelta(minutes=1), co["id"]
+        )
+    by = {r["domain"]: r for r in got}
+    assert {k: by[k]["tokens"] for k in by} == {
+        "catalogue": 7000, "server": 100, "oversight": 500, "advisor": 300, "media": 200,
+        "council": 150, "meetings": 120, "work": 1630,
+    }  # fmt: skip
+    assert got[0]["domain"] == "catalogue" and got[0]["share_pct"] == 70.0
+    lines = SPEND.lines(got)
+    assert lines[0].startswith("- **کاتالوگ سرورها:** 7,000") and "⚠️" in lines[-1]
+    assert "⚠️" not in " ".join(SPEND.lines([r for r in got if r["domain"] == "work"]))

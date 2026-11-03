@@ -41626,6 +41626,22 @@
             "title": "Budgets",
             "type": "array"
           },
+          "by_department": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "By Department",
+            "type": "array"
+          },
+          "by_domain": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "By Domain",
+            "type": "array"
+          },
           "by_model": {
             "items": {
               "additionalProperties": true,
@@ -41633,6 +41649,17 @@
             },
             "title": "By Model",
             "type": "array"
+          },
+          "department": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Department"
           },
           "period": {
             "title": "Period",
@@ -41642,6 +41669,17 @@
             "format": "date-time",
             "title": "Period Start",
             "type": "string"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
           },
           "scope": {
             "title": "Scope",
@@ -103791,7 +103829,7 @@
     },
     "/internal/v1/catalogue": {
       "post": {
-        "description": "company.catalogue: the latest catalogue of the company; `start: true`\n(or none yet) starts a run. The CEO's answer to \"go through the server\nand extract everything\" (§28.2), never a summary of its own.",
+        "description": "company.catalogue: the latest catalogue of the company; `start: true`\n(or none yet) starts a run, ⟨20.1⟩ only when the agent works on an order\nof the owner (§28.6; otherwise the latest, or 409 owner_order_required).\nThe CEO's answer to \"go through the server and extract everything\"\n(§28.2), never a summary of its own.",
         "operationId": "agent_catalogue",
         "requestBody": {
           "content": {
@@ -119258,7 +119296,7 @@
     },
     "/internal/v1/treasury/usage": {
       "get": {
-        "description": "treasury.usage: tokens and equivalent cost of a company (own; another one\nor `holding` for holding-scope roles) by model and top actors, budget use %.",
+        "description": "treasury.usage: tokens and equivalent cost of a company (own; another one\nor `holding` for holding-scope roles) by model, domain, department and top\nactors, budget use %. ⟨20.1⟩ `week` (the last 7 days), and a department or\na role to narrow it (prompt 20 finding 7).",
         "operationId": "tool_treasury_usage",
         "parameters": [
           {
@@ -119280,10 +119318,45 @@
               "default": "month",
               "enum": [
                 "day",
+                "week",
                 "month"
               ],
               "title": "Period",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "department",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9_-]{0,29}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Department"
+            }
+          },
+          {
+            "in": "query",
+            "name": "role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[a-z][a-z0-9_]{0,40}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Role"
             }
           }
         ],
@@ -119295,11 +119368,19 @@
                   "budgets": [
                     {}
                   ],
+                  "by_department": [
+                    {}
+                  ],
+                  "by_domain": [
+                    {}
+                  ],
                   "by_model": [
                     {}
                   ],
+                  "department": "GROWTH",
                   "period": "x",
                   "period_start": "2026-10-17T05:42:00Z",
+                  "role": "x",
                   "scope": "company:TY",
                   "top_actors": [
                     {}
