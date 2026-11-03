@@ -8,14 +8,15 @@ export const NAV_MAIN: NavItem[] = [
   { href: '/orders', label: 'فرمان‌های من', icon: 'delegate' },
   { href: '/cartable', label: 'کارتابل', icon: 'cartable', badge: 'decisions' },
   { href: '/outputs', label: 'خروجی‌ها', icon: 'deliverable', badge: 'deliverables' },
+  // ⟨1.11⟩ §29: the business first — the working groups, the connections that measure them, the owner's rules.
+  { href: '/groups', label: 'کارگروه‌ها', icon: 'companies' },
+  { href: '/connections', label: 'اتصال‌ها', icon: 'globe' },
+  { href: '/rules', label: 'قانون‌های من', icon: 'seal' },
   { href: '/advisor', label: 'مشاور کل', icon: 'advisor' },
   { href: '/oversight', label: 'ناظر کل', icon: 'overseer' },
-  // ⟨1.10⟩ §28.3: security, app health, code, growth and the holding's proposals, each with a proposed fix.
-  { href: '/watch', label: 'دیده‌بان', icon: 'scope' },
   { href: '/assistant', label: 'دستیار', icon: 'assistant' },
   { href: '/companies', label: 'شرکت‌ها', icon: 'companies' },
   { href: '/messages', label: 'پیام‌ها', icon: 'messages', badge: 'messages' },
-  { href: '/workshop', label: 'کارگاه کد', icon: 'code' },
 ];
 
 // ⟨1.5⟩ management tools (§21): quick notes, the spoken briefings and CEO letters, the substitute players, the digital CEO.
@@ -72,7 +73,10 @@ export const NAV_TOOLS: NavItem[] = [
   { href: '/resolutions', label: 'دفتر مصوبات', icon: 'seal' },
   { href: '/runs', label: 'اجرای ایجنت‌ها', icon: 'agent' },
   { href: '/sites', label: 'پایش سایت‌ها', icon: 'server' },
-  // ⟨1.8⟩ §26: the companies' servers, the holding's network map and the few things that wait for the owner's seal there.
+  // ⟨1.8⟩ §26: the companies' servers, the holding's network map and the few things that wait for the owner's seal there. ⟨1.11⟩ With the
+  // watch and the code workshop, these are technical: each company's own lives under «شرکت ← فنی».
+  { href: '/watch', label: 'دیده‌بان', icon: 'scope' },
+  { href: '/workshop', label: 'کارگاه کد', icon: 'code' },
   { href: '/servers', label: 'همه‌ی سرورها', icon: 'server' },
   { href: '/network', label: 'شبکه‌ی هلدینگ', icon: 'globe' },
   { href: '/server-policy', label: 'قوانین سرورها', icon: 'seal' },

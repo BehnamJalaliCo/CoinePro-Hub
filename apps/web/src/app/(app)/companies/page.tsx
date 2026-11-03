@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, ErrorState, PageHeader, SectionTitle, Skeleton } from '@/components/ui/primitives';
 import { CompanyControlCard, ControlSheets, HoldingControlCard, useControlData, useControlUi } from '@/components/v21/control';
 import { useCompanies } from '@/lib/api/hooks';
+import { HoldingLive } from '@/components/v29/live';
 
 /** Companies are data (0.3.0): the holding first, then every company, each with its live state at a glance (running, stopped, deploys
  *  closed), whether its agents are working right now, today's spend and its counts, and the switches to stop, resume, close or open
@@ -44,6 +45,8 @@ export default function CompaniesPage() {
               ))}
             </Card>
           ) : null}
+          {/* ⟨1.11⟩ the live orbit moved here from the home. */}
+          <div className="max-w-3xl"><HoldingLive /></div>
         </>
       )}
       <ControlSheets ui={ui} companies={list} />

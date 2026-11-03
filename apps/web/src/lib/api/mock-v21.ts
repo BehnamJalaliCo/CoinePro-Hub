@@ -21,6 +21,7 @@
 // Through the alias, so a production build (where the alias points elsewhere) could never pull the fixtures in.
 import { handle as base } from '@/lib/api/mock';
 import { handle28 } from './mock-v28';
+import { handle29 } from './mock-v29';
 
 const json = (body: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const problem = (status: number, code: string, message_fa: string) => json({ code, message_fa, status, title: code, type: 'about:blank' }, status);
@@ -297,6 +298,13 @@ function outputOf(n: Node, ref: string, title: string, summary: string, when: st
     ],
   });
 
+  // ⟨1.11⟩ §29.8 the council v2 (./mock-v29 serves its record): outside advisors with a fact pack, three rounds and the captain's plan.
+  const o9 = order('W-000199', 9, tyCeo, 'شورا: برنامه‌ی محتوای هفته‌ی آینده‌ی تریدیار', 'P3', 'delivered', 900, 'بازار، رقبا و روند محتوای آموزشی صرافی‌ها؛ برنامه‌ی یک هفته با چه کسی، چه کاری، تا کی.');
+  o9.mode = 'council';
+  accepted(o9, 898); run(o9, 898, 860, 'done', ['بسته‌ی واقعیت را ساخت', 'council.start'], ['سه دور را جمع کرد', 'work.read'], ['برنامه را نوشت', 'work.deliver']);
+  const plan = outputOf(o9, 'O-000057', 'برنامه‌ی شورا: محتوای هفته‌ی آینده‌ی تریدیار', 'شش کار برای هفته‌ی آینده، هر کدام با مسئول و موعد.', ago(860));
+  delivered(o9, 860, plan);
+
   // Opened by agents, not the owner (the live stream talks about them too).
   agentWork('W-000108', pcTech, 'PC-CEO', 'رفع خطای نمایش قیمت در ترمینال', 'P1', 'in_progress', 300);
   agentWork('W-000130', hqAi, 'HQ-AIOPS-MGR', 'بازبینی مصرف توکن هفته', 'P3', 'in_progress', 90);
@@ -498,7 +506,17 @@ export function tick21(): Ev[] {
 }
 
 // ================================================================================================== handler ==
+/** ⟨1.11⟩ §29 first (./mock-v29), which hands on what is not its own and decorates the employees with their state. */
 export async function handle(req: Request): Promise<Response> {
+  const u = new URL(req.url);
+  if (Date.now() >= restartUntil) {
+    const v29 = await handle29(req, u.pathname.replace(/^\/api\/v1/, ''), u.searchParams, handle21);
+    if (v29) return v29;
+  }
+  return handle21(req);
+}
+
+async function handle21(req: Request): Promise<Response> {
   const u = new URL(req.url);
   const p = u.pathname.replace(/^\/api\/v1/, '');
   const m = req.method;

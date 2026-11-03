@@ -14,10 +14,12 @@ import { ControlRoom, ControlSheets, StateChip, useControlData, useControlUi } f
 import { PriorityTag } from '@/components/v21/priority';
 import { useCompany, useEmployees, useOrgChart, useThreads, useWorkList } from '@/lib/api/hooks';
 import { useDepartments19 } from '@/lib/api/v19';
-import { CompanyServers } from '@/components/v26/company';
-import { CompanyCatalogue } from '@/components/v28/catalogue';
-import { useServed } from '@/lib/api/v28';
-import { ACTIVITY, DEPT_ICON, WORK_STATUS } from '@/lib/labels';
+import { EmployeeStateChip, StuckLine, ringOf } from '@/components/v29/bits';
+import { CompanyConnections } from '@/components/v29/connections';
+import { CompanyReadiness } from '@/components/v29/readiness';
+import { CompanyTech, type TechTab } from '@/components/v29/tech';
+import { stuckOf, useEmployeeFix, type Stuck } from '@/lib/api/v29';
+import { DEPT_ICON, WORK_STATUS } from '@/lib/labels';
 import { ago, cx, jDate, modelLabel, until } from '@/lib/format';
 import type { Schemas } from '@/lib/api/client';
 
@@ -27,11 +29,13 @@ function OrgNode({ n, depth = 0 }: { n: Node; depth?: number }) {
   return (
     <li className="flex flex-col gap-2">
       <Link href={`/employees/${n.code}`} className="flex items-center gap-3 rounded-[12px] p-2 hover:bg-hover">
-        <Avatar kind={n.kind} dept={n.department} state={n.activity} size={depth === 0 ? 44 : 36} />
+        <Avatar kind={n.kind} dept={n.department} state={ringOf(n as { state?: string | null; activity?: string | null })} size={depth === 0 ? 44 : 36} />
         <div className="flex min-w-0 flex-1 flex-col">
           <span className="truncate text-[14px] font-semibold">{n.display_name ?? n.title_fa}</span>
-          <span className="text-[11px] text-muted"><span className="fig">{n.code}</span>، {ACTIVITY[n.activity] ?? n.activity}</span>
+          <span className="text-[11px] text-muted"><span className="fig">{n.code}</span></span>
         </div>
+        {/* ⟨1.11⟩ §29.14: the employee's state on every chip. */}
+        <EmployeeStateChip e={n as { state?: string | null; activity?: string | null }} />
       </Link>
       {n.children.length ? (
         <ul className="mr-6 flex flex-col gap-1 border-r border-div pr-3">{n.children.map((c) => <OrgNode key={c.code} n={c} depth={depth + 1} />)}</ul>
@@ -39,6 +43,9 @@ function OrgNode({ n, depth = 0 }: { n: Node; depth?: number }) {
     </li>
   );
 }
+
+type Tab = 'control' | 'overview' | 'people' | 'work' | 'readiness' | 'connections' | 'tech' | 'brand';
+const TABS: Tab[] = ['control', 'overview', 'people', 'work', 'readiness', 'connections', 'tech', 'brand'];
 
 function CompanyInner({ code }: { code: string }) {
   const router = useRouter();
@@ -53,7 +60,9 @@ function CompanyInner({ code }: { code: string }) {
   const threads = (useThreads().data ?? []).filter((t) => t.company === code);
   const unread = threads.reduce((n, t) => n + (t.unread ?? 0), 0);
   const asked = search.get('tab');
-  const [tab0, setTab] = useState<'control' | 'overview' | 'people' | 'work' | 'brand' | 'servers' | 'catalogue'>(search.get('role') ? 'people' : asked === 'servers' || asked === 'overview' || asked === 'catalogue' ? asked : 'control');
+  // ⟨1.11⟩ servers and the catalogue live under «فنی» now; their old links open it there.
+  const [tab, setTab] = useState<Tab>(search.get('role') ? 'people' : asked === 'servers' || asked === 'catalogue' ? 'tech' : TABS.includes(asked as Tab) ? (asked as Tab) : 'control');
+  const [techTab, setTechTab] = useState<TechTab>(asked === 'servers' ? 'servers' : asked === 'catalogue' ? 'catalogue' : 'findings');
   const dept = search.get('dept');
   const role = search.get('role');
   const go = (q: { dept?: string | null; role?: string | null }) => {
@@ -65,9 +74,8 @@ function CompanyInner({ code }: { code: string }) {
     router.replace(`/companies/${code}${next.size ? `?${next}` : ''}`, { scroll: false });
   };
   const c = company.data;
-  // ⟨1.10⟩ hidden on a hub that does not build catalogues yet.
-  const catalogueServed = useServed('catalogue');
-  const tab = tab0 === 'catalogue' && !catalogueServed ? 'control' : tab0;
+  const holding = c?.kind === 'holding';
+  const runFix = useEmployeeFix();
   const d = useControlData();
   const ui = useControlUi();
   if (company.error) return <ErrorState error={company.error} onRetry={() => company.refetch()} />;
@@ -91,7 +99,13 @@ function CompanyInner({ code }: { code: string }) {
         <Link href="/control" className="text-[13px] text-sec hover:text-ink"><span className="inline-flex items-center gap-1.5"><Icon name="lock" size={16} />کنترل</span></Link>
       </div>
       {/* ⟨1.4.6⟩ the company's brand and seal are data (§18.14); the holding's own seal is fixed and is not. */}
-      <div className="no-scrollbar max-w-3xl overflow-x-auto"><Segmented label="بخش" value={tab} onChange={setTab} options={[{ value: 'control', label: 'اتاق کنترل' }, { value: 'overview', label: 'دپارتمان‌ها' }, { value: 'people', label: 'کارمندها' }, { value: 'work', label: 'کارها' }, ...(c && c.kind !== 'holding' ? [{ value: 'servers' as const, label: 'سرورها' },  ...(catalogueServed ? [{ value: 'catalogue' as const, label: 'کاتالوگ کامل' }] : []), { value: 'brand' as const, label: 'نشان و مُهر' }] : [])]} /></div>
+      {/* ⟨1.11⟩ the business first; everything technical (servers, the catalogue, technical findings) under «فنی». */}
+      <div className="no-scrollbar max-w-4xl overflow-x-auto"><Segmented label="بخش" value={tab} onChange={setTab} options={[
+        { value: 'control', label: 'اتاق کنترل' }, { value: 'overview', label: 'دپارتمان‌ها' }, { value: 'people', label: 'کارمندها' }, { value: 'work', label: 'کارها' },
+        ...(c && !holding ? [{ value: 'readiness' as const, label: 'آمادگی' }, { value: 'connections' as const, label: 'اتصال‌ها' }] : []),
+        { value: 'tech', label: 'فنی' },
+        ...(c && !holding ? [{ value: 'brand' as const, label: 'نشان و مُهر' }] : []),
+      ]} /></div>
 
       {tab === 'control' ? (
         c ? <ControlRoom co={c} d={d} ui={ui} /> : <Skeleton className="h-64 rounded-[16px]" />
@@ -127,12 +141,13 @@ function CompanyInner({ code }: { code: string }) {
             </Card>
           </div>
         </div>
-      ) : tab === 'servers' ? (
-        // ⟨1.8⟩ §26: the company's own servers under the holding's control.
-        <CompanyServers code={code} />
-      ) : tab === 'catalogue' ? (
-        // ⟨1.10⟩ §28.2: everything on the company's servers, read in depth and filed in the archive.
-        <CompanyCatalogue code={code} nameFa={c?.name_fa ?? code} />
+      ) : tab === 'tech' ? (
+        // ⟨1.11⟩ §29.1: technical findings and notifications, ⟨1.8⟩ §26 the servers, ⟨1.10⟩ §28.2 the full catalogue.
+        <CompanyTech code={code} nameFa={c?.name_fa ?? code} holding={holding} tab={techTab} onTab={setTechTab} />
+      ) : tab === 'readiness' ? (
+        <CompanyReadiness code={code} group={search.get('group')} />
+      ) : tab === 'connections' ? (
+        <CompanyConnections code={code} />
       ) : tab === 'brand' && c ? (
         <Card className="p-4"><BrandBlock code={c.code} nameFa={c.name_fa ?? c.code} nameEn={c.name_en ?? c.code} /></Card>
       ) : tab === 'people' ? (
@@ -143,15 +158,21 @@ function CompanyInner({ code }: { code: string }) {
           <table className="w-full min-w-[640px] border-collapse text-[13px]">
             <thead><tr className="text-right text-[11px] text-muted">{['کارمند', 'دپارتمان', 'وضعیت', 'مدل', 'نمره'].map((h) => <th key={h} className="px-3 py-2 font-semibold">{h}</th>)}</tr></thead>
             <tbody>
-              {(emps.data?.items ?? []).map((e) => (
-                <tr key={e.code} className="h-[52px] border-t border-div hover:bg-hover">
-                  <td className="px-3"><Link href={`/employees/${e.code}`} className="flex items-center gap-2.5"><Avatar kind={e.kind} dept={e.department} state={e.activity} size={32} /><span className="flex flex-col"><span className="font-semibold">{e.display_name ?? e.title_fa}</span><span className="fig text-[11px] text-muted">{e.code}</span></span></Link></td>
-                  <td className="fig px-3 text-sec">{e.department ?? '—'}</td>
-                  <td className="px-3 text-sec">{ACTIVITY[e.activity] ?? e.activity}</td>
-                  <td className="fig px-3 text-[12px] text-sec">{e.model ? `${modelLabel(String(e.model.model ?? ''))} · ${e.model.effort ?? ''}` : '—'}</td>
-                  <td className="px-3">{e.score.value != null ? e.score.value.toFixed(1).replace('.', '٫') : '—'}</td>
-                </tr>
-              ))}
+              {(emps.data?.items ?? []).map((e) => {
+                // ⟨1.11⟩ §29.14: idle, thinking, working, waiting, stuck (with its reason and fix) or done.
+                const st = e as typeof e & { state?: string | null; stuck?: Stuck | null };
+                const stuck = stuckOf(st);
+                return [
+                  <tr key={e.code} className="h-[52px] border-t border-div hover:bg-hover">
+                    <td className="px-3"><Link href={`/employees/${e.code}`} className="flex items-center gap-2.5"><Avatar kind={e.kind} dept={e.department} state={ringOf(st)} size={32} /><span className="flex flex-col"><span className="font-semibold">{e.display_name ?? e.title_fa}</span><span className="fig text-[11px] text-muted">{e.code}</span></span></Link></td>
+                    <td className="fig px-3 text-sec">{e.department ?? '—'}</td>
+                    <td className="px-3"><EmployeeStateChip e={st} /></td>
+                    <td className="fig px-3 text-[12px] text-sec">{e.model ? `${modelLabel(String(e.model.model ?? ''))} · ${e.model.effort ?? ''}` : '—'}</td>
+                    <td className="px-3">{e.score.value != null ? e.score.value.toFixed(1).replace('.', '٫') : '—'}</td>
+                  </tr>,
+                  stuck ? <tr key={`${e.code}-stuck`}><td colSpan={5} className="px-3 pb-2"><StuckLine stuck={stuck} company={code} run={runFix} /></td></tr> : null,
+                ];
+              })}
             </tbody>
           </table>
         </Card>

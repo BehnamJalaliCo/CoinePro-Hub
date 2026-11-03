@@ -52,7 +52,7 @@ export default function WorkPage({ params }: { params: Promise<{ id: string }> }
         <div className="flex min-w-0 flex-col gap-4">
           {order && track ? <OrderTrackerCard t={track} /> : null}
           {/* ⟨1.9⟩ §27.2 an order given to the council: each player, and Claude's synthesis (⟨1.10⟩ §28.4: failures in plain Persian). */}
-          <CouncilCard work={w.ref} mode={(w as { mode?: string | null }).mode} />
+          <CouncilCard work={w.ref} mode={(w as { mode?: string | null }).mode} title={w.title} />
           {track ? <TimelineCard t={track} /> : null}
           <Card className="flex flex-col gap-4 p-5">
             <h2 className="text-[14px] font-semibold">مسیر ارجاع</h2>
