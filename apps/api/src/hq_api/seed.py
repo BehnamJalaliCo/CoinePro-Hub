@@ -128,4 +128,17 @@ async def seed(tx: Tx) -> dict[str, Any]:
         added.update(
             {f"archive_{k}": v for k, v in (await archive_schema.seed(tx, holding["id"])).items()}
         )
+        # Prompt 21 part 3 (contract §29.11-§29.12): the companies' publishing
+        # channels (seed/channels.yaml, only added) and the working groups
+        # (seed/groups/*.yaml, a changed file a new version), then each eligible
+        # company's membership (no hire here: the groups' tick asks for that).
+        from hq_api.domain import connections as growth_connections
+        from hq_api.domain import groups as growth_groups
+
+        added["channels"] = await growth_connections.seed(tx)
+        added["groups"] = await growth_groups.seed(tx, holding["id"])
+        added["group_members"] = 0
+        for grow in await growth_groups.rows(tx):
+            joined = await growth_groups.reconcile_members(tx, grow, fill=False)
+            added["group_members"] += joined["joined"]
     return {"companies_filled": filled, **added}

@@ -338,6 +338,11 @@ OP_CLASS: dict[str, str] = {
     # ⟨1.10⟩ prompt 19 (contract §28.2-§28.3): the catalogue; the apps' error reports
     "catalogue.start": "A1",
     "client_errors.read": "A0",
+    # ⟨1.11⟩ prompt 21 part 3 (groups.rego, contract §29.11-§29.12): the content
+    # lead's plan and suggestion, the week's experiment, a company's connections
+    "group.plan": "A1",
+    "experiment.write": "A1",
+    "connection.read": "A0",
 }
 
 

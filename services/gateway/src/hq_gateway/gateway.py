@@ -44,6 +44,7 @@ from hq_gateway import (
     archive,  # noqa: F401 - prompt 14: archive.search/read/file/link/hold
     founding,  # noqa: F401 - registers server.plan (prompt 09)
     governance,  # noqa: F401 - prompt 11 §4-§10: kpi, okr, outcome, risk, calendar, authority
+    groups,  # noqa: F401 - prompt 21 part 3: group.plan, experiment.write, connection.read
     inquiries,  # noqa: F401 - inquiries, errands, planner, workshop.read
     knowledge,  # noqa: F401 - prompt 11: knowledge.propose/review/approve
     legal,  # noqa: F401 - prompt 13: case.open/note, email.draft, mail.read, media.voice
