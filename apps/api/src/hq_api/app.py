@@ -72,6 +72,7 @@ from hq_api.routes import ask as ask_routes  # prompt 12 §2, §3, §13 (on prom
 from hq_api.routes import dceo as dceo_routes
 from hq_api.routes import legal as legal_routes  # prompt 13: the legal counsel
 from hq_api.routes import media as media_routes  # prompt 13, the media half
+from hq_api.routes import order_report as order_report_routes  # prompt 21: §29.1-§29.2, §29.6
 from hq_api.routes import reviews as review_routes
 from hq_api.routes import role_drafts as role_draft_routes  # prompt 13 §1.1
 from hq_api.routes import servers as server_routes  # prompt 17: company server runners
@@ -264,6 +265,10 @@ def create_app(
     # ⟨1.7⟩ prompt 14 (contract §23): the archive of record and its agent tools.
     app.include_router(archive_routes.router, prefix="/api/v1")
     app.include_router(archive_agent_routes.internal_router, prefix="/internal/v1")
+    # ⟨1.11⟩ prompt 21 part 1 (contract §29.1, §29.2, §29.6): the order report and
+    # its fixes; order.ack, order.progress, work.budget, card.decide.
+    app.include_router(order_report_routes.router, prefix="/api/v1")
+    app.include_router(order_report_routes.internal_router, prefix="/internal/v1")
     app.state.version = __version__
 
     plain_openapi = app.openapi

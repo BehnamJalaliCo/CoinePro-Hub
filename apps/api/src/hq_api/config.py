@@ -131,9 +131,19 @@ class Settings:
     # The Chief Overseer (prompt 08 §2): protocol runs handed to a model per
     # owner day (the rest are code, skipped or deferred), and each run's token
     # budget, never above the assignee's charter (overseer v2: 200K a run).
+    # ⟨21⟩ the management review §5.1: one a day (a critical protocol always runs).
     oversight_model_runs_per_day: int = field(
-        default_factory=lambda: _int("HQ_OVERSIGHT_MODEL_RUNS_PER_DAY", 3)
+        default_factory=lambda: _int("HQ_OVERSIGHT_MODEL_RUNS_PER_DAY", 1)
     )
+    # ⟨21⟩ contract §29.2: every order is answered. More than this many agent
+    # runs on one order without a deliverable stop the order's open runs
+    # (`talk_loop`); the acknowledgement is due within ORDER_ACK_MINUTES; a step
+    # within ORDER_PROGRESS_HOURS (the CEO must report), and after
+    # ORDER_OWNER_HOURS the owner hears why.
+    order_talk_limit: int = field(default_factory=lambda: _int("ORDER_TALK_LIMIT", 12))
+    order_ack_minutes: int = field(default_factory=lambda: _int("ORDER_ACK_MINUTES", 10))
+    order_progress_hours: int = field(default_factory=lambda: _int("ORDER_PROGRESS_HOURS", 2))
+    order_owner_hours: int = field(default_factory=lambda: _int("ORDER_OWNER_HOURS", 6))
     oversight_run_tokens: int = field(
         default_factory=lambda: _int("HQ_OVERSIGHT_RUN_TOKENS", 60_000)
     )

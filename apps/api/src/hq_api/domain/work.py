@@ -33,6 +33,14 @@ from hq_api.schemas import (
 )
 
 OPEN = ("queued", "in_progress", "waiting")
+# ⟨21⟩ contract §29.2 (finding 3 of prompt 20): a partial deliverable (the
+# runner's «خروجی ناقص», out of steps or tokens) never closes any work.
+PARTIAL_PREFIX = "خروجی ناقص"
+# ⟨21⟩ §29.6: a run's cap counts a cache read at a tenth (the same context read
+# again); the Token Treasury keeps the full figures.
+CACHE_READ_SHARE = 0.1
+FLOOR_STEPS = 3  # a delegated budget covers at least three steps of its role
+FLOOR_SAMPLE = 20  # the role's last steps whose median input sets the floor
 # ⟨1.9⟩ employee kinds whose work always runs on Claude (§27.1 "unless its
 # assignee's charter forbids it"): oversight and the hub's own system roles.
 CLAUDE_ONLY_KINDS = ("overseer", "inspector", "system", "advisor")
@@ -433,9 +441,138 @@ async def delegate(
     return child
 
 
-async def set_status(tx: Tx, w: dict[str, Any], status: str, **cols: Any) -> None:
+def is_partial_title(title: str | None) -> bool:
+    return (title or "").strip().startswith(PARTIAL_PREFIX)
+
+
+def effective_tokens(
+    input_tokens: int, output_tokens: int, cache_read_tokens: int, cache_write_tokens: int
+) -> int:
+    """⟨21⟩ §29.6: what a call costs a run's (and a work's) budget."""
+    return (
+        int(input_tokens)
+        + int(output_tokens)
+        + int(cache_write_tokens)
+        + round(int(cache_read_tokens) * CACHE_READ_SHARE)
+    )
+
+
+async def delivered_status(tx: Tx, w: dict[str, Any]) -> str:
+    """⟨21⟩ contract §29.2 «the right state»: what a delivery makes of the
+    work. Its last deliverable partial: the work goes on (`in_progress`). The
+    root of an owner's order with a child still open (`waiting`) or its
+    progress below 100 (`in_progress`) is never `delivered`."""
+    row = await tx.one(
+        """SELECT w.parent_id, w.created_by_kind, w.progress_pct, w.status,
+                  (SELECT d.title FROM cartable.deliverables d WHERE d.work_id = w.id
+                    ORDER BY d.created_at DESC, d.ref DESC LIMIT 1) AS last_title,
+                  EXISTS (SELECT 1 FROM work.work c WHERE c.parent_id = w.id
+                            AND c.status IN ('queued', 'in_progress', 'waiting')) AS open_child
+           FROM work.work w WHERE w.id = :id""",
+        id=w["id"],
+    )
+    if is_partial_title(row["last_title"]):
+        return "waiting" if row["status"] == "waiting" else "in_progress"
+    if row["parent_id"] is None and row["created_by_kind"] == "owner":
+        if row["open_child"]:
+            return "waiting"
+        if row["progress_pct"] is not None and int(row["progress_pct"]) < 100:
+            return "in_progress"
+    return "delivered"
+
+
+async def set_status(tx: Tx, w: dict[str, Any], status: str, **cols: Any) -> str:
+    """⟨21⟩ `delivered` follows the right-state rule (delivered_status): a
+    work that may not be delivered yet stays open, without a delivery time.
+    Returns the status set."""
+    if status == "delivered":
+        status = await delivered_status(tx, w)
+        if status != "delivered":
+            cols = {k: v for k, v in cols.items() if k != "delivered_at"}
     sets = ", ".join(["status = :status", *[f"{k} = :{k}" for k in cols]])
     await tx.exec(f"UPDATE work.work SET {sets} WHERE id = :id", id=w["id"], status=status, **cols)  # noqa: S608
+    return status
+
+
+async def budget_floor(tx: Tx, charters: Any, role: str | None) -> int:
+    """⟨21⟩ §29.6: the least token budget a work for this role gets: three
+    steps of its charter, or three times the median real input of its last
+    20 steps (the Token Treasury), whichever is larger."""
+    if not role:
+        return 0
+    charter = charters.get(role) if charters is not None else None
+    per_step = int(charter.limits.tokens_per_step) if charter is not None else 0
+    median = await tx.scalar(
+        """SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY x.n) FROM (
+               SELECT COALESCE(c.input_tokens, 0) + COALESCE(c.cache_read_tokens, 0)
+                      + COALESCE(c.cache_write_tokens, 0) AS n
+               FROM llm.calls c
+               WHERE c.meta ? 'run_id' AND split_part(c.meta ->> 'charter', '@', 1) = :role
+               ORDER BY c.started_at DESC LIMIT :n) x""",
+        role=role,
+        n=FLOOR_SAMPLE,
+    )
+    return max(FLOOR_STEPS * per_step, FLOOR_STEPS * int(median or 0))
+
+
+async def raise_to_floor(tx: Tx, w: dict[str, Any], charters: Any) -> int | None:
+    """A new work's token budget raised to its assignee's floor (finding 2
+    of prompt 20: 60 000 was less than one step's context). Returns the new
+    budget when it was raised."""
+    if w.get("budget_tokens") is None or w.get("assignee_id") is None:
+        return None
+    role = await tx.scalar("SELECT role FROM core.employees WHERE id = :e", e=w["assignee_id"])
+    floor = await budget_floor(tx, charters, role)
+    if int(w["budget_tokens"]) >= floor:
+        return None
+    await tx.exec("UPDATE work.work SET budget_tokens = :b WHERE id = :id", b=floor, id=w["id"])
+    return floor
+
+
+async def add_budget(tx: Tx, w: dict[str, Any], tokens: int) -> int | None:
+    """⟨21⟩ §29.6 «+X»: more tokens for a work (its parents first, so a
+    child's budget still fits what they have left). A work without a budget
+    of its own keeps none (None). The work goes on: a `waiting` one is
+    `in_progress` again and its assignee is woken."""
+    row = await tx.one(
+        """SELECT id, ref, parent_id, budget_tokens, status, assignee_id, priority
+           FROM work.work WHERE id = :id FOR UPDATE""",
+        id=w["id"],
+    )
+    new: int | None = None
+    if row["budget_tokens"] is not None:
+        chain: list[dict[str, Any]] = []
+        cur = row
+        while cur["parent_id"] is not None:
+            cur = await tx.one(
+                "SELECT id, parent_id, budget_tokens FROM work.work WHERE id = :id FOR UPDATE",
+                id=cur["parent_id"],
+            )
+            if cur["budget_tokens"] is None:
+                break
+            chain.append(cur)
+        for parent in reversed(chain):  # the root first: each child must fit its parent
+            await tx.exec(
+                "UPDATE work.work SET budget_tokens = budget_tokens + :t WHERE id = :id",
+                t=tokens,
+                id=parent["id"],
+            )
+        new = int(row["budget_tokens"]) + tokens
+        await tx.exec("UPDATE work.work SET budget_tokens = :b WHERE id = :id", b=new, id=row["id"])
+    if row["status"] in OPEN:
+        if row["status"] == "waiting":
+            await tx.exec(
+                "UPDATE work.work SET status = 'in_progress' WHERE id = :id", id=row["id"]
+            )
+        if row["assignee_id"] is not None:
+            await tx.exec(
+                "SELECT agents.queue_run(:e, 'work', :w, NULL, :r, :p)",
+                e=row["assignee_id"],
+                w=row["id"],
+                r=f"budget_added:{row['ref']}",
+                p=row["priority"],
+            )
+    return new
 
 
 async def close_delivered_children(tx: Tx, w: dict[str, Any], who: Principal) -> list[str]:

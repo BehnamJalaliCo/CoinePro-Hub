@@ -12,12 +12,14 @@ from pydantic import BaseModel, Field, field_validator
 
 from hq_api import events, pagination
 from hq_api.context import Ctx, owner_ctx
+from hq_api.domain import routing
 from hq_api.domain.notify import COLUMNS, LEVELS
 from hq_api.errors import ApiError, responses
 
 router = APIRouter(tags=["notifications"])
 
 Level = Literal["urgent", "decision", "report", "info", "learning"]
+Domain = Literal["business", "media", "revenue", "product", "tech", "security", "infra"]
 
 
 class Link(BaseModel):
@@ -50,6 +52,11 @@ class Notification(BaseModel):
     answer: str | None
     state: str
     delivered: Delivered
+    # ⟨21⟩ contract §29.1: its domain, whether it reaches the owner, its handler
+    domain: Domain = "business"
+    owner_visible: bool = True
+    routed_to: str | None = None
+    critical_reason: Literal["data_leak", "product_down", "money", "legal"] | None = None
 
 
 class NotificationPage(BaseModel):
@@ -159,6 +166,7 @@ def to_notification(r: dict[str, Any]) -> Notification:
             fcm=r["delivered_fcm"],
             telegram=r["delivered_telegram"],
         ),
+        **routing.fields(r),
     )
 
 
@@ -197,9 +205,13 @@ async def list_notifications(
     unread: bool | None = None,
     limit: int = Query(default=50, ge=1, le=pagination.MAX_LIMIT),
     cursor: str | None = None,
+    scope: Literal["owner", "all"] = "owner",
+    domain: list[str] | None = Query(default=None, max_length=7),
 ) -> NotificationPage:
     """Notifications shown in the app (newest first). Held or queued items appear
-    once they are released (Khalvat off, digest)."""
+    once they are released (Khalvat off, digest). ⟨21⟩ §29.1: only what reaches
+    the owner (`owner_visible`) unless `?scope=all` (the app's «شرکت ← فنی»:
+    `?scope=all&domain=tech&domain=infra&domain=security&company=X`)."""
     c0, c1 = time_cursor(cursor)
     ids = await company_ids_for(ctx, company)
     async with ctx.tx() as tx:
@@ -207,6 +219,8 @@ async def list_notifications(
             f"""SELECT {COLUMNS} FROM notify.notifications n
                 JOIN core.companies c ON c.id = n.company_id
                 WHERE n.delivered_in_app
+                  AND (:scope = 'all' OR n.owner_visible)
+                  AND (CAST(:domains AS text[]) IS NULL OR n.domain = ANY(CAST(:domains AS text[])))
                   AND (CAST(:levels AS text[]) IS NULL OR n.level = ANY(CAST(:levels AS text[])))
                   AND (CAST(:cos AS uuid[]) IS NULL OR n.company_id = ANY(CAST(:cos AS uuid[])))
                   AND (CAST(:unread AS boolean) IS NULL
@@ -216,6 +230,8 @@ async def list_notifications(
                 ORDER BY n.created_at DESC, n.id DESC
                 LIMIT :lim""",  # noqa: S608 - constant column list, values are bound
             levels=level,
+            scope=scope,
+            domains=routing.parse_domains(domain),
             cos=ids,
             unread=unread,
             c0=c0,

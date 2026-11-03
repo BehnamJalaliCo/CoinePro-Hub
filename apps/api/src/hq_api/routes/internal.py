@@ -156,6 +156,12 @@ class NotificationIn(Model):
     choices: list[dict[str, str]] | None = Field(default=None, max_length=6)
     # Agents raise 🔴 only for an incident category (policy data); else it becomes 🟡.
     category: Literal["service_down", "security", "data_loss", "budget_hard_stop"] | None = None
+    # ⟨21⟩ §29.1: its domain (else by rule) and, for a technical one, the fixed
+    # list's reason that makes it the owner's too
+    domain: (
+        Literal["business", "media", "revenue", "product", "tech", "security", "infra"] | None
+    ) = None
+    critical_reason: Literal["data_leak", "product_down", "money", "legal"] | None = None
 
 
 class NotificationOut(BaseModel):
@@ -338,6 +344,12 @@ OP_CLASS: dict[str, str] = {
     # ⟨1.10⟩ prompt 19 (contract §28.2-§28.3): the catalogue; the apps' error reports
     "catalogue.start": "A1",
     "client_errors.read": "A0",
+    # ⟨1.11⟩ prompt 21 part 1 (routing.rego): every order answered, the
+    # delegation budget, the destructive cards a CTO decides
+    "order.ack": "A1",
+    "order.progress": "A1",
+    "work.budget": "A2",
+    "card.decide": "A2",
 }
 
 
@@ -688,16 +700,24 @@ async def deliver_work(
         if ctx.who.run_id is None:
             # A registered run's usage is booked on the work by the runtime, step
             # by step (agents.runs); a deliverable's `usage` is what it shows.
-            await W.add_usage(
+            await W.add_usage(  # ⟨21⟩ §29.6: a cache read at a tenth
                 tx,
                 w,
-                u.input_tokens + u.output_tokens + u.cache_read_tokens + u.cache_write_tokens,
+                W.effective_tokens(
+                    u.input_tokens, u.output_tokens, u.cache_read_tokens, u.cache_write_tokens
+                ),
                 u.equiv_cost_usd + u.cost_usd,
             )
-        await W.set_status(tx, w, "delivered", delivered_at=datetime.now().astimezone())
-        closed = await W.close_delivered_children(tx, w, ctx.who)
+        # ⟨21⟩ §29.2 the right state: a partial output, or an owner's order
+        # with a child still open or below 100%, stays open (W.delivered_status)
+        status = await W.set_status(tx, w, "delivered", delivered_at=datetime.now().astimezone())
+        closed = await W.close_delivered_children(tx, w, ctx.who) if status == "delivered" else []
         await W.event(
-            tx, w, "delivered", ctx.who, {"deliverable": dl["ref"], "closed_children": closed}
+            tx,
+            w,
+            "delivered" if status == "delivered" else "output",
+            ctx.who,
+            {"deliverable": dl["ref"], "closed_children": closed, "status": status},
         )
         await _audit_work(ctx, tx, w, "work.deliver", f"deliverable {dl['ref']}")
         # ⟨1.4⟩ a founding's audit (prompt 09 §2): the report goes to the founding
@@ -722,7 +742,7 @@ async def deliver_work(
             dl["ref"],
             {"work": w["ref"], "producer": ctx.who.code},
         )
-        await ctx.emit(tx, w["company"], "work.updated", w["ref"], {"status": "delivered"})
+        await ctx.emit(tx, w["company"], "work.updated", w["ref"], {"status": status})
         if w["parent_id"] is None:
             await notify.raise_notification(
                 tx,
@@ -859,6 +879,9 @@ async def request_work(
             schedule=body.schedule,
             requested_by_work_id=requested_by,
         )
+        if body.kind != "recurring" and await W.raise_to_floor(tx, w, ctx.hub.charters):
+            # ⟨21⟩ §29.6: never below the target role's floor (finding 2 of prompt 20)
+            w = await W.load(tx, w["id"])
         decision_ref = None
         if body.kind == "recurring":
             assert body.escrow is not None
@@ -1244,6 +1267,9 @@ async def raise_notification(
             source_kind=ctx.who.kind,
             source_code=ctx.who.code,
             choices=body.choices,
+            domain=body.domain,
+            critical_reason=body.critical_reason,
+            category=body.category if level == "urgent" else None,
         )
         await ctx.audit(
             tx,

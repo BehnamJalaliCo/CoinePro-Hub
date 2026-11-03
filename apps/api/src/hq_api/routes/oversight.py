@@ -23,7 +23,8 @@ from pydantic import BaseModel, Field
 from hq_api import idempotency, pagination
 from hq_api.context import Ctx, internal_ctx, owner_ctx
 from hq_api.db import Tx
-from hq_api.domain import control, gov_outcomes
+from hq_api.domain import control, gov_outcomes, routing
+from hq_api.domain import humanize as HZ
 from hq_api.domain import oversight as O
 from hq_api.errors import ApiError, responses
 from hq_api.routes.internal import allow
@@ -115,9 +116,9 @@ async def summary(ctx: Ctx = Depends(owner_ctx)) -> Summary:
             for c in await ctx.hub.companies.all()
             if c.kind != "holding" and c.status == "active"
         ]
-        sev = await tx.all(
+        sev = await tx.all(  # ⟨21⟩ §29.1: what reaches the owner
             "SELECT severity, count(*) AS n FROM oversight.findings"
-            " WHERE status NOT IN ('verified', 'closed') GROUP BY severity"
+            " WHERE status NOT IN ('verified', 'closed') AND owner_visible GROUP BY severity"
         )
         week = O.week_key(datetime.now(UTC), tz)
         ch = await tx.all(
@@ -238,20 +239,28 @@ async def list_findings(
     severity: Literal["info", "low", "medium", "high", "critical"] | None = None,
     limit: int = Query(default=50, ge=1, le=pagination.MAX_LIMIT),
     cursor: str | None = None,
+    scope: Literal["owner", "all"] = "owner",
+    domain: list[str] | None = Query(default=None, max_length=7),
     ctx: Ctx = Depends(owner_ctx),
 ) -> Page[O.Finding]:
-    """Findings, newest first, `?company&status&severity` (cursor page)."""
+    """Findings, newest first, `?company&status&severity` (cursor page). ⟨21⟩
+    §29.1: only what reaches the owner unless `?scope=all` (`&domain=`)."""
     at, fid = pagination.time_id(cursor)
+    domains = routing.parse_domains(domain)
     async with ctx.tx() as tx:
         rows = await tx.all(
             O.FINDING_SQL
             + """ WHERE (CAST(:co AS text) IS NULL OR c.code = :co)
+                  AND (:scope = 'all' OR f.owner_visible)
+                  AND (CAST(:domains AS text[]) IS NULL OR f.domain = ANY(CAST(:domains AS text[])))
                   AND (CAST(:st AS text) IS NULL OR f.status = :st)
                   AND (CAST(:sev AS text) IS NULL OR f.severity = :sev)
                   AND (CAST(:at AS timestamptz) IS NULL
                        OR (f.opened_at, f.id) < (CAST(:at AS timestamptz), CAST(:id AS uuid)))
                 ORDER BY f.opened_at DESC, f.id DESC LIMIT :lim""",
             co=company,
+            scope=scope,
+            domains=domains,
             st=status,
             sev=severity,
             at=at,
@@ -261,7 +270,15 @@ async def list_findings(
         items, nxt = pagination.page(
             [{**r, "at": r["opened_at"]} for r in rows], limit, ("at", "id")
         )
-        return Page(items=[O.render_finding(r) for r in items], next_cursor=nxt)
+        return Page(items=[_for_owner(O.render_finding(r)) for r in items], next_cursor=nxt)
+
+
+def _for_owner(f: O.Finding) -> O.Finding:
+    """⟨21⟩ §29.7: a finding the owner sees reads in plain Persian (the
+    original stays in its record, for its handler and for `?scope=all`)."""
+    if not f.owner_visible:
+        return f
+    return f.model_copy(update={"title_fa": HZ.humanize(f.title_fa) or f.title_fa})
 
 
 @router.get("/oversight/findings/{ref}", response_model=O.Finding, responses=E)
@@ -560,6 +577,12 @@ class FindingRaiseIn(Model):
     kind: Literal["security", "app_health", "code", "growth", "holding"] | None = None
     fix_md: str | None = Field(default=None, max_length=20000)
     fix: O.FindingFix | None = None
+    # ⟨21⟩ §29.1: its domain (else by rule), and the fixed list's reason when a
+    # technical finding is critical for the owner too
+    domain: (
+        Literal["business", "media", "revenue", "product", "tech", "security", "infra"] | None
+    ) = None
+    critical_reason: Literal["data_leak", "product_down", "money", "legal"] | None = None
 
 
 class FindingUpdateIn(Model):
@@ -651,6 +674,8 @@ async def raise_finding(
             kind=body.kind,
             fix_md=await scrub_async(body.fix_md) if body.fix_md else None,
             fix=body.fix.model_dump(exclude_none=True) if body.fix else None,
+            domain=body.domain,
+            critical_reason=body.critical_reason,
         )
         await ctx.audit(
             tx,

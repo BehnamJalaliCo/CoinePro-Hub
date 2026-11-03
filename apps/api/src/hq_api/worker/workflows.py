@@ -142,6 +142,10 @@ class Maintenance:
             "backups_ingest",
             "inquiries_late",
             "oversight_tick",
+            # ⟨1.11⟩ prompt 21 (contract §29.1-§29.2): every order answered, the
+            # weekly technical summary (Saturday 09:00, the owner's time)
+            "order_tick",
+            "tech_summary",
         ):
             try:
                 out[name] = await _act(name, limit=LONG, retry=RetryPolicy(maximum_attempts=3))
