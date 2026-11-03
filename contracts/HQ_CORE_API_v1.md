@@ -3091,6 +3091,12 @@ Readiness { company, group, ready: bool, checks: [{key, ok, title_fa, detail_fa,
   set; at least one sealed series per channel; the publishing channels connected (IG-Hub, Telegram); the media tools available (render
   and voice on the hub, started on demand like STT); the players; the runner online.
 - Every failed check has a fix button (`hire`, `series.propose`, `connection.guide`, `media.on`, …).
+- ⟨1.11.1, as built⟩ check keys: `group`, `seat:<seat>` (required seats only), `hiring`, `envelope`, `channels`,
+  `connection:<kind>` and `series:<kind>` per publishing channel, `media_tools`, `players`, `runner`. Fix actions:
+  `group.resume` (target `<group>:<CODE>`), `hire` (`<CODE>:<role>`), `hiring.open` (`holding`), `envelope.set` (`<CODE>`),
+  `connection.guide` (`<kind>`), `series.propose` (`<CODE>:<kind>`), `media.on` (`media`), `lock.open` (`holding`),
+  `runner.check` (`<CODE>:<server>`). An ok check has `fix: null`. Render and voice are the opt-in profiles `media` and
+  `tts`; the hub does not start them on demand yet (STT's host starter is not reused), so `media.on` is the owner's.
 
 ### 29.10 Automatic hiring (owner's decision, 2026-11-02)
 - Hiring is `open` with `mode: "auto"` for every company: a CEO's `hire` within the company's month envelope is approved by code, and a
@@ -3117,6 +3123,15 @@ Experiment { id, group, company, week, hypothesis_fa, metric, target, result|nul
 - Routes: `GET /groups`, `GET /groups/{key}`, `GET /groups/{key}/members`, `PUT /groups/{key}/members/{code} {state}`, `GET /groups/{key}/runs`,
   `PUT /groups/{key}/routines/{routine} {state}`, `GET /groups/{key}/kpis?company&days`, `GET /groups/{key}/experiments?company`.
 - Seeded data (owner's answers, 2026-11-02): **the signal channel belongs to TradeYar**; **every Instagram account is on IG-Hub**.
+- ⟨1.11.1, as built⟩ additive fields: `Group.version`, `Group.lead`; `Seat.optional` (`video_director`, `voice_producer`:
+  no readiness gap); `Routine.task_class|null`, `Routine.needs|null` (`sealed_series`: the publishing routine runs only
+  when the company has a sealed series, else a `skipped` run says why); `Kpi.seat`; `Membership.name_fa`, `.plan`,
+  `.plan_at` (the content lead's `group.plan`), `MemberSeat {seat, role, title_fa, employee, optional}`;
+  `RoutineRun.occurrence_at`, `.employee` (runs are listed newest period first). A routine's occurrence that the tick
+  reaches more than 2 hours late is left (no backlog). `GET /groups/{key}/kpis` answers
+  `{group, days, companies: [{code, name_fa, kpis: [{key, title_fa, unit, source, series: [{day, value}]}]}]}`.
+  Experiment additive: `baseline`, `note_fa`, `closed_at`. Agent tools: `group.plan` (A1: the content lead or the CEO),
+  `experiment.write` (A1: the analyst or the lead), `connection.read` (A0: own company; holding readers any).
 
 ### 29.12 Connections: what can be measured and managed
 ```
@@ -3133,6 +3148,16 @@ Connection { company, kind: "search_console"|"ga4"|"instagram"|"telegram"|"youtu
 - **Daily read** by code (no model): each connected kind's free API into `growth.metrics_daily (company, kind, day, key, value, source)`.
   Instagram is read through IG-Hub's own runner (a fixed read-only job of its config), never with a token on the hub.
 - No model guesses a figure a connection gives.
+- ⟨1.11.1, as built⟩ `Connection` adds `missing_fa: [str]` (what it still needs), `reader: bool` (the hub reads it by
+  itself), `secret_needed: true|false|null` (null: optional); `Daily` adds `subject` (the channel, site, property or
+  account). `PUT …/{kind}` takes `{config, label_fa?}` (a secret-like key is refused); 🔏 `connection.config` targets the
+  SHA-256 of the body; 🔏 `connection.secret` targets `<CODE>:<kind>`; its answer is `{company, kind, secret: "set"}`.
+  `GET /connections/guides/{kind}` → `{kind, title_fa, body_md}`. `growth.metrics_daily` holds
+  `(company, kind, day, key, subject, value, source)`; kind `hub` is the hub's own count (items published, cost per
+  published item, experiments closed). Readers built: telegram (members per channel; a bot sees no post views),
+  pagespeed, search_console, ga4, youtube, instagram (IG-Hub's read-only `exec` job; its command must read only);
+  x, trends, bing, play_console: «خواندن خودکار این اتصال هنوز ساخته نشده». Every read leaves through egress
+  (`POST /v1/http`, the call's own account) and is in the egress log.
 
 ### 29.13 The owner's home
 ```
@@ -3148,6 +3173,11 @@ Progress   { id, company, title_fa, before: {value, at}, after: {value, at}, kpi
 - `POST /home/suggestions/{id} {action: "run"|"later"|"no", reason_fa?}`: `run` makes an order (§29.4); `no` keeps the reason.
 - **Morning** (5 lines, 08:00 Tehran, rule-based, §29.7 applied): yesterday's outputs, the best KPI move, what waits for the owner.
 - Nothing technical is on the home but `critical` (§29.1). Stream `home.updated`.
+- ⟨1.11.1, as built⟩ `Suggestion.name_fa`, `Progress.name_fa` additive; `HomeKpi.source` additive. `critical` holds
+  the unread urgent notifications of the last 7 days (owner-visible only once §29.1's columns exist). `run` needs an
+  `Idempotency-Key` (the order is made through `POST /orders` with it, once); `later` hides it 3 days. A suggestion
+  whose text is not plain Persian after `humanize` is never stored or shown. Progress: a series' latest point (the
+  last 3 days) against the point about a week before; `position`, `lcp_ms`, `cls` are better when they fall.
 
 ### 29.14 Employee state (as Grok Bot shows it)
 - Each employee in `GET /companies/{code}/employees` and `GET /employees/{code}` adds
@@ -3166,5 +3196,6 @@ Progress   { id, company, title_fa, before: {value, at}, after: {value, at}, kpi
 
 ### 29.16 Stream types, decision kinds and step-up targets added
 - Stream: `order.report`, `home.updated`, `group.run`, `connection.updated`, `suggestion.updated`, `rule.report`.
+  ⟨1.11.1⟩ SSE topics: `home` (`home.`, `suggestion.`) and `groups` (`group.`, `connection.`).
 - Agent tools: `order.ack`, `order.progress`, `work.budget`, `card.decide`, `group.plan`, `connection.read`, `experiment.write`.
 - Step-up: `settings.destructive`, `connection.secret`, `connection.config`, `rule.seal` (= the standing order's seal).
