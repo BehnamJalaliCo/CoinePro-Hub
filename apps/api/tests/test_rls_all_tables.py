@@ -530,6 +530,11 @@ HOLDING_ONLY = {
     "archive.sources",
     "archive.fixity_runs",
     "archive.holds",
+    # prompt 21 part 3: the working groups' definitions and the home's morning
+    # lines are the holding's; memberships, runs and figures are each company's
+    "growth.groups",
+    "growth.group_versions",
+    "growth.home_mornings",
 }
 
 
@@ -1206,6 +1211,56 @@ async def _fill_p13a_media(su: Any, co: dict[str, Any]) -> None:
     )
 
 
+async def _fill_p21c(su: Any, co: dict[str, Any]) -> None:
+    """Prompt 21 part 3 (migration 0039): one row of company `co` in each of its
+    tenant tables (growth.* per company, owner.suggestions, owner.progress)."""
+    import secrets as _s
+
+    c = co["id"]
+    group = await su.fetchval("SELECT id FROM growth.groups WHERE key = 'content'")
+    await su.execute(
+        "INSERT INTO growth.memberships (company_id, group_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        c,
+        group,
+    )
+    await su.execute(
+        """INSERT INTO growth.routine_runs (company_id, group_id, routine, occurrence_at, state)
+           VALUES ($1, $2, 'plan', now(), 'skipped')""",
+        c,
+        group,
+    )
+    await su.execute(
+        """INSERT INTO growth.experiments (company_id, group_id, week, hypothesis_fa, metric, target,
+               created_by_code) VALUES ($1, $2, current_date, 'فرضیه', 'views', 1, 'x')""",
+        c,
+        group,
+    )
+    await su.execute(
+        """INSERT INTO growth.connections (company_id, kind, label_fa) VALUES ($1, 'telegram', 'تلگرام')
+           ON CONFLICT DO NOTHING""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO growth.metrics_daily (company_id, kind, day, key, value, source)
+           VALUES ($1, 'telegram', current_date, 'followers', 1, 'telegram')""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO owner.suggestions (company_id, kind, title_fa, impact, cost, source, key)
+           VALUES ($1, 'good', 'پیشنهاد', 2, 1, 'group', $2)""",
+        c,
+        f"rls:{_s.token_hex(6)}",
+    )
+    await su.execute(
+        """INSERT INTO owner.progress (company_id, title_fa, kpi, kind, before_value, before_at,
+               after_value, after_at, source, key)
+           VALUES ($1, 'پیشرفت', 'followers', 'telegram', 1, current_date - 7, 2, current_date,
+                   'telegram', $2)""",
+        c,
+        f"rls:{_s.token_hex(6)}",
+    )
+
+
 async def _fill_p17(su: Any, co: dict[str, Any]) -> None:
     """Prompt 17 (migration 0032): one row of company `co` in each new table of infra."""
     import secrets as _s
@@ -1303,6 +1358,7 @@ async def test_no_table_leaks_between_companies(
     await _fill_p13b(su, b)
     await _fill_p14(su, b)
     await _fill_p17(su, b)
+    await _fill_p21c(su, b)
     tables = await su.fetch(
         """SELECT c.table_schema AS s, c.table_name AS t FROM information_schema.columns c
            JOIN information_schema.tables x ON x.table_schema = c.table_schema AND x.table_name = c.table_name
