@@ -55,6 +55,9 @@ class RStep(BaseModel):
     timeout_s: float | None = Field(default=None, gt=0, le=600)
     optional: bool = False
     ms: int | None = Field(default=None, ge=0, le=5000)
+    # ⟨20.1⟩ `read` only: other selectors tried in turn when `selector` matches
+    # nothing (a structural one first, a labelled one after: lesson of 19.3)
+    alt: list[str] | None = Field(default=None, max_length=4)
 
     @model_validator(mode="after")
     def _needs(self) -> RStep:
@@ -69,6 +72,10 @@ class RStep(BaseModel):
             raise ValueError("press needs a key")
         if self.do == "fill" and self.text not in ("{prompt}",):
             raise ValueError("fill types the prompt only")
+        if self.alt is not None and self.do != "read":
+            raise ValueError("alt is for read only")
+        if any(not a or len(a) > 500 for a in self.alt or []):
+            raise ValueError("an alt selector is 1-500 characters")
         return self
 
 

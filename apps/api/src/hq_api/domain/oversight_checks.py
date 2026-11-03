@@ -340,6 +340,63 @@ async def _hires_to_review(tx: Tx) -> bool:
 
 PRECHECKS["PR-098"] = _hires_to_review
 
+# ⟨20.1⟩ the watch (§28.3) first by rule: the daily security sweep and the daily
+# app health go to a model only when code found something real to look at.
+EXPECTED_PUBLIC_PORTS = frozenset({22, 80, 443})
+DISK_FULL = 0.8
+CERT_DAYS = 21
+
+
+async def security_signals(tx: Tx) -> list[str]:
+    """PR-140 by rule, no model: what the hub already knows of every paired
+    server (the runner's map) and of the sites. Empty: nothing to review."""
+    out: list[str] = []
+    for s in await tx.all(
+        """SELECT c.code, s.name, s.map FROM infra.servers s JOIN core.companies c ON c.id = s.company_id
+           WHERE s.origin = 'attached' AND s.state IN ('online', 'offline') AND s.map IS NOT NULL"""
+    ):
+        m = s["map"] if isinstance(s["map"], dict) else json.loads(s["map"] or "{}")
+        for p in m.get("ports") or []:
+            if (
+                isinstance(p, dict)
+                and p.get("public")
+                and p.get("port") not in EXPECTED_PUBLIC_PORTS
+            ):
+                out.append(f"{s['code']}/{s['name']}: port {p.get('port')} bound publicly")
+        for d in m.get("disks") or []:
+            total, used = (d or {}).get("total_gb") or 0, (d or {}).get("used_gb") or 0
+            if total and used / total >= DISK_FULL:
+                out.append(
+                    f"{s['code']}/{s['name']}: disk {d.get('mount')} {round(100 * used / total)}%"
+                )
+    for r in await tx.all(
+        """SELECT s.url, k.tls_days_left FROM ops.sites s
+           JOIN LATERAL (SELECT tls_days_left FROM ops.checks c WHERE c.site_id = s.id
+                         ORDER BY c.at DESC LIMIT 1) k ON true
+           WHERE s.enabled AND NOT s.canary AND k.tls_days_left IS NOT NULL AND k.tls_days_left < :d""",
+        d=CERT_DAYS,
+    ):
+        out.append(f"{r['url']}: TLS {r['tls_days_left']} days left")
+    return out
+
+
+async def _security_to_review(tx: Tx) -> bool:
+    return bool(await security_signals(tx))
+
+
+async def _app_errors_to_review(tx: Tx) -> bool:
+    """PR-141 by rule: an app reported an error (not a warning) in the last day."""
+    return bool(
+        await tx.scalar(
+            """SELECT 1 FROM ops.client_errors WHERE level = 'error'
+                 AND at > now() - interval '24 hours' LIMIT 1"""
+        )
+    )
+
+
+PRECHECKS["PR-140"] = _security_to_review
+PRECHECKS["PR-141"] = _app_errors_to_review
+
 
 @check("PR-052")
 async def findings_on_time(ctx: CheckCtx) -> Checked:

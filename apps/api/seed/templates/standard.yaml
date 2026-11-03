@@ -312,6 +312,9 @@ departments:
       - {role: motion_designer, why_fa: موشن‌گرافی به‌صورت کد، render و اصلاح بعد از بازبینی, first: true}
       - {role: voice_producer, why_fa: روایت با صدای خود هاب، هم‌زمان با نماها, first: true}
       - {role: visual_designer, why_fa: تصویر پست، کاروسل، استوری و کاور ویدیو, first: true}
+      # ⟨prompt 21⟩ the content working group's last two seats (docs/MANAGEMENT_REVIEW_2026-11.md §4)
+      - {role: publisher, why_fa: انتشار سرِ وقت در سری مُهرشده، سنجیدن پست زنده و ثبت لینک, first: true}
+      - {role: content_analyst, why_fa: عدد هر پست از اتصال‌ها، مرور هفتگی و آزمایش هفته, first: true}
       - {role: ui_designer, why_fa: بازطراحی UI سایت‌ها برای CTO, first: false}
 leadership:
   ceo:

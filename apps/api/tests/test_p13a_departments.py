@@ -20,6 +20,7 @@ from .conftest import step_up
 
 MEDIA_TEAM = {
     "scriptwriter", "video_director", "motion_designer", "voice_producer", "visual_designer", "ui_designer",
+    "publisher", "content_analyst",  # ⟨prompt 21⟩ the content working group's seats
 }  # fmt: skip
 
 

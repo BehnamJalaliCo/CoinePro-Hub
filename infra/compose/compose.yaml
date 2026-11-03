@@ -644,6 +644,10 @@ services:
       # Prompt 12 (contract §21.0, §21.7): the owner zone's share (the api defers
       # what no longer fits) and the route a new connection's secret may take.
       AGENT_DAILY_TOKEN_CAP: ${AGENT_DAILY_TOKEN_CAP:-2000000}
+      # Prompt 20.1 (contract §28.7): each company's own daily cap (its row's, else this)
+      # and one catalogue run's tokens on the company's servers.
+      AGENT_COMPANY_DAILY_TOKEN_CAP: ${AGENT_COMPANY_DAILY_TOKEN_CAP:-400000}
+      HQ_CATALOGUE_RUN_TOKENS: ${HQ_CATALOGUE_RUN_TOKENS:-1500000}
       OWNER_ZONE_DAILY_SHARE: ${OWNER_ZONE_DAILY_SHARE:-0.25}
       CONNECTION_SECRET_ROUTE: ${CONNECTION_SECRET_ROUTE:-api}
       # Prompt 12 §9.1: hq.sh sets it on only while the substitutes runner's
@@ -714,6 +718,10 @@ services:
       PROMETHEUS_URL: http://prometheus:9090
       HQ_HUB_STATUS_DIR: /hub-status
       AGENT_DAILY_TOKEN_CAP: ${AGENT_DAILY_TOKEN_CAP:-2000000}
+      # Prompt 20.1 (contract §28.7): each company's own daily cap (its row's, else this)
+      # and one catalogue run's tokens on the company's servers.
+      AGENT_COMPANY_DAILY_TOKEN_CAP: ${AGENT_COMPANY_DAILY_TOKEN_CAP:-400000}
+      HQ_CATALOGUE_RUN_TOKENS: ${HQ_CATALOGUE_RUN_TOKENS:-1500000}
       OVERSIGHT_DAILY_SHARE: ${OVERSIGHT_DAILY_SHARE:-0.2}
       # Prompt 11 §1.2: the meetings' share of the daily cap (a meeting that does not fit is `written`).
       MEETINGS_DAILY_SHARE: ${MEETINGS_DAILY_SHARE:-0.15}

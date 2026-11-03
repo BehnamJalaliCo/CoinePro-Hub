@@ -13,7 +13,10 @@ from hq_api.domain import decisions as D
 from hq_api.domain import templates
 from hq_api.hub import Hub
 
-ROLES = ("scriptwriter", "video_director", "motion_designer", "voice_producer", "media_director")
+ROLES = (
+    "scriptwriter", "video_director", "motion_designer", "voice_producer", "media_director",
+    "publisher", "content_analyst",
+)  # fmt: skip
 
 
 def test_the_media_prompts_fixed_size(hub: Hub, capsys: Any) -> None:

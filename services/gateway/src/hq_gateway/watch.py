@@ -7,7 +7,9 @@ own error reports, as tools.
                             its own company (an order to "go through the
                             server and extract everything" is this, never a
                             summary of its own); the overseer, the advisor
-                            and the platform SRE for any company.
+                            and the platform SRE for any company. ⟨20.1⟩ A
+                            run starts only for an order of the owner (else
+                            the latest, or owner_order_required).
     client.errors (A0)      {app?, version?, from?}: the apps' error log,
                             newest first (the overseer's daily app health).
 """

@@ -9,6 +9,10 @@
 >
 > **v1.2 (۲۰۲۶-۱۰-۱۷):** ایجنت‌ها سر کار (§۱۶، پرامپت ۵). **v1.3 (۲۰۲۶-۱۰-۱۷):** عکس و فیلم و صوت در پیام‌ها، تبدیل دقیق صدای فارسی به متن، کارگاه کد و فرمان صوتی (§۱۷، پرامپت ۶). **v1.4 (۲۰۲۶-۱۰-۱۷):** تصمیم‌های دور دوم مالک: ناظر کل، مشاور نسخه‌ی ۲، دستیار شخصی، ستاره‌ها، مهارت‌ها، آکادمی، اینترنت کامل و MCP برای ایجنت‌ها، تأسیس شرکت و ساخت سرور، backup ساعتی (§۱۸، پرامپت‌های ۷ تا ۹). **v1.4.1 (۲۰۲۶-۱۰-۱۷):** آنچه پرامپت ۵ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۶.۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_05_1_FIXES.md`. **v1.4.2 (۲۰۲۶-۱۰-۱۷):** استخدام با شروع خود مالک (§۱۸.۱۱). **v1.4.3 (۲۰۲۶-۱۰-۱۷):** مدیرعامل‌ها با اختیار کامل در پاکت بودجه‌ی ماهانه استخدام میکنند و مدل هر کار را خودشان انتخاب میکنند (§۱۸.۱۱)؛ استوری شرکت‌ها (§۱۸.۱۲)؛ ستاره برای مصرف درست بودجه (§۱۸.۴). **v1.4.4 (۲۰۲۶-۱۰-۱۷):** پروتکل‌هایی که قابلیتشان هنوز ساخته نشده `paused` میمانند و نظارت سهم توکن خودش را دارد (§۱۸.۱)؛ ممیزی دوم در `docs/GAP_ANALYSIS_v2.md`. **v1.4.5 (۲۰۲۶-۱۰-۱۸):** آنچه پرامپت ۷ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۳)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_07_1_FIXES.md`. **v1.4.6 (۲۰۲۶-۱۰-۱۹):** نشان و مُهر هر شرکت از PNG خود مالک ساخته میشود و داده است (§۱۸.۱۴، پرامپت ۹.۱). **v1.4.7 (۲۰۲۶-۱۰-۲۲):** آنچه پرامپت ۸ ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۵)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_08_1_FIXES.md`. **v1.4.8 (۲۰۲۶-۱۰-۲۲):** آنچه پرامپت ۹ ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_09_2_FIXES.md`. **v1.6 (۲۰۲۶-۱۰-۲۲):** دپارتمان رسانه و طراحی در هر شرکت با برنامه‌ی انتشار مُهرشده، صدای متن‌باز روی هاب، و مشاور حقوقی هلدینگ با مکاتبه‌ی ایمیلی (§۲۲، پرامپت ۱۳). **v1.5 (۲۰۲۶-۱۰-۱۸):** درآمد و پشتیبانی: رادار درآمد، قیف و نجات رفرال، میز پشتیبانی با حالت آموزش و آزمون سایه، قالب‌ها و قاعده‌های چرخه‌ی عمر، NPS، صندوق بازخورد، نگهبان خروجی (§۱۹، پرامپت ۱۰)؛ حاکمیت: اتاق جلسه، اساسنامه، دانشنامه‌ی چهارلایه، سه کارت و کارت امتیاز، OKR، بازبینی نتیجه‌ی تصمیم، ماتریس اختیار، دفتر ریسک، تقویم تغییرات، مُهر گروهی (§۲۰، پرامپت ۱۱)؛ ابزار مدیریت: مشاور پریمیوم، «از هاب بپرس»، گزارش صوتی، ارزیابی ماهانه، هدررفت، ROI، پیش‌بینی مدیر کل دیجیتال، MCP کانتینری، و ChatGPT و Gemini به‌عنوان «بازیکن ذخیره» (§۲۱، پرامپت ۱۲).
 
+> **v1.11 (۲۰۲۶-۱۱-۰۲):** مالک فقط کسب‌وکار میبیند (§۲۹، پرامپت ۲۱): مسیر بر پایه‌ی حوزه، ضمانت جواب هر فرمان با «گزارش فرمان»، قانون‌گذاری مالک از اپ، منشی هلدینگ، صدای بلند، بودجه‌ی ارجاع، زبان فارسی و بازنویسی برای مدیر کل، شورای v2، آمادگی، استخدام خودکار، کارگروه‌ها، اتصال‌ها، خانه‌ی سه‌کارتی، وضعیت کارمند و مرز تأیید.
+
+> **v1.10.2 (۲۰۲۶-۱۱-۰۲):** هزینه‌ی هلدینگ (§۲۸.۷، پرامپت ۲۰.۱): کاتالوگ فقط با دستور مالک و با سقف توکن، دیده‌بان اول با قاعده، سقف روزانه‌ی هر شرکت، سهم هر حوزه در گزارش، و متن GPT از چت وب ChatGPT.
+
 > **v1.7 (۲۰۲۶-۱۰-۲۲):** بایگانی رسمی هلدینگ و هر شرکت (§۲۳، پرامپت ۱۴): سند، نسخه و مُهر، طرح بایگانی، سطح محرمانگی و مجوز دیدن، نگهداری و امحا با مُهر مالک، توقیف قانونی، یادآور سررسید، OCR فارسی روی هاب؛ «لایه‌ی باز»: نوع سند، فیلد، پوشه، سطح، قاعده، یادآور و اتوماسیون، همه داده و از اپ قابل گسترش.
 
 ---
@@ -2896,3 +2900,271 @@ through the TradeYar server and extract everything" was shallow, and three of fo
 - **Missing access:** what the job still cannot read is listed in the section's `notes_fa`, with the exact command that was refused.
 - **No secrets:** every catalogue answer passes the hub's secret masker before it is stored or shown.
   - The overseer's «الگوی رمز در خروجی ایجنت» finding on a catalogue therefore closes once the catalogue is re-rendered masked.
+
+### 28.7 What the holding spends ⟨1.10.2⟩ (2026-11-02, prompt 20.1)
+Prompt 20's diagnosis: 97.6% of the week's tokens went to one catalogue run (24 Claude Code jobs, 50M tokens in an hour, started
+by the watch after the owner's clean-up cleared the week's claim); the owner's clip order got 0.5%. Every rule below is code.
+- **The catalogue (§28.2) runs only on the owner's order.**
+  - `POST /companies/{code}/catalogue` (the owner) is unchanged.
+  - `company.catalogue {start: true}` starts a run only when the agent's run works on a work item created by the owner, or one
+    requested or split from it (up the `parent_id` / `requested_by_work_id` chain). Otherwise it answers the latest catalogue, or
+    `409 owner_order_required` when there is none.
+  - The watch no longer refreshes it weekly; it only ends runs left waiting on a server that is off.
+- **A token cap per run:** `HQ_CATALOGUE_RUN_TOKENS` (default 1 500 000) for every server and section of one run together.
+  - Each `claude` job gets its share as `token_cap` (at least 60 000) and `max_turns: 25`.
+  - A second try of a section is asked only while the run's spent tokens plus that share fit the cap.
+  - **Runner 0.2.2:** adds up every assistant message's usage (input + output + cache reads and writes, a message once) and stops
+    the session the moment it passes `token_cap`: exit code `125`, `output.token_cap_reached: true`, the usage it reached.
+    An older runner keeps to `max_turns` only.
+  - The jobs run on the company's own server and its own Claude Code login: their `llm.calls` rows carry
+    `meta.quota = "company_server"` and `meta.via = "catalogue" | "server_claude"`, and never count against the hub's daily cap.
+- **The watch, rule first (§28.3):**
+  - The daily security sweep (PR-140) reads every paired server's map (a port bound publicly other than 22, 80, 443; a disk at 80%
+    or more) and the sites' certificates (fewer than 21 days) by code. Nothing found: the run passes with no model. Something found:
+    the model's brief starts with what the rules found.
+  - The daily app health (PR-141) calls a model only on a day an app reported an `error`.
+  - The code review of every repository (PR-142) runs on the 1st of the Jalali month, not weekly.
+- **A daily cap per company:** `core.companies.daily_token_cap` (`NULL` = `AGENT_COMPANY_DAILY_TOKEN_CAP`, default 400 000; `0` =
+  only the hub's cap). A company's agent runs of the UTC day (input + output + cache tokens) stop at it, checked when a run is
+  claimed and before every model call (`daily_cap`), next to the hub's own `AGENT_DAILY_TOKEN_CAP`.
+- **Spend by domain:** every `llm.calls` row falls in one domain, by rule: `catalogue`, `server`, `oversight`, `advisor`, `council`,
+  `meetings`, `media`, `work`. The morning report shows yesterday's share and, on the owner's Saturday, the past week's; a
+  warning line when `catalogue`, `oversight` or `server` leads.
+- **`treasury.usage`** (finding 7): `{scope?: company|holding|<CODE>, period?: day|week|month, company?, department?, role?}`, any
+  case; the answer adds `by_domain` and `by_department`.
+- **GPT's text on ChatGPT's web chat** (the owner, 2026-11-02), not Codex:
+  - `DEFAULT_PLAYERS.gpt.capabilities.text = "web"`. Its text seats (`advisor_second_opinion`, `overseer_cross_check`,
+    `assistant_errand`) run `via: "web"` on the signed-in `chatgpt-web` profile.
+  - Codex (`via: "cli"`) keeps only `code_review`, off until the owner turns it on.
+  - GPT is ready once its web profile is signed in. A Codex limit never stops the web chat; the web chat's own limit is a hold on
+    the web path (`web_error_until`, reason `limited`).
+  - Migration `0036` moves the seeded seats only (not seats the owner edited by hand), one Audit row per seat.
+  - **The recipe stands on the page's structure** (the lesson of 19.3, the profile is fa-IR): Enter sends; testids first; the answer
+    is the last rendered answer block. A label is only a fallback beside a structural selector, in Persian and English. A recipe's
+    `read` step may name `alt` selectors, tried in turn when the first matches nothing.
+
+## 29. The owner sees the business: routing by domain, every order answered, working groups, connections, the home ⟨1.11⟩ (2026-11-02, prompt 21)
+The owner (2026-11-02): «فرمان کلیپ دادم … هیچ خروجی نداشت؛ نمیدونم با کی حرف میزنم. کل اپ شده مسائل فنی سرورها … میخوام به سئو،
+محصولات، پیشرفت و درآمد فکر کنم.» Plan: `docs/PLAN_2026-11-02_OWNER_FOCUS.md` (the one-glance table, rows 1–16 and 18);
+management review: `docs/MANAGEMENT_REVIEW_2026-11.md`. Principles: **upgrade, not rebuild** (nothing that works is thrown away);
+**companies are data** (no fixed number of companies anywhere); **rules first, AI last**; every shape keeps §28.2's table-section
+rule and the fractional `uptime` of §28.
+Every route below is under `/api/v1` (owner) or `/internal/v1` (agents, through the gateway), as §1 says.
+
+### 29.1 Routing by domain (owner's decisions 1–3, 2026-11-02)
+- **Every finding, notification and decision card carries a `domain`:** `business` · `media` · `revenue` · `product` · `tech` · `security` · `infra`.
+  - Set by the code that raises it (a protocol's area maps to a domain; `server_*`, `deploy`, `backup`, `incident`, `catalogue` → `tech`/`infra`;
+    `security`, `secret`, `egress` → `security`; `media_*` → `media`; `revenue`, `funnel`, `referral` → `revenue`; `feedback`, `app_health` → `product`).
+    No domain given: `business`.
+- **Who handles it** (`routed_to`, an employee code):
+  | domain | company's own | the holding's (the hub itself) |
+  |---|---|---|
+  | `tech`, `infra` | the company's CTO (its SRE as second) | `hub_platform_sre` |
+  | `security` | the company's CTO, and the holding's `security_analyst` | `security_analyst` |
+  | `business`, `media`, `revenue`, `product` | the company's CEO (media: its media director) | the owner's home cards (§29.13) |
+- **What reaches the owner** (`owner_visible: true`):
+  - every `business`, `media`, `revenue`, `product` item, written for the owner (§29.7);
+  - a technical item **only** when it is critical by the fixed list `critical_reason`: `data_leak` · `product_down` (a product unreachable
+    more than 15 minutes) · `money` · `legal`;
+  - the **weekly technical summary**, Saturday 09:00 owner's time (Tehran): one rule-based `report` deliverable of the holding's system
+    employee, a few lines per company: open technical findings by severity and age, incidents and their downtime, uptime, the
+    week's spend by domain (§28.7), hires made (§29.10). Nothing else technical is pushed.
+- **Owner routes, filtered by default:** `GET /notifications`, `GET /oversight/findings`, `GET /decisions` answer only `owner_visible` rows
+  unless `?scope=all` (the app's «شرکت ← فنی» uses `?scope=all&domain=tech|infra|security&company=X`). Each row carries `domain`,
+  `owner_visible`, `routed_to`, `critical_reason|null`.
+- **Destructive cards:** a `server_destructive` card's approver is the company's CTO (`approver: {kind: "agent", code}`), who decides with
+  `hire.decide`'s sibling tool `card.decide` `{ref, verdict, note}`. Only the categories in `owner.settings.destructive_owner_categories`
+  (default `["server_delete", "db_drop"]`, on a production target) stay the owner's. The owner may change the list (🔏 `settings.destructive`).
+- **Data already there:** open technical findings and notifications move to their handler's queue (`owner_visible: false`, `routed_to` set);
+  nothing is deleted. Migration `0037` does it once, with one Audit row per kind moved.
+
+### 29.2 Every order is answered (owner's ask 2)
+```
+OrderReport { ref: "F-0001", text_fa, at, state: "received"|"planned"|"in_progress"|"waiting"|"blocked"|"delivered"|"failed"|"cancelled",
+              ack: {at, by: Actor, plan_fa, assigned: [{company, code, title_fa}], due_at}|null,
+              route: {companies: [code], department, collaborators: [code], output_kind, budget_tokens, mode, player},
+              steps: [{at, who_fa, what_fa}],            # plain Persian, newest last, at most 30
+              blockers: [Blocker], outputs: [{ref, title_fa, kind}],
+              summary: {done_fa, left_fa, need_fa}|null, updated_at }
+Blocker { kind: "no_employee"|"hiring_closed"|"locked"|"series_unsealed"|"budget"|"player_down"|"connection_missing"|"no_progress"|"talk_loop",
+          title_fa, detail_fa, since, fix: {action, label_fa, target}|null }
+```
+- `GET /orders/{ref}/report` (owner) and stream `order.report` on every change; `GET /orders` items carry `state` and `summary`.
+- **Acknowledgement within 10 minutes:** the dispatcher (§29.4) writes the receipt at once («دریافت شد؛ به … سپرده شد»); the assignee's
+  first run must store its plan (`order.ack {ref, plan_fa, assigned, due_at}`, A1); 10 minutes without one is a `no_progress` blocker and
+  the CEO is woken with a small work item.
+- **No progress:** 2 hours without a step → the CEO must report (`order.progress`); 6 hours → the overseer tells the owner why
+  (one `decision`-level notification, `domain: business`, written for the owner).
+- **Talk without output:** more than `ORDER_TALK_LIMIT` (default 12) agent runs on one order without a deliverable stops the order's
+  open runs and adds a `talk_loop` blocker with «گیر کرد چون …».
+- **The right state:** the root work of an owner's order is never `delivered` while one of its children is open, its progress is below
+  100, or its last deliverable is a partial one («خروجی ناقص»); it stays `in_progress` (or `waiting`). A partial deliverable never closes
+  any work (finding 3 of prompt 20).
+- **Blockers are detected by code** on every change and every 15 minutes, each with its one-tap fix:
+  | kind | detected when | fix action (`POST /orders/{ref}/fix {action, target}`) |
+  |---|---|---|
+  | `no_employee` | the target department has no active employee for the seat the work needs | `hire` (the group seat's charter, auto-hire §29.10) |
+  | `hiring_closed` | an agent's hire was refused | `hiring.open` (🔏) |
+  | `locked` | a kill switch, a deploy freeze or a hold on the work's company | `lock.open` (the owner's existing release routes) |
+  | `series_unsealed` | a media item waits for a `media_series` card | `series.seal` (🔏, the card) |
+  | `budget` | the work's envelope, the company's daily cap or the hub's cap stopped a run | `budget.add` `{tokens}` (+X, §29.6) |
+  | `player_down` | the work's named player is signed out, limited or off | `player.auto` (switch to `auto`) |
+  | `connection_missing` | the work needs a connection that is not connected | `connection.guide` (§29.12) |
+- **End report:** when the order ends (`delivered`, `failed`, `cancelled`) `summary` is filled: «چه شد», «چه ماند», «از شما چه لازم است»
+  (with the fix button), and one `report` notification links it.
+
+### 29.3 The owner makes a rule from the app (owner's ask 3)
+- `POST /rules {text, source: "text"|"voice", file_id?}` → a `StandingOrder` (§18.1) `proposed`, `applies_to` widened to
+  `"all"|"overseer"|{roles: [role]}|{companies: [code]}` and a precise `text_md` written from the owner's words (rule-based clean-up; the
+  light model only to make it one clear imperative). The owner seals it with one tap (🔏 the existing `/oversight/orders/{ref}/seal`).
+- Sealed rules are injected into the system prompt of every role they apply to (the existing «Owner's standing orders» block).
+- The overseer watches them (PR-095, now daily and rule-first: a violation found by a rule is a finding; a model only samples), and the
+  **first enforcement report** comes 24 hours after the seal (a `report` notification: how many runs it applied to, violations, fixed).
+- `GET /rules` (= standing orders, newest first, with their counts), `PUT /rules/{ref}` (a new version, 🔏), `POST /rules/{ref}/retire`.
+
+### 29.4 The holding's secretary (dispatcher, chief of staff)
+- `POST /orders/preview {text, source}` (owner) → a `Route` and one line:
+  ```
+  Route { companies: [code], department, collaborators: [code], output_kind: "post"|"reel"|"story"|"article"|"report"|"plan"|"code"|"answer"|"other",
+          count: int|null, budget_tokens, mode: "single"|"council", player, preview_fa, confidence: 0..1, why_fa }
+  ```
+  `preview_fa` e.g. «→ تریدیار/رسانه + IG-Hub/انتشار؛ خروجی: ۳ ریلز؛ بودجه: ۴۰۰ هزار توکن».
+- **How:** rules first (`apps/api/seed/order_rules.yaml`, which now names `MEDIA` and output words: «کلیپ، ریلز، ویدیو، پست، استوری،
+  اینستاگرام، تلگرام، انتشار، محتوا»), then one light-model call only when the rules leave the company or the department open.
+  The secretary remembers the owner's corrections and every «نه» reason (`owner.dispatch_memory`), and reads them first.
+- **Defaults:** `mode: "single"`; `council` only when the owner says so («شورا») or the order is an outside question (§29.8).
+  `budget_tokens` from the output kind's table (data) and never below the department's floor (§29.6).
+- `POST /orders {text, source, file_id?, route?}`: with `route` (the preview, possibly edited) it is followed exactly; without, the
+  secretary decides as above. A production order goes to the department that owns the output (a media order to the company's media
+  director, never to AI operations; finding 1 of prompt 20).
+- **Several companies:** one root work in the first company, one child work per collaborator (on that company's CEO or department; its
+  server's Claude through the runner when the work is on the server, §26), and one `OrderReport` over all of them.
+
+### 29.5 Long voice
+- **On the phone:** continuous recognition that restarts itself at every pause until the owner stops; the text grows on screen.
+- **Over one minute,** or when the phone's recogniser fails: the audio goes to the hub's STT in chunks:
+  `POST /transcribe/sessions {purpose: "order"|"rule"|"message"|"note"}` → `{id}`; `PUT /transcribe/sessions/{id}/chunks/{n}` (raw audio,
+  ≤ 90 s each, in order, idempotent per n); `POST /transcribe/sessions/{id}/finish` → `{text, duration_s, chunks, segments}`. Up to
+  `STT_SESSION_MAX_S` (default 1 200 s, 20 minutes); STT starts on demand (§27.3). A session unused for 30 minutes expires.
+- **Before sending,** the whole text is shown and editable.
+
+### 29.6 The delegation budget
+- **A floor:** a work request's token budget is never below the target role's floor: `3 × tokens_per_step` of its charter, or the median
+  real input of that role's last 20 steps (`llm.calls`) × 3 when larger. A request below it is raised to it (finding 2 of prompt 20).
+- **Cache apart:** a run's cap counts `input + output + cache_write`; `cache_read` counts at 10% (it is the same context read again).
+  The full figures stay in the Token Treasury.
+- **Short of budget:** a run that would pass its cap stops cleanly, its work goes `waiting` with a `budget` blocker, and its CEO gets
+  «بودجه کم است، +X بدهم؟» (`work.budget {ref, add_tokens}`, A2, within the company's month envelope). The same button is in the order report.
+
+### 29.7 Language: Persian only, and plain for the owner
+- **Every player answers in Persian.** An answer whose letters are less than 60% Persian, or holding CJK characters, is refused and asked
+  again once with the instruction repeated; a second failure ends that member `failed` («پاسخ فارسی نبود»). A web player's page residue
+  (a trailing offer such as «مایلید …؟», buttons' text) is cut before the answer is kept.
+- **Rewrite for the owner** («بازنویسی برای مدیر کل»): every text that reaches the owner (notification, card, order report, summary,
+  council plan, home card) passes `humanize`: code first, the light model only when the code cannot fix it.
+  - **Forbidden:** refs (`W-…`, `O-…`, `D-…`, `FI-…`, `H-…`, `RK-…`, `AR-…`, ids, uuids), table, service and tool names, error codes
+    (`snake_case`), English technical terms, raw English or Chinese sentences. The list is data: `apps/api/seed/plain_language.yaml`
+    (`forbidden` patterns and `replace` pairs such as `delivered → تحویل شد`, `runner → دستیار سرور`, `token → واحد مصرف`).
+  - **Format:** «چه شد» · «چرا مهم است» · «از شما چه لازم است» (only when something is). Short sentences, Latin digits.
+  - **Details:** the original stays under `details_md`, behind «جزئیات».
+  - **Test:** `humanize.check(text) → [violations]` runs on a sample of every notification and card kind; a text with a violation is
+    rewritten again before it is shown.
+
+### 29.8 The council v2: outside advisors with a fact pack
+- **Only for outside questions** (market, competitors, trends, content ideas, keywords and SEO, ad copy, new markets, pricing) or when
+  the owner asks. An inside question (server, database, code, real figures) is answered by the company's own Claude on its server
+  (a capped `claude` job, §26, §28.7), never by the council.
+- **Fact pack** (`FactPack {company, at, figures: [{key, title_fa, value, source, at}], recent_posts: [...], notes_fa}`): built before the
+  council from the hub's own data and the connections (§29.12), with no secret and no personal data.
+- **Roles** (`owner.settings.council_roles`, default): captain Claude (splits the work, writes the plan), researcher Gemini (web, with
+  sources), numbers DeepSeek (costs, returns, checks the researcher), devil's advocate GPT (another angle, critique).
+- **Three rounds:** proposals (each with steps, cost and risk) → critique of the others' proposals → the captain's plan as a table
+  «چه کسی · چه کاری · تا کی». Persian only (§29.7).
+- **Output to the owner:** the plan in 5–10 lines with «اجرا کن», which makes an order (§29.4) from it. Each member's answer stays under
+  «جزئیات». `Council` (§27.2) adds `round: 1|2|3`, `roles: {player: role}`, `fact_pack_ref`, `plan_md`.
+
+### 29.9 Readiness of each company for each working group
+```
+Readiness { company, group, ready: bool, checks: [{key, ok, title_fa, detail_fa, fix: {action, label_fa, target}|null}] }
+```
+- `GET /companies/{code}/readiness?group=content` checks: each seat filled by an active employee; hiring automatic; the month's envelope
+  set; at least one sealed series per channel; the publishing channels connected (IG-Hub, Telegram); the media tools available (render
+  and voice on the hub, started on demand like STT); the players; the runner online.
+- Every failed check has a fix button (`hire`, `series.propose`, `connection.guide`, `media.on`, …).
+
+### 29.10 Automatic hiring (owner's decision, 2026-11-02)
+- Hiring is `open` with `mode: "auto"` for every company: a CEO's `hire` within the company's month envelope is approved by code, and a
+  working group's empty seat is filled by code (the seat's charter, its default model) when the group is on for the company.
+- No card for the owner; each hire is a story and one line in the weekly summary (§29.1). Over the envelope: refused, a `budget` blocker.
+
+### 29.11 Working groups (growth groups) as data
+```
+Group   { key, title_fa, purpose_fa, seats: [{seat, role, title_fa, count}], routines: [Routine], kpis: [{key, title_fa, unit, source}],
+          connections: [kind], eligible: "has_channel"|"all", state: "on"|"off" }
+Routine { key, title_fa, seat, schedule (RRULE, owner's zone), brief_md, max_tokens, state: "on"|"paused" }
+Membership { group, company, state: "on"|"paused", joined_at, seats: [{seat, employee: code|null}] }
+RoutineRun { id, group, company, routine, at, work_ref|null, state: "queued"|"done"|"failed"|"skipped", note_fa }
+Experiment { id, group, company, week, hypothesis_fa, metric, target, result|null, kept: bool|null }
+```
+- **Defined in data:** `apps/api/seed/groups/*.yaml`; the first is `content` («تولید محتوا و انتشار», seats of the management review §4.1).
+  A new group is a new file, no new code.
+- **Members:** every active company that is `eligible` (`has_channel`: it has at least one publishing channel, §29.12) joins by itself,
+  a new company too. The owner may pause a company's membership.
+- **Routines** run on their schedule as small work items for the seat's employee (code makes the item; the model runs only in the
+  employee's run, within `max_tokens`). Each run is in the history; a routine can be paused.
+- **KPIs:** read daily from the connections into `growth.metrics_daily`; each group's KPI series per company feeds the home (§29.13).
+- **Experiments:** one a week per company, written by the analyst, closed with its figure.
+- Routes: `GET /groups`, `GET /groups/{key}`, `GET /groups/{key}/members`, `PUT /groups/{key}/members/{code} {state}`, `GET /groups/{key}/runs`,
+  `PUT /groups/{key}/routines/{routine} {state}`, `GET /groups/{key}/kpis?company&days`, `GET /groups/{key}/experiments?company`.
+- Seeded data (owner's answers, 2026-11-02): **the signal channel belongs to TradeYar**; **every Instagram account is on IG-Hub**.
+
+### 29.12 Connections: what can be measured and managed
+```
+Connection { company, kind: "search_console"|"ga4"|"instagram"|"telegram"|"youtube"|"x"|"pagespeed"|"trends"|"bing"|"play_console",
+             label_fa, state: "not_connected"|"connected"|"error", config: {...non-secret...}, secret: "set"|"missing",
+             last_read_at|null, last_error_fa|null, daily: [{day, key, value}] }
+```
+- Order of work: Search Console, GA4, Instagram (through IG-Hub), Telegram, YouTube and X, PageSpeed, Trends, Bing, Play Console.
+- **Secrets only in OpenBao** (`hq/growth/<company>/<kind>`); never shown, only `set`/`missing`. The owner puts one in with
+  `PUT /companies/{code}/connections/{kind}/secret` (write-only, 🔏) or `make growth-secret`.
+- `GET /companies/{code}/connections`, `PUT /companies/{code}/connections/{kind} {config}` (🔏 when it widens what is read),
+  `POST /companies/{code}/connections/{kind}/test`, `GET /connections/guides/{kind}` (a one-page Persian guide, data in
+  `apps/api/seed/connection_guides/`).
+- **Daily read** by code (no model): each connected kind's free API into `growth.metrics_daily (company, kind, day, key, value, source)`.
+  Instagram is read through IG-Hub's own runner (a fixed read-only job of its config), never with a token on the hub.
+- No model guesses a figure a connection gives.
+
+### 29.13 The owner's home
+```
+Home { cards: {effective: Suggestion|null, good: Suggestion|null, progress: Progress|null},
+       morning: [str × ≤5], groups: [{key, title_fa, companies: [{code, name_fa, kpi: {key, title_fa, unit, series: [{day, value}]}}]}],
+       orders: [{ref, text_fa, state, summary_fa}], critical: [Notification] }
+Suggestion { id, kind: "effective"|"good", company, title_fa, why_fa, impact_fa, cost_fa, source: "council"|"group"|"advisor",
+             state: "new"|"run"|"later"|"no", reason_fa|null, order_ref|null, created_at }
+Progress   { id, company, title_fa, before: {value, at}, after: {value, at}, kpi, source, work_ref|null }
+```
+- `GET /home` (owner). One effective and one good suggestion are chosen across all companies (highest impact per cost; never one the
+  owner said «نه» to, by the secretary's memory). `Progress` comes only from a real connection's figures, before and after.
+- `POST /home/suggestions/{id} {action: "run"|"later"|"no", reason_fa?}`: `run` makes an order (§29.4); `no` keeps the reason.
+- **Morning** (5 lines, 08:00 Tehran, rule-based, §29.7 applied): yesterday's outputs, the best KPI move, what waits for the owner.
+- Nothing technical is on the home but `critical` (§29.1). Stream `home.updated`.
+
+### 29.14 Employee state (as Grok Bot shows it)
+- Each employee in `GET /companies/{code}/employees` and `GET /employees/{code}` adds
+  `state: "idle"|"thinking"|"working"|"waiting"|"stuck"|"done"` and `stuck: {reason_fa, fix}|null`:
+  `thinking` a model call is in flight; `working` a tool call or a server job runs; `waiting` its work waits on someone else or a
+  card; `stuck` a blocker (§29.2) stops it; `done` it delivered today and has nothing open; else `idle`.
+
+### 29.15 The approval boundary (as Claude Duet draws it)
+| action | approval |
+|---|---|
+| read, draft, prepare, measure | free |
+| publish in a sealed series | free (the seal was the approval) |
+| publish outside a series, send an email, sign | the owner (A3, as today) |
+| spend within the month envelope, hire (§29.10) | free, reported weekly |
+| destructive on a server | the company's CTO; `server_delete` and production `db_drop`: the owner (§29.1) |
+
+### 29.16 Stream types, decision kinds and step-up targets added
+- Stream: `order.report`, `home.updated`, `group.run`, `connection.updated`, `suggestion.updated`, `rule.report`.
+- Agent tools: `order.ack`, `order.progress`, `work.budget`, `card.decide`, `group.plan`, `connection.read`, `experiment.write`.
+- Step-up: `settings.destructive`, `connection.secret`, `connection.config`, `rule.seal` (= the standing order's seal).

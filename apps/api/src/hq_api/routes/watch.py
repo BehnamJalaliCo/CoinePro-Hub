@@ -10,7 +10,9 @@ apps' own error reports.
     GET  /client/errors?app&version&from  the owner (and, through the
                                           gateway, the overseer)
     /internal/v1/catalogue                company.catalogue (A1): a CEO for its
-                                          own company, the watch for any
+                                          own company, the watch for any;
+                                          ⟨20.1⟩ a run starts only for an
+                                          order of the owner (§28.6)
     /internal/v1/client/errors            client.errors (A0): the oversight
                                           roles and the platform SRE
 """
@@ -94,8 +96,10 @@ class CatalogueIn(Model):
 @internal_router.post("/catalogue", response_model=CAT.Catalogue, responses=E)
 async def agent_catalogue(body: CatalogueIn, ctx: Ctx = Depends(internal_ctx)) -> CAT.Catalogue:
     """company.catalogue: the latest catalogue of the company; `start: true`
-    (or none yet) starts a run. The CEO's answer to "go through the server
-    and extract everything" (§28.2), never a summary of its own."""
+    (or none yet) starts a run, ⟨20.1⟩ only when the agent works on an order
+    of the owner (§28.6; otherwise the latest, or 409 owner_order_required).
+    The CEO's answer to "go through the server and extract everything"
+    (§28.2), never a summary of its own."""
     who = ctx.who
     if not who.is_agent or who.company_id is None:
         raise ApiError(403, "policy_denied", "agents only")
@@ -103,11 +107,18 @@ async def agent_catalogue(body: CatalogueIn, ctx: Ctx = Depends(internal_ctx)) -
     assert code is not None
     await allow(ctx, "catalogue.start", {"company": code, "charter": who.charter})
     company = await ctx.hub.companies.by_code(code)
-    if not body.start:
-        async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
-            c = await CAT.latest(tx, company.id)
-        if c is not None and (c["state"] == "running" or c["state"] == "done"):
-            return CAT.render(c)
+    async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
+        c = await CAT.latest(tx, company.id)
+        ordered = await CAT.owner_ordered(tx, who.run_id)
+    if (not body.start or not ordered) and c is not None and c["state"] in ("running", "done"):
+        return CAT.render(c)
+    if not ordered:
+        # ⟨20.1⟩ §28.6: a catalogue costs the company's quota; only the owner orders one
+        raise ApiError(
+            409,
+            "owner_order_required",
+            "a catalogue starts only on an order of the owner; the latest is not there",
+        )
     return await _start(ctx, code, "agent", who.code)
 
 

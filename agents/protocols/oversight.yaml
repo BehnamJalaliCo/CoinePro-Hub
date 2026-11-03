@@ -714,6 +714,8 @@ protocols:
     severity: high
     answerable: hub_platform_sre
     title_fa: "پایش امنیتی روزانه‌ی هاب و همه‌ی سرورها"
+    # ⟨20.1⟩ rule first: code reads the servers' maps and the sites every day;
+    # a model runs only when it found something (oversight_checks.PRECHECKS)
     check: >-
       On every paired company server (read-only server.exec or server.claude; never change anything) and on the hub (backups.status,
       health.hub, github.read): listening ports open to the internet against the expected list (22 only from the owner's addresses,
@@ -730,6 +732,7 @@ protocols:
     severity: medium
     answerable: hub_platform_sre
     title_fa: "سلامت روزانه‌ی اپ‌ها از گزارش خطای خودشان"
+    # ⟨20.1⟩ rule first: a model runs only on a day an app reported an error
     check: >-
       Read the apps' own error reports of the last day (client.errors). Group the entries by cause (the same path, status, code or
       screen), find the cause in the code (github.read on the app's repository), and raise one finding of kind `app_health` per cause
@@ -739,11 +742,14 @@ protocols:
   - ref: PR-142
     area: quality
     method: llm
-    schedule: "FREQ=WEEKLY;BYDAY=SA;BYHOUR=9;BYMINUTE=30"
+    # ⟨20.1⟩ monthly (the 1st of the Jalali month), not weekly: a code review
+    # of every repository is the costliest duty of the watch
+    schedule: "FREQ=MONTHLY;BYMONTHDAY=1;BYHOUR=9;BYMINUTE=30"
+    calendar: jalali
     scope: holding
     severity: medium
     answerable: hub_platform_sre
-    title_fa: "بازبینی هفتگی کد هر مخزن"
+    title_fa: "بازبینی ماهانه‌ی کد هر مخزن"
     check: >-
       For every repository of every company (on its server: a read-only server.claude in the repository; the hub's own: github.read),
       look for bugs, dead code, missing tests and risky patterns (secrets in code, unchecked input, unsafe shell, missing timeouts).

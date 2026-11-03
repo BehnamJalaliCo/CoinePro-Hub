@@ -1,0 +1,82 @@
+# The owner's plain Persian (contract §29.7, «بازنویسی برای مدیر کل»): data,
+# not code. Every text that reaches the owner passes humanize: the `replace`
+# pairs first (an English term or a code word to the Persian the owner
+# uses), then the `forbidden` patterns are cut; check() names what is left.
+# Words in `allowed` are names the owner knows and may read as they are.
+allowed:
+  - CoinePro
+  - CoinePro-FX
+  - Pro-Chart
+  - TradeYar
+  - IG-Hub
+  - Instagram
+  - Telegram
+  - YouTube
+  - Google
+  - Search Console
+  - Analytics
+  - PageSpeed
+  - ChatGPT
+  - Gemini
+  - DeepSeek
+  - Claude
+  - Opus
+  - Sonnet
+  - Haiku
+  - GPT
+  - SEO
+  - KPI
+  - CTO
+  - CEO
+  - SRE
+  - USD
+  - X
+# English (or code) term -> Persian; matched whole-word, any case.
+replace:
+  delivered: تحویل
+  in_progress: در جریان
+  queued: در صف
+  waiting: منتظر
+  failed: ناموفق
+  cancelled: لغو شد
+  limit_reached: به سقف رسید
+  daily_cap: سقف روزانه
+  token_cap: سقف مصرف
+  budget_exhausted: بودجه تمام شد
+  quota_exhausted: سهمیه تمام شد
+  hiring_closed: استخدام بسته است
+  owner_order_required: فقط با دستور شما
+  invalid_args: ورودی نادرست
+  policy_denied: اجازه نداشت
+  recipe_failed: صفحه‌ی سایت عوض شده بود
+  signed_out: از حساب خارج شده
+  token envelope: سقف مصرف
+  envelope: پاکت بودجه
+  tokens: واحد مصرف
+  token: واحد مصرف
+  runner: دستیار سرور
+  catalogue: فهرست کامل سرور
+  council: شورا
+  deploy: انتشار نسخه
+  deliverable: خروجی
+  work item: کار
+  finding: یافته
+  seal: مُهر
+  series: سری انتشار
+  reel: ریلز
+  reels: ریلز
+  story: استوری
+  post: پست
+  server: سرور
+  backup: پشتیبان
+  dashboard: داشبورد
+# Patterns never shown to the owner (regular expressions, Python syntax).
+forbidden:
+  ref: '\b(?:W|O|D|F|FI|H|RK|AR|SO|CH|ST|MT|EV|SK|PR|R|J|X)-\d{2,7}\b'
+  uuid: '\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b'
+  code_word: '\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b'
+  tool_name: '\b[a-z][a-z_]*\.[a-z][a-z_]+\b'
+  employee_code: '\b[A-Z]{2,4}-(?:[A-Z]{2,8}-)?(?:[A-Z]{2,8}|\d{2,3})\b'
+  cjk: '[぀-ヿ㐀-䶿一-鿿가-힯]'
+  english_run: '\b[A-Za-z]{2,}(?:[\s,]+[A-Za-z]{2,}){3,}\b'
+  service: '\b(?:api|worker|gateway|llm-router|router|temporal|nats|openbao|valkey|postgres|docker|caddy|egress|opa|n8n|stt|tts)\b'

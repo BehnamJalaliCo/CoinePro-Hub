@@ -106,7 +106,10 @@ DEFAULT_PLAYERS: dict[str, dict[str, Any]] = {
             {"id": "gpt-5.5", "label": "GPT 5.5", "tier": "strong", "available": True},
             {"id": "gpt-5.3", "label": "GPT 5.3", "tier": "light", "available": True},
         ],
-        "capabilities": {"text": "cli", "image": "web", "video": "off"},
+        # ⟨20.1⟩ the owner (2026-11-02): GPT's text goes through ChatGPT's web
+        # chat (the Plus plan, practically unlimited), not Codex, whose quota is
+        # the work's and runs out; Codex stays for code review, on the owner's wish
+        "capabilities": {"text": "web", "image": "web", "video": "off"},
     },
     "gemini": {
         "connection": "gemini-pro",
@@ -135,10 +138,11 @@ DEFAULT_PLAYERS: dict[str, dict[str, Any]] = {
 # Seats (contract §21.13 table; owner decision §0.8 #10: all on).
 DEFAULT_SEATS: dict[str, list[dict[str, Any]]] = {
     "gpt": [
-        {"seat": "advisor_second_opinion", "via": "cli", "model": "gpt-5.5", "enabled": True, "per_day": 3},
-        {"seat": "code_review", "via": "cli", "model": "gpt-5.5", "enabled": True, "per_day": 10},
-        {"seat": "overseer_cross_check", "via": "cli", "model": "gpt-5.5", "enabled": True, "per_day": 20},
-        {"seat": "assistant_errand", "via": "cli", "model": "gpt-5.3", "enabled": True, "per_day": 30},
+        # ⟨20.1⟩ text on the web; Codex (cli) only for code review, off until the owner asks
+        {"seat": "advisor_second_opinion", "via": "web", "model": "gpt-5.5", "enabled": True, "per_day": 3},
+        {"seat": "code_review", "via": "cli", "model": "gpt-5.5", "enabled": False, "per_day": 10},
+        {"seat": "overseer_cross_check", "via": "web", "model": "gpt-5.5", "enabled": True, "per_day": 20},
+        {"seat": "assistant_errand", "via": "web", "model": "gpt-5.3", "enabled": True, "per_day": 30},
         {"seat": "creative", "via": "web", "model": "gpt-5.5", "enabled": True, "per_day": 20,
          "per_day_video": 0},
     ],
@@ -577,9 +581,10 @@ async def signed_in(tx: Tx, body: SignedInIn) -> dict[str, Any]:
             raise ApiError(
                 422, "validation_failed", fields={"via": "this player has no web profile"}
             )
-        # A player that works only on the web (DeepSeek; Gemini since ⟨1.7.2⟩) is
-        # ready once its profile is signed in; GPT's state stays its CLI's.
-        web_only = p["runner"] != "codex_cli"
+        # A player whose text runs on the web (DeepSeek; Gemini since ⟨1.7.2⟩;
+        # ⟨20.1⟩ GPT too) is ready once its profile is signed in; its CLI, if
+        # any (GPT's Codex, for code review), keeps its own sign-in.
+        web_only = text_via(p) == "web"
         await tx.exec(
             """UPDATE substitutes.players SET web_state = 'signed_in', web_last_ok_at = now(),
                    web_last_failure = NULL,
@@ -681,17 +686,30 @@ def provider_text(raw: str | None) -> str | None:
     return scrub(text)[:300]
 
 
+def text_via(p: dict[str, Any]) -> str:
+    """⟨20.1⟩ where the player's text runs: `web` or `cli` (its capabilities)."""
+    caps = p.get("capabilities") or {}
+    if isinstance(caps, str):
+        caps = json.loads(caps)
+    return "web" if caps.get("text") == "web" else "cli"
+
+
 def _skip_reason(p: dict[str, Any], s: dict[str, Any], now: datetime) -> str | None:
     if not s["enabled"]:
         return "off"
-    if p["status"] == "limited" and (p["limited_until"] is None or p["limited_until"] > now):
-        return "limited"
+    limited = p["status"] == "limited" and (p["limited_until"] is None or p["limited_until"] > now)
     if s["via"] == "web":
+        # ⟨20.1⟩ a player with a CLI of its own (GPT's Codex) is `limited` by that
+        # CLI: its web chat goes on; a web limit of its own is a web hold
+        if limited and p["runner"] != "codex_cli":
+            return "limited"
         if p["web_state"] != "signed_in":
             return "expired" if p["web_state"] == "expired" else "signed_out"
         if web_error(p, now):  # ⟨1.10⟩ §28.4 its recipe failed twice: skipped up front
-            return "error"
+            return "limited" if p.get("web_last_failure") == "limited" else "error"
         return None
+    if limited:
+        return "limited"
     if p["login_state"] != "signed_in":
         return "expired" if p["login_state"] == "expired" else "signed_out"
     if p["status"] in ("off", "error"):
@@ -952,7 +970,18 @@ async def finish(
         if body.findings is not None:
             result["findings"] = [_finding(f) for f in body.findings[:200]]
         result["source"] = {**source({**c, "finished_at": datetime.now(UTC)})}
-    if not body.ok and body.error == "limited":
+    if not body.ok and body.error == "limited" and c["via"] == "web" and p["runner"] == "codex_cli":
+        # ⟨20.1⟩ GPT's web chat hit its own limit: a hold on the web path only
+        # (Codex, for code review, keeps its own state)
+        state = "skipped"
+        await tx.exec(
+            """UPDATE substitutes.players SET web_error_until = :u, web_last_failure = 'limited',
+                   updated_at = now()
+               WHERE player = :p""",
+            u=body.limited_until or datetime.now(UTC) + timedelta(hours=3),
+            p=c["player"],
+        )
+    elif not body.ok and body.error == "limited":
         state = "skipped"  # the seat is skipped, never moved to Claude
         await tx.exec(
             """UPDATE substitutes.players SET status = 'limited', limited_until = :u,

@@ -2,11 +2,13 @@
 run by the worker's Maintenance every 5 minutes; each one once per its
 period (ops.watch_runs, a unique key):
 
-  catalogue         weekly per company with a paired server: its catalogue
-                    is refreshed; the difference goes to its CEO and the owner
   growth_memo       weekly per company: the advisor's three highest-value
                     moves from the catalogue, revenue, funnel and support data
   holding_proposal  monthly: the digital CEO's «پیشنهاد هلدینگ»
+
+⟨20.1⟩ The catalogue is no duty of the watch any more: it runs only on the
+owner's order (contract §28.6; its weekly run spent 50M tokens in an hour).
+The watch still ends catalogue runs left waiting on a server that is off.
 
 The weeks are the owner's (Saturday first, the owner's time zone). The
 overseer's own watch (the daily security sweep, the daily app health, the
@@ -77,7 +79,7 @@ async def sweep(hub: Any, router: Any = None, now: datetime | None = None) -> di
     from hq_api.domain import work as W
 
     now = now or datetime.now(UTC)
-    out: dict[str, Any] = {"catalogues": 0, "growth_memos": 0, "proposal": None, "stale": 0}
+    out: dict[str, Any] = {"growth_memos": 0, "proposal": None, "stale": 0}
     ids = await hub.companies.ids()
     async with hub.db.tx(ids) as tx:
         if (lock := await gate.automation_lock(tx)) is not None:
@@ -96,18 +98,6 @@ async def sweep(hub: Any, router: Any = None, now: datetime | None = None) -> di
         spent = await advisor.zone_spent(tx, hub)
         holding = await hub.companies.holding()
         for co in companies:
-            company = await hub.companies.by_code(co["code"])
-            has_server = await tx.scalar(
-                """SELECT 1 FROM infra.servers WHERE company_id = :co AND origin = 'attached'
-                     AND state IN ('online', 'offline')""",
-                co=co["id"],
-            )
-            if has_server and await _once(
-                tx, co["id"], f"catalogue:{co['code']}:{week}", "catalogue"
-            ):
-                c, fresh = await CAT.start(tx, hub, company, by_kind="service", by_code="watch")
-                if fresh and c["state"] == "running":
-                    out["catalogues"] += 1
             if (
                 adv
                 and not spent

@@ -32,7 +32,8 @@ def test_every_gemini_seat_runs_via_web_and_code_review_stays_with_gpt() -> None
     assert S.DEFAULT_PLAYERS["gemini"]["capabilities"]["text"] == "web"
     gpt_review = next(s for s in S.DEFAULT_SEATS["gpt"] if s["seat"] == "code_review")
     gem_review = next(s for s in S.DEFAULT_SEATS["gemini"] if s["seat"] == "code_review")
-    assert gpt_review["enabled"] is True and gpt_review["via"] == "cli"
+    # ⟨20.1⟩ Codex keeps only code review, off until the owner asks
+    assert gpt_review["enabled"] is False and gpt_review["via"] == "cli"
     assert gem_review["enabled"] is False
     assert S._make("gemini") == "gemini-web-login"
 

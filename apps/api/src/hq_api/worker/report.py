@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 
 from hq_api.db import Tx
 from hq_api.domain import feedback as FB
+from hq_api.domain import spend as SPEND
 from hq_api.worker.jalali import jalali_long, jalali_str
 
 RISK_FA = {"high": "بالا", "medium": "متوسط", "low": "کم"}
@@ -90,6 +91,14 @@ async def gather(tx: Tx, now: datetime, tz: str) -> dict[str, Any]:
         **await _p12b_lines(tx, today, now),
         # ⟨1.5⟩ prompt 12 §3: a weekly review skipped in the last week (one line, no nag)
         "review_line": await _review_line(tx, now),
+        # ⟨20.1⟩ §28.6 where yesterday's tokens went, by domain; on the owner's
+        # Saturday also the whole past week (the weekly summary's share)
+        "spend_day": await SPEND.by_domain(tx, y_start, y_end),
+        "spend_week": (
+            await SPEND.by_domain(tx, y_end - timedelta(days=7), y_end)
+            if today.weekday() == 5
+            else []
+        ),
     }
 
 
@@ -166,6 +175,10 @@ def render(data: dict[str, Any]) -> tuple[str, str]:
             )
     else:
         lines.append("- هیچ بودجه‌ای به آستانه‌ی هشدار (۷۰٪) نرسیده است.")
+    if data.get("spend_day") is not None:
+        lines += ["", "## مصرف توکن دیروز به حوزه", *SPEND.lines(data["spend_day"])]
+    if data.get("spend_week"):
+        lines += ["", "## مصرف توکن هفته‌ی گذشته به حوزه", *SPEND.lines(data["spend_week"])]
     if data.get("support_week"):
         lines += ["", "## پشتیبانی هفته (شرکت‌های بی‌سرپرست پشتیبانی)", *data["support_week"]]
     if data.get("substitutes"):

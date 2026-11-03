@@ -19,8 +19,8 @@ SERVICES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IMAGE="coinepro-hq/browser-test:${HQ_TEST_IMAGE_TAG:-dev}"
 BASE="$(sed -n 's/^FROM \(mcr\.microsoft\.com\/playwright\/python[^ ]*\).*/\1/p' "$SERVICES_DIR/egress/Dockerfile.browser")"
 [[ -n "$BASE" ]] || { echo "no Playwright base image in egress/Dockerfile.browser" >&2; exit 1; }
-# What the tests import beyond the browser's lock (egress's proxy and pytest).
-TEST_PKGS="pytest pytest-asyncio iniconfig pluggy packaging pygments httpx httpcore certifi"
+# What the tests import beyond the browser's lock (egress's proxy, pytest, and ⟨20.1⟩ pyyaml for the reviewed recipes).
+TEST_PKGS="pytest pytest-asyncio iniconfig pluggy packaging pygments httpx httpcore certifi pyyaml"
 
 ctx="$(mktemp -d)"
 trap 'rm -rf "$ctx"' EXIT
@@ -50,5 +50,6 @@ docker build -q -t "$IMAGE" "$ctx" >/dev/null
 docker run --rm --network none --tmpfs /tmp:size=256m,mode=1777 --shm-size 256m \
   --user 10001:10001 --read-only --cap-drop ALL --cap-add SYS_CHROOT \
   --security-opt no-new-privileges:true --security-opt "seccomp=$SECCOMP" \
-  -e BROWSER_SANDBOX=1 -v "$SERVICES_DIR:/w:ro" "$IMAGE" \
+  -e BROWSER_SANDBOX=1 -v "$SERVICES_DIR:/w:ro" \
+  -e HQ_EGRESS_RECIPES=/recipes -v "$SERVICES_DIR/../infra/egress/recipes:/recipes:ro" "$IMAGE" \
   python3 -m pytest -p no:cacheprovider egress/tests/test_browser.py egress/tests/test_browser_web.py "$@"

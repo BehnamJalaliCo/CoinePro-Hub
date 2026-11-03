@@ -195,8 +195,35 @@ class SitesIn(CompanyIn):
 
 
 class UsageIn(In):
-    scope: str = Field(default="company", pattern=r"^(company|holding|[A-Z][A-Z0-9]{1,9})$")
-    period: Literal["day", "month"] = "month"
+    """⟨20.1⟩ prompt 20 finding 7: the managers' calls came back invalid_args.
+    What a role naturally writes is taken: a company code in `scope` or
+    `company`, a department or a role to narrow, the week, any case."""
+
+    scope: str = Field(default="company", max_length=20)
+    period: Literal["day", "week", "month"] = "month"
+    company: str | None = Field(default=None, pattern=r"^[A-Z][A-Z0-9]{1,9}$")
+    department: str | None = Field(default=None, pattern=r"^[A-Za-z][A-Za-z0-9_-]{0,29}$")
+    role: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_]{0,40}$")
+
+    @field_validator("period", mode="before")
+    @classmethod
+    def _period(cls, v: Any) -> Any:
+        return v.strip().lower() if isinstance(v, str) else v
+
+    @field_validator("company", mode="before")
+    @classmethod
+    def _company(cls, v: Any) -> Any:
+        return v.strip().upper() if isinstance(v, str) else v
+
+    @field_validator("scope", mode="after")
+    @classmethod
+    def _scope(cls, v: str) -> str:
+        s = v.strip()
+        if s.lower() in ("company", "holding", "own", "me", "self", ""):
+            return "holding" if s.lower() == "holding" else "company"
+        if re.fullmatch(r"[A-Za-z][A-Za-z0-9]{1,9}", s):
+            return s.upper()
+        raise ValueError("company, holding or a company code")
 
 
 class SearchIn(In):
@@ -538,7 +565,11 @@ async def backups_status(api: Api, call: Call, a: Empty) -> Result:
 
 
 async def treasury_usage(api: Api, call: Call, a: UsageIn) -> Result:
-    params = {"scope": a.scope, "period": a.period}
+    params = {"scope": a.company or a.scope, "period": a.period}
+    if a.department:
+        params["department"] = a.department.upper()
+    if a.role:
+        params["role"] = a.role
     return from_response(
         await api.request("GET", "/internal/v1/treasury/usage", call.token, params=params), None
     )

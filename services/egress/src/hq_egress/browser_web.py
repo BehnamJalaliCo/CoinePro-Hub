@@ -405,8 +405,13 @@ async def _recipe_step(
     elif do == "pause":
         await page.wait_for_timeout(min(int(st.get("ms") or 1000), 5000))
     elif do == "read":
-        loc = page.locator(sel)
-        n = await loc.count()
+        loc, n = page.locator(sel), 0
+        # ⟨20.1⟩ the selector, then each `alt` in turn: the first that matches
+        for cand in [sel, *[str(a) for a in st.get("alt") or []]]:
+            loc = page.locator(cand)
+            n = await loc.count()
+            if n:
+                break
         if n == 0:
             raise StepFailed(do, "nothing to read")
         text = str(await loc.nth(n - 1).inner_text(timeout=ms))
