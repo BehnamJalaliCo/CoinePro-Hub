@@ -22,8 +22,17 @@
 # is not the heading's sibling, so the read takes the answer's turn (the
 # outermost block above the heading without the user's «شما گفتید») and in it
 # the first block that holds neither the heading nor the bare «ChatGPT» label.
+# 2026-11-02.1 (prompt 20.1, the lesson of 19.3): GPT's text now runs here,
+# not on Codex, so the text task leans on the page's structure, never on the
+# words of one language: the prompt goes with Enter in the composer (a
+# send-button testid as an optional second try, no label); the stop and the
+# finished answer's action bar are found by their testids first; the answer
+# is read as the last rendered answer block (ChatGPT renders only its own
+# answers as markdown), and only when that finds nothing, by .5's heading
+# (the Persian «ChatGPT گفت:» or the English one). Every label kept is a
+# fallback next to a structural selector, in both languages.
 key: chatgpt-web
-version: "2026-10-31.5"
+version: "2026-11-02.1"
 site: chatgpt.com
 # A temporary chat: nothing of the job stays in the account's history.
 start_url: "https://chatgpt.com/?temporary-chat=true"
@@ -61,19 +70,22 @@ tasks:
       - {do: goto, url: "{start_url}"}
       - {do: wait, selector: "div[contenteditable=true]", timeout_s: 30}
       - {do: fill, selector: "div[contenteditable=true]", text: "{prompt}"}
-      - {do: click, selector: "[data-testid=send-button], button[aria-label*='ارسال']"}
-      - {do: wait, selector: "[data-testid=stop-button], button[aria-label*='توقف']", timeout_s: 20, optional: true}
-      - {do: wait_gone, selector: "[data-testid=stop-button], button[aria-label*='توقف']", timeout_s: 200}
-      - {do: wait, selector: "button[aria-label*='بلند'], [data-testid=voice-play-turn-action-button]", timeout_s: 30}
+      - {do: press, selector: "div[contenteditable=true]", key: Enter}
+      - {do: click, selector: "[data-testid=send-button]", optional: true}
+      - {do: wait, selector: "[data-testid=stop-button], button[aria-label*='توقف'], button[aria-label*='Stop']", timeout_s: 20, optional: true}
+      - {do: wait_gone, selector: "[data-testid=stop-button], button[aria-label*='توقف'], button[aria-label*='Stop']", timeout_s: 200}
+      - {do: wait, selector: "[data-testid=copy-turn-action-button], [data-testid=voice-play-turn-action-button], button[aria-label*='بلند'], button[aria-label*='Read aloud']", timeout_s: 30}
       - do: read
-        selector: >-
-          xpath=(//*[(normalize-space(.)='ChatGPT گفت:' or normalize-space(.)='ChatGPT said:')
-          and normalize-space(..)!=normalize-space(.)])[last()]
-          /ancestor::*[not(contains(.,'شما گفتید')) and not(contains(.,'You said'))][last()]
-          //*[not(contains(.,'ChatGPT گفت')) and not(contains(.,'ChatGPT said'))
-          and (contains(..,'ChatGPT گفت') or contains(..,'ChatGPT said'))
-          and normalize-space(.)!='' and normalize-space(.)!='ChatGPT'
-          and not(ancestor-or-self::button)][1]
+        selector: "[data-message-author-role=assistant] .markdown, div.markdown"
+        alt:
+          - >-
+            xpath=(//*[(normalize-space(.)='ChatGPT گفت:' or normalize-space(.)='ChatGPT said:')
+            and normalize-space(..)!=normalize-space(.)])[last()]
+            /ancestor::*[not(contains(.,'شما گفتید')) and not(contains(.,'You said'))][last()]
+            //*[not(contains(.,'ChatGPT گفت')) and not(contains(.,'ChatGPT said'))
+            and (contains(..,'ChatGPT گفت') or contains(..,'ChatGPT said'))
+            and normalize-space(.)!='' and normalize-space(.)!='ChatGPT'
+            and not(ancestor-or-self::button)][1]
   image:
     timeout_s: 180
     steps:

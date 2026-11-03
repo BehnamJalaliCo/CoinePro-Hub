@@ -433,3 +433,39 @@ def test_a_recipe_failure_carries_one_screenshot_and_nothing_else_does() -> None
     }
     assert "screenshot" not in _json.loads(SW._job_answer(fake, "3", 1000).body)
     assert SW.WebIn(account="gemini-web", task="text", prompt="x", reload=True).reload is True
+
+
+def test_chatgpts_text_task_stands_on_the_pages_structure_not_on_one_language() -> None:
+    """⟨20.1⟩ GPT's text runs on chatgpt-web now (the lesson of 19.3: the page
+    is fa-IR): the prompt is sent with Enter (no label), every label kept sits
+    next to a structural selector and in both languages, and the answer is read
+    by structure first, by its Persian or English heading only after."""
+    steps = RC.load(recipes_dir())["chatgpt-web"].tasks["text"].steps
+    dos = [s.do for s in steps]
+    assert "press" in dos and dos.index("press") < dos.index("read")
+    for s in steps:
+        sel = str(s.selector or "")
+        if s.do == "click":
+            assert "aria-label" not in sel and "has-text" not in sel, sel  # no label to click
+        if "aria-label" in sel:
+            assert "data-testid=" in sel, sel  # a label only beside a testid
+            labels = [p for p in sel.split(",") if "aria-label" in p]
+            assert any(any("؀" <= ch <= "ۿ" for ch in p) for p in labels), sel
+            assert any(p.isascii() for p in labels), sel
+    read = steps[-1]
+    assert (
+        read.do == "read" and "xpath" not in str(read.selector) and "markdown" in str(read.selector)
+    )
+    assert read.alt and "ChatGPT گفت:" in read.alt[0] and "ChatGPT said:" in read.alt[0]
+
+
+def test_alt_is_for_read_only() -> None:
+    with pytest.raises(ValidationError):
+        RC.RStep.model_validate({"do": "click", "selector": "a", "alt": ["b"]})
+    with pytest.raises(ValidationError):
+        RC.RStep.model_validate({"do": "read", "selector": "a", "alt": [""]})
+    s = RC.RStep.model_validate({"do": "read", "selector": "a", "alt": ["b"]})
+    assert s.model_dump(exclude_none=True)["alt"] == ["b"]
+    assert "alt" not in RC.RStep.model_validate({"do": "read", "selector": "a"}).model_dump(
+        exclude_none=True
+    )

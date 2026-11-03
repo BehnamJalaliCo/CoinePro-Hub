@@ -63,6 +63,39 @@ document.getElementById('f').onsubmit = async (e) => {
   document.getElementById('out').innerHTML = "<p class='answer'>" + await r.text() + "</p>";
 };
 </script></body></html>"""
+# ⟨20.1⟩ ChatGPT as the hub's fa-IR profile sees it: Persian labels only, a
+# contenteditable composer that sends on Enter, a stop button while it writes,
+# the answer as a markdown block under a hidden Persian heading, then its
+# action bar. The real chatgpt-web text task must read the answer, not the
+# user's own words.
+CHAT_FA = """<html lang='fa' dir='rtl'><body>
+<main><div id='thread'></div>
+<div contenteditable='true' id='prompt-textarea' aria-label='پیام خود را بنویسید'></div>
+<button data-testid='send-button' aria-label='ارسال درخواست'>↑</button></main>
+<script>
+const box = document.getElementById('prompt-textarea');
+const thread = document.getElementById('thread');
+async function send() {
+  const q = box.innerText.trim();
+  if (!q) return;
+  box.innerText = '';
+  thread.innerHTML = "<article><h5 class='sr-only'>شما گفتید:</h5><div class='user'>" + q + "</div></article>";
+  const stop = document.createElement('button');
+  stop.setAttribute('data-testid', 'stop-button'); stop.setAttribute('aria-label', 'توقف پاسخ');
+  document.querySelector('main').appendChild(stop);
+  const r = await fetch('/api/answer', {method: 'POST', body: q});
+  const t = await r.text();
+  setTimeout(() => {
+    stop.remove();
+    thread.innerHTML += "<article><h6 class='sr-only'>ChatGPT گفت:</h6><div data-message-author-role='assistant'>"
+      + "<div class='markdown prose'><p>" + t + "</p></div></div>"
+      + "<div><button data-testid='copy-turn-action-button' aria-label='رونوشت'>⧉</button>"
+      + "<button aria-label='بلند خواندن'>🔊</button></div></article>";
+  }, 400);
+}
+box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
+document.querySelector('[data-testid=send-button]').onclick = send;
+</script></body></html>""".encode()
 LOGIN = b"<html><body><button data-testid='login-button'>Log in</button></body></html>"
 BROKEN = b"<html><body><p>a redesigned page without the prompt box</p></body></html>"
 
@@ -97,6 +130,8 @@ class Site:
             extra = f"Set-Cookie: sess={COOKIE}; Max-Age=3600; Secure; HttpOnly; Path=/\r\n"
         elif path.startswith("/c/"):
             body = CHAT_FORM
+        elif path == "/fa":
+            body = CHAT_FA
         elif path == "/to-login":
             status, extra = 302, "Location: /login\r\n"
         elif path == "/login":
@@ -383,3 +418,31 @@ async def test_a_profile_sends_its_chat_form_only_on_its_listed_pages(world: Any
     assert not [s for s in site.seen if s["path"] == "/api/answer"]
     got = await d.run(run("/c/one", ["/c/one"]))
     assert got["blocked"] is None and "answer to: hello" in got["steps"][4]["text"], got
+
+
+def _chatgpt_text_steps() -> list[dict[str, Any]]:
+    """The reviewed chatgpt-web text task as it is in the repository (shorter
+    waits: the fake page answers at once)."""
+    from hq_egress import recipes as RC
+
+    recipes = Path(os.environ.get("HQ_EGRESS_RECIPES", "/recipes"))
+    if not recipes.is_dir():
+        pytest.skip("the recipes are mounted by browser-test.sh (HQ_EGRESS_RECIPES)")
+    steps = [
+        s.model_dump(exclude_none=True) for s in RC.load(recipes)["chatgpt-web"].tasks["text"].steps
+    ]
+    for s in steps:
+        if "timeout_s" in s:
+            s["timeout_s"] = min(float(s["timeout_s"]), 10)
+    return steps
+
+
+async def test_chatgpts_real_text_task_reads_the_answer_on_a_persian_page(world: Any) -> None:
+    """⟨20.1⟩ the reviewed chatgpt-web text task on a page with Persian labels
+    only: sent with Enter, read by structure, never the user's own words."""
+    site, d, buckets, server, _ = world
+    steps = _chatgpt_text_steps()
+    got = await d.job(_job(site, buckets, server, "/fa", task="text", steps=steps))
+    assert got["ok"] is True, got
+    assert got["text_md"].strip().startswith("answer to: a calm sea"), got
+    assert "شما گفتید" not in got["text_md"] and "ChatGPT" not in got["text_md"]

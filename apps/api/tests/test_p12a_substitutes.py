@@ -32,7 +32,18 @@ async def bench(su: Any, hub: Hub, *, cli: tuple[str, ...] = (), web: tuple[str,
                 wait_s: int = 0) -> AsyncIterator[None]:  # fmt: skip
     """Players signed in for the block (the owner's sign-in, simulated in the
     test database), nothing else queued, the holding unlocked; then signed out
-    and off again, as they are on the hub."""
+    and off again, as they are on the hub. ⟨20.1⟩ GPT named in `cli` has its
+    text seats on Codex for the block (the CLI path the code review keeps; by
+    default its text runs on the web)."""
+    if "gpt" in cli:
+        await su.execute(
+            """UPDATE substitutes.seats SET via = 'cli' WHERE player = 'gpt'
+                 AND seat IN ('advisor_second_opinion', 'overseer_cross_check', 'assistant_errand')"""
+        )
+        await su.execute(
+            """UPDATE substitutes.players SET capabilities = jsonb_set(capabilities, '{text}', '"cli"')
+               WHERE player = 'gpt'"""
+        )
     await su.execute(
         """UPDATE substitutes.calls SET state = 'skipped', state_reason = 'test', finished_at = now()
            WHERE state IN ('queued', 'running')"""
@@ -61,13 +72,22 @@ async def bench(su: Any, hub: Hub, *, cli: tuple[str, ...] = (), web: tuple[str,
 
 
 async def restore_seats(su: Any) -> None:
-    """The table's caps again (a test widened one)."""
+    """The table's caps (and paths, and the players' text path) again (a test
+    widened one)."""
     for player, seats in S.DEFAULT_SEATS.items():
         for s in seats:
             await su.execute(
-                "UPDATE substitutes.seats SET per_day = $3, enabled = $4 WHERE player = $1 AND seat = $2",
-                player, s["seat"], s["per_day"], s["enabled"],
+                """UPDATE substitutes.seats SET per_day = $3, enabled = $4, via = $5
+                   WHERE player = $1 AND seat = $2""",
+                player, s["seat"], s["per_day"], s["enabled"], s["via"],
             )  # fmt: skip
+    for player, p in S.DEFAULT_PLAYERS.items():
+        await su.execute(
+            """UPDATE substitutes.players SET capabilities = jsonb_set(capabilities, '{text}', to_jsonb($2::text))
+               WHERE player = $1""",
+            player,
+            p["capabilities"]["text"],
+        )
 
 
 async def per_day(su: Any, player: str, seat: str, room: int) -> None:
