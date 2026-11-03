@@ -70,6 +70,16 @@ async def test_threads_n_and_p_are_the_owner_and_one_agent(
     code: str,
     role: str,
 ) -> None:
+    # Earlier tests may leave a queued run on this thread (a new message joins it) and queue
+    # other work for the same agent later: start from none here and read this thread's run.
+    await su.execute(
+        """UPDATE agents.runs r SET state = 'refused', error_code = 'test', finished_at = now()
+           FROM core.employees e, msg.threads t
+           WHERE e.id = r.employee_id AND t.id = r.thread_id AND e.code = $1 AND t.code = $2
+             AND r.state = 'queued'""",
+        code,
+        thread,
+    )
     r = await client.post(
         f"/api/v1/threads/{thread}/messages", headers={**owner, **idem()}, json={"body": "سلام"}
     )
@@ -77,8 +87,10 @@ async def test_threads_n_and_p_are_the_owner_and_one_agent(
     assert r.json()["message"]["ref"].startswith(f"{thread}-")
     queued = await su.fetchrow(
         """SELECT r.id, r.priority FROM agents.runs r JOIN core.employees e ON e.id = r.employee_id
-           WHERE e.code = $1 AND r.state = 'queued' ORDER BY r.queued_at DESC LIMIT 1""",
+           JOIN msg.threads t ON t.id = r.thread_id
+           WHERE e.code = $1 AND t.code = $2 AND r.state = 'queued' ORDER BY r.queued_at DESC LIMIT 1""",
         code,
+        thread,
     )
     assert queued["priority"] == "P2"  # the owner's own agents answer first
     # Its own agent replies there; nobody else does (not the advisor, not QC).
