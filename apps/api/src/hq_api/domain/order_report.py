@@ -947,6 +947,7 @@ async def tick(hub: Any) -> dict[str, Any]:
     brought up to date and their timers run."""
     out: dict[str, Any] = {"orders": 0, "fired": {}}
     async with hub.db.tx(await hub.companies.ids()) as tx:
+        out["resumed"] = await W.resume_waiting(tx)  # budget added, the player set to auto
         refs = [
             r["ref"]
             for r in await tx.all(

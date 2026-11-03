@@ -172,14 +172,14 @@ async def _apply_fix(
         w = works.get(target or "")
         if w is None or w["status"] not in W.OPEN:
             raise ApiError(409, "validation_failed", "an open work of this order")
-        new = await W.add_budget(tx, w, body.tokens)
+        new = await W.add_budget(tx, w, body.tokens, ctx.who)
         return f"+{body.tokens} tokens on {w['ref']} (budget {new})"
     if body.action == "player.auto":
         w = works.get(target or "")
         if w is None:
             raise ApiError(409, "validation_failed", "a work of this order")
         await tx.exec("UPDATE work.work SET player = 'auto' WHERE id = :id", id=w["id"])
-        await W.add_budget(tx, w, 0)  # goes on now, with the hub's own player
+        await W.add_budget(tx, w, 0, ctx.who)  # goes on, with the hub's own player
         return f"{w['ref']} plays auto"
     return "guide"  # connection.guide: the app opens /connections/guides/{kind}
 
@@ -324,7 +324,7 @@ async def work_budget(
                 "envelope_exceeded",
                 f"{env.used_month} used + {body.add_tokens} > {env.tokens_month} this month",
             )
-        await W.add_budget(tx, w, body.add_tokens)
+        await W.add_budget(tx, w, body.add_tokens, ctx.who)
         await ctx.audit(
             tx,
             company_id=w["company_id"],

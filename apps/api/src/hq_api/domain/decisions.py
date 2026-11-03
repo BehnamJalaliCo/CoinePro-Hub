@@ -1158,7 +1158,7 @@ async def propose(
                warnings, domain, owner_visible, routed_to)
            VALUES (:co, :kind, :cls, :title, :what, :why, :pk, :pc, :work, :qt, :qu, :risk, :rn, :rev,
                    CAST(:payload AS jsonb), :exp, :thread, :ak, :ac, CAST(:expected AS jsonb), :warnings,
-                   :domain, :ac IS NULL, :ac)
+                   :domain, CAST(:ac AS text) IS NULL, :ac)
            RETURNING ref""",
         domain=domain,
         expected=json.dumps(expected, ensure_ascii=False) if expected else None,

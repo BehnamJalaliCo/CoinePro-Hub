@@ -323,8 +323,9 @@ async def test_the_data_move_hides_old_technical_items_once(
             )
             nid = await su.fetchval(
                 """INSERT INTO notify.notifications (company_id, level, title_fa, link_kind,
-                       link_ref, state)
-                   VALUES ($1, 'urgent', 'old', 'backup', 'x', 'delivered') RETURNING id""",
+                       link_ref, state, source_kind, source_code)
+                   VALUES ($1, 'urgent', 'old', 'backup', 'x', 'delivered', 'system', 'backup')
+                   RETURNING id""",
                 company["id"],
             )
             before = await su.fetchval(
@@ -585,7 +586,7 @@ async def test_a_root_with_an_open_child_and_a_partial_stays_open(
 
 
 async def test_the_timers_and_the_talk_loop(
-    client: httpx.AsyncClient, hub: Hub, owner: dict[str, str], su: Any,
+    client: httpx.AsyncClient, hub: Hub, wk: dict[str, Any], owner: dict[str, str], su: Any,
     new_company: Callable[..., Any],
 ) -> None:  # fmt: skip
     company = await new_company()
@@ -597,7 +598,7 @@ async def test_the_timers_and_the_talk_loop(
     await su.execute(
         "UPDATE owner.orders SET created_at = now() - interval '11 minutes' WHERE ref = $1", ref
     )
-    async with await all_tx(hub) as tx:
+    async with await all_tx(wk["hub"]) as tx:
         assert await OR.timers(tx, s, ref) == ["ack"]
         assert await OR.timers(tx, s, ref) == []  # once
         await OR.refresh(tx, ref)
@@ -625,7 +626,7 @@ async def test_the_timers_and_the_talk_loop(
     await su.execute(
         "UPDATE owner.orders SET created_at = now() - interval '8 hours' WHERE ref = $1", ref
     )
-    async with await all_tx(hub) as tx:
+    async with await all_tx(wk["hub"]) as tx:
         assert await OR.timers(tx, s, ref) == ["progress", "owner"]
     n = await su.fetchrow(
         """SELECT level, title_fa, body_fa, owner_visible, domain FROM notify.notifications
@@ -649,7 +650,7 @@ async def test_the_timers_and_the_talk_loop(
     queued = await su.fetchval(
         "SELECT agents.queue_run($1, 'work', $2, NULL, 'next', 'P2')", emp, w["id"]
     )
-    async with await all_tx(hub) as tx:
+    async with await all_tx(wk["hub"]) as tx:
         assert "talk_loop" in await OR.timers(tx, s, ref)
         assert await OR.stopped(tx, w["id"])
     row = await su.fetchrow("SELECT state, error_code FROM agents.runs WHERE id = $1", queued)
@@ -799,14 +800,14 @@ async def test_a_request_is_raised_to_its_roles_floor(
 
 
 async def test_a_cache_read_counts_a_tenth_on_the_run_and_the_work(
-    hub: Hub, su: Any, new_company: Callable[..., Any]
+    hub: Hub, wk: dict[str, Any], su: Any, new_company: Callable[..., Any]
 ) -> None:
     assert W.effective_tokens(1000, 200, 10_000, 500) == 2700
     company = await new_company()
     co = company["code"]
     o = await make_order(hub, company, "کار با حافظه‌ی نهان", budget=500_000)
     rid = await running_run(f"{co}-CEO")
-    runner = Runner(hub, router=None, gateway=None)  # type: ignore[arg-type]
+    runner = Runner(wk["hub"], router=None, gateway=None)  # type: ignore[arg-type]
     charter = hub.charters.get("ceo")
     rc = RunCtx(run={"id": uuid.UUID(rid), "work_id": o["work"]["id"], "token_cap": 160_000},
                 emp={"code": f"{co}-CEO"}, charter=charter, token="")  # fmt: skip

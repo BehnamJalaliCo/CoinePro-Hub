@@ -529,14 +529,18 @@ async def raise_to_floor(tx: Tx, w: dict[str, Any], charters: Any) -> int | None
     return floor
 
 
-async def add_budget(tx: Tx, w: dict[str, Any], tokens: int) -> int | None:
+async def add_budget(
+    tx: Tx, w: dict[str, Any], tokens: int, who: Principal | None = None
+) -> int | None:
     """⟨21⟩ §29.6 «+X»: more tokens for a work (its parents first, so a
     child's budget still fits what they have left). A work without a budget
     of its own keeps none (None). The work goes on: a `waiting` one is
-    `in_progress` again and its assignee is woken."""
+    `in_progress` again, and a `resume` event asks the worker (which alone
+    queues runs, migration 0011) to wake its assignee (resume_waiting)."""
     row = await tx.one(
-        """SELECT id, ref, parent_id, budget_tokens, status, assignee_id, priority
-           FROM work.work WHERE id = :id FOR UPDATE""",
+        """SELECT w.id, w.ref, w.parent_id, w.budget_tokens, w.status, w.assignee_id, w.priority,
+                  w.company_id
+           FROM work.work w WHERE w.id = :id FOR UPDATE""",
         id=w["id"],
     )
     new: int | None = None
@@ -565,14 +569,41 @@ async def add_budget(tx: Tx, w: dict[str, Any], tokens: int) -> int | None:
                 "UPDATE work.work SET status = 'in_progress' WHERE id = :id", id=row["id"]
             )
         if row["assignee_id"] is not None:
-            await tx.exec(
-                "SELECT agents.queue_run(:e, 'work', :w, NULL, :r, :p)",
-                e=row["assignee_id"],
-                w=row["id"],
-                r=f"budget_added:{row['ref']}",
-                p=row["priority"],
+            await event(
+                tx,
+                dict(row),
+                RESUME,
+                who or Principal(kind="service", code="orders", role="service"),
+                {"tokens": tokens, "budget": new},
             )
     return new
+
+
+RESUME = "resume"  # a work event: wake the assignee once (the worker's tick)
+
+
+async def resume_waiting(tx: Tx) -> list[str]:
+    """The worker's side of a `resume` event (budget added, the player set
+    back to auto): the open work's assignee gets one run, unless a run of
+    it was queued or ran since. Returns the refs woken."""
+    rows = await tx.all(
+        """SELECT w.id, w.ref, w.assignee_id, w.priority FROM work.work w
+           WHERE w.status IN ('queued', 'in_progress', 'waiting') AND w.assignee_id IS NOT NULL
+             AND EXISTS (SELECT 1 FROM work.work_events e WHERE e.work_id = w.id AND e.kind = :k
+                           AND e.at > now() - interval '1 day'
+                           AND NOT EXISTS (SELECT 1 FROM agents.runs r WHERE r.work_id = w.id
+                                             AND r.created_at >= e.at))""",
+        k=RESUME,
+    )
+    for r in rows:
+        await tx.exec(
+            "SELECT agents.queue_run(:e, 'work', :w, NULL, :r, :p)",
+            e=r["assignee_id"],
+            w=r["id"],
+            r=f"resume:{r['ref']}",
+            p=r["priority"],
+        )
+    return [str(r["ref"]) for r in rows]
 
 
 async def close_delivered_children(tx: Tx, w: dict[str, Any], who: Principal) -> list[str]:
