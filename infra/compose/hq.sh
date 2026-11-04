@@ -353,6 +353,33 @@ if [[ "$ocr" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
     esac
   fi
 fi
+# Rule automations (prompt 22, contract §30.4): opt-in profile "automations"
+# (n8n), switched on with HQ_AUTOMATIONS=on (.env; `make n8n-on`). Refused like
+# stt while the profile plus it does not fit the memory budget. The worker gets
+# HQ_N8N_URL only while it is on (else a line's n8n step fails plainly, «n8n در
+# دسترس نیست»).
+automations="${HQ_AUTOMATIONS:-$(sed -n 's/^HQ_AUTOMATIONS=//p' "$ENV_FILE" | tail -n1)}"
+export HQ_N8N_URL=""
+if [[ "$automations" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
+  ref="$(budget_ref)"
+  sum="$(compose "${profile_args[@]}" --profile automations --profile backup-tools config --format json |
+    jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
+  budget=$((ref * 80 / 100))
+  if ((sum <= budget)); then
+    profile_args+=(--profile automations)
+    export HQ_N8N_URL="http://n8n:5678"
+  else
+    over="the $profile profile plus automations needs $sum MiB of memory limits, $((sum - budget)) MiB"
+    over+=" over the budget of $budget MiB (80% of $ref MiB)"
+    case "$(subcommand "$@")" in
+      up | run | create | start | restart)
+        echo "error: HQ_AUTOMATIONS=on refused: $over (make n8n-off)." >&2
+        exit 3
+        ;;
+      *) echo "warning: HQ_AUTOMATIONS=on ignored ($over)" >&2 ;;
+    esac
+  fi
+fi
 if [[ "${1:-}" == "--print-ocr" ]]; then # the quality gate's check
   if [[ -n "$HQ_OCR_URL" ]]; then echo on; else echo off; fi
   exit 0

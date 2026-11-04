@@ -1,0 +1,62 @@
+{
+  "id": "hqLineCallbackDemo1",
+  "name": "line-callback-demo",
+  "active": false,
+  "nodes": [
+    {
+      "id": "6a1f0000-0000-4000-8000-000000000001",
+      "name": "Hub webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "line-callback-demo",
+      "notes": "The hub POSTs a line step here (adapter `n8n`, settings.workflow = line-callback-demo), signed with X-HQ-Signature. The raw body is kept: the signature is over the exact bytes.",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "line-callback-demo",
+        "responseMode": "onReceived",
+        "options": { "rawBody": true }
+      }
+    },
+    {
+      "id": "6a1f0000-0000-4000-8000-000000000002",
+      "name": "Verify and sign",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [260, 0],
+      "notes": "Checks the hub's signature (HMAC-SHA256 over '<t>.<raw body>', at most 300 s old), does the rule work (here: only echoes), and signs the answer the same way. The secret is HQ_SIGNING_SECRET (the same as kv/hq/n8n). No model is called here.",
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const crypto = require('crypto');\nconst secret = $env.HQ_SIGNING_SECRET || '';\nconst item = $input.first();\nconst raw = await this.helpers.getBinaryDataBuffer(0, 'data');\nconst header = String(item.json.headers['x-hq-signature'] || '');\nconst parts = Object.fromEntries(header.split(',').map((p) => p.split('=')));\nconst t = parseInt(parts.t, 10);\nconst now = Math.floor(Date.now() / 1000);\nconst want = crypto.createHmac('sha256', secret).update(`${t}.`).update(raw).digest('hex');\nconst got = String(parts.v1 || '');\nif (!secret || !t || Math.abs(now - t) > 300 || want.length !== got.length || !crypto.timingSafeEqual(Buffer.from(want), Buffer.from(got))) {\n  throw new Error('the hub signature is missing, old or wrong');\n}\nconst req = JSON.parse(raw.toString('utf8'));\n// --- the rule work goes here (fetch, format, file); this demo only echoes ---\nconst body = JSON.stringify({\n  token: req.token,\n  ok: true,\n  text: `n8n demo: step ${req.step} of run ${req.run}`,\n  data: { echoed_inputs: Object.keys(req.inputs || {}) },\n});\nconst ts = Math.floor(Date.now() / 1000);\nconst mac = crypto.createHmac('sha256', secret).update(`${ts}.`).update(body).digest('hex');\nreturn [{ json: { body, signature: `t=${ts},v1=${mac}` } }];"
+      }
+    },
+    {
+      "id": "6a1f0000-0000-4000-8000-000000000003",
+      "name": "Call back the hub",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 0],
+      "notes": "POST /internal/v1/lines/callback on the api (internal network only; never through Caddy), signed. The engine finds the waiting step by `token` and finishes it.",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.HQ_CALLBACK_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "X-HQ-Signature", "value": "={{ $json.signature }}" }]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.body }}",
+        "options": { "timeout": 20000 }
+      }
+    }
+  ],
+  "connections": {
+    "Hub webhook": { "main": [[{ "node": "Verify and sign", "type": "main", "index": 0 }]] },
+    "Verify and sign": { "main": [[{ "node": "Call back the hub", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "pinData": {},
+  "meta": { "templateCredsSetupCompleted": true }
+}
