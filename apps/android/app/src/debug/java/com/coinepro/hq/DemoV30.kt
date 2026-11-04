@@ -320,7 +320,7 @@ internal class V30Demo {
         st("cover", "cover", "کاور", "برای کاور یک تصویر از پوشه‌ی کاور انتخاب کن و عنوان کوتاه {{script}} را روی آن بگذار.", jo("folder" to folder), listOf("script"), timeout = 240),
         st("quality", "quality", "کنترل کیفیت", null, jo("max_chars" to 2200, "banned_words" to ja(listOf(JsonPrimitive("تضمین سود"), JsonPrimitive("سود قطعی")))), listOf("build"), timeout = 30),
         st("publish", "publish", "انتشار ریلز", null, jo("when" to "schedule", "story_same_day" to true), listOf("render", "cover", "build"), gate = "owner", timeout = 300),
-        st("story", "publish", "استوری همان روز", null, jo("when" to "now"), listOf("publish"), optional = true, timeout = 300),
+        st("story", "publish", "استوری همان روز", null, jo("when" to "asap"), listOf("publish"), optional = true, timeout = 300),
     )
 
     private fun telegramSteps() = listOf(
