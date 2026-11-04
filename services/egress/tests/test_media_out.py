@@ -30,6 +30,8 @@ SIGNED = f"https://{HOST}/public/v1/media/" + "s" * 43
 MP4 = b"\x00\x00\x00\x18ftypmp42" + b"\x00\x01" * 600
 JPG = b"\xff\xd8\xff\xe0" + b"\x10" * 900
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x20" * 700
+YT = "ya29." + "Q" * 60  # a Google OAuth access token's shape (fake)
+SESSION = "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&upload_id=abc"
 
 
 def sha(data: bytes) -> str:
@@ -48,7 +50,24 @@ class Fakes:
         self.seen.append(request)
         if request.url.host == "api.telegram.org":
             return self.telegram(request)
+        if request.url.host == "www.googleapis.com":
+            return self.youtube(request)
         return self.graph(request)
+
+    # ------------------------------------------------------------- youtube --
+    def youtube(self, request: httpx.Request) -> httpx.Response:
+        assert request.headers.get("authorization") == f"Bearer {YT}"
+        assert YT not in str(request.url)
+        if request.method == "POST":
+            doc = json.loads(request.content)
+            if doc["snippet"]["title"] == "quota":
+                return httpx.Response(403, json={"error": {"message": "quota", "errors": [
+                    {"reason": "quotaExceeded"}]}})  # fmt: skip
+            assert request.headers["x-upload-content-type"] == "video/mp4"
+            return httpx.Response(200, headers={"Location": SESSION})
+        assert request.method == "PUT" and str(request.url) == SESSION
+        assert request.content == MP4
+        return httpx.Response(200, json={"id": "YT123", "status": {"privacyStatus": "private"}})
 
     # ------------------------------------------------------------ telegram --
     def form(self, request: httpx.Request) -> dict[str, Any]:
@@ -138,7 +157,11 @@ class Fakes:
 
 @pytest.fixture
 async def egress() -> AsyncIterator[tuple[httpx.AsyncClient, Fakes]]:
-    table = {"api.telegram.org": ["149.154.167.220"], "graph.instagram.com": ["157.240.0.63"]}
+    table = {
+        "api.telegram.org": ["149.154.167.220"],
+        "graph.instagram.com": ["157.240.0.63"],
+        "www.googleapis.com": ["142.250.0.95"],
+    }
 
     async def resolve(host: str, port: int) -> list[str]:
         if host not in table:
@@ -686,3 +709,54 @@ def test_the_multipart_reader_keeps_views_of_one_buffer() -> None:
             M.parse_multipart(bytearray(bad), "multipart/form-data; boundary=b1")
     with pytest.raises(M.Refused):
         M.parse_multipart(body, "application/json")
+
+
+# ----------------------------------------------------------------- youtube --
+def yt(
+    payload: dict[str, Any], files: dict[str, tuple[bytes, str]], token: str = YT
+) -> dict[str, Any]:
+    meta = [
+        {"part": k, "name": f"{k}.x", "mime": m, "sha256": sha(d)} for k, (d, m) in files.items()
+    ]
+    return {"channel": "youtube", "method": "upload", "token": token, "payload": payload,
+            "files": meta}  # fmt: skip
+
+
+async def test_a_short_is_uploaded_in_two_requests_and_the_token_never_comes_back(
+    egress: Any,
+) -> None:
+    c, fakes = egress
+    files = {"file0": (MP4, "video/mp4")}
+    payload = {"title": "عنوان", "description": "توضیح #shorts", "tags": ["a", "b"],
+               "privacy": "private", "publish_at": "2026-11-05T09:00:00Z"}  # fmt: skip
+    r = await post(c, yt(payload, files), files)
+    out = r.json()
+    assert (out["outcome"], out["code"], out["data"]) == ("ok", None, {"video_id": "YT123"}), out
+    assert [x.method for x in fakes.seen] == ["POST", "PUT"]
+    meta = json.loads(fakes.seen[0].content)
+    assert meta["status"]["containsSyntheticMedia"] is True
+    assert meta["status"]["selfDeclaredMadeForKids"] is False
+    assert meta["status"]["publishAt"] == "2026-11-05T09:00:00Z"
+    assert YT not in r.text
+
+
+async def test_youtube_refuses_what_is_not_one_video_or_a_listed_key_and_names_quota(
+    egress: Any,
+) -> None:
+    c, fakes = egress
+    files = {"file0": (MP4, "video/mp4")}
+    for bad in (
+        {"title": "t", "x": 1},
+        {"title": "<b>t</b>"},
+        {"title": ""},
+        {"title": "t", "privacy": "x"},
+    ):
+        out = (await post(c, yt(bad, files), files)).json()
+        assert out["outcome"] == "blocked" and out["code"] == "payload_not_allowed", bad
+    img = {"file0": (JPG, "image/jpeg")}
+    assert (await post(c, yt({"title": "t"}, img), img)).json()["code"] == "file_mismatch"
+    bad_token = (await post(c, yt({"title": "t"}, files, token="short"), files)).json()
+    assert bad_token["code"] == "bad_token"
+    assert not fakes.seen
+    quota = (await post(c, yt({"title": "quota"}, files), files)).json()
+    assert (quota["outcome"], quota["code"]) == ("error", "platform_limit")
