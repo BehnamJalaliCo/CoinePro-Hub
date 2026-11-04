@@ -3402,7 +3402,7 @@ CalendarItem { day, at|null, company, kind: "line"|"newsletter"|"ad"|"campaign"|
                state, conflict_fa|null }
 Campaign     { id, company, title_fa, goal_fa, starts, ends, channels: [platform], budget|null, state }
 ```
-- `GET /calendar?from&to&company?` merges line runs (§30), newsletters, ad campaigns and campaigns; conflicts (two posts on one
+- `GET /campaign-calendar?from&to&company?` (`/calendar` is the change calendar of §20) merges line runs (§30), newsletters, ad campaigns and campaigns; conflicts (two posts on one
   channel within its spacing, an Iranian holiday from the calendar data) are marked. `GET/POST/PUT/DELETE /campaigns[/{id}]`.
 - §30's `GET /calendar/lines` stays as it is.
 
