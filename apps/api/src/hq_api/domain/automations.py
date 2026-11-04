@@ -529,11 +529,14 @@ async def compile_sentence(hub: Any, sentence: str, company: str | None) -> Comp
         or not isinstance(routes[0], dict)
         or not isinstance(routes[0].get("refused_fa", []), list)
     ):
+        # 422, not a 5xx: the sentence could not be made a rule (never a server error; the apps show
+        # message_fa and the owner writes it again more simply).
         raise ApiError(
-            502,
-            "channel_not_configured",
+            422,
+            "validation_failed",
             "the model did not answer in the schema",
             message_fa="نتوانستم این جمله را به قاعده‌ی روشن تبدیل کنم؛ دوباره و ساده‌تر بنویسید.",
+            fields={"sentence_fa": "not compiled"},
         )
     item = routes[0]
     refused = _model_reasons(item.get("refused_fa"))

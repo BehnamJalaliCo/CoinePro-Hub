@@ -300,7 +300,7 @@ async def test_malformed_model_json_is_a_plain_error(
         route_answer(monkeypatch, answer)
         r = await client.post("/api/v1/automations/compile", headers=owner,
                               json={"sentence_fa": "هر روز یک گزارش بفرست"})  # fmt: skip
-        assert r.status_code == 502, (answer, r.text)
+        assert r.status_code == 422, (answer, r.text)
         assert H.is_persian_answer(r.json()["message_fa"]) and "Traceback" not in r.text
     # a rule that is not an object is refused with a reason, not an error
     route_answer(monkeypatch, routes([1, 2]))
@@ -948,7 +948,7 @@ async def test_ad_rules_and_resuming_are_the_owners_with_a_seal_where_it_loosens
     eg.fail_mutate = True
     su_h = await step_up(hub, sid, "ads.resume", f"google_ads:{cid}")
     refused = await client.post(url, headers={**h, **su_h})
-    assert refused.status_code == 502 and H.is_persian_answer(refused.json()["message_fa"])
+    assert refused.status_code == 422 and H.is_persian_answer(refused.json()["message_fa"])
     assert (await su.fetchval("SELECT status FROM growth.ad_campaigns WHERE company_id = $1 AND "
                               "campaign_id = $2", co["id"], cid)) == "paused"  # fmt: skip
     eg.fail_mutate = False

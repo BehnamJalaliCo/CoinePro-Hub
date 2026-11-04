@@ -40,3 +40,14 @@ test_an_unknown_op_is_refused if {
 test_a_missing_input_is_refused if {
 	not kits.allow with input as {}
 }
+
+test_the_reasons_name_an_unknown_op_and_principal if {
+	"unknown_op" in kits.deny_reasons with input as {
+		"principal": {"kind": "owner", "code": "owner", "role": "owner"},
+		"op": "company.delete_everything",
+	}
+	"unknown_principal" in kits.deny_reasons with input as {
+		"principal": {"kind": "stranger", "code": "x", "role": "x"},
+		"op": "company.from_kit",
+	}
+}

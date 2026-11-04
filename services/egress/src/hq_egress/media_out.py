@@ -868,7 +868,8 @@ def youtube_outcome(status: int, body: Any, headers: dict[str, str]) -> tuple[st
     doc = body if isinstance(body, dict) else {}
     if 200 <= status < 300 and doc.get("id"):
         return "ok", None, {"video_id": str(doc["id"])[:40]}
-    err = doc.get("error") if isinstance(doc.get("error"), dict) else {}
+    raw_err = doc.get("error")
+    err: dict[str, Any] = raw_err if isinstance(raw_err, dict) else {}
     reasons = " ".join(
         str(e.get("reason", "")).lower() for e in err.get("errors", []) if isinstance(e, dict)
     )
