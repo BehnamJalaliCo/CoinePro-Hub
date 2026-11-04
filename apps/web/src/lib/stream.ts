@@ -40,6 +40,13 @@ const INVALIDATE: Array<[string, Array<string | readonly string[]>]> = [
   // ⟨1.12⟩ §30.5 topic `lines`: `line.` (a line moved) and `line_run.` (a run or one of its steps moved); a sealed run also moves the cartable.
   ['line_run.', ['lines', 'decisions', 'inbox']],
   ['line.', ['lines']],
+  // ⟨1.13⟩ §31.8 topic `growth`: insights, ranks, competitor jumps, a paused ad, an automation run, a campaign.
+  ['insights.', ['lines', 'g31']],
+  ['rank.', ['g31']],
+  ['competitor.', ['g31']],
+  ['ad.', ['g31']],
+  ['automation.', ['g31']],
+  ['campaign.', ['g31']],
   ['connection.', ['connections', 'groups']],
   ['rule.', ['rules']],
   ['hiring.', ['hiring']],
