@@ -70,7 +70,14 @@ TOPICS: dict[str, tuple[str, ...]] = {
     # feedback.item
     "revenue": ("revenue.",),
     "support": ("support.",),
-    "growth": ("rescue.", "lifecycle.", "nps."),
+    "growth": (
+        "rescue.",
+        "lifecycle.",
+        "nps.",
+        "rank.",
+        "competitor.",
+        "campaign.",
+    ),  # ⟨1.13⟩ §31.8
     "feedback": ("feedback.",),
     # ⟨1.4.6⟩ prompt 9.1: brand.updated (contract §18.14)
     # ⟨1.10⟩ prompt 19 (contract §28.2): catalogue.updated (a company's catalogue run)

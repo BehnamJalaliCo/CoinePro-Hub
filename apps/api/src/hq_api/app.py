@@ -69,6 +69,7 @@ from hq_api.routes import advisor as advisor_routes  # prompt 12 part A
 from hq_api.routes import archive as archive_routes  # prompt 14: the archive
 from hq_api.routes import archive_agents as archive_agent_routes  # prompt 14: its agent tools
 from hq_api.routes import ask as ask_routes  # prompt 12 §2, §3, §13 (on prompt 11)
+from hq_api.routes import campaigns as campaign_routes  # prompt 22 part 3: §31.5
 from hq_api.routes import connections as connection_routes  # prompt 21 part 3: §29.12
 from hq_api.routes import council as council_routes  # prompt 21: the council v2
 from hq_api.routes import dceo as dceo_routes
@@ -76,10 +77,12 @@ from hq_api.routes import groups as group_routes  # prompt 21 part 3: §29.9, §
 from hq_api.routes import home as home_routes  # prompt 21 part 3: §29.13
 from hq_api.routes import legal as legal_routes  # prompt 13: the legal counsel
 from hq_api.routes import media as media_routes  # prompt 13, the media half
+from hq_api.routes import newsletter as newsletter_routes  # prompt 22 part 3: §31.3
 from hq_api.routes import order_report as order_report_routes  # prompt 21: §29.1-§29.2, §29.6
 from hq_api.routes import reviews as review_routes
 from hq_api.routes import role_drafts as role_draft_routes  # prompt 13 §1.1
 from hq_api.routes import rules as rule_routes  # prompt 21: the owner's rules
+from hq_api.routes import seo as seo_routes  # prompt 22 part 3: §31.4
 from hq_api.routes import servers as server_routes  # prompt 17: company server runners
 from hq_api.routes import substitutes as substitute_routes  # prompt 12 part A
 from hq_api.routes import voice as voice_session_routes  # prompt 21: long voice
@@ -276,6 +279,10 @@ def create_app(
         app.include_router(p21c.router, prefix="/api/v1")
         app.include_router(p21c.internal_router, prefix="/internal/v1")
     app.include_router(home_routes.router, prefix="/api/v1")
+    # ⟨1.13⟩ prompt 22 part 3 (contract §31.3-§31.5): newsletter, SEO rank and competitors,
+    # the campaign calendar (all owner only).
+    for p22g in (newsletter_routes, seo_routes, campaign_routes):
+        app.include_router(p22g.router, prefix="/api/v1")
     # ⟨1.7⟩ prompt 14 (contract §23): the archive of record and its agent tools.
     app.include_router(archive_routes.router, prefix="/api/v1")
     app.include_router(archive_agent_routes.internal_router, prefix="/internal/v1")

@@ -17,6 +17,7 @@ from temporalio.common import RetryPolicy, SearchAttributeKey
 from temporalio.exceptions import ActivityError, ApplicationError
 
 from hq_api.worker.archive_workflows import P14_WORKFLOWS
+from hq_api.worker.channels_workflows import CHANNELS_WORKFLOWS
 from hq_api.worker.growth_workflows import GROWTH_WORKFLOWS
 from hq_api.worker.legal_workflows import P13B_WORKFLOWS
 from hq_api.worker.mgmt_workflows import P12B_WORKFLOWS
@@ -652,4 +653,5 @@ WORKFLOWS = [
     *P13B_WORKFLOWS,  # prompt 13, legal and voice (legal_workflows.py)
     *P14_WORKFLOWS,  # prompt 14, the archive (archive_workflows.py)
     *GROWTH_WORKFLOWS,  # prompt 21 part 3: groups, connections, home (growth_workflows.py)
+    *CHANNELS_WORKFLOWS,  # prompt 22 part 3: newsletter and SEO reads (channels_workflows.py)
 ]
