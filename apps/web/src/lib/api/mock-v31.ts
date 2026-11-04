@@ -39,29 +39,36 @@ const adCampaigns: any[] = [
 ];
 const adRules: any[] = [{ id: 'R1', company: 'TY', scope: 'account', daily_cap: 100, window_days: 3, min_roas: 1, min_spend_before_judging: 200, action: 'pause', state: 'on' }];
 const automations: any[] = [
-  { ref: 'AU-0001', company: 'TY', sentence_fa: 'هر روز ساعت ۸ اگر بازدید دیروز کم شد به من خبر بده', rule: { trigger: { kind: 'schedule', rrule: 'FREQ=DAILY;BYHOUR=8' }, conditions: [], actions: [{ kind: 'notify.owner' }] }, state: 'on', runs: 3, last_run_at: '2026-11-03T04:30:00Z', n8n_workflow: null, preview_fa: 'هر روز ساعت ۸ بازدید دیروز را میسنجد و اگر کم شد به تو خبر میدهد.' },
-  { ref: 'AU-0002', company: null, sentence_fa: 'اگر ارسال یک خط سه بار شکست خورد آن را متوقف کن', rule: { trigger: { kind: 'event', type: 'line_run.failed' }, conditions: [], actions: [{ kind: 'line.pause' }] }, state: 'off', runs: 0, last_run_at: null, n8n_workflow: null },
+  { ref: 'AT-0001', company: 'TY', sentence_fa: 'هر روز ساعت ۸ اگر بازدید دیروز کم شد به من خبر بده', rule: { trigger: { kind: 'schedule', rrule: 'FREQ=DAILY;BYHOUR=8' }, conditions: [], actions: [{ kind: 'notify.owner' }] }, state: 'on', runs: 3, last_run_at: '2026-11-03T04:30:00Z', n8n_workflow: null, preview_fa: 'هر روز ساعت ۸ بازدید دیروز را میسنجد و اگر کم شد به تو خبر میدهد.' },
+  { ref: 'AT-0002', company: null, sentence_fa: 'اگر ارسال یک خط سه بار شکست خورد آن را متوقف کن', rule: { trigger: { kind: 'event', type: 'line_run.failed' }, conditions: [], actions: [{ kind: 'line.pause' }] }, state: 'off', runs: 0, last_run_at: null, n8n_workflow: null },
 ];
+const kitOrder = { sealed: false };
 let na = 3, nc = 3, nk = 3, nco = 2, nr = 2, ncp = 2;
 
 export async function handle31(req: Request, p: string, q: URLSearchParams): Promise<Response | null> {
   const m = req.method;
-  if (!/^\/(kits|companies\/[^/]+\/(newsletter|keywords|ranks|competitors|ads|ad-rules)|companies\/from-kit|newsletter\/|campaign-calendar|campaigns|ads\/|automations|lines\/[^/]+\/insights)/.test(p)) return null;
+  if (!/^\/(orders\/F-0099\/report|kits|companies\/[^/]+\/(newsletter|keywords|ranks|competitors|ads|ad-rules)|companies\/from-kit|newsletter\/|campaign-calendar|campaigns|ads\/|automations|lines\/[^/]+\/insights)/.test(p)) return null;
   const body = async <T,>() => (await req.clone().json().catch(() => ({}))) as T;
   const stepUp = req.headers.get('X-Step-Up');
 
+  if (p === '/orders/F-0099/report' && m === 'GET') {
+    return json({ ref: 'F-0099', text_fa: 'یک شرکت تازه برای آموزش بساز', at: '2026-11-04T06:00:00Z', state: kitOrder.sealed ? 'delivered' : 'waiting', ack: null, route: null, steps: [], outputs: [], summary: null, updated_at: '2026-11-04T06:00:00Z',
+      blockers: kitOrder.sealed ? [] : [{ kind: 'kit_unsealed', title_fa: 'ساخت شرکت منتظر مُهر توست', detail_fa: 'کد و نام را بنویس و مُهر بزن.', since: '2026-11-04T06:00:00Z', fix: { action: 'kit.create', label_fa: 'ساخت شرکت', target: 'media_company' } }],
+      kit: { kit: 'media_company', title_fa: KITS[0]!.title_fa, name_fa: 'آموزش', sealed: kitOrder.sealed, summary: KITS[0] } });
+  }
   if (p === '/kits' && m === 'GET') return json(KITS);
   if (p === '/companies/from-kit/preview' && m === 'POST') {
     const b = await body<any>(); const k = KITS.find((x) => x.key === b.kit);
     if (!k) return problem(404, 'not_found', 'این الگو پیدا نشد.');
-    return json({ company: { code: b.code, name_fa: b.name_fa, name_en: b.name_en }, team: [{ title_fa: 'مدیرعامل', count: 1 }, { title_fa: 'مدیر محتوا', count: 1 }], groups: k.groups, lines: k.lines.map((l) => ({ title_fa: l.title_fa, platform: l.platform })), kpis: k.kpis, connections: k.connections,
+    return json({ code_free: b.code !== 'TY', problems: [], company: { code: b.code, name_fa: b.name_fa, name_en: b.name_en }, team: [{ title_fa: 'مدیرعامل', count: 1 }, { title_fa: 'مدیر محتوا', count: 1 }], groups: k.groups, lines: k.lines.map((l) => ({ title_fa: l.title_fa, platform: l.platform })), kpis: k.kpis, connections: k.connections,
       todo_fa: k.connections.map((c) => `اتصال ${c} را وصل کن`) });
   }
   if (p === '/companies/from-kit' && m === 'POST') {
     if (!stepUp) return needStepUp();
     const b = await body<any>(); const k = KITS.find((x) => x.key === b.kit);
     if (!k) return problem(404, 'not_found', 'این الگو پیدا نشد.');
-    return json({ company: { code: b.code, name_fa: b.name_fa }, todo_fa: k.connections.map((c) => `اتصال ${c} را وصل کن`) }, 201);
+    if (b.order === 'F-0099') kitOrder.sealed = true;
+    return json({ company: { code: b.code, name_fa: b.name_fa }, team: [], groups: k.groups, kpis: k.kpis, connections: k.connections, lines: [{ ref: 'LN-0100' }], lines_pending: 0, groups_pending: 0, todo_fa: k.connections.map((c) => `اتصال ${c} را وصل کن`) }, 201);
   }
 
   const ins = /^\/lines\/([^/]+)\/insights$/.exec(p);
@@ -131,7 +138,7 @@ export async function handle31(req: Request, p: string, q: URLSearchParams): Pro
     return json({ rule: { trigger: { kind: 'schedule', rrule: 'FREQ=DAILY;BYHOUR=9' }, conditions: [], actions: [{ kind: 'notify.owner' }] }, preview_fa: 'هر روز ساعت ۹ صبح بازدید دیروز را میسنجد و اگر کم شده بود به تو خبر میدهد. چیزی منتشر یا پرداخت نمیکند.', refused_fa: refused });
   }
   if (p === '/automations' && m === 'GET') return json(automations);
-  if (p === '/automations' && m === 'POST') { const b = await body<any>(); const a = { ref: `AU-${String(na++).padStart(4, '0')}`, company: b.company ?? null, sentence_fa: b.sentence_fa, rule: b.rule, state: 'proposed', runs: 0, last_run_at: null, n8n_workflow: null }; automations.push(a); return json(a, 201); }
+  if (p === '/automations' && m === 'POST') { const b = await body<any>(); const a = { ref: `AT-${String(na++).padStart(4, '0')}`, company: b.company ?? null, sentence_fa: b.sentence_fa, rule: b.rule, state: 'proposed', runs: 0, last_run_at: null, n8n_workflow: null }; automations.push(a); return json(a, 201); }
   const au = /^\/automations\/([^/]+)(?:\/(seal|state))?$/.exec(p);
   if (au) {
     const a = automations.find((x) => x.ref === au[1]);

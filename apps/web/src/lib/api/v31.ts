@@ -42,17 +42,22 @@ export type Kit = {
   key: string; title_fa: string; purpose_fa: string; team_template: string; groups: string[];
   lines: Array<{ template: string; platform: string; title_fa: string }>; kpis: string[]; connections: string[]; defaults: Record<string, unknown>;
 };
-export type KitBody = { kit: string; code: string; name_fa: string; name_en: string; color_index?: number };
+export type KitBody = { kit: string; code: string; name_fa: string; name_en: string; color_index?: number; order?: string };
 /** What the preview and the result carry beyond §31.2 (assumed): the team, the lines and `todo_fa`, what is still to be connected. */
-export type KitPreview = { company: { code: string; name_fa: string; name_en: string }; team?: Array<{ title_fa: string; count?: number }>; groups: string[]; lines: Array<{ title_fa: string; platform: string }>; kpis: string[]; connections: string[]; todo_fa: string[] };
-export type KitResult = { company: { code: string; name_fa: string }; todo_fa: string[]; lines?: Line[] };
+export type KitPreview = { company: { code: string; name_fa: string; name_en: string }; team?: Array<{ title_fa: string; count?: number }>; groups: string[]; lines: Array<{ title_fa: string; platform: string }>; kpis: string[]; connections: string[]; todo_fa: string[]; code_free?: boolean; problems?: string[] };
+export type KitResult = { company: { code: string; name_fa: string }; todo_fa: string[]; team?: unknown; groups?: unknown; kpis?: unknown; connections?: unknown; lines?: Array<Line | { ref: string }>; lines_pending?: unknown; groups_pending?: unknown };
+/** The step-up for a company from a kit is sealed on the SHA-256 of the exact body bytes (what `call` sends: JSON.stringify). */
+export async function bodyHash(body: unknown): Promise<string> {
+  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(body)));
+  return [...new Uint8Array(d)].map((x) => x.toString(16).padStart(2, '0')).join('');
+}
 export const useKits = () => useQuery({ queryKey: ['g31', 'kits'], staleTime: 60_000, queryFn: list<Kit>('/kits') });
 export const previewKit = (b: KitBody) => call<KitPreview>('POST', '/companies/from-kit/preview', b);
 export function useCreateFromKit() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (b: KitBody) => withStepUp('company.create', b.code, (h) => call<KitResult>('POST', '/companies/from-kit', b, h)),
-    onSettled: () => Promise.all([qc.invalidateQueries({ queryKey: ['companies'] }), qc.invalidateQueries({ queryKey: ['lines'] })]),
+    mutationFn: async (b: KitBody) => withStepUp('company.create', await bodyHash(b), (h) => call<KitResult>('POST', '/companies/from-kit', b, h)),
+    onSettled: () => Promise.all([qc.invalidateQueries({ queryKey: ['companies'] }), qc.invalidateQueries({ queryKey: ['lines'] }), qc.invalidateQueries({ queryKey: ['orders'] })]),
   });
 }
 

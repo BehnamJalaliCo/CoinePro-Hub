@@ -129,11 +129,30 @@ test('one sentence becomes an automation: preview, seal, then on and off', async
     await expect(prev.getByText(/بازدید دیروز را میسنجد/)).toBeVisible();
     await expect(prev.getByLabel('این کارها انجام نمیشود').getByRole('listitem')).toHaveCount(1);
     await prev.getByRole('button', { name: 'ثبت و مُهر' }).click();
-    const row = page.getByLabel('اتوماسیون AU-0003');
+    const row = page.getByLabel('اتوماسیون AT-0003');
     await expect(row.getByText('روشن', { exact: true })).toBeVisible();
     await row.getByRole('switch').click();
     await expect(row.getByText('خاموش', { exact: true })).toBeVisible();
-    await page.getByLabel('اتوماسیون AU-0001').getByRole('button').first().click();
+    await page.getByLabel('اتوماسیون AT-0001').getByRole('button').first().click();
     await expect(page.getByLabel('اجراها').getByText('خبر برای مالک فرستاده شد.')).toBeVisible();
+  });
+});
+
+test('a «new company» order shows the kit card; its fix scrolls there and the seal carries the order', async ({ page }) => {
+  await clean(page, async () => {
+    await page.goto('/orders/F-0099');
+    await expect(page.getByText('ساخت شرکت منتظر مُهر توست')).toBeVisible();
+    await page.getByLabel('گیرها').getByRole('button', { name: 'ساخت شرکت' }).click();
+    const card = page.getByLabel('شرکت آماده', { exact: true });
+    await expect(card.getByLabel('نام فارسی')).toHaveValue('آموزش');
+    await card.getByLabel('نام انگلیسی').fill('Amoozesh');
+    await card.getByLabel('کد شرکت').fill('TY');
+    await card.getByRole('button', { name: 'پیش‌نمایش' }).click();
+    await expect(card.getByRole('alert')).toBeVisible();
+    await expect(card.getByRole('button', { name: 'بساز و مُهر کن' })).toBeDisabled();
+    await card.getByLabel('کد شرکت').fill('AM');
+    await card.getByRole('button', { name: 'پیش‌نمایش' }).click();
+    await card.getByRole('button', { name: 'بساز و مُهر کن' }).click();
+    await expect(card.getByText('شرکت «آموزش» ساخته شد')).toBeVisible();
   });
 });

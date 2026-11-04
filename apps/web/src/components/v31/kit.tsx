@@ -10,7 +10,7 @@ import { Card, Empty, ErrorState, Pill, SectionTitle, Skeleton } from '@/compone
 import { useToast } from '@/components/ui/toast';
 import { ApiError } from '@/lib/api/client';
 import { platformFa } from '@/lib/api/v30';
-import { previewKit, useCreateFromKit, useKits, type Kit, type KitPreview, type KitResult } from '@/lib/api/v31';
+import { previewKit, useCreateFromKit, useKits, type Kit, type KitBody, type KitPreview, type KitResult } from '@/lib/api/v31';
 import { cx } from '@/lib/format';
 import { FaPara, FaText } from '@/components/v29/text';
 
@@ -18,24 +18,24 @@ export const field = 'w-full rounded-[10px] border border-strong bg-tile px-3 te
 export const errText = (e: unknown, fallback: string) => (e instanceof ApiError ? e.messageFa : fallback);
 export const notYet = (icon: 'companies' | 'chart' | 'send' | 'globe' | 'task' | 'planner' | 'budget', title: string, body: string) => <Card><Empty icon={icon} title={title} body={body} /></Card>;
 
-export function CompanyKit() {
-  const q = useKits();
+/** The form, the preview, the seal and the result for one chosen kit. In an order's report the order ref travels with the body. */
+export function KitFlow({ kit, order, nameFa: nameFa0, onBack, onStart }: { kit: Kit; order?: string; nameFa?: string | null; onBack?: () => void; onStart?: () => void }) {
   const toast = useToast();
   const create = useCreateFromKit();
-  const [kit, setKit] = useState<Kit | null>(null);
   const [code, setCode] = useState('');
-  const [nameFa, setNameFa] = useState('');
+  const [nameFa, setNameFa] = useState(nameFa0 ?? '');
   const [nameEn, setNameEn] = useState('');
   const [prev, setPrev] = useState<KitPreview | null>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<KitResult | null>(null);
   const valid = /^[A-Z]{2,5}$/.test(code) && nameFa.trim() && nameEn.trim();
-  const body = () => ({ kit: kit!.key, code, name_fa: nameFa.trim(), name_en: nameEn.trim() });
+  const body = (): KitBody => ({ kit: kit.key, code, name_fa: nameFa.trim(), name_en: nameEn.trim(), ...(order ? { order } : {}) });
   const preview = async () => {
     setBusy(true);
     try { setPrev(await previewKit(body())); } catch (e) { toast({ tone: 'error', text: errText(e, 'پیش‌نمایش نیامد.') }); } finally { setBusy(false); }
   };
-  const make = () => create.mutate(body(), { onSuccess: (r) => setDone(r), onError: (e) => toast({ tone: 'error', text: errText(e, 'ساخته نشد؛ دوباره بزن.') }) });
+  const make = () => { onStart?.(); create.mutate(body(), { onSuccess: (r) => setDone(r), onError: (e) => toast({ tone: 'error', text: errText(e, 'ساخته نشد؛ دوباره بزن.') }) }); };
+  const blocked = prev ? prev.code_free === false || !!prev.problems?.length : false;
 
   if (done) {
     return (
@@ -52,33 +52,10 @@ export function CompanyKit() {
       </Card>
     );
   }
-  if (q.isLoading) return <div className="grid gap-4 lg:grid-cols-2">{Array.from({ length: 2 }, (_, i) => <Skeleton key={i} className="h-40 rounded-[16px]" />)}</div>;
-  if (q.error) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
-  if (q.data === null) return notYet('companies', 'شرکت آماده بعد از به‌روزرسانی ستاد میاید', 'یک الگو را انتخاب میکنی و شرکت با تیم، کارگروه و خط‌هایش ساخته میشود.');
-  if (!kit) {
-    return (
-      <div className="grid items-start gap-4 lg:grid-cols-2" aria-label="الگوهای شرکت">
-        {(q.data ?? []).map((k) => (
-          <button key={k.key} type="button" onClick={() => setKit(k)} aria-label={`الگوی ${k.title_fa}`} className="hq-tile text-start">
-            <Card className="flex h-full flex-col gap-3 p-5 transition-colors hover:bg-tile">
-              <span className="text-[16px] font-semibold">{k.title_fa}</span>
-              <FaPara text={k.purpose_fa} className="text-[13px] leading-6 text-sec" />
-              <div className="flex flex-wrap gap-1.5 text-[12px] text-sec">
-                <Pill tone="silver"><span className="fig">{k.lines.length}</span> خط تولید</Pill>
-                <Pill tone="silver"><span className="fig">{k.groups.length}</span> کارگروه</Pill>
-                <Pill tone="silver"><span className="fig">{k.connections.length}</span> اتصال</Pill>
-              </div>
-            </Card>
-          </button>
-        ))}
-        {!q.data?.length ? <Card><Empty icon="companies" title="الگویی نیست" /></Card> : null}
-      </div>
-    );
-  }
   return (
     <div className="flex flex-col gap-4">
       <Card as="section" className="flex flex-col gap-4 p-5" aria-label="مشخصات شرکت">
-        <SectionTitle title={kit.title_fa} note={kit.purpose_fa} action={<Button size="sm" onClick={() => { setKit(null); setPrev(null); }}>الگوی دیگر</Button>} />
+        <SectionTitle title={kit.title_fa} note={kit.purpose_fa} action={onBack ? <Button size="sm" onClick={onBack}>الگوی دیگر</Button> : undefined} />
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="flex flex-col gap-1.5"><span className="text-[12px] text-sec">کد شرکت (حروف بزرگ لاتین)</span>
             <input value={code} onChange={(e) => { setCode(e.target.value.toUpperCase()); setPrev(null); }} dir="ltr" maxLength={5} className={cx(field, 'h-11 text-left')} aria-label="کد شرکت" /></label>
@@ -98,10 +75,41 @@ export function CompanyKit() {
             <div className="flex flex-col gap-1.5"><h3 className="text-[13px] font-semibold text-sec">کارگروه‌ها، شاخص‌ها و اتصال‌ها</h3>
               <p className="text-[13px] leading-6">{prev.groups.length ? `کارگروه: ${prev.groups.join('، ')}` : ''}<br />{prev.kpis.length ? `شاخص: ${prev.kpis.join('، ')}` : ''}<br />{prev.connections.length ? `اتصال (هنوز وصل نیست): ${prev.connections.join('، ')}` : ''}</p></div>
           </div>
+          {prev.code_free === false ? <p className="rounded-[10px] bg-neg-soft px-3 py-2 text-[13px]" role="alert">این کد قبلاً به شرکت دیگری داده شده؛ کد دیگری بنویس.</p> : null}
+          {prev.problems?.length ? <ul className="flex flex-col gap-1.5" aria-label="مشکل‌ها">{prev.problems.map((p) => <li key={p} className="rounded-[10px] bg-neg-soft px-3 py-2 text-[13px]"><FaText text={p} /></li>)}</ul> : null}
           {prev.todo_fa.length ? <ul className="flex flex-col gap-1.5" aria-label="بعد از ساخت باید وصل شود">{prev.todo_fa.map((t) => <li key={t} className="rounded-[10px] bg-tile px-3 py-2 text-[13px]"><FaText text={t} /></li>)}</ul> : null}
-          <div><Button variant="primary" icon="seal" loading={create.isPending} onClick={make}>بساز و مُهر کن</Button></div>
+          <div><Button variant="primary" icon="seal" loading={create.isPending} disabled={blocked} onClick={make}>بساز و مُهر کن</Button></div>
         </Card>
       ) : null}
     </div>
   );
+}
+
+export function CompanyKit() {
+  const q = useKits();
+  const [kit, setKit] = useState<Kit | null>(null);
+  if (q.isLoading) return <div className="grid gap-4 lg:grid-cols-2">{Array.from({ length: 2 }, (_, i) => <Skeleton key={i} className="h-40 rounded-[16px]" />)}</div>;
+  if (q.error) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
+  if (q.data === null) return notYet('companies', 'شرکت آماده بعد از به‌روزرسانی ستاد میاید', 'یک الگو را انتخاب میکنی و شرکت با تیم، کارگروه و خط‌هایش ساخته میشود.');
+  if (kit) return <KitFlow kit={kit} onBack={() => setKit(null)} />;
+  {
+    return (
+      <div className="grid items-start gap-4 lg:grid-cols-2" aria-label="الگوهای شرکت">
+        {(q.data ?? []).map((k) => (
+          <button key={k.key} type="button" onClick={() => setKit(k)} aria-label={`الگوی ${k.title_fa}`} className="hq-tile text-start">
+            <Card className="flex h-full flex-col gap-3 p-5 transition-colors hover:bg-tile">
+              <span className="text-[16px] font-semibold">{k.title_fa}</span>
+              <FaPara text={k.purpose_fa} className="text-[13px] leading-6 text-sec" />
+              <div className="flex flex-wrap gap-1.5 text-[12px] text-sec">
+                <Pill tone="silver"><span className="fig">{k.lines.length}</span> خط تولید</Pill>
+                <Pill tone="silver"><span className="fig">{k.groups.length}</span> کارگروه</Pill>
+                <Pill tone="silver"><span className="fig">{k.connections.length}</span> اتصال</Pill>
+              </div>
+            </Card>
+          </button>
+        ))}
+        {!q.data?.length ? <Card><Empty icon="companies" title="الگویی نیست" /></Card> : null}
+      </div>
+    );
+  }
 }

@@ -44,7 +44,11 @@ export function FixButton({ fix, company, run, size = 'sm', variant = 'primary',
   const local = localFix(fix, company);
   const onClick = async () => {
     if (local?.kind === 'guide') { if (local.company) setGuide({ company: local.company, kind: local.connection }); return; }
-    if (local?.kind === 'go') { router.push(local.href); return; }
+    if (local?.kind === 'go') {
+      if (local.href.startsWith('#')) document.getElementById(local.href.slice(1))?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      else router.push(local.href);
+      return;
+    }
     if (!run) return;
     setBusy(true);
     try {
