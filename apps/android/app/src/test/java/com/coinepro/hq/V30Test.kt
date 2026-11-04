@@ -87,7 +87,8 @@ class V30Test {
         assertEquals(listOf("a", "b"), variablesIn("از {{a}} و {{ b }} و {{a}}"))
         assertEquals("متن {{a}}", withVariable("متن", "a"))
         assertTrue(capsRaised(LineCaps(3, 100, 2), LineCaps(4, 100, 2)))
-        assertFalse(capsRaised(LineCaps(3, 100, 2), LineCaps(2, 50, null)))
+        assertFalse(capsRaised(LineCaps(3, 100, 2), LineCaps(2, 50, 2)))
+        assertTrue(capsRaised(LineCaps(3, 100, 2), LineCaps(3, 100, null)))
         assertEquals(5L, (settingFrom("5", JsonPrimitive(1)) as JsonPrimitive).content.toLong())
     }
 
