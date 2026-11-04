@@ -513,75 +513,10 @@ async def place_order(
             "SELECT 1 FROM files.files WHERE id = :id", id=body.file_id
         ):
             raise ApiError(422, "validation_failed", fields={"file_id": "unknown file"})
-        ref: str = await tx.scalar(
-            "SELECT 'F-' || lpad(nextval('owner.order_ref_seq')::text, 4, '0')"
-        )
-        routes = await carry_out(ctx, tx, s, ref, text, later)
-        routed_by = s.routed_by
-        holding = await ctx.hub.companies.holding()
-        out = [r.out() for r in routes]
-        summary = O.summary_of(text, routes)
-        await tx.exec(
-            """INSERT INTO owner.orders (ref, company_id, text, source, file_id, company_hint,
-                   routes, routed_by, summary_fa, route)
-               VALUES (:ref, :co, :text, :src, :fid, :hint, CAST(:routes AS jsonb), :by, :sum,
-                       CAST(:route AS jsonb))""",
-            ref=ref,
-            co=holding.id,
-            text=text,
-            src=body.source,
-            fid=body.file_id,
-            hint=body.company,
-            routes=_json(out),
-            by=routed_by,
-            sum=summary[:2000],
-            route=_json(s.route.model_dump(mode="json")),
-        )
-        if s.correction is not None and remember:
-            await D.remember(tx, "correction", text, s.correction, order_ref=ref)
-        await ctx.emit(
-            tx,
-            holding.code,
-            "order.routed",
-            ref,
-            {
-                "routes": [{k: x[k] for k in ("company", "kind", "to")} for x in out],
-                "by": routed_by,
-            },
-        )
-        await ctx.audit(
-            tx,
-            company_id=holding.id,
-            action="order.route",
-            action_class="A2",
-            target_kind="order",
-            target_ref=ref,
-            summary=f"{routed_by}: "
-            + ", ".join(f"{x['kind']}->{x['to']}" for x in out)
-            + (" (the owner's route)" if body.route is not None else ""),
-        )
-        await ctx.interaction(
-            tx,
-            company_id=holding.id,
-            kind="order",
-            action="order.create",
-            target_kind="order",
-            target_ref=ref,
-            data={
-                "source": body.source,
-                "routes": len(out),
-                "routed_by": routed_by,
-                "edited": s.correction is not None and remember,
-            },
-        )
-        await _report(tx, ref)
-        result = OrderOut(
-            ref=ref,
-            summary_fa=summary,
-            routes=[OrderRoute(**x) for x in out],
-            routed_by=routed_by,
-            route=s.route,
-        )
+        result = await record_order(
+            ctx, tx, s, text, later, source=body.source, file_id=body.file_id,
+            hint=body.company, remember=remember, edited=body.route is not None,
+        )  # fmt: skip
         if idem:
             await idem.store(tx, 201, result.model_dump(mode="json"))
     for job in later:
@@ -590,6 +525,91 @@ async def place_order(
         else:
             background.add_task(job[0], ctx.hub, *job[1:])
     return result
+
+
+async def record_order(
+    ctx: Ctx,
+    tx: Tx,
+    s: Secretary,
+    text: str,
+    later: list[Any],
+    *,
+    source: str,
+    file_id: UUID | None = None,
+    hint: str | None = None,
+    remember: bool = True,
+    edited: bool = False,
+) -> OrderOut:
+    """One routed order, in the caller's transaction: its F-ref, the works
+    its route makes, the record, the stream, the Audit and the order report.
+    POST /orders and a talk card («اجرا کن», contract §32.3) share it."""
+    ref: str = await tx.scalar("SELECT 'F-' || lpad(nextval('owner.order_ref_seq')::text, 4, '0')")
+    routes = await carry_out(ctx, tx, s, ref, text, later)
+    routed_by = s.routed_by
+    holding = await ctx.hub.companies.holding()
+    out = [r.out() for r in routes]
+    summary = O.summary_of(text, routes)
+    await tx.exec(
+        """INSERT INTO owner.orders (ref, company_id, text, source, file_id, company_hint,
+               routes, routed_by, summary_fa, route)
+           VALUES (:ref, :co, :text, :src, :fid, :hint, CAST(:routes AS jsonb), :by, :sum,
+                   CAST(:route AS jsonb))""",
+        ref=ref,
+        co=holding.id,
+        text=text,
+        src=source,
+        fid=file_id,
+        hint=hint,
+        routes=_json(out),
+        by=routed_by,
+        sum=summary[:2000],
+        route=_json(s.route.model_dump(mode="json")),
+    )
+    if s.correction is not None and remember:
+        await D.remember(tx, "correction", text, s.correction, order_ref=ref)
+    await ctx.emit(
+        tx,
+        holding.code,
+        "order.routed",
+        ref,
+        {
+            "routes": [{k: x[k] for k in ("company", "kind", "to")} for x in out],
+            "by": routed_by,
+        },
+    )
+    await ctx.audit(
+        tx,
+        company_id=holding.id,
+        action="order.route",
+        action_class="A2",
+        target_kind="order",
+        target_ref=ref,
+        summary=f"{routed_by}: "
+        + ", ".join(f"{x['kind']}->{x['to']}" for x in out)
+        + (" (the owner's route)" if edited else ""),
+    )
+    await ctx.interaction(
+        tx,
+        company_id=holding.id,
+        kind="order",
+        action="order.create",
+        target_kind="order",
+        target_ref=ref,
+        data={
+            "source": source,
+            "routes": len(out),
+            "routed_by": routed_by,
+            "edited": s.correction is not None and remember,
+        },
+    )
+    await _report(tx, ref)
+    return OrderOut(
+        ref=ref,
+        summary_fa=summary,
+        routes=[OrderRoute(**x) for x in out],
+        routed_by=routed_by,
+        route=s.route,
+    )
 
 
 async def _report(tx: Tx, ref: str) -> None:

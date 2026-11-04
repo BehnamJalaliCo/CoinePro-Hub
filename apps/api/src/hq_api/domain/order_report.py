@@ -774,6 +774,11 @@ async def refresh(tx: Tx, ref: str) -> dict[str, Any] | None:
         id=rep["id"],
     )
     await _append_steps(tx, rep["id"], new_steps)
+    # ⟨1.14⟩ §32.2 an order made by a talk `ask` card: its answer goes back into
+    # the conversation as a turn («جواب آمد»), once per deliverable
+    from hq_api.talk import cards as talk_cards
+
+    await talk_cards.on_outputs(tx, ref, [o for o in outputs if o["ref"] not in seen])
     rep = await tx.one("SELECT * FROM owner.order_reports WHERE id = :id", id=rep["id"])
     digest = _digest(dict(rep))
     if digest != rep["digest"]:
