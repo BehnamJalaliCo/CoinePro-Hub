@@ -311,20 +311,29 @@ async def _lines(
 async def _ads(
     tx: Tx, lo: datetime, hi: datetime, tz: str, co: UUID | None, codes: dict[UUID, str]
 ) -> list[CalendarItem]:
-    """Ad campaigns that spent in the window (the ads part's growth.ad_daily), optional."""
+    """Ad campaigns that spent in the window (the ads part's growth.ad_daily, with the
+    name and status of growth.ad_campaigns when that table is there), optional."""
     if not await _optional(tx, "growth.ad_daily"):
         return []
+    named = await _optional(tx, "growth.ad_campaigns")
+    join = (
+        "LEFT JOIN growth.ad_campaigns c ON c.company_id = d.company_id "
+        "AND c.platform = d.platform AND c.campaign_id = d.campaign_id"
+        if named
+        else ""
+    )
+    cols = (
+        "max(c.name) AS name, max(c.status) AS status" if named else "NULL AS name, NULL AS status"
+    )
+    sql = (
+        f"SELECT d.company_id, d.platform, d.campaign_id, min(d.day) AS first_day, {cols} "  # noqa: S608
+        f"FROM growth.ad_daily d {join} WHERE d.day BETWEEN :a AND :b "
+        "AND (CAST(:co AS uuid) IS NULL OR d.company_id = :co) "
+        "GROUP BY d.company_id, d.platform, d.campaign_id"
+    )
     try:
         async with tx.conn.begin_nested():
-            rows = await tx.all(
-                """SELECT company_id, platform, campaign_id, min(day) AS first_day, max(day) AS last_day
-                   FROM growth.ad_daily WHERE day BETWEEN :a AND :b
-                     AND (CAST(:co AS uuid) IS NULL OR company_id = :co)
-                   GROUP BY company_id, platform, campaign_id""",
-                a=_day(lo, tz),
-                b=_day(hi, tz),
-                co=co,
-            )
+            rows = await tx.all(sql, a=_day(lo, tz), b=_day(hi, tz), co=co)
     except Exception:
         log.info("the ads tables look different; the ad source is skipped", exc_info=True)
         return []
@@ -335,9 +344,9 @@ async def _ads(
             company=codes.get(r["company_id"], "-"),
             kind="ad",
             ref=f"{r['platform']}:{r['campaign_id']}",
-            title_fa=f"تبلیغ {r['platform']} · {r['campaign_id']}",
+            title_fa=f"تبلیغ {r['platform']} · {r['name'] or r['campaign_id']}",
             platform=None,
-            state="running",
+            state=str(r["status"] or "active"),
         )
         for r in rows
     ]
