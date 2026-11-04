@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from hq_api.voice.base import SpeakRequest, Speaker, SpeechOut, VoiceUnavailable
+from hq_api.voice.base import Speaker, SpeakRequest, SpeechOut, VoiceUnavailable
 
 OVERRIDE: Speaker | None = None
 
