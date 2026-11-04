@@ -16,20 +16,20 @@ const step = (key: string, kind: string, title_fa: string, o: Partial<Record<str
 const REEL_STEPS = () => [
   step('script', 'gpt_text', 'نوشتن سناریو', { prompt_fa: 'برای صفحه‌ی {{channel}} یک سناریوی ریلز ۳۰ ثانیه‌ای درباره‌ی {{topic}} بنویس. لحن گرم و ساده، در پایان یک دعوت به کار.', max_attempts: 2, timeout_s: 240 }),
   step('dedupe', 'dedupe', 'تکراری نبودن', { inputs: ['script'], max_attempts: 3 }),
-  step('voice', 'tts', 'صدا', { inputs: ['script'], settings: { speaker: 'Kore', style: 'آرام و گرم' } }),
+  step('voice', 'tts', 'صدا', { inputs: ['script'], settings: { voice: 'Kore', style: 'آرام و گرم' } }),
   step('direction', 'gpt_text', 'کارگردانی', { prompt_fa: 'برای این سناریو نما به نما کارگردانی بنویس: {{script}}', inputs: ['script'], optional: true }),
   step('patterns', 'pattern_search', 'الگوها', { inputs: ['script'], settings: { query: 'ریلز آموزشی', count: 5 }, optional: true }),
   step('pick', 'council_pick', 'انتخاب شورا', { inputs: ['patterns'] }),
   step('build', 'opus_build', 'ساخت نهایی', { prompt_fa: 'سناریو، صدا و الگوی برگزیده را به مشخصات ساخت، کپشن و هشتگ تبدیل کن.', inputs: ['script', 'voice', 'pick'], timeout_s: 600 }),
   step('render', 'render', 'ساخت ویدیو', { inputs: ['build'], settings: { where: 'studio' }, timeout_s: 900 }),
-  step('cover', 'cover', 'کاور', { inputs: ['build'], settings: { folder: '' } }),
+  step('cover', 'cover', 'کاور', { inputs: ['build'], settings: { cover_folder: '', max_files: 1 } }),
   step('quality', 'quality', 'بررسی کیفیت', { inputs: ['render', 'build'] }),
-  step('publish', 'publish', 'انتشار ریلز', { inputs: ['render', 'cover', 'build'], gate: 'owner', settings: { when: 'schedule', where: '' } }),
+  step('publish', 'publish', 'انتشار ریلز', { inputs: ['render', 'cover', 'build'], gate: 'owner', settings: { kind: 'reel', media_from: 'render', cover_from: 'cover', text_from: 'build', in_min: 30 } }),
 ];
 const POST_STEPS = () => [
   step('text', 'gpt_text', 'نوشتن پست', { prompt_fa: 'یک پست کوتاه تلگرام درباره‌ی {{topic}} بنویس.' }),
   step('quality', 'quality', 'بررسی کیفیت', { inputs: ['text'] }),
-  step('publish', 'publish', 'انتشار در تلگرام', { inputs: ['text'], gate: 'owner', settings: { when: 'asap' } }),
+  step('publish', 'publish', 'انتشار در تلگرام', { inputs: ['text'], gate: 'owner', settings: { kind: 'post', text_from: 'text', in_min: 0 } }),
 ];
 const TEMPLATES = [
   { key: 'instagram_reel', title_fa: 'ریلز اینستاگرام', platform: 'instagram_reel', version: 1, steps: REEL_STEPS(), defaults: { caps: { runs_per_day: 1, tokens_per_run: 120000, opus_per_day: 2 } }, outputs_fa: 'یک ریلز کامل با صدا، کاور و کپشن؛ بعد از انتشار، استوری همان روز.' },
@@ -39,11 +39,11 @@ const CAPS = { runs_per_day: 1, tokens_per_run: 120000, opus_per_day: 2 };
 
 const lines: any[] = [
   { ref: 'LN-0001', company: 'TY', template: 'instagram_reel', template_version: 1, platform: 'instagram_reel', channel: { kind: 'instagram', subject: 'tradeyar.ir' }, title_fa: 'ریلز آموزشی تریدیار',
-    schedule: 'FREQ=DAILY;BYHOUR=18;BYMINUTE=0', state: 'on', mode: 'draft', good_runs: 3, auto_after: 7, caps: { ...CAPS }, version: 2, steps: REEL_STEPS(), library: [],
-    created_at: '2026-11-03T05:00:00Z', updated_at: '2026-11-03T09:00:00Z', next_run_at: '2026-11-04T14:30:00Z', last_run: { ref: 'LR-000001', state: 'waiting', at: '2026-11-03T14:30:00Z' } },
+    schedule: 'FREQ=DAILY;BYHOUR=18;BYMINUTE=0', state: 'on', mode: 'draft', good_runs: 3, auto_after: 7, offer_auto: false, caps: { ...CAPS }, version: 2, steps: REEL_STEPS(), library: [],
+    created_at: '2026-11-03T05:00:00Z', updated_at: '2026-11-03T09:00:00Z', next_at: '2026-11-04T14:30:00Z', last_run: { ref: 'RN-000001', state: 'waiting', at: '2026-11-03T14:30:00Z' } },
   { ref: 'LN-0002', company: 'FX', template: 'telegram_post', template_version: 1, platform: 'telegram_post', channel: { kind: 'telegram', subject: '@coinepro_fx' }, title_fa: 'پست روزانه‌ی کانال FX',
-    schedule: 'FREQ=DAILY;BYHOUR=9;BYMINUTE=0', state: 'on', mode: 'auto', good_runs: 9, auto_after: 7, caps: { runs_per_day: 3, tokens_per_run: 30000, opus_per_day: 0 }, version: 1, steps: POST_STEPS(), library: [],
-    created_at: '2026-10-28T05:00:00Z', updated_at: '2026-10-28T05:00:00Z', next_run_at: '2026-11-05T05:30:00Z', last_run: { ref: 'LR-000002', state: 'done', at: '2026-11-03T05:30:00Z' } },
+    schedule: 'FREQ=DAILY;BYHOUR=9;BYMINUTE=0', state: 'on', mode: 'auto', good_runs: 9, auto_after: 7, offer_auto: true, caps: { runs_per_day: 3, tokens_per_run: 30000, opus_per_day: 0 }, version: 1, steps: POST_STEPS(), library: [],
+    created_at: '2026-10-28T05:00:00Z', updated_at: '2026-10-28T05:00:00Z', next_at: '2026-11-05T05:30:00Z', last_run: { ref: 'RN-000002', state: 'done', at: '2026-11-03T05:30:00Z' } },
 ];
 const versions: Record<string, any[]> = {
   'LN-0001': [
@@ -60,17 +60,17 @@ const sr = (key: string, kind: string, state: string, at: string, end: string | 
   key, kind, state, attempt: 1, started_at: at, ended_at: end, output, via: null, tokens: 0, usd_equiv: 0, error_fa: null, ...extra,
 });
 const runs: any[] = [
-  { ref: 'LR-000001', line: 'LN-0001', line_version: 2, trigger: 'schedule', dry: false, state: 'waiting', at: '2026-11-03T14:30:00Z', ended_at: null,
+  { ref: 'RN-000001', line: 'LN-0001', line_version: 2, trigger: 'schedule', dry: false, state: 'waiting', at: '2026-11-03T14:30:00Z', ended_at: null,
     steps: [
       sr('script', 'gpt_text', 'done', '2026-11-03T14:30:00Z', '2026-11-03T14:31:10Z', out({ text: '## سناریوی ریلز\n\nنمای اول: یک معامله‌گر خسته جلوی نمودار.\n\n- نما ۲: خط حد ضرر روی نمودار\n- نما ۳: دعوت به یادگیری' }), { via: 'chatgpt', tokens: 2400, usd_equiv: 0.02 }),
-      sr('dedupe', 'dedupe', 'done', '2026-11-03T14:31:10Z', '2026-11-03T14:31:12Z', out({ data: { similarity: 0.12, closest: 'LR-000000', verdict: 'متفاوت' } })),
+      sr('dedupe', 'dedupe', 'done', '2026-11-03T14:31:10Z', '2026-11-03T14:31:12Z', out({ data: { similarity: 0.12, closest: 'RN-000000', verdict: 'متفاوت' } })),
       sr('voice', 'tts', 'done', '2026-11-03T14:31:12Z', '2026-11-03T14:32:00Z', out({ file_id: '/demo/fx-reel-levels-voice.m4a' }), { via: 'aistudio-web' }),
       sr('render', 'render', 'done', '2026-11-03T14:32:00Z', '2026-11-03T14:36:00Z', out({ file_id: '/demo/fx-reel-levels.mp4' }), { via: 'studio' }),
       sr('cover', 'cover', 'done', '2026-11-03T14:36:00Z', '2026-11-03T14:37:00Z', out({ file_id: '/demo/fx-reel-levels-poster.webp' }), { via: 'chatgpt' }),
       sr('quality', 'quality', 'done', '2026-11-03T14:37:00Z', '2026-11-03T14:37:01Z', out({ data: { repeat: false, sources: 'ok', length: 'ok', banned_words: 0 } })),
       sr('publish', 'publish', 'waiting', '2026-11-03T14:37:01Z', null, out()),
-    ], cost: { tokens: 18200, usd_equiv: 0.31 }, published: [], metrics: { h24: null, d7: null }, note_fa: 'منتظر مُهر تو برای انتشار.' },
-  { ref: 'LR-000002', line: 'LN-0002', line_version: 1, trigger: 'schedule', dry: false, state: 'done', at: '2026-11-03T05:30:00Z', ended_at: '2026-11-03T05:32:00Z',
+    ], cost: { tokens: 18200, usd_equiv: 0.31 }, published: [], metrics: { h24: null, d7: null }, note_fa: 'منتظر مُهر تو برای انتشار.', decision: 'D-000301', company: 'TY', title_fa: 'ریلز آموزشی تریدیار', platform: 'instagram_reel' },
+  { ref: 'RN-000002', line: 'LN-0002', line_version: 1, trigger: 'schedule', dry: false, state: 'done', at: '2026-11-03T05:30:00Z', ended_at: '2026-11-03T05:32:00Z',
     steps: [
       sr('text', 'gpt_text', 'done', '2026-11-03T05:30:00Z', '2026-11-03T05:31:00Z', out({ text: 'سطح‌های امروز بازار را با یک نمودار ساده ببینید.' }), { via: 'chatgpt', tokens: 900, usd_equiv: 0.01 }),
       sr('quality', 'quality', 'done', '2026-11-03T05:31:00Z', '2026-11-03T05:31:01Z', out({ data: { repeat: false } })),
@@ -111,7 +111,7 @@ export async function handle30(req: Request, p: string, q: URLSearchParams): Pro
     const t = TEMPLATES.find((x) => x.key === b.template);
     if (!t || !b.title_fa?.trim()) return problem(422, 'validation_failed', 'الگو و نام خط لازم است.');
     const l = { ref: `LN-${pad(nl++, 4)}`, company: cl[1], template: t.key, template_version: t.version, platform: b.platform, channel: b.channel, title_fa: b.title_fa, schedule: null, state: 'draft', mode: 'draft',
-      good_runs: 0, auto_after: 7, caps: { ...(t.defaults as any).caps }, version: 1, steps: clone(t.steps), library: [], created_at: NOW(), updated_at: NOW(), next_run_at: null, last_run: null };
+      good_runs: 0, auto_after: 7, caps: { ...(t.defaults as any).caps }, version: 1, steps: clone(t.steps), library: [], created_at: NOW(), updated_at: NOW(), next_at: null, last_run: null };
     lines.push(l); versions[l.ref] = [{ line: l.ref, version: 1, body: null, by: OWNER, at: NOW(), note_fa: 'ساخته شد از الگو' }]; stamp(l);
     return json(l, 201);
   }
@@ -124,7 +124,8 @@ export async function handle30(req: Request, p: string, q: URLSearchParams): Pro
     if (!l) return problem(404, 'not_found', 'این خط پیدا نشد.');
     const b = await body<any>();
     if (b.caps && (b.caps.runs_per_day > l.caps.runs_per_day || b.caps.tokens_per_run > l.caps.tokens_per_run || b.caps.opus_per_day > l.caps.opus_per_day) && !stepUp) return needStepUp();
-    for (const k of ['title_fa', 'schedule', 'steps', 'caps', 'library']) if (k in b) l[k] = b[k];
+    for (const k of ['title_fa', 'schedule', 'steps', 'caps', 'library', 'channel', 'auto_after']) if (k in b) l[k] = b[k];
+    if (b.clear_schedule) l.schedule = null;
     l.version += 1; l.updated_at = NOW();
     versions[l.ref]!.push({ line: l.ref, version: l.version, body: null, by: OWNER, at: NOW(), note_fa: b.note_fa ?? null }); stamp(l);
     return json(l);
@@ -151,14 +152,14 @@ export async function handle30(req: Request, p: string, q: URLSearchParams): Pro
       return json(l);
     }
     if (lv[2] === 'copy') {
-      const c = { ...clone(l), ref: `LN-${pad(nl++, 4)}`, company: b.company, state: 'draft', mode: 'draft', good_runs: 0, version: 1, channel: { ...l.channel, subject: '' }, created_at: NOW(), updated_at: NOW(), next_run_at: null, last_run: null };
+      const c = { ...clone(l), ref: `LN-${pad(nl++, 4)}`, company: b.company, state: 'draft', mode: 'draft', good_runs: 0, version: 1, channel: { ...l.channel, subject: '' }, created_at: NOW(), updated_at: NOW(), next_at: null, last_run: null };
       lines.push(c); versions[c.ref] = [{ line: c.ref, version: 1, body: null, by: OWNER, at: NOW(), note_fa: `کپی از ${l.ref}` }]; stamp(c);
       return json(c, 201);
     }
     if (lv[2] === 'runs') {
       const steps = l.steps.filter((s: any) => s.enabled).map((s: any) => sr(s.key, s.kind, b.dry && (s.kind === 'publish' || s.kind === 'deliver') ? 'skipped' : 'done', NOW(), NOW(),
         s.kind === 'gpt_text' ? out({ text: `خروجی آزمایشی «${s.title_fa}»` }) : out({ data: { dry: true } })));
-      const r = { ref: `LR-${pad(nr++, 6)}`, line: l.ref, line_version: l.version, trigger: b.dry ? 'test' : 'owner', dry: !!b.dry, state: 'done', at: NOW(), ended_at: NOW(), steps, cost: { tokens: 3200, usd_equiv: 0.05 }, published: [], metrics: { h24: null, d7: null }, note_fa: b.dry ? 'آزمایشی: انتشار و تحویل انجام نشد.' : null };
+      const r = { ref: `RN-${pad(nr++, 6)}`, line: l.ref, line_version: l.version, trigger: b.dry ? 'test' : 'owner', dry: !!b.dry, state: 'done', at: NOW(), ended_at: NOW(), steps, cost: { tokens: 3200, usd_equiv: 0.05 }, published: [], metrics: { h24: null, d7: null }, note_fa: b.dry ? 'آزمایشی: انتشار و تحویل انجام نشد.' : null };
       runs.push(r);
       return json(r, 201);
     }
@@ -179,13 +180,13 @@ export async function handle30(req: Request, p: string, q: URLSearchParams): Pro
     if (m !== 'POST') return null;
     const b = await body<any>();
     if (lr[2] === 'seal') {
-      if (!stepUp) return needStepUp();
+      if (b.approve && !stepUp) return needStepUp();
       if (r.state !== 'waiting') return problem(409, 'conflict', 'این اجرا منتظر مُهر نیست.');
       const pub = r.steps.find((s: any) => s.state === 'waiting');
       if (b.approve) {
         pub.state = 'done'; pub.ended_at = NOW(); r.state = 'done'; r.ended_at = NOW();
         r.published.push({ platform: 'instagram_reel', kind: 'reel', external_id: 'ig-77', at: NOW(), url: null });
-        const l = find(r.line); if (l) l.good_runs += 1;
+        const l = find(r.line); if (l) { l.good_runs += 1; l.offer_auto = l.good_runs >= l.auto_after; }
         r.note_fa = null;
       } else { pub.state = 'skipped'; r.state = 'cancelled'; r.ended_at = NOW(); r.note_fa = 'مالک رد کرد.'; }
       return json(r);
@@ -218,9 +219,9 @@ export async function handle30(req: Request, p: string, q: URLSearchParams): Pro
     return json(assets.filter((a) => (!c || a.company === c || a.company === null) && (!k || a.kind === k)));
   }
   if (p === '/library' && m === 'POST') {
-    const b = await body<{ meta: any; files: string[] }>();
-    if (!b.meta?.title_fa?.trim()) return problem(422, 'validation_failed', 'نام لازم است.');
-    const a = { id: `AS-${na++}`, company: b.meta.company ?? null, kind: b.meta.kind, title_fa: b.meta.title_fa, config: b.meta.config ?? {}, files: (b.files ?? []).map(() => '/demo/pc-landing-redesign.webp'), created_at: NOW() };
+    const b = await body<any>();
+    if (!b.title_fa?.trim()) return problem(422, 'validation_failed', 'نام لازم است.');
+    const a = { id: `AS-${na++}`, company: b.company ?? null, kind: b.kind, title_fa: b.title_fa, config: b.config ?? {}, files: (b.files ?? []).map((f: string) => (f.startsWith('/demo/') ? f : '/demo/pc-landing-redesign.webp')), created_at: NOW() };
     assets.push(a);
     return json(a, 201);
   }

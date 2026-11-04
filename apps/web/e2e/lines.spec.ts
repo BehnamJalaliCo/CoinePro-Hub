@@ -6,7 +6,7 @@ import { clean } from './support';
 
 test.use({ reducedMotion: 'reduce' });
 
-const PAGES = ['/companies/TY?tab=lines', '/lines/LN-0001', '/line-runs/LR-000001', '/line-runs/LR-000002', '/campaign-calendar', '/library'];
+const PAGES = ['/companies/TY?tab=lines', '/lines/LN-0001', '/line-runs/RN-000001', '/line-runs/RN-000002', '/campaign-calendar', '/library'];
 for (const path of PAGES) {
   test(`renders ${path} and fits a phone @phone`, async ({ page }) => {
     await clean(page, async () => {
@@ -64,7 +64,7 @@ test('a prompt is edited and saved as a new version; one step is tested; the who
     await expect(first.getByLabel('نتیجه‌ی آزمایش').getByText('جواب نمونه برای دستور ذخیره‌شده.')).toBeVisible();
 
     await page.getByRole('button', { name: 'آزمایش کامل' }).click();
-    await expect(page).toHaveURL(/\/line-runs\/LR-000003$/);
+    await expect(page).toHaveURL(/\/line-runs\/RN-000003$/);
     await expect(page.getByText('آزمایشی', { exact: true }).first()).toBeVisible();
     await expect(page.getByRole('list', { name: 'قدم‌های اجرا' }).getByRole('listitem')).toHaveCount(11);
   });
@@ -86,7 +86,7 @@ test('a step that speaks offers the voices; a cover step offers the cover folder
 
 test('a waiting run is sealed behind the passkey and counts as a good run', async ({ page }) => {
   await clean(page, async () => {
-    await page.goto('/line-runs/LR-000001');
+    await page.goto('/line-runs/RN-000001');
     const wait = page.getByLabel('منتظر مُهر تو');
     await expect(wait).toBeVisible();
     // Outputs are shown properly: markdown text, audio, video, image, JSON as a table.

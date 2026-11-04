@@ -7,9 +7,9 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { stepUp } from '@/lib/auth';
-import { ApiError, isMock } from './client';
+import { ApiError } from './client';
 import { handled } from './observe';
-import { call } from './v13';
+import { call, uploadFile } from './v13';
 import { notServed } from './v28';
 
 const enc = encodeURIComponent;
@@ -53,16 +53,18 @@ export type Line = {
   ref: string; company: string; template: string; template_version: number; platform: string; channel: { kind: string; subject: string }; title_fa: string;
   schedule: string | null; state: LineState; mode: LineMode; good_runs: number; auto_after: number; caps: Caps; version: number; steps: StepDef[]; library: string[];
   created_at: string; updated_at: string;
-  /** Beyond §30.1, for the company's list («next run», «last run»); when the hub does not send them the list shows a dash. */
-  next_run_at?: string | null; last_run?: { ref: string; state: RunState; at: string } | null;
+  /** As built (routes/lines.py): the next run, the last run, whether the app offers «خودکار کن», the owner's own name and the line it was copied from. */
+  next_at?: string | null; last_run?: { ref: string; state: RunState; at: string } | null; offer_auto?: boolean; name_fa?: string | null; copied_from?: string | null;
 };
 export type LineVersion = { line: string; version: number; body: Line; by: Actor; at: string; note_fa: string | null };
 export type StepOutput = { text: string | null; file_id: string | null; files: string[]; data: Record<string, unknown> };
-export type StepRun = { key: string; kind: StepKind | string; state: StepRunState; attempt: number; started_at: string | null; ended_at: string | null; output: StepOutput | null; via: string | null; tokens: number; usd_equiv: number; error_fa: string | null };
+export type StepRun = { key: string; kind: StepKind | string; title_fa?: string | null; gate?: Gate | null; sealed_at?: string | null; sealed_by?: Actor | string | null; reused?: boolean; missing?: string[] | null; state: StepRunState; attempt: number; started_at: string | null; ended_at: string | null; output: StepOutput | null; via: string | null; tokens: number; usd_equiv: number; error_fa: string | null };
 export type Published = { platform: string; kind: string; external_id: string | null; at: string; url: string | null };
 export type LineRun = {
   ref: string; line: string; line_version: number; trigger: 'schedule' | 'owner' | 'test' | 'n8n' | 'group'; dry: boolean; state: RunState; at: string; ended_at: string | null;
   steps: StepRun[]; cost: { tokens: number; usd_equiv: number }; published: Published[]; metrics: { h24: Record<string, number> | null; d7: Record<string, number> | null }; note_fa: string | null;
+  /** As built: the card to approve (A3), the run this one repeats and from which step, and the line's company, title and platform. */
+  decision?: string | null; rerun_of?: string | null; from_step?: string | null; company?: string; title_fa?: string; platform?: string;
 };
 export type AssetKind = 'cover_folder' | 'voice' | 'prompt' | 'pattern' | 'music' | 'brand';
 export type Asset = { id: string; company: string | null; kind: AssetKind; title_fa: string; config: Record<string, unknown>; files: string[]; created_at: string };
@@ -129,7 +131,7 @@ export const useLibrary = (company: string | null, kind: AssetKind | null, on = 
   });
 
 // ======================================================================================================== writes ==
-export type LinePatch = { title_fa?: string; schedule?: string | null; steps?: StepDef[]; caps?: Caps; library?: string[]; note_fa?: string };
+export type LinePatch = { title_fa?: string; schedule?: string | null; clear_schedule?: boolean; channel?: { kind: string; subject: string }; auto_after?: number; steps?: StepDef[]; caps?: Caps; library?: string[]; note_fa?: string };
 const done = (qc: ReturnType<typeof useQueryClient>) => () => qc.invalidateQueries({ queryKey: ['lines'] });
 
 export function useCreateLine(company: string) {
@@ -165,29 +167,26 @@ export function useRunActions(ref: string) {
   const qc = useQueryClient();
   const settle = done(qc);
   return {
-    seal: useMutation({ mutationFn: (b: { approve: boolean; note_fa?: string }) => withStepUp('line_publish', ref, (h) => call<LineRun>('POST', `/line-runs/${enc(ref)}/seal`, b, h)), onSettled: settle }),
+    /** Approving is A3: step-up `decision.approve` on the run's card (`decision`); rejecting needs none. */
+    seal: useMutation({
+      mutationFn: (b: { approve: boolean; note_fa?: string; decision?: string | null }) => {
+        const { decision, ...body } = b;
+        const go = (h?: Record<string, string>) => call<LineRun>('POST', `/line-runs/${enc(ref)}/seal`, body, h);
+        return b.approve ? withStepUp('decision.approve', decision ?? ref, go) : go();
+      },
+      onSettled: settle,
+    }),
     rerun: useMutation({ mutationFn: (from_step: string) => call<LineRun>('POST', `/line-runs/${enc(ref)}/rerun`, { from_step }), onSettled: settle }),
     cancel: useMutation({ mutationFn: () => call<LineRun>('POST', `/line-runs/${enc(ref)}/cancel`, {}), onSettled: settle }),
   };
 }
 
 export type AssetMeta = { company: string | null; kind: AssetKind; title_fa: string; config?: Record<string, unknown> };
-/** `POST /library` multipart: `meta` JSON and the files. (The demo has no multipart; it takes the names.) */
+/** Each file goes up with the existing `POST /files` flow; then `POST /library` (JSON) names the file ids. */
 export async function uploadAsset(meta: AssetMeta, files: File[]): Promise<Asset> {
-  if (isMock) return call<Asset>('POST', '/library', { meta, files: files.map((f) => f.name) });
-  const fd = new FormData();
-  fd.set('meta', JSON.stringify(meta));
-  for (const f of files) fd.append('files', f, f.name);
-  let res: Response;
-  try {
-    res = await fetch('/api/v1/library', { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-HQ-Client': 'web', 'Idempotency-Key': crypto.randomUUID(), Accept: 'application/json' } });
-  } catch { throw new ApiError(0, undefined); }
-  if (!res.ok) {
-    let p: unknown;
-    try { p = await res.json(); } catch { /* not JSON */ }
-    throw new ApiError(res.status, p as never);
-  }
-  return (await res.json()) as Asset;
+  const ids: string[] = [];
+  for (const f of files) ids.push((await uploadFile(f, f.name)).id);
+  return call<Asset>('POST', '/library', { ...(meta.company ? { company: meta.company } : {}), kind: meta.kind, title_fa: meta.title_fa, config: meta.config ?? {}, files: ids });
 }
 export function useLibraryActions() {
   const qc = useQueryClient();

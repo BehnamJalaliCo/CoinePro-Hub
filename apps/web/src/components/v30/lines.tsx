@@ -64,14 +64,14 @@ function LineCard({ line }: { line: Line }) {
         <div className="flex items-center gap-3">
           <KindIcon kind={line.steps.find((s) => s.kind === 'publish')?.kind ?? 'publish'} />
           <span className="flex min-w-0 flex-1 flex-col">
-            <span className="text-[15px] font-semibold"><FaText text={line.title_fa} /></span>
+            <span className="text-[15px] font-semibold"><FaText text={line.name_fa || line.title_fa} /></span>
             <span className="text-[12px] text-muted">{platformFa(line.platform)} · <FaText text={line.channel.subject} /></span>
           </span>
           <LineStatePill state={line.state} />
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-sec">
           <span>{line.mode === 'auto' ? 'خودکار' : 'پیش‌نویس'}</span>
-          <span>اجرای بعدی: {line.next_run_at ? jDateTime(line.next_run_at) : line.schedule ? rruleFa(line.schedule) : '—'}</span>
+          <span>اجرای بعدی: {line.next_at ? jDateTime(line.next_at) : line.schedule ? rruleFa(line.schedule) : '—'}</span>
           <span className="inline-flex items-center gap-1.5">آخرین اجرا: {line.last_run ? <><RunStatePill state={line.last_run.state} />{jDate(line.last_run.at)}</> : '—'}</span>
         </div>
       </Card>
@@ -154,7 +154,7 @@ export function LineView({ lineRef }: { lineRef: string }) {
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(draftOf(line));
   const setStep = (i: number, s: StepDef) => setDraft({ ...draft, steps: draft.steps.map((x, j) => (j === i ? s : x)) });
-  const save = () => act.save.mutate({ title_fa: draft.title_fa, schedule: draft.schedule, caps: draft.caps, steps: draft.steps, note_fa: note.trim() || undefined }, {
+  const save = () => act.save.mutate({ title_fa: draft.title_fa, ...(draft.schedule ? { schedule: draft.schedule } : line.schedule ? { clear_schedule: true } : {}), caps: draft.caps, steps: draft.steps, note_fa: note.trim() || undefined }, {
     onSuccess: (l) => toast({ tone: 'ok', text: `نسخه‌ی ${fig(l.version)} ذخیره شد.` }),
     onError: (e) => toast({ tone: 'error', text: errText(e, 'ذخیره نشد؛ دوباره بزن.') }),
   });
@@ -200,7 +200,7 @@ export function LineView({ lineRef }: { lineRef: string }) {
           <span className="min-w-0 flex-[1_1_14rem] text-[13px] text-sec">
             {line.mode === 'auto' ? 'بدون مُهر منتشر میکند.' : <><span className="fig">{line.good_runs}</span> از <span className="fig">{line.auto_after}</span> اجرای خوب؛ انتشار هر اجرا مُهر تو را میخواهد.</>}
           </span>
-          {line.mode === 'draft' ? <Button size="sm" variant="primary" icon="seal" disabled={!ready} loading={act.mode.isPending} onClick={() => setMode('auto')}>خودکار کن</Button>
+          {line.mode === 'draft' ? <Button size="sm" variant="primary" icon="seal" disabled={!(line.offer_auto ?? ready)} loading={act.mode.isPending} onClick={() => setMode('auto')}>خودکار کن</Button>
             : <Button size="sm" icon="back" loading={act.mode.isPending} onClick={() => setMode('draft')}>برگرد به پیش‌نویس</Button>}
         </div>
         <div className="grid gap-3 sm:grid-cols-3" role="group" aria-label="سقف‌ها">
@@ -346,7 +346,7 @@ function StepCard({ line, step, index, onChange, dirty, test }: {
   );
 }
 
-const SPECIAL: Record<string, string[]> = { tts: ['speaker', 'style'], cover: ['folder'], publish: ['when', 'time', 'where'] };
+const SPECIAL: Record<string, string[]> = { tts: ['voice', 'style', 'text_from'], cover: ['cover_folder', 'max_files'], publish: ['kind', 'media_from', 'cover_from', 'text_from', 'in_min', 'after', 'delay_min', 'privacy', 'site'] };
 
 function SettingsEditor({ line, step, set }: { line: Line; step: StepDef; set: (k: string, v: unknown) => void }) {
   const s = step.settings ?? {};
@@ -354,8 +354,8 @@ function SettingsEditor({ line, step, set }: { line: Line; step: StepDef; set: (
   const rest = Object.entries(s).filter(([k]) => !hide.has(k));
   return (
     <div className="flex flex-col gap-3">
-      {step.kind === 'tts' ? <VoicePicker speaker={String(s.speaker ?? '')} style={String(s.style ?? '')} set={set} /> : null}
-      {step.kind === 'cover' ? <CoverPicker company={line.company} folder={String(s.folder ?? '')} set={set} /> : null}
+      {step.kind === 'tts' ? <VoicePicker speaker={String(s.voice ?? '')} style={String(s.style ?? '')} textFrom={String(s.text_from ?? '')} set={set} /> : null}
+      {step.kind === 'cover' ? <CoverPicker company={line.company} folder={String(s.cover_folder ?? '')} maxFiles={Number(s.max_files ?? 1)} set={set} /> : null}
       {step.kind === 'publish' ? <PublishEditor s={s} set={set} /> : null}
       {rest.length ? (
         <div className="flex flex-col gap-2" role="group" aria-label="تنظیم‌ها">
@@ -375,7 +375,7 @@ function SettingsEditor({ line, step, set }: { line: Line; step: StepDef; set: (
   );
 }
 
-function VoicePicker({ speaker, style, set }: { speaker: string; style: string; set: (k: string, v: unknown) => void }) {
+function VoicePicker({ speaker, style, textFrom, set }: { speaker: string; style: string; textFrom: string; set: (k: string, v: unknown) => void }) {
   const q = useVoices();
   const [playing, setPlaying] = useState<string | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
@@ -396,7 +396,7 @@ function VoicePicker({ speaker, style, set }: { speaker: string; style: string; 
         <ul className="grid gap-2 sm:grid-cols-2">
           {q.data.map((v) => (
             <li key={v.name} className={cx('flex items-center gap-2 rounded-[12px] p-2 pe-3', speaker === v.name ? 'bg-gold-soft' : 'bg-tile')}>
-              <button type="button" aria-pressed={speaker === v.name} onClick={() => set('speaker', v.name)} className="flex min-w-0 flex-1 flex-col text-start">
+              <button type="button" aria-pressed={speaker === v.name} onClick={() => set('voice', v.name)} className="flex min-w-0 flex-1 flex-col text-start">
                 <span className="text-[13px] font-semibold">{v.title_fa}</span><span className="text-[11px] text-muted" dir="ltr">{v.name} · {v.gender}</span>
               </button>
               {v.sample_file ? <Button size="sm" icon={playing === v.name ? 'stop' : 'resume'} aria-label={`نمونه‌ی صدای ${v.title_fa}`} onClick={() => play(v.name, v.sample_file!)}>نمونه</Button> : null}
@@ -406,21 +406,24 @@ function VoicePicker({ speaker, style, set }: { speaker: string; style: string; 
       )}
       <label className="flex flex-col gap-1.5"><span className="text-[12px] text-sec">سبک خواندن</span>
         <input value={style} onChange={(e) => set('style', e.target.value)} dir="auto" placeholder="مثلاً آرام و گرم" className={cx(field, 'h-10')} aria-label="سبک خواندن" /></label>
+      <label className="flex flex-col gap-1.5"><span className="text-[12px] text-sec">متن از کدام قدم (text_from)</span>
+        <input value={textFrom} onChange={(e) => set('text_from', e.target.value)} dir="ltr" className={cx(field, 'h-10 text-left')} aria-label="متن از قدم" /></label>
     </div>
   );
 }
 
-function CoverPicker({ company, folder, set }: { company: string; folder: string; set: (k: string, v: unknown) => void }) {
+function CoverPicker({ company, folder, maxFiles, set }: { company: string; folder: string; maxFiles: number; set: (k: string, v: unknown) => void }) {
   const q = useLibrary(company, 'cover_folder');
   const holding = useLibrary(null, 'cover_folder');
   const all = [...(q.data ?? []), ...(holding.data ?? []).filter((a) => !a.company)];
   return (
     <div className="flex flex-col gap-2" role="group" aria-label="پوشه‌ی کاور">
       <span className="text-[12px] text-sec">پوشه‌ی کاور</span>
+      <label className="flex items-center gap-2 text-[12px] text-sec">حداکثر تعداد فایل<input type="number" min={1} value={maxFiles} dir="ltr" onChange={(e) => set('max_files', Math.max(1, Number(e.target.value) || 1))} className={cx(field, 'h-9 w-20 text-left')} aria-label="حداکثر فایل کاور" /></label>
       {q.isLoading ? <Skeleton className="h-12" /> : !all.length ? <p className="text-[12px] text-muted">پوشه‌ای نیست؛ در <Link href="/library" className="font-semibold text-gold-ink">کتابخانه‌ی تولید</Link> یکی بساز.</p> : (
         <div className="flex flex-wrap gap-2">
           {all.map((a) => (
-            <button key={a.id} type="button" aria-pressed={folder === a.id} onClick={() => set('folder', a.id)}
+            <button key={a.id} type="button" aria-pressed={folder === a.id} onClick={() => set('cover_folder', a.id)}
               className={cx('inline-flex h-10 items-center gap-2 rounded-full px-4 text-[13px] font-semibold', folder === a.id ? 'bg-gold text-on-gold' : 'bg-tile text-sec hover:bg-hover')}>
               <Icon name="image" size={16} />{a.title_fa}<span className="fig text-[11px] opacity-70">{a.files.length}</span>
             </button>
@@ -431,18 +434,17 @@ function CoverPicker({ company, folder, set }: { company: string; folder: string
   );
 }
 
-const WHEN: Array<{ value: string; fa: string }> = [{ value: 'schedule', fa: 'طبق زمان‌بندی خط' }, { value: 'asap', fa: 'همین که آماده شد' }, { value: 'time', fa: 'ساعت ثابت' }];
+const PUBLISH_TEXT: Array<[string, string]> = [['kind', 'نوع انتشار (kind)'], ['media_from', 'رسانه از قدم'], ['cover_from', 'کاور از قدم'], ['text_from', 'متن از قدم'], ['after', 'بعد از'], ['privacy', 'حریم (privacy)'], ['site', 'سایت']];
+const PUBLISH_NUM: Array<[string, string]> = [['in_min', 'چند دقیقه دیگر'], ['delay_min', 'تأخیر (دقیقه)']];
 function PublishEditor({ s, set }: { s: Record<string, unknown>; set: (k: string, v: unknown) => void }) {
-  const when = String(s.when ?? 'schedule');
   return (
     <div className="flex flex-col gap-2" role="group" aria-label="انتشار">
-      <span className="text-[12px] text-sec">کی و کجا منتشر شود</span>
-      <Segmented label="زمان انتشار" value={when} onChange={(v) => set('when', v)} options={WHEN.map((w) => ({ value: w.value, label: w.fa }))} />
+      <span className="text-[12px] text-sec">چه چیزی، کی و کجا منتشر شود</span>
       <div className="grid gap-3 sm:grid-cols-2">
-        {when === 'time' ? <label className="flex flex-col gap-1.5"><span className="text-[12px] text-sec">ساعت (به وقت تهران)</span>
-          <input type="time" value={String(s.time ?? '18:00')} dir="ltr" onChange={(e) => set('time', e.target.value)} className={cx(field, 'h-10 text-left')} aria-label="ساعت انتشار" /></label> : null}
-        <label className="flex flex-col gap-1.5"><span className="text-[12px] text-sec">کجا (صفحه یا کانال)</span>
-          <input value={String(s.where ?? '')} onChange={(e) => set('where', e.target.value)} dir="auto" placeholder="پیش‌فرض: کانال خط" className={cx(field, 'h-10')} aria-label="مقصد انتشار" /></label>
+        {PUBLISH_TEXT.map(([k, fa]) => <label key={k} className="flex flex-col gap-1.5"><span className="text-[12px] text-sec">{fa}</span>
+          <input value={String(s[k] ?? '')} onChange={(e) => set(k, e.target.value)} dir="ltr" className={cx(field, 'h-10 text-left')} aria-label={fa} /></label>)}
+        {PUBLISH_NUM.map(([k, fa]) => <label key={k} className="flex flex-col gap-1.5"><span className="text-[12px] text-sec">{fa}</span>
+          <input type="number" min={0} value={s[k] == null ? '' : Number(s[k])} onChange={(e) => set(k, e.target.value === '' ? null : Number(e.target.value))} dir="ltr" className={cx(field, 'h-10 text-left')} aria-label={fa} /></label>)}
       </div>
     </div>
   );

@@ -38,9 +38,9 @@ export function RunView({ runRef }: { runRef: string }) {
   if (q.error) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   if (!run) return <Card><Empty icon="video" title="این اجرا پیدا نشد" /></Card>;
 
-  const titleOf = (s: StepRun) => line.data?.steps.find((d) => d.key === s.key)?.title_fa ?? stepKind(s.kind).fa;
+  const titleOf = (s: StepRun) => s.title_fa ?? line.data?.steps.find((d) => d.key === s.key)?.title_fa ?? stepKind(s.kind).fa;
   const live = LIVE_RUN.has(run.state);
-  const seal = (approve: boolean) => act.seal.mutate({ approve, note_fa: note.trim() || undefined }, {
+  const seal = (approve: boolean) => act.seal.mutate({ approve, note_fa: note.trim() || undefined, decision: run.decision }, {
     onSuccess: () => { toast({ tone: 'ok', text: approve ? 'تأیید شد؛ خط ادامه میدهد.' : 'رد شد؛ این اجرا منتشر نمیشود.' }); setNote(''); },
     onError: (e) => toast({ tone: 'error', text: errText(e, 'مُهر نشد؛ دوباره بزن.') }),
   });
