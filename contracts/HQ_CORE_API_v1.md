@@ -3525,11 +3525,12 @@ Card         { id, turn, kind: "order"|"ask"|"hire"|"decision"|"planner"|"rule"|
 
 ### 32.5 Voice engines, the key in the chat, the light
 ```
-VoiceEngine { key, title_fa, provider: "google"|"local", model, languages: int, rank_fa, state: "missing"|"checking"|"ok"|
+VoiceEngine { key, title_fa, provider: "google"|"local", model, languages: int, rank_fa, key_pattern|null, state: "missing"|"checking"|"ok"|
               "failing"|"capped", reason_fa|null, checked_at|null,
               price: {text_in_per_m, audio_out_per_m, audio_tokens_per_s, valid_until|null, next: {from, text_in_per_m,
                       audio_out_per_m}|null, source_url, as_of}, voices: [{name, gender_fa, sample_file|null}] }
 ```
+- `key_pattern` is the provider's key shape (a regex) the app uses to keep a pasted key out of the composer.
 - Registry `apps/api/seed/voice/engines.yaml`, adapters `apps/api/src/hq_api/voice/engines/*.py` (one interface, like §30's steps):
   - `gemini-3.8-flash-tts` (the best quality, 130 languages);
   - `gemini-3.8-flash-lite-tts` (about one third cheaper, 101 languages; Persian checked by the owner's ear before use);
