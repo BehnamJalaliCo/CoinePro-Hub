@@ -33,3 +33,5 @@ f86f63045b68a1737d15e998046cd2a088813603:services/provisioner/tests/test_app_vau
 3d0fecd524541003207ff96485927dc74f3bd68a:apps/api/tests/test_p14_archive.py:private-key:307
 # Android ErrorLog masking test (Android 0.4.0): a fake key shape the test proves is masked, not a secret
 553e1b777a77aab6197b35b27ace58aef9bb83e0:apps/android/app/src/test/java/com/coinepro/hq/ErrorLogTest.kt:generic-api-key:60
+# the OpenBao path of the newsletter's API user (a path, not a secret)
+443836a7d50f0fbcb23ab1e1b67759aa2097141e:apps/api/src/hq_api/domain/newsletter.py:generic-api-key:42
