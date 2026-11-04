@@ -35,6 +35,8 @@ enum class HubFeature {
     STT_SESSIONS,
     /** ⟨1.12⟩ §30.5 `/line-templates`, `/lines`, `/line-runs`, `/calendar/lines`, `/library`; without them nothing of the production lines shows. */
     LINES,
+    /** ⟨1.13⟩ §31: `/kits`, `/lines/{ref}/insights`, the newsletter, SEO, `/campaign-calendar`, ads and `/automations`; without them nothing of the growth screens shows. */
+    GROWTH,
 }
 
 /**

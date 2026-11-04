@@ -84,7 +84,7 @@ fun CompanyLines(code: String) {
                 for (l in list) LineCard(l) { nav.go("lines/${l.ref}") }
             }
         }
-        if (has) HqButton("اجراهای امروز و هفته", { nav.go("lines-calendar") }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.PLANNER)
+        if (has) HqButton("اجراهای امروز و هفته", { nav.go("campaign-calendar") }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.PLANNER)
     }
     if (gallery) com.coinepro.hq.ui.v14.HqSheet({ gallery = false }, "خط تازه", sub = "یک قالب بردار؛ مرحله‌هایش بعداً با خودت.") {
         TemplateGallery(code) { ref -> gallery = false; nav.go("lines/$ref") }

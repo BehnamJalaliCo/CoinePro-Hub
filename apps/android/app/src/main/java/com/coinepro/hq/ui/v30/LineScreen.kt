@@ -198,6 +198,8 @@ fun LineBody(l: Line, voices: List<Voice>, open0: Set<String>? = null) {
                 result = tests[s.key], onTested = { tests[s.key] = it },
             )
         }
+        // ---- the lessons of its published runs (⟨1.13⟩ §31.1)
+        com.coinepro.hq.ui.v31.LineInsights(l.ref)
         // ---- actions
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             HqButton("ذخیره‌ی نسخه‌ی تازه", {
@@ -352,7 +354,7 @@ private fun SettingsEditor(line: Line, step: StepDef, voices: List<Voice>, cover
     val special = when (step.kind) {
         "tts" -> setOf("speaker")
         "cover" -> setOf("folder")
-        "publish" -> setOf("when", "at")
+        "publish" -> setOf("when", "time", "where")
         else -> emptySet()
     }
     val generic = step.settings.entries.filter { it.key !in special }
@@ -418,7 +420,7 @@ private fun CoverPicker(line: Line, folder: String, covers: List<Asset>, onPick:
     }
 }
 
-private val WHEN_FA = listOf("schedule" to "طبق برنامه‌ی خط", "now" to "به‌محض آماده شدن", "at" to "ساعت مشخص")
+private val WHEN_FA = listOf("schedule" to "طبق برنامه‌ی خط", "asap" to "به‌محض آماده شدن", "time" to "ساعت مشخص")
 
 /** When and where a publish step publishes. */
 @Composable
@@ -432,7 +434,7 @@ private fun PublishEditor(line: Line, step: StepDef, onChange: (StepDef) -> Unit
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             for ((k, label) in WHEN_FA) FilterChip(label, whenKey == k, { onChange(step.withSetting("when", JsonPrimitive(k))) })
         }
-        if (whenKey == "at") HqTextField(step.setting("at"), { onChange(step.withSetting("at", JsonPrimitive(it))) }, "18:30", Modifier.fillMaxWidth(), figure = true, maxLength = 5)
+        if (whenKey == "time") HqTextField(step.setting("time"), { onChange(step.withSetting("time", JsonPrimitive(it))) }, "18:30", Modifier.fillMaxWidth(), figure = true, maxLength = 5)
     }
 }
 

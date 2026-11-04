@@ -1553,6 +1553,80 @@ class Api(
 
     suspend fun ttsVoices(): List<Voice> = items("/tts/voices", Voice.serializer())
 
+    // ------------------------------------------------- ⟨1.13⟩ §31 growth --
+    suspend fun lineInsights(ref: String): Insights = get("/lines/${seg(ref)}/insights")
+
+    suspend fun kits(): List<Kit> = items("/kits", Kit.serializer())
+    private fun kitBody(kit: String, code: String, nameFa: String, nameEn: String, colorIndex: Int?) = buildJsonObject {
+        put("kit", kit); put("code", code); put("name_fa", nameFa); put("name_en", nameEn); if (colorIndex != null) put("color_index", colorIndex)
+    }
+    /** What the call would make, in words; nothing is created. */
+    suspend fun previewKit(kit: String, code: String, nameFa: String, nameEn: String, colorIndex: Int? = null): KitPreview =
+        post("/companies/from-kit/preview", kitBody(kit, code, nameFa, nameEn, colorIndex))
+    /** 🔏 `company.create` on the new company's code. */
+    suspend fun createFromKit(kit: String, code: String, nameFa: String, nameEn: String, colorIndex: Int?, stepUp: StepUp): KitResult =
+        post("/companies/from-kit", kitBody(kit, code, nameFa, nameEn, colorIndex), stepUp("company.create", code))
+
+    suspend fun newsletter(code: String): Newsletter = get("/companies/${seg(code)}/newsletter")
+    suspend fun newNewsletter(code: String, list: String, subject: String, subjectB: String?, bodyMd: String): NlCampaign =
+        post("/companies/${seg(code)}/newsletter/campaigns", buildJsonObject {
+            put("list", list); put("subject", subject); if (!subjectB.isNullOrBlank()) put("subject_b", subjectB); put("body_md", bodyMd)
+        })
+    /** A list over its size limit is 🔏 `newsletter.send` on the campaign (the caller passes [stepUp] when the list is over). */
+    suspend fun scheduleNewsletter(id: String, at: String, stepUp: StepUp? = null): NlCampaign =
+        post("/newsletter/campaigns/${seg(id)}/schedule", buildJsonObject { put("at", at) }, if (stepUp != null) stepUp("newsletter.send", id) else null)
+
+    suspend fun keywords(code: String): List<Keyword> = items("/companies/${seg(code)}/keywords", Keyword.serializer())
+    suspend fun addKeyword(code: String, phrase: String, site: String, targetUrl: String?): Keyword =
+        post("/companies/${seg(code)}/keywords", buildJsonObject { put("phrase", phrase); put("site", site); put("target_url", targetUrl) })
+    suspend fun setKeywordState(code: String, id: String, state: String): Keyword = put("/companies/${seg(code)}/keywords/${seg(id)}", buildJsonObject { put("state", state) })
+    suspend fun deleteKeyword(code: String, id: String) { execute(Request.Builder().url(url("/companies/${seg(code)}/keywords/${seg(id)}")).delete().build()).use { check(it) } }
+    suspend fun ranks(code: String, days: Int = 30): List<RankDaily> = items("/companies/${seg(code)}/ranks", RankDaily.serializer(), mapOf("days" to days))
+    suspend fun competitors(code: String): List<Competitor> = items("/companies/${seg(code)}/competitors", Competitor.serializer())
+    suspend fun addCompetitor(code: String, nameFa: String, site: String?, instagram: String?, youtube: String?, telegram: String?): Competitor =
+        post("/companies/${seg(code)}/competitors", buildJsonObject {
+            put("name_fa", nameFa); put("site", site); put("instagram", instagram); put("youtube", youtube); put("telegram", telegram)
+        })
+    suspend fun deleteCompetitor(code: String, id: String) { execute(Request.Builder().url(url("/companies/${seg(code)}/competitors/${seg(id)}")).delete().build()).use { check(it) } }
+    suspend fun competitorDaily(code: String, days: Int = 30): List<CompetitorDaily> = items("/companies/${seg(code)}/competitors/daily", CompetitorDaily.serializer(), mapOf("days" to days))
+
+    /** §31.5 `GET /campaign-calendar` (not `/calendar`, the change calendar of §20); the answer is a list, `{items}` or `{days: [{day, items}]}`. */
+    suspend fun campaignCalendar(from: String, to: String, company: String? = null): List<CampaignItem> {
+        val e: JsonElement = get("/campaign-calendar", mapOf("from" to from, "to" to to, "company" to company))
+        return decoded("/campaign-calendar") {
+            val days = ((e as? JsonObject)?.get("days") as? JsonArray)
+            if (days != null) days.flatMap { d ->
+                val day = ((d as? JsonObject)?.get("day") as? JsonPrimitive)?.contentOrNull.orEmpty()
+                (((d as? JsonObject)?.get("items") as? JsonArray).orEmpty()).map { json.decodeFromJsonElement(CampaignItem.serializer(), it).let { x -> if (x.day.isBlank()) x.copy(day = day) else x } }
+            } else e.itemsOrSelf().map { json.decodeFromJsonElement(CampaignItem.serializer(), it) }
+        }
+    }
+    suspend fun campaigns(company: String? = null): List<Campaign> = items("/campaigns", Campaign.serializer(), mapOf("company" to company))
+    suspend fun saveCampaign(id: String?, body: JsonObject): Campaign = if (id == null) post("/campaigns", body) else put("/campaigns/${seg(id)}", body)
+    suspend fun deleteCampaign(id: String) { execute(Request.Builder().url(url("/campaigns/${seg(id)}")).delete().build()).use { check(it) } }
+
+    suspend fun ads(code: String): Ads = get("/companies/${seg(code)}/ads")
+    suspend fun adRules(code: String): List<AdRule> = items("/companies/${seg(code)}/ad-rules", AdRule.serializer())
+    suspend fun saveAdRule(code: String, id: String?, body: JsonObject, stepUp: StepUp? = null): AdRule {
+        val token = if (id != null && stepUp != null) stepUp("ads.cap", id) else null
+        return if (id == null) post("/companies/${seg(code)}/ad-rules", body)
+        else send("PUT", "/companies/${seg(code)}/ad-rules/${seg(id)}", jsonBody.encodeToString(JsonObject.serializer(), body), stepUp = token)
+    }
+    suspend fun deleteAdRule(code: String, id: String) { execute(Request.Builder().url(url("/companies/${seg(code)}/ad-rules/${seg(id)}")).delete().build()).use { check(it) } }
+    /** 🔏 `ads.resume` on `platform/id`. */
+    suspend fun resumeAd(platform: String, id: String, stepUp: StepUp): AdCampaign =
+        post("/ads/campaigns/${seg(platform)}/${seg(id)}/resume", JsonObject(emptyMap()), stepUp("ads.resume", "$platform/$id"))
+
+    suspend fun automations(): List<Automation> = items("/automations", Automation.serializer())
+    suspend fun automation(ref: String): Automation = get("/automations/${seg(ref)}")
+    suspend fun compileAutomation(sentence: String, company: String?): Compiled =
+        post("/automations/compile", buildJsonObject { put("sentence_fa", sentence); if (company != null) put("company", company) })
+    suspend fun newAutomation(rule: JsonObject, sentence: String, company: String?): Automation =
+        post("/automations", buildJsonObject { put("rule", rule); put("sentence_fa", sentence); if (company != null) put("company", company) })
+    /** 🔏 `automation.seal`: nothing runs before it. */
+    suspend fun sealAutomation(ref: String, stepUp: StepUp): Automation = post("/automations/${seg(ref)}/seal", JsonObject(emptyMap()), stepUp("automation.seal", ref))
+    suspend fun setAutomationState(ref: String, state: String): Automation = post("/automations/${seg(ref)}/state", buildJsonObject { put("state", state) })
+
     // §29.5 long voice: a session, its chunks (≤ 90 s each, in order, idempotent per n), then the whole text.
     suspend fun sttStart(purpose: String): SttSession = post("/transcribe/sessions", buildJsonObject { put("purpose", purpose) })
 
