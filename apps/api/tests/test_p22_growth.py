@@ -284,7 +284,7 @@ async def test_the_newsletter_is_off_without_the_profile_or_its_credential(
         headers=h,
         json={"subject": "سلام", "body": "<p>x</p>"},
     )
-    assert made.status_code == 503 and made.json()["code"] == "channel_not_configured"
+    assert made.status_code == 409 and made.json()["code"] == "channel_not_configured"
     object.__setattr__(hub.settings, "newsletter", True)
     try:
         hub.bao = FakeBao({})
@@ -293,7 +293,7 @@ async def test_the_newsletter_is_off_without_the_profile_or_its_credential(
             headers=h,
             json={"subject": "سلام", "body": "<p>x</p>"},
         )
-        assert again.status_code == 503 and "OpenBao" in again.json()["message_fa"]
+        assert again.status_code == 409 and "OpenBao" in again.json()["message_fa"]
         assert await NL.credentials(
             FakeBao({NL.CREDENTIAL_PATH: {"user": "hq", "token": "t"}})
         ) == ("hq", "t")
@@ -945,11 +945,14 @@ def test_the_newsletter_line_template_is_valid_data() -> None:
 
     import yaml
 
+    from hq_api.lines import templates as line_templates
     from hq_api.lines.base import KINDS
 
     path = Path(__file__).resolve().parents[1] / "seed" / "lines" / "newsletter.yaml"
     text = path.read_text(encoding="utf-8")
     t = yaml.safe_load(text)
+    assert line_templates.validate(t).key == "newsletter"  # the engine's own validation
+    assert "newsletter" in line_templates.load() and line_templates.refused() == ()
     assert t["key"] == "newsletter" and t["platform"] == "newsletter" and t["version"] >= 1
     assert t["title_fa"] and t["outputs_fa"] and t["defaults"]["insights"]["metric"] == "opens"
     keys = [s["key"] for s in t["steps"]]

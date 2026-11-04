@@ -30,7 +30,7 @@ from typing import Any, Literal
 from uuid import UUID
 
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field
 
 from hq_api import events
 from hq_api.db import Tx
@@ -93,7 +93,7 @@ class CampaignIn(BaseModel):
 
 
 class ScheduleIn(BaseModel):
-    at: datetime
+    at: AwareDatetime
 
 
 # ---------------------------------------------------------------- client --
@@ -138,7 +138,7 @@ class Listmonk:
             body = None
         data = body.get("data") if isinstance(body, dict) else None
         if resp.status_code in (401, 403):
-            raise ApiError(503, "channel_not_configured", message_fa=NO_CRED_FA)
+            raise ApiError(409, "channel_not_configured", message_fa=NO_CRED_FA)
         if resp.status_code >= 400:
             msg = str(body.get("message")) if isinstance(body, dict) else ""
             log.warning("listmonk refused", extra={"status": resp.status_code, "reason": msg[:200]})
@@ -205,10 +205,10 @@ async def client_for(hub: Any) -> Listmonk:
     if OVERRIDE is not None:
         return OVERRIDE
     if not hub.settings.newsletter:
-        raise ApiError(503, "channel_not_configured", OFF_FA, message_fa=OFF_FA)
+        raise ApiError(409, "channel_not_configured", OFF_FA, message_fa=OFF_FA)
     cred = await credentials(getattr(hub, "bao", None))
     if cred is None:
-        raise ApiError(503, "channel_not_configured", NO_CRED_FA, message_fa=NO_CRED_FA)
+        raise ApiError(409, "channel_not_configured", NO_CRED_FA, message_fa=NO_CRED_FA)
     return Listmonk(hub.settings.newsletter_url, *cred)
 
 

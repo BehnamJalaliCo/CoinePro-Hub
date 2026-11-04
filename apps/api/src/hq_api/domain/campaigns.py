@@ -24,7 +24,7 @@ from itertools import pairwise
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import AwareDatetime, Field
 
 from hq_api.db import Tx
 from hq_api.domain import gov_calendar as GC
@@ -101,14 +101,14 @@ class Campaign(Model):
 class ManualIn(Model):
     company: str = Field(pattern=r"^[A-Z][A-Z0-9]{1,9}$")
     day: date
-    at: datetime | None = None
+    at: AwareDatetime | None = None
     title_fa: str = Field(min_length=1, max_length=200)
     platform: str | None = Field(default=None, pattern=PLATFORM)
 
 
 class ManualPut(Model):
     day: date | None = None
-    at: datetime | None = None
+    at: AwareDatetime | None = None
     title_fa: str | None = Field(default=None, min_length=1, max_length=200)
     platform: str | None = Field(default=None, pattern=PLATFORM)
     state: str | None = Field(default=None, pattern="^(planned|done|cancelled)$")
@@ -134,7 +134,15 @@ def check_span(starts: date, ends: date) -> None:
         raise ApiError(422, "validation_failed", fields={"ends": "not before the start"})
 
 
+YEARS = (2000, 2100)  # the calendar's reach: outside it a day cannot become an instant
+
+
 def check_window(start: date, to: date) -> None:
+    for name, d in (("from", start), ("to", to)):
+        if not YEARS[0] <= d.year <= YEARS[1]:
+            raise ApiError(
+                422, "validation_failed", fields={name: f"between {YEARS[0]} and {YEARS[1]}"}
+            )
     if to < start:
         raise ApiError(422, "validation_failed", fields={"to": "not before from"})
     if (to - start).days > MAX_SPAN_DAYS:

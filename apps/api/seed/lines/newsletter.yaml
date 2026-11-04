@@ -17,10 +17,6 @@ outputs_fa: >-
 defaults:
   insights:
     metric: opens
-  settings:
-    where: hub
-    send_hour: 9
-    list: first
 steps:
   - key: idea
     kind: gpt_text
@@ -94,7 +90,9 @@ steps:
     prompt_fa: null
     settings:
       target: listmonk
+      list: first
       at: next_send_hour
+      send_hour: 9
     inputs: [body, approve]
     gate: auto
     optional: false
