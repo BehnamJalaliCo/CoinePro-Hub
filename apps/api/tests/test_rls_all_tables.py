@@ -1273,6 +1273,59 @@ async def _fill_p21c(su: Any, co: dict[str, Any]) -> None:
     )
 
 
+async def _fill_p22g(su: Any, co: dict[str, Any]) -> None:
+    """Prompt 22 part 3 (migration 0041): one row of company `co` in each new growth table."""
+    import secrets as _s
+
+    c = co["id"]
+    lm = _s.randbelow(10**9) + 1
+    await su.execute(
+        "INSERT INTO growth.newsletter_lists (company_id, listmonk_id, name) VALUES ($1, $2, 'x')",
+        c,
+        lm,
+    )
+    await su.execute(
+        """INSERT INTO growth.newsletter_campaigns (company_id, listmonk_id, list_id, subject)
+           VALUES ($1, $2, $2, 'x')""",
+        c,
+        lm,
+    )
+    kw = await su.fetchval(
+        "INSERT INTO growth.keywords (company_id, phrase, site) VALUES ($1, 'k', 'a.example') RETURNING id",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO growth.rank_daily (company_id, keyword_id, day, source, position)
+           VALUES ($1, $2, current_date, 'searxng', 3)""",
+        c,
+        kw,
+    )
+    comp = await su.fetchval(
+        "INSERT INTO growth.competitors (company_id, name_fa) VALUES ($1, 'رقیب') RETURNING id", c
+    )
+    await su.execute(
+        """INSERT INTO growth.competitor_daily (company_id, competitor_id, day, key, value, source)
+           VALUES ($1, $2, current_date, 'pages', 1, 'sitemap')""",
+        c,
+        comp,
+    )
+    await su.execute(
+        """INSERT INTO growth.competitor_jumps (company_id, competitor_id, day, key, before_value,
+               after_value) VALUES ($1, $2, current_date, 'new_pages', 0, 9)""",
+        c,
+        comp,
+    )
+    await su.execute(
+        """INSERT INTO growth.campaigns (company_id, title_fa, starts, ends)
+           VALUES ($1, 'x', current_date, current_date)""",
+        c,
+    )
+    await su.execute(
+        "INSERT INTO growth.calendar_manual (company_id, day, title_fa) VALUES ($1, current_date, 'x')",
+        c,
+    )
+
+
 async def _fill_p17(su: Any, co: dict[str, Any]) -> None:
     """Prompt 17 (migration 0032): one row of company `co` in each new table of infra."""
     import secrets as _s
@@ -1371,6 +1424,7 @@ async def test_no_table_leaks_between_companies(
     await _fill_p14(su, b)
     await _fill_p17(su, b)
     await _fill_p21c(su, b)
+    await _fill_p22g(su, b)
     tables = await su.fetch(
         """SELECT c.table_schema AS s, c.table_name AS t FROM information_schema.columns c
            JOIN information_schema.tables x ON x.table_schema = c.table_schema AND x.table_name = c.table_name

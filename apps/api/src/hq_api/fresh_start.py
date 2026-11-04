@@ -85,6 +85,10 @@ WIPE: tuple[str, ...] = (
     # experiments, the home's mornings, suggestions and progress) goes
     "owner.order_reports", "owner.suggestions", "owner.progress",
     "growth.routine_runs", "growth.experiments", "growth.metrics_daily", "growth.home_mornings",
+    # ⟨1.13⟩ prompt 22 part 3: the daily ranks and competitor figures, the competitor jumps,
+    # the newsletter campaigns that were sent and the owner's calendar items go
+    "growth.rank_daily", "growth.competitor_daily", "growth.competitor_jumps",
+    "growth.newsletter_campaigns", "growth.calendar_manual",
     "people.department_ranks", "people.hr_rounds", "people.role_drafts", "people.star_rollups",
     "people.stars",
     "quality.claims",
@@ -139,6 +143,8 @@ KEEP: tuple[str, ...] = (
     # ⟨1.11⟩ prompt 21: what the hub is made of (the groups as data, their members,
     # the companies' connections and their non-secret config) stays
     "growth.groups", "growth.group_versions", "growth.memberships", "growth.connections",
+    # ⟨1.13⟩ prompt 22 part 3: definitions stay (the lists, the keywords, the competitors, the campaigns)
+    "growth.newsletter_lists", "growth.keywords", "growth.competitors", "growth.campaigns",
     "people.star_rubrics",
     "public.alembic_version_api", "public.alembic_version_llm_router",
     "revenue.accounts",
