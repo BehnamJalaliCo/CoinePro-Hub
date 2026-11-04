@@ -52,7 +52,7 @@ import com.coinepro.hq.core.net.LineCaps
 import com.coinepro.hq.core.net.StepDef
 import com.coinepro.hq.core.net.StepRun
 import com.coinepro.hq.core.net.StepUp
-import com.coinepro.hq.core.net.Voice
+import com.coinepro.hq.core.net.TtsVoice
 import com.coinepro.hq.core.net.gated
 import com.coinepro.hq.designsystem.BtnSize
 import com.coinepro.hq.designsystem.BtnVariant
@@ -111,7 +111,7 @@ private fun capText(n: Number?): String = n?.toString().orEmpty()
 
 /** The whole editor of a line. Edits are kept here until «ذخیره» makes them a new version. */
 @Composable
-fun LineBody(l: Line, voices: List<Voice>, open0: Set<String>? = null) {
+fun LineBody(l: Line, voices: List<TtsVoice>, open0: Set<String>? = null) {
     val env = LocalEnv.current
     val nav = LocalNav.current
     val toasts = LocalToasts.current
@@ -171,7 +171,7 @@ fun LineBody(l: Line, voices: List<Voice>, open0: Set<String>? = null) {
                     l.mode == "auto" -> HqButton("برگرد به مُهر تو", {
                         modeAct.run { env.api.setLineMode(l.ref, "draft"); env.cache.invalidate("lines"); toasts.ok("از این به بعد هر انتشار اول با مُهر توست.") }
                     }, variant = BtnVariant.GHOST, size = BtnSize.SM, loading = modeAct.busy)
-                    l.goodRuns >= l.autoAfter -> {
+                    (l.offerAuto || l.goodRuns >= l.autoAfter) -> {
                         Text("${l.autoAfter} اجرا را مُهر کرده‌ای و منتشر شده؛ حالا میتوانی بگذاری خودش منتشر کند.", style = Divan.type.caption, color = c.textSecondary)
                         HqButton("خودکار کن", {
                             modeAct.run {
@@ -281,7 +281,7 @@ fun StepCard(
     line: Line,
     step: StepDef,
     variables: List<String>,
-    voices: List<Voice>,
+    voices: List<TtsVoice>,
     covers: List<Asset>,
     open: Boolean,
     dirty: Boolean,
@@ -349,12 +349,11 @@ fun StepCard(
 
 /** The step's settings: the special editors of a voice, a cover and a publish, then every other key as a field. */
 @Composable
-private fun SettingsEditor(line: Line, step: StepDef, voices: List<Voice>, covers: List<Asset>, onChange: (StepDef) -> Unit) {
+private fun SettingsEditor(line: Line, step: StepDef, voices: List<TtsVoice>, covers: List<Asset>, onChange: (StepDef) -> Unit) {
     val c = Divan.colors
     val special = when (step.kind) {
-        "tts" -> setOf("speaker")
-        "cover" -> setOf("folder")
-        "publish" -> setOf("when", "time", "where")
+        "tts" -> setOf("voice")
+        "cover" -> setOf("cover_folder")
         else -> emptySet()
     }
     val generic = step.settings.entries.filter { it.key !in special }
@@ -362,9 +361,9 @@ private fun SettingsEditor(line: Line, step: StepDef, voices: List<Voice>, cover
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("تنظیم‌ها", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
         when (step.kind) {
-            "tts" -> SpeakerPicker(step.setting("speaker"), voices) { onChange(step.withSetting("speaker", JsonPrimitive(it))) }
-            "cover" -> CoverPicker(line, step.setting("folder"), covers) { onChange(step.withSetting("folder", JsonPrimitive(it))) }
-            "publish" -> PublishEditor(line, step, onChange)
+            "tts" -> SpeakerPicker(step.setting("voice"), voices) { onChange(step.withSetting("voice", JsonPrimitive(it))) }
+            "cover" -> CoverPicker(line, step.setting("cover_folder"), covers) { onChange(step.withSetting("cover_folder", JsonPrimitive(it))) }
+            "publish" -> Text(plain("کجا: " + platformFa(line.platform) + (if (line.channel.subject.isNotBlank()) "، " + line.channel.subject else "")), style = Divan.type.small, color = c.textPrimary)
         }
         for ((k, v) in generic) {
             if ((v as? JsonPrimitive)?.let { !it.isString && it.booleanOrNull != null } == true) {
@@ -386,7 +385,7 @@ private fun SettingsEditor(line: Line, step: StepDef, voices: List<Voice>, cover
 
 /** The speaker of a voice step: the speakers the speech tool offers, and a sample to listen to when there is one. */
 @Composable
-private fun SpeakerPicker(speaker: String, voices: List<Voice>, onPick: (String) -> Unit) {
+private fun SpeakerPicker(speaker: String, voices: List<TtsVoice>, onPick: (String) -> Unit) {
     val c = Divan.colors
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("گوینده", style = Divan.type.micro, color = c.textMuted)
@@ -417,24 +416,6 @@ private fun CoverPicker(line: Line, folder: String, covers: List<Asset>, onPick:
             for (a in covers) FilterChip(a.titleFa + " (" + a.files.size + " تصویر)", a.id == folder, { onPick(a.id) })
         }
         HqButton("کتابخانه‌ی این شرکت", { nav.go("library/${line.company}") }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.NEXT)
-    }
-}
-
-private val WHEN_FA = listOf("schedule" to "طبق برنامه‌ی خط", "asap" to "به‌محض آماده شدن", "time" to "ساعت مشخص")
-
-/** When and where a publish step publishes. */
-@Composable
-private fun PublishEditor(line: Line, step: StepDef, onChange: (StepDef) -> Unit) {
-    val c = Divan.colors
-    val whenKey = step.setting("when").ifBlank { "schedule" }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("کجا", style = Divan.type.micro, color = c.textMuted)
-        Text(plain(platformFa(line.platform) + (if (line.channel.subject.isNotBlank()) "، " + line.channel.subject else "")), style = Divan.type.small, color = c.textPrimary)
-        Text("چه وقت", style = Divan.type.micro, color = c.textMuted)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            for ((k, label) in WHEN_FA) FilterChip(label, whenKey == k, { onChange(step.withSetting("when", JsonPrimitive(k))) })
-        }
-        if (whenKey == "time") HqTextField(step.setting("time"), { onChange(step.withSetting("time", JsonPrimitive(it))) }, "18:30", Modifier.fillMaxWidth(), figure = true, maxLength = 5)
     }
 }
 

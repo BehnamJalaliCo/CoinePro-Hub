@@ -80,12 +80,12 @@ internal class V31Demo {
     private var ruleSeq = 10
 
     private val autos = mutableListOf(
-        jo("ref" to "AU-0001", "company" to "TY", "sentence_fa" to "هر شنبه ساعت 10 یک ریلز آموزشی بساز و اگر دنبال‌کننده‌ها کم شدند خبرم کن", "state" to "on",
+        jo("ref" to "AT-0001", "company" to "TY", "sentence_fa" to "هر شنبه ساعت 10 یک ریلز آموزشی بساز و اگر دنبال‌کننده‌ها کم شدند خبرم کن", "state" to "on",
             "runs" to ja(listOf(jo("at" to at(-3, 9, 30), "state" to "done", "note_fa" to "خط ریلز اجرا شد."), jo("at" to at(-10, 9, 30), "state" to "done", "note_fa" to "خط ریلز اجرا شد."))),
             "last_run_at" to at(-3, 9, 30), "n8n_workflow" to null,
             "rule" to jo("trigger" to jo("kind" to "schedule", "rrule" to "FREQ=WEEKLY;BYDAY=SA;BYHOUR=10;BYMINUTE=0"), "conditions" to ja(emptyList()), "actions" to ja(listOf(jo("kind" to "line.run", "args" to jo("line" to "LN-0001"))))),
             "preview_fa" to "هر شنبه ساعت 10:00 خط «ریلز طلای تریدیار» را اجرا میکند."),
-        jo("ref" to "AU-0002", "company" to "FX", "sentence_fa" to "اگر بازده تبلیغ زیر یک و دو شد تبلیغ را متوقف کن", "state" to "proposed", "runs" to 0, "last_run_at" to null, "n8n_workflow" to null,
+        jo("ref" to "AT-0002", "company" to "FX", "sentence_fa" to "اگر بازده تبلیغ زیر یک و دو شد تبلیغ را متوقف کن", "state" to "proposed", "runs" to 0, "last_run_at" to null, "n8n_workflow" to null,
             "rule" to jo("trigger" to jo("kind" to "metric", "key" to "roas", "op" to "<", "value" to 1.2, "window" to 7), "conditions" to ja(emptyList()), "actions" to ja(listOf(jo("kind" to "ad.pause", "args" to jo()), jo("kind" to "notify.lead", "args" to jo())))),
             "preview_fa" to "اگر بازده تبلیغ در هفت روز کمتر از 1.2 شد، تبلیغ را متوقف میکند و به مدیر رشد خبر میدهد."),
     )
@@ -236,14 +236,14 @@ internal class V31Demo {
         if (path == "/automations") return when (method) {
             "GET" -> 200 to ja(autos.map { it.with("runs" to it.arr("runs").size.let { n -> if (it["runs"] is JsonArray) n else it["runs"] }) })
             "POST" -> {
-                val a = jo("ref" to "AU-%04d".format(autoSeq++), "company" to body?.str("company"), "sentence_fa" to body?.str("sentence_fa"), "rule" to body?.get("rule"), "state" to "proposed", "runs" to 0, "last_run_at" to null, "n8n_workflow" to null,
+                val a = jo("ref" to "AT-%04d".format(autoSeq++), "company" to body?.str("company"), "sentence_fa" to body?.str("sentence_fa"), "rule" to body?.get("rule"), "state" to "proposed", "runs" to 0, "last_run_at" to null, "n8n_workflow" to null,
                     "preview_fa" to compile(body?.str("sentence_fa").orEmpty()).str("preview_fa"))
                 autos.add(0, a)
                 201 to a
             }
             else -> null
         }
-        Regex("^/automations/(AU-\\d+)(/seal|/state)?$").find(path)?.let { m ->
+        Regex("^/automations/(AT-\\d+)(/seal|/state)?$").find(path)?.let { m ->
             val i = autos.indexOfFirst { it.str("ref") == m.groupValues[1] }
             if (i < 0) return 404 to problem(404, "not_found", "این اتوماسیون پیدا نشد.")
             return when {

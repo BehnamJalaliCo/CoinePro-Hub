@@ -30,7 +30,7 @@ import com.coinepro.hq.core.format.jWeekday
 import com.coinepro.hq.core.net.HubFeature
 import com.coinepro.hq.core.net.Line
 import com.coinepro.hq.core.net.LineChannel
-import com.coinepro.hq.core.net.Template
+import com.coinepro.hq.core.net.LineTemplate
 import com.coinepro.hq.core.net.gated
 import com.coinepro.hq.designsystem.BtnSize
 import com.coinepro.hq.designsystem.BtnVariant
@@ -99,14 +99,14 @@ fun LineCard(l: Line, onClick: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             IconTile(platformIcon(l.platform), c.goldInk, c.softGold)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(plain(l.titleFa), style = Divan.type.bodyStrong, maxLines = 2)
+                Text(plain(l.nameFa?.takeIf { it.isNotBlank() } ?: l.titleFa), style = Divan.type.bodyStrong, maxLines = 2)
                 Text(plain(platformFa(l.platform) + (if (l.channel.subject.isNotBlank()) "، ${l.channel.subject}" else "")), style = Divan.type.caption, color = c.textMuted, maxLines = 1)
             }
         }
         LinePills(l, Modifier.padding(top = 10.dp))
         Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(plain(scheduleFa(l.schedule)), style = Divan.type.caption, color = c.textSecondary)
-            l.nextRunAt?.let { Text(plain("اجرای بعدی: ${jWeekday(it)}، ${jTime(it)}"), style = Divan.type.caption, color = c.textSecondary) }
+            l.nextAt?.let { Text(plain("اجرای بعدی: ${jWeekday(it)}، ${jTime(it)}"), style = Divan.type.caption, color = c.textSecondary) }
             l.lastRun?.takeIf { it.state.isNotBlank() }?.let { r ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("آخرین اجرا", style = Divan.type.caption, color = c.textMuted)
@@ -127,7 +127,7 @@ fun rememberTemplates() = rememberQuery("line-templates", "lines", maxAgeMs = 30
  * for the line's name and its channel. [onCreated] gets the new line's ref (a `draft`). [picked0] opens the form on a template.
  */
 @Composable
-fun TemplateGallery(code: String, picked0: Template? = null, onCreated: (String) -> Unit) {
+fun TemplateGallery(code: String, picked0: LineTemplate? = null, onCreated: (String) -> Unit) {
     val q = rememberTemplates()
     var picked by rememberSaveable { mutableStateOf<String?>(picked0?.key) }
     val list = q.data
@@ -143,7 +143,7 @@ fun TemplateGallery(code: String, picked0: Template? = null, onCreated: (String)
 
 /** The gallery's cards (no form): a template's title, platform, its steps and what comes out. */
 @Composable
-fun TemplateList(list: List<Template>, onPick: (Template) -> Unit) {
+fun TemplateList(list: List<LineTemplate>, onPick: (LineTemplate) -> Unit) {
     val c = Divan.colors
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         for (t in list) HqCard(Modifier.fillMaxWidth(), color = c.card, onClick = { onPick(t) }) {
@@ -162,7 +162,7 @@ fun TemplateList(list: List<Template>, onPick: (Template) -> Unit) {
 
 /** The last question: the line's name and its channel; then the draft is made and opened. */
 @Composable
-fun NewLineForm(code: String, t: Template, onBack: () -> Unit, onCreated: (String) -> Unit) {
+fun NewLineForm(code: String, t: LineTemplate, onBack: () -> Unit, onCreated: (String) -> Unit) {
     val env = LocalEnv.current
     val toasts = LocalToasts.current
     val action = rememberAction()

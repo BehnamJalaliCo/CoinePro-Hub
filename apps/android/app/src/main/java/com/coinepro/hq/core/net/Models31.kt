@@ -189,7 +189,7 @@ data class AdRule(
 data class AutoRun(val at: String? = null, val state: String = "done", val noteFa: String = "")
 
 @Serializable
-data class Automation(
+data class GrowthAutomation(
     val ref: String,
     val company: String? = null,
     val sentenceFa: String = "",

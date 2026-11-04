@@ -12,8 +12,8 @@ import kotlinx.serialization.json.contentOrNull
 // Contract §31 ⟨1.13⟩ in the owner's words: the metric of a line's lessons, the newsletter's and automation's states, the kinds on the
 // campaign calendar, an ad campaign's figures, a keyword's move and a competitor's figures. Pure functions: the unit tests read them directly.
 
-val METRIC_FA = mapOf("views" to "بازدید", "reach" to "دیده‌شدن", "clicks" to "کلیک", "watch_s" to "ثانیه‌ی تماشا")
-fun metricFa(m: String?): String = METRIC_FA[m] ?: "نتیجه"
+val GROWTH_METRIC_FA = mapOf("views" to "بازدید", "reach" to "دیده‌شدن", "clicks" to "کلیک", "watch_s" to "ثانیه‌ی تماشا")
+fun growthMetricFa(m: String?): String = GROWTH_METRIC_FA[m] ?: "نتیجه"
 
 val NL_STATE_FA: Map<String, Pair<String, Tone>> = mapOf(
     "draft" to ("پیش‌نویس" to Tone.SILVER), "scheduled" to ("زمان‌بندی‌شده" to Tone.LAPIS), "sending" to ("در حال ارسال" to Tone.GOLD),

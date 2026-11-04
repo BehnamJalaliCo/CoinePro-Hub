@@ -19,8 +19,8 @@ import kotlinx.serialization.json.contentOrNull
  * - **Templates (§30.6):** the Instagram reel (twelve steps), the Telegram post and the site article.
  * - **Lines:** `LN-0001` TradeYar's reel on Saturdays and Tuesdays (on, draft mode with four good runs, its newest run waiting for the
  *   owner's seal), `LN-0002` FX's Telegram post every day (automatic), `LN-0003` Pro-Chart's article (just made, a draft).
- * - **Runs:** `LR-000003` waiting at its publish step with an output of every kind (text, audio, a film, a cover, data tables),
- *   `LR-000002` published, `LR-000001` a dry run that failed at the voice; `LR-000004` and `LR-000005` for FX.
+ * - **Runs:** `RN-000003` waiting at its publish step with an output of every kind (text, audio, a film, a cover, data tables),
+ *   `RN-000002` published, `RN-000001` a dry run that failed at the voice; `RN-000004` and `RN-000005` for FX.
  * - **Library:** cover folders, a speaker, prompts and a pattern, per company and for the holding; the speakers AI Studio offers.
  * - **Calendar:** every line's schedule over any week asked, past ones as ran.
  */
@@ -48,9 +48,9 @@ internal class V30Demo {
     init {
         val reel = reelSteps(speaker = "Kore", folder = "AS-0001")
         lines["LN-0001"] = line("LN-0001", "TY", "instagram_reel", "instagram_reel", jo("kind" to "instagram", "subject" to "tradeyar.official"), "ریلز طلای تریدیار",
-            "FREQ=WEEKLY;BYDAY=SA,TU;BYHOUR=18;BYMINUTE=0", "on", "draft", 4, 3, reel, listOf("AS-0001", "AS-0004"), 3 * 24 * 60L, jo("ref" to "LR-000003", "state" to "waiting", "at" to at(50)))
+            "FREQ=WEEKLY;BYDAY=SA,TU;BYHOUR=18;BYMINUTE=0", "on", "draft", 4, 3, reel, listOf("AS-0001", "AS-0004"), 3 * 24 * 60L, jo("ref" to "RN-000003", "state" to "waiting", "at" to at(50)))
         lines["LN-0002"] = line("LN-0002", "FX", "telegram_post", "telegram_post", jo("kind" to "telegram", "subject" to "coinepro_fx"), "پست روزانه‌ی کانال کوینه‌پرو",
-            "FREQ=DAILY;BYHOUR=9;BYMINUTE=0", "on", "auto", 9, 5, telegramSteps(), listOf("AS-0002"), 9 * 24 * 60L, jo("ref" to "LR-000005", "state" to "done", "at" to at(1400)))
+            "FREQ=DAILY;BYHOUR=9;BYMINUTE=0", "on", "auto", 9, 5, telegramSteps(), listOf("AS-0002"), 9 * 24 * 60L, jo("ref" to "RN-000005", "state" to "done", "at" to at(1400)))
         lines["LN-0003"] = line("LN-0003", "PC", "site_article", "site_article", jo("kind" to "site", "subject" to "pro-chart.example"), "مقاله‌ی هفتگی پرو-چارت",
             null, "draft", "draft", 0, 1, articleSteps(), emptyList(), 60L, null)
         for ((ref, l) in lines) versions[ref] = mutableListOf(snapshot(l, "ساخته شد از قالب", "مدیر کل", l.str("created_at")))
@@ -59,15 +59,15 @@ internal class V30Demo {
         versions.getValue("LN-0001").add(0, snapshot(l1.with("version" to 2), "دستور فیلمنامه کوتاه‌تر شد", "مدیر کل", at(2 * 24 * 60)))
         versions.getValue("LN-0001").add(0, snapshot(l1, "گوینده عوض شد", "مدیر کل", at(24 * 60)))
 
-        runs["LR-000003"] = waitingRun()
-        runs["LR-000002"] = publishedRun()
-        runs["LR-000001"] = failedRun()
-        runs["LR-000004"] = telegramRun("LR-000004", 1400 + 24 * 60, "done")
-        runs["LR-000005"] = telegramRun("LR-000005", 1400, "done")
+        runs["RN-000003"] = waitingRun()
+        runs["RN-000002"] = publishedRun()
+        runs["RN-000001"] = failedRun()
+        runs["RN-000004"] = telegramRun("RN-000004", 1400 + 24 * 60, "done")
+        runs["RN-000005"] = telegramRun("RN-000005", 1400, "done")
 
         assets += asset("AS-0001", "TY", "cover_folder", "کاورهای طلای تریدیار", jo(), listOf("/demo/fx-reel-levels-poster.webp", "/demo/fx-reel-resist-poster.webp", "/demo/ty-story-stoploss-poster.webp"), 20 * 24 * 60)
         assets += asset("AS-0002", "FX", "cover_folder", "کاورهای کانال کوینه‌پرو", jo(), listOf("/demo/fx-reel-resist-poster.webp", "/demo/pc-landing-redesign.webp"), 18 * 24 * 60)
-        assets += asset("AS-0003", null, "voice", "گوینده‌ی خبر، آرام", jo("speaker" to "Kore", "style" to "آرام و مطمئن، مثل گوینده‌ی خبر"), listOf("/demo/voice/piper-amir-numbers.m4a"), 30 * 24 * 60)
+        assets += asset("AS-0003", null, "voice", "گوینده‌ی خبر، آرام", jo("voice" to "Kore", "style" to "آرام و مطمئن، مثل گوینده‌ی خبر"), listOf("/demo/voice/piper-amir-numbers.m4a"), 30 * 24 * 60)
         assets += asset("AS-0004", null, "prompt", "قاعده‌ی منبع برای هر عدد", jo("text" to "هر عدد در متن باید منبع داشته باشد؛ اگر منبع نبود، عدد را ننویس و بنویس «نیاز به بررسی». از وعده‌ی سود و واژه‌ی «تضمین» پرهیز کن."), emptyList(), 25 * 24 * 60)
         assets += asset("AS-0005", "TY", "pattern", "طراحی ریلز آموزشی طلا", jo("query" to "ریلز آموزشی طلا"), listOf("/demo/pc-landing-redesign.webp", "/demo/ty-story-stoploss-poster.webp"), 12 * 24 * 60)
     }
@@ -131,7 +131,7 @@ internal class V30Demo {
                 "copy" -> if (method == "POST") {
                     val co = body?.str("company") ?: return 422 to problem(422, "validation_failed", "شرکت را بگو.")
                     val nref = "LN-%04d".format(++lineSeq)
-                    val n = l.with("ref" to nref, "company" to co, "state" to "draft", "mode" to "draft", "good_runs" to 0, "version" to 1, "created_at" to HqClock.now().toString(), "updated_at" to HqClock.now().toString(), "next_run_at" to null, "last_run" to null)
+                    val n = l.with("ref" to nref, "company" to co, "state" to "draft", "mode" to "draft", "good_runs" to 0, "version" to 1, "created_at" to HqClock.now().toString(), "updated_at" to HqClock.now().toString(), "next_at" to null, "last_run" to null)
                     lines[nref] = n
                     versions[nref] = mutableListOf(snapshot(n, "کپی از $ref", "مدیر کل", HqClock.now().toString()))
                     return 201 to n
@@ -141,7 +141,7 @@ internal class V30Demo {
                     "POST" -> {
                         val dry = (body?.get("dry") as? JsonPrimitive)?.contentOrNull == "true"
                         val from = body?.str("from_step")
-                        val id = "LR-%06d".format(++runSeq)
+                        val id = "RN-%06d".format(++runSeq)
                         val steps = l.arr("steps").filter { it["enabled"]?.let { e -> (e as? JsonPrimitive)?.contentOrNull != "false" } != false }
                         val r = jo(
                             "ref" to id, "line" to ref, "line_version" to l.int("version"), "trigger" to (if (dry) "test" else "owner"), "dry" to dry, "state" to "running", "at" to HqClock.now().toString(),
@@ -162,10 +162,10 @@ internal class V30Demo {
             return 200 to testOf(s)
         }
         // Runs.
-        Regex("^/line-runs/(LR-\\d+)$").find(path)?.let { m ->
+        Regex("^/line-runs/(RN-\\d+)$").find(path)?.let { m ->
             return runs[m.groupValues[1]]?.let { 200 to it } ?: (404 to problem(404, "not_found", "این اجرا پیدا نشد."))
         }
-        Regex("^/line-runs/(LR-\\d+)/(rerun|seal|cancel)$").find(path)?.let { m ->
+        Regex("^/line-runs/(RN-\\d+)/(rerun|seal|cancel)$").find(path)?.let { m ->
             val ref = m.groupValues[1]
             val r = runs[ref] ?: return 404 to problem(404, "not_found", "این اجرا پیدا نشد.")
             when (m.groupValues[2]) {
@@ -180,7 +180,7 @@ internal class V30Demo {
                 }
                 else -> {
                     val from = body?.str("from_step")
-                    val id = "LR-%06d".format(++runSeq)
+                    val id = "RN-%06d".format(++runSeq)
                     var reached = false
                     val steps = r.arr("steps").map { s ->
                         if (s.str("key") == from) reached = true
@@ -227,7 +227,7 @@ internal class V30Demo {
     // ------------------------------------------------------------ the data --
     private fun listed(l: JsonObject): JsonObject {
         val next = nextRun(l)
-        return l.with("next_run_at" to next, "last_run" to (runsOf(l.str("ref")!!, 1).firstOrNull()?.let { r -> jo("ref" to r.str("ref"), "state" to r.str("state"), "at" to r.str("at")) } ?: l["last_run"]))
+        return l.with("next_at" to next, "last_run" to (runsOf(l.str("ref")!!, 1).firstOrNull()?.let { r -> jo("ref" to r.str("ref"), "state" to r.str("state"), "at" to r.str("at")) } ?: l["last_run"]))
     }
 
     private fun runsOf(ref: String, limit: Int): List<JsonObject> =
@@ -288,7 +288,7 @@ internal class V30Demo {
         "ref" to ref, "company" to company, "template" to template, "template_version" to 1, "platform" to platform, "channel" to channel, "title_fa" to title,
         "schedule" to schedule, "state" to state, "mode" to mode, "good_runs" to good, "auto_after" to 7,
         "caps" to jo("runs_per_day" to 3, "tokens_per_run" to 120_000, "opus_per_day" to 4), "version" to version, "steps" to ja(steps),
-        "library" to ja(library.map { JsonPrimitive(it) }), "created_at" to at(ageMin + 60), "updated_at" to at(ageMin), "next_run_at" to null, "last_run" to last,
+        "library" to ja(library.map { JsonPrimitive(it) }), "created_at" to at(ageMin + 60), "updated_at" to at(ageMin), "next_at" to null, "last_run" to last,
     )
 
     private fun snapshot(l: JsonObject, note: String, by: String, atIso: String?) = jo(
@@ -311,22 +311,22 @@ internal class V30Demo {
     private fun reelSteps(speaker: String = "Kore", folder: String = "") = listOf(
         st("script", "gpt_text", "نوشتن فیلمنامه", "یک فیلمنامه‌ی ۳۰ ثانیه‌ای برای ریلز بنویس: قلاب در سه ثانیه‌ی اول، سه نکته‌ی کوتاه با منبع، و در پایان دعوت به دنبال کردن. فارسی روان، بدون اغراق و بدون وعده‌ی سود.", timeout = 180),
         st("dedupe", "dedupe", "بررسی تکراری نبودن", null, jo("threshold" to 0.8), listOf("script"), attempts = 3, timeout = 30),
-        st("voice", "tts", "خواندن متن", null, jo("speaker" to speaker, "style" to "آرام و مطمئن، مثل گوینده‌ی خبر"), listOf("script"), timeout = 240),
+        st("voice", "tts", "خواندن متن", null, jo("voice" to speaker, "style" to "آرام و مطمئن، مثل گوینده‌ی خبر"), listOf("script"), timeout = 240),
         st("direction", "gpt_text", "نقشه‌ی تصویر", "از روی {{script}} و {{voice}} نقشه‌ی تصویر هر ثانیه را بنویس: نما، حرکت دوربین و متن روی تصویر.", inputs = listOf("script", "voice"), optional = true),
         st("patterns", "pattern_search", "جست‌وجوی الگوی طراحی", null, jo("query" to "ریلز آموزشی طلا", "count" to 5), timeout = 90),
         st("pick", "council_pick", "انتخاب شورا", "از بین {{patterns}} یکی را برای {{direction}} انتخاب کن و دلیلش را کوتاه بگو.", inputs = listOf("direction", "patterns"), timeout = 300),
         st("build", "opus_build", "ساخت ریلز", "با {{script}}، {{voice}}، {{direction}} و {{pick}} مشخصات رندر، کپشن و هشتگ‌ها را بساز. کپشن حداکثر ۲۲۰۰ حرف.", inputs = listOf("script", "voice", "direction", "pick"), timeout = 600),
         st("render", "render", "رندر ویدیو", null, jo("where" to "studio", "aspect" to "9:16", "duration_s" to 30), listOf("build"), timeout = 900),
-        st("cover", "cover", "کاور", "برای کاور یک تصویر از پوشه‌ی کاور انتخاب کن و عنوان کوتاه {{script}} را روی آن بگذار.", jo("folder" to folder), listOf("script"), timeout = 240),
+        st("cover", "cover", "کاور", "برای کاور یک تصویر از پوشه‌ی کاور انتخاب کن و عنوان کوتاه {{script}} را روی آن بگذار.", jo("cover_folder" to folder, "max_files" to 40), listOf("script"), timeout = 240),
         st("quality", "quality", "کنترل کیفیت", null, jo("max_chars" to 2200, "banned_words" to ja(listOf(JsonPrimitive("تضمین سود"), JsonPrimitive("سود قطعی")))), listOf("build"), timeout = 30),
-        st("publish", "publish", "انتشار ریلز", null, jo("when" to "schedule", "story_same_day" to true), listOf("render", "cover", "build"), gate = "owner", timeout = 300),
-        st("story", "publish", "استوری همان روز", null, jo("when" to "asap"), listOf("publish"), optional = true, timeout = 300),
+        st("publish", "publish", "انتشار ریلز", null, jo("kind" to "reel", "media_from" to "render", "cover_from" to "cover", "text_from" to "build"), listOf("render", "cover", "build"), gate = "owner", timeout = 300),
+        st("story", "publish", "استوری همان روز", null, jo("kind" to "story", "after" to "publish", "delay_min" to 5, "media_from" to "cover"), listOf("publish"), optional = true, timeout = 300),
     )
 
     private fun telegramSteps() = listOf(
         st("text", "gpt_text", "نوشتن پست", "یک پست کوتاه (حداکثر ۵ خط) درباره‌ی مهم‌ترین خبر بازار امروز بنویس؛ هر عدد با منبع.", timeout = 120),
         st("quality", "quality", "کنترل کیفیت", null, jo("max_chars" to 900), listOf("text"), timeout = 30),
-        st("publish", "publish", "انتشار در کانال", null, jo("when" to "schedule"), listOf("text", "quality"), gate = "auto", timeout = 120),
+        st("publish", "publish", "انتشار در کانال", null, jo("kind" to "post", "text_from" to "text"), listOf("text", "quality"), gate = "auto", timeout = 120),
     )
 
     private fun articleSteps() = listOf(
@@ -334,7 +334,7 @@ internal class V30Demo {
         st("outline", "gpt_text", "سرفصل‌ها", "برای {{keyword}} سرفصل مقاله را بنویس.", inputs = listOf("keyword")),
         st("article", "gpt_text", "نوشتن مقاله", "بر اساس {{outline}} مقاله را کامل بنویس؛ منبع هر عدد در پایان بخش.", inputs = listOf("keyword", "outline"), timeout = 600),
         st("quality", "quality", "کنترل کیفیت", null, jo("min_chars" to 2500), listOf("article"), timeout = 30),
-        st("publish", "publish", "انتشار در سایت", null, jo("when" to "schedule"), listOf("article"), gate = "owner", timeout = 300),
+        st("publish", "publish", "انتشار در سایت", null, jo("kind" to "article", "text_from" to "article", "site" to "pro-chart.example"), listOf("article"), gate = "owner", timeout = 300),
     )
 
     // ---------------------------------------------------------------- runs --
@@ -390,7 +390,7 @@ internal class V30Demo {
             sr("publish", "publish", "waiting", 34, 0),
             sr("story", "publish", "pending", 0, 0),
         )
-        return runBase("LR-000003", "LN-0001", "schedule", false, "waiting", 50, null, steps, 21_000, "0.61", emptyList(), "منتظر مُهر توست؛ بعد از آن ریلز منتشر میشود.")
+        return runBase("RN-000003", "LN-0001", "schedule", false, "waiting", 50, null, steps, 21_000, "0.61", emptyList(), "منتظر مُهر توست؛ بعد از آن ریلز منتشر میشود.").with("decision" to "D-000090")
     }
 
     private fun publishedRun(): JsonObject {
@@ -402,7 +402,7 @@ internal class V30Demo {
             jo("platform" to "instagram_reel", "kind" to "reel", "external_id" to "17850", "at" to at(3 * 24 * 60 + 5), "url" to "https://www.instagram.com/reel/Cdemo2/"),
             jo("platform" to "instagram_story", "kind" to "story", "external_id" to "17851", "at" to at(3 * 24 * 60 + 2), "url" to null),
         )
-        return runBase("LR-000002", "LN-0001", "schedule", false, "done", 3 * 24 * 60 + 60, 3 * 24 * 60 + 2, steps, 19_500, "0.55", pub).with(
+        return runBase("RN-000002", "LN-0001", "schedule", false, "done", 3 * 24 * 60 + 60, 3 * 24 * 60 + 2, steps, 19_500, "0.55", pub).with(
             "metrics" to jo("h24" to jo("views" to 8420, "likes" to 610, "saves" to 143), "d7" to null),
         )
     }
@@ -413,7 +413,7 @@ internal class V30Demo {
             sr("dedupe", "dedupe", "done", 6 * 24 * 60L - 1, 2, out(data = jo("verdict" to "تکراری نیست")), 0, null, "کد"),
             sr("voice", "tts", "failed", 6 * 24 * 60L - 1, 20, jo(), 0, null, "استودیوی گوگل", "حساب استودیوی گوگل از سیستم بیرون رفته؛ اول دوباره وارد شو، بعد آزمایش را تکرار کن."),
         ) + reelSteps().drop(3).map { s -> sr(s.str("key")!!, s.str("kind")!!, "skipped", 6 * 24 * 60L - 2, 0) }
-        return runBase("LR-000001", "LN-0001", "test", true, "failed", 6 * 24 * 60, 6 * 24 * 60 - 3, steps, 1500, "0.03", emptyList())
+        return runBase("RN-000001", "LN-0001", "test", true, "failed", 6 * 24 * 60, 6 * 24 * 60 - 3, steps, 1500, "0.03", emptyList())
     }
 
     private fun telegramRun(ref: String, startMin: Long, state: String): JsonObject {

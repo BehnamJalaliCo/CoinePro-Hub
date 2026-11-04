@@ -52,6 +52,7 @@ import com.coinepro.hq.core.net.HubFeature
 import com.coinepro.hq.core.net.Line
 import com.coinepro.hq.core.net.LineRun
 import com.coinepro.hq.core.net.StepRun
+import com.coinepro.hq.core.net.StepUp
 import com.coinepro.hq.core.net.gated
 import com.coinepro.hq.designsystem.BtnSize
 import com.coinepro.hq.designsystem.BtnVariant
@@ -73,6 +74,7 @@ import com.coinepro.hq.ui.LocalEnv
 import com.coinepro.hq.ui.LocalNav
 import com.coinepro.hq.ui.LocalToasts
 import com.coinepro.hq.ui.Page
+import com.coinepro.hq.ui.activity
 import com.coinepro.hq.ui.itemMotion
 import com.coinepro.hq.ui.refresher
 import com.coinepro.hq.ui.rememberAction
@@ -205,7 +207,7 @@ fun RunBody(run: LineRun, line: Line?, open0: Set<String>? = null) {
                 val def = line?.steps?.firstOrNull { it.key == s.key }
                 val open = opened[s.key] ?: (open0?.contains(s.key) ?: (s.state == "waiting" || s.state == "failed" || s.key == lastDone))
                 TimelineStep(
-                    run, s, title = def?.titleFa?.ifBlank { null } ?: stepKindFa(s.kind), last = i == run.steps.lastIndex, open = open,
+                    run, s, title = s.titleFa?.ifBlank { null } ?: def?.titleFa?.ifBlank { null } ?: stepKindFa(s.kind), last = i == run.steps.lastIndex, open = open,
                     onOpen = { opened[s.key] = !open },
                     canRerun = s.state in setOf("done", "failed") && (lineRunEnded(run.state) || run.state == "waiting"),
                     onRerun = { nav.go("line-runs/$it") },
@@ -228,6 +230,7 @@ fun SealCard(run: LineRun) {
     val env = LocalEnv.current
     val toasts = LocalToasts.current
     val c = Divan.colors
+    val act = activity()
     val yes = rememberAction()
     val no = rememberAction()
     var note by rememberSaveable(run.ref) { mutableStateOf("") }
@@ -242,7 +245,8 @@ fun SealCard(run: LineRun) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 HqButton("تأیید و انتشار", {
                     yes.run {
-                        env.api.sealLineRun(run.ref, true, note.trim().ifBlank { null })
+                        val sign: StepUp = { a, t -> env.auth.stepUp(act, a, t) }
+                        env.api.sealLineRun(run.ref, true, note.trim().ifBlank { null }, sign, run.decision)
                         env.cache.invalidate("line-runs", "lines", "decisions", "inbox")
                         toasts.ok("مُهر شد؛ منتشر میشود.")
                     }
@@ -323,6 +327,7 @@ fun TimelineStep(run: LineRun, s: StepRun, title: String, last: Boolean, open: B
                     Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         s.errorFa?.takeIf { it.isNotBlank() }?.let { Para(it, color = c.negative) }
                         s.via?.takeIf { it.isNotBlank() }?.let { Text(plain("با: $it"), style = Divan.type.micro, color = c.textMuted) }
+                        if (s.reused) Text("نتیجه‌ی اجرای قبلی دوباره به کار رفت.", style = Divan.type.micro, color = c.textMuted)
                         if (s.state == "pending") Text("هنوز نوبتش نرسیده.", style = Divan.type.caption, color = c.textMuted)
                         else OutputView(s.output)
                         if (canRerun) HqButton("اجرای دوباره از این مرحله", {

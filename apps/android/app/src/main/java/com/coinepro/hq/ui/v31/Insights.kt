@@ -15,7 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.coinepro.hq.core.data.metricFa
+import com.coinepro.hq.core.data.growthMetricFa
 import com.coinepro.hq.core.format.ago
 import com.coinepro.hq.core.net.HubFeature
 import com.coinepro.hq.core.net.Insights
@@ -44,7 +44,7 @@ fun LineInsights(ref: String) {
 fun InsightsCard(i: Insights) {
     val c = Divan.colors
     HqCard(Modifier.fillMaxWidth()) {
-        SectionTitle("درس‌ها", note = "از ${i.windowRuns} اجرای منتشرشده، با معیار «${metricFa(i.metric)}»", icon = DivanIcon.LEARNING)
+        SectionTitle("درس‌ها", note = "از ${i.windowRuns} اجرای منتشرشده، با معیار «${growthMetricFa(i.metric)}»", icon = DivanIcon.LEARNING)
         Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             val best = listOfNotNull(
                 i.best.hour?.let { "بهترین ساعت " + String.format(java.util.Locale.US, "%02d:00", it) },

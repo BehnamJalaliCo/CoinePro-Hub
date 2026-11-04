@@ -63,7 +63,7 @@ class V30ScreensTest(private val name: String, private val night: Boolean) {
             "v30-template-gallery" to { _ -> Sheetlike { com.coinepro.hq.ui.v30.TemplateGallery("TY") {} } },
             "v30-line-editor" to { _ -> com.coinepro.hq.ui.v30.LineScreen("LN-0001", open0 = setOf("script", "voice")) },
             "v30-step-test" to { _ -> Cardlike { com.coinepro.hq.ui.v30.StepTestResult(TEST) } },
-            "v30-run-waiting" to { _ -> com.coinepro.hq.ui.v30.LineRunScreen("LR-000003", open0 = setOf("script", "voice", "render", "cover", "publish")) },
+            "v30-run-waiting" to { _ -> com.coinepro.hq.ui.v30.LineRunScreen("RN-000003", open0 = setOf("script", "voice", "render", "cover", "publish")) },
             "v30-calendar" to { _ -> com.coinepro.hq.ui.v30.CalendarScreen() },
             "v30-library" to { _ -> com.coinepro.hq.ui.v30.LibraryScreen() },
         )

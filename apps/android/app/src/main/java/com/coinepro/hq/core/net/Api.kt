@@ -1459,8 +1459,8 @@ class Api(
     }
 
     // ----------------------------------------- ⟨1.12⟩ §30 production lines --
-    suspend fun lineTemplates(): List<Template> = items("/line-templates", Template.serializer())
-    suspend fun lineTemplate(key: String): Template = get("/line-templates/${seg(key)}")
+    suspend fun lineTemplates(): List<LineTemplate> = items("/line-templates", LineTemplate.serializer())
+    suspend fun lineTemplate(key: String): LineTemplate = get("/line-templates/${seg(key)}")
 
     suspend fun companyLines(code: String): List<Line> = items("/companies/${seg(code)}/lines", Line.serializer())
 
@@ -1508,8 +1508,11 @@ class Api(
     suspend fun rerunLineRun(ref: String, fromStep: String): LineRun = post("/line-runs/${seg(ref)}/rerun", buildJsonObject { put("from_step", fromStep) })
 
     /** The owner's seal of a waiting run: publish it (approve) or refuse it. */
-    suspend fun sealLineRun(ref: String, approve: Boolean, noteFa: String? = null): LineRun =
-        post("/line-runs/${seg(ref)}/seal", buildJsonObject { put("approve", approve); if (!noteFa.isNullOrBlank()) put("note_fa", noteFa) })
+    suspend fun sealLineRun(ref: String, approve: Boolean, noteFa: String? = null, stepUp: StepUp? = null, decision: String? = null): LineRun {
+        // Approving is a card approval (A3): 🔏 `decision.approve` on the run's card; refusing needs no seal.
+        val token = if (approve && stepUp != null && decision != null) stepUp("decision.approve", decision) else null
+        return post("/line-runs/${seg(ref)}/seal", buildJsonObject { put("approve", approve); if (!noteFa.isNullOrBlank()) put("note_fa", noteFa) }, token)
+    }
 
     suspend fun cancelLineRun(ref: String): LineRun = post("/line-runs/${seg(ref)}/cancel", JsonObject(emptyMap()))
 
@@ -1521,29 +1524,13 @@ class Api(
     /** A file for the library, streamed from [open] (a content URI, never held in memory). */
     class LibraryUpload(val name: String, val mime: String, val size: Long, val open: () -> InputStream)
 
-    /** `POST /library` multipart: the `meta` JSON and each file. */
-    suspend fun addAsset(meta: JsonObject, files: List<LibraryUpload>): Asset {
-        val form = okhttp3.MultipartBody.Builder().setType(okhttp3.MultipartBody.FORM)
-            .addFormDataPart("meta", null, json.encodeToString(JsonElement.serializer(), meta).toRequestBody(JSON))
-        for (f in files) {
-            val part = object : RequestBody() {
-                override fun contentType() = f.mime.toMediaType()
-                override fun contentLength() = f.size
-                override fun writeTo(sink: BufferedSink) {
-                    f.open().use { input ->
-                        val buf = ByteArray(64 * 1024)
-                        while (true) {
-                            val n = input.read(buf)
-                            if (n < 0) break
-                            sink.write(buf, 0, n)
-                        }
-                    }
-                }
-            }
-            form.addFormDataPart("files", f.name, part)
-        }
-        val req = Request.Builder().url(url("/library")).post(form.build()).header("Idempotency-Key", UUID.randomUUID().toString()).build()
-        return call(req, serializer(), transferClient)
+    /** A new library entry: each file goes up with the app's own upload (`POST /files`), then `POST /library` names their ids. */
+    suspend fun addAsset(company: String?, kind: String, titleFa: String, config: JsonObject, files: List<LibraryUpload>): Asset {
+        val fileIds = files.map { f -> upload(f.name, f.mime, f.size, f.open).id }
+        return post("/library", buildJsonObject {
+            if (company != null) put("company", company)
+            put("kind", kind); put("title_fa", titleFa); put("config", config); put("files", ids(fileIds))
+        })
     }
 
     suspend fun putAsset(id: String, body: JsonObject): Asset = put("/library/${seg(id)}", body)
@@ -1551,7 +1538,7 @@ class Api(
         execute(Request.Builder().url(url("/library/${seg(id)}")).delete().build()).use { check(it) }
     }
 
-    suspend fun ttsVoices(): List<Voice> = items("/tts/voices", Voice.serializer())
+    suspend fun ttsVoices(): List<TtsVoice> = items("/tts/voices", TtsVoice.serializer())
 
     // ------------------------------------------------- ⟨1.13⟩ §31 growth --
     suspend fun lineInsights(ref: String): Insights = get("/lines/${seg(ref)}/insights")
@@ -1617,15 +1604,15 @@ class Api(
     suspend fun resumeAd(platform: String, id: String, stepUp: StepUp): AdCampaign =
         post("/ads/campaigns/${seg(platform)}/${seg(id)}/resume", JsonObject(emptyMap()), stepUp("ads.resume", "$platform/$id"))
 
-    suspend fun automations(): List<Automation> = items("/automations", Automation.serializer())
-    suspend fun automation(ref: String): Automation = get("/automations/${seg(ref)}")
+    suspend fun automations(): List<GrowthAutomation> = items("/automations", GrowthAutomation.serializer())
+    suspend fun automation(ref: String): GrowthAutomation = get("/automations/${seg(ref)}")
     suspend fun compileAutomation(sentence: String, company: String?): Compiled =
         post("/automations/compile", buildJsonObject { put("sentence_fa", sentence); if (company != null) put("company", company) })
-    suspend fun newAutomation(rule: JsonObject, sentence: String, company: String?): Automation =
+    suspend fun newAutomation(rule: JsonObject, sentence: String, company: String?): GrowthAutomation =
         post("/automations", buildJsonObject { put("rule", rule); put("sentence_fa", sentence); if (company != null) put("company", company) })
     /** 🔏 `automation.seal`: nothing runs before it. */
-    suspend fun sealAutomation(ref: String, stepUp: StepUp): Automation = post("/automations/${seg(ref)}/seal", JsonObject(emptyMap()), stepUp("automation.seal", ref))
-    suspend fun setAutomationState(ref: String, state: String): Automation = post("/automations/${seg(ref)}/state", buildJsonObject { put("state", state) })
+    suspend fun sealAutomation(ref: String, stepUp: StepUp): GrowthAutomation = post("/automations/${seg(ref)}/seal", JsonObject(emptyMap()), stepUp("automation.seal", ref))
+    suspend fun setAutomationState(ref: String, state: String): GrowthAutomation = post("/automations/${seg(ref)}/state", buildJsonObject { put("state", state) })
 
     // §29.5 long voice: a session, its chunks (≤ 90 s each, in order, idempotent per n), then the whole text.
     suspend fun sttStart(purpose: String): SttSession = post("/transcribe/sessions", buildJsonObject { put("purpose", purpose) })

@@ -14,8 +14,8 @@ import com.coinepro.hq.core.net.Line
 import com.coinepro.hq.core.net.LineCaps
 import com.coinepro.hq.core.net.LineRun
 import com.coinepro.hq.core.net.StepDef
-import com.coinepro.hq.core.net.Template
-import com.coinepro.hq.core.net.Voice
+import com.coinepro.hq.core.net.LineTemplate
+import com.coinepro.hq.core.net.TtsVoice
 import java.time.LocalDate
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
@@ -28,7 +28,7 @@ import org.junit.Test
 class V30Test {
     @Test
     fun aTemplateAndALineDecodeWithTheirSteps() {
-        val t = Api.json.decodeFromString(Template.serializer(), """
+        val t = Api.json.decodeFromString(LineTemplate.serializer(), """
             {"key":"instagram_reel","title_fa":"ریل","platform":"instagram_reel","version":2,"outputs_fa":"x",
              "steps":[{"key":"script","kind":"gpt_text","title_fa":"فیلمنامه","prompt_fa":"بنویس","settings":{},"inputs":[],"gate":"auto","optional":false,"enabled":true,"max_attempts":2,"timeout_s":90},
                       {"key":"voice","kind":"tts","title_fa":"صدا","prompt_fa":null,"settings":{"speaker":"Kore"},"inputs":["script"],"gate":"owner","optional":true,"enabled":false,"max_attempts":1,"timeout_s":60}],
@@ -51,7 +51,7 @@ class V30Test {
     @Test
     fun aRunDecodesWithEveryKindOfOutput() {
         val r = Api.json.decodeFromString(LineRun.serializer(), """
-            {"ref":"LR-000003","line":"LN-0001","line_version":3,"trigger":"schedule","dry":false,"state":"waiting","at":"2026-11-04T08:00:00Z","ended_at":null,
+            {"ref":"RN-000003","line":"LN-0001","line_version":3,"trigger":"schedule","dry":false,"state":"waiting","at":"2026-11-04T08:00:00Z","ended_at":null,
              "steps":[{"key":"script","kind":"gpt_text","state":"done","attempt":1,"started_at":"2026-11-04T08:00:00Z","ended_at":"2026-11-04T08:00:40Z",
                        "output":{"text":"متن","file_id":null,"files":[],"data":{}},"via":"x","tokens":1800,"usd_equiv":"0.04","error_fa":null},
                       {"key":"voice","kind":"tts","state":"done","output":{"file_id":"f1","files":["f1","f2"],"data":{"a":1}},"tokens":0,"usd_equiv":0.5},
@@ -71,7 +71,7 @@ class V30Test {
     fun theLibraryTheVoicesAndTheCalendarDecode() {
         val a = Api.json.decodeFromString(Asset.serializer(), """{"id":"AS-0001","company":null,"kind":"cover_folder","title_fa":"کاور","config":{},"files":["f1"],"created_at":"2026-11-01T00:00:00Z"}""")
         assertNull(a.company)
-        val v = Api.json.decodeFromString(Voice.serializer(), """{"name":"Kore","title_fa":"کوره","gender":"female","sample_file":null}""")
+        val v = Api.json.decodeFromString(TtsVoice.serializer(), """{"name":"Kore","title_fa":"کوره","gender":"female","sample_file":null}""")
         assertNull(v.sampleFile)
         val c = Api.json.decodeFromString(LineCalendar.serializer(), """{"days":[{"day":"2026-11-04","items":[{"line":"LN-0001","company":"TY","platform":"instagram_reel","at":"2026-11-04T14:30:00Z","state":"scheduled","run":null}]}]}""")
         assertEquals("scheduled", c.days.single().items.single().state)

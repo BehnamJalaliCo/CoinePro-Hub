@@ -26,7 +26,7 @@ import com.coinepro.hq.core.data.lineRunStateTone
 import com.coinepro.hq.core.format.Tone
 import com.coinepro.hq.core.format.ago
 import com.coinepro.hq.core.format.jDateTime
-import com.coinepro.hq.core.net.Automation
+import com.coinepro.hq.core.net.GrowthAutomation
 import com.coinepro.hq.core.net.Compiled
 import com.coinepro.hq.core.net.HubFeature
 import com.coinepro.hq.core.net.StepUp
@@ -141,7 +141,7 @@ fun NewAutomation(sentence0: String = "", compiled0: Compiled? = null) {
 
 /** One automation: its sentence, what it does, its state and runs; proposed ones wait for the seal, the others switch on and off. */
 @Composable
-fun AutomationCard(a: Automation) {
+fun AutomationCard(a: GrowthAutomation) {
     val env = LocalEnv.current
     val toasts = LocalToasts.current
     val act = activity()

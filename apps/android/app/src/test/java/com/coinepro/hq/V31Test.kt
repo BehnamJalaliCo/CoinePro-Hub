@@ -9,7 +9,7 @@ import com.coinepro.hq.core.data.ruleLineFa
 import com.coinepro.hq.core.data.validCompanyCode
 import com.coinepro.hq.core.net.Ads
 import com.coinepro.hq.core.net.Api
-import com.coinepro.hq.core.net.Automation
+import com.coinepro.hq.core.net.GrowthAutomation
 import com.coinepro.hq.core.net.Campaign
 import com.coinepro.hq.core.net.CampaignItem
 import com.coinepro.hq.core.net.CompetitorDaily
@@ -84,11 +84,11 @@ class V31Test {
         val c = Api.json.decodeFromString(Campaign.serializer(), """{"id":3,"company":"TY","title_fa":"ک","goal_fa":"","starts":"2026-11-05","ends":"2026-11-11","channels":["instagram_reel"],"budget":null,"state":"planned"}""")
         assertEquals("3", c.id.idText)
         assertNull(c.budget)
-        val a = Api.json.decodeFromString(Automation.serializer(), """{"ref":"AU-0001","company":null,"sentence_fa":"s","rule":{"trigger":{"kind":"schedule","rrule":"FREQ=DAILY;BYHOUR=9;BYMINUTE=0"},"conditions":[],"actions":[{"kind":"line.run","args":{}},{"kind":"notify.owner","args":{}}]},"state":"on","runs":2,"last_run_at":null,"n8n_workflow":null}""")
+        val a = Api.json.decodeFromString(GrowthAutomation.serializer(), """{"ref":"AT-0001","company":null,"sentence_fa":"s","rule":{"trigger":{"kind":"schedule","rrule":"FREQ=DAILY;BYHOUR=9;BYMINUTE=0"},"conditions":[],"actions":[{"kind":"line.run","args":{}},{"kind":"notify.owner","args":{}}]},"state":"on","runs":2,"last_run_at":null,"n8n_workflow":null}""")
         assertEquals(2, a.runCount)
         assertTrue(a.runList.isEmpty())
         assertEquals("هر روز ساعت 09:00 › یک خط تولید را اجرا میکند و به تو خبر میدهد", ruleLineFa(a.rule))
-        val one = Api.json.decodeFromString(Automation.serializer(), """{"ref":"AU-0001","sentence_fa":"s","rule":{},"state":"proposed","runs":[{"at":"2026-11-01T06:30:00Z","state":"done","note_fa":"ok"}]}""")
+        val one = Api.json.decodeFromString(GrowthAutomation.serializer(), """{"ref":"AT-0001","sentence_fa":"s","rule":{},"state":"proposed","runs":[{"at":"2026-11-01T06:30:00Z","state":"done","note_fa":"ok"}]}""")
         assertEquals(1, one.runCount)
         assertEquals("ok", one.runList.single().noteFa)
         assertTrue(a.rule.jsonObject.isNotEmpty())

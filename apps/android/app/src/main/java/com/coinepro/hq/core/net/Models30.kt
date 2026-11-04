@@ -26,9 +26,9 @@ data class StepDef(
     val timeoutS: Int = 120,
 )
 
-/** §30.1 Template: the plan of steps, named for no company. */
+/** §30.1 LineTemplate: the plan of steps, named for no company. */
 @Serializable
-data class Template(
+data class LineTemplate(
     val key: String,
     val titleFa: String = "",
     val platform: String = "",
@@ -49,7 +49,7 @@ data class LineCaps(val runsPerDay: Int? = null, val tokensPerRun: Long? = null,
 @Serializable
 data class LineLast(val ref: String = "", val state: String = "", val at: String? = null)
 
-/** §30.1 Line. [nextRunAt] and [lastRun] are the list's conveniences (not in the contract's shape: absent means nothing to show). */
+/** §30.1 Line. [nextAt] and [lastRun] are the list's conveniences (not in the contract's shape: absent means nothing to show). */
 @Serializable
 data class Line(
     val ref: String,
@@ -72,7 +72,12 @@ data class Line(
     val library: List<String> = emptyList(),
     val createdAt: String? = null,
     val updatedAt: String? = null,
-    val nextRunAt: String? = null,
+    /** The next time its schedule falls (the engine's `next_at`). */
+    val nextAt: String? = null,
+    /** The engine says the line has earned «خودکار کن». */
+    val offerAuto: Boolean = false,
+    val nameFa: String? = null,
+    val copiedFrom: String? = null,
     val lastRun: LineLast? = null,
 )
 
@@ -114,6 +119,13 @@ data class StepRun(
     val tokens: Long = 0,
     val usdEquiv: JsonPrimitive? = null,
     val errorFa: String? = null,
+    val titleFa: String? = null,
+    val gate: String? = null,
+    val sealedAt: String? = null,
+    val sealedBy: String? = null,
+    /** The step's output was taken from the earlier run (a rerun from a later step). */
+    val reused: Boolean = false,
+    val missing: kotlinx.serialization.json.JsonElement? = null,
 )
 
 @Serializable
@@ -146,6 +158,11 @@ data class LineRun(
     /** The line's company and title, when the hub adds them to a run (the runs list reads them). */
     val company: String? = null,
     val titleFa: String? = null,
+    val platform: String? = null,
+    /** The card (`D-…`) that asks for the owner's seal while the run waits. */
+    val decision: String? = null,
+    val rerunOf: String? = null,
+    val fromStep: String? = null,
 )
 
 /** §30.1 Asset: a library entry of a company (or of the holding when [company] is null). */
@@ -163,7 +180,7 @@ data class Asset(
 
 /** §30.5 `GET /tts/voices`: a speaker the speech tool offers, with a sample file when there is one. */
 @Serializable
-data class Voice(val name: String, val titleFa: String = "", val gender: String = "", val sampleFile: String? = null)
+data class TtsVoice(val name: String, val titleFa: String = "", val gender: String = "", val sampleFile: String? = null)
 
 /** §30.5 the calendar: what is scheduled and what ran, by day. */
 @Serializable

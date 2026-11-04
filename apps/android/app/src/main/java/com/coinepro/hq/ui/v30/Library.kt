@@ -40,7 +40,7 @@ import com.coinepro.hq.core.data.settingText
 import com.coinepro.hq.core.net.Api
 import com.coinepro.hq.core.net.Asset
 import com.coinepro.hq.core.net.HubFeature
-import com.coinepro.hq.core.net.Voice
+import com.coinepro.hq.core.net.TtsVoice
 import com.coinepro.hq.core.net.gated
 import com.coinepro.hq.designsystem.BtnSize
 import com.coinepro.hq.designsystem.BtnVariant
@@ -150,7 +150,7 @@ fun AssetCard(a: Asset, onClick: () -> Unit) {
 
 private fun summaryOf(a: Asset): String = when (a.kind) {
     "cover_folder" -> "${a.files.size} تصویر"
-    "voice" -> listOf(settingText(a.config["speaker"]), settingText(a.config["style"])).filter { it.isNotBlank() }.joinToString("، ").ifBlank { assetKindFa(a.kind) }
+    "voice" -> listOf(settingText(a.config["voice"]), settingText(a.config["style"])).filter { it.isNotBlank() }.joinToString("، ").ifBlank { assetKindFa(a.kind) }
     "pattern" -> settingText(a.config["query"]).ifBlank { "${a.files.size} نمونه" }
     "prompt" -> "متن آماده برای مرحله‌ها"
     else -> assetKindFa(a.kind)
@@ -177,7 +177,7 @@ private fun uploadOf(ctx: Context, uri: Uri): Api.LibraryUpload {
  * takes a speaker and a style; a prompt its text; a pattern its search words. Deleting asks once.
  */
 @Composable
-fun AssetForm(a: Asset?, kind: String, company: String?, voices: List<Voice>, onDone: () -> Unit) {
+fun AssetForm(a: Asset?, kind: String, company: String?, voices: List<TtsVoice>, onDone: () -> Unit) {
     val env = LocalEnv.current
     val toasts = LocalToasts.current
     val ctx = LocalContext.current
@@ -185,7 +185,7 @@ fun AssetForm(a: Asset?, kind: String, company: String?, voices: List<Voice>, on
     val save = rememberAction()
     val del = rememberAction()
     var title by rememberSaveable(a?.id) { mutableStateOf(a?.titleFa.orEmpty()) }
-    var speaker by rememberSaveable(a?.id) { mutableStateOf(settingText(a?.config?.get("speaker"))) }
+    var speaker by rememberSaveable(a?.id) { mutableStateOf(settingText(a?.config?.get("voice"))) }
     var style by rememberSaveable(a?.id) { mutableStateOf(settingText(a?.config?.get("style"))) }
     var text by rememberSaveable(a?.id) { mutableStateOf(settingText(a?.config?.get("text"))) }
     var query by rememberSaveable(a?.id) { mutableStateOf(settingText(a?.config?.get("query"))) }
@@ -195,7 +195,7 @@ fun AssetForm(a: Asset?, kind: String, company: String?, voices: List<Voice>, on
     val withImages = kind == "cover_folder" || kind == "pattern"
     val config: JsonObject = buildJsonObject {
         when (kind) {
-            "voice" -> { put("speaker", speaker.trim()); if (style.isNotBlank()) put("style", style.trim()) }
+            "voice" -> { put("voice", speaker.trim()); if (style.isNotBlank()) put("style", style.trim()) }
             "prompt" -> put("text", text.trim())
             "pattern" -> put("query", query.trim())
             else -> Unit
@@ -240,11 +240,7 @@ fun AssetForm(a: Asset?, kind: String, company: String?, voices: List<Voice>, on
         HqButton(if (a == null) "بساز" else "ذخیره", {
             save.run {
                 if (a == null) {
-                    val meta = buildJsonObject {
-                        put("kind", kind); put("title_fa", title.trim()); put("config", config)
-                        if (company != null) put("company", company)
-                    }
-                    env.api.addAsset(meta, picked.map { uploadOf(ctx, it) })
+                    env.api.addAsset(company, kind, title.trim(), config, picked.map { uploadOf(ctx, it) })
                     toasts.ok(if (picked.isEmpty()) "به کتابخانه افزوده شد." else "به کتابخانه افزوده شد؛ تصویرها بارگذاری شدند.")
                 } else {
                     env.api.putAsset(a.id, buildJsonObject { put("title_fa", title.trim()); put("config", config) })

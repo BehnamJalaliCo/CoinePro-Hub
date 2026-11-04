@@ -200,6 +200,9 @@ fun withVariable(text: String, key: String): String = (if (text.isBlank() || tex
 
 // ------------------------------------------------------------- settings --
 val SETTING_FA = mapOf(
+    "voice" to "گوینده", "text_from" to "متن از مرحله‌ی", "cover_folder" to "پوشه‌ی کاور", "max_files" to "حداکثر تصویر", "kind" to "نوع انتشار",
+    "media_from" to "رسانه از مرحله‌ی", "cover_from" to "کاور از مرحله‌ی", "in_min" to "بعد از چند دقیقه", "after" to "بعد از مرحله‌ی", "delay_min" to "تأخیر (دقیقه)",
+    "privacy" to "حریم", "site" to "سایت",
     "speaker" to "گوینده", "style" to "سبک خواندن", "folder" to "پوشه‌ی کاور", "where" to "کجا", "when" to "چه وقت", "at" to "ساعت", "time" to "ساعت انتشار",
     "story_same_day" to "استوری همان روز", "max_chars" to "حداکثر حرف", "min_chars" to "حداقل حرف", "language" to "زبان",
     "threshold" to "آستانه‌ی شباهت", "count" to "تعداد", "query" to "عبارت جست‌وجو", "workflow" to "کار خودکارساز", "banned_words" to "واژه‌های ممنوع",
