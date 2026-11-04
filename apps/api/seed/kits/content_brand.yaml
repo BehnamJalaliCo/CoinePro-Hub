@@ -1,0 +1,45 @@
+# Company kit «برند محتوا» (contract §31.2): a ready media or content brand from
+# one order. Data, not code; it names no company. Creating a company from it
+# (POST /companies/from-kit, 🔏 company.create) makes, in one transaction:
+#   team_template  the team: the departments and leadership of seed/templates/<key>.yaml
+#   groups         the working groups it joins at once (seed/groups/<key>.yaml)
+#   lines          its production lines, as DRAFTS (the owner turns each on)
+#   kpis           the KPIs the owner watches first: a key of seed/kpis/standard.yaml,
+#                  or a definition (manual figure) added to the standard set
+#   connections    the accounts it will use, created `not_connected`
+# A server is never created here (founding is separate).
+key: content_brand
+title_fa: برند محتوا
+purpose_fa: >-
+  شرکتی برای ساختن و منتشر کردن محتوای شبکه‌های اجتماعی: ریلز و استوری اینستاگرام، شورت یوتیوب و
+  پست تلگرام، با تیم کامل، گروه کاری محتوا و عددهای روزانه‌ی حساب‌ها.
+team_template: standard
+groups: [content]
+lines:
+  - {template: instagram_reel, platform: instagram_reel, title_fa: ریلز اینستاگرام}
+  - {template: instagram_story, platform: instagram_story, title_fa: استوری اینستاگرام}
+  - {template: youtube_short, platform: youtube_short, title_fa: شورت یوتیوب}
+  - {template: telegram_post, platform: telegram_post, title_fa: پست تلگرام}
+kpis:
+  - users.active
+  - key: content.followers
+    name_fa: دنبال‌کننده‌ی همه‌ی کانال‌ها
+    unit: ""
+    direction: up
+    freshness_hours: 48
+    scorecard: true
+    aggregate: sum
+  - key: content.views_7d
+    name_fa: بازدید محتوا در ۷ روز
+    unit: ""
+    direction: up
+    freshness_hours: 48
+    aggregate: sum
+  - key: content.published_7d
+    name_fa: محتوای منتشرشده در ۷ روز
+    unit: ""
+    direction: up
+    freshness_hours: 48
+    aggregate: sum
+connections: [instagram, telegram, youtube, search_console, ga4]
+defaults: {}

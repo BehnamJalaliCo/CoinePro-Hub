@@ -1,0 +1,31 @@
+# Company kit «محصول نرم‌افزاری» (contract §31.2): a ready product company from
+# one order (a site or an app with sign-ups and revenue). Data, not code; it
+# names no company. See content_brand.yaml for what each key does.
+key: saas_product
+title_fa: محصول نرم‌افزاری
+purpose_fa: >-
+  شرکتی برای یک محصول (سایت یا اپ): تیم کامل، گروه کاری محتوا برای رشد، مقاله‌ی سایت و پست تلگرام،
+  و عددهای ثبت‌نام، کاربر فعال و درآمد.
+team_template: standard
+groups: [content]
+lines:
+  - {template: site_article, platform: site_article, title_fa: مقاله‌ی سایت}
+  - {template: telegram_post, platform: telegram_post, title_fa: پست تلگرام}
+kpis:
+  - funnel.signups_7d
+  - users.active
+  - key: product.revenue_month_usd
+    name_fa: درآمد ماه
+    unit: USD
+    direction: up
+    freshness_hours: 168
+    scorecard: true
+    aggregate: sum
+  - key: site.organic_clicks_7d
+    name_fa: کلیک ارگانیک سایت در ۷ روز
+    unit: ""
+    direction: up
+    freshness_hours: 48
+    aggregate: sum
+connections: [search_console, ga4, telegram]
+defaults: {}

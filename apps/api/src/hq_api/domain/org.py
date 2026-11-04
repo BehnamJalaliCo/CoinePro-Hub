@@ -396,3 +396,32 @@ def _json(value: Any) -> str:
     import json
 
     return json.dumps(value, ensure_ascii=False, default=str)
+
+
+async def insert_company(
+    tx: Tx,
+    *,
+    code: str,
+    name_fa: str,
+    name_en: str,
+    color_index: int | None,
+    template: str,
+) -> UUID:
+    """One company row (kind `company`). A creation picks a free colour slot
+    at a time (no two take the same). The caller applies the template."""
+    await tx.exec("SELECT pg_advisory_xact_lock(hashtext('core.companies.color_index'))")
+    row = await tx.one(
+        """INSERT INTO core.companies (code, name, kind, name_fa, name_en, color_index, template)
+           VALUES (:code, :name_en, 'company', :name_fa, :name_en,
+                   COALESCE(:ci, (SELECT min(slot) FROM generate_series(1, 8) AS slot
+                                 WHERE slot NOT IN (SELECT color_index FROM core.companies
+                                                    WHERE color_index IS NOT NULL))), :tpl)
+           RETURNING id""",
+        code=code,
+        name_fa=name_fa,
+        name_en=name_en,
+        ci=color_index,
+        tpl=template,
+    )
+    company_id: UUID = row["id"]
+    return company_id
