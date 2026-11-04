@@ -66,6 +66,8 @@ SCHEMAS = (
     "media",
     # prompt 14: the archive of record (its open layer is the holding's)
     "archive",
+    # prompt 22: production lines, their runs, the library, the learning loop
+    "lines",
 )
 # The tools schema's tables without a company (holding configuration, read by
 # the api only): every other table there must carry company_id under RLS.
@@ -1273,6 +1275,50 @@ async def _fill_p21c(su: Any, co: dict[str, Any]) -> None:
     )
 
 
+async def _fill_p22(su: Any, co: dict[str, Any]) -> None:
+    """Prompt 22 (migration 0040): one row of company `co` in each table of lines."""
+    c = co["id"]
+    line = await su.fetchval(
+        """INSERT INTO lines.lines (company_id, template, template_version, platform, title_fa,
+               caps, steps) VALUES ($1, 'rls_line', 1, 'telegram_post', 'خط', '{}', '[]')
+           RETURNING id""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO lines.line_versions (company_id, line_id, version, body, by_kind, by_code)
+           VALUES ($1, $2, 1, '{}', 'owner', 'owner')""",
+        c,
+        line,
+    )
+    run = await su.fetchval(
+        """INSERT INTO lines.runs (company_id, line_id, line_version, trigger, state)
+           VALUES ($1, $2, 1, 'owner', 'done') RETURNING id""",
+        c,
+        line,
+    )
+    await su.execute(
+        """INSERT INTO lines.step_runs (company_id, run_id, pos, key, kind, state)
+           VALUES ($1, $2, 0, 'script', 'gpt_text', 'done')""",
+        c,
+        run,
+    )
+    await su.execute(
+        """INSERT INTO lines.run_features (run_id, company_id, line_id, platform, hook)
+           VALUES ($1, $2, $3, 'telegram_post', 'قلاب')""",
+        run,
+        c,
+        line,
+    )
+    await su.execute(
+        "INSERT INTO lines.insights (line_id, company_id, metric) VALUES ($1, $2, 'views')",
+        line,
+        c,
+    )
+    await su.execute(
+        "INSERT INTO lines.assets (company_id, kind, title_fa) VALUES ($1, 'prompt', 'دستور')", c
+    )
+
+
 async def _fill_p17(su: Any, co: dict[str, Any]) -> None:
     """Prompt 17 (migration 0032): one row of company `co` in each new table of infra."""
     import secrets as _s
@@ -1371,6 +1417,7 @@ async def test_no_table_leaks_between_companies(
     await _fill_p14(su, b)
     await _fill_p17(su, b)
     await _fill_p21c(su, b)
+    await _fill_p22(su, b)
     tables = await su.fetch(
         """SELECT c.table_schema AS s, c.table_name AS t FROM information_schema.columns c
            JOIN information_schema.tables x ON x.table_schema = c.table_schema AND x.table_name = c.table_name
