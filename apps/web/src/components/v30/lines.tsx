@@ -22,6 +22,7 @@ import {
 } from '@/lib/api/v30';
 import { fileUrl } from '@/lib/api/v13';
 import { cx, jDate, jDateTime } from '@/lib/format';
+import { LineInsights } from '@/components/v31/insights';
 import { FaPara, FaText, KindIcon, LineStatePill, OutputView, RunStatePill, fig } from './bits';
 
 const field = 'w-full rounded-[10px] border border-strong bg-tile px-3 text-[14px] text-ink outline-none focus:border-gold-ink';
@@ -219,6 +220,8 @@ export function LineView({ lineRef }: { lineRef: string }) {
         <Button icon="share" onClick={() => setCopy(true)}>کپی برای شرکت دیگر</Button>
         {dirty ? <span className="text-[12px] text-warn">تغییرها ذخیره نشده‌اند؛ آزمایش روی نسخه‌ی ذخیره‌شده انجام میشود.</span> : null}
       </div>
+
+      <LineInsights lineRef={lineRef} />
 
       {/* steps */}
       <ol className="flex flex-col gap-3" aria-label="قدم‌ها">
