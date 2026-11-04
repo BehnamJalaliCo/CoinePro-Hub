@@ -6,7 +6,7 @@ import { clean } from './support';
 
 test.use({ reducedMotion: 'reduce' });
 
-const PAGES = ['/companies/TY?tab=lines', '/lines/LN-0001', '/line-runs/LR-000001', '/line-runs/LR-000002', '/line-calendar', '/library'];
+const PAGES = ['/companies/TY?tab=lines', '/lines/LN-0001', '/line-runs/LR-000001', '/line-runs/LR-000002', '/campaign-calendar', '/library'];
 for (const path of PAGES) {
   test(`renders ${path} and fits a phone @phone`, async ({ page }) => {
     await clean(page, async () => {
@@ -105,7 +105,7 @@ test('a waiting run is sealed behind the passkey and counts as a good run', asyn
 
 test('the calendar shows every company by day; the library takes a new prompt', async ({ page }) => {
   await clean(page, async () => {
-    await page.goto('/line-calendar');
+    await page.goto('/campaign-calendar');
     await expect(page.getByRole('link', { name: 'ریلز آموزشی تریدیار' }).first()).toBeVisible();
     await expect(page.getByRole('link', { name: 'پست روزانه‌ی کانال FX' }).first()).toBeVisible();
     await page.getByRole('group', { name: 'شرکت' }).getByRole('button', { name: 'تریدیار' }).click();
