@@ -156,6 +156,7 @@ async def list_decisions(
         "archive_schema",
         "archive_disposal",
         "server_destructive",
+        "line_publish",
     ]
     | None = None,
     risk: Literal["low", "medium", "high"] | None = None,
@@ -327,6 +328,10 @@ async def _decide(
         if idem:
             await idem.store(tx, 200, result.model_dump(mode="json"))
     await workflows_client.decision_decided(ctx.hub, ref)
+    if d["kind"] == "line_publish":  # ⟨1.12⟩ the run looks again now
+        from hq_api.lines import engine as line_engine
+
+        await line_engine.wake(ctx.hub, str((d["payload"] or {}).get("run")))
     if verdict == "approved" and d["kind"] == "authority_change":
         await gov_authority.ensure(ctx.hub, force=True)  # ⟨1.5⟩ OPA enforces it at once
     if verdict == "approved" and result.kind == "archive_disposal":

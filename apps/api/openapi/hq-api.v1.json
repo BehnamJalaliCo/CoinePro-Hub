@@ -2618,6 +2618,185 @@
         "title": "AskScope",
         "type": "object"
       },
+      "Asset": {
+        "properties": {
+          "company": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "config": {
+            "additionalProperties": true,
+            "title": "Config",
+            "type": "object"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "files": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "cover_folder",
+              "voice",
+              "prompt",
+              "pattern",
+              "music",
+              "brand"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "company",
+          "kind",
+          "title_fa",
+          "config",
+          "files",
+          "version",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Asset",
+        "type": "object"
+      },
+      "AssetIn": {
+        "additionalProperties": false,
+        "properties": {
+          "company": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "config": {
+            "additionalProperties": true,
+            "title": "Config",
+            "type": "object"
+          },
+          "files": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Files",
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "cover_folder",
+              "voice",
+              "prompt",
+              "pattern",
+              "music",
+              "brand"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "title_fa": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "title_fa"
+        ],
+        "title": "AssetIn",
+        "type": "object"
+      },
+      "AssetPut": {
+        "additionalProperties": false,
+        "properties": {
+          "config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config"
+          },
+          "files": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Files"
+          },
+          "title_fa": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title Fa"
+          }
+        },
+        "title": "AssetPut",
+        "type": "object"
+      },
       "Assigned": {
         "properties": {
           "code": {
@@ -4068,7 +4247,7 @@
           "voice": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Voice"
+                "$ref": "#/components/schemas/hq_api__routes__mgmt__Voice"
               },
               {
                 "type": "null"
@@ -4420,6 +4599,24 @@
         "title": "BudgetsPut",
         "type": "object"
       },
+      "By": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "code"
+        ],
+        "title": "By",
+        "type": "object"
+      },
       "ByRisk": {
         "properties": {
           "high": {
@@ -4441,30 +4638,6 @@
           "high"
         ],
         "title": "ByRisk",
-        "type": "object"
-      },
-      "Calendar": {
-        "properties": {
-          "conflicts": {
-            "items": {
-              "$ref": "#/components/schemas/CalendarConflict"
-            },
-            "title": "Conflicts",
-            "type": "array"
-          },
-          "events": {
-            "items": {
-              "$ref": "#/components/schemas/CalendarEvent"
-            },
-            "title": "Events",
-            "type": "array"
-          }
-        },
-        "required": [
-          "events",
-          "conflicts"
-        ],
-        "title": "Calendar",
         "type": "object"
       },
       "CalendarConflict": {
@@ -4502,6 +4675,28 @@
           "note_fa"
         ],
         "title": "CalendarConflict",
+        "type": "object"
+      },
+      "CalendarDay": {
+        "properties": {
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CalendarItem"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "day",
+          "items"
+        ],
+        "title": "CalendarDay",
         "type": "object"
       },
       "CalendarEvent": {
@@ -4723,6 +4918,52 @@
           }
         },
         "title": "CalendarEventPatch",
+        "type": "object"
+      },
+      "CalendarItem": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "line": {
+            "title": "Line",
+            "type": "string"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "run": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "line",
+          "company",
+          "platform",
+          "at",
+          "state",
+          "run"
+        ],
+        "title": "CalendarItem",
         "type": "object"
       },
       "CalendarSource": {
@@ -5147,6 +5388,29 @@
         "title": "CallIn",
         "type": "object"
       },
+      "CallbackOut": {
+        "properties": {
+          "run": {
+            "title": "Run",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "step": {
+            "title": "Step",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run",
+          "step",
+          "state"
+        ],
+        "title": "CallbackOut",
+        "type": "object"
+      },
       "CallbackToken": {
         "additionalProperties": false,
         "properties": {
@@ -5166,6 +5430,33 @@
           "expires_at"
         ],
         "title": "CallbackToken",
+        "type": "object"
+      },
+      "Caps": {
+        "properties": {
+          "opus_per_day": {
+            "default": 1,
+            "maximum": 50.0,
+            "minimum": 0.0,
+            "title": "Opus Per Day",
+            "type": "integer"
+          },
+          "runs_per_day": {
+            "default": 1,
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Runs Per Day",
+            "type": "integer"
+          },
+          "tokens_per_run": {
+            "default": 200000,
+            "maximum": 20000000.0,
+            "minimum": 0.0,
+            "title": "Tokens Per Run",
+            "type": "integer"
+          }
+        },
+        "title": "Caps",
         "type": "object"
       },
       "Card": {
@@ -6138,6 +6429,44 @@
           "due_at"
         ],
         "title": "ChallengeIn",
+        "type": "object"
+      },
+      "Channel": {
+        "properties": {
+          "kind": {
+            "default": "",
+            "maxLength": 40,
+            "title": "Kind",
+            "type": "string"
+          },
+          "subject": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Subject",
+            "type": "string"
+          }
+        },
+        "title": "Channel",
+        "type": "object"
+      },
+      "ChannelIn": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "default": "",
+            "maxLength": 40,
+            "pattern": "^([a-z][a-z0-9_]{1,40})?$",
+            "title": "Kind",
+            "type": "string"
+          },
+          "subject": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Subject",
+            "type": "string"
+          }
+        },
+        "title": "ChannelIn",
         "type": "object"
       },
       "Channels": {
@@ -8686,23 +9015,32 @@
         "title": "Conversion",
         "type": "object"
       },
-      "Cost": {
+      "CopyIn": {
+        "additionalProperties": false,
         "properties": {
-          "tokens": {
-            "title": "Tokens",
-            "type": "integer"
-          },
-          "usd": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Usd",
+          "company": {
+            "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+            "title": "Company",
             "type": "string"
+          },
+          "title_fa": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title Fa"
           }
         },
         "required": [
-          "tokens",
-          "usd"
+          "company"
         ],
-        "title": "Cost",
+        "title": "CopyIn",
         "type": "object"
       },
       "Council": {
@@ -9940,7 +10278,8 @@
               "email_send",
               "archive_schema",
               "archive_disposal",
-              "server_destructive"
+              "server_destructive",
+              "line_publish"
             ],
             "title": "Kind",
             "type": "string"
@@ -10229,6 +10568,36 @@
           "top"
         ],
         "title": "DecisionsBox",
+        "type": "object"
+      },
+      "Defaults": {
+        "properties": {
+          "auto_after": {
+            "default": 7,
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Auto After",
+            "type": "integer"
+          },
+          "caps": {
+            "$ref": "#/components/schemas/Caps"
+          },
+          "insights": {
+            "$ref": "#/components/schemas/InsightsDefaults"
+          },
+          "schedule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule"
+          }
+        },
+        "title": "Defaults",
         "type": "object"
       },
       "Delegate": {
@@ -15863,6 +16232,50 @@
         "title": "Gate",
         "type": "object"
       },
+      "GivenOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "additionalProperties": true,
+            "title": "Data",
+            "type": "object"
+          },
+          "file_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Id"
+          },
+          "files": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Files",
+            "type": "array"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "maxLength": 100000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          }
+        },
+        "title": "GivenOutput",
+        "type": "object"
+      },
       "Grant": {
         "properties": {
           "actions": {
@@ -17701,6 +18114,125 @@
           "due_in_hours"
         ],
         "title": "InquiryIn",
+        "type": "object"
+      },
+      "Insights": {
+        "description": "§31.1 a line's published runs ranked by its template's metric (code only).",
+        "properties": {
+          "best": {
+            "$ref": "#/components/schemas/InsightsBest"
+          },
+          "lessons_fa": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Lessons Fa",
+            "type": "array"
+          },
+          "line": {
+            "title": "Line",
+            "type": "string"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "top_hooks": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Top Hooks",
+            "type": "array"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "window_runs": {
+            "title": "Window Runs",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "line",
+          "metric",
+          "window_runs",
+          "best",
+          "top_hooks",
+          "lessons_fa",
+          "updated_at"
+        ],
+        "title": "Insights",
+        "type": "object"
+      },
+      "InsightsBest": {
+        "properties": {
+          "hour": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hour"
+          },
+          "length_bucket": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Length Bucket"
+          },
+          "pattern_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pattern Source"
+          },
+          "voice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice"
+          }
+        },
+        "title": "InsightsBest",
+        "type": "object"
+      },
+      "InsightsDefaults": {
+        "properties": {
+          "metric": {
+            "default": "views",
+            "pattern": "^[a-z][a-z0-9_]{1,40}$",
+            "title": "Metric",
+            "type": "string"
+          }
+        },
+        "title": "InsightsDefaults",
         "type": "object"
       },
       "IntakeSource": {
@@ -20518,6 +21050,370 @@
         "title": "Limits",
         "type": "object"
       },
+      "Line": {
+        "properties": {
+          "auto_after": {
+            "title": "Auto After",
+            "type": "integer"
+          },
+          "caps": {
+            "$ref": "#/components/schemas/Caps"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/Channel"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "copied_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Copied From"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "good_runs": {
+            "title": "Good Runs",
+            "type": "integer"
+          },
+          "last_run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunBrief"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "library": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Library",
+            "type": "array"
+          },
+          "mode": {
+            "enum": [
+              "draft",
+              "auto"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "name_fa": {
+            "title": "Name Fa",
+            "type": "string"
+          },
+          "next_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next At"
+          },
+          "offer_auto": {
+            "title": "Offer Auto",
+            "type": "boolean"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "schedule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule"
+          },
+          "state": {
+            "enum": [
+              "draft",
+              "on",
+              "paused"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/StepDef"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "template": {
+            "title": "Template",
+            "type": "string"
+          },
+          "template_version": {
+            "title": "Template Version",
+            "type": "integer"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ref",
+          "company",
+          "name_fa",
+          "template",
+          "template_version",
+          "platform",
+          "channel",
+          "title_fa",
+          "schedule",
+          "state",
+          "mode",
+          "good_runs",
+          "auto_after",
+          "offer_auto",
+          "caps",
+          "version",
+          "steps",
+          "library",
+          "copied_from",
+          "next_at",
+          "last_run",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Line",
+        "type": "object"
+      },
+      "LineIn": {
+        "additionalProperties": false,
+        "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/ChannelIn"
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]{1,40}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform"
+          },
+          "template": {
+            "pattern": "^[a-z][a-z0-9_]{1,40}$",
+            "title": "Template",
+            "type": "string"
+          },
+          "title_fa": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template",
+          "title_fa"
+        ],
+        "title": "LineIn",
+        "type": "object"
+      },
+      "LinePut": {
+        "additionalProperties": false,
+        "properties": {
+          "auto_after": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto After"
+          },
+          "caps": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Caps"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "channel": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChannelIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "clear_schedule": {
+            "default": false,
+            "title": "Clear Schedule",
+            "type": "boolean"
+          },
+          "library": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Library"
+          },
+          "note_fa": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Fa"
+          },
+          "schedule": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule"
+          },
+          "steps": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/StepDef"
+                },
+                "maxItems": 40,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps"
+          },
+          "title_fa": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title Fa"
+          }
+        },
+        "title": "LinePut",
+        "type": "object"
+      },
+      "LineVersion": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "body": {
+            "additionalProperties": true,
+            "title": "Body",
+            "type": "object"
+          },
+          "by": {
+            "$ref": "#/components/schemas/By"
+          },
+          "line": {
+            "title": "Line",
+            "type": "string"
+          },
+          "note_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Fa"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "line",
+          "version",
+          "body",
+          "by",
+          "at",
+          "note_fa"
+        ],
+        "title": "LineVersion",
+        "type": "object"
+      },
       "Link": {
         "properties": {
           "kind": {
@@ -21596,7 +22492,7 @@
             ]
           },
           "cost": {
-            "$ref": "#/components/schemas/Cost"
+            "$ref": "#/components/schemas/hq_api__routes__media__Cost"
           },
           "created_at": {
             "format": "date-time",
@@ -24010,6 +24906,54 @@
           "precedence"
         ],
         "title": "Meta",
+        "type": "object"
+      },
+      "Metrics": {
+        "properties": {
+          "d7": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "D7"
+          },
+          "h24": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "H24"
+          }
+        },
+        "title": "Metrics",
+        "type": "object"
+      },
+      "ModeIn": {
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "enum": [
+              "draft",
+              "auto"
+            ],
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "title": "ModeIn",
         "type": "object"
       },
       "ModelChoice": {
@@ -27742,33 +28686,6 @@
         "title": "Page[RoutineRun]",
         "type": "object"
       },
-      "Page_Run_": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/Run"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "next_cursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Next Cursor"
-          }
-        },
-        "required": [
-          "items"
-        ],
-        "title": "Page[Run]",
-        "type": "object"
-      },
       "Page_ScoreRow_": {
         "properties": {
           "items": {
@@ -30037,6 +30954,61 @@
         "title": "PublicKeyCredential",
         "type": "object"
       },
+      "Published": {
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Id"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "required": [
+          "platform",
+          "kind",
+          "external_id",
+          "at",
+          "url"
+        ],
+        "title": "Published",
+        "type": "object"
+      },
       "QueueItem": {
         "properties": {
           "company": {
@@ -31153,6 +32125,21 @@
         "title": "Reply",
         "type": "object"
       },
+      "RerunIn": {
+        "additionalProperties": false,
+        "properties": {
+          "from_step": {
+            "pattern": "^[a-z][a-z0-9_]{1,40}$",
+            "title": "From Step",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from_step"
+        ],
+        "title": "RerunIn",
+        "type": "object"
+      },
       "RescueCase": {
         "additionalProperties": false,
         "properties": {
@@ -32228,6 +33215,33 @@
           "alerts"
         ],
         "title": "RevenueSummary",
+        "type": "object"
+      },
+      "RevertIn": {
+        "additionalProperties": false,
+        "properties": {
+          "note_fa": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Fa"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "title": "RevertIn",
         "type": "object"
       },
       "Review": {
@@ -34405,210 +35419,28 @@
         "title": "RuleIn",
         "type": "object"
       },
-      "Run": {
+      "RunBrief": {
         "properties": {
-          "addenda": {
-            "items": {
-              "format": "uuid",
-              "type": "string"
-            },
-            "title": "Addenda",
-            "type": "array"
-          },
-          "charter": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Charter"
-          },
-          "charter_version": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Charter Version"
-          },
-          "company": {
-            "title": "Company",
-            "type": "string"
-          },
-          "cost_usd": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Cost Usd",
-            "type": "string"
-          },
-          "effort": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Effort"
-          },
-          "employee": {
-            "title": "Employee",
-            "type": "string"
-          },
-          "equiv_cost_usd": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Equiv Cost Usd",
-            "type": "string"
-          },
-          "error_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Code"
-          },
-          "finished_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Finished At"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "model": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Model"
-          },
-          "partial": {
-            "title": "Partial",
-            "type": "boolean"
-          },
-          "priority": {
-            "title": "Priority",
-            "type": "string"
-          },
-          "queued_at": {
+          "at": {
             "format": "date-time",
-            "title": "Queued At",
+            "title": "At",
             "type": "string"
           },
-          "reason": {
-            "title": "Reason",
+          "ref": {
+            "title": "Ref",
             "type": "string"
-          },
-          "skills": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Skills",
-            "type": "array"
-          },
-          "started_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Started At"
           },
           "state": {
             "title": "State",
             "type": "string"
-          },
-          "steps": {
-            "title": "Steps",
-            "type": "integer"
-          },
-          "thread": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Thread"
-          },
-          "tokens": {
-            "$ref": "#/components/schemas/hq_api__routes__runs__RunTokens"
-          },
-          "tool_calls": {
-            "title": "Tool Calls",
-            "type": "integer"
-          },
-          "trigger": {
-            "title": "Trigger",
-            "type": "string"
-          },
-          "work_ref": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Work Ref"
           }
         },
         "required": [
-          "id",
-          "employee",
-          "company",
-          "work_ref",
-          "thread",
-          "trigger",
-          "reason",
+          "ref",
           "state",
-          "priority",
-          "model",
-          "effort",
-          "started_at",
-          "finished_at",
-          "queued_at",
-          "steps",
-          "tool_calls",
-          "tokens",
-          "equiv_cost_usd",
-          "cost_usd",
-          "charter_version",
-          "charter",
-          "partial",
-          "error_code"
+          "at"
         ],
-        "title": "Run",
+        "title": "RunBrief",
         "type": "object"
       },
       "RunDetail": {
@@ -34823,6 +35655,30 @@
           "steps_detail"
         ],
         "title": "RunDetail",
+        "type": "object"
+      },
+      "RunIn": {
+        "additionalProperties": false,
+        "properties": {
+          "dry": {
+            "default": false,
+            "title": "Dry",
+            "type": "boolean"
+          },
+          "from_step": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]{1,40}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Step"
+          }
+        },
+        "title": "RunIn",
         "type": "object"
       },
       "RunServer": {
@@ -35191,21 +36047,6 @@
           "step_up_id"
         ],
         "title": "Seal",
-        "type": "object"
-      },
-      "SealIn": {
-        "additionalProperties": false,
-        "properties": {
-          "digest": {
-            "pattern": "^[0-9a-f]{64}$",
-            "title": "Digest",
-            "type": "string"
-          }
-        },
-        "required": [
-          "digest"
-        ],
-        "title": "SealIn",
         "type": "object"
       },
       "SearchHit": {
@@ -38321,6 +39162,391 @@
         "title": "StepAction",
         "type": "object"
       },
+      "StepDef": {
+        "properties": {
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "gate": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "owner",
+              "ceo"
+            ],
+            "title": "Gate",
+            "type": "string"
+          },
+          "inputs": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Inputs",
+            "type": "array"
+          },
+          "key": {
+            "pattern": "^[a-z][a-z0-9_]{1,40}$",
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "max_attempts": {
+            "default": 1,
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "title": "Max Attempts",
+            "type": "integer"
+          },
+          "optional": {
+            "default": false,
+            "title": "Optional",
+            "type": "boolean"
+          },
+          "prompt_fa": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Fa"
+          },
+          "settings": {
+            "additionalProperties": true,
+            "title": "Settings",
+            "type": "object"
+          },
+          "timeout_s": {
+            "default": 300,
+            "maximum": 7200.0,
+            "minimum": 5.0,
+            "title": "Timeout S",
+            "type": "integer"
+          },
+          "title_fa": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "kind",
+          "title_fa"
+        ],
+        "title": "StepDef",
+        "type": "object"
+      },
+      "StepOutputOut": {
+        "properties": {
+          "data": {
+            "additionalProperties": true,
+            "title": "Data",
+            "type": "object"
+          },
+          "file_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Id"
+          },
+          "files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          }
+        },
+        "title": "StepOutputOut",
+        "type": "object"
+      },
+      "StepRun": {
+        "properties": {
+          "attempt": {
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "error_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Fa"
+          },
+          "gate": {
+            "anyOf": [
+              {
+                "enum": [
+                  "owner",
+                  "ceo"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gate"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "missing": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing",
+            "type": "array"
+          },
+          "output": {
+            "$ref": "#/components/schemas/StepOutputOut"
+          },
+          "reused": {
+            "title": "Reused",
+            "type": "boolean"
+          },
+          "sealed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sealed At"
+          },
+          "sealed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sealed By"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "state": {
+            "enum": [
+              "pending",
+              "running",
+              "waiting",
+              "done",
+              "failed",
+              "skipped"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "tokens": {
+            "title": "Tokens",
+            "type": "integer"
+          },
+          "usd_equiv": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Usd Equiv",
+            "type": "string"
+          },
+          "via": {
+            "title": "Via",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "kind",
+          "title_fa",
+          "state",
+          "attempt",
+          "started_at",
+          "ended_at",
+          "output",
+          "via",
+          "tokens",
+          "usd_equiv",
+          "error_fa",
+          "gate",
+          "sealed_at",
+          "sealed_by",
+          "reused",
+          "missing"
+        ],
+        "title": "StepRun",
+        "type": "object"
+      },
+      "StepTestIn": {
+        "additionalProperties": false,
+        "properties": {
+          "inputs": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/GivenOutput"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inputs"
+          }
+        },
+        "title": "StepTestIn",
+        "type": "object"
+      },
+      "StepTestOut": {
+        "properties": {
+          "error_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Fa"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "missing": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing",
+            "type": "array"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StepOutputOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt"
+          },
+          "state": {
+            "enum": [
+              "done",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "step": {
+            "title": "Step",
+            "type": "string"
+          },
+          "tokens": {
+            "title": "Tokens",
+            "type": "integer"
+          },
+          "usd_equiv": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Usd Equiv",
+            "type": "string"
+          },
+          "via": {
+            "title": "Via",
+            "type": "string"
+          }
+        },
+        "required": [
+          "step",
+          "kind",
+          "state",
+          "prompt",
+          "missing",
+          "output",
+          "via",
+          "tokens",
+          "usd_equiv",
+          "error_fa"
+        ],
+        "title": "StepTestOut",
+        "type": "object"
+      },
       "StepUpOptionsIn": {
         "properties": {
           "action": {
@@ -40406,44 +41632,6 @@
         "title": "TeamRole",
         "type": "object"
       },
-      "Template": {
-        "properties": {
-          "blueprint": {
-            "items": {
-              "$ref": "#/components/schemas/TemplateDepartment"
-            },
-            "title": "Blueprint",
-            "type": "array"
-          },
-          "departments": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Departments",
-            "type": "array"
-          },
-          "key": {
-            "title": "Key",
-            "type": "string"
-          },
-          "name_en": {
-            "title": "Name En",
-            "type": "string"
-          },
-          "name_fa": {
-            "title": "Name Fa",
-            "type": "string"
-          }
-        },
-        "required": [
-          "key",
-          "name_fa",
-          "name_en",
-          "departments"
-        ],
-        "title": "Template",
-        "type": "object"
-      },
       "TemplateDepartment": {
         "description": "⟨1.6⟩ one department of a template with its mandate, identity and\nstarting team (contract §22.1).",
         "properties": {
@@ -41526,35 +42714,6 @@
           "sealed_at"
         ],
         "title": "VersionBrief",
-        "type": "object"
-      },
-      "Voice": {
-        "properties": {
-          "engine": {
-            "const": "piper",
-            "title": "Engine",
-            "type": "string"
-          },
-          "license": {
-            "title": "License",
-            "type": "string"
-          },
-          "version": {
-            "title": "Version",
-            "type": "string"
-          },
-          "voice": {
-            "title": "Voice",
-            "type": "string"
-          }
-        },
-        "required": [
-          "engine",
-          "version",
-          "voice",
-          "license"
-        ],
-        "title": "Voice",
         "type": "object"
       },
       "VoiceActivateIn": {
@@ -44269,6 +45428,30 @@
         "title": "Step",
         "type": "object"
       },
+      "hq_api__domain__gov_calendar__Calendar": {
+        "properties": {
+          "conflicts": {
+            "items": {
+              "$ref": "#/components/schemas/CalendarConflict"
+            },
+            "title": "Conflicts",
+            "type": "array"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/CalendarEvent"
+            },
+            "title": "Events",
+            "type": "array"
+          }
+        },
+        "required": [
+          "events",
+          "conflicts"
+        ],
+        "title": "Calendar",
+        "type": "object"
+      },
       "hq_api__domain__gov_kpis__Kpi": {
         "properties": {
           "aggregate": {
@@ -44690,6 +45873,238 @@
           }
         },
         "title": "BudgetIn",
+        "type": "object"
+      },
+      "hq_api__lines__store__Cost": {
+        "properties": {
+          "tokens": {
+            "title": "Tokens",
+            "type": "integer"
+          },
+          "usd_equiv": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Usd Equiv",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tokens",
+          "usd_equiv"
+        ],
+        "title": "Cost",
+        "type": "object"
+      },
+      "hq_api__lines__store__Run": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "cost": {
+            "$ref": "#/components/schemas/hq_api__lines__store__Cost"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision"
+          },
+          "dry": {
+            "title": "Dry",
+            "type": "boolean"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "from_step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Step"
+          },
+          "line": {
+            "title": "Line",
+            "type": "string"
+          },
+          "line_version": {
+            "title": "Line Version",
+            "type": "integer"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/Metrics"
+          },
+          "note_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Fa"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "published": {
+            "items": {
+              "$ref": "#/components/schemas/Published"
+            },
+            "title": "Published",
+            "type": "array"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "rerun_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rerun Of"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "running",
+              "waiting",
+              "done",
+              "failed",
+              "skipped",
+              "cancelled"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/StepRun"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "trigger": {
+            "enum": [
+              "schedule",
+              "owner",
+              "test",
+              "n8n",
+              "group"
+            ],
+            "title": "Trigger",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "line",
+          "company",
+          "title_fa",
+          "platform",
+          "line_version",
+          "trigger",
+          "dry",
+          "state",
+          "at",
+          "ended_at",
+          "steps",
+          "cost",
+          "published",
+          "metrics",
+          "note_fa",
+          "decision",
+          "rerun_of",
+          "from_step"
+        ],
+        "title": "Run",
+        "type": "object"
+      },
+      "hq_api__lines__templates__Template": {
+        "properties": {
+          "defaults": {
+            "$ref": "#/components/schemas/Defaults"
+          },
+          "key": {
+            "pattern": "^[a-z][a-z0-9_]{1,40}$",
+            "title": "Key",
+            "type": "string"
+          },
+          "outputs_fa": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Outputs Fa",
+            "type": "array"
+          },
+          "platform": {
+            "pattern": "^[a-z][a-z0-9_]{1,40}$",
+            "title": "Platform",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/StepDef"
+            },
+            "maxItems": 40,
+            "minItems": 1,
+            "title": "Steps",
+            "type": "array"
+          },
+          "title_fa": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "title_fa",
+          "platform",
+          "version",
+          "steps"
+        ],
+        "title": "Template",
         "type": "object"
       },
       "hq_api__routes__agent_tools__ReserveIn": {
@@ -45338,6 +46753,122 @@
         "title": "PlanIn",
         "type": "object"
       },
+      "hq_api__routes__lines__Calendar": {
+        "properties": {
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/CalendarDay"
+            },
+            "title": "Days",
+            "type": "array"
+          }
+        },
+        "required": [
+          "days"
+        ],
+        "title": "Calendar",
+        "type": "object"
+      },
+      "hq_api__routes__lines__SealIn": {
+        "additionalProperties": false,
+        "properties": {
+          "approve": {
+            "title": "Approve",
+            "type": "boolean"
+          },
+          "note_fa": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Fa"
+          }
+        },
+        "required": [
+          "approve"
+        ],
+        "title": "SealIn",
+        "type": "object"
+      },
+      "hq_api__routes__lines__Voice": {
+        "properties": {
+          "gender": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gender"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sample_file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample File"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "title_fa"
+        ],
+        "title": "Voice",
+        "type": "object"
+      },
+      "hq_api__routes__media__Cost": {
+        "properties": {
+          "tokens": {
+            "title": "Tokens",
+            "type": "integer"
+          },
+          "usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Usd",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tokens",
+          "usd"
+        ],
+        "title": "Cost",
+        "type": "object"
+      },
+      "hq_api__routes__media__SealIn": {
+        "additionalProperties": false,
+        "properties": {
+          "digest": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Digest",
+            "type": "string"
+          }
+        },
+        "required": [
+          "digest"
+        ],
+        "title": "SealIn",
+        "type": "object"
+      },
       "hq_api__routes__media__StepIn": {
         "additionalProperties": false,
         "description": "media.item (agents/tools.md).",
@@ -45441,6 +46972,35 @@
           "ref"
         ],
         "title": "Citation",
+        "type": "object"
+      },
+      "hq_api__routes__mgmt__Voice": {
+        "properties": {
+          "engine": {
+            "const": "piper",
+            "title": "Engine",
+            "type": "string"
+          },
+          "license": {
+            "title": "License",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          },
+          "voice": {
+            "title": "Voice",
+            "type": "string"
+          }
+        },
+        "required": [
+          "engine",
+          "version",
+          "voice",
+          "license"
+        ],
+        "title": "Voice",
         "type": "object"
       },
       "hq_api__routes__notifications__AnswerIn": {
@@ -45567,6 +47127,44 @@
           }
         },
         "title": "OrderIn",
+        "type": "object"
+      },
+      "hq_api__routes__org__Template": {
+        "properties": {
+          "blueprint": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateDepartment"
+            },
+            "title": "Blueprint",
+            "type": "array"
+          },
+          "departments": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Departments",
+            "type": "array"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name_en": {
+            "title": "Name En",
+            "type": "string"
+          },
+          "name_fa": {
+            "title": "Name Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name_fa",
+          "name_en",
+          "departments"
+        ],
+        "title": "Template",
         "type": "object"
       },
       "hq_api__routes__oversight__OrderIn": {
@@ -45704,6 +47302,212 @@
           "seen"
         ],
         "title": "SeenOut",
+        "type": "object"
+      },
+      "hq_api__routes__runs__Run": {
+        "properties": {
+          "addenda": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Addenda",
+            "type": "array"
+          },
+          "charter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charter"
+          },
+          "charter_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charter Version"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "cost_usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Cost Usd",
+            "type": "string"
+          },
+          "effort": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effort"
+          },
+          "employee": {
+            "title": "Employee",
+            "type": "string"
+          },
+          "equiv_cost_usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Equiv Cost Usd",
+            "type": "string"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "partial": {
+            "title": "Partial",
+            "type": "boolean"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "string"
+          },
+          "queued_at": {
+            "format": "date-time",
+            "title": "Queued At",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Skills",
+            "type": "array"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "steps": {
+            "title": "Steps",
+            "type": "integer"
+          },
+          "thread": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread"
+          },
+          "tokens": {
+            "$ref": "#/components/schemas/hq_api__routes__runs__RunTokens"
+          },
+          "tool_calls": {
+            "title": "Tool Calls",
+            "type": "integer"
+          },
+          "trigger": {
+            "title": "Trigger",
+            "type": "string"
+          },
+          "work_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Ref"
+          }
+        },
+        "required": [
+          "id",
+          "employee",
+          "company",
+          "work_ref",
+          "thread",
+          "trigger",
+          "reason",
+          "state",
+          "priority",
+          "model",
+          "effort",
+          "started_at",
+          "finished_at",
+          "queued_at",
+          "steps",
+          "tool_calls",
+          "tokens",
+          "equiv_cost_usd",
+          "cost_usd",
+          "charter_version",
+          "charter",
+          "partial",
+          "error_code"
+        ],
+        "title": "Run",
         "type": "object"
       },
       "hq_api__routes__runs__RunTokens": {
@@ -46438,6 +48242,60 @@
           "ref"
         ],
         "title": "Evidence",
+        "type": "object"
+      },
+      "hq_api__schemas__Page_Run___1": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/hq_api__routes__runs__Run"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[Run]",
+        "type": "object"
+      },
+      "hq_api__schemas__Page_Run___2": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/hq_api__lines__store__Run"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[Run]",
         "type": "object"
       },
       "hq_api__workshop__domain__Usage": {
@@ -54950,7 +56808,7 @@
                   ]
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/Calendar"
+                  "$ref": "#/components/schemas/hq_api__domain__gov_calendar__Calendar"
                 }
               }
             },
@@ -55154,6 +57012,153 @@
         "summary": "Add Event",
         "tags": [
           "governance"
+        ]
+      }
+    },
+    "/api/v1/calendar/lines": {
+      "get": {
+        "description": "Each day's planned runs of every `on` line (by its schedule, the\nowner's zone) and the runs already made; at most 62 days.",
+        "operationId": "line_calendar",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "days": [
+                    {
+                      "day": "2026-10-17",
+                      "items": [
+                        {
+                          "at": "2026-10-17T05:42:00Z",
+                          "company": "TY",
+                          "line": "x",
+                          "platform": "x",
+                          "run": "x",
+                          "state": "x"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/hq_api__routes__lines__Calendar"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Line Calendar",
+        "tags": [
+          "lines"
         ]
       }
     },
@@ -59629,6 +61634,313 @@
         ]
       }
     },
+    "/api/v1/companies/{code}/lines": {
+      "get": {
+        "description": "Every production line of the company, oldest first, with its next\nscheduled run and its latest run.",
+        "operationId": "list_company_lines",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "auto_after": 1,
+                    "caps": {
+                      "opus_per_day": 0,
+                      "runs_per_day": 0,
+                      "tokens_per_run": 0
+                    },
+                    "channel": {
+                      "kind": "one_off",
+                      "subject": "x"
+                    },
+                    "company": "TY",
+                    "copied_from": "x",
+                    "created_at": "2026-10-17T05:42:00Z",
+                    "good_runs": 1,
+                    "last_run": {
+                      "at": "2026-10-17T05:42:00Z",
+                      "ref": "W-000789",
+                      "state": "x"
+                    },
+                    "library": [
+                      "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                    ],
+                    "mode": "draft",
+                    "name_fa": "تریدیار",
+                    "next_at": "2026-10-17T05:42:00Z",
+                    "offer_auto": false,
+                    "platform": "x",
+                    "ref": "W-000789",
+                    "schedule": "x",
+                    "state": "draft",
+                    "steps": [
+                      {
+                        "enabled": false,
+                        "gate": "auto",
+                        "inputs": [
+                          "x"
+                        ],
+                        "key": "x",
+                        "kind": "one_off",
+                        "max_attempts": 1,
+                        "optional": false,
+                        "prompt_fa": "x",
+                        "settings": {},
+                        "timeout_s": 5,
+                        "title_fa": "گزارش هفتگی رشد"
+                      }
+                    ],
+                    "template": "x",
+                    "template_version": 1,
+                    "title_fa": "گزارش هفتگی رشد",
+                    "updated_at": "2026-10-17T05:42:00Z",
+                    "version": 1
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Line"
+                  },
+                  "title": "Response List Company Lines",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Company Lines",
+        "tags": [
+          "lines"
+        ]
+      },
+      "post": {
+        "description": "A new line from a template, as a `draft`: nothing runs on its own and\nits publish waits for the owner's seal until it is made automatic.",
+        "operationId": "create_company_line",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "channel": {
+                  "kind": "one_off",
+                  "subject": "x"
+                },
+                "platform": "x",
+                "template": "x",
+                "title_fa": "گزارش هفتگی رشد"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/LineIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "auto_after": 1,
+                  "caps": {
+                    "opus_per_day": 0,
+                    "runs_per_day": 0,
+                    "tokens_per_run": 0
+                  },
+                  "channel": {
+                    "kind": "one_off",
+                    "subject": "x"
+                  },
+                  "company": "TY",
+                  "copied_from": "x",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "good_runs": 1,
+                  "last_run": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "ref": "W-000789",
+                    "state": "x"
+                  },
+                  "library": [
+                    "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  ],
+                  "mode": "draft",
+                  "name_fa": "تریدیار",
+                  "next_at": "2026-10-17T05:42:00Z",
+                  "offer_auto": false,
+                  "platform": "x",
+                  "ref": "W-000789",
+                  "schedule": "x",
+                  "state": "draft",
+                  "steps": [
+                    {
+                      "enabled": false,
+                      "gate": "auto",
+                      "inputs": [
+                        "x"
+                      ],
+                      "key": "x",
+                      "kind": "one_off",
+                      "max_attempts": 1,
+                      "optional": false,
+                      "prompt_fa": "x",
+                      "settings": {},
+                      "timeout_s": 5,
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "template": "x",
+                  "template_version": 1,
+                  "title_fa": "گزارش هفتگی رشد",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Line"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Create Company Line",
+        "tags": [
+          "lines"
+        ]
+      }
+    },
     "/api/v1/companies/{code}/readiness": {
       "get": {
         "description": "§29.9 every check of the company for the group, each failed one with\nits one-tap fix (hire, hiring.open, envelope.set, connection.guide,\nseries.propose, media.on, lock.open, runner.check, group.resume).",
@@ -62951,7 +65263,8 @@
                     "email_send",
                     "archive_schema",
                     "archive_disposal",
-                    "server_destructive"
+                    "server_destructive",
+                    "line_publish"
                   ],
                   "type": "string"
                 },
@@ -77679,6 +79992,2983 @@
         ]
       }
     },
+    "/api/v1/library": {
+      "get": {
+        "description": "The library: with `company`, its own assets and the holding's (what\nits lines may use); without, every asset.",
+        "operationId": "list_library",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "cover_folder",
+                    "voice",
+                    "prompt",
+                    "pattern",
+                    "music",
+                    "brand"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "company": "TY",
+                    "config": {},
+                    "created_at": "2026-10-17T05:42:00Z",
+                    "files": [
+                      "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                    ],
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "kind": "cover_folder",
+                    "title_fa": "گزارش هفتگی رشد",
+                    "updated_at": "2026-10-17T05:42:00Z",
+                    "version": 1
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Asset"
+                  },
+                  "title": "Response List Library",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Library",
+        "tags": [
+          "lines"
+        ]
+      },
+      "post": {
+        "description": "A library asset (a cover folder, a voice, a prompt, a pattern, music, a\nbrand); `company` null: the holding's, for every company. `files`: ids\nfrom `POST /files`.",
+        "operationId": "create_library_asset",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "company": "TY",
+                "config": {},
+                "files": [
+                  "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                ],
+                "kind": "cover_folder",
+                "title_fa": "گزارش هفتگی رشد"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/AssetIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "company": "TY",
+                  "config": {},
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "files": [
+                    "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  ],
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "cover_folder",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Create Library Asset",
+        "tags": [
+          "lines"
+        ]
+      }
+    },
+    "/api/v1/library/{id}": {
+      "delete": {
+        "description": "The asset leaves the library (kept in the database, never shown again;\na line that names it no longer gets it).",
+        "operationId": "delete_library_asset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Delete Library Asset",
+        "tags": [
+          "lines"
+        ]
+      },
+      "put": {
+        "description": "A library asset's title, config or files changed (its version + 1).",
+        "operationId": "update_library_asset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "config": {},
+                "files": [
+                  "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                ],
+                "title_fa": "گزارش هفتگی رشد"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/AssetPut"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "company": "TY",
+                  "config": {},
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "files": [
+                    "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  ],
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "cover_folder",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Update Library Asset",
+        "tags": [
+          "lines"
+        ]
+      }
+    },
+    "/api/v1/line-runs/{ref}": {
+      "get": {
+        "description": "One run, step by step: each output (text, files, data), the tool that\nanswered, tokens, the reason of a failure, the card it waits on.",
+        "operationId": "get_line_run",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "at": "2026-10-17T05:42:00Z",
+                  "company": "TY",
+                  "cost": {
+                    "tokens": 1,
+                    "usd_equiv": "x"
+                  },
+                  "decision": "D-000123",
+                  "dry": false,
+                  "ended_at": "2026-10-17T05:42:00Z",
+                  "from_step": "x",
+                  "line": "x",
+                  "line_version": 1,
+                  "metrics": {
+                    "d7": {},
+                    "h24": {}
+                  },
+                  "note_fa": "x",
+                  "platform": "x",
+                  "published": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "external_id": "x",
+                      "kind": "one_off",
+                      "platform": "x",
+                      "url": "x"
+                    }
+                  ],
+                  "ref": "W-000789",
+                  "rerun_of": "x",
+                  "state": "queued",
+                  "steps": [
+                    {
+                      "attempt": 1,
+                      "ended_at": "2026-10-17T05:42:00Z",
+                      "error_fa": "x",
+                      "gate": "owner",
+                      "key": "x",
+                      "kind": "one_off",
+                      "missing": [
+                        "x"
+                      ],
+                      "output": {
+                        "data": {},
+                        "file_id": "x",
+                        "files": [
+                          "x"
+                        ],
+                        "text": "x"
+                      },
+                      "reused": false,
+                      "sealed_at": "2026-10-17T05:42:00Z",
+                      "sealed_by": "x",
+                      "started_at": "2026-10-17T05:42:00Z",
+                      "state": "pending",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "tokens": 1,
+                      "usd_equiv": "x",
+                      "via": "x"
+                    }
+                  ],
+                  "title_fa": "گزارش هفتگی رشد",
+                  "trigger": "schedule"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/hq_api__lines__store__Run"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Line Run",
+        "tags": [
+          "lines"
+        ]
+      }
+    },
+    "/api/v1/line-runs/{ref}/cancel": {
+      "post": {
+        "description": "Stops the run before its next step (its open card withdrawn).",
+        "operationId": "cancel_line_run",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "at": "2026-10-17T05:42:00Z",
+                  "company": "TY",
+                  "cost": {
+                    "tokens": 1,
+                    "usd_equiv": "x"
+                  },
+                  "decision": "D-000123",
+                  "dry": false,
+                  "ended_at": "2026-10-17T05:42:00Z",
+                  "from_step": "x",
+                  "line": "x",
+                  "line_version": 1,
+                  "metrics": {
+                    "d7": {},
+                    "h24": {}
+                  },
+                  "note_fa": "x",
+                  "platform": "x",
+                  "published": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "external_id": "x",
+                      "kind": "one_off",
+                      "platform": "x",
+                      "url": "x"
+                    }
+                  ],
+                  "ref": "W-000789",
+                  "rerun_of": "x",
+                  "state": "queued",
+                  "steps": [
+                    {
+                      "attempt": 1,
+                      "ended_at": "2026-10-17T05:42:00Z",
+                      "error_fa": "x",
+                      "gate": "owner",
+                      "key": "x",
+                      "kind": "one_off",
+                      "missing": [
+                        "x"
+                      ],
+                      "output": {
+                        "data": {},
+                        "file_id": "x",
+                        "files": [
+                          "x"
+                        ],
+                        "text": "x"
+                      },
+                      "reused": false,
+                      "sealed_at": "2026-10-17T05:42:00Z",
+                      "sealed_by": "x",
+                      "started_at": "2026-10-17T05:42:00Z",
+                      "state": "pending",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "tokens": 1,
+                      "usd_equiv": "x",
+                      "via": "x"
+                    }
+                  ],
+                  "title_fa": "گزارش هفتگی رشد",
+                  "trigger": "schedule"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/hq_api__lines__store__Run"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Cancel Line Run",
+        "tags": [
+          "lines"
+        ]
+      }
+    },
+    "/api/v1/line-runs/{ref}/rerun": {
+      "post": {
+        "description": "A new run from one step: the steps before it reuse this run's outputs\n(the line's current version runs the rest).",
+        "operationId": "rerun_line_run",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "from_step": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/RerunIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "at": "2026-10-17T05:42:00Z",
+                  "company": "TY",
+                  "cost": {
+                    "tokens": 1,
+                    "usd_equiv": "x"
+                  },
+                  "decision": "D-000123",
+                  "dry": false,
+                  "ended_at": "2026-10-17T05:42:00Z",
+                  "from_step": "x",
+                  "line": "x",
+                  "line_version": 1,
+                  "metrics": {
+                    "d7": {},
+                    "h24": {}
+                  },
+                  "note_fa": "x",
+                  "platform": "x",
+                  "published": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "external_id": "x",
+                      "kind": "one_off",
+                      "platform": "x",
+                      "url": "x"
+                    }
+                  ],
+                  "ref": "W-000789",
+                  "rerun_of": "x",
+                  "state": "queued",
+                  "steps": [
+                    {
+                      "attempt": 1,
+                      "ended_at": "2026-10-17T05:42:00Z",
+                      "error_fa": "x",
+                      "gate": "owner",
+                      "key": "x",
+                      "kind": "one_off",
+                      "missing": [
+                        "x"
+                      ],
+                      "output": {
+                        "data": {},
+                        "file_id": "x",
+                        "files": [
+                          "x"
+                        ],
+                        "text": "x"
+                      },
+                      "reused": false,
+                      "sealed_at": "2026-10-17T05:42:00Z",
+                      "sealed_by": "x",
+                      "started_at": "2026-10-17T05:42:00Z",
+                      "state": "pending",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "tokens": 1,
+                      "usd_equiv": "x",
+                      "via": "x"
+                    }
+                  ],
+                  "title_fa": "گزارش هفتگی رشد",
+                  "trigger": "schedule"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/hq_api__lines__store__Run"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Rerun Line Run",
+        "tags": [
+          "lines"
+        ]
+      }
+    },
+    "/api/v1/line-runs/{ref}/seal": {
+      "post": {
+        "description": "The owner's seal on the step the run waits at (its `line_publish`\ncard, A3): approving needs 🔏 `decision.approve` on the card's ref and\nlets the run go on; rejecting ends it with the note.",
+        "operationId": "seal_line_run",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "approve": false,
+                "note_fa": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/hq_api__routes__lines__SealIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "at": "2026-10-17T05:42:00Z",
+                  "company": "TY",
+                  "cost": {
+                    "tokens": 1,
+                    "usd_equiv": "x"
+                  },
+                  "decision": "D-000123",
+                  "dry": false,
+                  "ended_at": "2026-10-17T05:42:00Z",
+                  "from_step": "x",
+                  "line": "x",
+                  "line_version": 1,
+                  "metrics": {
+                    "d7": {},
+                    "h24": {}
+                  },
+                  "note_fa": "x",
+                  "platform": "x",
+                  "published": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "external_id": "x",
+                      "kind": "one_off",
+                      "platform": "x",
+                      "url": "x"
+                    }
+                  ],
+                  "ref": "W-000789",
+                  "rerun_of": "x",
+                  "state": "queued",
+                  "steps": [
+                    {
+                      "attempt": 1,
+                      "ended_at": "2026-10-17T05:42:00Z",
+                      "error_fa": "x",
+                      "gate": "owner",
+                      "key": "x",
+                      "kind": "one_off",
+                      "missing": [
+                        "x"
+                      ],
+                      "output": {
+                        "data": {},
+                        "file_id": "x",
+                        "files": [
+                          "x"
+                        ],
+                        "text": "x"
+                      },
+                      "reused": false,
+                      "sealed_at": "2026-10-17T05:42:00Z",
+                      "sealed_by": "x",
+                      "started_at": "2026-10-17T05:42:00Z",
+                      "state": "pending",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "tokens": 1,
+                      "usd_equiv": "x",
+                      "via": "x"
+                    }
+                  ],
+                  "title_fa": "گزارش هفتگی رشد",
+                  "trigger": "schedule"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/hq_api__lines__store__Run"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Seal Line Run",
+        "tags": [
+          "lines"
+        ]
+      }
+    },
+    "/api/v1/line-templates": {
+      "get": {
+        "description": "§30.1 every line template (seed/lines/*.yaml): its steps, defaults and\nwhat it makes. A file that does not hold together is left out.",
+        "operationId": "list_line_templates",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "defaults": {
+                      "auto_after": 1,
+                      "caps": {
+                        "opus_per_day": 0,
+                        "runs_per_day": 0,
+                        "tokens_per_run": 0
+                      },
+                      "insights": {
+                        "metric": "x"
+                      },
+                      "schedule": "x"
+                    },
+                    "key": "x",
+                    "outputs_fa": [
+                      "x"
+                    ],
+                    "platform": "x",
+                    "steps": [
+                      {
+                        "enabled": false,
+                        "gate": "auto",
+                        "inputs": [
+                          "x"
+                        ],
+                        "key": "x",
+                        "kind": "one_off",
+                        "max_attempts": 1,
+                        "optional": false,
+                        "prompt_fa": "x",
+                        "settings": {},
+                        "timeout_s": 5,
+                        "title_fa": "گزارش هفتگی رشد"
+                      }
+                    ],
+                    "title_fa": "گزارش هفتگی رشد",
+                    "version": 1
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/hq_api__lines__templates__Template"
+                  },
+                  "title": "Response List Line Templates",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Line Templates",
+        "tags": [
+          "lines"
+        ]
+      }
+    },
+    "/api/v1/line-templates/{key}": {
+      "get": {
+        "description": "One line template with its steps and their starting prompts.",
+        "operationId": "get_line_template",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "defaults": {
+                    "auto_after": 1,
+                    "caps": {
+                      "opus_per_day": 0,
+                      "runs_per_day": 0,
+                      "tokens_per_run": 0
+                    },
+                    "insights": {
+                      "metric": "x"
+                    },
+                    "schedule": "x"
+                  },
+                  "key": "x",
+                  "outputs_fa": [
+                    "x"
+                  ],
+                  "platform": "x",
+                  "steps": [
+                    {
+                      "enabled": false,
+                      "gate": "auto",
+                      "inputs": [
+                        "x"
+                      ],
+                      "key": "x",
+                      "kind": "one_off",
+                      "max_attempts": 1,
+                      "optional": false,
+                      "prompt_fa": "x",
+                      "settings": {},
+                      "timeout_s": 5,
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "title_fa": "گزارش هفتگی رشد",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/hq_api__lines__templates__Template"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Line Template",
+        "tags": [
+          "lines"
+        ]
+      }
+    },
+    "/api/v1/lines/{ref}": {
+      "get": {
+        "description": "One line: its steps as this line sets them, caps, schedule, state,\nmode and good runs (`offer_auto`: the app offers «خودکار کن»).",
+        "operationId": "get_line",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "auto_after": 1,
+                  "caps": {
+                    "opus_per_day": 0,
+                    "runs_per_day": 0,
+                    "tokens_per_run": 0
+                  },
+                  "channel": {
+                    "kind": "one_off",
+                    "subject": "x"
+                  },
+                  "company": "TY",
+                  "copied_from": "x",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "good_runs": 1,
+                  "last_run": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "ref": "W-000789",
+                    "state": "x"
+                  },
+                  "library": [
+                    "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  ],
+                  "mode": "draft",
+                  "name_fa": "تریدیار",
+                  "next_at": "2026-10-17T05:42:00Z",
+                  "offer_auto": false,
+                  "platform": "x",
+                  "ref": "W-000789",
+                  "schedule": "x",
+                  "state": "draft",
+                  "steps": [
+                    {
+                      "enabled": false,
+                      "gate": "auto",
+                      "inputs": [
+                        "x"
+                      ],
+                      "key": "x",
+                      "kind": "one_off",
+                      "max_attempts": 1,
+                      "optional": false,
+                      "prompt_fa": "x",
+                      "settings": {},
+                      "timeout_s": 5,
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "template": "x",
+                  "template_version": 1,
+                  "title_fa": "گزارش هفتگی رشد",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Line"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Line",
+        "tags": [
+          "lines"
+        ]
+      },
+      "put": {
+        "description": "A new version of the line (the previous one kept). A higher cap needs\n🔏 `line.caps` on the line's ref; `clear_schedule` removes the schedule.",
+        "operationId": "update_line",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "auto_after": 1,
+                "caps": {
+                  "opus_per_day": 0,
+                  "runs_per_day": 0,
+                  "tokens_per_run": 0
+                },
+                "channel": {
+                  "kind": "one_off",
+                  "subject": "x"
+                },
+                "clear_schedule": false,
+                "library": [
+                  "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                ],
+                "note_fa": "x",
+                "schedule": "x",
+                "steps": [
+                  {
+                    "enabled": false,
+                    "gate": "auto",
+                    "inputs": [
+                      "x"
+                    ],
+                    "key": "x",
+                    "kind": "one_off",
+                    "max_attempts": 1,
+                    "optional": false,
+                    "prompt_fa": "x",
+                    "settings": {},
+                    "timeout_s": 5,
+                    "title_fa": "گزارش هفتگی رشد"
+                  }
+                ],
+                "title_fa": "گزارش هفتگی رشد"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/LinePut"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "auto_after": 1,
+                  "caps": {
+                    "opus_per_day": 0,
+                    "runs_per_day": 0,
+                    "tokens_per_run": 0
+                  },
+                  "channel": {
+                    "kind": "one_off",
+                    "subject": "x"
+                  },
+                  "company": "TY",
+                  "copied_from": "x",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "good_runs": 1,
+                  "last_run": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "ref": "W-000789",
+                    "state": "x"
+                  },
+                  "library": [
+                    "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  ],
+                  "mode": "draft",
+                  "name_fa": "تریدیار",
+                  "next_at": "2026-10-17T05:42:00Z",
+                  "offer_auto": false,
+                  "platform": "x",
+                  "ref": "W-000789",
+                  "schedule": "x",
+                  "state": "draft",
+                  "steps": [
+                    {
+                      "enabled": false,
+                      "gate": "auto",
+                      "inputs": [
+                        "x"
+                      ],
+                      "key": "x",
+                      "kind": "one_off",
+                      "max_attempts": 1,
+                      "optional": false,
+                      "prompt_fa": "x",
+                      "settings": {},
+                      "timeout_s": 5,
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "template": "x",
+                  "template_version": 1,
+                  "title_fa": "گزارش هفتگی رشد",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Line"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Update Line",
+        "tags": [
+          "lines"
+        ]
+      }
+    },
+    "/api/v1/lines/{ref}/copy": {
+      "post": {
+        "description": "The line as a `draft` of another company (§30.7): its steps, prompts,\ncaps and schedule; the holding's library kept, the other company's left\nout; its channel's subject empty (the new company's own is set after).",
+        "operationId": "copy_line",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "company": "TY",
+                "title_fa": "گزارش هفتگی رشد"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/CopyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "auto_after": 1,
+                  "caps": {
+                    "opus_per_day": 0,
+                    "runs_per_day": 0,
+                    "tokens_per_run": 0
+                  },
+                  "channel": {
+                    "kind": "one_off",
+                    "subject": "x"
+                  },
+                  "company": "TY",
+                  "copied_from": "x",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "good_runs": 1,
+                  "last_run": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "ref": "W-000789",
+                    "state": "x"
+                  },
+                  "library": [
+                    "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  ],
+                  "mode": "draft",
+                  "name_fa": "تریدیار",
+                  "next_at": "2026-10-17T05:42:00Z",
+                  "offer_auto": false,
+                  "platform": "x",
+                  "ref": "W-000789",
+                  "schedule": "x",
+                  "state": "draft",
+                  "steps": [
+                    {
+                      "enabled": false,
+                      "gate": "auto",
+                      "inputs": [
+                        "x"
+                      ],
+                      "key": "x",
+                      "kind": "one_off",
+                      "max_attempts": 1,
+                      "optional": false,
+                      "prompt_fa": "x",
+                      "settings": {},
+                      "timeout_s": 5,
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "template": "x",
+                  "template_version": 1,
+                  "title_fa": "گزارش هفتگی رشد",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Line"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Copy Line",
+        "tags": [
+          "lines"
+        ]
+      }
+    },
+    "/api/v1/lines/{ref}/insights": {
+      "get": {
+        "description": "§31.1 what the line's published runs taught (code, no model): ranked by\nits template's metric, the best hour, length, voice and pattern, the top\nhooks and plain Persian lessons.",
+        "operationId": "get_line_insights",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "best": {
+                    "hour": 1,
+                    "length_bucket": "x",
+                    "pattern_source": "x",
+                    "voice": "x"
+                  },
+                  "lessons_fa": [
+                    "x"
+                  ],
+                  "line": "x",
+                  "metric": "x",
+                  "top_hooks": [
+                    "x"
+                  ],
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "window_runs": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Insights"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Line Insights",
+        "tags": [
+          "lines"
+        ]
+      }
+    },
+    "/api/v1/lines/{ref}/mode": {
+      "post": {
+        "description": "`auto` publishes without the owner's seal (🔏 `line.auto` on the ref);\n`draft` brings the seal back.",
+        "operationId": "set_line_mode",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "mode": "draft"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ModeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "auto_after": 1,
+                  "caps": {
+                    "opus_per_day": 0,
+                    "runs_per_day": 0,
+                    "tokens_per_run": 0
+                  },
+                  "channel": {
+                    "kind": "one_off",
+                    "subject": "x"
+                  },
+                  "company": "TY",
+                  "copied_from": "x",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "good_runs": 1,
+                  "last_run": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "ref": "W-000789",
+                    "state": "x"
+                  },
+                  "library": [
+                    "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  ],
+                  "mode": "draft",
+                  "name_fa": "تریدیار",
+                  "next_at": "2026-10-17T05:42:00Z",
+                  "offer_auto": false,
+                  "platform": "x",
+                  "ref": "W-000789",
+                  "schedule": "x",
+                  "state": "draft",
+                  "steps": [
+                    {
+                      "enabled": false,
+                      "gate": "auto",
+                      "inputs": [
+                        "x"
+                      ],
+                      "key": "x",
+                      "kind": "one_off",
+                      "max_attempts": 1,
+                      "optional": false,
+                      "prompt_fa": "x",
+                      "settings": {},
+                      "timeout_s": 5,
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "template": "x",
+                  "template_version": 1,
+                  "title_fa": "گزارش هفتگی رشد",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Line"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Set Line Mode",
+        "tags": [
+          "lines"
+        ]
+      }
+    },
+    "/api/v1/lines/{ref}/revert": {
+      "post": {
+        "description": "A new version with an old version's body (🔏 `line.caps` when it\nraises a cap).",
+        "operationId": "revert_line",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "note_fa": "x",
+                "version": 1
+              },
+              "schema": {
+                "$ref": "#/components/schemas/RevertIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "auto_after": 1,
+                  "caps": {
+                    "opus_per_day": 0,
+                    "runs_per_day": 0,
+                    "tokens_per_run": 0
+                  },
+                  "channel": {
+                    "kind": "one_off",
+                    "subject": "x"
+                  },
+                  "company": "TY",
+                  "copied_from": "x",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "good_runs": 1,
+                  "last_run": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "ref": "W-000789",
+                    "state": "x"
+                  },
+                  "library": [
+                    "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  ],
+                  "mode": "draft",
+                  "name_fa": "تریدیار",
+                  "next_at": "2026-10-17T05:42:00Z",
+                  "offer_auto": false,
+                  "platform": "x",
+                  "ref": "W-000789",
+                  "schedule": "x",
+                  "state": "draft",
+                  "steps": [
+                    {
+                      "enabled": false,
+                      "gate": "auto",
+                      "inputs": [
+                        "x"
+                      ],
+                      "key": "x",
+                      "kind": "one_off",
+                      "max_attempts": 1,
+                      "optional": false,
+                      "prompt_fa": "x",
+                      "settings": {},
+                      "timeout_s": 5,
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "template": "x",
+                  "template_version": 1,
+                  "title_fa": "گزارش هفتگی رشد",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Line"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Revert Line",
+        "tags": [
+          "lines"
+        ]
+      }
+    },
+    "/api/v1/lines/{ref}/runs": {
+      "get": {
+        "description": "The line's runs, newest first, each step by step with its output.",
+        "operationId": "list_line_runs",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "company": "TY",
+                      "cost": {
+                        "tokens": 1,
+                        "usd_equiv": "x"
+                      },
+                      "decision": "D-000123",
+                      "dry": false,
+                      "ended_at": "2026-10-17T05:42:00Z",
+                      "from_step": "x",
+                      "line": "x",
+                      "line_version": 1,
+                      "metrics": {
+                        "d7": {},
+                        "h24": {}
+                      },
+                      "note_fa": "x",
+                      "platform": "x",
+                      "published": [
+                        {
+                          "at": "2026-10-17T05:42:00Z",
+                          "external_id": "x",
+                          "kind": "one_off",
+                          "platform": "x",
+                          "url": "x"
+                        }
+                      ],
+                      "ref": "W-000789",
+                      "rerun_of": "x",
+                      "state": "queued",
+                      "steps": [
+                        {
+                          "attempt": 1,
+                          "ended_at": "2026-10-17T05:42:00Z",
+                          "error_fa": "x",
+                          "gate": "owner",
+                          "key": "x",
+                          "kind": "one_off",
+                          "missing": [
+                            "x"
+                          ],
+                          "output": {
+                            "data": {},
+                            "file_id": null,
+                            "files": [],
+                            "text": null
+                          },
+                          "reused": false,
+                          "sealed_at": "2026-10-17T05:42:00Z",
+                          "sealed_by": "x",
+                          "started_at": "2026-10-17T05:42:00Z",
+                          "state": "pending",
+                          "title_fa": "گزارش هفتگی رشد",
+                          "tokens": 1,
+                          "usd_equiv": "x",
+                          "via": "x"
+                        }
+                      ],
+                      "title_fa": "گزارش هفتگی رشد",
+                      "trigger": "schedule"
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/hq_api__schemas__Page_Run___2"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Line Runs",
+        "tags": [
+          "lines"
+        ]
+      },
+      "post": {
+        "description": "A run now (`dry`: every step but publish and deliver leaves nothing:\n«آزمایش کامل»). `from_step`: the steps before it reuse the latest run's\noutputs. A lock or the line's daily cap answers a `skipped` run.",
+        "operationId": "start_line_run",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "dry": false,
+                "from_step": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/RunIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "at": "2026-10-17T05:42:00Z",
+                  "company": "TY",
+                  "cost": {
+                    "tokens": 1,
+                    "usd_equiv": "x"
+                  },
+                  "decision": "D-000123",
+                  "dry": false,
+                  "ended_at": "2026-10-17T05:42:00Z",
+                  "from_step": "x",
+                  "line": "x",
+                  "line_version": 1,
+                  "metrics": {
+                    "d7": {},
+                    "h24": {}
+                  },
+                  "note_fa": "x",
+                  "platform": "x",
+                  "published": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "external_id": "x",
+                      "kind": "one_off",
+                      "platform": "x",
+                      "url": "x"
+                    }
+                  ],
+                  "ref": "W-000789",
+                  "rerun_of": "x",
+                  "state": "queued",
+                  "steps": [
+                    {
+                      "attempt": 1,
+                      "ended_at": "2026-10-17T05:42:00Z",
+                      "error_fa": "x",
+                      "gate": "owner",
+                      "key": "x",
+                      "kind": "one_off",
+                      "missing": [
+                        "x"
+                      ],
+                      "output": {
+                        "data": {},
+                        "file_id": "x",
+                        "files": [
+                          "x"
+                        ],
+                        "text": "x"
+                      },
+                      "reused": false,
+                      "sealed_at": "2026-10-17T05:42:00Z",
+                      "sealed_by": "x",
+                      "started_at": "2026-10-17T05:42:00Z",
+                      "state": "pending",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "tokens": 1,
+                      "usd_equiv": "x",
+                      "via": "x"
+                    }
+                  ],
+                  "title_fa": "گزارش هفتگی رشد",
+                  "trigger": "schedule"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/hq_api__lines__store__Run"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Start Line Run",
+        "tags": [
+          "lines"
+        ]
+      }
+    },
+    "/api/v1/lines/{ref}/state": {
+      "post": {
+        "description": "`on`: its schedule makes runs (with HQ_LINES on); `paused`: it makes\nnone (runs already started go on).",
+        "operationId": "set_line_state",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "state": "on"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/StateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "auto_after": 1,
+                  "caps": {
+                    "opus_per_day": 0,
+                    "runs_per_day": 0,
+                    "tokens_per_run": 0
+                  },
+                  "channel": {
+                    "kind": "one_off",
+                    "subject": "x"
+                  },
+                  "company": "TY",
+                  "copied_from": "x",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "good_runs": 1,
+                  "last_run": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "ref": "W-000789",
+                    "state": "x"
+                  },
+                  "library": [
+                    "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  ],
+                  "mode": "draft",
+                  "name_fa": "تریدیار",
+                  "next_at": "2026-10-17T05:42:00Z",
+                  "offer_auto": false,
+                  "platform": "x",
+                  "ref": "W-000789",
+                  "schedule": "x",
+                  "state": "draft",
+                  "steps": [
+                    {
+                      "enabled": false,
+                      "gate": "auto",
+                      "inputs": [
+                        "x"
+                      ],
+                      "key": "x",
+                      "kind": "one_off",
+                      "max_attempts": 1,
+                      "optional": false,
+                      "prompt_fa": "x",
+                      "settings": {},
+                      "timeout_s": 5,
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "template": "x",
+                  "template_version": 1,
+                  "title_fa": "گزارش هفتگی رشد",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Line"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Set Line State",
+        "tags": [
+          "lines"
+        ]
+      }
+    },
+    "/api/v1/lines/{ref}/steps/{key}/test": {
+      "post": {
+        "description": "That step alone, now (publish and deliver dry), with the given inputs\nor the latest run's; nothing is kept beyond this answer.",
+        "operationId": "run_line_step_test",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "inputs": {}
+              },
+              "schema": {
+                "$ref": "#/components/schemas/StepTestIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "error_fa": "x",
+                  "kind": "one_off",
+                  "missing": [
+                    "x"
+                  ],
+                  "output": {
+                    "data": {},
+                    "file_id": "x",
+                    "files": [
+                      "x"
+                    ],
+                    "text": "x"
+                  },
+                  "prompt": "x",
+                  "state": "done",
+                  "step": "x",
+                  "tokens": 1,
+                  "usd_equiv": "x",
+                  "via": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/StepTestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Run Line Step Test",
+        "tags": [
+          "lines"
+        ]
+      }
+    },
+    "/api/v1/lines/{ref}/versions": {
+      "get": {
+        "description": "Every version of the line, newest first, each with the whole line.",
+        "operationId": "list_line_versions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "at": "2026-10-17T05:42:00Z",
+                    "body": {},
+                    "by": {
+                      "code": "TY",
+                      "kind": "one_off"
+                    },
+                    "line": "x",
+                    "note_fa": "x",
+                    "version": 1
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LineVersion"
+                  },
+                  "title": "Response List Line Versions",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Line Versions",
+        "tags": [
+          "lines"
+        ]
+      }
+    },
     "/api/v1/media/items": {
       "get": {
         "description": "Newest first.",
@@ -80179,7 +85469,7 @@
                 "digest": "x"
               },
               "schema": {
-                "$ref": "#/components/schemas/SealIn"
+                "$ref": "#/components/schemas/hq_api__routes__media__SealIn"
               }
             }
           },
@@ -96183,7 +101473,7 @@
                   "next_cursor": "x"
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/Page_Run_"
+                  "$ref": "#/components/schemas/hq_api__schemas__Page_Run___1"
                 }
               }
             },
@@ -102590,7 +107880,7 @@
                 ],
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/Template"
+                    "$ref": "#/components/schemas/hq_api__routes__org__Template"
                   },
                   "title": "Response List Templates",
                   "type": "array"
@@ -106173,6 +111463,95 @@
         "summary": "Treasury What If",
         "tags": [
           "treasury"
+        ]
+      }
+    },
+    "/api/v1/tts/voices": {
+      "get": {
+        "description": "The speakers the tts step can use (as AI Studio offers them), cached a\nday; empty until the tts adapter can read them.",
+        "operationId": "list_tts_voices",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "gender": "x",
+                    "name": "report.pdf",
+                    "sample_file": "x",
+                    "title_fa": "گزارش هفتگی رشد"
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/hq_api__routes__lines__Voice"
+                  },
+                  "title": "Response List Tts Voices",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Tts Voices",
+        "tags": [
+          "lines"
         ]
       }
     },
@@ -116230,7 +121609,7 @@
                   ]
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/Calendar"
+                  "$ref": "#/components/schemas/hq_api__domain__gov_calendar__Calendar"
                 }
               }
             },
@@ -119993,6 +125372,215 @@
           }
         },
         "summary": "Agent Lesson",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/lines/callback": {
+      "post": {
+        "description": "n8n's answer to a waiting `n8n` step (contract §30.4), signed with\nHMAC-SHA256 in `X-HQ-Signature: t=<unix>,v1=<hex>` over `<t>.<raw body>`\n(5 minutes at most). A bad or missing signature: 401, nothing read.",
+        "operationId": "line_callback",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "data": {
+                  "rows": 12
+                },
+                "files": [],
+                "ok": true,
+                "text": "متن آماده",
+                "token": "RN-000001:flow"
+              },
+              "schema": {
+                "additionalProperties": false,
+                "description": "The run and step by name, or the n8n step's `token` (\"<run>:<step>\").",
+                "properties": {
+                  "data": {
+                    "additionalProperties": true,
+                    "title": "Data",
+                    "type": "object"
+                  },
+                  "error_fa": {
+                    "anyOf": [
+                      {
+                        "maxLength": 1000,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Error Fa"
+                  },
+                  "file_id": {
+                    "anyOf": [
+                      {
+                        "maxLength": 64,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "File Id"
+                  },
+                  "files": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 50,
+                    "title": "Files",
+                    "type": "array"
+                  },
+                  "ok": {
+                    "title": "Ok",
+                    "type": "boolean"
+                  },
+                  "run": {
+                    "anyOf": [
+                      {
+                        "pattern": "^RN-[0-9]{6,}$",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Run"
+                  },
+                  "step": {
+                    "anyOf": [
+                      {
+                        "pattern": "^[a-z][a-z0-9_]{1,40}$",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Step"
+                  },
+                  "text": {
+                    "anyOf": [
+                      {
+                        "maxLength": 200000,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Text"
+                  },
+                  "token": {
+                    "anyOf": [
+                      {
+                        "pattern": "^RN-[0-9]{6,}:[a-z][a-z0-9_]{1,40}$",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Token"
+                  }
+                },
+                "required": [
+                  "ok"
+                ],
+                "title": "CallbackIn",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "run": "x",
+                  "state": "x",
+                  "step": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/CallbackOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Line Callback",
         "tags": [
           "internal"
         ]
