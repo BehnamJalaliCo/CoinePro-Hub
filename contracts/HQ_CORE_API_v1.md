@@ -11,6 +11,8 @@
 
 > **v1.12 (۲۰۲۶-۱۱-۰۴):** «خط تولید» (§۳۰، پرامپت ۲۲): موتور عمومی تولید و انتشار محتوا برای هر شرکت و هر پلتفرم، از روی قالب، با مرحله‌های قابل ویرایش، کتابخانه، تقویم، n8n برای مرحله‌های قاعده‌ای، و حالت پیش‌نویس تا خودکار.
 >
+> **v1.13 (۲۰۲۶-۱۱-۰۴):** رشد (§۳۱، پرامپت ۲۲): حلقه‌ی یادگیری خط تولید، شرکت آماده با یک فرمان، خبرنامه‌ی ایمیلی، رصد رتبه‌ی سئو و رقبا، تقویم یکپارچه‌ی کمپین، بودجه‌ی تبلیغات با توقف خودکار، و قاعده‌ی اتوماسیون از یک جمله‌ی مالک.
+>
 > **v1.11 (۲۰۲۶-۱۱-۰۲):** مالک فقط کسب‌وکار میبیند (§۲۹، پرامپت ۲۱): مسیر بر پایه‌ی حوزه، ضمانت جواب هر فرمان با «گزارش فرمان»، قانون‌گذاری مالک از اپ، منشی هلدینگ، صدای بلند، بودجه‌ی ارجاع، زبان فارسی و بازنویسی برای مدیر کل، شورای v2، آمادگی، استخدام خودکار، کارگروه‌ها، اتصال‌ها، خانه‌ی سه‌کارتی، وضعیت کارمند و مرز تأیید.
 
 > **v1.10.2 (۲۰۲۶-۱۱-۰۲):** هزینه‌ی هلدینگ (§۲۸.۷، پرامپت ۲۰.۱): کاتالوگ فقط با دستور مالک و با سقف توکن، دیده‌بان اول با قاعده، سقف روزانه‌ی هر شرکت، سهم هر حوزه در گزارش، و متن GPT از چت وب ChatGPT.
@@ -3343,4 +3345,96 @@ outline → article → quality → publish → Search Console feedback). Each p
 A line made from `instagram_reel` for one company runs end to end (every adapter faked in tests; dry on the hub until the owner
 connects AI Studio and IG-Hub), its outputs shown step by step in both apps; the same line copied to a second company runs with
 only its settings changed.
+
+## 31. Growth: learning, ready companies, owned channels, ads, automations from a sentence ⟨1.13⟩ (2026-11-04, prompt 22)
+
+The owner's priorities after the gap review (`docs/GAP_REVIEW_2026-11-04.md`). Same rules as §30: data, not code per company;
+rule first, model last; every call through the gateway or egress, in the Audit and the ledger; owner-only routes.
+
+### 31.1 The learning loop of a line
+```
+RunFeatures { run, hook (first line), length_s|words, voice, pattern, publish_hour, caption_len, platform }   -- by code at publish
+Insights    { line, metric (template defaults.insights.metric, e.g. "views"|"reach"|"clicks"|"watch_s"), window_runs,
+              best: {hour, length_bucket, voice, pattern_source}, top_hooks: [text], lessons_fa: [str], updated_at }
+```
+- After the 24h and 7d reads (§30.3), code ranks the line's published runs by its metric and writes `Insights` (no model).
+- Prompts may use `{{insights.lessons}}` and `{{insights.top_hooks}}`; a clear winner raises a home suggestion (§29.13).
+- The `quality` step also checks the platform rules in data (`apps/api/seed/lines/rules.yaml`: links, financial claims, banned
+  phrases per platform) before publish.
+- Routes: `GET /lines/{ref}/insights`.
+
+### 31.2 A ready company with one order (company kit)
+```
+Kit { key, title_fa, purpose_fa, team_template (seed/templates), groups: [group key], lines: [{template, platform, title_fa}],
+      kpis: [key], connections: [kind], defaults: {...} }
+```
+- Kits are data in `apps/api/seed/kits/*.yaml`; none names a company.
+- `GET /kits`, `POST /companies/from-kit {kit, code, name_fa, name_en, color_index?}` (🔏 `company.create`): the company with its
+  team (the existing templates), its group memberships, its lines as **drafts** (`hq_api.lines.store.create_line`), its KPIs and its
+  connections as `not_connected`; the answer lists what the owner still has to connect. A server is not created here (founding §).
+- The secretary (§29.4) routes an order like «یک شرکت تازه برای … بساز» to a preview of this call; nothing is created before the seal.
+
+### 31.3 Newsletter (owned channel)
+- Listmonk (AGPL-3.0, self-hosted) in the opt-in compose profile `newsletter`, `127.0.0.1` only, its own Postgres database.
+- A company's list(s), subscribers' consent kept by Listmonk (one-click unsubscribe is Listmonk's), campaigns made by a line of
+  platform `newsletter` (new template) or by hand, A/B subject, scheduled send; open and click figures read daily into
+  `growth.metrics_daily` (kind `newsletter`).
+- Routes: `GET /companies/{code}/newsletter` (lists, counts, last campaigns), `POST /companies/{code}/newsletter/campaigns`,
+  `POST /newsletter/campaigns/{id}/schedule {at}` (🔏 `newsletter.send` for a list over its size limit), `GET /newsletter/campaigns/{id}`.
+
+### 31.4 SEO rank and competitors
+```
+Keyword    { company, phrase, site, target_url|null, state: on|paused }
+RankDaily  { keyword, day, source: "search_console"|"searxng", position|null, url|null }
+Competitor { company, name_fa, site|null, instagram|null, youtube|null, telegram|null, state }
+CompetitorDaily { competitor, day, key, value, source }   -- new pages (sitemap), followers, subscribers, posts
+```
+- Our positions from Search Console (free, already connected); a small daily SERP check through the hub's SearXNG for our keywords
+  and the competitors' sites (positions marked approximate); competitors' public figures through free APIs (YouTube Data API) and
+  sitemaps through egress. No model reads a figure.
+- A competitor's jump (new pages, a big follower move) raises an item for the company's growth lead, not the owner.
+- Routes: `GET/POST/PUT/DELETE /companies/{code}/keywords[/{id}]`, `GET /companies/{code}/ranks?days`,
+  `GET/POST/PUT/DELETE /companies/{code}/competitors[/{id}]`, `GET /companies/{code}/competitors/daily?days`.
+
+### 31.5 One campaign calendar
+```
+CalendarItem { day, at|null, company, kind: "line"|"newsletter"|"ad"|"campaign"|"manual", ref, title_fa, platform|null,
+               state, conflict_fa|null }
+Campaign     { id, company, title_fa, goal_fa, starts, ends, channels: [platform], budget|null, state }
+```
+- `GET /campaign-calendar?from&to&company?` (`/calendar` is the change calendar of §20) merges line runs (§30), newsletters, ad campaigns and campaigns; conflicts (two posts on one
+  channel within its spacing, an Iranian holiday from the calendar data) are marked. `GET/POST/PUT/DELETE /campaigns[/{id}]`.
+- §30's `GET /calendar/lines` stays as it is.
+
+### 31.6 Ad budgets that stop by themselves
+```
+AdAccount { company, platform: "google_ads"|"meta_ads", account_id, state }          -- a connection kind (§29.12), secret in OpenBao
+AdRule    { company, scope (account|campaign id), daily_cap, window_days, min_roas, min_spend_before_judging, action: "pause"|"notify",
+            state: on|off }
+AdDaily   { company, platform, campaign_id, day, spend, clicks, conversions, revenue, roas }
+```
+- Daily read by code (the platforms' free APIs, through egress); revenue from the revenue module (§19) where attributed.
+- A rule that trips **pauses** the campaign through the API (reversible), writes the Audit and tells the company's growth lead and
+  the owner's weekly summary; it never raises a budget. Raising a cap is 🔏 `ads.cap`.
+- Routes: `GET /companies/{code}/ads` (accounts, campaigns, last 30 days), `GET/POST/PUT/DELETE /companies/{code}/ad-rules[/{id}]`,
+  `POST /ads/campaigns/{platform}/{id}/resume` (🔏 `ads.resume`).
+
+### 31.7 An automation from one sentence
+```
+Automation { ref "AU-0001", company|null, sentence_fa, rule: {trigger, conditions, actions}, state: "proposed"|"on"|"off",
+             runs: int, last_run_at|null, n8n_workflow|null }
+trigger    { kind: "schedule" (RRULE) | "event" (stream type) | "metric" (connection key, op, value, window) }
+actions    [ {kind: "work.create"|"line.run"|"line.pause"|"notify.owner"|"notify.lead"|"ad.pause"|"n8n.run", args} ]  -- allow-list only
+```
+- The owner writes one Persian sentence; one router call (task class `automation_compile`, a mid model) turns it into the JSON above
+  against a strict schema; the app shows it back in plain Persian (`preview_fa`) with what it will and will not do; nothing runs
+  before the owner's seal (🔏 `automation.seal`). Running is code (a tick and the stream), never a model; an action outside the
+  allow-list is refused at compile time. `n8n.run` and rules that need n8n are exported as an n8n workflow (§30.4).
+- Routes: `POST /automations/compile {sentence_fa, company?}` → `{rule, preview_fa, refused_fa: [..]}`, `POST /automations {rule,
+  sentence_fa, company?}` (proposed), `POST /automations/{ref}/seal`, `POST /automations/{ref}/state {on|off}`, `GET /automations`,
+  `GET /automations/{ref}` (with its runs).
+
+### 31.8 Stream, decisions, step-up
+- Stream: `insights.updated`, `rank.daily`, `competitor.jump`, `ad.paused`, `automation.run`, `campaign.updated` (topic `growth`).
+- Step-up: `company.create`, `newsletter.send`, `ads.cap`, `ads.resume`, `automation.seal`.
 
