@@ -130,7 +130,16 @@
    - `gen-env.sh` چیزی اضافه نکرد. `db-provision` نقش و دیتابیس `n8n` را ساخت.
    - n8n روی `127.0.0.1:5678` بالا و `healthy` است.
    - worker حالا `HQ_N8N_URL=http://n8n:5678` دارد.
-   - **منتظر مالک:** `make n8n-secret`. بعد از آن `make n8n-import` و سنجش callback امضاشده را انجام میدهم.
+   - **23:45Z:** مالک `make n8n-secret` را اجرا کرد. `kv/hq/n8n` در OpenBao هست (فقط metadata خوانده شد).
+   - **`make n8n-import`:** ‏۱ workflow (`line-callback-demo`) وارد شد و اسکریپت گفت «workflows activated»، ولی **فعال نشد**. webhook جواب 404 «not registered» میداد.
+     - **علت:** در n8n ‏2.44، `publish:workflow --all` دیگر کار نمیکند و `update:workflow --all --active=true` بی‌اثر است.
+     - **کاری که کردم:** فقط عملیاتی، `n8n publish:workflow --id=hqLineCallbackDemo1` و یک restart. کد را عوض نکردم.
+     - **پیشنهاد:** `infra/n8n/import.sh` هر workflow را با `--id` منتشر کند. این تغییر منطقی است و منتظر اجازه‌ی مالک است.
+   - **سنجش callback (23:53Z):**
+     - از کانتینر api یک درخواست نمونه‌ی امضاشده به webhook ‏n8n فرستادم، با یک token آزمایشی و بی هیچ run واقعی.
+     - n8n امضا را سنجید، جواب را امضا کرد و هاب را صدا زد. در لاگ api **یک** درخواست `POST /lines/callback` با **422** آمد. یعنی امضا قبول شد، چون امضای بد 401 میگرفت. 422 فقط برای این است که token آزمایشی به هیچ run واقعی اشاره نمیکند.
+     - همان درخواست با امضای بد در خود n8n رد شد و هیچ callbackی به هاب نرسید.
+     - هیچ ردیفی ساخته یا عوض نشد.
 5. **خبرنامه (22:12):** `make newsletter-on`.
    - Listmonk نصب شد: کاربر `hq-admin` ساخته شد و رمزش در OpenBao در `kv/hq/newsletter/admin` است، بی‌آنکه نمایش داده شود.
    - Listmonk `healthy` است، روی `127.0.0.1:9000`.
@@ -166,7 +175,7 @@
   - `temporal`: anon ۹۸٪، همان وضع پیش از ۲۳.۱.
 
 ## ۷. قدم‌های بعدی مالک (به ترتیب)
-1. **`make n8n-secret`** در ترمینال خودتان. بعد به من بگویید تا `make n8n-import` و سنجش callback را انجام دهم.
+1. ~~`make n8n-secret`~~ انجام شد (۱۱-۰۴). import و سنجش callback هم سبز شد.
 2. **خبرنامه:** در Listmonk یک کاربر API بسازید (از راه tunnel به `127.0.0.1:9000`؛ رمز admin در OpenBao در `kv/hq/newsletter/admin` است). بعد `make newsletter-secret USER_NAME=<نام>`. SMTP و آدرس عمومی هم تصمیم شماست (`infra/newsletter/README.md`).
 3. **کلید توقف هلدینگ:** تا روشن است، Piper، تبلیغات، اتوماسیون‌ها و کار ایجنت‌ها اجرا نمیشوند. وقتی خاموشش کردید، نمونه‌ی Piper را دوباره میسنجم.
 4. **کلید Gemini و سقف ماه صدا:** در اپ ← «گفتگو» ← 🔑.
