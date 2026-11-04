@@ -854,6 +854,61 @@ async def test_the_calendar_works_alone_without_the_engines_or_the_ads_tables(
     assert cal.items == []
 
 
+async def test_the_calendar_shows_the_lines_runs_and_marks_them_with_a_manual_post(
+    client: httpx.AsyncClient,
+    su: Any,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+) -> None:
+    """The engine's runs (§30, migration 0040) join the calendar through its own store."""
+    h = owner_session["headers"]
+    co = await new_company()
+    c = co["code"]
+    at = datetime.now(UTC) + timedelta(hours=1)
+    line = await su.fetchval(
+        """INSERT INTO lines.lines (company_id, template, template_version, platform, title_fa, caps, steps)
+           VALUES ($1, 'cal_line', 1, 'telegram_post', 'کانال خبر', '{}', '[]') RETURNING id""",
+        co["id"],
+    )
+    await su.execute(
+        """INSERT INTO lines.runs (company_id, line_id, line_version, trigger, state, at)
+           VALUES ($1, $2, 1, 'owner', 'queued', $3), ($1, $2, 1, 'owner', 'cancelled', $3)""",
+        co["id"],
+        line,
+        at,
+    )
+    manual = await client.post(
+        "/api/v1/campaign-calendar/items",
+        headers=h,
+        json={
+            "company": c,
+            "day": at.date().isoformat(),
+            "at": (at + timedelta(minutes=20)).isoformat(),
+            "title_fa": "پست دستی",
+            "platform": "telegram_post",
+        },
+    )
+    assert manual.status_code == 201
+    cal = await client.get(
+        "/api/v1/campaign-calendar",
+        headers=h,
+        params={
+            "from": (at - timedelta(days=1)).date().isoformat(),
+            "to": (at + timedelta(days=1)).date().isoformat(),
+            "company": c,
+        },
+    )
+    assert cal.status_code == 200, cal.text
+    items = cal.json()["items"]
+    lines = [i for i in items if i["kind"] == "line"]
+    assert len(lines) == 1 and lines[0]["title_fa"] == "کانال خبر" and lines[0]["state"] == "queued"
+    assert (
+        lines[0]["platform"] == "telegram_post" and lines[0]["company"] == c
+    )  # the cancelled run is left out
+    posts = [i for i in items if i["platform"] == "telegram_post"]
+    assert len(posts) == 2 and all("کمتر از" in (i["conflict_fa"] or "") for i in posts)
+
+
 async def test_only_the_owner_reaches_the_growth_routes(
     client: httpx.AsyncClient, new_company: Callable[..., Any]
 ) -> None:

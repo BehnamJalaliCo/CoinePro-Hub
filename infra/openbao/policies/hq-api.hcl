@@ -57,3 +57,9 @@ path "transit/decrypt/archive-secret" {
 path "kv/data/hq/newsletter/api" {
   capabilities = ["read"]
 }
+
+# Prompt 22 (contract §30.4): the HMAC key shared with n8n, read to check its
+# signed callback (POST /internal/v1/lines/callback); never written here.
+path "kv/data/hq/n8n" {
+  capabilities = ["read"]
+}

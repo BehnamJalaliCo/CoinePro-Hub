@@ -72,6 +72,9 @@ Schedule ids:
                               check, competitors' public figures; nothing while locked)
     hq-home-morning           daily 08:00 (owner's zone)  HomeMorning (§29.13: suggestions,
                               progress, the morning's lines; rule-only, no outside call)
+    hq-lines-tick             every 5 min   LinesTick (prompt 22, §30.3: a run for each line's
+                              schedule due, open runs started again, the 24h / 7d reads;
+                              only with HQ_LINES=on, nothing while the holding is locked)
     recurring-<work ref>      the work's RRULE as a calendar spec in its zone,
                               end = min(UNTIL, escrow expiry); paused while the
                               company or the holding is locked
@@ -152,6 +155,7 @@ P21C = (GROUPS_TICK, CONNECTIONS_READ, HOME_MORNING)
 NEWSLETTER_READ = "hq-newsletter-read"  # prompt 22 part 3 (§31.3)
 SEO_READ = "hq-seo-read"  # prompt 22 part 3 (§31.4)
 P22G = (NEWSLETTER_READ, SEO_READ)
+LINES_TICK = "hq-lines-tick"  # prompt 22
 FIXED = (
     SUPPORT_SWEEP,
     MAINTENANCE,
@@ -183,6 +187,7 @@ FIXED = (
     *P14,
     *P21C,
     *P22G,
+    LINES_TICK,
 )
 
 
@@ -353,6 +358,7 @@ def fixed(
         *p14_fixed(tz),
         *p21c_fixed(tz),
         *p22g_fixed(tz),
+        Desired(LINES_TICK, "LinesTick", (), every(5), timedelta(minutes=5), timedelta(minutes=4)),
     ]
 
 

@@ -80,6 +80,9 @@ KINDS = (
     # ⟨1.8⟩ prompt 17 (contract §26.3): a destructive command on a company
     # server waits for the owner's seal (🔏 server.destructive on <CODE>:<server>)
     "server_destructive",
+    # ⟨1.12⟩ prompt 22 (contract §30.3): a production line's gated step (its
+    # publish in draft mode, a seal step, a step with gate owner|ceo)
+    "line_publish",
 )
 ACTION_CLASS = {
     "hire": "A2",
@@ -121,6 +124,7 @@ ACTION_CLASS = {
     "archive_schema": "A2",
     "archive_disposal": "A3",
     "server_destructive": "A3",
+    "line_publish": "A3",
 }
 # Kinds whose approval needs the owner's step-up (🔏) besides every A3.
 # code_session: its seal is the grant (contract §17.3), so it is sealed like one.
@@ -162,6 +166,7 @@ SYSTEM_CARD_KINDS = (
     "role_new",
     "archive_disposal",
     "server_destructive",  # ⟨1.8⟩ only the hub's classification raises it
+    "line_publish",  # ⟨1.12⟩ only the line engine raises it (§30.3)
 )
 # ⟨1.7⟩ applied in the deciding transaction, bound to what they show (§23.11)
 ARCHIVE_CARD_KINDS = ("archive_schema", "archive_disposal")
@@ -526,6 +531,23 @@ class MediaPublishPayload(Model):
     checks: list[dict[str, Any]] = Field(default_factory=list, max_length=10)
 
 
+class LinePublishPayload(Model):
+    """⟨1.12⟩ A production line's gated step (contract §30.3): approving it
+    lets the run go on (its publish, or the step after a seal); rejecting it
+    ends the run. Raised by the line engine only."""
+
+    run: str = Field(pattern=r"^RN-[0-9]{6,}$")
+    line: str = Field(pattern=r"^LN-[0-9]{4,}$")
+    step: str = Field(pattern=r"^[a-z][a-z0-9_]{1,40}$")
+    kind: str = Field(max_length=40)
+    gate: Literal["owner", "ceo"]
+    platform: str = Field(max_length=40)
+    title_fa: str = Field(min_length=1, max_length=300)
+    mode: Literal["draft", "auto"]
+    dry: bool = False
+    preview: dict[str, Any] = Field(default_factory=dict)
+
+
 class ServerRef(Model):
     id: str = Field(min_length=1, max_length=64)
     name: str = Field(min_length=1, max_length=63)
@@ -655,6 +677,7 @@ PAYLOADS: dict[str, type[Model]] = {
     "archive_schema": ArchiveSchemaPayload,
     "archive_disposal": ArchiveDisposalPayload,
     "server_destructive": ServerDestructivePayload,
+    "line_publish": LinePublishPayload,
 }
 
 
@@ -692,6 +715,7 @@ class DecisionIn(Model):
         "archive_schema",
         "archive_disposal",
         "server_destructive",
+        "line_publish",
     ]
     title: str = Field(min_length=1, max_length=300)
     what: str = Field(default="", max_length=20000)
@@ -773,7 +797,7 @@ class Decision(BaseModel):
 
 # ⟨21⟩ §29.1 / §29.15: the card kinds an agent approver decides with `card.decide`
 # (a hire card keeps its own `hire.decide`).
-AGENT_CARD_KINDS = ("server_destructive",)
+AGENT_CARD_KINDS = ("server_destructive", "line_publish")
 
 
 DECISION_SQL = """
@@ -1149,6 +1173,14 @@ async def propose(
         # ⟨21⟩ §29.1 / §29.15: the company's CTO decides, but for the categories
         # the owner keeps (owner.settings.destructive_owner_categories)
         approver = await destructive_approver(tx, company_id, company_kind, payload["category"])
+    if body.kind == "line_publish" and payload["gate"] == "ceo":
+        # ⟨1.12⟩ §30.3 a step with `gate: ceo` is the company's CEO's (the owner's
+        # while the company has none)
+        approver = await tx.scalar(
+            """SELECT code FROM core.employees WHERE company_id = :co AND kind = 'ceo'
+                 AND status = 'active' ORDER BY hired_at LIMIT 1""",
+            co=company_id,
+        )
     # ⟨21⟩ §29.1: the card's domain; the owner sees it when the owner decides it
     domain = routing.decision_domain(body.kind)
     row = await tx.one(
@@ -1245,6 +1277,24 @@ async def propose(
             ),
             kind="one_off",
             priority="P1",
+            assignee_code=approver,
+        )
+        await oversight.hold_if_watching(tx, d)
+        return d
+    if approver and body.kind == "line_publish":
+        await W.create(
+            tx,
+            Principal(kind="service", code="lines", role="service"),
+            company_id=company_id,
+            company_code=company_code,
+            title=f"تصمیم درباره‌ی {d['ref']}: {d['title']}"[:300],
+            brief=(
+                f"گام «{payload['step']}» از اجرای {payload['run']} (خط {payload['line']}) منتظر "
+                "مُهر توست. خروجی در کارت است. با card.decide (approve / reject) و یک یادداشت "
+                "تصمیم بگیر؛ تا تصمیم تو، خط جلو نمیرود."
+            ),
+            kind="one_off",
+            priority="P2",
             assignee_code=approver,
         )
         await oversight.hold_if_watching(tx, d)
@@ -1437,7 +1487,8 @@ async def decide(
         await tx.exec(
             """UPDATE work.work SET status = 'cancelled', close_reason = :r, closed_at = now()
                WHERE starts_with(title, :t) AND created_by_kind = 'service'
-                 AND created_by_code = 'servers' AND status IN ('queued', 'in_progress', 'waiting')""",
+                 AND created_by_code IN ('servers', 'lines')
+                 AND status IN ('queued', 'in_progress', 'waiting')""",
             t=f"تصمیم درباره‌ی {d['ref']}:",
             r=f"{d['ref']}: مالک خودش تصمیم گرفت",
         )
@@ -1572,6 +1623,10 @@ async def decide(
         from hq_api.domain import servers
 
         await servers.on_decided(tx, d, verdict)
+    if d["kind"] == "line_publish":  # ⟨1.12⟩ §30.3 the run goes on, or it ends
+        from hq_api.lines import engine as line_engine
+
+        await line_engine.on_card_decided(tx, d, verdict, note, who)
     if d["kind"] == "role_new" and verdict in ("rejected", "returned"):
         from hq_api.domain import role_drafts
 

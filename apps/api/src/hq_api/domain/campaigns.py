@@ -258,37 +258,46 @@ async def _newsletters(
 async def _lines(
     tx: Tx, lo: datetime, hi: datetime, tz: str, co: UUID | None, codes: dict[UUID, str]
 ) -> list[CalendarItem]:
-    """The engine's runs (§30). Its tables are another part's: if they are not there,
-    or are shaped differently, the source gives nothing."""
+    """The production lines (§30): the engine's own calendar (every `on` line's planned
+    occurrences and the runs made), imported lazily. Without the engine (no module, no
+    tables) or if it answers in another shape, the source gives nothing, never an error."""
+    try:
+        from hq_api.lines import store as line_store
+    except ImportError:
+        return []
     if not (await _optional(tx, "lines.runs") and await _optional(tx, "lines.lines")):
         return []
     try:
         async with tx.conn.begin_nested():
-            rows = await tx.all(
-                """SELECT r.ref AS run_ref, r.state, r.at, l.company_id, l.platform, l.title_fa
-                   FROM lines.runs r JOIN lines.lines l ON l.id = r.line_id
-                   WHERE r.at >= :lo AND r.at < :hi AND (CAST(:co AS uuid) IS NULL OR l.company_id = :co)""",
-                lo=lo,
-                hi=hi,
-                co=co,
-            )
+            days = await line_store.calendar(tx, lo, hi, tz, co)
+            titles = {
+                r["ref"]: r["title_fa"]
+                for r in await tx.all("SELECT ref, title_fa FROM lines.lines")
+            }
+        out = []
+        for d in days:
+            for it in d["items"]:
+                if str(it["state"]) in LINE_SKIP:
+                    continue
+                out.append(
+                    CalendarItem(
+                        day=_day(it["at"], tz),
+                        at=it["at"],
+                        company=str(it["company"]),
+                        kind="line",
+                        ref=str(it["run"] or it["line"]),
+                        title_fa=str(titles.get(it["line"]) or it["line"]),
+                        platform=it["platform"],
+                        state=str(it["state"]),
+                    )
+                )
     except Exception:
-        log.info("the lines tables look different; the line source is skipped", exc_info=True)
-        return []
-    return [
-        CalendarItem(
-            day=_day(r["at"], tz),
-            at=r["at"],
-            company=codes.get(r["company_id"], "-"),
-            kind="line",
-            ref=str(r["run_ref"]),
-            title_fa=str(r["title_fa"]),
-            platform=r["platform"],
-            state=str(r["state"]),
+        log.info(
+            "the lines calendar answered in another shape; the line source is skipped",
+            exc_info=True,
         )
-        for r in rows
-        if str(r["state"]) not in LINE_SKIP
-    ]
+        return []
+    return out
 
 
 async def _ads(

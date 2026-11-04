@@ -9,7 +9,8 @@
 #   work.budget                 a CEO, a work of its own company («+X», inside
 #                               the month envelope, which the api checks)
 #   card.decide                 the approver the card names, in its own company
-#                               (a company's CTO, its server_destructive cards)
+#                               (a company's CTO, its server_destructive cards;
+#                               ⟨1.12⟩ its CEO, a line's step with gate: ceo)
 package hq.internal
 
 import rego.v1
