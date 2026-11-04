@@ -10,6 +10,8 @@ export const NAV_MAIN: NavItem[] = [
   { href: '/outputs', label: 'خروجی‌ها', icon: 'deliverable', badge: 'deliverables' },
   // ⟨1.11⟩ §29: the business first — the working groups, the connections that measure them, the owner's rules.
   { href: '/groups', label: 'کارگروه‌ها', icon: 'companies' },
+  { href: '/line-calendar', label: 'تقویم انتشار', icon: 'planner' },
+  { href: '/library', label: 'کتابخانه‌ی تولید', icon: 'attach' },
   { href: '/connections', label: 'اتصال‌ها', icon: 'globe' },
   { href: '/rules', label: 'قانون‌های من', icon: 'seal' },
   { href: '/advisor', label: 'مشاور کل', icon: 'advisor' },

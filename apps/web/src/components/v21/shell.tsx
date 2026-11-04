@@ -85,6 +85,8 @@ export const GROUPS: Group[] = [
   // ⟨1.11⟩ §29: the business — the working groups, what they measure, and the owner's rules.
   { key: 'business', title: 'رشد کسب‌وکار', note: 'کارگروه‌ها، عددهای واقعی و قانون‌های تو', tools: [
     { href: '/groups', label: 'کارگروه‌ها', icon: 'companies', hint: 'تیم ثابت هر کار رشد، با روال روزانه، شاخص و آزمایش هفتگی' },
+    { href: '/line-calendar', label: 'تقویم انتشار', icon: 'planner', hint: 'چه چیزی کی و کجا منتشر میشود، همه‌ی شرکت‌ها در یک نگاه' },
+    { href: '/library', label: 'کتابخانه‌ی تولید', icon: 'attach', hint: 'پوشه‌ی کاورها، صداها، پرامپت‌ها و الگوها برای خط‌های تولید' },
     { href: '/connections', label: 'اتصال‌ها', icon: 'globe', hint: 'سئو، آمار سایت، اینستاگرام، تلگرام و بقیه؛ با راهنمای وصل کردن' },
     { href: '/rules', label: 'قانون‌های من', icon: 'seal', hint: 'آنچه دیگر نباید تکرار شود؛ ناظر هر روز میپاید' },
   ] },
