@@ -57,6 +57,7 @@ LOOKBACK = timedelta(minutes=30)  # a schedule's occurrence the tick still makes
 KICK_AFTER = timedelta(minutes=2)  # an open run no workflow moved, started again
 CALLBACK = "callback"
 TEST_TIMEOUT_S = 300  # the owner's «آزمودن» of one step waits at most this long
+OVERDUE = "SELECT CAST(:t AS timestamptz) < now() - CAST(:w AS interval)"
 LOCK_FA = {
     "holding": "هلدینگ قفل است (کلید توقف)؛ اجرا انجام نشد.",
     "company": "این شرکت قفل است؛ اجرا انجام نشد.",
@@ -516,7 +517,25 @@ async def advance(hub: Any, ref: str) -> dict[str, Any]:
             w = next((s for s in steps if s["state"] == "waiting"), None)
             if w is not None:
                 since = w["started_at"] or run["updated_at"]
-                if await tx.scalar("SELECT :t < now() - :w", t=since, w=WAIT_MAX):
+                if w["gate"] is None:  # a callback: the step's own timeout_s
+                    body = await store.version_body(tx, run["line_id"], run["line_version"])
+                    sdef = step_def(body, w["key"])
+                    limit = timedelta(seconds=int(sdef["timeout_s"]))
+                    if await tx.scalar(OVERDUE, t=since, w=limit):
+                        await tx.exec(
+                            "UPDATE lines.step_runs SET state = 'running' WHERE id = :id",
+                            id=w["id"],
+                        )
+                        await tx.exec(
+                            "UPDATE lines.runs SET state = 'running' WHERE id = :id", id=run["id"]
+                        )
+                        late = StepFailed(
+                            "پاسخ گردش کار در زمان خودش نرسید.", code="timeout", retry=True
+                        )
+                        state = await _failed(tx, run, {**w, "state": "running"}, sdef, late, steps)
+                        return {"state": state}
+                    return {"state": "waiting"}
+                if await tx.scalar(OVERDUE, t=since, w=WAIT_MAX):
                     await _withdraw(tx, run, "بی پاسخ ماند")
                     await _end(tx, run, "cancelled", "یک هفته بی پاسخ ماند و بسته شد.")
                     return {"state": "cancelled"}
@@ -626,12 +645,15 @@ async def call(
             f"ابزار گام «{sdef['kind']}» هنوز آماده نیست.", code="no_adapter", retry=False
         )
     try:
-        out = await asyncio.wait_for(adapter.run(ctx), timeout=int(sdef["timeout_s"]))
+        limit = min(int(sdef["timeout_s"]), T.MAX_TIMEOUT_S)
+        out = await asyncio.wait_for(adapter.run(ctx), timeout=limit)
     except StepFailed as exc:
         return None, exc
     except TimeoutError:
         return None, StepFailed(
-            f"گام در {int(sdef['timeout_s'])} ثانیه تمام نشد.", code="timeout", retry=True
+            f"گام در {min(int(sdef['timeout_s']), T.MAX_TIMEOUT_S)} ثانیه تمام نشد.",
+            code="timeout",
+            retry=True,
         )
     except Exception as exc:  # noqa: BLE001 - an adapter's bug fails its step, never the engine
         log.warning("line step raised", extra={"kind": sdef["kind"], "error": type(exc).__name__})

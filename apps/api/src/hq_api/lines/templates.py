@@ -28,7 +28,10 @@ SEED_DIR = Path(__file__).resolve().parents[3] / "seed" / "lines"
 NOT_TEMPLATES = ("rules.yaml",)  # §31.1 the platform rules live beside the templates
 KEY = re.compile(r"^[a-z][a-z0-9_]{1,40}$")
 GATES = ("auto", "owner", "ceo")
-MAX_TIMEOUT_S = 7200  # a render may take long; nothing waits more than two hours
+MAX_TIMEOUT_S = 7200  # one call of an adapter (a render may take long): two hours at most
+# A step that waits for its signed callback (n8n) may wait up to its timeout_s,
+# a week at most (the gates' own limit too).
+MAX_WAIT_S = 7 * 24 * 3600
 _extra_dirs: tuple[Path, ...] = ()
 
 
@@ -43,7 +46,7 @@ class StepDef(BaseModel):
     optional: bool = False
     enabled: bool = True
     max_attempts: int = Field(default=1, ge=1, le=3)
-    timeout_s: int = Field(default=300, ge=5, le=MAX_TIMEOUT_S)
+    timeout_s: int = Field(default=300, ge=5, le=MAX_WAIT_S)
 
     @field_validator("kind")
     @classmethod

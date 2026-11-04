@@ -39227,7 +39227,7 @@
           },
           "timeout_s": {
             "default": 300,
-            "maximum": 7200.0,
+            "maximum": 604800.0,
             "minimum": 5.0,
             "title": "Timeout S",
             "type": "integer"

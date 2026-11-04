@@ -582,7 +582,10 @@ async def test_versions_and_revert(
     assert (
         out["version"] == 4 and out["title_fa"] == "ریل روزانه" and out["caps"]["runs_per_day"] == 5
     )
-    assert out["steps"][0]["prompt_fa"].startswith("برای ") and "متن تازه" not in out["steps"][0]["prompt_fa"]
+    assert (
+        out["steps"][0]["prompt_fa"].startswith("برای ")
+        and "متن تازه" not in out["steps"][0]["prompt_fa"]
+    )
     r = await client.post(f"{API}/lines/{ref}/revert", json={"version": 3}, headers=h)  # caps rise
     assert r.status_code == 403
     on = await client.post(f"{API}/lines/{ref}/state", json={"state": "on"}, headers=h)
@@ -752,6 +755,17 @@ async def test_n8n_callback_is_signed_and_a_ceo_gate_is_the_ceos(
         assert steps_of(cur)["approve"]["output"]["data"]["sealed"] is True
         await seal(client, hub, owner_session, cur)
         assert (await engine.drive(hub, run["ref"]))["state"] == "done"
+        # a callback that never comes: the step fails after its timeout_s
+        late = await start(client, h, line["ref"])
+        assert (await engine.drive(hub, late["ref"]))["state"] == "waiting"
+        await su.execute(
+            """UPDATE lines.step_runs s SET started_at = now() - interval '1 hour' FROM lines.runs r
+               WHERE r.id = s.run_id AND r.ref = $1 AND s.key = 'flow'""",
+            late["ref"],
+        )
+        assert (await engine.drive(hub, late["ref"]))["state"] == "failed"
+    late = await get_run(client, h, late["ref"])
+    assert steps_of(late)["flow"]["state"] == "failed" and "نرسید" in late["note_fa"]
 
 
 async def test_the_routes_are_the_owners(
