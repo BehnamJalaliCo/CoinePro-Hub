@@ -11,7 +11,7 @@ ENV_FILE := infra/compose/.env
 	install-systemd llm-provision claude-token llm-smoke test-services lock owner-enroll openapi \
 	audit-reanchor verify-live bootstrap-month1 prompt-check stt-fetch stt-eval tracing-on tracing-off \
 	backup-hourly restore-weekly pitr-test disk-hygiene gdrive-auth backup-password openbao-snapshot-token mcp-secret account-secret \
-	hetzner-token owner-ssh-key intake-secret telegram-bot-token connection-secret growth-secret \
+	hetzner-token owner-ssh-key intake-secret telegram-bot-token connection-secret growth-secret newsletter-secret \
 	chatgpt-login gemini-login chatgpt-web-login gemini-web-login deepseek-web-login
 .PHONY: mcp-build mcp-test mcp-index catalogue-rerender
 
@@ -136,6 +136,24 @@ tts-bakeoff: ## Prompt 13 §4.2: every shipped voice on the fixed scripts (RTF, 
 	docker run --rm --read-only --tmpfs /tmp:size=64m,mode=1777 --network none --cap-drop ALL \
 	  --memory "$$(sed -n 's/^MEM_TTS=\([0-9]*m\).*/\1/p' infra/compose/profiles/$$($(HQ) --print-profile).env)" \
 	  -v "$${OUT:-/tmp/hq-bakeoff}:/out" coinepro-hq/tts:0.1.0 python -m hq_tts.bakeoff --out /out
+
+# Prompt 22 part 3 (contract §31.3): the newsletter (Listmonk, opt-in profile
+# "newsletter"). Off until the owner orders the memory between the opt-ins.
+.PHONY: newsletter-on newsletter-off
+newsletter-on: ## Switch the newsletter on (Listmonk, profile "newsletter", refused over the memory budget)
+	@infra/compose/gen-env.sh
+	@infra/compose/set-env.sh HQ_NEWSLETTER on
+	$(HQ) up -d --wait listmonk
+	@infra/newsletter/seed-admin.sh
+	$(HQ) up -d --wait api worker
+
+newsletter-off: ## Switch the newsletter off again (the default): its routes answer «not configured», nothing is read
+	@infra/compose/set-env.sh HQ_NEWSLETTER off
+	-$(HQ) --profile newsletter stop listmonk
+	$(HQ) up -d --wait api worker
+
+newsletter-secret: ## OWNER: the hub's Listmonk API user (USER_NAME=<name>; the token is asked for, hidden)
+	@infra/openbao/newsletter-secret.sh "$(USER_NAME)"
 
 # Prompt 13 §2.3: the media studio's render worker (opt-in profile "media"; the
 # courier and the network-less renderer, run by the coinepro-hq-media timer).
