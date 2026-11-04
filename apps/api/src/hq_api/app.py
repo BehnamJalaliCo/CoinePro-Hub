@@ -89,6 +89,7 @@ from hq_api.routes import rules as rule_routes  # prompt 21: the owner's rules
 from hq_api.routes import seo as seo_routes  # prompt 22 part 3: §31.4
 from hq_api.routes import servers as server_routes  # prompt 17: company server runners
 from hq_api.routes import substitutes as substitute_routes  # prompt 12 part A
+from hq_api.routes import talk as talk_routes  # prompt 23: §32 the owner's talk
 from hq_api.routes import voice as voice_session_routes  # prompt 21: long voice
 from hq_api.routes import voices as voice_routes  # prompt 13: the voice registry
 from hq_api.routes import watch as watch_routes  # prompt 19: catalogue, client errors
@@ -306,6 +307,8 @@ def create_app(
     app.include_router(line_routes.internal_router, prefix="/internal/v1")
     # prompt 22 (contract §31.2): a ready company from one order
     app.include_router(kit_routes.router, prefix="/api/v1")
+    # ⟨1.14⟩ prompt 23 (contract §32): the owner's talk (owner only)
+    app.include_router(talk_routes.router, prefix="/api/v1")
     app.state.version = __version__
 
     plain_openapi = app.openapi

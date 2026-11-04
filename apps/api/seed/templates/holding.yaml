@@ -166,6 +166,14 @@ leadership:
       department: AIOPS
       title_fa: منشی جلسه
       title_en: Meeting Secretary
+    # ⟨1.14⟩ prompt 23 (contract §32.1): the holding secretary of the owner's
+    # talk (agents/roles/holding_secretary.md), a system role: never hired,
+    # rated or starred; it only reads, through its own talk runs.
+    - code_suffix: HSEC
+      kind: system
+      role: holding_secretary
+      title_fa: منشی هلدینگ
+      title_en: Holding Secretary
     # ⟨1.5⟩ prompt 12 §2.4: the Hub Librarian (agents/roles/librarian.md), a
     # system role like the secretary: never hired, rated or starred; it runs
     # only for the owner's «از هاب بپرس» (task class ask_hub).

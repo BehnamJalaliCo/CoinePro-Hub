@@ -888,7 +888,14 @@ MEETING_ONLY = ("meeting.statement", "meeting.challenge", "meeting.whisper", "me
 
 async def _meeting_turn_tools(ctx: Ctx, tx: Any, run: dict[str, Any], tool: str) -> None:
     """⟨1.5⟩ prompt 11 §11: a meeting turn has its slot's meeting tool and the
-    role's read (A0) tools only; the meeting tools exist only inside a turn."""
+    role's read (A0) tools only; the meeting tools exist only inside a turn.
+    ⟨1.14⟩ §32.2 a talk run (a persona's reads in the owner's talk) has its
+    charter's A0 tools only: talking never writes."""
+    if run["trigger"] == "talk":
+        lib = ctx.hub.charters
+        if lib is None or tool not in lib.tools or lib.tools[tool].cls != "A0":
+            raise ApiError(403, "policy_denied", "a talk run only reads (A0 tools)")
+        return
     if run["trigger"] != "meeting":
         if tool in MEETING_ONLY:
             raise ApiError(403, "policy_denied", f"{tool} is only for a meeting turn")

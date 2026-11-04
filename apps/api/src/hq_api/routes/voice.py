@@ -33,7 +33,8 @@ E = responses(401, 403, 404, 409, 410, 413, 415, 422, 429, 503)
 
 
 class SessionIn(Model):
-    purpose: Literal["order", "rule", "message", "note"] = "order"
+    # ⟨1.14⟩ §32.7 `talk`: a long turn of the owner's talk (additive)
+    purpose: Literal["order", "rule", "message", "note", "talk"] = "order"
 
 
 class Session(BaseModel):

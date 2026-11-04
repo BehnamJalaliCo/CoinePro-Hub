@@ -1,0 +1,24 @@
+# The default voice of each persona (contract §32.1; the owner picks the exact
+# voice by ear in the app: PUT /talk/personas/{key}). Engine keys are those of
+# seed/voice/engines.yaml (the voice layer's registry); voice names are the
+# engine's own (Gemini TTS: Kore, Charon, Puck ...).
+#
+# The secretary speaks with a woman's voice, the overseer with a man's, the
+# assistant with a young man's. A manager takes a voice from `pool` the first
+# time its role@company speaks, and keeps it (stored, never drawn again).
+engine: gemini-3.8-flash-tts
+engines: [gemini-3.8-flash-tts, gemini-3.8-flash-lite-tts, piper]
+personas:
+  secretary: {voice: Kore, rate: 1.0}
+  overseer: {voice: Charon, rate: 0.95}
+  assistant: {voice: Puck, rate: 1.05}
+  advisor: {voice: Orus, rate: 0.95}
+pool:
+  - {voice: Fenrir, rate: 1.0}
+  - {voice: Aoede, rate: 1.0}
+  - {voice: Iapetus, rate: 1.0}
+  - {voice: Leda, rate: 1.0}
+  - {voice: Algieba, rate: 1.0}
+  - {voice: Despina, rate: 1.0}
+  - {voice: Rasalgethi, rate: 1.0}
+  - {voice: Callirrhoe, rate: 1.0}

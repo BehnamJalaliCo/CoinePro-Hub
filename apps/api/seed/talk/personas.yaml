@@ -1,0 +1,67 @@
+# The personas of the owner's talk (contract §32.1). Data, not code: a new
+# persona is one entry here (its charter in agents/roles, its voice in
+# voices.yaml), never a new screen or a new engine.
+#
+# key           the persona's key (the API's `persona`); `manager` is a
+#               template filled by role@company (the role's own charter)
+# role          the charter (agents/roles/<role>.md); null for `manager`
+# employee_role the holding employee whose read tools the persona uses, through
+#               the Tool Gateway (a manager: the company's employee with that role)
+# effort        the brain's effort (task class `talk_turn`); the owner changes it
+# tools         the persona's read tools; code keeps only the A0 tools of its
+#               charter; `charter_reads` = every A0 tool of the charter
+# cards         the card kinds the persona may offer; a card of another kind is
+#               dropped by code (§32.2)
+# consult_only  never offers an order card (§32.3)
+# face          the avatar file the apps show at the top of the talk screen
+# The conversation's running summary every 10 turns (task class talk_summary,
+# §32.8): a light model, a low effort, a small answer.
+summary: {model: claude-haiku-5-5, effort: low, max_output_tokens: 700, every_turns: 10}
+personas:
+  - key: secretary
+    role: holding_secretary
+    employee_role: holding_secretary
+    title_fa: منشی هلدینگ
+    effort: medium
+    tools: charter_reads
+    cards: [order, ask, decision, planner, rule, automation, minutes, invite]
+    consult_only: false
+    face: secretary.webp
+  - key: overseer
+    role: overseer
+    employee_role: overseer
+    title_fa: ناظر کل
+    effort: high
+    tools: [work.get, company.state, health.sites, health.hub, treasury.usage, knowledge.search, audit.recent,
+            backups.status, revenue.read, calendar.read, governance.read, memory.read]
+    cards: [decision, ask, minutes, invite]
+    consult_only: true
+    face: overseer.webp
+  - key: assistant
+    role: assistant
+    employee_role: assistant
+    title_fa: دستیار شخصی
+    effort: medium
+    tools: [knowledge.search, memory.read, web.search, web.read]
+    cards: [order, ask, planner, decision, minutes]
+    consult_only: false
+    face: assistant.webp
+  - key: advisor
+    role: advisor
+    employee_role: advisor
+    title_fa: مشاور کل
+    effort: high
+    tools: [work.get, company.state, treasury.usage, knowledge.search, revenue.read, governance.read, calendar.read,
+            memory.read, web.search, web.read]
+    cards: [ask, decision, rule, minutes, invite]
+    consult_only: true
+    face: advisor.webp
+  - key: manager
+    role: null
+    employee_role: null
+    title_fa: مدیر
+    effort: medium
+    tools: charter_reads
+    cards: [order, hire, decision, ask]
+    consult_only: false
+    face: manager.webp

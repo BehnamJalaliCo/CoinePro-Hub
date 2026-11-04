@@ -230,3 +230,26 @@ async def transcribe(hub: Any, file_id: str, timeout_s: int) -> dict[str, Any]:
         execution_timeout=timedelta(seconds=timeout_s),
     )
     return result
+
+
+TALK_WORKFLOW = "TalkTurn"
+
+
+async def talk_turn(hub: Any, turn_id: str) -> bool:
+    """⟨1.14⟩ §32.2 one persona turn on the worker (it alone reaches
+    llm-router): True when started; False sends the api to its plain line."""
+    client = _client(hub)
+    if client is None:
+        return False
+    try:
+        await client.start_workflow(
+            TALK_WORKFLOW,
+            turn_id,
+            id=f"talk-turn-{turn_id}",
+            task_queue=hub.settings.task_queue,
+            id_conflict_policy=WorkflowIDConflictPolicy.USE_EXISTING,
+        )
+    except Exception:  # noqa: BLE001 - the plain line answers instead
+        log.warning("could not start the talk turn", extra={"turn": turn_id})
+        return False
+    return True
