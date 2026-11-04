@@ -2086,8 +2086,8 @@ networks:
     internal: true
     ipam:
       config:
-        - subnet: 172.30.24.0/24
-          gateway: 172.30.24.1
+        - subnet: 172.30.26.0/24
+          gateway: 172.30.26.1
   hq-newsletter-out:
     # ⟨1.13⟩ Listmonk's one route out: SMTP to the owner's mail provider (and the
     # links it follows). Listmonk is its only member; nothing else of the hub is on it.
