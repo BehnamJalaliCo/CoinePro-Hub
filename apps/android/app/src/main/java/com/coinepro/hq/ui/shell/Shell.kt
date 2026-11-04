@@ -346,6 +346,7 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                 onMore = { tools = true; graph.errors.crumb("sheet tools") },
                 onDemo = { com.coinepro.hq.Demo.simulateRestart() },
                 onVoice = { voice = true },
+                onTalk = { if (route != "talk") navApi.go("talk") },
             )
             // A restart of the hub (a deploy): one calm line, the screens keep what they had and reconnect on their own.
             androidx.compose.animation.AnimatedVisibility(hubState == com.coinepro.hq.core.net.HubState.RESTARTING, enter = com.coinepro.hq.designsystem.expandIn(), exit = com.coinepro.hq.designsystem.collapseOut()) {
@@ -422,6 +423,10 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     composable("companies/{code}") { CompanyScreen(it.arguments?.getString("code").orEmpty()) }
                     composable("catalogue/{code}") { com.coinepro.hq.ui.companies.CatalogueScreen(it.arguments?.getString("code").orEmpty()) }
                     composable("watch") { com.coinepro.hq.ui.oversight.WatchScreen() }
+                    // ⟨1.14⟩ §32: talk, apart from the gold order button.
+                    composable("talk") { com.coinepro.hq.ui.v32.TalkScreen() }
+                    composable("talk/{ref}") { com.coinepro.hq.ui.v32.TalkScreen(ref0 = it.arguments?.getString("ref")) }
+                    composable("talk-list") { com.coinepro.hq.ui.v32.ConversationsScreen() }
                     composable("companies/{code}/{tab}") { CompanyScreen(it.arguments?.getString("code").orEmpty(), tab0 = it.arguments?.getString("tab") ?: "control") }
                     // ⟨1.11⟩ §29.12 a connection's guide opened at once (a blocker's or a readiness check's «وصل کن»).
                     composable("companies/{code}/connections/{kind}") { CompanyScreen(it.arguments?.getString("code").orEmpty(), tab0 = "connections", kind0 = it.arguments?.getString("kind")) }
@@ -537,7 +542,7 @@ private fun AnimatedContentTransitionScope<androidx.navigation.NavBackStackEntry
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun TopBar(back: Boolean, onBack: () -> Unit, stream: StreamState, demo: Boolean, urgent: Int, onBell: () -> Unit, onMore: () -> Unit, onVoice: () -> Unit, onDemo: () -> Unit = {}) {
+private fun TopBar(back: Boolean, onBack: () -> Unit, stream: StreamState, demo: Boolean, urgent: Int, onBell: () -> Unit, onMore: () -> Unit, onVoice: () -> Unit, onTalk: () -> Unit, onDemo: () -> Unit = {}) {
     val c = Divan.colors
     Column(Modifier.fillMaxWidth().background(c.page).statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -560,6 +565,8 @@ private fun TopBar(back: Boolean, onBack: () -> Unit, stream: StreamState, demo:
                 Modifier.size(32.dp).semantics { contentDescription = if (stream == StreamState.LIVE) "استریم زنده وصل است" else "استریم قطع است" },
                 contentAlignment = Alignment.Center,
             ) { LiveDot(if (stream == StreamState.LIVE) c.positive else c.warning, live = stream == StreamState.LIVE, size = 8.dp) }
+            // ⟨1.14⟩ §32.1: the talk button, apart from the gold order mic beside it.
+            com.coinepro.hq.ui.v32.TalkButton(onTalk)
             IconBtn(DivanIcon.MIC, "فرمان صوتی", onVoice, tint = c.goldInk)
             IconBtn(DivanIcon.BELL, "اعلان‌ها", onBell, badge = urgent)
             IconBtn(DivanIcon.MORE, "ابزارها", onMore)

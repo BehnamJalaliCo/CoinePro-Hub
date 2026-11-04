@@ -366,6 +366,9 @@ class HoldingStream(
             "line_run." to arrayOf("lines", "line-runs", "home"),
             "line." to arrayOf("lines", "line-runs"),
             // ⟨1.13⟩ §31.8 (topic `growth`): insights, daily ranks, a competitor's jump, a paused ad, an automation's run, a campaign.
+            // ⟨1.14⟩ §32.9 (topic `talk`): a turn or card changed; a voice engine's light or the meter moved.
+            "talk." to arrayOf("talk"),
+            "voice." to arrayOf("voice"),
             "insights." to arrayOf("insights", "lines"),
             "rank." to arrayOf("seo"),
             "competitor." to arrayOf("seo"),

@@ -37,6 +37,8 @@ enum class HubFeature {
     LINES,
     /** ⟨1.13⟩ §31: `/kits`, `/lines/{ref}/insights`, the newsletter, SEO, `/campaign-calendar`, ads and `/automations`; without them nothing of the growth screens shows. */
     GROWTH,
+    /** ⟨1.14⟩ §32: `/talk/...` and `/voice/...`; without them the talk button is hidden. */
+    TALK,
 }
 
 /**

@@ -1639,6 +1639,63 @@ class Api(
         return decoded(path) { e.itemsOrSelf().map { json.decodeFromJsonElement(s, it) } }
     }
 
+    // ---------------------------------------------------- ⟨1.14⟩ §32 talk --
+    suspend fun talkPersonas(): List<TalkPersona> = items("/talk/personas", TalkPersona.serializer())
+    /** The owner's change of a persona's voice, engine or effort (the charter is not editable here). */
+    suspend fun setTalkPersona(key: String, engine: String?, voice: String?, effort: String?): TalkPersona =
+        put("/talk/personas/${seg(key)}", buildJsonObject { if (engine != null) put("engine", engine); if (voice != null) put("voice", voice); if (effort != null) put("effort", effort) })
+
+    suspend fun talkConversations(persona: String? = null, q: String? = null, cursor: String? = null): List<TalkConversation> =
+        items("/talk/conversations", TalkConversation.serializer(), mapOf("persona" to persona, "q" to q?.takeIf { it.isNotBlank() }, "cursor" to cursor))
+    suspend fun newTalkConversation(persona: String, role: String? = null, company: String? = null, mode: String? = null): TalkConversation =
+        post("/talk/conversations", buildJsonObject { put("persona", persona); if (role != null) put("role", role); if (company != null) put("company", company); if (mode != null) put("mode", mode) })
+    suspend fun talkConversation(ref: String): TalkDetail = TalkDetail.parse(get<JsonElement>("/talk/conversations/${seg(ref)}"))
+    suspend fun patchTalkConversation(ref: String, mode: String? = null, titleFa: String? = null): TalkConversation =
+        send("PATCH", "/talk/conversations/${seg(ref)}", json.encodeToString(JsonElement.serializer(), buildJsonObject { if (mode != null) put("mode", mode); if (titleFa != null) put("title_fa", titleFa) }))
+    /** A turn of the owner (`Idempotency-Key` = [clientId], kept across a retry of one press); the answer streams on [TalkTurnOut.events]. */
+    suspend fun sendTalkTurn(ref: String, text: String, source: String, clientId: String): TalkTurnOut =
+        call(write("POST", "/talk/conversations/${seg(ref)}/turns", buildJsonObject { put("text", text); put("source", source); put("client_id", clientId) }, null, key = clientId), serializer())
+    suspend fun inviteToTalk(ref: String, role: String, company: String, department: String? = null): JsonObject? =
+        writeLoose("POST", "/talk/conversations/${seg(ref)}/invite", buildJsonObject { put("role", role); put("company", company); if (department != null) put("department", department) })
+    /** «صورت‌جلسه کن»: one `minutes` card from the conversation so far. */
+    suspend fun talkMinutes(ref: String): JsonObject? = writeLoose("POST", "/talk/conversations/${seg(ref)}/minutes", JsonObject(emptyMap()))
+    /** Barge-in: the owner spoke over the answer; generation ends and the sentences not yet spoken are not made. */
+    suspend fun stopTalkTurn(id: String): JsonObject? = writeLoose("POST", "/talk/turns/${seg(id)}/stop", JsonObject(emptyMap()))
+    /** «اجرا کن»: the card runs the route it stands for, with the owner's edits ([payload]). */
+    suspend fun runTalkCard(id: String, payload: JsonObject?, stepUp: StepUp? = null): TalkCardRun {
+        val body = if (payload == null) JsonObject(emptyMap()) else buildJsonObject { put("payload", payload) }
+        // A card keeps the seal of the route it runs (§32.9): asked first without the passkey; a route that needs it answers
+        // `403 step_up_required`, and the card is sealed on its id and sent again.
+        return try {
+            post("/talk/cards/${seg(id)}/run", body)
+        } catch (e: ApiException) {
+            if (stepUp == null || e.status != 403 || e.code != "step_up_required") throw e
+            e.logged?.let { failures?.forget(it) }
+            post("/talk/cards/${seg(id)}/run", body, stepUp("talk.card", id))
+        }
+    }
+    suspend fun dismissTalkCard(id: String): JsonObject? = writeLoose("POST", "/talk/cards/${seg(id)}/dismiss", JsonObject(emptyMap()))
+
+    suspend fun voiceEngines(): List<VoiceEngine> = items("/voice/engines", VoiceEngine.serializer())
+    suspend fun voiceVoices(engine: String): List<VoiceVoice> = items("/voice/engines/${seg(engine)}/voices", VoiceVoice.serializer())
+    suspend fun voiceMeter(period: String): VoiceMeter = get("/voice/meter", mapOf("period" to period))
+    /** 🔏 `voice.secret` on the provider: write-only; the hub checks the key and the light follows on the stream. */
+    suspend fun putVoiceSecret(provider: String, secret: String, stepUp: StepUp): VoiceSecretOut =
+        send("PUT", "/voice/providers/${seg(provider)}/secret", json.encodeToString(JsonElement.serializer(), buildJsonObject { put("secret", secret) }), stepUp = stepUp("voice.secret", provider))
+    suspend fun deleteVoiceSecret(provider: String, stepUp: StepUp) {
+        val token = stepUp("voice.secret", provider)
+        execute(Request.Builder().url(url("/voice/providers/${seg(provider)}/secret")).delete().header("X-Step-Up", token).build()).use { check(it) }
+    }
+    suspend fun checkVoiceEngine(key: String): JsonObject? = writeLoose("POST", "/voice/engines/${seg(key)}/check", JsonObject(emptyMap()))
+    /** «بشنوید»: a short sample in a voice; its cost lands on the meter. */
+    suspend fun talkVoiceSample(engine: String, voice: String, text: String? = null): TalkVoiceSample =
+        post("/voice/sample", buildJsonObject { put("engine", engine); put("voice", voice); if (text != null) put("text", text) })
+    suspend fun putVoicePrice(key: String, price: VoicePrice): VoiceEngine =
+        put("/voice/engines/${seg(key)}/price", buildJsonObject {
+            put("text_in_per_m", price.textInPerM); put("audio_out_per_m", price.audioOutPerM); put("audio_tokens_per_s", price.audioTokensPerS)
+            price.validUntil?.let { put("valid_until", it) }
+        })
+
     // ------------------------------------------------------------ plumbing --
     private fun seg(s: String): String = java.net.URLEncoder.encode(s, "UTF-8").replace("+", "%20")
     private fun ids(xs: List<String>) = JsonArray(xs.map(::JsonPrimitive))

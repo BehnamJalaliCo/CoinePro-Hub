@@ -687,6 +687,8 @@ data class OwnerSettings(
     val reminders: ReminderSettings? = null,
     val digitalCeo: DceoSettings? = null,
     val substitutes: SubstituteSettings? = null,
+    // ⟨1.14⟩ §32.6: the voice's monthly cap, when to warn and the engines after the persona's own (absent before prompt 23).
+    val voice: VoiceSettings? = null,
 )
 
 /** The Problem body of every error (contract §1): a stable [code] and a Persian [messageFa]. */

@@ -1,0 +1,281 @@
+package com.coinepro.hq.ui.v32
+
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import com.coinepro.hq.core.data.HANDS_FREE_FA
+import com.coinepro.hq.core.data.HandsFree
+import com.coinepro.hq.core.data.SOURCE_HOLD
+import com.coinepro.hq.core.data.SOURCE_TYPED
+import com.coinepro.hq.core.data.TALK_MODE_FA
+import com.coinepro.hq.core.data.TALK_MODE_HINT_FA
+import com.coinepro.hq.core.data.extractKey
+import com.coinepro.hq.core.data.keyPatterns
+import com.coinepro.hq.core.data.micOpen
+import com.coinepro.hq.core.data.withoutKey
+import com.coinepro.hq.core.media.clock
+import com.coinepro.hq.designsystem.BtnSize
+import com.coinepro.hq.designsystem.BtnVariant
+import com.coinepro.hq.designsystem.DIcon
+import com.coinepro.hq.designsystem.Divan
+import com.coinepro.hq.designsystem.FilterChip
+import com.coinepro.hq.designsystem.Fig
+import com.coinepro.hq.designsystem.HqButton
+import com.coinepro.hq.designsystem.IconBtn
+import com.coinepro.hq.designsystem.LiveDot
+import com.coinepro.hq.designsystem.generated.DivanIcon
+import com.coinepro.hq.designsystem.rememberBreath
+import com.coinepro.hq.ui.LocalEnv
+import com.coinepro.hq.ui.LocalToasts
+import com.coinepro.hq.ui.media.Waveform
+import com.coinepro.hq.ui.rememberQuery
+import com.coinepro.hq.ui.v29.rememberLongVoice
+import kotlinx.coroutines.launch
+
+// Contract §32.7: how the owner speaks. Typing; holding the mic (hold, speak, release); and hands-free (one tap: the app listens, a turn
+// ends after a short silence, listening resumes after the answer). The 🔑 opens the secure sheet, and a key-shaped string never enters
+// the composer or a turn.
+
+/** What the held microphone is doing, for the composer to draw. */
+data class HoldUi(val active: Boolean = false, val transcribing: Boolean = false, val partial: String = "", val levels: List<Float> = emptyList(), val seconds: Double = 0.0)
+
+/** The sound-wave glyph of talk: five bars of different heights (the talk button, the hands-free switch). */
+@Composable
+fun WaveGlyph(size: Dp = 22.dp, tint: Color = Divan.colors.textSecondary, modifier: Modifier = Modifier) {
+    Canvas(modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+        val heights = listOf(0.3f, 0.6f, 0.95f, 0.6f, 0.3f)
+        val step = w / (heights.size + 0.2f)
+        val stroke = (w * 0.1f).coerceAtLeast(1.5.dp.toPx())
+        heights.forEachIndexed { i, k ->
+            val x = step * (i + 0.6f)
+            drawLine(tint, androidx.compose.ui.geometry.Offset(x, h / 2 - h * k / 2), androidx.compose.ui.geometry.Offset(x, h / 2 + h * k / 2), strokeWidth = stroke, cap = StrokeCap.Round)
+        }
+    }
+}
+
+/** The talk button of the app bar: apart from the gold order button, in the lapis of the conversation. */
+@Composable
+fun TalkButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val c = Divan.colors
+    Box(
+        modifier.size(44.dp).clip(CircleShape).clickable(role = Role.Button, onClickLabel = "گفتگو با منشی و مدیرها", onClick = onClick).semantics { contentDescription = "گفتگو" },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(Modifier.size(32.dp).clip(CircleShape).background(c.softLapis).border(1.dp, c.lapis.copy(alpha = 0.55f), CircleShape), contentAlignment = Alignment.Center) { WaveGlyph(18.dp, c.lapis) }
+    }
+}
+
+/** «مشورت | جلسه‌ی کاری», and «پایان جلسه» while working. */
+@Composable
+fun ModeStrip(mode: String, onMode: (String) -> Unit, onEnd: () -> Unit, ending: Boolean = false, modifier: Modifier = Modifier) {
+    val c = Divan.colors
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (m in listOf("consult", "work")) FilterChip(TALK_MODE_FA.getValue(m), mode == m, { onMode(m) })
+            androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+            if (mode == "work") HqButton("پایان جلسه", onEnd, variant = BtnVariant.SILVER, size = BtnSize.SM, icon = DivanIcon.SEAL, loading = ending)
+        }
+        Text(TALK_MODE_HINT_FA[mode].orEmpty(), style = Divan.type.micro, color = c.textMuted)
+    }
+}
+
+/** The composer, as pure drawing: every state it can be in is given, so it can be shown in each of them. */
+@Composable
+fun TalkComposerView(
+    text: String,
+    onText: (String) -> Unit,
+    hold: HoldUi,
+    handsFree: HandsFree,
+    hfPartial: String,
+    hfLevels: List<Float>,
+    sending: Boolean,
+    onSend: () -> Unit,
+    onKey: () -> Unit,
+    onHandsFree: () -> Unit,
+    onHoldStart: () -> Unit,
+    onHoldEnd: () -> Unit,
+    modifier: Modifier = Modifier,
+    placeholder: String = "بنویس، یا میکروفون را نگه دار…",
+) {
+    val c = Divan.colors
+    val canSend = text.isNotBlank() && !sending && !hold.active && !hold.transcribing
+    val hf = handsFree != HandsFree.OFF
+    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.card).border(1.dp, if (hf) c.lapis.copy(alpha = 0.6f) else c.lineStrong, RoundedCornerShape(18.dp)).padding(6.dp)) {
+        // Held: the loudness and the words so far. Hands-free: what it is doing now.
+        if (hold.active || hold.transcribing) Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(Modifier.height(36.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (hold.transcribing) {
+                    CircularProgressIndicator(Modifier.size(16.dp), color = c.goldInk, strokeWidth = 2.dp)
+                    Text("در حال تبدیل به متن…", style = Divan.type.small, color = c.textSecondary)
+                } else {
+                    LiveDot(c.negative, size = 9.dp)
+                    Waveform(hold.levels, Modifier.weight(1f).height(26.dp))
+                    Fig(clock(hold.seconds), Modifier.width(40.dp), style = Divan.type.figureSmall, color = c.textSecondary)
+                }
+            }
+            if (hold.partial.isNotBlank()) Text(hold.partial, style = Divan.type.small, color = c.textSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            else if (hold.active) Text("رها کن تا فرستاده شود.", style = Divan.type.micro, color = c.textMuted)
+        } else if (hf) Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(Modifier.height(36.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                LiveDot(c.lapis, live = handsFree.micOpen(), size = 9.dp)
+                Waveform(hfLevels, Modifier.weight(1f).height(26.dp), color = c.lapis)
+            }
+            Text(hfPartial.ifBlank { HANDS_FREE_FA.getValue(handsFree) }, style = Divan.type.small, color = c.textSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            IconBtn(DivanIcon.LOCK, "کلید صدا", onKey, tint = c.textSecondary)
+            BasicTextField(
+                text, { if (it.length <= 10_000) onText(it) },
+                Modifier.weight(1f).heightIn(min = 44.dp).padding(horizontal = 4.dp, vertical = 10.dp).semantics { contentDescription = placeholder },
+                textStyle = Divan.type.body.copy(color = c.textPrimary),
+                cursorBrush = SolidColor(c.goldInk),
+                maxLines = 5,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
+                decorationBox = { inner -> Box { if (text.isEmpty()) Text(placeholder, style = Divan.type.small, color = c.textMuted, maxLines = 2); inner() } },
+            )
+            // Hands-free: one tap, listening until it is switched off.
+            Box(
+                Modifier.size(44.dp).clip(CircleShape).background(if (hf) c.softLapis else Color.Transparent)
+                    .clickable(role = Role.Switch, onClickLabel = if (hf) "خاموش کردن دست‌آزاد" else "روشن کردن دست‌آزاد", onClick = onHandsFree)
+                    .semantics { contentDescription = "دست‌آزاد" },
+                contentAlignment = Alignment.Center,
+            ) { WaveGlyph(22.dp, if (hf) c.lapis else c.textSecondary) }
+            HoldMic(hold, onHoldStart, onHoldEnd)
+            if (text.isNotBlank()) com.coinepro.hq.ui.media.RoundAction(DivanIcon.SEND, "بفرست", canSend, onSend, busy = sending)
+        }
+    }
+}
+
+/** The hold-to-talk button: press, speak, release. It swells with the owner's voice while held. */
+@Composable
+private fun HoldMic(hold: HoldUi, onStart: () -> Unit, onEnd: () -> Unit) {
+    val c = Divan.colors
+    val level = hold.levels.lastOrNull() ?: 0f
+    val grow by animateFloatAsState(if (hold.active) 1.16f + 0.2f * level else 1f, com.coinepro.hq.designsystem.motionShort(), label = "mic")
+    val breath = rememberBreath(hold.active, periodMs = 900)
+    Box(
+        Modifier.size(52.dp)
+            .semantics { contentDescription = "نگه دار و حرف بزن"; role = Role.Button }
+            .pointerInput(Unit) {
+                detectTapGestures(onPress = {
+                    onStart()
+                    tryAwaitRelease()
+                    onEnd()
+                })
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(Modifier.size(52.dp)) {
+            if (hold.active) drawCircle(c.goldFill.copy(alpha = 0.14f + 0.14f * breath.value), this.size.minDimension / 2 * (0.9f + 0.1f * breath.value), style = Stroke(2.dp.toPx()))
+        }
+        Box(Modifier.size(44.dp).scale(grow).clip(CircleShape).background(if (hold.active) c.goldFill else c.softGold), contentAlignment = Alignment.Center) {
+            DIcon(DivanIcon.MIC, size = 22.dp, tint = if (hold.active) c.onGold else c.goldInk)
+        }
+    }
+}
+
+/** The composer wired to a [session]: typed, held and hands-free turns, and the key kept out of all three. */
+@Composable
+fun TalkComposer(session: TalkSession, hf: HandsFreeTalk, onKey: (String) -> Unit, modifier: Modifier = Modifier) {
+    val toasts = LocalToasts.current
+    val scope = rememberCoroutineScope()
+    val engines = rememberQuery("voice-engines", "voice", maxAgeMs = 30_000) { voiceEngines() }
+    val patterns = keyPatterns(engines.data.orEmpty())
+    // The draft is saved with the screen; a key never is (it is taken out of the text before it is stored).
+    var text by rememberSaveable(session.conv?.ref) { mutableStateOf("") }
+    var sending by remember { mutableStateOf(false) }
+    val mic = rememberMicPermission { toasts.info("حالا دکمه‌ی میکروفون را نگه دار و حرف بزن.") }
+    var pressedAt by remember { mutableStateOf(0L) }
+
+    fun change(next: String) {
+        val k = extractKey(next, patterns)
+        if (k != null) { text = withoutKey(next, k); onKey(k) } else text = next
+    }
+
+    val vh = rememberLongVoice("talk") { r ->
+        val said = r.text.trim()
+        val k = extractKey(said, patterns)
+        if (k != null) onKey(k) else scope.launch { session.send(said, SOURCE_HOLD) }
+    }
+    val v = vh.v
+
+    fun send() {
+        val body = text.trim()
+        if (body.isEmpty() || sending) return
+        val k = extractKey(body, patterns)
+        if (k != null) { text = withoutKey(body, k); onKey(k); return }
+        sending = true
+        scope.launch {
+            val ok = try { session.send(body, SOURCE_TYPED) } finally { sending = false }
+            if (ok) text = ""
+        }
+    }
+
+    TalkComposerView(
+        text, ::change,
+        HoldUi(v.recording, v.transcribing, v.partial, v.levels.toList(), v.elapsed),
+        hf.state, hf.partial, hf.levels.toList(),
+        sending, ::send,
+        { onKey("") },
+        { if (hf.on) hf.stop() else if (!mic.granted()) mic.ask() else { v.cancel(); hf.start() } },
+        {
+            if (hf.on) hf.stop()
+            if (!mic.granted()) { mic.ask(); return@TalkComposerView }
+            session.bargeIn()
+            pressedAt = android.os.SystemClock.elapsedRealtime()
+            vh.start()
+        },
+        {
+            if (v.recording) {
+                // A tap is not a held press: it only teaches how.
+                if (android.os.SystemClock.elapsedRealtime() - pressedAt < 350) { v.cancel(); toasts.info("دکمه را نگه دار، حرف بزن و رها کن.") } else v.finish()
+            }
+        },
+        modifier,
+    )
+}
