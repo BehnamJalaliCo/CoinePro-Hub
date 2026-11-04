@@ -47,6 +47,9 @@ const INVALIDATE: Array<[string, Array<string | readonly string[]>]> = [
   ['ad.', ['g31']],
   ['automation.', ['g31']],
   ['campaign.', ['g31']],
+  // ⟨1.14⟩ §32.9 topic `talk`: a turn finished, a card, an engine's light, the meter.
+  ['talk.', ['talk']],
+  ['voice.', ['voice']],
   ['connection.', ['connections', 'groups']],
   ['rule.', ['rules']],
   ['hiring.', ['hiring']],

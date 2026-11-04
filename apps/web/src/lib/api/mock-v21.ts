@@ -24,6 +24,7 @@ import { handle28 } from './mock-v28';
 import { handle29 } from './mock-v29';
 import { handle30 } from './mock-v30';
 import { handle31 } from './mock-v31';
+import { handle32 } from './mock-v32';
 
 const json = (body: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const problem = (status: number, code: string, message_fa: string) => json({ code, message_fa, status, title: code, type: 'about:blank' }, status);
@@ -515,6 +516,9 @@ export async function handle(req: Request): Promise<Response> {
     // ⟨1.12⟩ §30 production lines (./mock-v30).
     const v30 = await handle30(req, u.pathname.replace(/^\/api\/v1/, ''), u.searchParams);
     if (v30) return v30;
+    // ⟨1.14⟩ §32 talk (./mock-v32).
+    const v32 = await handle32(req, u.pathname.replace(/^\/api\/v1/, ''));
+    if (v32) return v32;
     // ⟨1.13⟩ §31 growth (./mock-v31).
     const v31 = await handle31(req, u.pathname.replace(/^\/api\/v1/, ''), u.searchParams);
     if (v31) return v31;
