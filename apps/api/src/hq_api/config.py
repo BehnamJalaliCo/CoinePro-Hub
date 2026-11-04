@@ -311,6 +311,22 @@ class Settings:
     # ⟨21⟩ §29.11 the working groups' routines run (the worker's tick) only once
     # the deploy switches them on, a step of its own after the checks (prompt 21)
     groups: bool = field(default_factory=lambda: _env("HQ_GROUPS", "off") == "on")
+    # ⟨1.13⟩ prompt 22 part 3 (§31.3): Listmonk is the opt-in profile "newsletter"
+    # (hq.sh sets HQ_NEWSLETTER_ACTIVE on only while it fits the memory budget); its
+    # API on the internal network hq-newsletter; a list over `newsletter_size_limit`
+    # subscribers needs the owner's seal (newsletter.send) before a scheduled send.
+    newsletter: bool = field(default_factory=lambda: _env("HQ_NEWSLETTER", "off") == "on")
+    newsletter_url: str = field(
+        default_factory=lambda: _env("NEWSLETTER_URL", "http://listmonk:9000")
+    )
+    newsletter_size_limit: int = field(default_factory=lambda: _int("NEWSLETTER_SIZE_LIMIT", 500))
+    # ⟨1.13⟩ §31.5: two posts on one channel closer than this are a conflict (minutes);
+    # §31.4: a competitor's jump (new pages in a day / a follower move in percent).
+    campaign_post_spacing_min: int = field(
+        default_factory=lambda: _int("CAMPAIGN_POST_SPACING_MIN", 120)
+    )
+    competitor_jump_pages: int = field(default_factory=lambda: _int("COMPETITOR_JUMP_PAGES", 5))
+    competitor_jump_pct: int = field(default_factory=lambda: _int("COMPETITOR_JUMP_PCT", 10))
     tts_voice: str = field(default_factory=lambda: _env("HQ_TTS_VOICE", "fa_IR-amir-medium"))
     # The deploy card's diff (§21.6): fetched with the hub's existing git access
     # (a workspace's token in OpenBao) into mirrors under this directory; the
