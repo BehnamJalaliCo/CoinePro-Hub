@@ -27,7 +27,7 @@ from __future__ import annotations
 import base64
 import logging
 import time
-from typing import Any, Literal
+from typing import Any
 from urllib.parse import urlsplit
 
 import httpx
@@ -39,22 +39,39 @@ from hq_common.redact import scrub
 from hq_egress.guard import Blocked
 from hq_egress.hosts import covered
 from hq_egress.net import Entry, track
+from hq_egress.recipes import Account, TaskName
 from hq_egress.rules import get_commitment
 
 log = logging.getLogger("hq_egress.substitutes_web")
 router = APIRouter()
-Account = Literal["chatgpt-web", "gemini-web", "deepseek-web"]
 ERRORS = ("expired", "recipe_failed", "timeout", "busy", "off")
 DETAIL_CHARS = 300
 SCREENSHOT_BYTES = 2 * 1024 * 1024
-MIME_OK = ("image/png", "image/jpeg", "image/webp", "image/gif", "video/mp4", "video/webm")
+MIME_OK = (
+    "image/png", "image/jpeg", "image/webp", "image/gif", "video/mp4", "video/webm",
+    "audio/wav", "audio/mpeg", "audio/ogg", "audio/flac",
+)  # fmt: skip
+MAX_JOB_FILES = 10
+
+
+class JobFile(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=1, max_length=120)
+    b64: str = Field(min_length=1)
 
 
 class WebIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     account: Account
-    task: Literal["text", "image", "video"]
+    task: TaskName
     prompt: str = Field(min_length=1, max_length=20_000)
+    # prompt 22: what a lines step adds to a job (the prompt is then the text to speak, the
+    # query to search or the cover's brief): the speaker, a style note, how many results, and
+    # the files a cover is made from (named, base64; at most 10)
+    voice: str | None = Field(default=None, min_length=1, max_length=80)
+    style: str | None = Field(default=None, max_length=2000)
+    limit: int = Field(default=10, ge=1, le=30)
+    files: list[JobFile] = Field(default_factory=list, max_length=MAX_JOB_FILES)
     timeout_s: int = Field(default=300, ge=10, le=900)
     # ⟨1.10⟩ §28.4 the hub's one retry after a recipe failure
     reload: bool = False
@@ -135,6 +152,10 @@ async def web(a: WebIn, request: Request) -> JSONResponse:
             "proxy": {"server": s.web_proxy_url, "username": key, "password": password},
             "max_file_bytes": s.web_file_bytes,
             "reload": a.reload,
+            "voice": a.voice,
+            "style": scrub(a.style) if a.style else None,
+            "limit": a.limit,
+            "files": [f.model_dump() for f in a.files],
         }
         start = time.monotonic()
         try:
@@ -175,7 +196,9 @@ def _job_answer(got: Any, version: str, max_bytes: int) -> JSONResponse:
         mime = sniff(data)
         if mime is None:
             return failed(
-                "recipe_failed", "the download is not an image or a video", version=version
+                "recipe_failed",
+                "the download is not an image, a video or an audio file",
+                version=version,
             )
         name = str(file.get("name") or "file")[:120]
         file = {"name": name, "mime": mime, "b64": base64.b64encode(data).decode()}
@@ -205,6 +228,14 @@ def sniff(data: bytes) -> str | None:
         return "image/webp"
     if head[:6] in (b"GIF87a", b"GIF89a"):
         return "image/gif"
+    if head[:4] == b"RIFF" and head[8:12] == b"WAVE":
+        return "audio/wav"
+    if head[:3] == b"ID3" or (len(head) > 1 and head[0] == 0xFF and head[1] & 0xE0 == 0xE0):
+        return "audio/mpeg"
+    if head[:4] == b"OggS":
+        return "audio/ogg"
+    if head[:4] == b"fLaC":
+        return "audio/flac"
     if head[4:8] == b"ftyp":
         return "video/mp4"
     if head.startswith(b"\x1a\x45\xdf\xa3"):

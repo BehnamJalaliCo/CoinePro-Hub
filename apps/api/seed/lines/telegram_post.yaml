@@ -1,0 +1,75 @@
+# Template: Telegram post (contract §30.6). No company is named; the owner edits every prompt.
+# A post goes out as a picture or a video with its caption (the Bot API path of the media studio).
+key: telegram_post
+title_fa: پست تلگرام
+platform: telegram_post
+version: 1
+outputs_fa: "یک پست تلگرام: تصویر با متن کوتاه."
+defaults:
+  caps: {runs_per_day: 2, tokens_per_run: 200000, opus_per_day: 0}
+  schedule: "FREQ=DAILY;BYHOUR=11;BYMINUTE=0"
+steps:
+  - key: write
+    kind: gpt_text
+    title_fa: متن پست
+    prompt_fa: |
+      برای کانال تلگرام «{{company.name_fa}}» (خط «{{line.title_fa}}») یک پست کوتاه بنویس.
+      زاویه‌ی دلخواه مالک: {{settings.topic}}
+      سبک مرجع: {{library.prompt}}
+      سه تا هفت خط، فارسی روان، یک نکته‌ی کاربردی و یک جمله‌ی پایانی. بدون ادعای بی‌منبع، بدون وعده‌ی
+      سود، و اگر درباره‌ی بازار است یک جمله هشدار ریسک. فقط متن پست.
+    settings: {topic: ""}
+    inputs: []
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 420
+  - key: dedupe
+    kind: dedupe
+    title_fa: بررسی تکراری نبودن
+    prompt_fa: null
+    settings: {of: write, threshold: 0.8}
+    inputs: [write]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 3
+    timeout_s: 60
+  - key: cover
+    kind: cover
+    title_fa: تصویر پست
+    prompt_fa: |
+      با تصویرهای پوشه‌ی کاور کانال (همان سبک و رنگ) یک تصویر مربعی برای این پست بساز.
+      متن پست:
+      {{steps.write.text}}
+      متن روی تصویر حداکثر شش کلمه، درشت و خوانا.
+    settings: {max_files: 6}
+    inputs: [write]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 300
+  - key: quality
+    kind: quality
+    title_fa: کنترل کیفیت
+    prompt_fa: null
+    settings: {text_from: write, caption_max: 900, persian: true, banned_words: []}
+    inputs: [write, cover]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 1
+    timeout_s: 60
+  - key: publish
+    kind: publish
+    title_fa: انتشار در تلگرام
+    prompt_fa: null
+    settings: {kind: message, media_from: cover, text_from: write}
+    inputs: [write, cover, quality]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 300

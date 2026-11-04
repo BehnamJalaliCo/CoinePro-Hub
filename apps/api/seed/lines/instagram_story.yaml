@@ -1,0 +1,86 @@
+# Template: Instagram story (contract §30.6). No company is named; the owner edits every prompt.
+key: instagram_story
+title_fa: استوری اینستاگرام
+platform: instagram_story
+version: 1
+outputs_fa: یک استوری عمودی کوتاه (تصویر یا ویدیوی چندثانیه‌ای).
+defaults:
+  caps: {runs_per_day: 2, tokens_per_run: 250000, opus_per_day: 2}
+  schedule: "FREQ=DAILY;BYHOUR=12;BYMINUTE=0"
+steps:
+  - key: idea
+    kind: gpt_text
+    title_fa: ایده و متن استوری
+    prompt_fa: |
+      برای «{{company.name_fa}}» و خط «{{line.title_fa}}» متن یک استوری عمودی ۹:۱۶ بنویس.
+      زاویه‌ی دلخواه مالک: {{settings.topic}}
+      سبک مرجع: {{library.prompt}}
+      حداکثر دو جمله‌ی کوتاه روی صفحه و یک دعوت ملایم به عمل (مثلاً ذخیره یا پاسخ). بدون ادعای بی‌منبع
+      و بدون وعده‌ی سود. فقط متن روی صفحه را بده.
+    settings: {topic: ""}
+    inputs: []
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 420
+  - key: dedupe
+    kind: dedupe
+    title_fa: بررسی تکراری نبودن
+    prompt_fa: null
+    settings: {of: idea, threshold: 0.8}
+    inputs: [idea]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 3
+    timeout_s: 60
+  - key: build
+    kind: opus_build
+    title_fa: ساخت
+    prompt_fa: |
+      برای «{{company.name_fa}}» یک استوری عمودی ۹:۱۶ حدود ۸ تا ۱۵ ثانیه بساز.
+      متن روی صفحه:
+      {{steps.idea.text}}
+      حرکت ساده و خوانا، رنگ و نشان از برند شرکت. جمع زمان نماها برابر کل زمان باشد.
+      در «caption_fa» یک خط توضیح برای ثبت در سامانه بنویس.
+    settings: {}
+    inputs: [idea]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 600
+  - key: render
+    kind: render
+    title_fa: رندر
+    prompt_fa: null
+    settings: {where: media, spec_from: build}
+    inputs: [build]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 600
+  - key: quality
+    kind: quality
+    title_fa: کنترل کیفیت
+    prompt_fa: null
+    settings: {text_from: build, persian: true, banned_words: []}
+    inputs: [idea, build, render]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 1
+    timeout_s: 60
+  - key: publish
+    kind: publish
+    title_fa: انتشار استوری
+    prompt_fa: null
+    settings: {kind: story, media_from: render, in_min: 30}
+    inputs: [render, quality]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 300

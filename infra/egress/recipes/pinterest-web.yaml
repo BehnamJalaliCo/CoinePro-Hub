@@ -1,0 +1,37 @@
+# Pinterest in the hub's browser profile `pinterest-web` (prompt 22, contract
+# §30.2 step kind `pattern_search`): READ ONLY. A search for the query, and the
+# top pins (image URL, link, title) come back as JSON text. Nothing is saved,
+# pinned, followed or posted: no step here clicks anything but the search box.
+# A reviewed file. Written against pinterest.com as documented on 2026-11-04
+# and NOT yet verified on the live site; structural selectors (the search box
+# is the page's `search` input, a pin is a link around an image).
+key: pinterest-web
+version: "2026-11-04.1"
+site: www.pinterest.com
+start_url: "https://www.pinterest.com/"
+hosts:
+  - www.pinterest.com
+  - pinterest.com
+  - pinimg.com
+login_hosts:
+  - accounts.google.com
+  - gds.google.com
+  - consent.google.com
+  - accounts.google.de
+  - gstatic.com
+expired:
+  url_contains: ["/login", "/signup"]
+  selectors:
+    - "[data-test-id=login-button]"
+    - "input[type=password]"
+tasks:
+  search:
+    timeout_s: 90
+    steps:
+      - {do: goto, url: "{start_url}"}
+      - {do: wait, selector: "input[type=search], input[name=searchBoxInput], [data-test-id=search-box-input]", timeout_s: 30}
+      - {do: fill, selector: "input[type=search], input[name=searchBoxInput], [data-test-id=search-box-input]", text: "{prompt}"}
+      - {do: press, selector: "input[type=search], input[name=searchBoxInput], [data-test-id=search-box-input]", key: Enter}
+      - {do: wait, selector: "[data-test-id=pin] img, div[data-grid-item] img", timeout_s: 40}
+      - {do: pause, ms: 1500}
+      - {do: collect, selector: "[data-test-id=pin], div[data-grid-item]"}

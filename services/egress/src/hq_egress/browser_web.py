@@ -51,7 +51,7 @@ from hq_egress import browser as B
 from hq_egress.hosts import covered
 
 log = logging.getLogger("hq_egress.browser_web")
-ACCOUNTS = ("chatgpt-web", "gemini-web", "deepseek-web")
+ACCOUNTS = ("chatgpt-web", "gemini-web", "deepseek-web", "aistudio-web", "pinterest-web")
 SANDBOX = os.environ.get("BROWSER_SANDBOX", "1") != "0"
 # 2026-10-29 (the owner): jobs in a real window on the image's Xvfb, as the
 # owner's sign-in window, not the headless shell the sites' bot check turns
@@ -69,7 +69,11 @@ LOGIN_PAGES = {
     "chatgpt-web": "https://chatgpt.com/",
     "gemini-web": "https://gemini.google.com/app",
     "deepseek-web": "https://chat.deepseek.com/",
+    # prompt 22: AI Studio (the owner's Google account; speech) and Pinterest (read only)
+    "aistudio-web": "https://aistudio.google.com/",
+    "pinterest-web": "https://www.pinterest.com/",
 }
+Account = Literal["chatgpt-web", "gemini-web", "deepseek-web", "aistudio-web", "pinterest-web"]
 B64_JS = """async (u) => {
   const r = await fetch(u);
   const b = new Uint8Array(await r.arrayBuffer());
@@ -88,7 +92,7 @@ class Proxy(BaseModel):
 
 class JobIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    account: Literal["chatgpt-web", "gemini-web", "deepseek-web"]
+    account: Account
     recipe: dict[str, Any]
     prompt: str = Field(min_length=1, max_length=20_000)
     timeout_s: float = Field(gt=0, le=900)
@@ -96,16 +100,22 @@ class JobIn(BaseModel):
     max_file_bytes: int = Field(default=25 * 1024 * 1024, ge=1)
     # ⟨1.10⟩ §28.4 the hub's one retry: the page reloaded after the first goto
     reload: bool = False
+    # prompt 22: the speaker and style of a tts job, how many results a search takes, the
+    # files a cover is made from (hq_egress.substitutes_web.WebIn)
+    voice: str | None = None
+    style: str | None = None
+    limit: int = Field(default=10, ge=1, le=30)
+    files: list[dict[str, Any]] = Field(default_factory=list, max_length=10)
 
 
 class RunIn(B.RunIn):
-    profile: Literal["chatgpt-web", "gemini-web", "deepseek-web"]
+    profile: Account
     allowed_hosts: list[str] = Field(min_length=1, max_length=30)
 
 
 class LogoutIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    account: Literal["chatgpt-web", "gemini-web", "deepseek-web"]
+    account: Account
 
 
 class StepFailed(Exception):
@@ -399,7 +409,14 @@ async def _recipe_step(
         if await page.locator(str(st.get("unless"))).count() == 0:
             await page.locator(sel).first.click(timeout=ms)
     elif do == "fill":
-        await page.locator(sel).first.fill(j.prompt, timeout=ms)
+        value = j.style or "" if st.get("text") == "{style}" else j.prompt
+        await page.locator(sel).first.fill(value, timeout=ms)
+    elif do == "select":
+        await _select(page, sel, j.voice, ms)
+    elif do == "attach":
+        await _attach(page, sel, j, ms)
+    elif do == "collect":
+        return await _collect(page, sel, j.limit, ms)
     elif do == "press":
         await page.locator(sel).first.press(str(st.get("key")), timeout=ms)
     elif do == "pause":
@@ -418,7 +435,7 @@ async def _recipe_step(
         if len(text) > READ_CHARS:
             return text[:READ_CHARS] + f"\n[… cut at {READ_CHARS} characters]"
         return text
-    elif do == "download_image":
+    elif do in ("download_image", "download_media"):
         return await _image(page, ctx, sel, str(st.get("attr") or "src"), ms, j, hosts)
     elif do == "download":
         async with page.expect_download(timeout=ms) as info:
@@ -430,6 +447,64 @@ async def _recipe_step(
     else:
         raise StepFailed(do, "unknown step")
     return None
+
+
+async def _select(page: Page, sel: str, option: str | None, ms: float) -> None:
+    """Choose `option` (the job's voice) in a control: a native <select> by its label, else a
+    listbox opened by a click whose option is found by role and name (structure, not a language)."""
+    if not option:
+        raise StepFailed("select", "the job names no option")
+    ctl = page.locator(sel).first
+    tag = str(await ctl.evaluate("e => e.tagName.toLowerCase()", timeout=ms))
+    if tag == "select":
+        await ctl.select_option(label=option, timeout=ms)
+        return
+    await ctl.click(timeout=ms)
+    await page.get_by_role("option", name=option, exact=False).first.click(timeout=ms)
+
+
+async def _attach(page: Page, sel: str, j: JobIn, ms: float) -> None:
+    """The job's files into a file input (decoded here; none outside the job)."""
+    if not j.files:
+        raise StepFailed("attach", "the job carries no files")
+    payload = []
+    for f in j.files[:10]:
+        data = base64.b64decode(str(f.get("b64") or ""), validate=True)
+        if len(data) > j.max_file_bytes:
+            raise StepFailed("attach", "a file is over its cap")
+        name = Path(str(f.get("name") or "file")).name[:120] or "file"
+        payload.append({"name": name, "mimeType": _mime_of(name), "buffer": data})
+    await page.locator(sel).first.set_input_files(payload, timeout=ms)
+
+
+def _mime_of(name: str) -> str:
+    ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+    return {
+        "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "webp": "image/webp",
+        "gif": "image/gif", "mp4": "video/mp4", "txt": "text/plain", "pdf": "application/pdf",
+    }.get(ext, "application/octet-stream")  # fmt: skip
+
+
+COLLECT_JS = """(els, n) => els.slice(0, n).map(e => {
+  const a = e.matches('a') ? e : e.querySelector('a');
+  const img = e.matches('img') ? e : e.querySelector('img');
+  const best = (img && (img.currentSrc || img.src)) || '';
+  const title = (img && img.alt) || e.innerText.trim().slice(0, 200);
+  return {image: best, link: a ? a.href : '', title};
+})"""
+
+
+async def _collect(page: Page, sel: str, limit: int, ms: float) -> str:
+    """Up to `limit` items (pins): the image URL, the link and the title, as JSON text. Nothing
+    is clicked or posted: a read."""
+    import json
+
+    await page.locator(sel).first.wait_for(state="visible", timeout=ms)
+    items = await page.locator(sel).evaluate_all(COLLECT_JS, limit)
+    rows = [i for i in items if i.get("image") or i.get("link")]
+    if not rows:
+        raise StepFailed("collect", "no items on the page")
+    return json.dumps(rows, ensure_ascii=False)
 
 
 async def _image(

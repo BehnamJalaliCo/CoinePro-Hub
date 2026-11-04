@@ -54,4 +54,26 @@ GRANT CONNECT ON DATABASE hq TO hq_api, hq_worker;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 SQL
 
+# prompt 22: n8n's own role and database for the production lines' rule workflows
+# (opt-in profile "automations"); only while its password is set (make env).
+if [[ -n "${N8N_DB_PASSWORD:-}" ]]; then
+  psql -v ON_ERROR_STOP=1 --no-psqlrc --quiet --dbname postgres <<'SQL'
+SET client_min_messages = warning;
+\getenv n8n_pw N8N_DB_PASSWORD
+
+SELECT 'CREATE ROLE n8n LOGIN'
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'n8n')
+\gexec
+
+ALTER ROLE n8n WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
+  PASSWORD :'n8n_pw';
+
+SELECT 'CREATE DATABASE n8n OWNER n8n'
+WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'n8n')
+\gexec
+
+REVOKE ALL ON DATABASE n8n FROM PUBLIC;
+SQL
+fi
+
 echo "db-provision: roles hq_llm_writer, hq_llm_reader, llm_router, hq_api, hq_worker ready"

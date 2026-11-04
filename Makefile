@@ -12,7 +12,8 @@ ENV_FILE := infra/compose/.env
 	audit-reanchor verify-live bootstrap-month1 prompt-check stt-fetch stt-eval tracing-on tracing-off \
 	backup-hourly restore-weekly pitr-test disk-hygiene gdrive-auth backup-password openbao-snapshot-token mcp-secret account-secret \
 	hetzner-token owner-ssh-key intake-secret telegram-bot-token connection-secret growth-secret \
-	chatgpt-login gemini-login chatgpt-web-login gemini-web-login deepseek-web-login
+	chatgpt-login gemini-login chatgpt-web-login gemini-web-login deepseek-web-login \
+	aistudio-web-login pinterest-web-login
 .PHONY: mcp-build mcp-test mcp-index catalogue-rerender
 
 help: ## Show the available commands
@@ -109,6 +110,27 @@ tracing-off: ## Switch traces off again (the default): Tempo and the collector g
 	@infra/compose/set-env.sh HQ_TRACING off
 	HQ_ALL_PROFILES=1 $(HQ) rm -sf tempo otel-collector
 	$(HQ) up -d --wait prometheus
+
+# Prompt 22 (contract §30.4): n8n for the production lines' rule workflows (opt-in
+# profile "automations"; refused over the memory budget; the editor on 127.0.0.1:5678).
+.PHONY: n8n-on n8n-off n8n-import n8n-secret
+n8n-on: ## Switch n8n on (profile "automations"): its database, then the service and the worker's address for it
+	@infra/compose/gen-env.sh
+	@infra/compose/set-env.sh HQ_AUTOMATIONS on
+	$(HQ) run --rm db-provision
+	$(HQ) up -d --wait n8n worker
+	@echo "n8n is up on 127.0.0.1:5678 (SSH tunnel; make your owner account on the first visit). Next: make n8n-secret, make n8n-import"
+
+n8n-off: ## Switch n8n off again (the default): a line's n8n step fails plainly
+	@infra/compose/set-env.sh HQ_AUTOMATIONS off
+	$(HQ) up -d --wait worker
+	-$(HQ) --profile automations stop n8n
+
+n8n-import: ## Import automations/n8n/*.json into n8n (and activate them)
+	@infra/n8n/import.sh
+
+n8n-secret: ## OWNER: copy the HMAC secret n8n and the hub share into OpenBao (kv/hq/n8n); never shown
+	@infra/openbao/n8n-secret.sh
 
 # Prompt 12 §4: the Persian voice (opt-in profile "tts"; a one-shot run by the
 # coinepro-hq-tts timer). Off until the owner orders the memory (§0.8 #7).
@@ -294,6 +316,12 @@ gemini-web-login: ## OWNER: sign in to Gemini in the hub's browser profile (noVN
 
 deepseek-web-login: ## OWNER: sign in to DeepSeek in the hub's browser profile (noVNC on 127.0.0.1:6080, 15 min)
 	@infra/substitutes/web-login.sh deepseek-web
+
+aistudio-web-login: ## OWNER: sign in to Google AI Studio (speech for production lines) in the hub's browser profile (noVNC on 127.0.0.1:6080, 15 min)
+	@infra/substitutes/web-login.sh aistudio-web
+
+pinterest-web-login: ## OWNER: sign in to Pinterest (pattern search, read only) in the hub's browser profile (noVNC on 127.0.0.1:6080, 15 min)
+	@infra/substitutes/web-login.sh pinterest-web
 
 hetzner-token: ## OWNER: the Hetzner project's API token for new servers (hidden input -> OpenBao)
 	@infra/openbao/hetzner-token.sh

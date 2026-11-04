@@ -5,14 +5,14 @@
 # this server's 127.0.0.1:6080 only; reach it with your own SSH tunnel
 # (ssh -L 6080:127.0.0.1:6080 ...). The server's SSH configuration is not
 # touched. The hub never sees your password. Claude never runs it.
-# Usage: web-login.sh chatgpt-web|gemini-web|deepseek-web
+# Usage: web-login.sh chatgpt-web|gemini-web|deepseek-web|aistudio-web|pinterest-web
 set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 HQ="$REPO_DIR/infra/compose/hq.sh"
 account="${1:-}"
 case "$account" in
-  chatgpt-web | gemini-web | deepseek-web) ;;
-  *) echo "usage: $0 chatgpt-web|gemini-web|deepseek-web" >&2; exit 2 ;;
+  chatgpt-web | gemini-web | deepseek-web | aistudio-web | pinterest-web) ;;
+  *) echo "usage: $0 chatgpt-web|gemini-web|deepseek-web|aistudio-web|pinterest-web" >&2; exit 2 ;;
 esac
 [[ -t 1 ]] || { echo "error: run this in your own terminal" >&2; exit 2; }
 cleanup() { "$HQ" --profile web-login rm -sf web-login-relay >/dev/null 2>&1 || true; }

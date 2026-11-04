@@ -1,0 +1,132 @@
+# Template: YouTube long video (contract §30.6). No company is named; the owner edits every prompt.
+# The voice step speaks at most 5000 characters per run (about 5 minutes): longer videos are
+# made of a few runs or a trimmed script.
+key: youtube_long
+title_fa: ویدیوی بلند یوتیوب
+platform: youtube_long
+version: 1
+outputs_fa: یک ویدیوی افقی چنددقیقه‌ای با صدا، کاور، عنوان، توضیح و برچسب.
+defaults:
+  caps: {runs_per_day: 1, tokens_per_run: 700000, opus_per_day: 2}
+  schedule: "FREQ=WEEKLY;BYDAY=TH;BYHOUR=10;BYMINUTE=0"
+steps:
+  - key: script
+    kind: gpt_text
+    title_fa: سناریو
+    prompt_fa: |
+      برای کانال یوتیوب «{{company.name_fa}}» (خط «{{line.title_fa}}») سناریوی یک ویدیوی آموزشی حدود
+      {{settings.minutes}} دقیقه بنویس.
+      موضوع یا زاویه‌ی دلخواه مالک: {{settings.topic}}
+      سبک مرجع: {{library.prompt}}
+      ساختار: مقدمه‌ی کوتاه با قلاب، سه تا پنج بخش با تیتر، جمع‌بندی. هر بخش یک نکته‌ی عملی و بدون
+      ادعای بی‌منبع. فارسی روان. موضوع تکراری ننویس. متن گفتاری را بدون تیتر بخش‌ها هم‌ردیف بده
+      و جدا از آن فهرست تیترها را در آخر بیاور.
+    settings: {topic: "", minutes: 4}
+    inputs: []
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 600
+  - key: dedupe
+    kind: dedupe
+    title_fa: بررسی تکراری نبودن
+    prompt_fa: null
+    settings: {of: script, threshold: 0.8}
+    inputs: [script]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 3
+    timeout_s: 60
+  - key: voice
+    kind: tts
+    title_fa: صدا
+    prompt_fa: null
+    settings: {voice: Charon, style: "آرام، روشن و آموزشی", text_from: script}
+    inputs: [script]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 300
+  - key: direction
+    kind: gpt_text
+    title_fa: کارگردانی و برنامه‌ی تدوین
+    prompt_fa: |
+      این سناریو باید ویدیوی افقی ۱۶:۹ شود:
+      {{steps.script.text}}
+      برنامه‌ی نماببند بنویس: زمان هر نما، متن یا نمودار روی صفحه، حرکت و گذار. جمع زمان‌ها برابر
+      زمان صدا باشد. فقط فهرست نماها.
+    settings: {}
+    inputs: [script, voice]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 600
+  - key: build
+    kind: opus_build
+    title_fa: ساخت
+    prompt_fa: |
+      برای کانال «{{company.name_fa}}» ویدیوی افقی ۱۶:۹ بساز (ابعاد صفحه ۱۹۲۰×۱۰۸۰).
+      سناریو:
+      {{steps.script.text}}
+      برنامه‌ی کارگردانی:
+      {{steps.direction.text}}
+      «title_fa» عنوان تا ۷۰ نویسه، «description_fa» توضیح با فهرست بخش‌ها، «hashtags» حداکثر ۱۰ برچسب.
+    settings: {}
+    inputs: [script, direction, voice]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 900
+  - key: render
+    kind: render
+    title_fa: رندر
+    prompt_fa: null
+    settings: {where: media, spec_from: build, voice_from: voice}
+    inputs: [build, voice]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 900
+  - key: cover
+    kind: cover
+    title_fa: کاور
+    prompt_fa: |
+      با تصویرهای پوشه‌ی کاور کانال (همان سبک و رنگ) یک بندانگشتی افقی ۱۶:۹ برای این ویدیو بساز.
+      عنوان و توضیح ویدیو:
+      {{steps.build.text}}
+      متن روی کاور حداکثر پنج کلمه، درشت و خوانا.
+    settings: {max_files: 6}
+    inputs: [build]
+    gate: auto
+    optional: true
+    enabled: true
+    max_attempts: 2
+    timeout_s: 300
+  - key: quality
+    kind: quality
+    title_fa: کنترل کیفیت
+    prompt_fa: null
+    settings: {text_from: build, persian: true, banned_words: []}
+    inputs: [script, build, render]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 1
+    timeout_s: 60
+  - key: publish
+    kind: publish
+    title_fa: انتشار ویدیو
+    prompt_fa: null
+    settings: {kind: video, media_from: render, text_from: build, privacy: public, in_min: 120}
+    inputs: [render, build, quality]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 1800
