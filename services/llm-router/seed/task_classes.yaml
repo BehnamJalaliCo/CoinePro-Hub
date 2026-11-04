@@ -55,3 +55,6 @@ task_classes:
   # prompt 14 (contract §23.11): the archivist's work; never on an alternative
   # provider (api migration 0029 inserts it).
   - {key: archive, transferable: false, description: "The archivist's work: classify drafts, complete metadata, links, the weekly gaps (prompt 14)"}
+  # prompt 22 part 3 (contract §31.7): one mid-model call turns the owner's sentence into a rule;
+  # api migration 0042 inserts the same row.
+  - {key: automation_compile, transferable: false, description: "An automation from one sentence of the owner: one call, a strict JSON schema (contract 31.7)"}
