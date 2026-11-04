@@ -645,7 +645,9 @@ async def test_score_job_and_maintenance(hub: Hub, wk: dict[str, Any], owner_db:
         "tech_summary",
     }
     assert res["inquiries_late"] == {"late": 0}
-    assert res["purge"]["idempotency_keys"] >= 1
+    # a count, not ">= 1": another Maintenance pass of the same suite (its schedules share the
+    # database) may purge the old key first; the property is that it is gone (checked below)
+    assert isinstance(res["purge"]["idempotency_keys"], int)
     assert "error" not in res["backups_ingest"]  # no status files here: nothing to read, no failure
     async with owner_db.raw() as tx:
         assert (
