@@ -1,12 +1,21 @@
 """One pass of the TTS one-shot: claim -> speak -> send back, until the api
 has nothing more (204) or TTS_MAX_JOBS jobs of a queue are done.
 
-Two queues, one engine (prompt 13 §4.1: one voice registry for everything):
+Three queues, one engine (prompt 13 §4.1: one voice registry for everything;
+the third is answered in serving mode only, see below):
   /internal/v1/tts/claim          the briefings' spoken scripts (prompt 12 §4)
   /internal/v1/voices/jobs/claim  the bake-off samples and the media items'
                                   narration (prompt 13 §4), each with its
                                   measurement (real-time factor, this
                                   synthesis' own peak memory)
+  /internal/v1/voices/talk/claim  the owner's conversation (prompt 23, contract
+                                  §32.5): one sentence for Piper, the last link
+                                  of the voice chain. Only in serving mode
+                                  (TTS_SERVE_S > 0): the one-shot stays up for
+                                  that many seconds and answers only this
+                                  queue, so a sentence is spoken in about a
+                                  second. The plain two-minute pass does not
+                                  touch it (a sentence is useless that late).
 Each job names its voice; a voice this image does not ship fails the job
 ("voice not installed"), never another voice in its place (a briefing,
 written before the choice, keeps the image's default).
@@ -50,6 +59,11 @@ class Settings:
     voices_dir: str = field(default_factory=lambda: os.environ.get("TTS_VOICES_DIR", "/voices"))
     voice: str = field(default_factory=lambda: os.environ.get("TTS_VOICE", "fa_IR-amir-medium"))
     max_jobs: int = field(default_factory=lambda: int(os.environ.get("TTS_MAX_JOBS", "3")))
+    # Prompt 23: serving mode for the talk's sentences (0 = off, the plain one-shot pass).
+    serve_s: int = field(default_factory=lambda: int(os.environ.get("TTS_SERVE_S", "0")))
+    serve_poll_s: float = field(
+        default_factory=lambda: float(os.environ.get("TTS_SERVE_POLL_S", "1"))
+    )
     threads: int = field(default_factory=lambda: int(os.environ.get("TTS_THREADS", "1")))
 
 
@@ -119,6 +133,23 @@ async def _queue(
         )
         done.append(str(job.get("ref")))
     return done, failed
+
+
+async def run_talk(
+    client: httpx.AsyncClient, engine: Engine, max_jobs: int, engines: Engines | None = None
+) -> dict[str, Any]:
+    """Only the talk's queue (prompt 23): sentences of the owner's conversation for Piper. A
+    voice this image does not ship is spoken with the image's default (the sentence matters)."""
+    pick: Engines = engines or (lambda _voice: engine)
+    done, failed = await _queue(
+        client,
+        "/internal/v1/voices/talk/claim",
+        "/internal/v1/voices/talk",
+        lambda job: pick(job.get("voice")) or engine,
+        max_jobs,
+        False,
+    )
+    return {"done": done, "failed": failed}
 
 
 async def run(
