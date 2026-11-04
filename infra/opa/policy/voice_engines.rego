@@ -3,19 +3,17 @@
 # here. The provider's key goes in and out only with the owner's step-up `voice.secret`.
 #
 #   allow           the owner, a known op, and no deny reason
-#   step_up_needed  `voice.secret.set` and `voice.secret.delete` (🔏 voice.secret, target =
-#                   provider): the api consumed the step-up and says so in context.step_up
+#   step_up_needed  `voice.secret`, set or delete (🔏 voice.secret, target = provider): the api
+#                   consumed the step-up and says so in context.step_up
+# The op names are the ones talk.rego declares for the same routes.
 package hq.voice_engines
 
 import data.hq.lib
 import rego.v1
 
-ops := {
-	"voice.engines.read", "voice.voices.read", "voice.meter.read", "voice.secret.set",
-	"voice.secret.delete", "voice.check", "voice.sample", "voice.price",
-}
+ops := {"voice.read", "voice.secret", "voice.check", "voice.sample", "voice.price"}
 
-step_up_ops := {"voice.secret.set", "voice.secret.delete"}
+step_up_ops := {"voice.secret"}
 
 p := lib.principal
 

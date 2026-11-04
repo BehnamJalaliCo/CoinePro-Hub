@@ -117,11 +117,15 @@ class Activities:
         from hq_api.worker.lines_activities import LinesActivities
 
         self.lines = LinesActivities(hub, self._tx)  # prompt 22: production lines (§30)
+        from hq_api.worker.voice_activities import VoiceActivities
+
+        self.voice = VoiceActivities(hub)  # prompt 23: the voice layer's provider calls (§32.5)
 
     def all(self) -> list[Any]:
         return [
             *self.routing.all(),
             *self.lines.all(),
+            *self.voice.all(),
             *self.meetings.all(),
             *self.studio.all(),
             *self.management.all(),

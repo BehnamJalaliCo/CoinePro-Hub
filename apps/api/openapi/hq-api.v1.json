@@ -30417,6 +30417,9 @@
             "title": "Version",
             "type": "integer"
           },
+          "voice": {
+            "$ref": "#/components/schemas/VoiceSettings"
+          },
           "watch_after_hours": {
             "default": 6,
             "title": "Watch After Hours",
@@ -30635,6 +30638,16 @@
               }
             ],
             "title": "Timezone"
+          },
+          "voice": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VoiceSettingsIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "watch_after_hours": {
             "anyOf": [
@@ -46350,6 +46363,120 @@
         "title": "VoiceActivateIn",
         "type": "object"
       },
+      "VoiceEngine": {
+        "properties": {
+          "checked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checked At"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "key_pattern": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key Pattern"
+          },
+          "languages": {
+            "title": "Languages",
+            "type": "integer"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "note_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Fa"
+          },
+          "price": {
+            "$ref": "#/components/schemas/VoicePrice"
+          },
+          "provider": {
+            "enum": [
+              "google",
+              "local"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
+          "rank_fa": {
+            "title": "Rank Fa",
+            "type": "string"
+          },
+          "reason_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Fa"
+          },
+          "state": {
+            "enum": [
+              "missing",
+              "checking",
+              "ok",
+              "failing",
+              "capped"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "voices": {
+            "items": {
+              "$ref": "#/components/schemas/VoiceVoiceOut"
+            },
+            "title": "Voices",
+            "type": "array"
+          }
+        },
+        "required": [
+          "key",
+          "title_fa",
+          "provider",
+          "model",
+          "languages",
+          "rank_fa",
+          "key_pattern",
+          "state",
+          "reason_fa",
+          "checked_at",
+          "price",
+          "voices"
+        ],
+        "title": "VoiceEngine",
+        "type": "object"
+      },
       "VoiceIn": {
         "additionalProperties": false,
         "properties": {
@@ -46382,6 +46509,326 @@
           "text_fa"
         ],
         "title": "VoiceIn",
+        "type": "object"
+      },
+      "VoiceMeter": {
+        "properties": {
+          "by_engine": {
+            "items": {
+              "$ref": "#/components/schemas/VoiceMeterEngine"
+            },
+            "title": "By Engine",
+            "type": "array"
+          },
+          "by_persona": {
+            "items": {
+              "$ref": "#/components/schemas/VoiceMeterPersona"
+            },
+            "title": "By Persona",
+            "type": "array"
+          },
+          "cap_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cap Usd"
+          },
+          "period": {
+            "enum": [
+              "today",
+              "month"
+            ],
+            "title": "Period",
+            "type": "string"
+          },
+          "price_note_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Note Fa"
+          },
+          "projected_usd": {
+            "title": "Projected Usd",
+            "type": "number"
+          },
+          "talk_tokens": {
+            "title": "Talk Tokens",
+            "type": "integer"
+          },
+          "talk_usd_equiv": {
+            "title": "Talk Usd Equiv",
+            "type": "number"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "voice_usd": {
+            "title": "Voice Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "period",
+          "voice_usd",
+          "cap_usd",
+          "projected_usd",
+          "by_engine",
+          "by_persona",
+          "talk_tokens",
+          "talk_usd_equiv",
+          "price_note_fa",
+          "updated_at"
+        ],
+        "title": "VoiceMeter",
+        "type": "object"
+      },
+      "VoiceMeterEngine": {
+        "properties": {
+          "audio_tokens": {
+            "title": "Audio Tokens",
+            "type": "integer"
+          },
+          "engine": {
+            "title": "Engine",
+            "type": "string"
+          },
+          "seconds": {
+            "title": "Seconds",
+            "type": "number"
+          },
+          "usd": {
+            "title": "Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "engine",
+          "usd",
+          "seconds",
+          "audio_tokens"
+        ],
+        "title": "VoiceMeterEngine",
+        "type": "object"
+      },
+      "VoiceMeterPersona": {
+        "properties": {
+          "persona": {
+            "title": "Persona",
+            "type": "string"
+          },
+          "seconds": {
+            "title": "Seconds",
+            "type": "number"
+          },
+          "usd": {
+            "title": "Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "persona",
+          "usd",
+          "seconds"
+        ],
+        "title": "VoiceMeterPersona",
+        "type": "object"
+      },
+      "VoicePrice": {
+        "properties": {
+          "as_of": {
+            "format": "date",
+            "title": "As Of",
+            "type": "string"
+          },
+          "audio_out_per_m": {
+            "title": "Audio Out Per M",
+            "type": "number"
+          },
+          "audio_tokens_per_s": {
+            "title": "Audio Tokens Per S",
+            "type": "integer"
+          },
+          "next": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VoicePriceNext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_url": {
+            "title": "Source Url",
+            "type": "string"
+          },
+          "text_in_per_m": {
+            "title": "Text In Per M",
+            "type": "number"
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until"
+          }
+        },
+        "required": [
+          "text_in_per_m",
+          "audio_out_per_m",
+          "audio_tokens_per_s",
+          "valid_until",
+          "next",
+          "source_url",
+          "as_of"
+        ],
+        "title": "VoicePrice",
+        "type": "object"
+      },
+      "VoicePriceIn": {
+        "additionalProperties": false,
+        "description": "The owner's price for an engine, USD per one million tokens. `reset: true` goes back to the\ntable's price.",
+        "properties": {
+          "audio_out_per_m": {
+            "anyOf": [
+              {
+                "maximum": 100000.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Out Per M"
+          },
+          "audio_tokens_per_s": {
+            "anyOf": [
+              {
+                "maximum": 1000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Tokens Per S"
+          },
+          "next": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VoicePriceNextIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reset": {
+            "default": false,
+            "title": "Reset",
+            "type": "boolean"
+          },
+          "text_in_per_m": {
+            "anyOf": [
+              {
+                "maximum": 100000.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text In Per M"
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until"
+          }
+        },
+        "title": "VoicePriceIn",
+        "type": "object"
+      },
+      "VoicePriceNext": {
+        "description": "A scheduled price: it applies from `from` (the day), by itself.",
+        "properties": {
+          "audio_out_per_m": {
+            "title": "Audio Out Per M",
+            "type": "number"
+          },
+          "from": {
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "text_in_per_m": {
+            "title": "Text In Per M",
+            "type": "number"
+          }
+        },
+        "required": [
+          "from",
+          "text_in_per_m",
+          "audio_out_per_m"
+        ],
+        "title": "VoicePriceNext",
+        "type": "object"
+      },
+      "VoicePriceNextIn": {
+        "additionalProperties": false,
+        "properties": {
+          "audio_out_per_m": {
+            "maximum": 100000.0,
+            "minimum": 0.0,
+            "title": "Audio Out Per M",
+            "type": "number"
+          },
+          "from": {
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "text_in_per_m": {
+            "maximum": 100000.0,
+            "minimum": 0.0,
+            "title": "Text In Per M",
+            "type": "number"
+          }
+        },
+        "required": [
+          "from",
+          "text_in_per_m",
+          "audio_out_per_m"
+        ],
+        "title": "VoicePriceNextIn",
         "type": "object"
       },
       "VoiceSample": {
@@ -46440,6 +46887,84 @@
         "title": "VoiceSample",
         "type": "object"
       },
+      "VoiceSampleIn": {
+        "additionalProperties": false,
+        "properties": {
+          "engine": {
+            "pattern": "^[a-z0-9][a-z0-9._-]{1,60}$",
+            "title": "Engine",
+            "type": "string"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "voice": {
+            "maxLength": 80,
+            "minLength": 2,
+            "title": "Voice",
+            "type": "string"
+          }
+        },
+        "required": [
+          "engine",
+          "voice"
+        ],
+        "title": "VoiceSampleIn",
+        "type": "object"
+      },
+      "VoiceSampleOut": {
+        "properties": {
+          "audio_tokens": {
+            "title": "Audio Tokens",
+            "type": "integer"
+          },
+          "engine": {
+            "title": "Engine",
+            "type": "string"
+          },
+          "file_id": {
+            "format": "uuid",
+            "title": "File Id",
+            "type": "string"
+          },
+          "seconds": {
+            "title": "Seconds",
+            "type": "number"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "usd": {
+            "title": "Usd",
+            "type": "number"
+          },
+          "voice": {
+            "title": "Voice",
+            "type": "string"
+          }
+        },
+        "required": [
+          "engine",
+          "voice",
+          "text",
+          "file_id",
+          "seconds",
+          "audio_tokens",
+          "usd"
+        ],
+        "title": "VoiceSampleOut",
+        "type": "object"
+      },
       "VoiceScoreIn": {
         "additionalProperties": false,
         "properties": {
@@ -46454,6 +46979,195 @@
           "score"
         ],
         "title": "VoiceScoreIn",
+        "type": "object"
+      },
+      "VoiceSecretIn": {
+        "additionalProperties": false,
+        "properties": {
+          "secret": {
+            "maxLength": 300,
+            "minLength": 8,
+            "title": "Secret",
+            "type": "string"
+          }
+        },
+        "required": [
+          "secret"
+        ],
+        "title": "VoiceSecretIn",
+        "type": "object"
+      },
+      "VoiceSecretState": {
+        "properties": {
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "missing",
+              "checking"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "state"
+        ],
+        "title": "VoiceSecretState",
+        "type": "object"
+      },
+      "VoiceSettings": {
+        "description": "⟨1.14⟩ prompt 23 (contract §32.6): the owner's cap and the voice chain. No cap (null) until\nthe owner sets one; nothing but the owner raises it.",
+        "properties": {
+          "chain": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Chain",
+            "type": "array"
+          },
+          "month_cap_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month Cap Usd"
+          },
+          "warn_at": {
+            "default": 0.8,
+            "title": "Warn At",
+            "type": "number"
+          }
+        },
+        "title": "VoiceSettings",
+        "type": "object"
+      },
+      "VoiceSettingsIn": {
+        "additionalProperties": false,
+        "properties": {
+          "chain": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chain"
+          },
+          "month_cap_usd": {
+            "anyOf": [
+              {
+                "maximum": 100000.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month Cap Usd"
+          },
+          "warn_at": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 1.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warn At"
+          }
+        },
+        "title": "VoiceSettingsIn",
+        "type": "object"
+      },
+      "VoiceTalkDone": {
+        "properties": {
+          "file": {
+            "format": "uuid",
+            "title": "File",
+            "type": "string"
+          },
+          "job": {
+            "format": "uuid",
+            "title": "Job",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job",
+          "state",
+          "file"
+        ],
+        "title": "VoiceTalkDone",
+        "type": "object"
+      },
+      "VoiceTalkFail": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "default": "failed",
+            "maxLength": 300,
+            "title": "Error",
+            "type": "string"
+          }
+        },
+        "title": "VoiceTalkFail",
+        "type": "object"
+      },
+      "VoiceTalkJob": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "rate": {
+            "title": "Rate",
+            "type": "number"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "script": {
+            "title": "Script",
+            "type": "string"
+          },
+          "voice": {
+            "title": "Voice",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "voice",
+          "script",
+          "rate"
+        ],
+        "title": "VoiceTalkJob",
         "type": "object"
       },
       "VoiceUsed": {
@@ -46482,6 +47196,46 @@
           "licence_commercial"
         ],
         "title": "VoiceUsed",
+        "type": "object"
+      },
+      "VoiceVoiceOut": {
+        "properties": {
+          "gender_fa": {
+            "title": "Gender Fa",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sample_file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample File"
+          },
+          "trait_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trait Fa"
+          }
+        },
+        "required": [
+          "name",
+          "gender_fa"
+        ],
+        "title": "VoiceVoiceOut",
         "type": "object"
       },
       "Wal": {
@@ -102221,6 +102975,13 @@
                   },
                   "timezone": "Asia/Tehran",
                   "version": 1,
+                  "voice": {
+                    "chain": [
+                      "x"
+                    ],
+                    "month_cap_usd": 1.0,
+                    "warn_at": 1.0
+                  },
                   "watch_after_hours": 1,
                   "weekly_review": {}
                 },
@@ -102301,6 +103062,13 @@
                   "creative_default_image": "gpt"
                 },
                 "timezone": "Asia/Tehran",
+                "voice": {
+                  "chain": [
+                    "x"
+                  ],
+                  "month_cap_usd": 0.0,
+                  "warn_at": 1.0
+                },
                 "watch_after_hours": 1,
                 "weekly_review": {
                   "at": "x",
@@ -102348,6 +103116,13 @@
                   },
                   "timezone": "Asia/Tehran",
                   "version": 1,
+                  "voice": {
+                    "chain": [
+                      "x"
+                    ],
+                    "month_cap_usd": 1.0,
+                    "warn_at": 1.0
+                  },
                   "watch_after_hours": 1,
                   "weekly_review": {}
                 },
@@ -119238,6 +120013,952 @@
         "summary": "List Tts Voices",
         "tags": [
           "lines"
+        ]
+      }
+    },
+    "/api/v1/voice/engines": {
+      "get": {
+        "description": "Every engine of the chain's registry: its light (green ok, yellow checking, red\nmissing/failing with the reason and the fix, amber capped), its price in force with the next\none, and its voices. `key_pattern` is the provider's key shape the app keeps out of the\ncomposer.",
+        "operationId": "list_voice_engines",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "checked_at": "2026-10-17T05:42:00Z",
+                    "key": "x",
+                    "key_pattern": "x",
+                    "languages": 1,
+                    "model": "claude-sonnet-5-5",
+                    "note_fa": "x",
+                    "price": {
+                      "as_of": "2026-10-17",
+                      "audio_out_per_m": 1.0,
+                      "audio_tokens_per_s": 1,
+                      "next": {
+                        "audio_out_per_m": 1.0,
+                        "from": "2026-10-17",
+                        "text_in_per_m": 1.0
+                      },
+                      "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
+                      "text_in_per_m": 1.0,
+                      "valid_until": "2026-10-17"
+                    },
+                    "provider": "google",
+                    "rank_fa": "x",
+                    "reason_fa": "x",
+                    "state": "missing",
+                    "title_fa": "گزارش هفتگی رشد",
+                    "voices": [
+                      {
+                        "gender_fa": "x",
+                        "name": "report.pdf",
+                        "sample_file": "x",
+                        "trait_fa": "x"
+                      }
+                    ]
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/VoiceEngine"
+                  },
+                  "title": "Response List Voice Engines",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Voice Engines",
+        "tags": [
+          "voice"
+        ]
+      }
+    },
+    "/api/v1/voice/engines/{key}/check": {
+      "post": {
+        "description": "The free metadata check now (`models.get`, no speech). The light is updated and sent on\nthe stream; when the provider refuses, 502 with the plain Persian reason (the fix is in it).",
+        "operationId": "check_voice_engine",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9][a-z0-9._-]{1,60}$",
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "checked_at": "2026-10-17T05:42:00Z",
+                  "key": "x",
+                  "key_pattern": "x",
+                  "languages": 1,
+                  "model": "claude-sonnet-5-5",
+                  "note_fa": "x",
+                  "price": {
+                    "as_of": "2026-10-17",
+                    "audio_out_per_m": 1.0,
+                    "audio_tokens_per_s": 1,
+                    "next": {
+                      "audio_out_per_m": 1.0,
+                      "from": "2026-10-17",
+                      "text_in_per_m": 1.0
+                    },
+                    "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
+                    "text_in_per_m": 1.0,
+                    "valid_until": "2026-10-17"
+                  },
+                  "provider": "google",
+                  "rank_fa": "x",
+                  "reason_fa": "x",
+                  "state": "missing",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "voices": [
+                    {
+                      "gender_fa": "x",
+                      "name": "report.pdf",
+                      "sample_file": "x",
+                      "trait_fa": "x"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceEngine"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Check Voice Engine",
+        "tags": [
+          "voice"
+        ]
+      }
+    },
+    "/api/v1/voice/engines/{key}/price": {
+      "put": {
+        "description": "The owner's own price for an engine (USD per one million tokens), replacing the table's\nuntil `reset: true`. Rows already made keep the price they were charged at; a scheduled\n`next` price applies by itself on its day and the app warns 14 days before it.",
+        "operationId": "put_voice_price",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9][a-z0-9._-]{1,60}$",
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "audio_out_per_m": 0.0,
+                "audio_tokens_per_s": 1,
+                "next": {
+                  "audio_out_per_m": 0.0,
+                  "from": "2026-10-17",
+                  "text_in_per_m": 0.0
+                },
+                "reset": false,
+                "text_in_per_m": 0.0,
+                "valid_until": "2026-10-17"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/VoicePriceIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "checked_at": "2026-10-17T05:42:00Z",
+                  "key": "x",
+                  "key_pattern": "x",
+                  "languages": 1,
+                  "model": "claude-sonnet-5-5",
+                  "note_fa": "x",
+                  "price": {
+                    "as_of": "2026-10-17",
+                    "audio_out_per_m": 1.0,
+                    "audio_tokens_per_s": 1,
+                    "next": {
+                      "audio_out_per_m": 1.0,
+                      "from": "2026-10-17",
+                      "text_in_per_m": 1.0
+                    },
+                    "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
+                    "text_in_per_m": 1.0,
+                    "valid_until": "2026-10-17"
+                  },
+                  "provider": "google",
+                  "rank_fa": "x",
+                  "reason_fa": "x",
+                  "state": "missing",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "voices": [
+                    {
+                      "gender_fa": "x",
+                      "name": "report.pdf",
+                      "sample_file": "x",
+                      "trait_fa": "x"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceEngine"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Put Voice Price",
+        "tags": [
+          "voice"
+        ]
+      }
+    },
+    "/api/v1/voice/engines/{key}/voices": {
+      "get": {
+        "description": "The engine's voices (Gemini's prebuilt names with their gender, or Piper's shipped ones).",
+        "operationId": "list_voice_engine_voices",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9][a-z0-9._-]{1,60}$",
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "gender_fa": "x",
+                    "name": "report.pdf",
+                    "sample_file": "x",
+                    "trait_fa": "x"
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/VoiceVoiceOut"
+                  },
+                  "title": "Response List Voice Engine Voices",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Voice Engine Voices",
+        "tags": [
+          "voice"
+        ]
+      }
+    },
+    "/api/v1/voice/meter": {
+      "get": {
+        "description": "What the voice cost: Google's own token counts x the price table (Google's bill, with\ntax and currency, can differ slightly), by engine and by persona, with the month's projection\nand the model tokens of the talk.",
+        "operationId": "get_voice_meter",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "default": "today",
+              "enum": [
+                "today",
+                "month"
+              ],
+              "title": "Period",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "by_engine": [
+                    {
+                      "audio_tokens": 1,
+                      "engine": "x",
+                      "seconds": 1.0,
+                      "usd": 1.0
+                    }
+                  ],
+                  "by_persona": [
+                    {
+                      "persona": "x",
+                      "seconds": 1.0,
+                      "usd": 1.0
+                    }
+                  ],
+                  "cap_usd": 1.0,
+                  "period": "today",
+                  "price_note_fa": "x",
+                  "projected_usd": 1.0,
+                  "talk_tokens": 1,
+                  "talk_usd_equiv": 1.0,
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "voice_usd": 1.0
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceMeter"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Voice Meter",
+        "tags": [
+          "voice"
+        ]
+      }
+    },
+    "/api/v1/voice/providers/{provider}/secret": {
+      "delete": {
+        "description": "🔏 `voice.secret`: the key is removed (the stored value is emptied; the api's policy on the\nsecret store is write-only), every engine of the provider is `missing` and the chain moves on\nto the next engine.",
+        "operationId": "delete_voice_secret",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider",
+            "required": true,
+            "schema": {
+              "pattern": "^(google)$",
+              "title": "Provider",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "provider": "anthropic",
+                  "state": "missing"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceSecretState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Delete Voice Secret",
+        "tags": [
+          "voice"
+        ]
+      },
+      "put": {
+        "description": "🔏 `voice.secret` (target = the provider). Write-only: the key goes to OpenBao\n(kv/hq/voice/<provider>) and is never returned, logged or audited (\"voice.secret set\"). Then\nthe check starts in the background (the free metadata call for each model, then one spoken\nword whose cost is on the meter) and its result arrives as `voice.engine` on the stream.",
+        "operationId": "put_voice_secret",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider",
+            "required": true,
+            "schema": {
+              "pattern": "^(google)$",
+              "title": "Provider",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "secret": "xxxxxxxx"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/VoiceSecretIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "provider": "anthropic",
+                  "state": "missing"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceSecretState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Put Voice Secret",
+        "tags": [
+          "voice"
+        ]
+      }
+    },
+    "/api/v1/voice/sample": {
+      "post": {
+        "description": "A short sample of one engine's voice so the owner can choose by ear. Its cost goes on the\nmeter like any sentence; a provider's refusal is 502 with the plain reason.",
+        "operationId": "voice_sample",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "engine": "x",
+                "text": "x",
+                "voice": "xx"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/VoiceSampleIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "audio_tokens": 1,
+                  "engine": "x",
+                  "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "seconds": 1.0,
+                  "text": "x",
+                  "usd": 1.0,
+                  "voice": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceSampleOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Voice Sample",
+        "tags": [
+          "voice"
         ]
       }
     },
@@ -143038,6 +144759,311 @@
           }
         },
         "summary": "Voice Job Fail",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/voices/talk/claim": {
+      "post": {
+        "description": "The next sentence of the talk for Piper; 204 when there is none and always while the\nholding is locked (nothing is spoken then).",
+        "operationId": "voice_talk_claim",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "rate": 1.0,
+                  "ref": "W-000789",
+                  "script": "x",
+                  "voice": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceTalkJob"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "204": {
+            "description": "nothing to say, or the holding is locked"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Voice Talk Claim",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/voices/talk/{id}/done": {
+      "post": {
+        "description": "The sentence's Ogg/Opus (raw body, ≤ 4 MB), stored as a file of the holding at the\npersona's speed (Piper has no speed of its own).",
+        "operationId": "voice_talk_done",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "duration_s",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 600,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Duration S"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "file": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "job": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "state": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceTalkDone"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Voice Talk Done",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/voices/talk/{id}/fail": {
+      "post": {
+        "description": "Piper could not make it; after three tries the sentence is `failed` (the turn goes on).",
+        "operationId": "voice_talk_fail",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "error": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/VoiceTalkFail"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Voice Talk Fail",
         "tags": [
           "internal"
         ]

@@ -101,6 +101,8 @@ WIPE: tuple[str, ...] = (
     "substitutes.calls", "substitutes.creatives",
     "support.conversations", "support.customers", "support.history_imports", "support.messages",
     "support.shadow_runs",
+    "talk.voice_jobs",  # ⟨1.14⟩ Piper's queue: a sentence waiting for the TTS one-shot
+    "talk.voice_usage",  # ⟨1.14⟩ the meter's rows (the wipe runs with triggers asleep)
     "tools.mcp_calls",
     "work.councils", "work.escrows", "work.schedules", "work.work", "work.work_events",
     "workshop.approvals", "workshop.events", "workshop.grants", "workshop.sessions",
@@ -158,6 +160,8 @@ KEEP: tuple[str, ...] = (
     "revenue.accounts",
     "substitutes.logins", "substitutes.players", "substitutes.seats",
     "support.channels", "support.kb_articles", "support.settings",
+    # ⟨1.14⟩ the voice layer: the engines' light and the owner's own prices stay
+    "talk.engine_state",
     "tools.accounts", "tools.mcp_servers",
     "workshop.workspaces",
 )  # fmt: skip

@@ -9,11 +9,11 @@ agent := {"kind": "agent", "code": "TY-CEO", "role": "ceo", "company": "TY", "st
 
 service := {"kind": "service", "code": "tts", "role": "service"}
 
-reads := {"voice.engines.read", "voice.voices.read", "voice.meter.read"}
+reads := {"voice.read"}
 
 spends := {"voice.check", "voice.sample", "voice.price"}
 
-secrets := {"voice.secret.set", "voice.secret.delete"}
+secrets := {"voice.secret"}
 
 test_the_owner_reads_the_engines_the_voices_and_the_meter if {
 	every op in reads {
@@ -40,7 +40,7 @@ test_the_key_needs_the_step_up if {
 
 test_a_step_up_flag_that_is_not_true_is_no_step_up if {
 	not voice_engines.allow with input as {
-		"principal": owner, "op": "voice.secret.set",
+		"principal": owner, "op": "voice.secret",
 		"context": {"step_up": "yes"},
 	}
 }
@@ -62,8 +62,8 @@ test_an_agent_has_no_op_here if {
 }
 
 test_a_service_has_no_op_here if {
-	not voice_engines.allow with input as {"principal": service, "op": "voice.meter.read"}
-	"owner_only" in voice_engines.deny_reasons with input as {"principal": service, "op": "voice.meter.read"}
+	not voice_engines.allow with input as {"principal": service, "op": "voice.read"}
+	"owner_only" in voice_engines.deny_reasons with input as {"principal": service, "op": "voice.read"}
 }
 
 test_an_unknown_op_is_refused if {

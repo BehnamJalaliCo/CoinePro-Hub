@@ -127,6 +127,9 @@ TOPICS: dict[str, tuple[str, ...]] = {
     # ⟨1.12⟩ prompt 22 (contract §30.5): a line changed (line.updated), a run
     # moved (line_run.updated: its state, the step, a card)
     "lines": ("line.", "line_run."),
+    # ⟨1.14⟩ prompt 23 (contract §32.9): the voice layer's light and meter (the talk engine adds
+    # its own prefixes to this topic)
+    "talk": ("voice.",),
 }
 
 
