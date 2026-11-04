@@ -31,7 +31,7 @@ object Refs {
         "NT" to "notes/$", "BR" to "letter/$", "CR" to "substitutes/$", "DM" to "advisor", "WR" to "advisor", "DP" to "digital-ceo",
         "CL" to "runs", "AK" to "home",
         // media and legal (§22)
-        "SR" to "series/$", "MI" to "studio/$", "LC" to "legal/$", "RD" to "roles/$", "L" to "messages/L",
+        "CV" to "talk/$", "SR" to "series/$", "MI" to "studio/$", "LC" to "legal/$", "RD" to "roles/$", "L" to "messages/L",
         // the archive (§23): a record, a hold, a party's records, a folder's records, the open layer's rows
         "AR" to "archive/$", "LH" to "archive-holds/$", "PT" to "archive-in/party/$", "FP" to "archive-in/folder/$",
         "RR" to "archive-settings/retention/$", "RM" to "archive-settings/reminders/$", "AU" to "archive-settings/automations/$",

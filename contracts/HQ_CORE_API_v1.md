@@ -13,6 +13,8 @@
 >
 > **v1.13 (۲۰۲۶-۱۱-۰۴):** رشد (§۳۱، پرامپت ۲۲): حلقه‌ی یادگیری خط تولید، شرکت آماده با یک فرمان، خبرنامه‌ی ایمیلی، رصد رتبه‌ی سئو و رقبا، تقویم یکپارچه‌ی کمپین، بودجه‌ی تبلیغات با توقف خودکار، و قاعده‌ی اتوماسیون از یک جمله‌ی مالک.
 >
+> **v1.14 (۲۰۲۶-۱۱-۰۴):** «گفتگو» (§۳۲، پرامپت ۲۳): گفتگوی صوتی و متنی مالک با منشی هلدینگ، ناظر کل، دستیار شخصی و هر مدیر هر شرکت؛ هر کدام با صدای خودش، حالت مشورت یا جلسه‌ی کاری، کارت به‌جای کار خودسر، کلید صدا در خود چت با چراغ وضعیت، و کنتور زنده‌ی هزینه با سقف مالک.
+>
 > **v1.11 (۲۰۲۶-۱۱-۰۲):** مالک فقط کسب‌وکار میبیند (§۲۹، پرامپت ۲۱): مسیر بر پایه‌ی حوزه، ضمانت جواب هر فرمان با «گزارش فرمان»، قانون‌گذاری مالک از اپ، منشی هلدینگ، صدای بلند، بودجه‌ی ارجاع، زبان فارسی و بازنویسی برای مدیر کل، شورای v2، آمادگی، استخدام خودکار، کارگروه‌ها، اتصال‌ها، خانه‌ی سه‌کارتی، وضعیت کارمند و مرز تأیید.
 
 > **v1.10.2 (۲۰۲۶-۱۱-۰۲):** هزینه‌ی هلدینگ (§۲۸.۷، پرامپت ۲۰.۱): کاتالوگ فقط با دستور مالک و با سقف توکن، دیده‌بان اول با قاعده، سقف روزانه‌ی هر شرکت، سهم هر حوزه در گزارش، و متن GPT از چت وب ChatGPT.
@@ -3438,3 +3440,165 @@ actions    [ {kind: "work.create"|"line.run"|"line.pause"|"notify.owner"|"notify
 - Stream: `insights.updated`, `rank.daily`, `competitor.jump`, `ad.paused`, `automation.run`, `campaign.updated` (topic `growth`).
 - Step-up: `company.create`, `newsletter.send`, `ads.cap`, `ads.resume`, `automation.seal`.
 
+
+## 32. Talk: the owner's conversation with the holding, by voice or text ⟨1.14⟩ (2026-11-04, prompt 23)
+
+The owner's request (2026-11-04): one place, apart from the yellow order button, where the owner talks (holds a button, types, or
+speaks hands-free) with the **holding secretary**, the **overseer**, the **personal assistant**, or any manager of any company. Each
+persona answers in its own voice, reads everything it is allowed to read, and turns talk into work **only when the owner wants**.
+The voice engine's API key is given inside the chat, checked at once, shown as a light, and every cent spent is on a live meter.
+
+Principles (on top of §0):
+- **One engine, personas are data.** A persona is a charter + a voice + a brain setting + a tool allow-list. A new persona, a new
+  voice engine or a new provider is data and one adapter file, never a new screen or a new engine.
+- **Talking is A0.** A turn reads; it never writes business data. Work comes out of talk only through a **card** the owner taps,
+  and the card runs the existing route (§29.4 orders, §18.11 hiring, §20 decisions, §29 owner rules, §31.7 automations) with that
+  route's own confirmation and step-up.
+- **Consult is the default.** Minutes and tasks are made only when the owner asks (§32.3).
+- **One filter for the companies.** The holding secretary is the only secretary; what the owner tells a company to do becomes an order
+  through the dispatcher (§29.4), so every company's work keeps one path and one Audit.
+- **Voice never stops.** An engine that fails or reaches the owner's cap hands the sentence to the next engine in the chain; the
+  local engine (§22.3) is always last; text always works.
+- **The key never enters a conversation, a log, the Audit body or a model prompt.**
+
+### 32.1 Personas and conversations
+```
+Persona      { key: "secretary"|"overseer"|"assistant"|"advisor"|"manager", role (charter key), title_fa, company|null,
+               voice: {engine, voice, rate: 0.8..1.25}, brain: {task_class: "talk_turn", effort}, tools: [tool], face (avatar file),
+               consult_only: bool }
+Conversation { ref "CV-0001", title_fa, persona (current key or role@CODE), present: [persona], mode: "consult"|"work",
+               started_at, last_turn_at, turns: int, summary_fa|null, cost: {tokens, usd_equiv, voice_usd}, open_cards: int }
+Turn         { id, conversation, n, by: "owner"|persona, source: "typed"|"hold"|"handsfree", text, say_fa|null, show_md|null,
+               cards: [Card], audio: [{seq, file_id, seconds, engine}], tokens: {input, output, cache_read, cache_write},
+               voice: {engine, seconds, audio_tokens, usd}|null, state: "streaming"|"done"|"stopped"|"failed", reason_fa|null, at }
+Card         { id, turn, kind: "order"|"ask"|"hire"|"decision"|"planner"|"rule"|"automation"|"minutes"|"invite",
+               title_fa, body_fa, payload, state: "offered"|"done"|"dismissed"|"failed", made: [ref], reason_fa|null }
+```
+- Personas come from `apps/api/seed/talk/personas.yaml` (the fixed three, `advisor`, and `manager`, a template filled by role and
+  company). The owner changes voice, engine and effort in the app (`PUT /talk/personas/{key}`); the charter is not editable here.
+- **The holding secretary** (`secretary`, title «منشی هلدینگ») is a new conversational charter `agents/roles/holding_secretary.md`;
+  the meeting secretary (`secretary.md`, §20.1) and the dispatcher code (§29.4) stay as they are, and the dispatcher is her "hand"
+  for orders. The overseer and the assistant use their charters (`overseer.md`, `assistant.md`).
+- Default voices (owner's request; the owner picks the exact voice by ear): secretary a woman's voice, overseer a man's voice,
+  assistant a young man's voice; managers from a pool (`seed/talk/voices.yaml`), each role@company keeps its voice once given.
+- The faces sit at the top of the talk screen. The app opens the talk screen from a **separate button** (not the yellow order button,
+  which stays the quick order of §29.4/§29.5).
+
+### 32.2 A turn: the brain
+- `POST /talk/conversations/{ref}/turns {text, source, client_id}` (owner, `Idempotency-Key`) → `202 {turn, events}`; the answer
+  streams on `GET /talk/turns/{id}/events` (SSE): `text` (delta of `show_md`), `say` (a finished spoken sentence), `audio`
+  `{seq, file_id, seconds, engine}`, `card`, `invite`, `meter`, `done`, `error {code, reason_fa}`.
+- **Context, built by code:** the persona's charter (cached 1 h), the owner's memory, the conversation's summary, the last 12 turns,
+  and a small **now pack** (open critical items, waiting decisions, today's orders and their state; for a manager, its company only).
+- **One router call** per step, task class `talk_turn` (effort from the persona), streaming. Tools: read-only (A0) from the persona's
+  charter allow-list, executed through the Tool Gateway as in runs (§16), at most `TALK_TOOL_STEPS` (default 4) per turn and
+  `TALK_TOKENS_PER_TURN` (default 60 000) tokens; tool outputs are untrusted data (`hq_common.untrusted`).
+- **The answer is a strict schema:** `{say_fa (≤ 400 characters, what is spoken), show_md (the full answer on screen),
+  cards: [≤ 3], invite: {role, company}|null}`; code validates it; a card of a kind the persona may not offer is dropped.
+- **Deep questions** ("analyse the last month of TY's sales") are not answered by guessing: the persona offers an `ask` card; tapped,
+  it becomes a work of the right role (as §29.4 with `output_kind: "answer"`); the result comes back into the **same conversation** as a
+  turn of that persona («جواب آمد») with a notification.
+- **Brain unavailable** (the router has no capacity, e.g. the subscription's window is spent): if the owner enabled the optional
+  `gemini-text` connection (off by default; the same Google key), the turn uses it and says so in `show_md`; otherwise one plain line
+  «الان به مغزم دسترسی ندارم؛ تا … صبر کنید یا متن را بفرستم برای …» and nothing is lost. Never a 5xx to the app.
+- Every call is in the Token Treasury under domain `talk` (input, output, cache, thinking).
+
+### 32.3 Consult and work
+- **`consult` (default):** the conversation is stored; nothing else is made. A card appears only when the owner says something
+  imperative (the rules of `seed/order_rules.yaml` and `seed/talk/intents.yaml`, code first) — at most one unsolicited card per
+  `TALK_CARD_EVERY` (default 5) turns. A persona never turns advice into minutes by itself.
+- **`work`:** by the toggle, or the owner's words («جلسه‌ی کاری»، «صورت‌جلسه کن»، «تسک‌بندی کن»). At «پایان جلسه» (or the words),
+  one `minutes` card: a 5–10 line summary, decisions, and tasks (each with company, department and due date the owner can edit);
+  «اجرا کن» makes one order per task through the dispatcher (§29.4), linked to `CV-…`; the minutes are kept with the conversation.
+- «صورت‌جلسه کن» in any mode makes one `minutes` card from the conversation so far (`POST /talk/conversations/{ref}/minutes`).
+- `consult_only` personas (the overseer) never offer order cards; they offer `decision` or `ask` only.
+
+### 32.4 Calling a manager in, and the company filter
+- From the `+` face (company → role) or by voice («مدیرعامل تریدیار را بیاور»، «مدیر رسانه‌ی … توضیح بده»; rules first, then the
+  turn's `invite`): `POST /talk/conversations/{ref}/invite {role, company}` → the persona `manager` with that role@company joins
+  `present` and answers next. Its tools are scoped to its company (RLS, as its runs); its charter and voice are its own.
+- The secretary moderates: code writes the one-line notice («مدیرعامل تریدیار آمد»); the owner returns to her by her face or «منشی».
+- **Everything the owner tells a manager to do** becomes a card: `order` (dispatcher route preset to that company/department),
+  `hire` (that manager's hiring proposal, §18.11, sealed as usual), `decision`. A manager in talk never acts directly; the work runs
+  in the company's normal runs and appears in the order report (§29.4) and the conversation.
+- No secretary per company (the app stays simple); the persona table allows one later without a new engine.
+
+### 32.5 Voice engines, the key in the chat, the light
+```
+VoiceEngine { key, title_fa, provider: "google"|"local", model, languages: int, rank_fa, key_pattern|null, state: "missing"|"checking"|"ok"|
+              "failing"|"capped", reason_fa|null, checked_at|null,
+              price: {text_in_per_m, audio_out_per_m, audio_tokens_per_s, valid_until|null, next: {from, text_in_per_m,
+                      audio_out_per_m}|null, source_url, as_of}, voices: [{name, gender_fa, sample_file|null}] }
+```
+- `key_pattern` is the provider's key shape (a regex) the app uses to keep a pasted key out of the composer.
+- Registry `apps/api/seed/voice/engines.yaml`, adapters `apps/api/src/hq_api/voice/engines/*.py` (one interface, like §30's steps):
+  - `gemini-3.8-flash-tts` (the best quality, 130 languages);
+  - `gemini-3.8-flash-lite-tts` (about one third cheaper, 101 languages; Persian checked by the owner's ear before use);
+  - `piper` (local, free, §22.3; always the chain's last).
+- Google calls go through **egress** (channel `gemini-tts`, host `generativelanguage.googleapis.com` only); egress reads the key from
+  OpenBao `kv/hq/voice/google`. The audio is encoded on the hub (Opus) and stored as files of the conversation, one per sentence.
+- **The key in the chat:** the talk composer has a 🔑 button that opens a secure sheet (masked, no suggestions). A key-shaped string
+  typed or pasted into the composer (patterns per provider in `engines.yaml`, e.g. `AIza[0-9A-Za-z_-]{35}`) is **not sent**; the app
+  moves it into the sheet. `PUT /voice/providers/{provider}/secret {secret}` 🔏 `voice.secret` (target = provider) → `202
+  {state: "checking"}`; the hub writes OpenBao, then checks: (1) a free metadata call (`models.get`) for each model of the provider;
+  (2) a one-word speech («سلام»), its cost on the meter. The result arrives as `voice.engine` on the stream: `ok`, or `failing` with
+  a plain reason mapped from Google's answer («کلید درست نیست»، «این کلید به مدل صدا دسترسی ندارد»، «صورتحساب این پروژه فعال نیست»،
+  «سهمیه تمام شده است»). `DELETE /voice/providers/{provider}/secret` 🔏 removes it.
+- **Server defence:** every turn's text is scanned before storage and before any model call; a key-shaped string is replaced by
+  «[کلید حذف شد]» and the persona answers «کلید را با دکمه‌ی 🔑 بدهید». The Audit says only «voice.secret set».
+- **The light** (app header of the talk screen, one dot per engine in use): green `ok`, yellow `checking`, red `missing`/`failing`
+  (tap: the reason and the fix), amber `capped`. Rechecked by code every 6 h and after any failure (metadata call only, free).
+
+### 32.6 The meter and the cap
+```
+VoiceMeter { period: "today"|"month", voice_usd, cap_usd|null, projected_usd, by_engine: [{engine, usd, seconds, audio_tokens}],
+             by_persona: [{persona, usd, seconds}], talk_tokens, talk_usd_equiv, price_note_fa|null, updated_at }
+```
+- Every speech call writes one usage row with **Google's own token counts** (`usageMetadata`) and the price in force at that moment;
+  the local engine writes seconds at 0 USD. LLM tokens of talk come from the router's ledger (domain `talk`).
+- `GET /voice/meter?period=today|month` → `VoiceMeter`; the stream sends `voice.meter` after every turn, so the counter moves live.
+  `projected_usd` = month to date ÷ days elapsed × days in the month (code).
+- Honest label under «جزئیات»: the meter is Google's tokens × the price table; Google's bill (tax, currency) can differ slightly.
+- Prices are data with `valid_until` and `next`, so a scheduled change applies by itself; the owner edits them in the app
+  (`PUT /voice/engines/{key}/price`) and the app warns 14 days before a `next` price («از ۱ ژانویه قیمت دو برابر میشود»).
+- **The cap is the owner's:** `owner.settings.voice {month_cap_usd|null, warn_at: 0.8, chain: [engine]}` (`GET/PUT /owner/settings`).
+  On first key, the app asks for the cap (no default is set by anyone else). At `warn_at`: one notification. At the cap, or when an
+  engine fails: the next sentence uses the next engine in the chain, the light turns amber/red, one line in the chat; Piper is last,
+  so the voice never stops. Nothing raises the cap but the owner.
+
+### 32.7 Speaking, hands-free, interrupting
+- **In:** typed; **hold** (the talk screen's own button: hold, speak, release); **hands-free** (tap once: the app listens, a turn
+  ends after `TALK_SILENCE_MS` of silence, default 1 200, and listening resumes after the answer). The phone's recogniser first;
+  long speech goes to the hub's STT (§29.5, `purpose: "talk"`, additive).
+- **Out:** the first sentence is spoken as soon as it is ready (sentence streaming); a short local sound while tools run (no cost).
+  Target p50 time to first audio ≤ 3 s, measured on deploy (a target, not a promise).
+- **Barge-in:** when the owner starts speaking, playback stops and `POST /talk/turns/{id}/stop` ends generation; sentences not yet
+  spoken are not synthesised, so not billed.
+
+### 32.8 Memory and records
+- Every turn is stored forever (§0). A summary every 10 turns (task class `talk_summary`, a light model) feeds the context.
+- The owner's facts go to memory only when the owner says so («یادت باشه»، rule) or taps «به خاطر بسپار» on a turn.
+- `GET /talk/conversations?persona&q&cursor` with full-text search (as §5.3); `GET /talk/conversations/{ref}` with its turns page.
+- Retention of audio files follows the files' policy; text is never deleted.
+
+### 32.9 Routes, stream, step-up, policy
+| Method | Path |
+|---|---|
+| GET | `/talk/personas` |
+| PUT | `/talk/personas/{key}` `{voice?, engine?, effort?}` |
+| GET / POST | `/talk/conversations` (`POST {persona, role?, company?, mode?}` → 201 `Conversation`) |
+| GET / PATCH | `/talk/conversations/{ref}` (`PATCH {mode?, title_fa?}`) |
+| POST | `/talk/conversations/{ref}/turns`, `/invite`, `/minutes` |
+| GET | `/talk/turns/{id}/events` (SSE) |
+| POST | `/talk/turns/{id}/stop` |
+| POST | `/talk/cards/{id}/run` `{payload?}` (the owner's edits) → `{made: [ref]}`, `/talk/cards/{id}/dismiss` |
+| GET | `/voice/engines`, `/voice/engines/{key}/voices`, `/voice/meter` |
+| PUT / DELETE | `/voice/providers/{provider}/secret` 🔏 `voice.secret` |
+| POST | `/voice/engines/{key}/check`, `/voice/sample {engine, voice, text?}` (a short sample; its cost on the meter) |
+| PUT | `/voice/engines/{key}/price` |
+- All owner-only (OPA `talk.rego`, 100% coverage like every policy). Errors in Persian (`message_fa`); a provider's refusal is `502`
+  only for a sample or a check the owner asked for; a turn never answers 5xx (it falls back, §32.5–32.6).
+- Stream topic `talk`: `talk.turn` (done/failed), `talk.card`, `voice.engine`, `voice.meter`.
+- Step-up: `voice.secret`. Cards keep the step-ups of the routes they run.
+- Data: migrations `0043` (schema `talk`: `conversations`, `turns`, `cards`) and `0044` (`talk.voice_usage`, `talk.engine_state`), RLS as the rest
+  (manager turns carry `company_id`). Router task classes `talk_turn` and `talk_summary` (migration and router seed, as §31.7).

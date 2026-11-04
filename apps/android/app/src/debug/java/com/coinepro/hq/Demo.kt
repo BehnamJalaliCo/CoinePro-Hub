@@ -114,6 +114,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             v29.handle(req.method, path, q, b)?.let { Thread.sleep(60); return respond(req, it) }
             v30.handle(req.method, path, q, b)?.let { Thread.sleep(60); return respond(req, it) }
             v31.handle(req.method, path, q, b)?.let { Thread.sleep(60); return respond(req, it) }
+            v32.handle(req.method, path, q, b)?.let { Thread.sleep(60); return respond(req, it) }
         }
         // The owner's orders answer quickly: a list of orders asks for several details at once.
         if (path == "/work" || path.startsWith("/work/")) {
@@ -295,6 +296,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     private val v30 = V30Demo()
     /** ⟨1.13⟩ §31: insights, kits, the newsletter, SEO, the campaign calendar, ads and automations. */
     private val v31 = V31Demo()
+    private val v32 = V32Demo()
     /** ⟨1.8⟩ before [scripts]: wakes on the first look at a server, so other screens see the holding as before. */
     private val servers = ServersDemo(store)
 

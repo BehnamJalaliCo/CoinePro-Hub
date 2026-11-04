@@ -10,6 +10,7 @@ again be the largest share (prompt 20 finding 6: 97.6% in one hour).
     council     the substitute players (the council, errands)
     meetings    the meeting room
     media       the media studio's steps and roles
+    talk        the owner's talk with the personas (talk_turn, talk_summary)
     work        everything else: the owner's orders and the companies' work
 """
 
@@ -42,6 +43,7 @@ DOMAINS: tuple[tuple[str, str], ...] = (
     ("oversight", "نظارت و دیده‌بان"),
     ("catalogue", "کاتالوگ سرورها"),
     ("server", "Claude روی سرورها"),
+    ("talk", "گفتگوی مالک"),
 )
 DOMAIN_FA = dict(DOMAINS)
 
@@ -53,6 +55,7 @@ def _in(values: tuple[str, ...]) -> str:
 # One CASE over llm.calls `c` (the charter's role is the part of meta.charter
 # before its version); the first rule that matches wins.
 DOMAIN_SQL = f"""CASE
+    WHEN c.task_class IN ('talk_turn', 'talk_summary') THEN 'talk'
     WHEN c.task_class = 'server_claude'
          AND (c.meta->>'via' = 'catalogue' OR c.actor_ref = 'catalogue') THEN 'catalogue'
     WHEN c.task_class = 'server_claude' THEN 'server'

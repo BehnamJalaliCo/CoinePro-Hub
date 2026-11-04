@@ -158,6 +158,7 @@ NEWSLETTER_READ = "hq-newsletter-read"  # prompt 22 part 3 (§31.3)
 SEO_READ = "hq-seo-read"  # prompt 22 part 3 (§31.4)
 P22G = (NEWSLETTER_READ, SEO_READ)
 LINES_TICK = "hq-lines-tick"  # prompt 22
+VOICE_CHECK = "hq-voice-check"  # prompt 23: the voice engines' light, free metadata calls (§32.5)
 FIXED = (
     SUPPORT_SWEEP,
     MAINTENANCE,
@@ -191,6 +192,7 @@ FIXED = (
     *P22C,
     *P22G,
     LINES_TICK,
+    VOICE_CHECK,
 )
 
 
@@ -363,6 +365,15 @@ def fixed(
         *p22c_fixed(),
         *p22g_fixed(tz),
         Desired(LINES_TICK, "LinesTick", (), every(5), timedelta(minutes=5), timedelta(minutes=4)),
+        # prompt 23 (contract §32.5): every 6 hours, metadata only (free); it gates itself on the lock
+        Desired(
+            VOICE_CHECK,
+            "VoiceCheck",
+            ("*", False),
+            every(360),
+            timedelta(hours=1),
+            timedelta(minutes=3),
+        ),
     ]
 
 

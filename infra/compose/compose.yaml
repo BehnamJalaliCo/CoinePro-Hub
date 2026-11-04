@@ -1686,6 +1686,11 @@ services:
       TTS_VOICE: ${HQ_TTS_VOICE:-fa_IR-amir-medium}
       TTS_MAX_JOBS: "3"
       TTS_THREADS: "1"
+      # Prompt 23 (contract §32.5): serving mode for the talk's Piper sentences. 0 = the plain
+      # pass only; 110 = each timer pass stays up that many seconds and answers the talk's queue
+      # about once a second (set it in .env when the owner enables the talk's local voice).
+      TTS_SERVE_S: ${TTS_SERVE_S:-0}
+      TTS_SERVE_POLL_S: "1"
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=64m,mode=1777"]

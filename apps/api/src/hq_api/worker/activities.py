@@ -111,17 +111,25 @@ class Activities:
         from hq_api.worker.routing_activities import RoutingActivities
 
         self.routing = RoutingActivities(hub, self._tx)  # prompt 21: orders, the tech summary
+        from hq_api.worker.talk_activities import TalkActivities
+
+        self.talk = TalkActivities(hub, self.router, self.gateway)  # prompt 23: the owner's talk
         from hq_api.worker.ops_activities import OpsActivities
 
         self.ops = OpsActivities(hub)  # prompt 22 part 3: ad rules, automations (rule-only)
         from hq_api.worker.lines_activities import LinesActivities
 
         self.lines = LinesActivities(hub, self._tx)  # prompt 22: production lines (§30)
+        from hq_api.worker.voice_activities import VoiceActivities
+
+        self.voice = VoiceActivities(hub)  # prompt 23: the voice layer's provider calls (§32.5)
 
     def all(self) -> list[Any]:
         return [
             *self.routing.all(),
+            *self.talk.all(),
             *self.lines.all(),
+            *self.voice.all(),
             *self.meetings.all(),
             *self.studio.all(),
             *self.management.all(),

@@ -163,7 +163,7 @@ export function useLongVoice({ purpose, onText, onError }: { purpose: SttPurpose
       // A hub before §29.5: each piece through the one-shot `/transcribe`, joined in order.
       const texts: string[] = [];
       for (const [i, b] of r.segments.entries()) {
-        texts.push((await transcribe(b, purpose === 'rule' ? 'order' : purpose, r.abort.signal)).text);
+        texts.push((await transcribe(b, purpose === 'rule' ? 'order' : purpose === 'talk' ? 'message' : purpose, r.abort.signal)).text);
         if (run.current === r) setSent(i + 1);
       }
       const text = join(...texts);

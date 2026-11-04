@@ -155,7 +155,7 @@ export function unitsFa(n: number | null | undefined): string {
 }
 
 // ===================================================================================== §29.5 long voice ==
-export type SttPurpose = 'order' | 'rule' | 'message' | 'note';
+export type SttPurpose = 'order' | 'rule' | 'message' | 'note' | 'talk';
 export type SttResult = { text: string; duration_s: number; chunks: number; segments?: Array<{ start_s: number; end_s: number; text: string }> };
 const mockHandle = isMock ? async (r: Request) => (await import('@/lib/api/mock-v21')).handle(r) : undefined;
 const send = observed(mockHandle ?? ((r: Request) => globalThis.fetch(r)));

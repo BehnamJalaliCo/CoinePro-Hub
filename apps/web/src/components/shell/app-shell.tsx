@@ -50,6 +50,8 @@ function TopBar({ onPalette, onBell, onMore, onVoice, stream, urgent }: { onPale
       <span className="flex-1" />
       <LiveDot state={stream} />
       <IconButton icon="search" label="جستجو" onClick={onPalette} className="md:hidden" />
+      {/* ⟨1.14⟩ §32: talking is apart from the golden order button. */}
+      <Link href="/talk" aria-label="گفتگو با ستاد" title="گفتگو با ستاد" className="inline-flex h-10 items-center gap-1.5 rounded-[10px] px-2.5 text-[13px] font-semibold text-ink hover:bg-hover"><Icon name="messages" size={20} /><span className="hidden md:inline">گفتگو</span></Link>
       <IconButton icon="mic" label="فرمان صوتی" onClick={onVoice} className="text-gold-ink" />
       <span className="relative">
         <IconButton icon="bell" label="اعلان‌ها" onClick={onBell} />

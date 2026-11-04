@@ -64,3 +64,10 @@ path "kv/data/hq/newsletter/api" {
 path "kv/data/hq/n8n" {
   capabilities = ["read"]
 }
+
+# Prompt 23 (contract §32.5): the voice layer's provider key (kv/hq/voice/<provider>, key
+# secret), WRITE-ONLY here: the owner gives it in the talk chat (step-up voice.secret) and the api
+# never reads it back. Only the worker reads it, for one provider call at a time.
+path "kv/data/hq/voice/*" {
+  capabilities = ["create", "update"]
+}

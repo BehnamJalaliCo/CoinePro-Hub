@@ -30,7 +30,7 @@ from hq_common import persian
 CHUNK_MAX_S = 90
 SLACK_S = 1.0  # what a 90-second chunk may probe to beyond 90
 IDLE = timedelta(minutes=30)
-PURPOSES = ("order", "rule", "message", "note")
+PURPOSES = ("order", "rule", "message", "note", "talk")  # ⟨1.14⟩ §32.7 a long talk turn
 
 
 def expired(s: dict[str, Any], now: datetime | None = None) -> bool:

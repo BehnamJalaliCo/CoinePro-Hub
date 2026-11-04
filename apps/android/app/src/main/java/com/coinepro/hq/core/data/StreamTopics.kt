@@ -27,6 +27,8 @@ object StreamTopics {
         "home", "groups",
         // ⟨1.12⟩ §30.5: the production lines and their runs (`line.`, `line_run.`).
         "lines",
+        // ⟨1.14⟩ §32.9: talk (`talk.turn`, `talk.card`) and the voice (`voice.engine`, `voice.meter`).
+        "talk",
     )
 
     /**

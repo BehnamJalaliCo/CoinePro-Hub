@@ -30417,6 +30417,9 @@
             "title": "Version",
             "type": "integer"
           },
+          "voice": {
+            "$ref": "#/components/schemas/VoiceSettings"
+          },
           "watch_after_hours": {
             "default": 6,
             "title": "Watch After Hours",
@@ -30635,6 +30638,16 @@
               }
             ],
             "title": "Timezone"
+          },
+          "voice": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VoiceSettingsIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "watch_after_hours": {
             "anyOf": [
@@ -32065,6 +32078,33 @@
           "items"
         ],
         "title": "Page[Story]",
+        "type": "object"
+      },
+      "Page_TalkConversation_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TalkConversation"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[TalkConversation]",
         "type": "object"
       },
       "Page_TreeEvent_": {
@@ -44754,6 +44794,981 @@
         "title": "SupportTeachOut",
         "type": "object"
       },
+      "TalkAudio": {
+        "properties": {
+          "engine": {
+            "title": "Engine",
+            "type": "string"
+          },
+          "file_id": {
+            "title": "File Id",
+            "type": "string"
+          },
+          "seconds": {
+            "title": "Seconds",
+            "type": "number"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "seq",
+          "file_id",
+          "seconds",
+          "engine"
+        ],
+        "title": "TalkAudio",
+        "type": "object"
+      },
+      "TalkBrain": {
+        "properties": {
+          "effort": {
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "title": "Effort",
+            "type": "string"
+          },
+          "task_class": {
+            "const": "talk_turn",
+            "default": "talk_turn",
+            "title": "Task Class",
+            "type": "string"
+          }
+        },
+        "required": [
+          "effort"
+        ],
+        "title": "TalkBrain",
+        "type": "object"
+      },
+      "TalkCard": {
+        "properties": {
+          "body_fa": {
+            "title": "Body Fa",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "order",
+              "ask",
+              "hire",
+              "decision",
+              "planner",
+              "rule",
+              "automation",
+              "minutes",
+              "invite"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "made": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Made",
+            "type": "array"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "reason_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Fa"
+          },
+          "state": {
+            "enum": [
+              "offered",
+              "done",
+              "dismissed",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "turn": {
+            "format": "uuid",
+            "title": "Turn",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "turn",
+          "kind",
+          "title_fa",
+          "body_fa",
+          "payload",
+          "state",
+          "made",
+          "reason_fa"
+        ],
+        "title": "TalkCard",
+        "type": "object"
+      },
+      "TalkCardRun": {
+        "properties": {
+          "card": {
+            "$ref": "#/components/schemas/TalkCard"
+          },
+          "made": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Made",
+            "type": "array"
+          }
+        },
+        "required": [
+          "made",
+          "card"
+        ],
+        "title": "TalkCardRun",
+        "type": "object"
+      },
+      "TalkCardRunIn": {
+        "additionalProperties": false,
+        "properties": {
+          "payload": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payload"
+          }
+        },
+        "title": "TalkCardRunIn",
+        "type": "object"
+      },
+      "TalkConversation": {
+        "properties": {
+          "cost": {
+            "$ref": "#/components/schemas/TalkCost"
+          },
+          "last_turn_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Turn At"
+          },
+          "mode": {
+            "enum": [
+              "consult",
+              "work"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "open_cards": {
+            "title": "Open Cards",
+            "type": "integer"
+          },
+          "persona": {
+            "title": "Persona",
+            "type": "string"
+          },
+          "present": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Present",
+            "type": "array"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "summary_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Fa"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "turns": {
+            "title": "Turns",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ref",
+          "title_fa",
+          "persona",
+          "present",
+          "mode",
+          "started_at",
+          "last_turn_at",
+          "turns",
+          "summary_fa",
+          "cost",
+          "open_cards"
+        ],
+        "title": "TalkConversation",
+        "type": "object"
+      },
+      "TalkConversationDetail": {
+        "properties": {
+          "cost": {
+            "$ref": "#/components/schemas/TalkCost"
+          },
+          "last_turn_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Turn At"
+          },
+          "mode": {
+            "enum": [
+              "consult",
+              "work"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "open_cards": {
+            "title": "Open Cards",
+            "type": "integer"
+          },
+          "persona": {
+            "title": "Persona",
+            "type": "string"
+          },
+          "personas": {
+            "items": {
+              "$ref": "#/components/schemas/TalkPersona"
+            },
+            "title": "Personas",
+            "type": "array"
+          },
+          "present": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Present",
+            "type": "array"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "summary_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Fa"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "turns": {
+            "title": "Turns",
+            "type": "integer"
+          },
+          "turns_page": {
+            "$ref": "#/components/schemas/TalkTurnPage"
+          }
+        },
+        "required": [
+          "ref",
+          "title_fa",
+          "persona",
+          "present",
+          "mode",
+          "started_at",
+          "last_turn_at",
+          "turns",
+          "summary_fa",
+          "cost",
+          "open_cards",
+          "turns_page",
+          "personas"
+        ],
+        "title": "TalkConversationDetail",
+        "type": "object"
+      },
+      "TalkConversationIn": {
+        "additionalProperties": false,
+        "properties": {
+          "company": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "mode": {
+            "default": "consult",
+            "enum": [
+              "consult",
+              "work"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "persona": {
+            "default": "secretary",
+            "enum": [
+              "secretary",
+              "overseer",
+              "assistant",
+              "advisor",
+              "manager"
+            ],
+            "title": "Persona",
+            "type": "string"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]{1,40}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "title_fa": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title Fa"
+          }
+        },
+        "title": "TalkConversationIn",
+        "type": "object"
+      },
+      "TalkConversationPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "consult",
+                  "work"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
+          },
+          "title_fa": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title Fa"
+          }
+        },
+        "title": "TalkConversationPatch",
+        "type": "object"
+      },
+      "TalkCost": {
+        "properties": {
+          "tokens": {
+            "title": "Tokens",
+            "type": "integer"
+          },
+          "usd_equiv": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Usd Equiv",
+            "type": "string"
+          },
+          "voice_usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Voice Usd",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tokens",
+          "usd_equiv",
+          "voice_usd"
+        ],
+        "title": "TalkCost",
+        "type": "object"
+      },
+      "TalkInviteIn": {
+        "additionalProperties": false,
+        "properties": {
+          "company": {
+            "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+            "title": "Company",
+            "type": "string"
+          },
+          "department": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z][A-Z0-9]{1,11}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Department"
+          },
+          "role": {
+            "maxLength": 41,
+            "minLength": 2,
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "company"
+        ],
+        "title": "TalkInviteIn",
+        "type": "object"
+      },
+      "TalkPersona": {
+        "properties": {
+          "brain": {
+            "$ref": "#/components/schemas/TalkBrain"
+          },
+          "cards": {
+            "items": {
+              "enum": [
+                "order",
+                "ask",
+                "hire",
+                "decision",
+                "planner",
+                "rule",
+                "automation",
+                "minutes",
+                "invite"
+              ],
+              "type": "string"
+            },
+            "title": "Cards",
+            "type": "array"
+          },
+          "company": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "consult_only": {
+            "title": "Consult Only",
+            "type": "boolean"
+          },
+          "face": {
+            "title": "Face",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "secretary",
+              "overseer",
+              "assistant",
+              "advisor",
+              "manager"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "tools": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tools",
+            "type": "array"
+          },
+          "voice": {
+            "$ref": "#/components/schemas/TalkVoice"
+          }
+        },
+        "required": [
+          "key",
+          "kind",
+          "role",
+          "title_fa",
+          "company",
+          "voice",
+          "brain",
+          "tools",
+          "face",
+          "consult_only",
+          "cards"
+        ],
+        "title": "TalkPersona",
+        "type": "object"
+      },
+      "TalkPersonaIn": {
+        "additionalProperties": false,
+        "properties": {
+          "effort": {
+            "anyOf": [
+              {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "xhigh",
+                  "max"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effort"
+          },
+          "engine": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z0-9][a-z0-9._-]{1,60}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine"
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "maximum": 1.25,
+                "minimum": 0.8,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate"
+          },
+          "voice": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice"
+          }
+        },
+        "title": "TalkPersonaIn",
+        "type": "object"
+      },
+      "TalkTokens": {
+        "properties": {
+          "cache_read": {
+            "default": 0,
+            "title": "Cache Read",
+            "type": "integer"
+          },
+          "cache_write": {
+            "default": 0,
+            "title": "Cache Write",
+            "type": "integer"
+          },
+          "input": {
+            "default": 0,
+            "title": "Input",
+            "type": "integer"
+          },
+          "output": {
+            "default": 0,
+            "title": "Output",
+            "type": "integer"
+          }
+        },
+        "title": "TalkTokens",
+        "type": "object"
+      },
+      "TalkTurn": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "audio": {
+            "items": {
+              "$ref": "#/components/schemas/TalkAudio"
+            },
+            "title": "Audio",
+            "type": "array"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/TalkCard"
+            },
+            "title": "Cards",
+            "type": "array"
+          },
+          "conversation": {
+            "title": "Conversation",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "reason_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Fa"
+          },
+          "say_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Say Fa"
+          },
+          "show_md": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Show Md"
+          },
+          "source": {
+            "enum": [
+              "typed",
+              "hold",
+              "handsfree",
+              "system"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "streaming",
+              "done",
+              "stopped",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "tokens": {
+            "$ref": "#/components/schemas/TalkTokens"
+          },
+          "voice": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TalkVoiceUse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "conversation",
+          "n",
+          "by",
+          "source",
+          "text",
+          "say_fa",
+          "show_md",
+          "cards",
+          "audio",
+          "tokens",
+          "voice",
+          "state",
+          "reason_fa",
+          "at"
+        ],
+        "title": "TalkTurn",
+        "type": "object"
+      },
+      "TalkTurnAccepted": {
+        "properties": {
+          "events": {
+            "title": "Events",
+            "type": "string"
+          },
+          "owner_turn": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TalkTurn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "turn": {
+            "$ref": "#/components/schemas/TalkTurn"
+          }
+        },
+        "required": [
+          "turn",
+          "owner_turn",
+          "events"
+        ],
+        "title": "TalkTurnAccepted",
+        "type": "object"
+      },
+      "TalkTurnIn": {
+        "additionalProperties": false,
+        "properties": {
+          "client_id": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "source": {
+            "default": "typed",
+            "enum": [
+              "typed",
+              "hold",
+              "handsfree"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 10000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "TalkTurnIn",
+        "type": "object"
+      },
+      "TalkTurnPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TalkTurn"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "TalkTurnPage",
+        "type": "object"
+      },
+      "TalkVoice": {
+        "properties": {
+          "engine": {
+            "title": "Engine",
+            "type": "string"
+          },
+          "rate": {
+            "maximum": 1.25,
+            "minimum": 0.8,
+            "title": "Rate",
+            "type": "number"
+          },
+          "voice": {
+            "title": "Voice",
+            "type": "string"
+          }
+        },
+        "required": [
+          "engine",
+          "voice",
+          "rate"
+        ],
+        "title": "TalkVoice",
+        "type": "object"
+      },
+      "TalkVoiceUse": {
+        "properties": {
+          "audio_tokens": {
+            "title": "Audio Tokens",
+            "type": "integer"
+          },
+          "engine": {
+            "title": "Engine",
+            "type": "string"
+          },
+          "seconds": {
+            "title": "Seconds",
+            "type": "number"
+          },
+          "usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Usd",
+            "type": "string"
+          }
+        },
+        "required": [
+          "engine",
+          "seconds",
+          "audio_tokens",
+          "usd"
+        ],
+        "title": "TalkVoiceUse",
+        "type": "object"
+      },
       "Target-Input": {
         "additionalProperties": false,
         "properties": {
@@ -46350,6 +47365,120 @@
         "title": "VoiceActivateIn",
         "type": "object"
       },
+      "VoiceEngine": {
+        "properties": {
+          "checked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checked At"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "key_pattern": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key Pattern"
+          },
+          "languages": {
+            "title": "Languages",
+            "type": "integer"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "note_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Fa"
+          },
+          "price": {
+            "$ref": "#/components/schemas/VoicePrice"
+          },
+          "provider": {
+            "enum": [
+              "google",
+              "local"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
+          "rank_fa": {
+            "title": "Rank Fa",
+            "type": "string"
+          },
+          "reason_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Fa"
+          },
+          "state": {
+            "enum": [
+              "missing",
+              "checking",
+              "ok",
+              "failing",
+              "capped"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "voices": {
+            "items": {
+              "$ref": "#/components/schemas/VoiceVoiceOut"
+            },
+            "title": "Voices",
+            "type": "array"
+          }
+        },
+        "required": [
+          "key",
+          "title_fa",
+          "provider",
+          "model",
+          "languages",
+          "rank_fa",
+          "key_pattern",
+          "state",
+          "reason_fa",
+          "checked_at",
+          "price",
+          "voices"
+        ],
+        "title": "VoiceEngine",
+        "type": "object"
+      },
       "VoiceIn": {
         "additionalProperties": false,
         "properties": {
@@ -46382,6 +47511,326 @@
           "text_fa"
         ],
         "title": "VoiceIn",
+        "type": "object"
+      },
+      "VoiceMeter": {
+        "properties": {
+          "by_engine": {
+            "items": {
+              "$ref": "#/components/schemas/VoiceMeterEngine"
+            },
+            "title": "By Engine",
+            "type": "array"
+          },
+          "by_persona": {
+            "items": {
+              "$ref": "#/components/schemas/VoiceMeterPersona"
+            },
+            "title": "By Persona",
+            "type": "array"
+          },
+          "cap_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cap Usd"
+          },
+          "period": {
+            "enum": [
+              "today",
+              "month"
+            ],
+            "title": "Period",
+            "type": "string"
+          },
+          "price_note_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Note Fa"
+          },
+          "projected_usd": {
+            "title": "Projected Usd",
+            "type": "number"
+          },
+          "talk_tokens": {
+            "title": "Talk Tokens",
+            "type": "integer"
+          },
+          "talk_usd_equiv": {
+            "title": "Talk Usd Equiv",
+            "type": "number"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "voice_usd": {
+            "title": "Voice Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "period",
+          "voice_usd",
+          "cap_usd",
+          "projected_usd",
+          "by_engine",
+          "by_persona",
+          "talk_tokens",
+          "talk_usd_equiv",
+          "price_note_fa",
+          "updated_at"
+        ],
+        "title": "VoiceMeter",
+        "type": "object"
+      },
+      "VoiceMeterEngine": {
+        "properties": {
+          "audio_tokens": {
+            "title": "Audio Tokens",
+            "type": "integer"
+          },
+          "engine": {
+            "title": "Engine",
+            "type": "string"
+          },
+          "seconds": {
+            "title": "Seconds",
+            "type": "number"
+          },
+          "usd": {
+            "title": "Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "engine",
+          "usd",
+          "seconds",
+          "audio_tokens"
+        ],
+        "title": "VoiceMeterEngine",
+        "type": "object"
+      },
+      "VoiceMeterPersona": {
+        "properties": {
+          "persona": {
+            "title": "Persona",
+            "type": "string"
+          },
+          "seconds": {
+            "title": "Seconds",
+            "type": "number"
+          },
+          "usd": {
+            "title": "Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "persona",
+          "usd",
+          "seconds"
+        ],
+        "title": "VoiceMeterPersona",
+        "type": "object"
+      },
+      "VoicePrice": {
+        "properties": {
+          "as_of": {
+            "format": "date",
+            "title": "As Of",
+            "type": "string"
+          },
+          "audio_out_per_m": {
+            "title": "Audio Out Per M",
+            "type": "number"
+          },
+          "audio_tokens_per_s": {
+            "title": "Audio Tokens Per S",
+            "type": "integer"
+          },
+          "next": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VoicePriceNext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_url": {
+            "title": "Source Url",
+            "type": "string"
+          },
+          "text_in_per_m": {
+            "title": "Text In Per M",
+            "type": "number"
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until"
+          }
+        },
+        "required": [
+          "text_in_per_m",
+          "audio_out_per_m",
+          "audio_tokens_per_s",
+          "valid_until",
+          "next",
+          "source_url",
+          "as_of"
+        ],
+        "title": "VoicePrice",
+        "type": "object"
+      },
+      "VoicePriceIn": {
+        "additionalProperties": false,
+        "description": "The owner's price for an engine, USD per one million tokens. `reset: true` goes back to the\ntable's price.",
+        "properties": {
+          "audio_out_per_m": {
+            "anyOf": [
+              {
+                "maximum": 100000.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Out Per M"
+          },
+          "audio_tokens_per_s": {
+            "anyOf": [
+              {
+                "maximum": 1000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Tokens Per S"
+          },
+          "next": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VoicePriceNextIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reset": {
+            "default": false,
+            "title": "Reset",
+            "type": "boolean"
+          },
+          "text_in_per_m": {
+            "anyOf": [
+              {
+                "maximum": 100000.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text In Per M"
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until"
+          }
+        },
+        "title": "VoicePriceIn",
+        "type": "object"
+      },
+      "VoicePriceNext": {
+        "description": "A scheduled price: it applies from `from` (the day), by itself.",
+        "properties": {
+          "audio_out_per_m": {
+            "title": "Audio Out Per M",
+            "type": "number"
+          },
+          "from": {
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "text_in_per_m": {
+            "title": "Text In Per M",
+            "type": "number"
+          }
+        },
+        "required": [
+          "from",
+          "text_in_per_m",
+          "audio_out_per_m"
+        ],
+        "title": "VoicePriceNext",
+        "type": "object"
+      },
+      "VoicePriceNextIn": {
+        "additionalProperties": false,
+        "properties": {
+          "audio_out_per_m": {
+            "maximum": 100000.0,
+            "minimum": 0.0,
+            "title": "Audio Out Per M",
+            "type": "number"
+          },
+          "from": {
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "text_in_per_m": {
+            "maximum": 100000.0,
+            "minimum": 0.0,
+            "title": "Text In Per M",
+            "type": "number"
+          }
+        },
+        "required": [
+          "from",
+          "text_in_per_m",
+          "audio_out_per_m"
+        ],
+        "title": "VoicePriceNextIn",
         "type": "object"
       },
       "VoiceSample": {
@@ -46440,6 +47889,84 @@
         "title": "VoiceSample",
         "type": "object"
       },
+      "VoiceSampleIn": {
+        "additionalProperties": false,
+        "properties": {
+          "engine": {
+            "pattern": "^[a-z0-9][a-z0-9._-]{1,60}$",
+            "title": "Engine",
+            "type": "string"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "voice": {
+            "maxLength": 80,
+            "minLength": 2,
+            "title": "Voice",
+            "type": "string"
+          }
+        },
+        "required": [
+          "engine",
+          "voice"
+        ],
+        "title": "VoiceSampleIn",
+        "type": "object"
+      },
+      "VoiceSampleOut": {
+        "properties": {
+          "audio_tokens": {
+            "title": "Audio Tokens",
+            "type": "integer"
+          },
+          "engine": {
+            "title": "Engine",
+            "type": "string"
+          },
+          "file_id": {
+            "format": "uuid",
+            "title": "File Id",
+            "type": "string"
+          },
+          "seconds": {
+            "title": "Seconds",
+            "type": "number"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "usd": {
+            "title": "Usd",
+            "type": "number"
+          },
+          "voice": {
+            "title": "Voice",
+            "type": "string"
+          }
+        },
+        "required": [
+          "engine",
+          "voice",
+          "text",
+          "file_id",
+          "seconds",
+          "audio_tokens",
+          "usd"
+        ],
+        "title": "VoiceSampleOut",
+        "type": "object"
+      },
       "VoiceScoreIn": {
         "additionalProperties": false,
         "properties": {
@@ -46454,6 +47981,195 @@
           "score"
         ],
         "title": "VoiceScoreIn",
+        "type": "object"
+      },
+      "VoiceSecretIn": {
+        "additionalProperties": false,
+        "properties": {
+          "secret": {
+            "maxLength": 300,
+            "minLength": 8,
+            "title": "Secret",
+            "type": "string"
+          }
+        },
+        "required": [
+          "secret"
+        ],
+        "title": "VoiceSecretIn",
+        "type": "object"
+      },
+      "VoiceSecretState": {
+        "properties": {
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "missing",
+              "checking"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "state"
+        ],
+        "title": "VoiceSecretState",
+        "type": "object"
+      },
+      "VoiceSettings": {
+        "description": "⟨1.14⟩ prompt 23 (contract §32.6): the owner's cap and the voice chain. No cap (null) until\nthe owner sets one; nothing but the owner raises it.",
+        "properties": {
+          "chain": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Chain",
+            "type": "array"
+          },
+          "month_cap_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month Cap Usd"
+          },
+          "warn_at": {
+            "default": 0.8,
+            "title": "Warn At",
+            "type": "number"
+          }
+        },
+        "title": "VoiceSettings",
+        "type": "object"
+      },
+      "VoiceSettingsIn": {
+        "additionalProperties": false,
+        "properties": {
+          "chain": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chain"
+          },
+          "month_cap_usd": {
+            "anyOf": [
+              {
+                "maximum": 100000.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month Cap Usd"
+          },
+          "warn_at": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 1.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warn At"
+          }
+        },
+        "title": "VoiceSettingsIn",
+        "type": "object"
+      },
+      "VoiceTalkDone": {
+        "properties": {
+          "file": {
+            "format": "uuid",
+            "title": "File",
+            "type": "string"
+          },
+          "job": {
+            "format": "uuid",
+            "title": "Job",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job",
+          "state",
+          "file"
+        ],
+        "title": "VoiceTalkDone",
+        "type": "object"
+      },
+      "VoiceTalkFail": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "default": "failed",
+            "maxLength": 300,
+            "title": "Error",
+            "type": "string"
+          }
+        },
+        "title": "VoiceTalkFail",
+        "type": "object"
+      },
+      "VoiceTalkJob": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "rate": {
+            "title": "Rate",
+            "type": "number"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "script": {
+            "title": "Script",
+            "type": "string"
+          },
+          "voice": {
+            "title": "Voice",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "voice",
+          "script",
+          "rate"
+        ],
+        "title": "VoiceTalkJob",
         "type": "object"
       },
       "VoiceUsed": {
@@ -46482,6 +48198,46 @@
           "licence_commercial"
         ],
         "title": "VoiceUsed",
+        "type": "object"
+      },
+      "VoiceVoiceOut": {
+        "properties": {
+          "gender_fa": {
+            "title": "Gender Fa",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sample_file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample File"
+          },
+          "trait_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trait Fa"
+          }
+        },
+        "required": [
+          "name",
+          "gender_fa"
+        ],
+        "title": "VoiceVoiceOut",
         "type": "object"
       },
       "Wal": {
@@ -51011,7 +52767,8 @@
               "order",
               "rule",
               "message",
-              "note"
+              "note",
+              "talk"
             ],
             "title": "Purpose",
             "type": "string"
@@ -102221,6 +103978,13 @@
                   },
                   "timezone": "Asia/Tehran",
                   "version": 1,
+                  "voice": {
+                    "chain": [
+                      "x"
+                    ],
+                    "month_cap_usd": 1.0,
+                    "warn_at": 1.0
+                  },
                   "watch_after_hours": 1,
                   "weekly_review": {}
                 },
@@ -102301,6 +104065,13 @@
                   "creative_default_image": "gpt"
                 },
                 "timezone": "Asia/Tehran",
+                "voice": {
+                  "chain": [
+                    "x"
+                  ],
+                  "month_cap_usd": 0.0,
+                  "warn_at": 1.0
+                },
                 "watch_after_hours": 1,
                 "weekly_review": {
                   "at": "x",
@@ -102348,6 +104119,13 @@
                   },
                   "timezone": "Asia/Tehran",
                   "version": 1,
+                  "voice": {
+                    "chain": [
+                      "x"
+                    ],
+                    "month_cap_usd": 1.0,
+                    "warn_at": 1.0
+                  },
                   "watch_after_hours": 1,
                   "weekly_review": {}
                 },
@@ -115519,6 +117297,1920 @@
         ]
       }
     },
+    "/api/v1/talk/cards/{id}/dismiss": {
+      "post": {
+        "description": "The owner puts a card aside; nothing is made. A done card cannot be.",
+        "operationId": "talk_dismiss_card",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "body_fa": "توضیح کوتاه",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "order",
+                  "made": [
+                    "x"
+                  ],
+                  "payload": {},
+                  "reason_fa": "x",
+                  "state": "offered",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "turn": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TalkCard"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Talk Dismiss Card",
+        "tags": [
+          "talk"
+        ]
+      }
+    },
+    "/api/v1/talk/cards/{id}/run": {
+      "post": {
+        "description": "The owner taps a card (with edits in `payload`): it runs the existing\nroute of its kind with that route's own checks and step-ups (order and ask:\nthe dispatcher of §29.4; minutes: one order per task; hire: the manager's\nproposal; decision; planner; rule; automation: compiled, then proposed;\ninvite). → `made`: the refs it made. A done card answers what it made.\nRequires `Idempotency-Key` (each step of the card derives its own).",
+        "operationId": "talk_run_card",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "payload": {}
+              },
+              "schema": {
+                "$ref": "#/components/schemas/TalkCardRunIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "card": {
+                    "body_fa": "توضیح کوتاه",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "kind": "order",
+                    "made": [
+                      "x"
+                    ],
+                    "payload": {},
+                    "reason_fa": "x",
+                    "state": "offered",
+                    "title_fa": "گزارش هفتگی رشد",
+                    "turn": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  },
+                  "made": [
+                    "x"
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TalkCardRun"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Talk Run Card",
+        "tags": [
+          "talk"
+        ]
+      }
+    },
+    "/api/v1/talk/conversations": {
+      "get": {
+        "description": "The owner's conversations, the latest first; `persona` keeps those it took\npart in; `q` searches every turn's words (Persian-normalised full text, as\n§5.3: ی/ي, ک/ك and ZWNJ alike).",
+        "operationId": "talk_list_conversations",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "persona",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(secretary|overseer|assistant|advisor|[a-z][a-z0-9_]{1,40}@[A-Z][A-Z0-9]{1,9})$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Persona"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "cost": {
+                        "tokens": 1,
+                        "usd_equiv": "x",
+                        "voice_usd": "2.410000"
+                      },
+                      "last_turn_at": "2026-10-17T05:42:00Z",
+                      "mode": "consult",
+                      "open_cards": 1,
+                      "persona": "x",
+                      "present": [
+                        "x"
+                      ],
+                      "ref": "W-000789",
+                      "started_at": "2026-10-17T05:42:00Z",
+                      "summary_fa": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "turns": 1
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Page_TalkConversation_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Talk List Conversations",
+        "tags": [
+          "talk"
+        ]
+      },
+      "post": {
+        "description": "A new conversation with a persona (a manager: role and company, e.g.\nceo@TY), consult by default. `Idempotency-Key` optional.",
+        "operationId": "talk_open_conversation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "company": "TY",
+                "mode": "consult",
+                "persona": "secretary",
+                "role": "x",
+                "title_fa": "گزارش هفتگی رشد"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/TalkConversationIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "cost": {
+                    "tokens": 1,
+                    "usd_equiv": "x",
+                    "voice_usd": "2.410000"
+                  },
+                  "last_turn_at": "2026-10-17T05:42:00Z",
+                  "mode": "consult",
+                  "open_cards": 1,
+                  "persona": "x",
+                  "present": [
+                    "x"
+                  ],
+                  "ref": "W-000789",
+                  "started_at": "2026-10-17T05:42:00Z",
+                  "summary_fa": "x",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "turns": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TalkConversation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Talk Open Conversation",
+        "tags": [
+          "talk"
+        ]
+      }
+    },
+    "/api/v1/talk/conversations/{ref}": {
+      "get": {
+        "description": "One conversation with its turns: without `cursor` the latest `limit`\nturns, oldest first; with it, the turns after it (oldest first).",
+        "operationId": "talk_get_conversation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "cost": {
+                    "tokens": 1,
+                    "usd_equiv": "x",
+                    "voice_usd": "2.410000"
+                  },
+                  "last_turn_at": "2026-10-17T05:42:00Z",
+                  "mode": "consult",
+                  "open_cards": 1,
+                  "persona": "x",
+                  "personas": [
+                    {
+                      "brain": {
+                        "effort": "low",
+                        "task_class": "talk_turn"
+                      },
+                      "cards": [
+                        "order"
+                      ],
+                      "company": "TY",
+                      "consult_only": false,
+                      "face": "x",
+                      "key": "x",
+                      "kind": "secretary",
+                      "role": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "tools": [
+                        "x"
+                      ],
+                      "voice": {
+                        "engine": "x",
+                        "rate": 0.8,
+                        "voice": "x"
+                      }
+                    }
+                  ],
+                  "present": [
+                    "x"
+                  ],
+                  "ref": "W-000789",
+                  "started_at": "2026-10-17T05:42:00Z",
+                  "summary_fa": "x",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "turns": 1,
+                  "turns_page": {
+                    "items": [
+                      {
+                        "at": "2026-10-17T05:42:00Z",
+                        "audio": [
+                          {
+                            "engine": "x",
+                            "file_id": "x",
+                            "seconds": 1.0,
+                            "seq": 1
+                          }
+                        ],
+                        "by": "x",
+                        "cards": [
+                          {
+                            "body_fa": "توضیح کوتاه",
+                            "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                            "kind": "order",
+                            "made": [],
+                            "payload": {},
+                            "reason_fa": null,
+                            "state": "offered",
+                            "title_fa": "گزارش هفتگی رشد",
+                            "turn": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                          }
+                        ],
+                        "conversation": "x",
+                        "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "n": 1,
+                        "reason_fa": "x",
+                        "say_fa": "x",
+                        "show_md": "x",
+                        "source": "typed",
+                        "state": "streaming",
+                        "text": "x",
+                        "tokens": {
+                          "cache_read": 1,
+                          "cache_write": 1,
+                          "input": 1,
+                          "output": 1
+                        },
+                        "voice": {
+                          "audio_tokens": 1,
+                          "engine": "x",
+                          "seconds": 1.0,
+                          "usd": "2.410000"
+                        }
+                      }
+                    ],
+                    "next_cursor": "x"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TalkConversationDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Talk Get Conversation",
+        "tags": [
+          "talk"
+        ]
+      },
+      "patch": {
+        "description": "The working-meeting toggle (consult | work) and the title.",
+        "operationId": "talk_patch_conversation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "mode": "consult",
+                "title_fa": "گزارش هفتگی رشد"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/TalkConversationPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "cost": {
+                    "tokens": 1,
+                    "usd_equiv": "x",
+                    "voice_usd": "2.410000"
+                  },
+                  "last_turn_at": "2026-10-17T05:42:00Z",
+                  "mode": "consult",
+                  "open_cards": 1,
+                  "persona": "x",
+                  "present": [
+                    "x"
+                  ],
+                  "ref": "W-000789",
+                  "started_at": "2026-10-17T05:42:00Z",
+                  "summary_fa": "x",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "turns": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TalkConversation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Talk Patch Conversation",
+        "tags": [
+          "talk"
+        ]
+      }
+    },
+    "/api/v1/talk/conversations/{ref}/invite": {
+      "post": {
+        "description": "A manager joins (`role` is its charter, e.g. ceo or media_director, or a\ndepartment code whose manager is meant): role@company becomes present and\nanswers next, with its own charter, voice and its company's reads only;\ncode writes the one-line notice. Back to the secretary by her face or «منشی».",
+        "operationId": "talk_invite",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "company": "TY",
+                "department": "GROWTH",
+                "role": "xx"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/TalkInviteIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "cost": {
+                    "tokens": 1,
+                    "usd_equiv": "x",
+                    "voice_usd": "2.410000"
+                  },
+                  "last_turn_at": "2026-10-17T05:42:00Z",
+                  "mode": "consult",
+                  "open_cards": 1,
+                  "persona": "x",
+                  "personas": [
+                    {
+                      "brain": {
+                        "effort": "low",
+                        "task_class": "talk_turn"
+                      },
+                      "cards": [
+                        "order"
+                      ],
+                      "company": "TY",
+                      "consult_only": false,
+                      "face": "x",
+                      "key": "x",
+                      "kind": "secretary",
+                      "role": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "tools": [
+                        "x"
+                      ],
+                      "voice": {
+                        "engine": "x",
+                        "rate": 0.8,
+                        "voice": "x"
+                      }
+                    }
+                  ],
+                  "present": [
+                    "x"
+                  ],
+                  "ref": "W-000789",
+                  "started_at": "2026-10-17T05:42:00Z",
+                  "summary_fa": "x",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "turns": 1,
+                  "turns_page": {
+                    "items": [
+                      {
+                        "at": "2026-10-17T05:42:00Z",
+                        "audio": [
+                          {
+                            "engine": "x",
+                            "file_id": "x",
+                            "seconds": 1.0,
+                            "seq": 1
+                          }
+                        ],
+                        "by": "x",
+                        "cards": [
+                          {
+                            "body_fa": "توضیح کوتاه",
+                            "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                            "kind": "order",
+                            "made": [],
+                            "payload": {},
+                            "reason_fa": null,
+                            "state": "offered",
+                            "title_fa": "گزارش هفتگی رشد",
+                            "turn": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                          }
+                        ],
+                        "conversation": "x",
+                        "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "n": 1,
+                        "reason_fa": "x",
+                        "say_fa": "x",
+                        "show_md": "x",
+                        "source": "typed",
+                        "state": "streaming",
+                        "text": "x",
+                        "tokens": {
+                          "cache_read": 1,
+                          "cache_write": 1,
+                          "input": 1,
+                          "output": 1
+                        },
+                        "voice": {
+                          "audio_tokens": 1,
+                          "engine": "x",
+                          "seconds": 1.0,
+                          "usd": "2.410000"
+                        }
+                      }
+                    ],
+                    "next_cursor": "x"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TalkConversationDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Talk Invite",
+        "tags": [
+          "talk"
+        ]
+      }
+    },
+    "/api/v1/talk/conversations/{ref}/minutes": {
+      "post": {
+        "description": "«صورت‌جلسه کن» by the button: one `minutes` card from the conversation so\nfar (a 5-10 line summary, the decisions, the tasks with their company,\ndepartment and due date the owner can edit), in an answer of the persona.\n«اجرا کن» on it makes one order per task. Requires `Idempotency-Key`.",
+        "operationId": "talk_make_minutes",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "events": "x",
+                  "owner_turn": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "audio": [
+                      {
+                        "engine": "x",
+                        "file_id": "x",
+                        "seconds": 1.0,
+                        "seq": 1
+                      }
+                    ],
+                    "by": "x",
+                    "cards": [
+                      {
+                        "body_fa": "توضیح کوتاه",
+                        "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "kind": "order",
+                        "made": [
+                          "x"
+                        ],
+                        "payload": {},
+                        "reason_fa": "x",
+                        "state": "offered",
+                        "title_fa": "گزارش هفتگی رشد",
+                        "turn": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                      }
+                    ],
+                    "conversation": "x",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "n": 1,
+                    "reason_fa": "x",
+                    "say_fa": "x",
+                    "show_md": "x",
+                    "source": "typed",
+                    "state": "streaming",
+                    "text": "x",
+                    "tokens": {
+                      "cache_read": 1,
+                      "cache_write": 1,
+                      "input": 1,
+                      "output": 1
+                    },
+                    "voice": {
+                      "audio_tokens": 1,
+                      "engine": "x",
+                      "seconds": 1.0,
+                      "usd": "2.410000"
+                    }
+                  },
+                  "turn": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "audio": [
+                      {
+                        "engine": "x",
+                        "file_id": "x",
+                        "seconds": 1.0,
+                        "seq": 1
+                      }
+                    ],
+                    "by": "x",
+                    "cards": [
+                      {
+                        "body_fa": "توضیح کوتاه",
+                        "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "kind": "order",
+                        "made": [
+                          "x"
+                        ],
+                        "payload": {},
+                        "reason_fa": "x",
+                        "state": "offered",
+                        "title_fa": "گزارش هفتگی رشد",
+                        "turn": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                      }
+                    ],
+                    "conversation": "x",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "n": 1,
+                    "reason_fa": "x",
+                    "say_fa": "x",
+                    "show_md": "x",
+                    "source": "typed",
+                    "state": "streaming",
+                    "text": "x",
+                    "tokens": {
+                      "cache_read": 1,
+                      "cache_write": 1,
+                      "input": 1,
+                      "output": 1
+                    },
+                    "voice": {
+                      "audio_tokens": 1,
+                      "engine": "x",
+                      "seconds": 1.0,
+                      "usd": "2.410000"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TalkTurnAccepted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Talk Make Minutes",
+        "tags": [
+          "talk"
+        ]
+      }
+    },
+    "/api/v1/talk/conversations/{ref}/turns": {
+      "post": {
+        "description": "The owner says something. The words are stored at once (a key-shaped\nstring replaced by «[کلید حذف شد]»: it never reaches a log, the Audit or a\nmodel), the rules act first (back to the secretary, a manager called in,\nthe mode, «یادت باشه», «صورت‌جلسه کن»), and the answer streams on\n`events` (SSE). Requires `Idempotency-Key`; the same `client_id` again\nanswers the same turn. Never 5xx: without a brain, the plain line.",
+        "operationId": "talk_add_turn",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "client_id": "x",
+                "source": "typed",
+                "text": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/TalkTurnIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "events": "x",
+                  "owner_turn": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "audio": [
+                      {
+                        "engine": "x",
+                        "file_id": "x",
+                        "seconds": 1.0,
+                        "seq": 1
+                      }
+                    ],
+                    "by": "x",
+                    "cards": [
+                      {
+                        "body_fa": "توضیح کوتاه",
+                        "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "kind": "order",
+                        "made": [
+                          "x"
+                        ],
+                        "payload": {},
+                        "reason_fa": "x",
+                        "state": "offered",
+                        "title_fa": "گزارش هفتگی رشد",
+                        "turn": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                      }
+                    ],
+                    "conversation": "x",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "n": 1,
+                    "reason_fa": "x",
+                    "say_fa": "x",
+                    "show_md": "x",
+                    "source": "typed",
+                    "state": "streaming",
+                    "text": "x",
+                    "tokens": {
+                      "cache_read": 1,
+                      "cache_write": 1,
+                      "input": 1,
+                      "output": 1
+                    },
+                    "voice": {
+                      "audio_tokens": 1,
+                      "engine": "x",
+                      "seconds": 1.0,
+                      "usd": "2.410000"
+                    }
+                  },
+                  "turn": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "audio": [
+                      {
+                        "engine": "x",
+                        "file_id": "x",
+                        "seconds": 1.0,
+                        "seq": 1
+                      }
+                    ],
+                    "by": "x",
+                    "cards": [
+                      {
+                        "body_fa": "توضیح کوتاه",
+                        "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "kind": "order",
+                        "made": [
+                          "x"
+                        ],
+                        "payload": {},
+                        "reason_fa": "x",
+                        "state": "offered",
+                        "title_fa": "گزارش هفتگی رشد",
+                        "turn": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                      }
+                    ],
+                    "conversation": "x",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "n": 1,
+                    "reason_fa": "x",
+                    "say_fa": "x",
+                    "show_md": "x",
+                    "source": "typed",
+                    "state": "streaming",
+                    "text": "x",
+                    "tokens": {
+                      "cache_read": 1,
+                      "cache_write": 1,
+                      "input": 1,
+                      "output": 1
+                    },
+                    "voice": {
+                      "audio_tokens": 1,
+                      "engine": "x",
+                      "seconds": 1.0,
+                      "usd": "2.410000"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TalkTurnAccepted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Talk Add Turn",
+        "tags": [
+          "talk"
+        ]
+      }
+    },
+    "/api/v1/talk/personas": {
+      "get": {
+        "description": "The fixed personas (secretary, overseer, assistant, advisor) and every\nmanager already called into a conversation (role@CODE), with the voice,\nthe effort and the read tools each speaks with.",
+        "operationId": "talk_list_personas",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "brain": {
+                      "effort": "low",
+                      "task_class": "talk_turn"
+                    },
+                    "cards": [
+                      "order"
+                    ],
+                    "company": "TY",
+                    "consult_only": false,
+                    "face": "x",
+                    "key": "x",
+                    "kind": "secretary",
+                    "role": "x",
+                    "title_fa": "گزارش هفتگی رشد",
+                    "tools": [
+                      "x"
+                    ],
+                    "voice": {
+                      "engine": "x",
+                      "rate": 0.8,
+                      "voice": "x"
+                    }
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TalkPersona"
+                  },
+                  "title": "Response Talk List Personas",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Talk List Personas",
+        "tags": [
+          "talk"
+        ]
+      }
+    },
+    "/api/v1/talk/personas/{key}": {
+      "put": {
+        "description": "The owner's choice of a persona's voice, engine, rate and effort (the\ncharter is not editable here). An engine must be one of the voice layer's.",
+        "operationId": "talk_update_persona",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "effort": "low",
+                "engine": "x",
+                "rate": 0.8,
+                "voice": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/TalkPersonaIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "brain": {
+                    "effort": "low",
+                    "task_class": "talk_turn"
+                  },
+                  "cards": [
+                    "order"
+                  ],
+                  "company": "TY",
+                  "consult_only": false,
+                  "face": "x",
+                  "key": "x",
+                  "kind": "secretary",
+                  "role": "x",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "tools": [
+                    "x"
+                  ],
+                  "voice": {
+                    "engine": "x",
+                    "rate": 0.8,
+                    "voice": "x"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TalkPersona"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Talk Update Persona",
+        "tags": [
+          "talk"
+        ]
+      }
+    },
+    "/api/v1/talk/turns/{id}/events": {
+      "get": {
+        "description": "SSE of one answer (`event:` = its type, `id:` = its seq): `text` {delta}\nof show_md, `say` {seq, text} a finished spoken sentence, `audio` {seq,\nfile_id, seconds, engine}, `tool` {names} (the app plays its short local\nsound), `card` (a TalkCard), `invite` {persona, title_fa, notice_fa},\n`meter`, `error` {code, reason_fa}, `done` {state, turn}. Resumes after\n`Last-Event-ID` (or `?after`); ends after `done`; a comment line every\n15 s keeps the connection open.",
+        "operationId": "talk_turn_events",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 2147483647,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Last-Event-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last-Event-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": null,
+                "schema": {
+                  "title": "Response Talk Turn Events"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Talk Turn Events",
+        "tags": [
+          "talk"
+        ]
+      }
+    },
+    "/api/v1/talk/turns/{id}/stop": {
+      "post": {
+        "description": "Barge-in (§32.7): the owner started speaking. Generation ends within a\nmoment and sentences not yet spoken are not synthesised (not billed). A\nfinished turn answers as it is.",
+        "operationId": "talk_stop_turn",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "at": "2026-10-17T05:42:00Z",
+                  "audio": [
+                    {
+                      "engine": "x",
+                      "file_id": "x",
+                      "seconds": 1.0,
+                      "seq": 1
+                    }
+                  ],
+                  "by": "x",
+                  "cards": [
+                    {
+                      "body_fa": "توضیح کوتاه",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "kind": "order",
+                      "made": [
+                        "x"
+                      ],
+                      "payload": {},
+                      "reason_fa": "x",
+                      "state": "offered",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "turn": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                    }
+                  ],
+                  "conversation": "x",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "n": 1,
+                  "reason_fa": "x",
+                  "say_fa": "x",
+                  "show_md": "x",
+                  "source": "typed",
+                  "state": "streaming",
+                  "text": "x",
+                  "tokens": {
+                    "cache_read": 1,
+                    "cache_write": 1,
+                    "input": 1,
+                    "output": 1
+                  },
+                  "voice": {
+                    "audio_tokens": 1,
+                    "engine": "x",
+                    "seconds": 1.0,
+                    "usd": "2.410000"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TalkTurn"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Talk Stop Turn",
+        "tags": [
+          "talk"
+        ]
+      }
+    },
     "/api/v1/templates": {
       "get": {
         "description": "Company templates available for POST /companies (seed/templates/*.yaml).",
@@ -119238,6 +122930,952 @@
         "summary": "List Tts Voices",
         "tags": [
           "lines"
+        ]
+      }
+    },
+    "/api/v1/voice/engines": {
+      "get": {
+        "description": "Every engine of the chain's registry: its light (green ok, yellow checking, red\nmissing/failing with the reason and the fix, amber capped), its price in force with the next\none, and its voices. `key_pattern` is the provider's key shape the app keeps out of the\ncomposer.",
+        "operationId": "list_voice_engines",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "checked_at": "2026-10-17T05:42:00Z",
+                    "key": "x",
+                    "key_pattern": "x",
+                    "languages": 1,
+                    "model": "claude-sonnet-5-5",
+                    "note_fa": "x",
+                    "price": {
+                      "as_of": "2026-10-17",
+                      "audio_out_per_m": 1.0,
+                      "audio_tokens_per_s": 1,
+                      "next": {
+                        "audio_out_per_m": 1.0,
+                        "from": "2026-10-17",
+                        "text_in_per_m": 1.0
+                      },
+                      "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
+                      "text_in_per_m": 1.0,
+                      "valid_until": "2026-10-17"
+                    },
+                    "provider": "google",
+                    "rank_fa": "x",
+                    "reason_fa": "x",
+                    "state": "missing",
+                    "title_fa": "گزارش هفتگی رشد",
+                    "voices": [
+                      {
+                        "gender_fa": "x",
+                        "name": "report.pdf",
+                        "sample_file": "x",
+                        "trait_fa": "x"
+                      }
+                    ]
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/VoiceEngine"
+                  },
+                  "title": "Response List Voice Engines",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Voice Engines",
+        "tags": [
+          "voice"
+        ]
+      }
+    },
+    "/api/v1/voice/engines/{key}/check": {
+      "post": {
+        "description": "The free metadata check now (`models.get`, no speech). The light is updated and sent on\nthe stream; when the provider refuses, 502 with the plain Persian reason (the fix is in it).",
+        "operationId": "check_voice_engine",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9][a-z0-9._-]{1,60}$",
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "checked_at": "2026-10-17T05:42:00Z",
+                  "key": "x",
+                  "key_pattern": "x",
+                  "languages": 1,
+                  "model": "claude-sonnet-5-5",
+                  "note_fa": "x",
+                  "price": {
+                    "as_of": "2026-10-17",
+                    "audio_out_per_m": 1.0,
+                    "audio_tokens_per_s": 1,
+                    "next": {
+                      "audio_out_per_m": 1.0,
+                      "from": "2026-10-17",
+                      "text_in_per_m": 1.0
+                    },
+                    "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
+                    "text_in_per_m": 1.0,
+                    "valid_until": "2026-10-17"
+                  },
+                  "provider": "google",
+                  "rank_fa": "x",
+                  "reason_fa": "x",
+                  "state": "missing",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "voices": [
+                    {
+                      "gender_fa": "x",
+                      "name": "report.pdf",
+                      "sample_file": "x",
+                      "trait_fa": "x"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceEngine"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Check Voice Engine",
+        "tags": [
+          "voice"
+        ]
+      }
+    },
+    "/api/v1/voice/engines/{key}/price": {
+      "put": {
+        "description": "The owner's own price for an engine (USD per one million tokens), replacing the table's\nuntil `reset: true`. Rows already made keep the price they were charged at; a scheduled\n`next` price applies by itself on its day and the app warns 14 days before it.",
+        "operationId": "put_voice_price",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9][a-z0-9._-]{1,60}$",
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "audio_out_per_m": 0.0,
+                "audio_tokens_per_s": 1,
+                "next": {
+                  "audio_out_per_m": 0.0,
+                  "from": "2026-10-17",
+                  "text_in_per_m": 0.0
+                },
+                "reset": false,
+                "text_in_per_m": 0.0,
+                "valid_until": "2026-10-17"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/VoicePriceIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "checked_at": "2026-10-17T05:42:00Z",
+                  "key": "x",
+                  "key_pattern": "x",
+                  "languages": 1,
+                  "model": "claude-sonnet-5-5",
+                  "note_fa": "x",
+                  "price": {
+                    "as_of": "2026-10-17",
+                    "audio_out_per_m": 1.0,
+                    "audio_tokens_per_s": 1,
+                    "next": {
+                      "audio_out_per_m": 1.0,
+                      "from": "2026-10-17",
+                      "text_in_per_m": 1.0
+                    },
+                    "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
+                    "text_in_per_m": 1.0,
+                    "valid_until": "2026-10-17"
+                  },
+                  "provider": "google",
+                  "rank_fa": "x",
+                  "reason_fa": "x",
+                  "state": "missing",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "voices": [
+                    {
+                      "gender_fa": "x",
+                      "name": "report.pdf",
+                      "sample_file": "x",
+                      "trait_fa": "x"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceEngine"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Put Voice Price",
+        "tags": [
+          "voice"
+        ]
+      }
+    },
+    "/api/v1/voice/engines/{key}/voices": {
+      "get": {
+        "description": "The engine's voices (Gemini's prebuilt names with their gender, or Piper's shipped ones).",
+        "operationId": "list_voice_engine_voices",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9][a-z0-9._-]{1,60}$",
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "gender_fa": "x",
+                    "name": "report.pdf",
+                    "sample_file": "x",
+                    "trait_fa": "x"
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/VoiceVoiceOut"
+                  },
+                  "title": "Response List Voice Engine Voices",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Voice Engine Voices",
+        "tags": [
+          "voice"
+        ]
+      }
+    },
+    "/api/v1/voice/meter": {
+      "get": {
+        "description": "What the voice cost: Google's own token counts x the price table (Google's bill, with\ntax and currency, can differ slightly), by engine and by persona, with the month's projection\nand the model tokens of the talk.",
+        "operationId": "get_voice_meter",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "default": "today",
+              "enum": [
+                "today",
+                "month"
+              ],
+              "title": "Period",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "by_engine": [
+                    {
+                      "audio_tokens": 1,
+                      "engine": "x",
+                      "seconds": 1.0,
+                      "usd": 1.0
+                    }
+                  ],
+                  "by_persona": [
+                    {
+                      "persona": "x",
+                      "seconds": 1.0,
+                      "usd": 1.0
+                    }
+                  ],
+                  "cap_usd": 1.0,
+                  "period": "today",
+                  "price_note_fa": "x",
+                  "projected_usd": 1.0,
+                  "talk_tokens": 1,
+                  "talk_usd_equiv": 1.0,
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "voice_usd": 1.0
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceMeter"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Voice Meter",
+        "tags": [
+          "voice"
+        ]
+      }
+    },
+    "/api/v1/voice/providers/{provider}/secret": {
+      "delete": {
+        "description": "🔏 `voice.secret`: the key is removed (the stored value is emptied; the api's policy on the\nsecret store is write-only), every engine of the provider is `missing` and the chain moves on\nto the next engine.",
+        "operationId": "delete_voice_secret",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider",
+            "required": true,
+            "schema": {
+              "pattern": "^(google)$",
+              "title": "Provider",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "provider": "anthropic",
+                  "state": "missing"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceSecretState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Delete Voice Secret",
+        "tags": [
+          "voice"
+        ]
+      },
+      "put": {
+        "description": "🔏 `voice.secret` (target = the provider). Write-only: the key goes to OpenBao\n(kv/hq/voice/<provider>) and is never returned, logged or audited (\"voice.secret set\"). Then\nthe check starts in the background (the free metadata call for each model, then one spoken\nword whose cost is on the meter) and its result arrives as `voice.engine` on the stream.",
+        "operationId": "put_voice_secret",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider",
+            "required": true,
+            "schema": {
+              "pattern": "^(google)$",
+              "title": "Provider",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "secret": "xxxxxxxx"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/VoiceSecretIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "provider": "anthropic",
+                  "state": "missing"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceSecretState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Put Voice Secret",
+        "tags": [
+          "voice"
+        ]
+      }
+    },
+    "/api/v1/voice/sample": {
+      "post": {
+        "description": "A short sample of one engine's voice so the owner can choose by ear. Its cost goes on the\nmeter like any sentence; a provider's refusal is 502 with the plain reason.",
+        "operationId": "voice_sample",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "engine": "x",
+                "text": "x",
+                "voice": "xx"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/VoiceSampleIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "audio_tokens": 1,
+                  "engine": "x",
+                  "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "seconds": 1.0,
+                  "text": "x",
+                  "usd": 1.0,
+                  "voice": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceSampleOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Voice Sample",
+        "tags": [
+          "voice"
         ]
       }
     },
@@ -143038,6 +147676,311 @@
           }
         },
         "summary": "Voice Job Fail",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/voices/talk/claim": {
+      "post": {
+        "description": "The next sentence of the talk for Piper; 204 when there is none and always while the\nholding is locked (nothing is spoken then).",
+        "operationId": "voice_talk_claim",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "rate": 1.0,
+                  "ref": "W-000789",
+                  "script": "x",
+                  "voice": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceTalkJob"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "204": {
+            "description": "nothing to say, or the holding is locked"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Voice Talk Claim",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/voices/talk/{id}/done": {
+      "post": {
+        "description": "The sentence's Ogg/Opus (raw body, ≤ 4 MB), stored as a file of the holding at the\npersona's speed (Piper has no speed of its own).",
+        "operationId": "voice_talk_done",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "duration_s",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 600,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Duration S"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "file": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "job": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "state": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceTalkDone"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Voice Talk Done",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/voices/talk/{id}/fail": {
+      "post": {
+        "description": "Piper could not make it; after three tries the sentence is `failed` (the turn goes on).",
+        "operationId": "voice_talk_fail",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "error": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/VoiceTalkFail"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Voice Talk Fail",
         "tags": [
           "internal"
         ]

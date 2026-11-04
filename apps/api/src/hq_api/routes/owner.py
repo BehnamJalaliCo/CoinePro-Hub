@@ -21,6 +21,7 @@ from hq_api.domain import hiring, notify
 from hq_api.errors import ApiError, responses
 from hq_api.routes.notifications import if_match, time_cursor
 from hq_api.security import stepup
+from hq_api.voice import store as voice_store
 from hq_common import provisioning
 
 log = logging.getLogger("hq_api.routes.owner")
@@ -163,6 +164,35 @@ def _merged(cur: dict[str, Any] | None, patch: BaseModel | None) -> str | None:
     return json.dumps(out)
 
 
+class VoiceSettings(BaseModel):
+    """⟨1.14⟩ prompt 23 (contract §32.6): the owner's cap and the voice chain. No cap (null) until
+    the owner sets one; nothing but the owner raises it."""
+
+    month_cap_usd: float | None = None
+    warn_at: float = 0.8
+    chain: list[str] = Field(default_factory=list)
+
+
+class VoiceSettingsIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    # null removes the cap; a number sets it (0 means no paid voice at all)
+    month_cap_usd: float | None = Field(default=None, ge=0, le=100_000)
+    warn_at: float | None = Field(default=None, gt=0, le=1)
+    chain: list[str] | None = Field(default=None, min_length=1, max_length=10)
+
+    @field_validator("chain")
+    @classmethod
+    def _chain(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return v
+        from hq_api.voice import catalog
+
+        bad = [k for k in v if k not in catalog.load().engines]
+        if bad:
+            raise ValueError(f"unknown engine {bad[0][:40]!r}")
+        return list(dict.fromkeys(v))
+
+
 class OwnerSettings(BaseModel):
     timezone: str
     morning_report_at: str
@@ -188,6 +218,8 @@ class OwnerSettings(BaseModel):
     digital_ceo: dict[str, Any] | None = None
     # ⟨1.11⟩ §29.8 the council v2's seats: {player: captain|researcher|numbers|devil}
     council_roles: dict[str, str] = Field(default_factory=dict)
+    # ⟨1.14⟩ §32.6 the voice cap and chain (additive)
+    voice: VoiceSettings = Field(default_factory=VoiceSettings)
 
 
 class WeeklyReviewIn(BaseModel):
@@ -257,6 +289,8 @@ class OwnerSettingsIn(BaseModel):
         ]
         | None
     ) = Field(default=None, min_length=1)
+    # ⟨1.14⟩ §32.6 the cap, the warning point and the chain (the fields sent are merged)
+    voice: VoiceSettingsIn | None = None
 
     @field_validator("provision_ssh_sources")
     @classmethod
@@ -425,6 +459,7 @@ def _settings_out(row: dict[str, Any]) -> OwnerSettings:
         weekly_review=row.get("weekly_review"),
         digital_ceo=row.get("digital_ceo"),
         council_roles=dict(row.get("council_roles") or {}),
+        voice=VoiceSettings.model_validate(voice_store.settings_of(row.get("voice"))),
     )
 
 
@@ -432,8 +467,20 @@ SETTINGS_COLS = (
     "timezone, morning_report_at, digest_minutes, ceo_daily_attention, learning_daily_cap, "
     "calendars, watch_after_hours, provision_ssh_sources, advisor, substitutes, version"
     ", audio_briefings, ceo_weekly_letter, reminders, weekly_review, digital_ceo"
-    ", council_roles"
+    ", council_roles, voice"
 )
+
+
+def _voice_merged(cur: dict[str, Any] | None, patch: VoiceSettingsIn | None) -> str | None:
+    """The voice block with the fields sent; `month_cap_usd: null` sent on purpose removes the cap."""
+    if patch is None:
+        return None
+    out = dict(cur or {})
+    sent = patch.model_dump(exclude_unset=True)
+    for k, v in sent.items():
+        if k == "month_cap_usd" or v is not None:
+            out[k] = v
+    return json.dumps(out)
 
 
 def _block(b: BaseModel | None) -> str | None:
@@ -464,7 +511,7 @@ async def put_owner_settings(
     changes = body.model_dump(exclude_none=True)
     async with ctx.tx() as tx:
         blocks = await tx.one(
-            "SELECT advisor, substitutes FROM owner.settings WHERE id = 1 FOR UPDATE"
+            "SELECT advisor, substitutes, voice FROM owner.settings WHERE id = 1 FOR UPDATE"
         )
         row = await tx.first(
             f"""UPDATE owner.settings SET
@@ -483,7 +530,8 @@ async def put_owner_settings(
                    reminders = reminders || COALESCE(CAST(:rem AS jsonb), '{{}}'),
                    weekly_review = weekly_review || COALESCE(CAST(:wr AS jsonb), '{{}}'),
                    digital_ceo = digital_ceo || COALESCE(CAST(:dc AS jsonb), '{{}}'),
-                   council_roles = COALESCE(CAST(:cr AS jsonb), council_roles)
+                   council_roles = COALESCE(CAST(:cr AS jsonb), council_roles),
+                   voice = COALESCE(CAST(:vo AS jsonb), voice)
                WHERE id = 1 AND version = :v RETURNING {SETTINGS_COLS}""",  # noqa: S608 - constant column list, values are bound
             adv=_merged(blocks["advisor"], body.advisor),
             subs=_merged(blocks["substitutes"], body.substitutes),
@@ -501,6 +549,7 @@ async def put_owner_settings(
             wr=_block(body.weekly_review),
             dc=_block(body.digital_ceo),
             cr=json.dumps(body.council_roles) if body.council_roles else None,
+            vo=_voice_merged(blocks["voice"], body.voice),
             v=version,
         )
         if row is None:

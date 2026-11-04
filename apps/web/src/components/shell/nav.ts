@@ -5,6 +5,8 @@ export type NavItem = { href: string; label: string; icon: IconName; badge?: 'de
 
 export const NAV_MAIN: NavItem[] = [
   { href: '/', label: 'فرمان', icon: 'command' },
+  // ⟨1.14⟩ §32: the owner talks with the holding (secretary, overseer, assistant, advisor, any manager), by voice or text.
+  { href: '/talk', label: 'گفتگو', icon: 'messages' },
   { href: '/orders', label: 'فرمان‌های من', icon: 'delegate' },
   { href: '/cartable', label: 'کارتابل', icon: 'cartable', badge: 'decisions' },
   { href: '/outputs', label: 'خروجی‌ها', icon: 'deliverable', badge: 'deliverables' },

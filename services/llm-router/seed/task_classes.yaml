@@ -61,3 +61,8 @@ task_classes:
   # prompt 22 part 3 (contract §31.7): one mid-model call turns the owner's sentence into a rule;
   # api migration 0042 inserts the same row.
   - {key: automation_compile, transferable: false, description: "An automation from one sentence of the owner: one call, a strict JSON schema (contract 31.7)"}
+  # prompt 23 (contract §32.2, §32.8): one step of a turn of the owner's talk (strict answer schema, read
+  # tools only) and a conversation's running summary every 10 turns (a light model); api migration 0043
+  # inserts the same rows.
+  - {key: talk_turn, transferable: false, description: "One turn of the owner's talk with a persona: a strict answer schema, read tools only (contract 32.2)"}
+  - {key: talk_summary, transferable: false, description: "A conversation's running summary every 10 turns, a light model (contract 32.8)"}

@@ -57,6 +57,11 @@ Every library is free and open source and pinned to an exact version (`gradle/li
   - **Tools and internet** — egress totals and log, MCP servers enabled by the owner's seal, service accounts, the
     tool catalogue.
   - The **advisor** gains its formal inquiries; **home** gains the overseer's card; **control** gains backups.
+- **Talk** ⟨1.14⟩ — a talk button in the app bar (apart from the gold order button): the holding secretary, the overseer, the personal
+  assistant, the advisor and any manager brought in with «+», as faces; a chat with cards the owner taps («اجرا کن»، «ویرایش»، «نه»);
+  typing, a held mic and hands-free (a turn ends after a short silence, speaking over the answer stops it); the answer streams and each
+  sentence is played in order; the 🔑 sheet for the voice engine's key (sealed, write-only; a pasted key never enters a turn), the light
+  of each engine, the live meter with the owner's monthly cap, a voice for each persona, and the list of every conversation with search.
 - **The owner's tools** ⟨1.4.4⟩ on APIs the hub already serves (`docs/GAP_ANALYSIS_v2.md` §5A):
   - **Resolutions book** with search and Excel export; any message can be recorded as a resolution.
   - **Agent runs**: every run, live, with its steps and tools, and a health board per employee; runs on each work

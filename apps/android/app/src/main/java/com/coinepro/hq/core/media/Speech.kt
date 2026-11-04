@@ -24,6 +24,8 @@ class PhoneSpeech(private val context: Context) {
         /** A Persian sentence the owner can act on, whether typing is the way forward (the phone cannot do Persian at all), and the
          *  recogniser's error code (`SpeechRecognizer.ERROR_*`; `ERROR_NO_MATCH` when it answered with no words) for the hub's fallback. */
         fun failed(messageFa: String, unavailable: Boolean, code: Int)
+        /** ⟨1.14⟩ The recogniser heard the owner begin to speak (talk's barge-in listens for it while an answer plays). */
+        fun speaking() = Unit
     }
 
     private var rec: SpeechRecognizer? = null
@@ -31,13 +33,13 @@ class PhoneSpeech(private val context: Context) {
     val listening: Boolean get() = rec != null
 
     /** False when the phone has no recogniser at all (no Google app, no speech service). */
-    fun start(l: Listener): Boolean {
+    fun start(l: Listener, silenceMs: Long? = null): Boolean {
         cancel()
         val r = create() ?: return false
         rec = r
         r.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) = Unit
-            override fun onBeginningOfSpeech() = Unit
+            override fun onBeginningOfSpeech() = l.speaking()
             override fun onRmsChanged(rmsdB: Float) = l.level(((rmsdB + 2f) / 12f).coerceIn(0f, 1f))
             override fun onBufferReceived(buffer: ByteArray?) = Unit
             override fun onEndOfSpeech() = l.recognising()
@@ -62,7 +64,7 @@ class PhoneSpeech(private val context: Context) {
                 l.failed(fa, unavailable, error)
             }
         })
-        return runCatching { r.startListening(intent()); true }.getOrElse { release(); false }
+        return runCatching { r.startListening(intent(silenceMs)); true }.getOrElse { release(); false }
     }
 
     /** The owner is done: the phone finishes the text it heard. */
@@ -88,7 +90,7 @@ class PhoneSpeech(private val context: Context) {
         }
     }.getOrNull()
 
-    private fun intent() = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+    private fun intent(silenceMs: Long? = null) = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
         putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
         putExtra(RecognizerIntent.EXTRA_LANGUAGE, LANGUAGE)
         putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, LANGUAGE)
@@ -96,8 +98,9 @@ class PhoneSpeech(private val context: Context) {
         putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
         putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
         // An order is said in one breath with pauses: let a short pause pass before the phone decides the owner is done.
-        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2_500L)
-        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2_000L)
+        // (Talk's hands-free asks for its own, shorter silence: ⟨1.14⟩ §32.7.)
+        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, silenceMs ?: 2_500L)
+        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, silenceMs?.let { it - 200L } ?: 2_000L)
         putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
     }
 
