@@ -362,6 +362,9 @@ class HoldingStream(
             "home." to arrayOf("home"),
             "suggestion." to arrayOf("home"),
             "group." to arrayOf("groups", "home"),
+            // ⟨1.12⟩ §30.5: a production line or one of its runs changed (the lists, the line, the run page, the calendar).
+            "line_run." to arrayOf("lines", "line-runs", "home"),
+            "line." to arrayOf("lines", "line-runs"),
             "connection." to arrayOf("connections", "readiness", "home"),
             "rule." to arrayOf("rules", "oversight"),
             // ⟨1.4⟩ §18.10 and ⟨1.4.2⟩ §18.11

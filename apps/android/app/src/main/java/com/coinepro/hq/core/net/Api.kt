@@ -1458,6 +1458,101 @@ class Api(
         }.flatMap { it.await() }.distinctBy { it.ref }.sortedByDescending { it.openedAt }
     }
 
+    // ----------------------------------------- ⟨1.12⟩ §30 production lines --
+    suspend fun lineTemplates(): List<Template> = items("/line-templates", Template.serializer())
+    suspend fun lineTemplate(key: String): Template = get("/line-templates/${seg(key)}")
+
+    suspend fun companyLines(code: String): List<Line> = items("/companies/${seg(code)}/lines", Line.serializer())
+
+    /** A new line from a template, a `draft`: its first runs wait for the owner's seal. */
+    suspend fun newLine(code: String, template: String, platform: String, channel: LineChannel, titleFa: String): Line =
+        post("/companies/${seg(code)}/lines", buildJsonObject {
+            put("template", template); put("platform", platform); put("title_fa", titleFa)
+            put("channel", buildJsonObject { put("kind", channel.kind); put("subject", channel.subject) })
+        })
+
+    suspend fun line(ref: String): Line = get("/lines/${seg(ref)}")
+
+    /** `PUT /lines/{ref}`: a new version. A cap that rises is 🔏 `line.caps` on the ref (the caller passes [stepUp] then). */
+    suspend fun putLine(ref: String, body: JsonObject, stepUp: StepUp? = null): Line {
+        val token = if (stepUp != null) stepUp("line.caps", ref) else null
+        return send("PUT", "/lines/${seg(ref)}", jsonBody.encodeToString(JsonObject.serializer(), body), stepUp = token)
+    }
+
+    suspend fun setLineState(ref: String, state: String): Line = post("/lines/${seg(ref)}/state", buildJsonObject { put("state", state) })
+
+    /** `auto` is 🔏 `line.auto` on the ref; back to `draft` is not sealed. */
+    suspend fun setLineMode(ref: String, mode: String, stepUp: StepUp? = null): Line {
+        val token = if (stepUp != null) stepUp("line.auto", ref) else null
+        return post("/lines/${seg(ref)}/mode", buildJsonObject { put("mode", mode) }, token)
+    }
+
+    suspend fun lineVersions(ref: String): List<LineVersion> = items("/lines/${seg(ref)}/versions", LineVersion.serializer())
+    suspend fun revertLine(ref: String, version: Int): Line = post("/lines/${seg(ref)}/revert", buildJsonObject { put("version", version) })
+    suspend fun copyLine(ref: String, company: String): Line = post("/lines/${seg(ref)}/copy", buildJsonObject { put("company", company) })
+
+    suspend fun runLine(ref: String, dry: Boolean = false, fromStep: String? = null): LineRun =
+        post("/lines/${seg(ref)}/runs", buildJsonObject { put("dry", dry); if (fromStep != null) put("from_step", fromStep) })
+
+    /** That step alone; nothing is kept beyond the answer. The answer is a step run, or the bare output (both are read). */
+    suspend fun testLineStep(ref: String, key: String, inputs: JsonObject? = null): StepRun {
+        val e: JsonObject = post("/lines/${seg(ref)}/steps/${seg(key)}/test", buildJsonObject { if (inputs != null) put("inputs", inputs) })
+        return decoded("/lines/$ref/steps/$key/test", "POST") {
+            if (e["output"] is JsonObject || e["state"] != null) json.decodeFromJsonElement(StepRun.serializer(), e)
+            else StepRun(key = key, state = "done", output = json.decodeFromJsonElement(StepOutput.serializer(), e))
+        }
+    }
+
+    suspend fun lineRuns(ref: String, limit: Int = 30): List<LineRun> = items("/lines/${seg(ref)}/runs", LineRun.serializer(), mapOf("limit" to limit))
+    suspend fun lineRun(ref: String): LineRun = get("/line-runs/${seg(ref)}")
+    suspend fun rerunLineRun(ref: String, fromStep: String): LineRun = post("/line-runs/${seg(ref)}/rerun", buildJsonObject { put("from_step", fromStep) })
+
+    /** The owner's seal of a waiting run: publish it (approve) or refuse it. */
+    suspend fun sealLineRun(ref: String, approve: Boolean, noteFa: String? = null): LineRun =
+        post("/line-runs/${seg(ref)}/seal", buildJsonObject { put("approve", approve); if (!noteFa.isNullOrBlank()) put("note_fa", noteFa) })
+
+    suspend fun cancelLineRun(ref: String): LineRun = post("/line-runs/${seg(ref)}/cancel", JsonObject(emptyMap()))
+
+    suspend fun lineCalendar(from: String, to: String, company: String? = null): LineCalendar =
+        get("/calendar/lines", mapOf("from" to from, "to" to to, "company" to company))
+
+    suspend fun library(company: String? = null, kind: String? = null): List<Asset> = items("/library", Asset.serializer(), mapOf("company" to company, "kind" to kind))
+
+    /** A file for the library, streamed from [open] (a content URI, never held in memory). */
+    class LibraryUpload(val name: String, val mime: String, val size: Long, val open: () -> InputStream)
+
+    /** `POST /library` multipart: the `meta` JSON and each file. */
+    suspend fun addAsset(meta: JsonObject, files: List<LibraryUpload>): Asset {
+        val form = okhttp3.MultipartBody.Builder().setType(okhttp3.MultipartBody.FORM)
+            .addFormDataPart("meta", null, json.encodeToString(JsonElement.serializer(), meta).toRequestBody(JSON))
+        for (f in files) {
+            val part = object : RequestBody() {
+                override fun contentType() = f.mime.toMediaType()
+                override fun contentLength() = f.size
+                override fun writeTo(sink: BufferedSink) {
+                    f.open().use { input ->
+                        val buf = ByteArray(64 * 1024)
+                        while (true) {
+                            val n = input.read(buf)
+                            if (n < 0) break
+                            sink.write(buf, 0, n)
+                        }
+                    }
+                }
+            }
+            form.addFormDataPart("files", f.name, part)
+        }
+        val req = Request.Builder().url(url("/library")).post(form.build()).header("Idempotency-Key", UUID.randomUUID().toString()).build()
+        return call(req, serializer(), transferClient)
+    }
+
+    suspend fun putAsset(id: String, body: JsonObject): Asset = put("/library/${seg(id)}", body)
+    suspend fun deleteAsset(id: String) {
+        execute(Request.Builder().url(url("/library/${seg(id)}")).delete().build()).use { check(it) }
+    }
+
+    suspend fun ttsVoices(): List<Voice> = items("/tts/voices", Voice.serializer())
+
     // §29.5 long voice: a session, its chunks (≤ 90 s each, in order, idempotent per n), then the whole text.
     suspend fun sttStart(purpose: String): SttSession = post("/transcribe/sessions", buildJsonObject { put("purpose", purpose) })
 
