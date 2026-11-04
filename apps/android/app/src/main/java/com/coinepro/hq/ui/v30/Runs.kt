@@ -273,7 +273,7 @@ private fun PublishedCard(run: LineRun) {
         Column(Modifier.padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             for (p in run.published) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(plain(platformFa(p.platform).takeIf { it != "خروجی" } ?: p.platform), style = Divan.type.small, modifier = Modifier.weight(1f))
-                p.at?.let { Text(plain(jTime(it)), style = Divan.type.caption, color = c.textMuted) }
+                p.at?.let { Text(com.coinepro.hq.designsystem.timesFig(jTime(it)), style = Divan.type.caption, color = c.textMuted) }
                 p.url?.takeIf { it.startsWith("https://") }?.let { u -> HqButton("باز کن", { runCatching { uri.openUri(u) } }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.NEXT) }
             }
         }
