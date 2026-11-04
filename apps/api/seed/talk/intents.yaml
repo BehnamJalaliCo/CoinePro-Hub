@@ -1,0 +1,26 @@
+# What the owner's words mean in a conversation, by rule, before any model
+# (contract §32.3, §32.4, §32.8). Matching is on the normalised text (Arabic
+# ي/ك as Persian, ZWNJ and punctuation as spaces), whole phrases, as the order
+# rules (seed/order_rules.yaml) are matched.
+#
+# work_mode     the conversation becomes a working meeting
+# consult_mode  back to plain consultation
+# minutes       one `minutes` card from the conversation so far, in any mode
+# end_meeting   in a working meeting: the closing `minutes` card
+# invite        call a manager in: one of these phrases with a role and a
+#               company the order rules know («مدیرعامل تریدیار را بیاور»)
+# secretary     back to the holding secretary (the whole sentence is this word)
+# remember      the owner's fact goes to memory (the rest of the sentence)
+# imperative    the owner tells someone to do something: the only case where a
+#               persona may offer an unsolicited card (at most one per
+#               TALK_CARD_EVERY turns)
+work_mode: [جلسه کاری, جلسه ی کاری, تسک بندی کن, تسکبندی کن, حالت کار]
+consult_mode: [حالت مشورت, فقط مشورت]
+minutes: [صورت جلسه کن, صورتجلسه کن, صورت جلسه بنویس, صورتجلسه بنویس]
+end_meeting: [پایان جلسه, جلسه تمام شد, جلسه را ببند]
+invite: [را بیاور, رو بیار, بیاید, بیاد, صدا کن, دعوت کن, توضیح بده]
+secretary: [منشی, منشی هلدینگ, برگرد پیش منشی]
+remember: [یادت باشه, یادت باشد, به خاطر بسپار, یادت بمونه]
+imperative: [بساز, بنویس, انجام بده, انجام بدهید, بفرست, بفرستید, راه بنداز, راه بیانداز, درست کن, تهیه کن,
+             آماده کن, پیگیری کن, اجرا کن, منتشر کن, پیدا کن, بررسی کن, گزارش بده, تحلیل کن, برنامه ریزی کن,
+             استخدام کن, قانون بگذار, یادآوری کن, یادم بنداز]
