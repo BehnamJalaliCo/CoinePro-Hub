@@ -19,6 +19,8 @@ const ROUTES: Record<string, string> = {
   S: '/workshop/$', G: '/workshop', AP: '/workshop', C: '/founding/$', PV: '/founding',
   // ⟨1.11⟩ §29: an order's report, the owner's rules, a suggestion on the home
   F: '/orders/$', SG: '/',
+  // ⟨1.12⟩ §30: a production line (a run `LR-` keeps the growth page's prefix; its page is reached from the line)
+  LN: '/lines/$',
   // the overseer, inquiries, errands, incidents, teachings (§18)
   FI: '/oversight', H: '/oversight', CH: '/oversight', SO: '/rules', Q: '/advisor', E: '/assistant', I: '/sites', TE: '/academy',
   // revenue, support and growth (§19)

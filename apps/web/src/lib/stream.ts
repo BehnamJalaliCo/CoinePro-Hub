@@ -37,6 +37,9 @@ const INVALIDATE: Array<[string, Array<string | readonly string[]>]> = [
   ['home.', ['home']],
   ['suggestion.', ['home']],
   ['group.', ['groups', 'home']],
+  // ⟨1.12⟩ §30.5 topic `lines`: `line.` (a line moved) and `line_run.` (a run or one of its steps moved); a sealed run also moves the cartable.
+  ['line_run.', ['lines', 'decisions', 'inbox']],
+  ['line.', ['lines']],
   ['connection.', ['connections', 'groups']],
   ['rule.', ['rules']],
   ['hiring.', ['hiring']],
