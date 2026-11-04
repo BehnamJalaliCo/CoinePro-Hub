@@ -95,7 +95,7 @@ async def _hub_transcript(ctx: Ctx, file_id: UUID) -> str:
 class OrderRoute(BaseModel):
     company: str
     to: str
-    kind: Literal["work", "code", "meeting", "question"]
+    kind: Literal["work", "code", "meeting", "question", "kit"]
     work_ref: str | None = None
     session_ref: str | None = None
     decision_ref: str | None = None
@@ -417,6 +417,10 @@ async def carry_out(
     title = " ".join(text.split())[:80] or ref
     first = rt.companies[0]
     co = d["companies"][first]
+    if rt.kind == "kit":
+        # §31.2 a new company is only drafted: the order report holds the kit
+        # card, no work item exists, nothing is created before the owner seals
+        return [O.Route(first, rt.kit or "", "kit", summary_fa=rt.preview_fa)]
     if rt.kind == "server":
         return [await _server(ctx, tx, rt, s.sc, ref, text, title)]
     if rt.kind == "question" and rt.mode == "single":

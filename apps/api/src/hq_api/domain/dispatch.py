@@ -43,6 +43,7 @@ from pydantic import Field
 
 from hq_api.db import Tx
 from hq_api.domain import humanize
+from hq_api.domain import kits as KT
 from hq_api.domain import orders as O
 from hq_api.domain import players as PL
 from hq_api.errors import ApiError
@@ -52,7 +53,7 @@ OUTPUT_KINDS = ("post", "reel", "story", "article", "report", "plan", "code", "a
 OutputKind = Literal[
     "post", "reel", "story", "article", "report", "plan", "code", "answer", "other"
 ]
-RouteKind = Literal["work", "code", "meeting", "question", "server"]
+RouteKind = Literal["work", "code", "meeting", "question", "server", "kit"]
 Player = Literal["auto", "claude", "gpt", "gemini", "deepseek"]
 OUTPUT_FA = {
     "post": "پست",
@@ -69,6 +70,7 @@ MEMORY_KINDS = ("correction", "no")
 # the fields of a route the owner may correct (and the memory remembers)
 CORRECTABLE = ("companies", "department", "collaborators", "output_kind", "mode", "player", "kind")
 _DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
+_ARABIC_LETTERS = str.maketrans({"ي": "ی", "ك": "ک", "ى": "ی"})
 
 
 class Route(Model):
@@ -89,6 +91,9 @@ class Route(Model):
     confidence: float = Field(default=1.0, ge=0, le=1)
     why_fa: str = Field(default="", max_length=1000)
     kind: RouteKind = "work"
+    # ⟨additive⟩ §31.2 kind `kit`: the draft of a new company; nothing is made before the seal
+    kit: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_]{1,40}$")
+    kit_name_fa: str | None = Field(default=None, max_length=200)
 
 
 @dataclass
@@ -108,6 +113,8 @@ class Draft:
     by: str = "rules"  # rules | model | advisor (owner.orders.routed_by)
     remembered: bool = False
     workspace: str | None = None  # the model's workspace of a code order
+    kit: str | None = None  # §31.2 the kit of «یک شرکت تازه …»
+    kit_name_fa: str | None = None
 
     def open(self) -> bool:
         """The rules left the company (work, code, meeting) or the department
@@ -186,6 +193,49 @@ def output_of(norm: str) -> tuple[str, int | None, str | None]:
                 count = int(tok) if tok.isdigit() else numbers.get(tok)
             return kind, count if count and count > 0 else None, w
     return "other", None, None
+
+
+def _phrase_re(phrase: str) -> str:
+    """A rule phrase as a pattern that also matches its ZWNJ spellings."""
+    return r"[\s\u200c]*".join(re.escape(t) for t in O.normalise(phrase).split())
+
+
+def kit_of(text: str, norm: str) -> tuple[str, str | None] | None:
+    """§31.2 (kit, the company's name as said) when the order asks for a new
+    company («یک شرکت تازه برای … بساز»), by the rules' `kit` (no model)."""
+    spec = rules().get("kit") or {}
+    triggers = [str(w) for w in spec.get("triggers") or []]
+    if not any(_pos(norm, w) is not None for w in triggers):
+        return None
+    known = KT.kits()
+    scored = [
+        (sum(_pos(norm, w) is not None for w in words or []), -i, str(key))
+        for i, (key, words) in enumerate((spec.get("kits") or {}).items())
+        if str(key) in known
+    ]
+    best = max(scored, default=(0, 0, ""))
+    key = best[2] if best[0] > 0 else str(spec.get("default") or "")
+    if key not in known:
+        return None
+    light = text.translate(_ARABIC_LETTERS)
+    start = "|".join(_phrase_re(w) for w in triggers)
+    end = "|".join(_phrase_re(w) for w in spec.get("make") or [])
+    m = re.search(rf"(?:{start})[\s\u200c]*(.*)", light, flags=re.S)
+    name = None
+    if m:
+        part = (
+            re.split(rf"(?:^|[\s\u200c])(?:{end})(?=$|[\s\u200c.،!؟?])", m.group(1))[0]
+            if end
+            else m.group(1)
+        )
+        part = re.sub(r"^\s*(?:برای|به نام|با نام|به اسم)\s+", "", part.strip())
+        part = re.sub(r"[«»\"']", " ", part)
+        part = re.sub(r"(?:\s|‌)+را\s*$", "", part.strip())
+        part = part.strip(" \t\n.،:؛!؟?")
+        name = " ".join(part.split())[:200] or None
+        if name is not None and len(name) < 2:
+            name = None
+    return key, name
 
 
 def question_scope(norm: str) -> str | None:
@@ -268,6 +318,8 @@ def by_rules(
     norm = O.normalise(text)
     dr = Draft()
     kind = O.kind_of(norm, text)
+    if kind == "work" and (made := kit_of(text, norm)) is not None:
+        return kit_draft(dr, made, d)
     named = companies_in_order(norm, d)
     if not named and hint in d["companies"]:
         named = [str(hint)]
@@ -327,6 +379,18 @@ def by_rules(
     return dr
 
 
+def kit_draft(dr: Draft, made: tuple[str, str | None], d: dict[str, Any]) -> Draft:
+    """§31.2 a new company is asked for: a kit preview in the order report, no
+    work item and no company until the owner seals. It sits in the holding."""
+    dr.kind, dr.kit, dr.kit_name_fa = "kit", made[0], made[1]
+    dr.companies = [O.holding_code(d)]
+    dr.department, dr.department_open = None, False
+    dr.output_kind, dr.count = "other", None
+    dr.why = ["شرکت تازه خواستید؛ پیش‌نمایش ساخته شد و تا مُهر شما چیزی ساخته نمیشود"]
+    dr.confidence = confidence(dr)
+    return dr
+
+
 def apply_memory(dr: Draft, to: dict[str, Any]) -> None:
     """A remembered correction of a like order wins over the rules."""
     if to.get("companies"):
@@ -354,7 +418,7 @@ def confidence(dr: Draft) -> float:
         return 0.3
     if not dr.companies:
         return 0.4
-    if dr.kind in ("question", "server", "code", "meeting"):
+    if dr.kind in ("question", "server", "code", "meeting", "kit"):
         return 0.85
     return 0.9 if not dr.department_open else 0.6
 
@@ -422,6 +486,8 @@ def complete(dr: Draft, d: dict[str, Any], names: dict[str, dict[str, str]]) -> 
         confidence=round(min(max(dr.confidence, 0.0), 1.0), 2),
         why_fa=humanize.humanize("؛ ".join(dict.fromkeys(dr.why)) or "قاعده‌ی پیش‌فرض"),
         kind=dr.kind,
+        kit=dr.kit if dr.kind == "kit" else None,
+        kit_name_fa=dr.kit_name_fa if dr.kind == "kit" else None,
     )
     route.preview_fa = preview_line(route, d, names)
     return route
@@ -441,6 +507,12 @@ def _dept_fa(code: str, dept: str | None, names: dict[str, dict[str, str]]) -> s
 def preview_line(r: Route, d: dict[str, Any], names: dict[str, dict[str, str]]) -> str:
     """«→ تریدیار/رسانه + IG-Hub/رسانه؛ خروجی: 3 ریلز؛ بودجه: 400 هزار توکن»."""
     first = r.companies[0]
+    if r.kind == "kit":
+        title = (KT.kits().get(r.kit or "") or {}).get("title_fa") or "شرکت تازه"
+        name = f"؛ نام: {r.kit_name_fa}" if r.kit_name_fa else ""
+        return humanize.humanize(
+            f"→ شرکت تازه از روی «{title}»{name}؛ تا مُهر نکنید چیزی ساخته نمیشود"
+        )
     if r.kind == "question" and r.mode == "single":
         head = "مشاور هلدینگ"
     elif r.kind == "server":
@@ -530,6 +602,8 @@ def check_route(r: Route, ctx: Context) -> Route:
         raise ApiError(
             422, "validation_failed", fields={"route.department": "not a department of the company"}
         )
+    if r.kind == "kit" and (r.kit or "") not in KT.kits():
+        raise ApiError(422, "validation_failed", fields={"route.kit": "unknown kit"})
     if r.kind == "server" and r.companies[0] not in ctx.online:
         raise ApiError(
             422, "validation_failed", fields={"route.kind": "the company has no server online"}

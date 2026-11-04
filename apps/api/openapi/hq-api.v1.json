@@ -3831,7 +3831,8 @@
               "player_down",
               "connection_missing",
               "no_progress",
-              "talk_loop"
+              "talk_loop",
+              "kit_unsealed"
             ],
             "title": "Kind",
             "type": "string"
@@ -19605,6 +19606,456 @@
         "title": "KindStat",
         "type": "object"
       },
+      "KitCard": {
+        "description": "The kit preview card of an order report (§31.2): the secretary's draft\nof «یک شرکت تازه …»; nothing exists until the owner seals.",
+        "properties": {
+          "kit": {
+            "title": "Kit",
+            "type": "string"
+          },
+          "name_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name Fa"
+          },
+          "sealed": {
+            "default": false,
+            "title": "Sealed",
+            "type": "boolean"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/KitSummary"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kit",
+          "title_fa",
+          "summary"
+        ],
+        "title": "KitCard",
+        "type": "object"
+      },
+      "KitCompanyIn": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+            "title": "Code",
+            "type": "string"
+          },
+          "color_index": {
+            "anyOf": [
+              {
+                "maximum": 8.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color Index"
+          },
+          "kit": {
+            "pattern": "^[a-z][a-z0-9_]{1,40}$",
+            "title": "Kit",
+            "type": "string"
+          },
+          "name_en": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name En",
+            "type": "string"
+          },
+          "name_fa": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name Fa",
+            "type": "string"
+          },
+          "order": {
+            "anyOf": [
+              {
+                "pattern": "^F-[0-9]{4,}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order"
+          }
+        },
+        "required": [
+          "kit",
+          "code",
+          "name_fa",
+          "name_en"
+        ],
+        "title": "KitCompanyIn",
+        "type": "object"
+      },
+      "KitConnection": {
+        "properties": {
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "label_fa": {
+            "title": "Label Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "label_fa"
+        ],
+        "title": "KitConnection",
+        "type": "object"
+      },
+      "KitCreated": {
+        "properties": {
+          "company": {
+            "$ref": "#/components/schemas/Company"
+          },
+          "connections": {
+            "description": "created `not_connected`",
+            "title": "Connections",
+            "type": "integer"
+          },
+          "groups": {
+            "description": "the working groups it joined",
+            "items": {
+              "type": "string"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "groups_pending": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Groups Pending",
+            "type": "array"
+          },
+          "kit": {
+            "title": "Kit",
+            "type": "string"
+          },
+          "kpis": {
+            "title": "Kpis",
+            "type": "integer"
+          },
+          "lines": {
+            "description": "its lines as drafts",
+            "items": {
+              "$ref": "#/components/schemas/KitLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "lines_pending": {
+            "description": "lines not made yet (the engine is absent, or one refused)",
+            "items": {
+              "$ref": "#/components/schemas/KitLine"
+            },
+            "title": "Lines Pending",
+            "type": "array"
+          },
+          "team": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "departments, employees (positions), threads added",
+            "title": "Team",
+            "type": "object"
+          },
+          "todo_fa": {
+            "description": "what the owner still has to connect or do",
+            "items": {
+              "type": "string"
+            },
+            "title": "Todo Fa",
+            "type": "array"
+          }
+        },
+        "required": [
+          "company",
+          "kit",
+          "team",
+          "groups",
+          "kpis",
+          "connections",
+          "lines",
+          "todo_fa"
+        ],
+        "title": "KitCreated",
+        "type": "object"
+      },
+      "KitDepartment": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "name_fa": {
+            "title": "Name Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name_fa"
+        ],
+        "title": "KitDepartment",
+        "type": "object"
+      },
+      "KitGroup": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title_fa"
+        ],
+        "title": "KitGroup",
+        "type": "object"
+      },
+      "KitKpi": {
+        "properties": {
+          "card": {
+            "title": "Card",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "manual": {
+            "title": "Manual",
+            "type": "boolean"
+          },
+          "name_fa": {
+            "title": "Name Fa",
+            "type": "string"
+          },
+          "unit": {
+            "default": "",
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name_fa",
+          "card",
+          "manual"
+        ],
+        "title": "KitKpi",
+        "type": "object"
+      },
+      "KitLine": {
+        "properties": {
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref"
+          },
+          "template": {
+            "title": "Template",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "why_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Why Fa"
+          }
+        },
+        "required": [
+          "template",
+          "platform",
+          "title_fa"
+        ],
+        "title": "KitLine",
+        "type": "object"
+      },
+      "KitPreview": {
+        "description": "What POST /companies/from-kit would make now. Nothing was written.",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "code_free": {
+            "title": "Code Free",
+            "type": "boolean"
+          },
+          "kit": {
+            "$ref": "#/components/schemas/KitSummary"
+          },
+          "name_en": {
+            "title": "Name En",
+            "type": "string"
+          },
+          "name_fa": {
+            "title": "Name Fa",
+            "type": "string"
+          },
+          "nothing_written": {
+            "default": true,
+            "title": "Nothing Written",
+            "type": "boolean"
+          },
+          "problems": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Problems",
+            "type": "array"
+          }
+        },
+        "required": [
+          "kit",
+          "code",
+          "name_fa",
+          "name_en",
+          "code_free"
+        ],
+        "title": "KitPreview",
+        "type": "object"
+      },
+      "KitSummary": {
+        "description": "What a kit makes (nothing about any company).",
+        "properties": {
+          "connections": {
+            "items": {
+              "$ref": "#/components/schemas/KitConnection"
+            },
+            "title": "Connections",
+            "type": "array"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/KitGroup"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kpis": {
+            "items": {
+              "$ref": "#/components/schemas/KitKpi"
+            },
+            "title": "Kpis",
+            "type": "array"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/KitLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "purpose_fa": {
+            "title": "Purpose Fa",
+            "type": "string"
+          },
+          "team": {
+            "$ref": "#/components/schemas/KitTeam"
+          },
+          "team_template": {
+            "title": "Team Template",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "todo_fa": {
+            "description": "what the owner still has to do after it",
+            "items": {
+              "type": "string"
+            },
+            "title": "Todo Fa",
+            "type": "array"
+          }
+        },
+        "required": [
+          "key",
+          "title_fa",
+          "purpose_fa",
+          "team_template",
+          "team",
+          "groups",
+          "lines",
+          "kpis",
+          "connections",
+          "todo_fa"
+        ],
+        "title": "KitSummary",
+        "type": "object"
+      },
+      "KitTeam": {
+        "properties": {
+          "departments": {
+            "items": {
+              "$ref": "#/components/schemas/KitDepartment"
+            },
+            "title": "Departments",
+            "type": "array"
+          },
+          "positions": {
+            "title": "Positions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "departments",
+          "positions"
+        ],
+        "title": "KitTeam",
+        "type": "object"
+      },
       "KnowledgeApproveIn": {
         "additionalProperties": false,
         "properties": {
@@ -26546,6 +26997,16 @@
             "title": "Blockers",
             "type": "array"
           },
+          "kit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KitCard"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "outputs": {
             "items": {
               "$ref": "#/components/schemas/Output"
@@ -26634,7 +27095,8 @@
               "work",
               "code",
               "meeting",
-              "question"
+              "question",
+              "kit"
             ],
             "title": "Kind",
             "type": "string"
@@ -34943,10 +35405,35 @@
               "code",
               "meeting",
               "question",
-              "server"
+              "server",
+              "kit"
             ],
             "title": "Kind",
             "type": "string"
+          },
+          "kit": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]{1,40}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kit"
+          },
+          "kit_name_fa": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kit Name Fa"
           },
           "mode": {
             "default": "single",
@@ -45193,10 +45680,35 @@
               "code",
               "meeting",
               "question",
-              "server"
+              "server",
+              "kit"
             ],
             "title": "Kind",
             "type": "string"
+          },
+          "kit": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]{1,40}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kit"
+          },
+          "kit_name_fa": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kit Name Fa"
           },
           "mode": {
             "default": "single",
@@ -58930,6 +59442,329 @@
         "summary": "Create Company",
         "tags": [
           "organisation"
+        ]
+      }
+    },
+    "/api/v1/companies/from-kit": {
+      "post": {
+        "description": "🔏 step-up `company.create`, target = the SHA-256 of the exact body.\nOne transaction: the company and its team (the template's departments and\nleadership, asleep), its group memberships, its KPIs, its connections\n(`not_connected`) and its lines as drafts. No server is made (founding is\nseparate). While the lines engine is not on the hub, `lines_pending` lists\nthe lines instead. `todo_fa`: what the owner still has to connect.",
+        "operationId": "create_company_from_kit",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "code": "TY",
+                "color_index": 1,
+                "kit": "x",
+                "name_en": "TradeYar",
+                "name_fa": "تریدیار",
+                "order": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/KitCompanyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "company": {
+                    "brand_version": 1,
+                    "code": "TY",
+                    "color_index": 1,
+                    "counts": {
+                      "decisions_pending": 1,
+                      "employees_active": 1,
+                      "work_open": 1
+                    },
+                    "created_at": "2026-10-17T05:42:00Z",
+                    "deploy_freeze_until": "2026-10-17T05:42:00Z",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "kill_switch": "x",
+                    "kind": "company",
+                    "name_en": "TradeYar",
+                    "name_fa": "تریدیار",
+                    "status": "active",
+                    "template": "x",
+                    "version": 1
+                  },
+                  "connections": 1,
+                  "groups": [
+                    "x"
+                  ],
+                  "groups_pending": [
+                    "x"
+                  ],
+                  "kit": "x",
+                  "kpis": 1,
+                  "lines": [
+                    {
+                      "platform": "x",
+                      "ref": "W-000789",
+                      "template": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "why_fa": "x"
+                    }
+                  ],
+                  "lines_pending": [
+                    {
+                      "platform": "x",
+                      "ref": "W-000789",
+                      "template": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "why_fa": "x"
+                    }
+                  ],
+                  "team": {},
+                  "todo_fa": [
+                    "x"
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/KitCreated"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Create Company From Kit",
+        "tags": [
+          "kits"
+        ]
+      }
+    },
+    "/api/v1/companies/from-kit/preview": {
+      "post": {
+        "description": "What a company made from the kit would get, and whether the code is free.\nNothing is written.",
+        "operationId": "preview_company_from_kit",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "code": "TY",
+                "color_index": 1,
+                "kit": "x",
+                "name_en": "TradeYar",
+                "name_fa": "تریدیار",
+                "order": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/KitCompanyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "TY",
+                  "code_free": false,
+                  "kit": {
+                    "connections": [
+                      {
+                        "kind": "one_off",
+                        "label_fa": "x"
+                      }
+                    ],
+                    "groups": [
+                      {
+                        "key": "x",
+                        "title_fa": "گزارش هفتگی رشد"
+                      }
+                    ],
+                    "key": "x",
+                    "kpis": [
+                      {
+                        "card": "x",
+                        "key": "x",
+                        "manual": false,
+                        "name_fa": "تریدیار",
+                        "unit": "x"
+                      }
+                    ],
+                    "lines": [
+                      {
+                        "platform": "x",
+                        "ref": "W-000789",
+                        "template": "x",
+                        "title_fa": "گزارش هفتگی رشد",
+                        "why_fa": "x"
+                      }
+                    ],
+                    "purpose_fa": "x",
+                    "team": {
+                      "departments": [
+                        {
+                          "code": "TY",
+                          "name_fa": "تریدیار"
+                        }
+                      ],
+                      "positions": 1
+                    },
+                    "team_template": "x",
+                    "title_fa": "گزارش هفتگی رشد",
+                    "todo_fa": [
+                      "x"
+                    ]
+                  },
+                  "name_en": "TradeYar",
+                  "name_fa": "تریدیار",
+                  "nothing_written": false,
+                  "problems": [
+                    "x"
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/KitPreview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Preview Company From Kit",
+        "tags": [
+          "kits"
         ]
       }
     },
@@ -77627,6 +78462,295 @@
         ]
       }
     },
+    "/api/v1/kits": {
+      "get": {
+        "description": "Every company kit: its team template, groups, lines, KPIs, connections.",
+        "operationId": "list_kits",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "connections": [
+                      {
+                        "kind": "one_off",
+                        "label_fa": "x"
+                      }
+                    ],
+                    "groups": [
+                      {
+                        "key": "x",
+                        "title_fa": "گزارش هفتگی رشد"
+                      }
+                    ],
+                    "key": "x",
+                    "kpis": [
+                      {
+                        "card": "x",
+                        "key": "x",
+                        "manual": false,
+                        "name_fa": "تریدیار",
+                        "unit": "x"
+                      }
+                    ],
+                    "lines": [
+                      {
+                        "platform": "x",
+                        "ref": "W-000789",
+                        "template": "x",
+                        "title_fa": "گزارش هفتگی رشد",
+                        "why_fa": "x"
+                      }
+                    ],
+                    "purpose_fa": "x",
+                    "team": {
+                      "departments": [
+                        {
+                          "code": "TY",
+                          "name_fa": "تریدیار"
+                        }
+                      ],
+                      "positions": 1
+                    },
+                    "team_template": "x",
+                    "title_fa": "گزارش هفتگی رشد",
+                    "todo_fa": [
+                      "x"
+                    ]
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/KitSummary"
+                  },
+                  "title": "Response List Kits",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Kits",
+        "tags": [
+          "kits"
+        ]
+      }
+    },
+    "/api/v1/kits/{key}": {
+      "get": {
+        "description": "One kit and what the owner still has to do after a company is made from it.",
+        "operationId": "get_kit",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "connections": [
+                    {
+                      "kind": "one_off",
+                      "label_fa": "x"
+                    }
+                  ],
+                  "groups": [
+                    {
+                      "key": "x",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "key": "x",
+                  "kpis": [
+                    {
+                      "card": "x",
+                      "key": "x",
+                      "manual": false,
+                      "name_fa": "تریدیار",
+                      "unit": "x"
+                    }
+                  ],
+                  "lines": [
+                    {
+                      "platform": "x",
+                      "ref": "W-000789",
+                      "template": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "why_fa": "x"
+                    }
+                  ],
+                  "purpose_fa": "x",
+                  "team": {
+                    "departments": [
+                      {
+                        "code": "TY",
+                        "name_fa": "تریدیار"
+                      }
+                    ],
+                    "positions": 1
+                  },
+                  "team_template": "x",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "todo_fa": [
+                    "x"
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/KitSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Kit",
+        "tags": [
+          "kits"
+        ]
+      }
+    },
     "/api/v1/knowledge": {
       "get": {
         "description": "Every layer the owner may read (all): the entries, the support articles\n(kind support, read-only) and, for layer=employee, the employees' memory.\nExpired entries only with include_expired (or status=expired).",
@@ -90125,6 +91249,8 @@
                         "count": 1,
                         "department": "GROWTH",
                         "kind": "work",
+                        "kit": "x",
+                        "kit_name_fa": "x",
                         "mode": "single",
                         "output_kind": "post",
                         "player": "auto",
@@ -90240,6 +91366,8 @@
                   "count": 1,
                   "department": "GROWTH",
                   "kind": "work",
+                  "kit": "x",
+                  "kit_name_fa": "x",
                   "mode": "single",
                   "output_kind": "post",
                   "player": "auto",
@@ -90274,6 +91402,8 @@
                     "count": 1,
                     "department": "GROWTH",
                     "kind": "work",
+                    "kit": "x",
+                    "kit_name_fa": "x",
                     "mode": "single",
                     "output_kind": "post",
                     "player": "auto",
@@ -90399,6 +91529,8 @@
                   "count": 1,
                   "department": "GROWTH",
                   "kind": "work",
+                  "kit": "x",
+                  "kit_name_fa": "x",
                   "mode": "single",
                   "output_kind": "post",
                   "player": "auto",
@@ -90540,6 +91672,60 @@
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
+                  "kit": {
+                    "kit": "x",
+                    "name_fa": "تریدیار",
+                    "sealed": false,
+                    "summary": {
+                      "connections": [
+                        {
+                          "kind": "one_off",
+                          "label_fa": "x"
+                        }
+                      ],
+                      "groups": [
+                        {
+                          "key": "x",
+                          "title_fa": "گزارش هفتگی رشد"
+                        }
+                      ],
+                      "key": "x",
+                      "kpis": [
+                        {
+                          "card": "x",
+                          "key": "x",
+                          "manual": false,
+                          "name_fa": "تریدیار",
+                          "unit": "x"
+                        }
+                      ],
+                      "lines": [
+                        {
+                          "platform": "x",
+                          "ref": null,
+                          "template": "x",
+                          "title_fa": "گزارش هفتگی رشد",
+                          "why_fa": null
+                        }
+                      ],
+                      "purpose_fa": "x",
+                      "team": {
+                        "departments": [
+                          {
+                            "code": null,
+                            "name_fa": null
+                          }
+                        ],
+                        "positions": 1
+                      },
+                      "team_template": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "todo_fa": [
+                        "x"
+                      ]
+                    },
+                    "title_fa": "گزارش هفتگی رشد"
+                  },
                   "outputs": [
                     {
                       "kind": "final",
@@ -90708,6 +91894,60 @@
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
+                  "kit": {
+                    "kit": "x",
+                    "name_fa": "تریدیار",
+                    "sealed": false,
+                    "summary": {
+                      "connections": [
+                        {
+                          "kind": "one_off",
+                          "label_fa": "x"
+                        }
+                      ],
+                      "groups": [
+                        {
+                          "key": "x",
+                          "title_fa": "گزارش هفتگی رشد"
+                        }
+                      ],
+                      "key": "x",
+                      "kpis": [
+                        {
+                          "card": "x",
+                          "key": "x",
+                          "manual": false,
+                          "name_fa": "تریدیار",
+                          "unit": "x"
+                        }
+                      ],
+                      "lines": [
+                        {
+                          "platform": "x",
+                          "ref": null,
+                          "template": "x",
+                          "title_fa": "گزارش هفتگی رشد",
+                          "why_fa": null
+                        }
+                      ],
+                      "purpose_fa": "x",
+                      "team": {
+                        "departments": [
+                          {
+                            "code": null,
+                            "name_fa": null
+                          }
+                        ],
+                        "positions": 1
+                      },
+                      "team_template": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "todo_fa": [
+                        "x"
+                      ]
+                    },
+                    "title_fa": "گزارش هفتگی رشد"
+                  },
                   "outputs": [
                     {
                       "kind": "final",
@@ -113112,6 +114352,8 @@
                     "count": 1,
                     "department": "GROWTH",
                     "kind": "work",
+                    "kit": "x",
+                    "kit_name_fa": "x",
                     "mode": "single",
                     "output_kind": "post",
                     "player": "auto",
@@ -127884,6 +129126,60 @@
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
+                  "kit": {
+                    "kit": "x",
+                    "name_fa": "تریدیار",
+                    "sealed": false,
+                    "summary": {
+                      "connections": [
+                        {
+                          "kind": "one_off",
+                          "label_fa": "x"
+                        }
+                      ],
+                      "groups": [
+                        {
+                          "key": "x",
+                          "title_fa": "گزارش هفتگی رشد"
+                        }
+                      ],
+                      "key": "x",
+                      "kpis": [
+                        {
+                          "card": "x",
+                          "key": "x",
+                          "manual": false,
+                          "name_fa": "تریدیار",
+                          "unit": "x"
+                        }
+                      ],
+                      "lines": [
+                        {
+                          "platform": "x",
+                          "ref": null,
+                          "template": "x",
+                          "title_fa": "گزارش هفتگی رشد",
+                          "why_fa": null
+                        }
+                      ],
+                      "purpose_fa": "x",
+                      "team": {
+                        "departments": [
+                          {
+                            "code": null,
+                            "name_fa": null
+                          }
+                        ],
+                        "positions": 1
+                      },
+                      "team_template": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "todo_fa": [
+                        "x"
+                      ]
+                    },
+                    "title_fa": "گزارش هفتگی رشد"
+                  },
                   "outputs": [
                     {
                       "kind": "final",
@@ -128065,6 +129361,60 @@
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
+                  "kit": {
+                    "kit": "x",
+                    "name_fa": "تریدیار",
+                    "sealed": false,
+                    "summary": {
+                      "connections": [
+                        {
+                          "kind": "one_off",
+                          "label_fa": "x"
+                        }
+                      ],
+                      "groups": [
+                        {
+                          "key": "x",
+                          "title_fa": "گزارش هفتگی رشد"
+                        }
+                      ],
+                      "key": "x",
+                      "kpis": [
+                        {
+                          "card": "x",
+                          "key": "x",
+                          "manual": false,
+                          "name_fa": "تریدیار",
+                          "unit": "x"
+                        }
+                      ],
+                      "lines": [
+                        {
+                          "platform": "x",
+                          "ref": null,
+                          "template": "x",
+                          "title_fa": "گزارش هفتگی رشد",
+                          "why_fa": null
+                        }
+                      ],
+                      "purpose_fa": "x",
+                      "team": {
+                        "departments": [
+                          {
+                            "code": null,
+                            "name_fa": null
+                          }
+                        ],
+                        "positions": 1
+                      },
+                      "team_template": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "todo_fa": [
+                        "x"
+                      ]
+                    },
+                    "title_fa": "گزارش هفتگی رشد"
+                  },
                   "outputs": [
                     {
                       "kind": "final",

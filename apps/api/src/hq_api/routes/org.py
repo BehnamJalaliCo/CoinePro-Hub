@@ -270,26 +270,19 @@ async def create_company(
         await stepup.consume(tx, request, ctx.who, "company.create", body.code)
         if await tx.scalar("SELECT 1 FROM core.companies WHERE code = :c", c=body.code):
             raise ApiError(409, "validation_failed", fields={"code": "already exists"})
-        # One company creation picks a free colour slot at a time (no two take the same).
-        await tx.exec("SELECT pg_advisory_xact_lock(hashtext('core.companies.color_index'))")
-        row = await tx.one(
-            """INSERT INTO core.companies (code, name, kind, name_fa, name_en, color_index, template)
-               VALUES (:code, :name_en, 'company', :name_fa, :name_en,
-                       COALESCE(:ci, (SELECT min(slot) FROM generate_series(1, 8) AS slot
-                                     WHERE slot NOT IN (SELECT color_index FROM core.companies
-                                                        WHERE color_index IS NOT NULL))), :tpl)
-               RETURNING id""",
+        company_id = await org.insert_company(
+            tx,
             code=body.code,
             name_fa=body.name_fa,
             name_en=body.name_en,
-            ci=body.color_index,
-            tpl=body.template,
+            color_index=body.color_index,
+            template=body.template,
         )
-        await tx.rescope([*await ctx.scope(), row["id"]])
-        added = await templates.apply(tx, row["id"], body.code, body.template)
+        await tx.rescope([*await ctx.scope(), company_id])
+        added = await templates.apply(tx, company_id, body.code, body.template)
         await ctx.audit(
             tx,
-            company_id=row["id"],
+            company_id=company_id,
             action="company.create",
             action_class="A2",
             target_kind="company",
@@ -299,7 +292,7 @@ async def create_company(
         )
         await ctx.interaction(
             tx,
-            company_id=row["id"],
+            company_id=company_id,
             kind="edit",
             action="company.create",
             target_kind="company",
@@ -307,7 +300,7 @@ async def create_company(
             data={"template": body.template},
         )
         await ctx.emit(tx, body.code, "control.changed", body.code, {"change": "company.created"})
-        result = _company(await tx.one(COMPANY_SQL + " WHERE c.id = :id", id=row["id"]))
+        result = _company(await tx.one(COMPANY_SQL + " WHERE c.id = :id", id=company_id))
     ctx.hub.companies.invalidate()
     return result
 

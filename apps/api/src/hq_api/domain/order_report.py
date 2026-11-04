@@ -39,6 +39,7 @@ from pydantic import BaseModel, Field
 from hq_api import audit, events
 from hq_api.db import Tx
 from hq_api.domain import humanize as HZ
+from hq_api.domain import kits as KT
 from hq_api.domain import notify
 from hq_api.domain import work as W
 from hq_api.principal import Principal
@@ -50,7 +51,7 @@ STATES = (
 ENDED = ("delivered", "failed", "cancelled")
 BLOCKERS = (
     "no_employee", "hiring_closed", "locked", "series_unsealed", "budget", "player_down",
-    "connection_missing", "no_progress", "talk_loop",
+    "connection_missing", "no_progress", "talk_loop", "kit_unsealed",
 )  # fmt: skip
 FIX_OF = {
     "no_employee": "hire",
@@ -60,6 +61,7 @@ FIX_OF = {
     "budget": "budget.add",
     "player_down": "player.auto",
     "connection_missing": "connection.guide",
+    "kit_unsealed": "kit.create",
 }
 FIX_ACTIONS = tuple(FIX_OF.values())
 FIX_LABEL_FA = {
@@ -70,6 +72,7 @@ FIX_LABEL_FA = {
     "budget.add": "بودجه را بیشتر کن",
     "player.auto": "بازیکن خودکار شود",
     "connection.guide": "راهنمای اتصال",
+    "kit.create": "شرکت را بساز",
 }
 MAX_STEPS = 30
 OPEN = W.OPEN
@@ -128,7 +131,7 @@ class Fix(BaseModel):
 class Blocker(BaseModel):
     kind: Literal[
         "no_employee", "hiring_closed", "locked", "series_unsealed", "budget", "player_down",
-        "connection_missing", "no_progress", "talk_loop",
+        "connection_missing", "no_progress", "talk_loop", "kit_unsealed",
     ]  # fmt: skip
     title_fa: str
     detail_fa: str
@@ -163,6 +166,8 @@ class OrderReport(BaseModel):
     outputs: list[Output] = Field(default_factory=list)
     summary: Summary | None = None
     updated_at: datetime
+    # ⟨additive⟩ §31.2 the secretary's draft of «یک شرکت تازه …»: a kit card, no work item
+    kit: KT.KitCard | None = None
 
 
 # ----------------------------------------------------------------- reading --
@@ -254,7 +259,16 @@ async def ensure(tx: Tx, ref: str) -> dict[str, Any] | None:
         return None
     roots = root_refs(order)
     works = await tree(tx, roots)
-    first = _step("منشی هلدینگ", receipt_text(works), order["created_at"])
+    kit = kit_of(order)
+    first = _step(
+        "منشی هلدینگ",
+        (
+            "دریافت شد؛ پیش‌نمایش شرکت تازه آماده است و منتظر مُهر شماست"
+            if kit
+            else receipt_text(works)
+        ),
+        order["created_at"],
+    )
     await tx.exec(
         """INSERT INTO owner.order_reports (company_id, order_id, ref, steps, work_refs, route,
                created_at)
@@ -283,6 +297,48 @@ async def on_order_routed(tx: Tx, order_ref: str) -> dict[str, Any] | None:
     holding = await _holding(tx)
     await events.emit(tx, holding["code"], "order.report", order_ref, {"state": rep["state"]})
     return rep
+
+
+def kit_of(order: dict[str, Any]) -> dict[str, Any] | None:
+    """⟨additive⟩ §31.2 the secretary's kit draft of an order ({kit, kit_name_fa}), or None."""
+    given = _j(order.get("route"))
+    if isinstance(given, dict) and given.get("kind") == "kit" and given.get("kit"):
+        return {"kit": str(given["kit"]), "name_fa": given.get("kit_name_fa")}
+    return None
+
+
+async def kit_order_open(tx: Tx, ref: str, kit: str) -> bool:
+    """Whether `ref` is an open order whose kit draft is this kit."""
+    order = await load_order(tx, ref)
+    rep = await tx.first("SELECT ended_at FROM owner.order_reports WHERE ref = :r", r=ref)
+    draft = kit_of(order or {})
+    return draft is not None and draft["kit"] == kit and (rep is None or rep["ended_at"] is None)
+
+
+async def kit_sealed(tx: Tx, ref: str, code: str, name_fa: str) -> None:
+    """The owner sealed the kit card: the order is delivered (its company exists)."""
+    rep = await ensure(tx, ref)
+    if rep is None or rep["ended_at"] is not None:
+        return
+    done = HZ.humanize(f"شرکت {name_fa} ({code}) از روی پیش‌نمایش ساخته شد")
+    await _append_steps(tx, rep["id"], [_step("سامانه", done)])
+    await tx.exec(
+        """UPDATE owner.order_reports
+           SET state = 'delivered', blockers = '[]'::jsonb, ended_at = now(), last_step_at = now(),
+               summary = CAST(:sm AS jsonb), updated_at = now()
+           WHERE id = :id""",
+        id=rep["id"],
+        sm=json.dumps(
+            {
+                "done_fa": done,
+                "left_fa": "اتصال حساب‌ها و روشن کردن خط‌ها مانده است",
+                "need_fa": "اتصال‌ها را در صفحه‌ی شرکت وصل کنید",
+            },
+            ensure_ascii=False,
+        ),
+    )
+    holding = await _holding(tx)
+    await events.emit(tx, holding["code"], "order.report", ref, {"state": "delivered"})
 
 
 def output_kind_of(text: str, route: dict[str, Any] | None = None) -> str:
@@ -468,6 +524,14 @@ async def detect(
         if all(x["kind"] != kind or (x["fix"] or {}).get("target") != target for x in out):
             out.append(b)
 
+    draft = kit_of(order)
+    if draft is not None:
+        add(
+            "kit_unsealed",
+            "شرکت تازه منتظر مُهر شماست",
+            "پیش‌نمایش آماده است و تا مُهر نکنید چیزی ساخته نمیشود.",
+            draft["kit"],
+        )
     open_works = [w for w in works if w["status"] in OPEN]
     ids = [w["id"] for w in works]
     # locked: a kill switch or a deploy freeze on a company of the order, or a hold
@@ -585,6 +649,8 @@ def state_of(
 ) -> str:
     roots = [w for w in works if w["is_root"]]
     if not roots:
+        if any(b["kind"] == "kit_unsealed" for b in blockers):
+            return "waiting"
         return "planned" if rep["ack"] else "received"
     statuses = [w["status"] for w in roots]
     if all(s not in OPEN for s in statuses):
@@ -779,6 +845,21 @@ def render(rep: dict[str, Any], order: dict[str, Any]) -> OrderReport:
         outputs=[Output.model_validate(o) for o in _j(rep["outputs"]) or []],
         summary=Summary.model_validate(_j(rep["summary"])) if rep["summary"] else None,
         updated_at=rep["updated_at"],
+        kit=kit_card(order, sealed=rep["ended_at"] is not None),
+    )
+
+
+def kit_card(order: dict[str, Any], *, sealed: bool) -> KT.KitCard | None:
+    draft = kit_of(order)
+    if draft is None or draft["kit"] not in KT.kits():
+        return None
+    summary = KT.describe(draft["kit"])
+    return KT.KitCard(
+        kit=draft["kit"],
+        title_fa=summary.title_fa,
+        name_fa=draft["name_fa"],
+        sealed=sealed,
+        summary=summary,
     )
 
 
