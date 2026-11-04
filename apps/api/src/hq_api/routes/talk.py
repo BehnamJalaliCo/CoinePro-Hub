@@ -360,6 +360,14 @@ async def talk_make_minutes(
 class TalkInviteIn(Model):
     role: str = Field(min_length=2, max_length=41)
     company: str = Field(pattern=CODE)
+    # ⟨additive⟩ with role "manager": the department whose manager is meant (the app's «+» picker)
+    department: str | None = Field(default=None, pattern=r"^[A-Z][A-Z0-9]{1,11}$")
+
+    @model_validator(mode="after")
+    def _department(self) -> TalkInviteIn:
+        if self.role == "manager" and self.department is None:
+            raise ValueError("a manager is named by its department")
+        return self
 
 
 @router.post(
@@ -372,7 +380,8 @@ async def talk_invite(ref: str, body: TalkInviteIn, ctx: Ctx = Depends(owner_ctx
     code writes the one-line notice. Back to the secretary by her face or «منشی»."""
     await _policy(ctx, "invite", {"ref": ref, "company": body.company})
     async with ctx.tx() as tx:
-        key = await personas.invite_key(tx, ctx.hub, body.role, body.company)
+        word = body.department if body.role == "manager" and body.department else body.role
+        key = await personas.invite_key(tx, ctx.hub, word, body.company)
         p = await personas.resolve(tx, ctx.hub, key)
         conv = await store.conversation(tx, ref, lock=True)
         await K.join_with_notice(tx, ctx.hub, conv, p)

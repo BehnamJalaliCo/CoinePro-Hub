@@ -365,6 +365,18 @@ async def test_a_manager_reads_its_own_company_only(
     talk["router"].answers = [answer("بله، در خدمتم.")]
     back = await say(client, owner, cv["ref"], "منشی")
     assert back["answer"]["by"] == "secretary"
+    # the «+» picker names a department manager as role "manager" plus its department
+    url = f"/api/v1/talk/conversations/{cv['ref']}/invite"
+    bare = await client.post(url, headers=owner, json={"role": "manager", "company": co["code"]})
+    assert bare.status_code == 422
+    nobody = await client.post(url, headers=owner, json={"role": "manager", "company": co["code"],
+                                                         "department": "ZZZ"})  # fmt: skip
+    assert (
+        nobody.status_code == 404
+        and nobody.json()["message_fa"] == "این شرکت کسی با این نقش ندارد."
+    )
+    ceo = await client.post(url, headers=owner, json={"role": "ceo", "company": co["code"]})
+    assert ceo.status_code == 200 and key in ceo.json()["present"]
 
 
 async def test_a_talk_run_never_writes(

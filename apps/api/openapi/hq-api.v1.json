@@ -45285,6 +45285,18 @@
             "title": "Company",
             "type": "string"
           },
+          "department": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z][A-Z0-9]{1,11}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Department"
+          },
           "role": {
             "maxLength": 41,
             "minLength": 2,
@@ -118135,6 +118147,7 @@
             "application/json": {
               "example": {
                 "company": "TY",
+                "department": "GROWTH",
                 "role": "xx"
               },
               "schema": {
