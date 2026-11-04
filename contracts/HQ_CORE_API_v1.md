@@ -9,6 +9,10 @@
 >
 > **v1.2 (۲۰۲۶-۱۰-۱۷):** ایجنت‌ها سر کار (§۱۶، پرامپت ۵). **v1.3 (۲۰۲۶-۱۰-۱۷):** عکس و فیلم و صوت در پیام‌ها، تبدیل دقیق صدای فارسی به متن، کارگاه کد و فرمان صوتی (§۱۷، پرامپت ۶). **v1.4 (۲۰۲۶-۱۰-۱۷):** تصمیم‌های دور دوم مالک: ناظر کل، مشاور نسخه‌ی ۲، دستیار شخصی، ستاره‌ها، مهارت‌ها، آکادمی، اینترنت کامل و MCP برای ایجنت‌ها، تأسیس شرکت و ساخت سرور، backup ساعتی (§۱۸، پرامپت‌های ۷ تا ۹). **v1.4.1 (۲۰۲۶-۱۰-۱۷):** آنچه پرامپت ۵ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۶.۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_05_1_FIXES.md`. **v1.4.2 (۲۰۲۶-۱۰-۱۷):** استخدام با شروع خود مالک (§۱۸.۱۱). **v1.4.3 (۲۰۲۶-۱۰-۱۷):** مدیرعامل‌ها با اختیار کامل در پاکت بودجه‌ی ماهانه استخدام میکنند و مدل هر کار را خودشان انتخاب میکنند (§۱۸.۱۱)؛ استوری شرکت‌ها (§۱۸.۱۲)؛ ستاره برای مصرف درست بودجه (§۱۸.۴). **v1.4.4 (۲۰۲۶-۱۰-۱۷):** پروتکل‌هایی که قابلیتشان هنوز ساخته نشده `paused` میمانند و نظارت سهم توکن خودش را دارد (§۱۸.۱)؛ ممیزی دوم در `docs/GAP_ANALYSIS_v2.md`. **v1.4.5 (۲۰۲۶-۱۰-۱۸):** آنچه پرامپت ۷ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۳)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_07_1_FIXES.md`. **v1.4.6 (۲۰۲۶-۱۰-۱۹):** نشان و مُهر هر شرکت از PNG خود مالک ساخته میشود و داده است (§۱۸.۱۴، پرامپت ۹.۱). **v1.4.7 (۲۰۲۶-۱۰-۲۲):** آنچه پرامپت ۸ ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۵)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_08_1_FIXES.md`. **v1.4.8 (۲۰۲۶-۱۰-۲۲):** آنچه پرامپت ۹ ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_09_2_FIXES.md`. **v1.6 (۲۰۲۶-۱۰-۲۲):** دپارتمان رسانه و طراحی در هر شرکت با برنامه‌ی انتشار مُهرشده، صدای متن‌باز روی هاب، و مشاور حقوقی هلدینگ با مکاتبه‌ی ایمیلی (§۲۲، پرامپت ۱۳). **v1.5 (۲۰۲۶-۱۰-۱۸):** درآمد و پشتیبانی: رادار درآمد، قیف و نجات رفرال، میز پشتیبانی با حالت آموزش و آزمون سایه، قالب‌ها و قاعده‌های چرخه‌ی عمر، NPS، صندوق بازخورد، نگهبان خروجی (§۱۹، پرامپت ۱۰)؛ حاکمیت: اتاق جلسه، اساسنامه، دانشنامه‌ی چهارلایه، سه کارت و کارت امتیاز، OKR، بازبینی نتیجه‌ی تصمیم، ماتریس اختیار، دفتر ریسک، تقویم تغییرات، مُهر گروهی (§۲۰، پرامپت ۱۱)؛ ابزار مدیریت: مشاور پریمیوم، «از هاب بپرس»، گزارش صوتی، ارزیابی ماهانه، هدررفت، ROI، پیش‌بینی مدیر کل دیجیتال، MCP کانتینری، و ChatGPT و Gemini به‌عنوان «بازیکن ذخیره» (§۲۱، پرامپت ۱۲).
 
+> **v1.12 (۲۰۲۶-۱۱-۰۴):** «خط تولید» (§۳۰، پرامپت ۲۲): موتور عمومی تولید و انتشار محتوا برای هر شرکت و هر پلتفرم، از روی قالب، با مرحله‌های قابل ویرایش، کتابخانه، تقویم، n8n برای مرحله‌های قاعده‌ای، و حالت پیش‌نویس تا خودکار.
+>
+> **v1.13 (۲۰۲۶-۱۱-۰۴):** رشد (§۳۱، پرامپت ۲۲): حلقه‌ی یادگیری خط تولید، شرکت آماده با یک فرمان، خبرنامه‌ی ایمیلی، رصد رتبه‌ی سئو و رقبا، تقویم یکپارچه‌ی کمپین، بودجه‌ی تبلیغات با توقف خودکار، و قاعده‌ی اتوماسیون از یک جمله‌ی مالک.
+>
 > **v1.11 (۲۰۲۶-۱۱-۰۲):** مالک فقط کسب‌وکار میبیند (§۲۹، پرامپت ۲۱): مسیر بر پایه‌ی حوزه، ضمانت جواب هر فرمان با «گزارش فرمان»، قانون‌گذاری مالک از اپ، منشی هلدینگ، صدای بلند، بودجه‌ی ارجاع، زبان فارسی و بازنویسی برای مدیر کل، شورای v2، آمادگی، استخدام خودکار، کارگروه‌ها، اتصال‌ها، خانه‌ی سه‌کارتی، وضعیت کارمند و مرز تأیید.
 
 > **v1.10.2 (۲۰۲۶-۱۱-۰۲):** هزینه‌ی هلدینگ (§۲۸.۷، پرامپت ۲۰.۱): کاتالوگ فقط با دستور مالک و با سقف توکن، دیده‌بان اول با قاعده، سقف روزانه‌ی هر شرکت، سهم هر حوزه در گزارش، و متن GPT از چت وب ChatGPT.
@@ -3245,3 +3249,192 @@ Progress   { id, company, title_fa, before: {value, at}, after: {value, at}, kpi
   ⟨1.11.1⟩ SSE topics: `home` (`home.`, `suggestion.`) and `groups` (`group.`, `connection.`).
 - Agent tools: `order.ack`, `order.progress`, `work.budget`, `card.decide`, `group.plan`, `connection.read`, `experiment.write`.
 - Step-up: `settings.destructive`, `connection.secret`, `connection.config`, `rule.seal` (= the standing order's seal).
+
+## 30. Production lines: one engine for every company and every platform ⟨1.12⟩ (2026-11-04, prompt 22)
+
+The owner's model (2026-11-04): content is made by a line of steps the owner sets once and edits freely; the line then runs and
+publishes by itself. Nothing is written for one company: a **template** is the plan of steps, a **line** is a template set for one
+company, one platform and one channel. A new company or platform is a new line (or a new template file), not new code.
+"First rule (n8n), last AI": the rule steps run in n8n or plain code; only the steps that need a model use one.
+
+### 30.1 Data
+```
+Template { key, title_fa, platform, version, steps: [StepDef], defaults: {...}, outputs_fa }
+StepDef  { key, kind, title_fa, prompt_fa|null (with {{vars}}), settings: {...}, inputs: [step key], gate: "auto"|"owner"|"ceo",
+           optional: bool, enabled: bool, max_attempts: 1..3, timeout_s }
+Line     { ref "LN-0001", company, template, template_version, platform, channel: {kind, subject}, title_fa,
+           schedule (RRULE, owner's zone)|null, state: "draft"|"on"|"paused", mode: "draft"|"auto",
+           good_runs, auto_after: int (default 7), caps: {runs_per_day, tokens_per_run, opus_per_day},
+           version, steps: [StepDef as overridden for this line], library: [asset id], created_at, updated_at }
+LineVersion { line, version, body (the whole line), by, at, note_fa }
+Run      { ref "RN-000001" (`LR-` is the growth page's), line, line_version, trigger: "schedule"|"owner"|"test"|"n8n"|"group", dry: bool,
+           state: "queued"|"running"|"waiting"|"done"|"failed"|"skipped"|"cancelled", at, ended_at,
+           steps: [StepRun], cost: {tokens, usd_equiv}, published: [{platform, kind, external_id|null, at, url|null}],
+           metrics: {h24: {...}|null, d7: {...}|null}, note_fa }
+StepRun  { key, kind, state: "pending"|"running"|"waiting"|"done"|"failed"|"skipped", attempt, started_at, ended_at,
+           output: {text|null, file_id|null, files: [file_id], data: {...}}, via, tokens, usd_equiv, error_fa|null }
+Asset    { id, company|null (null: the holding's, for every company), kind: "cover_folder"|"voice"|"prompt"|"pattern"|"music"|"brand",
+           title_fa, config: {...}, files: [file_id], created_at }
+```
+- **Platforms:** `instagram_reel`, `instagram_post`, `instagram_story`, `youtube_short`, `youtube_long`, `telegram_post`,
+  `site_article`. A platform is a string in data; adding one is a template plus, when it publishes somewhere new, an adapter.
+- **Templates are data** in `apps/api/seed/lines/*.yaml` (loaded at start, versioned by their `version`); they name no company.
+- **Versions:** every `PUT /lines/{ref}` makes a new `LineVersion`; a run records the version it ran; revert makes a new version
+  with the old body.
+
+### 30.2 Step kinds (each one adapter)
+| kind | what it does | model / tool |
+|---|---|---|
+| `gpt_text` | the prompt (with the inputs filled in) to ChatGPT; text back | ChatGPT web (§21.13 seat call), never Codex |
+| `dedupe` | the text against this line's past outputs (and the company's); too alike → the previous step again (≤ `max_attempts`) | code (pgvector or shingles) |
+| `tts` | text to speech with the speaker and style the owner chose | Gemini TTS in Google AI Studio, **the owner's account** signed in in the hub's browser (egress recipe `aistudio-web`) |
+| `pattern_search` | the best patterns for a query (images, links) | Pinterest read in the hub's browser (egress recipe `pinterest-web`), read only |
+| `council_pick` | the council chooses one of the candidates, with its reasons | council v2 (§29.8) |
+| `opus_build` | the build: script, audio, direction and editing plan, pattern → a render spec, the caption and the hashtags | Opus 5.5, effort `high`, through the router (task class `line_build`), within `caps.opus_per_day` |
+| `render` | the spec to a video (or an image) | the media studio's renderer (§22, profile `media`), or the company's server through its runner (`settings.where`) |
+| `cover` | the cover from the page's cover folder (an `Asset`) and the content | ChatGPT web with the folder's files |
+| `quality` | the checks before publishing: not a repeat, every figure has its source (the owner's rules, §29.3), length, Persian, banned words | code |
+| `publish` | the platform's API: IG-Hub (post or reel, caption, cover, time; then the story the same day), YouTube Data API, Telegram Bot API, the site | code, through egress |
+| `deliver` | a file to the owner: his Telegram and a card in the app (e.g. a cover the platform could not set) | code |
+| `n8n` | a named n8n workflow; waits for its signed callback | n8n |
+| `seal` | waits for the owner's (or the CEO's) approval | — |
+
+- Every step leaves through the Tool Gateway or egress, is in the Audit log, and every model call is in the ledger (`llm.calls`,
+  caller `lines`). A step's output is kept (text in the row, files in the file store) and shown in the app.
+- **Fallbacks are explicit:** a platform that cannot set a cover → `deliver` to the owner; a player that is signed out or limited →
+  the step `failed` with a plain reason (never a silent switch to another model).
+
+### 30.3 Running
+- One Temporal workflow per run (`LineRun`); its steps in order; each its own timeout and attempts. A `seal` step (or a step with
+  `gate: owner|ceo`) waits and raises a `line_publish` card (A3). `POST /line-runs/{ref}/rerun {from_step}` runs again from one step.
+- **Draft and auto:** a new line is `draft`: its `publish` waits for the owner's seal. Each sealed run that published counts a good run;
+  at `auto_after` the app offers «خودکار کن» (🔏 `line.auto`). `mode: auto` publishes without a seal.
+- **Caps:** `runs_per_day`, `tokens_per_run`, `opus_per_day` per line; the company's daily token cap (§28.7) and the holding's lock and
+  kill switch stop a run before its next step (`skipped` with the reason).
+- **Dry run:** `dry: true` runs every step but `publish` and `deliver` (the app's «آزمایش کامل»).
+- **Learning:** 24 hours and 7 days after a publish, code reads the post's figures from its connection into `Run.metrics`.
+
+### 30.4 n8n (rule automations)
+- Self-hosted n8n (Sustainable Use License, D-16) in the opt-in compose profile `automations`, port on `127.0.0.1` only, its own
+  Postgres database. Its workflows are files in `automations/n8n/*.json`, imported by `make n8n-import`.
+- Hub → n8n: a webhook with an HMAC-SHA256 signature (secret in OpenBao `kv/hq/n8n`); n8n → hub:
+  `POST /internal/v1/lines/callback` signed the same way. n8n holds no model key and calls no model.
+
+### 30.5 Routes
+- Templates: `GET /line-templates`, `GET /line-templates/{key}`.
+- Lines: `GET /companies/{code}/lines`, `POST /companies/{code}/lines {template, platform, channel, title_fa}` (a `draft`),
+  `GET /lines/{ref}`, `PUT /lines/{ref} {title_fa?, schedule?, steps?, caps?, library?, note_fa?}` (🔏 `line.caps` when a cap rises),
+  `POST /lines/{ref}/state {state: on|paused}`, `POST /lines/{ref}/mode {mode}` (🔏 `line.auto` for `auto`),
+  `GET /lines/{ref}/versions`, `POST /lines/{ref}/revert {version}`, `POST /lines/{ref}/copy {company}` (a `draft` for another company).
+- Runs: `POST /lines/{ref}/runs {dry?, from_step?}`, `POST /lines/{ref}/steps/{key}/test {inputs?}` (that step alone, nothing kept
+  beyond the answer), `GET /lines/{ref}/runs`, `GET /line-runs/{ref}`, `POST /line-runs/{ref}/rerun {from_step}`,
+  `POST /line-runs/{ref}/seal {approve: bool, note_fa?}`, `POST /line-runs/{ref}/cancel`.
+- Calendar: `GET /calendar/lines?from&to&company?` → `{days: [{day, items: [{line, company, platform, at, state, run|null}]}]}`.
+- Library: `GET /library?company&kind`, `POST /library` (multipart: `meta` JSON and files), `PUT /library/{id}`, `DELETE /library/{id}`.
+- Voices: `GET /tts/voices` → `[{name, title_fa, gender, sample_file|null}]` (the speakers AI Studio offers, cached a day).
+- Internal: `POST /internal/v1/lines/callback` (n8n, signed).
+- Owner only (every route above but the internal one). Stream topic `lines` (`line.`, `line_run.`). Decision kind `line_publish`.
+  Step-up targets `line.auto` (`<ref>`), `line.caps` (`<ref>`).
+
+### 30.6 Templates seeded (prompt 22)
+`instagram_reel` (script → dedupe → voice → direction → patterns → council pick → Opus build → render → cover → quality →
+publish reel → story the same day), `instagram_story`, `youtube_short`, `youtube_long`, `telegram_post`, `site_article` (keyword →
+outline → article → quality → publish → Search Console feedback). Each prompt is a starting text in Persian the owner edits.
+
+### 30.7 Acceptance
+A line made from `instagram_reel` for one company runs end to end (every adapter faked in tests; dry on the hub until the owner
+connects AI Studio and IG-Hub), its outputs shown step by step in both apps; the same line copied to a second company runs with
+only its settings changed.
+
+## 31. Growth: learning, ready companies, owned channels, ads, automations from a sentence ⟨1.13⟩ (2026-11-04, prompt 22)
+
+The owner's priorities after the gap review (`docs/GAP_REVIEW_2026-11-04.md`). Same rules as §30: data, not code per company;
+rule first, model last; every call through the gateway or egress, in the Audit and the ledger; owner-only routes.
+
+### 31.1 The learning loop of a line
+```
+RunFeatures { run, hook (first line), length_s|words, voice, pattern, publish_hour, caption_len, platform }   -- by code at publish
+Insights    { line, metric (template defaults.insights.metric, e.g. "views"|"reach"|"clicks"|"watch_s"), window_runs,
+              best: {hour, length_bucket, voice, pattern_source}, top_hooks: [text], lessons_fa: [str], updated_at }
+```
+- After the 24h and 7d reads (§30.3), code ranks the line's published runs by its metric and writes `Insights` (no model).
+- Prompts may use `{{insights.lessons}}` and `{{insights.top_hooks}}`; a clear winner raises a home suggestion (§29.13).
+- The `quality` step also checks the platform rules in data (`apps/api/seed/lines/rules.yaml`: links, financial claims, banned
+  phrases per platform) before publish.
+- Routes: `GET /lines/{ref}/insights`.
+
+### 31.2 A ready company with one order (company kit)
+```
+Kit { key, title_fa, purpose_fa, team_template (seed/templates), groups: [group key], lines: [{template, platform, title_fa}],
+      kpis: [key], connections: [kind], defaults: {...} }
+```
+- Kits are data in `apps/api/seed/kits/*.yaml`; none names a company.
+- `GET /kits`, `POST /companies/from-kit {kit, code, name_fa, name_en, color_index?}` (🔏 `company.create`): the company with its
+  team (the existing templates), its group memberships, its lines as **drafts** (`hq_api.lines.store.create_line`), its KPIs and its
+  connections as `not_connected`; the answer lists what the owner still has to connect. A server is not created here (founding §).
+- The secretary (§29.4) routes an order like «یک شرکت تازه برای … بساز» to a preview of this call; nothing is created before the seal.
+
+### 31.3 Newsletter (owned channel)
+- Listmonk (AGPL-3.0, self-hosted) in the opt-in compose profile `newsletter`, `127.0.0.1` only, its own Postgres database.
+- A company's list(s), subscribers' consent kept by Listmonk (one-click unsubscribe is Listmonk's), campaigns made by a line of
+  platform `newsletter` (new template) or by hand, A/B subject, scheduled send; open and click figures read daily into
+  `growth.metrics_daily` (kind `newsletter`).
+- Routes: `GET /companies/{code}/newsletter` (lists, counts, last campaigns), `POST /companies/{code}/newsletter/campaigns`,
+  `POST /newsletter/campaigns/{id}/schedule {at}` (🔏 `newsletter.send` for a list over its size limit), `GET /newsletter/campaigns/{id}`.
+
+### 31.4 SEO rank and competitors
+```
+Keyword    { company, phrase, site, target_url|null, state: on|paused }
+RankDaily  { keyword, day, source: "search_console"|"searxng", position|null, url|null }
+Competitor { company, name_fa, site|null, instagram|null, youtube|null, telegram|null, state }
+CompetitorDaily { competitor, day, key, value, source }   -- new pages (sitemap), followers, subscribers, posts
+```
+- Our positions from Search Console (free, already connected); a small daily SERP check through the hub's SearXNG for our keywords
+  and the competitors' sites (positions marked approximate); competitors' public figures through free APIs (YouTube Data API) and
+  sitemaps through egress. No model reads a figure.
+- A competitor's jump (new pages, a big follower move) raises an item for the company's growth lead, not the owner.
+- Routes: `GET/POST/PUT/DELETE /companies/{code}/keywords[/{id}]`, `GET /companies/{code}/ranks?days`,
+  `GET/POST/PUT/DELETE /companies/{code}/competitors[/{id}]`, `GET /companies/{code}/competitors/daily?days`.
+
+### 31.5 One campaign calendar
+```
+CalendarItem { day, at|null, company, kind: "line"|"newsletter"|"ad"|"campaign"|"manual", ref, title_fa, platform|null,
+               state, conflict_fa|null }
+Campaign     { id, company, title_fa, goal_fa, starts, ends, channels: [platform], budget|null, state }
+```
+- `GET /campaign-calendar?from&to&company?` (`/calendar` is the change calendar of §20) merges line runs (§30), newsletters, ad campaigns and campaigns; conflicts (two posts on one
+  channel within its spacing, an Iranian holiday from the calendar data) are marked. `GET/POST/PUT/DELETE /campaigns[/{id}]`.
+- §30's `GET /calendar/lines` stays as it is.
+
+### 31.6 Ad budgets that stop by themselves
+```
+AdAccount { company, platform: "google_ads"|"meta_ads", account_id, state }          -- a connection kind (§29.12), secret in OpenBao
+AdRule    { company, scope (account|campaign id), daily_cap, window_days, min_roas, min_spend_before_judging, action: "pause"|"notify",
+            state: on|off }
+AdDaily   { company, platform, campaign_id, day, spend, clicks, conversions, revenue, roas }
+```
+- Daily read by code (the platforms' free APIs, through egress); revenue from the revenue module (§19) where attributed.
+- A rule that trips **pauses** the campaign through the API (reversible), writes the Audit and tells the company's growth lead and
+  the owner's weekly summary; it never raises a budget. Raising a cap is 🔏 `ads.cap`.
+- Routes: `GET /companies/{code}/ads` (accounts, campaigns, last 30 days), `GET/POST/PUT/DELETE /companies/{code}/ad-rules[/{id}]`,
+  `POST /ads/campaigns/{platform}/{id}/resume` (🔏 `ads.resume`).
+
+### 31.7 An automation from one sentence
+```
+Automation { ref "AT-0001" (`AU-` is the archive's), company|null, sentence_fa, rule: {trigger, conditions, actions}, state: "proposed"|"on"|"off",
+             runs: int, last_run_at|null, n8n_workflow|null }
+trigger    { kind: "schedule" (RRULE) | "event" (stream type) | "metric" (connection key, op, value, window) }
+actions    [ {kind: "work.create"|"line.run"|"line.pause"|"notify.owner"|"notify.lead"|"ad.pause"|"n8n.run", args} ]  -- allow-list only
+```
+- The owner writes one Persian sentence; one router call (task class `automation_compile`, a mid model) turns it into the JSON above
+  against a strict schema; the app shows it back in plain Persian (`preview_fa`) with what it will and will not do; nothing runs
+  before the owner's seal (🔏 `automation.seal`). Running is code (a tick and the stream), never a model; an action outside the
+  allow-list is refused at compile time. `n8n.run` and rules that need n8n are exported as an n8n workflow (§30.4).
+- Routes: `POST /automations/compile {sentence_fa, company?}` → `{rule, preview_fa, refused_fa: [..]}`, `POST /automations {rule,
+  sentence_fa, company?}` (proposed), `POST /automations/{ref}/seal`, `POST /automations/{ref}/state {on|off}`, `GET /automations`,
+  `GET /automations/{ref}` (with its runs).
+
+### 31.8 Stream, decisions, step-up
+- Stream: `insights.updated`, `rank.daily`, `competitor.jump`, `ad.paused`, `automation.run`, `campaign.updated` (topic `growth`).
+- Step-up: `company.create`, `newsletter.send`, `ads.cap`, `ads.resume`, `automation.seal`.
+

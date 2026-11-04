@@ -1,0 +1,97 @@
+# Template: YouTube Short (contract §30.6). No company is named; the owner edits every prompt.
+key: youtube_short
+title_fa: شورت یوتیوب
+platform: youtube_short
+version: 1
+outputs_fa: یک ویدیوی عمودی تا ۶۰ ثانیه با صدا، عنوان، توضیح و برچسب.
+defaults:
+  caps: {runs_per_day: 1, tokens_per_run: 400000, opus_per_day: 2}
+  schedule: "FREQ=DAILY;BYHOUR=9;BYMINUTE=0"
+steps:
+  - key: script
+    kind: gpt_text
+    title_fa: سناریو
+    prompt_fa: |
+      برای کانال یوتیوب «{{company.name_fa}}» (خط «{{line.title_fa}}») سناریوی یک شورت حدود {{settings.duration_s}} ثانیه بنویس.
+      زاویه‌ی دلخواه مالک: {{settings.topic}}
+      سبک مرجع: {{library.prompt}}
+      قلاب در سه ثانیه‌ی اول، یک نکته‌ی روشن، و پایان کوتاه. فارسی روان، بدون ادعای بی‌منبع و بدون
+      وعده‌ی سود. موضوعی را که قبلاً در این خط گفته شده تکرار نکن. فقط متن گفتاری.
+    settings: {topic: "", duration_s: 40}
+    inputs: []
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 420
+  - key: dedupe
+    kind: dedupe
+    title_fa: بررسی تکراری نبودن
+    prompt_fa: null
+    settings: {of: script, threshold: 0.8}
+    inputs: [script]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 3
+    timeout_s: 60
+  - key: voice
+    kind: tts
+    title_fa: صدا
+    prompt_fa: null
+    settings: {voice: Kore, style: "روشن و پرانرژی اما شمرده", text_from: script}
+    inputs: [script]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 300
+  - key: build
+    kind: opus_build
+    title_fa: ساخت
+    prompt_fa: |
+      برای کانال «{{company.name_fa}}» یک شورت عمودی ۹:۱۶ حداکثر ۵۸ ثانیه بساز.
+      سناریو:
+      {{steps.script.text}}
+      نماها را با زمان‌بندی صدا بساز و زیرنویس درشت بگذار. «title_fa» عنوان جذاب تا ۶۰ نویسه،
+      «description_fa» توضیح دو تا سه جمله، «hashtags» چند برچسب مرتبط.
+    settings: {}
+    inputs: [script, voice]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 600
+  - key: render
+    kind: render
+    title_fa: رندر
+    prompt_fa: null
+    settings: {where: media, spec_from: build, voice_from: voice}
+    inputs: [build, voice]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 600
+  - key: quality
+    kind: quality
+    title_fa: کنترل کیفیت
+    prompt_fa: null
+    settings: {text_from: build, persian: true, banned_words: []}
+    inputs: [script, build, render]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 1
+    timeout_s: 60
+  - key: publish
+    kind: publish
+    title_fa: انتشار شورت
+    prompt_fa: null
+    settings: {kind: short, media_from: render, text_from: build, privacy: public, in_min: 60}
+    inputs: [render, build, quality]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 900

@@ -77,6 +77,17 @@ TOOL = "media.publish"
 TELEGRAM_API = "https://api.telegram.org"
 GRAPH_API = "https://graph.instagram.com"
 GRAPH_VERSION = "v23.0"  # pinned; a new version is a reviewed change
+YT_UPLOAD = "https://www.googleapis.com/upload/youtube/v3/videos"  # prompt 22: resumable upload
+YT_TOKEN = re.compile(r"^[A-Za-z0-9._~+/-]{20,2048}$")  # an OAuth access token
+YT_PRIVACY = ("private", "unlisted", "public")
+YT_TITLE_MAX = 100
+YT_DESCRIPTION_MAX = 5000
+YT_QUOTA_REASONS = (
+    "quotaexceeded",
+    "dailylimitexceeded",
+    "uploadlimitexceeded",
+    "ratelimitexceeded",
+)
 MAX_BODY = 60 * 1024 * 1024  # the whole multipart body
 PHOTO_MAX = 10 * 1024 * 1024  # the Bot API's photo upload
 VIDEO_MAX = 50 * 1024 * 1024  # the Bot API's upload limit for any file
@@ -144,7 +155,7 @@ class FileIn(BaseModel):
 
 class CallIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    channel: Literal["telegram", "instagram"]
+    channel: Literal["telegram", "instagram", "youtube"]
     method: str = Field(min_length=1, max_length=40)
     token: str = Field(min_length=1, max_length=1024, repr=False)
     payload: dict[str, Any] = Field(default_factory=dict)
@@ -676,7 +687,9 @@ def _entries() -> list[Entry]:
 
 
 def _host(channel: str) -> str:
-    return "api.telegram.org" if channel == "telegram" else "graph.instagram.com"
+    return {"telegram": "api.telegram.org", "youtube": "www.googleapis.com"}.get(
+        channel, "graph.instagram.com"
+    )
 
 
 @dataclass
@@ -686,6 +699,7 @@ class Prepared:
     headers: dict[str, str]
     content: bytes | None
     cls: str
+    upload: Any = None  # YouTube: the video, sent to the session URL the first request answers
 
 
 @router.post("/v1/media/publish")
@@ -753,6 +767,30 @@ async def _prepare(
             else:
                 content = json.dumps(dict(fields), ensure_ascii=False).encode()
                 headers["Content-Type"] = "application/json"
+        elif call.channel == "youtube":
+            # prompt 22: one video, uploaded in YouTube's resumable way (the session is opened
+            # with the metadata, then the bytes are sent to the URL it answers); the token is
+            # the OAuth access token the api just made from its refresh token
+            cls = "A3"
+            if call.method != "upload":
+                raise Refused("method_not_allowed")
+            if not YT_TOKEN.match(token):
+                raise Refused("bad_token")
+            files = uploads(call, parts)
+            if len(files) != 1 or next(iter(files.values())).kind != "video":
+                raise Refused("file_mismatch")
+            up = next(iter(files.values()))
+            verb, url = "POST", f"{YT_UPLOAD}?uploadType=resumable&part=snippet,status"
+            headers.update(
+                {
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json; charset=UTF-8",
+                    "X-Upload-Content-Type": "video/mp4",
+                    "X-Upload-Content-Length": str(len(up.data)),
+                }
+            )
+            content = json.dumps(youtube_metadata(call.payload), ensure_ascii=False).encode()
+            video: Any = up.data
         else:
             cls = IG_CLASS.get(call.method, "A3")
             if call.files or set(parts) - {"call"}:
@@ -772,16 +810,125 @@ async def _prepare(
         # The guard first, by name and every address (the connection checks it again).
         target = state.guard.target(url)
         await state.guard.addresses(target.host, target.port)
+        if call.channel != "youtube":
+            video = None
     except Refused as r:
         track(Entry(TOOL, "POST", host, blocked_reason=r.code, cls="A3"))
         return _answer("blocked", None, _entries(), r.code, token)
     except Blocked as b:
         track(Entry(TOOL, "POST", host, blocked_reason=b.reason, cls="A3"))
         return _answer("blocked", None, _entries(), b.reason, token)
-    return Prepared(verb, url, headers, content, cls)
+    return Prepared(verb, url, headers, content, cls, video)
+
+
+def youtube_metadata(payload: dict[str, Any]) -> dict[str, Any]:
+    """The `videos.insert` body from the allowed keys, or Refused. Always labelled as altered or
+    synthetic content, never made for kids; this is the allow-list."""
+    if set(payload) - {"title", "description", "tags", "privacy", "publish_at", "category_id"}:
+        raise Refused("payload_not_allowed")
+    title, desc = payload.get("title"), payload.get("description", "")
+    if not isinstance(title, str) or not title.strip() or len(title) > YT_TITLE_MAX:
+        raise Refused("payload_not_allowed")
+    if not isinstance(desc, str) or len(desc) > YT_DESCRIPTION_MAX or "<" in title + desc:
+        raise Refused("payload_not_allowed")
+    tags = payload.get("tags", [])
+    if (
+        not isinstance(tags, list)
+        or len(tags) > 30
+        or any(not isinstance(t, str) or not 1 <= len(t) <= 60 for t in tags)
+    ):
+        raise Refused("payload_not_allowed")
+    privacy = payload.get("privacy", "private")
+    if privacy not in YT_PRIVACY:
+        raise Refused("payload_not_allowed")
+    status: dict[str, Any] = {
+        "privacyStatus": privacy,
+        "selfDeclaredMadeForKids": False,
+        "containsSyntheticMedia": True,
+    }
+    if "publish_at" in payload:
+        when = payload["publish_at"]
+        if not isinstance(when, str) or not re.fullmatch(
+            r"\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:\d{2})", when
+        ):
+            raise Refused("payload_not_allowed")
+        status.update(
+            privacyStatus="private", publishAt=when
+        )  # YouTube publishes a private video at its time
+    cat = payload.get("category_id", "22")
+    if not isinstance(cat, str) or not DIGITS.match(cat):
+        raise Refused("payload_not_allowed")
+    return {
+        "snippet": {"title": title, "description": desc, "tags": tags, "categoryId": cat},
+        "status": status,
+    }
+
+
+def youtube_outcome(status: int, body: Any, headers: dict[str, str]) -> tuple[str, str | None, Any]:
+    doc = body if isinstance(body, dict) else {}
+    if 200 <= status < 300 and doc.get("id"):
+        return "ok", None, {"video_id": str(doc["id"])[:40]}
+    raw_err = doc.get("error")
+    err: dict[str, Any] = raw_err if isinstance(raw_err, dict) else {}
+    reasons = " ".join(
+        str(e.get("reason", "")).lower() for e in err.get("errors", []) if isinstance(e, dict)
+    )
+    data = {"status": status, "message": str(err.get("message") or "")[:200]}
+    if status == 401:
+        return "error", "auth_failed", data
+    if any(r in reasons for r in YT_QUOTA_REASONS) or status == 429:
+        return "error", "platform_limit", {**data, "retry_after": 3600}
+    if status == 403:
+        return "error", "no_channel", data
+    return "error", "publish_error", data
+
+
+async def _send_youtube(state: Any, call: CallIn, req: Prepared) -> JSONResponse:
+    """Open the resumable session (the metadata), then send the video to the URL it answers."""
+    token = call.token
+    entries = _entries()
+
+    def no_redirect(_verb: str, current: str) -> str | None:
+        return None if current == req.url else "redirect"
+
+    try:
+        opened = await state.fetcher.fetch(
+            req.verb, req.url, tool=TOOL, cls=req.cls, headers=req.headers,
+            content=req.content, max_bytes=ANSWER_MAX, check=no_redirect,
+        )  # fmt: skip
+        location = str(opened.headers.get("location") or "")
+        if opened.status != 200 or not location.startswith(YT_UPLOAD + "?"):
+            body: Any = json.loads(bytes(opened.body).decode("utf-8", "replace") or "null")
+            outcome, code, data = youtube_outcome(opened.status, body, opened.headers)
+            return _answer(outcome if outcome != "ok" else "error",
+                           data, entries, code or "publish_error", token)  # fmt: skip
+
+        def same_session(_verb: str, current: str) -> str | None:
+            return None if current == location else "redirect"
+
+        sent = await state.fetcher.fetch(
+            "PUT", location, tool=TOOL, cls=req.cls,
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "video/mp4",
+                     "Accept": "application/json"},
+            content=bytes(req.upload), max_bytes=ANSWER_MAX, check=same_session,
+        )  # fmt: skip
+    except Blocked as b:
+        return _answer("blocked", None, entries, b.reason, token)
+    except (FetchError, ValueError):
+        return _answer("error", None, entries, "publish_error", token)
+    finally:
+        req.content = req.upload = None
+    try:
+        parsed: Any = json.loads(bytes(sent.body).decode("utf-8", "replace") or "null")
+    except ValueError:
+        parsed = None
+    outcome, code, data = youtube_outcome(sent.status, parsed, sent.headers)
+    return _answer(outcome, data, entries, code, token)
 
 
 async def _send(state: Any, call: CallIn, req: Prepared) -> JSONResponse:
+    if call.channel == "youtube":
+        return await _send_youtube(state, call, req)
     token = call.token
     entries = _entries()
 

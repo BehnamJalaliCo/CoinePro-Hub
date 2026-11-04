@@ -176,6 +176,10 @@ fun CompanyScreen(code: String, tab0: String = "control", dept0: String? = null,
                 // ⟨1.11⟩ §29: the business first (its working groups and the connections that measure them); the technical (servers, the
                 // catalogue, technical findings) lives under «فنی» only.
                 (listOf("control" to "اتاق کنترل") + (if (brand) listOf("growth" to "کارگروه‌ها", "connections" to "اتصال‌ها") else emptyList()) +
+                    // ⟨1.12⟩ §30 the company's production lines (hidden once the hub is known not to serve them).
+                    (if (brand && com.coinepro.hq.ui.v29.served(com.coinepro.hq.core.net.HubFeature.LINES)) listOf("lines" to "خط تولید") else emptyList()) +
+                    // ⟨1.13⟩ §31 the owned channel, search rank with competitors, and ad budgets.
+                    (if (brand && com.coinepro.hq.ui.v29.served(com.coinepro.hq.core.net.HubFeature.GROWTH)) listOf("newsletter" to "خبرنامه", "seo" to "سئو و رقبا", "ads" to "تبلیغات") else emptyList()) +
                     listOf("departments" to "دپارتمان‌ها", "people" to "کارمندها", "work" to "کارها") +
                     (if (brand) listOf("servers" to "فنی", "brand" to "نشان و مُهر") else emptyList()))
                     .forEach { (k, l) -> com.coinepro.hq.designsystem.FilterChip(l, tab == k, { tab = k }) }
@@ -212,6 +216,11 @@ fun CompanyScreen(code: String, tab0: String = "control", dept0: String? = null,
             // ⟨1.11⟩ §29.9, §29.11 its working groups and readiness; §29.12 its connections.
             "growth" -> item(key = "growth") { com.coinepro.hq.ui.v29.CompanyGroups(code) }
             "connections" -> item(key = "connections") { com.coinepro.hq.ui.v29.CompanyConnections(code, kind0) }
+            // ⟨1.12⟩ §30.5 its lines, and «خط تازه» from a template.
+            "lines" -> item(key = "lines") { com.coinepro.hq.ui.v30.CompanyLines(code) }
+            "newsletter" -> item(key = "newsletter") { com.coinepro.hq.ui.v31.CompanyNewsletter(code) }
+            "seo" -> item(key = "seo") { com.coinepro.hq.ui.v31.CompanySeo(code) }
+            "ads" -> item(key = "ads") { com.coinepro.hq.ui.v31.CompanyAds(code) }
             "brand" -> item {
                 Loadable(co) { x -> HqCard(Modifier.fillMaxWidth()) { BrandBlock(x.code, x.nameFa ?: x.code, x.nameEn ?: x.code) } }
             }

@@ -1,0 +1,50 @@
+# Platform rules the `quality` step checks before a line publishes (contract §31.1).
+# Data, not code: a new platform or phrase is a line here. Not a template (the
+# template loader skips this file). Every phrase is matched as written, in Persian.
+#
+#   links             allowed | none   (none: a link in the text is refused)
+#   links_note_fa     why, shown to the owner when a link is refused
+#   financial_claims  a promise of profit or of no risk: never published
+#   banned_phrases    anything else the holding never says
+version: 1
+all:
+  links: allowed
+  financial_claims:
+    - سود تضمینی
+    - سود قطعی
+    - درآمد تضمینی
+    - بدون ریسک
+    - بی‌ریسک
+    - بدون ضرر
+    - حتماً سود
+    - حتما سود
+    - صد در صد سود
+    - ۱۰۰٪ سود
+    - یک‌شبه پولدار
+    - یک شبه پولدار
+    - پولدار شوید
+    - سیگنال قطعی
+    - ضرر نمیکنید
+    - ضرر نمی‌کنید
+  banned_phrases:
+    - کلیک کنید تا ببینید
+    - باورتان نمیشود
+    - باورتان نمی‌شود
+platforms:
+  instagram_reel:
+    links: none
+    links_note_fa: لینک در کپشن اینستاگرام کار نمیکند؛ «لینک در بیو» بنویس.
+  instagram_post:
+    links: none
+    links_note_fa: لینک در کپشن اینستاگرام کار نمیکند؛ «لینک در بیو» بنویس.
+  instagram_story:
+    links: allowed
+  youtube_short:
+    links: none
+    links_note_fa: لینک در توضیح شورت دیده نمیشود؛ آن را در توضیح کانال بگذار.
+  youtube_long:
+    links: allowed
+  telegram_post:
+    links: allowed
+  site_article:
+    links: allowed

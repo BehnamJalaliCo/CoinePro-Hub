@@ -22,6 +22,8 @@
 # (api, OpenBao; internal) only, and the renderer has no network at all.
 # Prompt 14 §4: the archive's OCR sits on hq-ocr (internal) only, whose only
 # other member is the worker; its fetch job sits on hq-fetch like stt-fetch.
+# Prompt 22 part 3: Listmonk sits on hq-internal (its Postgres), hq-newsletter (internal; the api
+# and the worker call it there) and hq-newsletter-out (its one route out, SMTP; it alone is on it).
 # ⟨1.9⟩ Prompt 18: stt runs on demand (started and stopped by the host's
 # starter, never by itself after a reboot): a job here, restart "no".
 set -euo pipefail
@@ -31,7 +33,7 @@ ensure_env
 
 JOBS='["hq-tools","temporal-schema","temporal-namespace","db-provision","llm-migrate","api-migrate","stt-fetch",
   "backup-tools","mcp-codecortex-index","substitute-runner","browser-web-login","web-login-relay","tts",
-  "media-courier","media-render","ocr-fetch","stt"]'
+  "media-courier","media-render","ocr-fetch","stt","newsletter-provision"]'
 HARDENED='["api","worker","opa","llm-router","claude-runtime","llm-migrate","api-migrate","gateway","web","stt","stt-fetch",
   "backup-tools","egress","searxng","browser","provisioner","mcp-time","mcp-codecortex","mcp-codecortex-index",
   "substitute-runner","browser-web","browser-web-login","web-login-relay","tts","media-courier","media-render",
@@ -67,9 +69,11 @@ MEMBERS='{
   "hq-web-login":["browser-web-login","web-login-relay","egress"],
   "hq-web-login-ui":["web-login-relay"],
   "hq-tts":["tts","api","openbao"],
-  "hq-media":["media-courier","api","openbao"]}'
+  "hq-media":["media-courier","api","openbao"],
+  "hq-newsletter":["listmonk","api","worker"],
+  "hq-newsletter-out":["listmonk"]}'
 INTERNAL_NETS='["hq-agent","hq-edge","hq-stt","hq-egress-api","hq-browser","hq-prov","hq-prov-out","hq-mcp",
-  "hq-subs","hq-browser-web","hq-web-login","hq-tts","hq-media","hq-ocr"]'
+  "hq-subs","hq-browser-web","hq-web-login","hq-tts","hq-media","hq-ocr","hq-newsletter"]'
 # The opt-in profiles' services (cadvisor, stt) follow the same rules.
 mapfile -t OPT_IN < <(opt_in_profiles)
 failed=0

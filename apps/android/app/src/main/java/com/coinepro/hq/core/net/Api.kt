@@ -1458,6 +1458,162 @@ class Api(
         }.flatMap { it.await() }.distinctBy { it.ref }.sortedByDescending { it.openedAt }
     }
 
+    // ----------------------------------------- ⟨1.12⟩ §30 production lines --
+    suspend fun lineTemplates(): List<LineTemplate> = items("/line-templates", LineTemplate.serializer())
+    suspend fun lineTemplate(key: String): LineTemplate = get("/line-templates/${seg(key)}")
+
+    suspend fun companyLines(code: String): List<Line> = items("/companies/${seg(code)}/lines", Line.serializer())
+
+    /** A new line from a template, a `draft`: its first runs wait for the owner's seal. */
+    suspend fun newLine(code: String, template: String, platform: String, channel: LineChannel, titleFa: String): Line =
+        post("/companies/${seg(code)}/lines", buildJsonObject {
+            put("template", template); put("platform", platform); put("title_fa", titleFa)
+            put("channel", buildJsonObject { put("kind", channel.kind); put("subject", channel.subject) })
+        })
+
+    suspend fun line(ref: String): Line = get("/lines/${seg(ref)}")
+
+    /** `PUT /lines/{ref}`: a new version. A cap that rises is 🔏 `line.caps` on the ref (the caller passes [stepUp] then). */
+    suspend fun putLine(ref: String, body: JsonObject, stepUp: StepUp? = null): Line {
+        val token = if (stepUp != null) stepUp("line.caps", ref) else null
+        return send("PUT", "/lines/${seg(ref)}", jsonBody.encodeToString(JsonObject.serializer(), body), stepUp = token)
+    }
+
+    suspend fun setLineState(ref: String, state: String): Line = post("/lines/${seg(ref)}/state", buildJsonObject { put("state", state) })
+
+    /** `auto` is 🔏 `line.auto` on the ref; back to `draft` is not sealed. */
+    suspend fun setLineMode(ref: String, mode: String, stepUp: StepUp? = null): Line {
+        val token = if (stepUp != null) stepUp("line.auto", ref) else null
+        return post("/lines/${seg(ref)}/mode", buildJsonObject { put("mode", mode) }, token)
+    }
+
+    suspend fun lineVersions(ref: String): List<LineVersion> = items("/lines/${seg(ref)}/versions", LineVersion.serializer())
+    suspend fun revertLine(ref: String, version: Int): Line = post("/lines/${seg(ref)}/revert", buildJsonObject { put("version", version) })
+    suspend fun copyLine(ref: String, company: String): Line = post("/lines/${seg(ref)}/copy", buildJsonObject { put("company", company) })
+
+    suspend fun runLine(ref: String, dry: Boolean = false, fromStep: String? = null): LineRun =
+        post("/lines/${seg(ref)}/runs", buildJsonObject { put("dry", dry); if (fromStep != null) put("from_step", fromStep) })
+
+    /** That step alone; nothing is kept beyond the answer. The answer is a step run, or the bare output (both are read). */
+    suspend fun testLineStep(ref: String, key: String, inputs: JsonObject? = null): StepRun {
+        val e: JsonObject = post("/lines/${seg(ref)}/steps/${seg(key)}/test", buildJsonObject { if (inputs != null) put("inputs", inputs) })
+        return decoded("/lines/$ref/steps/$key/test", "POST") {
+            if (e["output"] is JsonObject || e["state"] != null) json.decodeFromJsonElement(StepRun.serializer(), e)
+            else StepRun(key = key, state = "done", output = json.decodeFromJsonElement(StepOutput.serializer(), e))
+        }
+    }
+
+    suspend fun lineRuns(ref: String, limit: Int = 30): List<LineRun> = items("/lines/${seg(ref)}/runs", LineRun.serializer(), mapOf("limit" to limit))
+    suspend fun lineRun(ref: String): LineRun = get("/line-runs/${seg(ref)}")
+    suspend fun rerunLineRun(ref: String, fromStep: String): LineRun = post("/line-runs/${seg(ref)}/rerun", buildJsonObject { put("from_step", fromStep) })
+
+    /** The owner's seal of a waiting run: publish it (approve) or refuse it. */
+    suspend fun sealLineRun(ref: String, approve: Boolean, noteFa: String? = null, stepUp: StepUp? = null, decision: String? = null): LineRun {
+        // Approving is a card approval (A3): 🔏 `decision.approve` on the run's card; refusing needs no seal.
+        val token = if (approve && stepUp != null && decision != null) stepUp("decision.approve", decision) else null
+        return post("/line-runs/${seg(ref)}/seal", buildJsonObject { put("approve", approve); if (!noteFa.isNullOrBlank()) put("note_fa", noteFa) }, token)
+    }
+
+    suspend fun cancelLineRun(ref: String): LineRun = post("/line-runs/${seg(ref)}/cancel", JsonObject(emptyMap()))
+
+    suspend fun lineCalendar(from: String, to: String, company: String? = null): LineCalendar =
+        get("/calendar/lines", mapOf("from" to from, "to" to to, "company" to company))
+
+    suspend fun library(company: String? = null, kind: String? = null): List<Asset> = items("/library", Asset.serializer(), mapOf("company" to company, "kind" to kind))
+
+    /** A file for the library, streamed from [open] (a content URI, never held in memory). */
+    class LibraryUpload(val name: String, val mime: String, val size: Long, val open: () -> InputStream)
+
+    /** A new library entry: each file goes up with the app's own upload (`POST /files`), then `POST /library` names their ids. */
+    suspend fun addAsset(company: String?, kind: String, titleFa: String, config: JsonObject, files: List<LibraryUpload>): Asset {
+        val fileIds = files.map { f -> upload(f.name, f.mime, f.size, f.open).id }
+        return post("/library", buildJsonObject {
+            if (company != null) put("company", company)
+            put("kind", kind); put("title_fa", titleFa); put("config", config); put("files", ids(fileIds))
+        })
+    }
+
+    suspend fun putAsset(id: String, body: JsonObject): Asset = put("/library/${seg(id)}", body)
+    suspend fun deleteAsset(id: String) {
+        execute(Request.Builder().url(url("/library/${seg(id)}")).delete().build()).use { check(it) }
+    }
+
+    suspend fun ttsVoices(): List<TtsVoice> = items("/tts/voices", TtsVoice.serializer())
+
+    // ------------------------------------------------- ⟨1.13⟩ §31 growth --
+    suspend fun lineInsights(ref: String): Insights = get("/lines/${seg(ref)}/insights")
+
+    suspend fun kits(): List<Kit> = items("/kits", Kit.serializer())
+    private fun kitBody(kit: String, code: String, nameFa: String, nameEn: String, colorIndex: Int?) = buildJsonObject {
+        put("kit", kit); put("code", code); put("name_fa", nameFa); put("name_en", nameEn); if (colorIndex != null) put("color_index", colorIndex)
+    }
+    /** What the call would make, in words; nothing is created. */
+    suspend fun previewKit(kit: String, code: String, nameFa: String, nameEn: String, colorIndex: Int? = null): KitPreview =
+        post("/companies/from-kit/preview", kitBody(kit, code, nameFa, nameEn, colorIndex))
+    /** 🔏 `company.create` on the new company's code. */
+    suspend fun createFromKit(kit: String, code: String, nameFa: String, nameEn: String, colorIndex: Int?, stepUp: StepUp): KitResult =
+        post("/companies/from-kit", kitBody(kit, code, nameFa, nameEn, colorIndex), stepUp("company.create", code))
+
+    suspend fun newsletter(code: String): Newsletter = get("/companies/${seg(code)}/newsletter")
+    suspend fun newNewsletter(code: String, list: String, subject: String, subjectB: String?, bodyMd: String): NlCampaign =
+        post("/companies/${seg(code)}/newsletter/campaigns", buildJsonObject {
+            put("list", list); put("subject", subject); if (!subjectB.isNullOrBlank()) put("subject_b", subjectB); put("body_md", bodyMd)
+        })
+    /** A list over its size limit is 🔏 `newsletter.send` on the campaign (the caller passes [stepUp] when the list is over). */
+    suspend fun scheduleNewsletter(id: String, at: String, stepUp: StepUp? = null): NlCampaign =
+        post("/newsletter/campaigns/${seg(id)}/schedule", buildJsonObject { put("at", at) }, if (stepUp != null) stepUp("newsletter.send", id) else null)
+
+    suspend fun keywords(code: String): List<Keyword> = items("/companies/${seg(code)}/keywords", Keyword.serializer())
+    suspend fun addKeyword(code: String, phrase: String, site: String, targetUrl: String?): Keyword =
+        post("/companies/${seg(code)}/keywords", buildJsonObject { put("phrase", phrase); put("site", site); put("target_url", targetUrl) })
+    suspend fun setKeywordState(code: String, id: String, state: String): Keyword = put("/companies/${seg(code)}/keywords/${seg(id)}", buildJsonObject { put("state", state) })
+    suspend fun deleteKeyword(code: String, id: String) { execute(Request.Builder().url(url("/companies/${seg(code)}/keywords/${seg(id)}")).delete().build()).use { check(it) } }
+    suspend fun ranks(code: String, days: Int = 30): List<RankDaily> = items("/companies/${seg(code)}/ranks", RankDaily.serializer(), mapOf("days" to days))
+    suspend fun competitors(code: String): List<Competitor> = items("/companies/${seg(code)}/competitors", Competitor.serializer())
+    suspend fun addCompetitor(code: String, nameFa: String, site: String?, instagram: String?, youtube: String?, telegram: String?): Competitor =
+        post("/companies/${seg(code)}/competitors", buildJsonObject {
+            put("name_fa", nameFa); put("site", site); put("instagram", instagram); put("youtube", youtube); put("telegram", telegram)
+        })
+    suspend fun deleteCompetitor(code: String, id: String) { execute(Request.Builder().url(url("/companies/${seg(code)}/competitors/${seg(id)}")).delete().build()).use { check(it) } }
+    suspend fun competitorDaily(code: String, days: Int = 30): List<CompetitorDaily> = items("/companies/${seg(code)}/competitors/daily", CompetitorDaily.serializer(), mapOf("days" to days))
+
+    /** §31.5 `GET /campaign-calendar` (not `/calendar`, the change calendar of §20); the answer is a list, `{items}` or `{days: [{day, items}]}`. */
+    suspend fun campaignCalendar(from: String, to: String, company: String? = null): List<CampaignItem> {
+        val e: JsonElement = get("/campaign-calendar", mapOf("from" to from, "to" to to, "company" to company))
+        return decoded("/campaign-calendar") {
+            val days = ((e as? JsonObject)?.get("days") as? JsonArray)
+            if (days != null) days.flatMap { d ->
+                val day = ((d as? JsonObject)?.get("day") as? JsonPrimitive)?.contentOrNull.orEmpty()
+                (((d as? JsonObject)?.get("items") as? JsonArray).orEmpty()).map { json.decodeFromJsonElement(CampaignItem.serializer(), it).let { x -> if (x.day.isBlank()) x.copy(day = day) else x } }
+            } else e.itemsOrSelf().map { json.decodeFromJsonElement(CampaignItem.serializer(), it) }
+        }
+    }
+    suspend fun campaigns(company: String? = null): List<Campaign> = items("/campaigns", Campaign.serializer(), mapOf("company" to company))
+    suspend fun saveCampaign(id: String?, body: JsonObject): Campaign = if (id == null) post("/campaigns", body) else put("/campaigns/${seg(id)}", body)
+    suspend fun deleteCampaign(id: String) { execute(Request.Builder().url(url("/campaigns/${seg(id)}")).delete().build()).use { check(it) } }
+
+    suspend fun ads(code: String): Ads = get("/companies/${seg(code)}/ads")
+    suspend fun adRules(code: String): List<AdRule> = items("/companies/${seg(code)}/ad-rules", AdRule.serializer())
+    suspend fun saveAdRule(code: String, id: String?, body: JsonObject, stepUp: StepUp? = null): AdRule {
+        val token = if (id != null && stepUp != null) stepUp("ads.cap", id) else null
+        return if (id == null) post("/companies/${seg(code)}/ad-rules", body)
+        else send("PUT", "/companies/${seg(code)}/ad-rules/${seg(id)}", jsonBody.encodeToString(JsonObject.serializer(), body), stepUp = token)
+    }
+    suspend fun deleteAdRule(code: String, id: String) { execute(Request.Builder().url(url("/companies/${seg(code)}/ad-rules/${seg(id)}")).delete().build()).use { check(it) } }
+    /** 🔏 `ads.resume` on `platform/id`. */
+    suspend fun resumeAd(platform: String, id: String, stepUp: StepUp): AdCampaign =
+        post("/ads/campaigns/${seg(platform)}/${seg(id)}/resume", JsonObject(emptyMap()), stepUp("ads.resume", "$platform/$id"))
+
+    suspend fun automations(): List<GrowthAutomation> = items("/automations", GrowthAutomation.serializer())
+    suspend fun automation(ref: String): GrowthAutomation = get("/automations/${seg(ref)}")
+    suspend fun compileAutomation(sentence: String, company: String?): Compiled =
+        post("/automations/compile", buildJsonObject { put("sentence_fa", sentence); if (company != null) put("company", company) })
+    suspend fun newAutomation(rule: JsonObject, sentence: String, company: String?): GrowthAutomation =
+        post("/automations", buildJsonObject { put("rule", rule); put("sentence_fa", sentence); if (company != null) put("company", company) })
+    /** 🔏 `automation.seal`: nothing runs before it. */
+    suspend fun sealAutomation(ref: String, stepUp: StepUp): GrowthAutomation = post("/automations/${seg(ref)}/seal", JsonObject(emptyMap()), stepUp("automation.seal", ref))
+    suspend fun setAutomationState(ref: String, state: String): GrowthAutomation = post("/automations/${seg(ref)}/state", buildJsonObject { put("state", state) })
+
     // §29.5 long voice: a session, its chunks (≤ 90 s each, in order, idempotent per n), then the whole text.
     suspend fun sttStart(purpose: String): SttSession = post("/transcribe/sessions", buildJsonObject { put("purpose", purpose) })
 

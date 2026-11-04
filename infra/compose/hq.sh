@@ -8,6 +8,7 @@
 #        hq.sh --print-substitutes-runner   (on|off: what the api is told)
 #        hq.sh --print-media                (on|off: the render worker, prompt 13)
 #        hq.sh --print-ocr                  (on|off: the archive's OCR, prompt 14)
+#        hq.sh --print-newsletter           (on|off: Listmonk, prompt 22 part 3)
 # Env:   HQ_PROFILE=lean|full   force a profile (else .env, else server RAM)
 #        HQ_ENV_FILE=PATH       use another secrets file (CI uses a throwaway one)
 #        HQ_ALL_PROFILES=1      act on the services of every profile (used by `down`)
@@ -16,6 +17,7 @@
 #        HQ_MCP=on|off          MCP servers in containers (opt-in profile "mcp"; else .env)
 #        HQ_MEDIA=on|off        the media render worker (opt-in profile "media"; else .env)
 #        HQ_OCR=on|off          the archive's OCR (opt-in profile "ocr"; else .env)
+#        HQ_NEWSLETTER=on|off   the newsletter (opt-in profile "newsletter"; else .env)
 set -euo pipefail
 
 COMPOSE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -353,8 +355,67 @@ if [[ "$ocr" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
     esac
   fi
 fi
+# Rule automations (prompt 22, contract §30.4): opt-in profile "automations"
+# (n8n), switched on with HQ_AUTOMATIONS=on (.env; `make n8n-on`). Refused like
+# stt while the profile plus it does not fit the memory budget. The worker gets
+# HQ_N8N_URL only while it is on (else a line's n8n step fails plainly, «n8n در
+# دسترس نیست»).
+automations="${HQ_AUTOMATIONS:-$(sed -n 's/^HQ_AUTOMATIONS=//p' "$ENV_FILE" | tail -n1)}"
+export HQ_N8N_URL=""
+if [[ "$automations" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
+  ref="$(budget_ref)"
+  sum="$(compose "${profile_args[@]}" --profile automations --profile backup-tools config --format json |
+    jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
+  budget=$((ref * 80 / 100))
+  if ((sum <= budget)); then
+    profile_args+=(--profile automations)
+    export HQ_N8N_URL="http://n8n:5678"
+  else
+    over="the $profile profile plus automations needs $sum MiB of memory limits, $((sum - budget)) MiB"
+    over+=" over the budget of $budget MiB (80% of $ref MiB)"
+    case "$(subcommand "$@")" in
+      up | run | create | start | restart)
+        echo "error: HQ_AUTOMATIONS=on refused: $over (make n8n-off)." >&2
+        exit 3
+        ;;
+      *) echo "warning: HQ_AUTOMATIONS=on ignored ($over)" >&2 ;;
+    esac
+  fi
+fi
 if [[ "${1:-}" == "--print-ocr" ]]; then # the quality gate's check
   if [[ -n "$HQ_OCR_URL" ]]; then echo on; else echo off; fi
+  exit 0
+fi
+# The newsletter (prompt 22 part 3, contract §31.3): opt-in profile "newsletter"
+# (Listmonk and its database provisioning), switched on with HQ_NEWSLETTER=on
+# (.env; `make newsletter-on`). Refused like media while the profile plus
+# newsletter does not fit the memory budget; the api and the worker are told
+# (HQ_NEWSLETTER_ACTIVE) only while it runs, else the newsletter routes answer
+# channel_not_configured and nothing is read.
+newsletter="${HQ_NEWSLETTER:-$(sed -n 's/^HQ_NEWSLETTER=//p' "$ENV_FILE" | tail -n1)}"
+export HQ_NEWSLETTER_ACTIVE=off
+if [[ "$newsletter" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
+  ref="$(budget_ref)"
+  sum="$(compose "${profile_args[@]}" --profile newsletter --profile backup-tools config --format json |
+    jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
+  budget=$((ref * 80 / 100))
+  if ((sum <= budget)); then
+    profile_args+=(--profile newsletter)
+    export HQ_NEWSLETTER_ACTIVE=on
+  else
+    over="the $profile profile plus newsletter needs $sum MiB of memory limits, $((sum - budget)) MiB"
+    over+=" over the budget of $budget MiB (80% of $ref MiB)"
+    case "$(subcommand "$@")" in
+      up | run | create | start | restart)
+        echo "error: HQ_NEWSLETTER=on refused: $over (make newsletter-off)." >&2
+        exit 3
+        ;;
+      *) echo "warning: HQ_NEWSLETTER=on ignored ($over)" >&2 ;;
+    esac
+  fi
+fi
+if [[ "${1:-}" == "--print-newsletter" ]]; then # the quality gate's check
+  printf '%s\n' "$HQ_NEWSLETTER_ACTIVE"
   exit 0
 fi
 # Speech to text (prompt 06 §3; ⟨1.9⟩ prompt 18, contract §27.3): installed

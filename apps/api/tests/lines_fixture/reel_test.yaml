@@ -1,0 +1,54 @@
+# A reel-like line for the engine's tests (prompt 22): every adapter is faked
+# in tests/test_p22_engine.py but dedupe, quality and seal (the real ones).
+key: reel_test
+title_fa: ریل آزمایشی
+platform: instagram_reel
+version: 1
+outputs_fa: [یک ریل, یک استوری]
+defaults:
+  caps: {runs_per_day: 5, tokens_per_run: 50000, opus_per_day: 5}
+  schedule: FREQ=DAILY;BYHOUR=9;BYMINUTE=0
+  auto_after: 2
+  insights: {metric: views}
+steps:
+  - key: script
+    kind: gpt_text
+    title_fa: سناریو
+    prompt_fa: "برای {{company.name_fa}} ({{company.code}}) یک سناریوی {{platform}} بنویس: {{line.title_fa}}. درس‌ها: {{insights.lessons}}"
+    max_attempts: 2
+    timeout_s: 30
+  - key: dedupe
+    kind: dedupe
+    title_fa: تکراری نباشد
+    inputs: [script]
+    settings: {threshold: 0.6}
+    max_attempts: 3
+  - key: voice
+    kind: tts
+    title_fa: صدا
+    inputs: [script]
+    settings: {voice: Kore, style: آرام}
+  - key: pick
+    kind: council_pick
+    title_fa: انتخاب الگو
+    optional: true
+  - key: build
+    kind: opus_build
+    title_fa: ساخت
+    inputs: [script, voice, pick]
+    prompt_fa: "از {{steps.script.text}} و صدای {{steps.voice.data.duration_s}} ثانیه بساز؛ {{settings.tone}}"
+    settings: {tone: ساده}
+  - key: render
+    kind: render
+    title_fa: رندر
+    inputs: [build]
+  - key: quality
+    kind: quality
+    title_fa: کیفیت
+    inputs: [build]
+    settings: {fields: [caption], sources_required: false, repeat: false}
+  - key: publish
+    kind: publish
+    title_fa: انتشار
+    inputs: [render, build]
+    settings: {kind: reel}

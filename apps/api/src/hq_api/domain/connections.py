@@ -77,6 +77,8 @@ Kind = Literal[
     "trends",
     "bing",
     "play_console",
+    "google_ads",
+    "meta_ads",
 ]
 # The contract's order of work (§29.12): the order every list follows.
 KINDS: tuple[str, ...] = (
@@ -90,6 +92,8 @@ KINDS: tuple[str, ...] = (
     "trends",
     "bing",
     "play_console",
+    "google_ads",  # ⟨1.13⟩ §31.6
+    "meta_ads",
 )
 PUBLISHING = ("instagram", "telegram", "youtube", "x")
 LABEL_FA = {
@@ -103,6 +107,8 @@ LABEL_FA = {
     "trends": "روند جست‌وجو (Google Trends)",
     "bing": "Bing Webmaster",
     "play_console": "Google Play Console",
+    "google_ads": "تبلیغات گوگل (Google Ads)",
+    "meta_ads": "تبلیغات متا (Instagram و Facebook)",
 }
 # The secret a kind needs (True), may take (None: optional) or never takes (False).
 SECRET: dict[str, bool | None] = {
@@ -116,8 +122,11 @@ SECRET: dict[str, bool | None] = {
     "trends": False,
     "bing": True,
     "play_console": True,
+    "google_ads": True,
+    "meta_ads": True,
 }
-BUILT = ("search_console", "ga4", "instagram", "telegram", "youtube", "pagespeed")
+BUILT = ("search_console", "ga4", "instagram", "telegram", "youtube", "pagespeed", "google_ads",
+         "meta_ads")  # fmt: skip
 NOT_BUILT_FA = "خواندن خودکار این اتصال هنوز ساخته نشده"
 ACTOR = "growth-read"
 TOKEN_URI = "https://oauth2.googleapis.com/token"  # noqa: S105 - a URL, not a secret
@@ -206,6 +215,13 @@ def missing(kind: str, config: dict[str, Any], secret_set: bool) -> list[str]:
         need.append("نشانی کانال‌ها")
     elif kind == "youtube" and not config.get("channel_id"):
         need.append("شناسه‌ی کانال یوتیوب")
+    elif kind == "google_ads" and len(str(config.get("customer_id") or "").replace("-", "")) != 10:
+        need.append("شماره‌ی ۱۰ رقمی حساب Google Ads")
+    elif (
+        kind == "meta_ads"
+        and not str(config.get("account_id") or "").removeprefix("act_").isdigit()
+    ):
+        need.append("شماره‌ی حساب تبلیغاتی Meta")
     if SECRET.get(kind) is True and not secret_set:
         need.append("رمز اتصال")
     return need
@@ -403,9 +419,10 @@ class Http(Protocol):
 class EgressHttp:
     """POST /v1/http on egress: the hub's only way out for these reads."""
 
-    def __init__(self, base_url: str, timeout_s: float = 90.0) -> None:
+    def __init__(self, base_url: str, timeout_s: float = 90.0, cls: str = "A0") -> None:
         self.url = base_url.rstrip("/") + "/v1/http"
         self.timeout_s = timeout_s
+        self.cls = cls  # A0 for the daily reads; A2 for a reversible change (an ad paused)
 
     async def request(
         self,
@@ -419,7 +436,7 @@ class EgressHttp:
         account: dict[str, Any] | None = None,
     ) -> Answer:
         payload: dict[str, Any] = {
-            "ctx": {"company": company, "actor": ACTOR, "cls": "A0"},
+            "ctx": {"company": company, "actor": ACTOR, "cls": self.cls},
             "method": method,
             "url": url,
             "headers": headers or {},
@@ -453,8 +470,8 @@ class EgressHttp:
 OVERRIDE: Http | None = None  # tests put a fake egress here
 
 
-def http_for(hub: Any) -> Http:
-    return OVERRIDE or EgressHttp(hub.settings.support_egress_url)
+def http_for(hub: Any, cls: str = "A0") -> Http:
+    return OVERRIDE or EgressHttp(hub.settings.support_egress_url, cls=cls)
 
 
 class ReadError(Exception):
@@ -859,7 +876,16 @@ async def read_not_built(ctx: ReadCtx) -> list[Figure]:
     raise ReadError(NOT_BUILT_FA)
 
 
+async def read_ads(ctx: ReadCtx) -> list[Figure]:
+    """⟨1.13⟩ §31.6: Google Ads and Meta Ads (hq_api.domain.ads)."""
+    from hq_api.domain import ads
+
+    return await ads.read_ads(ctx)
+
+
 READERS = {
+    "google_ads": read_ads,
+    "meta_ads": read_ads,
     "telegram": read_telegram,
     "pagespeed": read_pagespeed,
     "search_console": read_search_console,

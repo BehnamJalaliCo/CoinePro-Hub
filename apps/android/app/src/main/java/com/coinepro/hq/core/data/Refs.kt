@@ -15,6 +15,8 @@ object Refs {
         "W" to "work/$", "D" to "cartable/$", "O" to "outputs/$", "MT" to "meetings/$", "PL" to "planner",
         // ⟨1.11⟩ §29.2 an owner's order opens its report
         "F" to "order/$",
+        // ⟨1.12⟩ §30 a production line (LN-); its runs (LR-) are read as the growth lab's until the hub says otherwise
+        "LN" to "lines/$", "RN" to "line-runs/$", "AT" to "automations",
         // the workshop, founding and servers (§17, §18.8)
         "S" to "workshop/$", "G" to "workshop", "AP" to "workshop", "C" to "founding/$", "PV" to "founding/$",
         // the overseer (findings, holds, challenges, standing orders), inquiries, errands, incidents (§18)

@@ -20,6 +20,9 @@ case "$via:$what" in
   web:chatgpt-web) player=gpt ;;
   web:gemini-web) player=gemini ;;
   web:deepseek-web) player=deepseek ;;
+  # production lines' own profiles are not substitute players: the hub learns their state
+  # from a step's `expired` answer, so there is nothing to report
+  web:aistudio-web | web:pinterest-web) exit 0 ;;
   cli:codex) player=gpt ;;
   *) echo "usage: $0 web chatgpt-web|gemini-web|deepseek-web [since] | cli codex" >&2; exit 2 ;;
 esac

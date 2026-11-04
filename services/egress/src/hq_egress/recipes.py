@@ -21,11 +21,20 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-ACCOUNTS = ("chatgpt-web", "gemini-web", "deepseek-web")
-TASKS = ("text", "image", "video")
+ACCOUNTS = ("chatgpt-web", "gemini-web", "deepseek-web", "aistudio-web", "pinterest-web")
+Account = Literal["chatgpt-web", "gemini-web", "deepseek-web", "aistudio-web", "pinterest-web"]
+# prompt 22 (production lines): `tts` (speech in AI Studio: the audio file), `search`
+# (Pinterest, read only: the pins as JSON text) and `cover` (an image made from the files the
+# job carries) join the substitutes' three tasks.
+TASKS = ("text", "image", "video", "tts", "search", "cover")
+TaskName = Literal["text", "image", "video", "tts", "search", "cover"]
 HOST = re.compile(r"^(?=.{3,253}$)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")
 # The longest a task may wait for its answer (image 3 min, video 10 min).
-TASK_CAP_S = {"text": 300, "image": 180, "video": 600}
+TASK_CAP_S = {"text": 300, "image": 180, "video": 600, "tts": 300, "search": 120, "cover": 300}
+
+
+# What a `fill` may type: the job's prompt or its style note (never a literal from the recipe).
+FILL_TEXTS = ("{prompt}", "{style}")
 
 
 class RStep(BaseModel):
@@ -44,6 +53,11 @@ class RStep(BaseModel):
         "read",  # the last match of selector -> the answer's text
         "download_image",  # the last match's `attr` (src) -> the original file
         "download",  # click selector -> the file the site sends
+        # prompt 22
+        "select",  # choose the option named by the job's `voice` in the control `selector`
+        "attach",  # put the job's files into the file input `selector`
+        "collect",  # the job's `limit` items matching `selector` -> JSON {image, link, title}
+        "download_media",  # like download_image, for audio, video or an image
     ]
     selector: str | None = Field(default=None, max_length=500)
     url: str | None = Field(default=None, max_length=2000)
@@ -70,8 +84,10 @@ class RStep(BaseModel):
             raise ValueError("click_unless needs `unless`")
         if self.do == "press" and not self.key:
             raise ValueError("press needs a key")
-        if self.do == "fill" and self.text not in ("{prompt}",):
-            raise ValueError("fill types the prompt only")
+        if self.do == "fill" and self.text not in FILL_TEXTS:
+            raise ValueError("fill types the prompt or the style only")
+        if self.do == "select" and self.text != "{voice}":
+            raise ValueError("select chooses the job's voice only")
         if self.alt is not None and self.do != "read":
             raise ValueError("alt is for read only")
         if any(not a or len(a) > 500 for a in self.alt or []):
@@ -96,7 +112,7 @@ class Expired(BaseModel):
 
 class Recipe(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    key: Literal["chatgpt-web", "gemini-web", "deepseek-web"]
+    key: Account
     version: str = Field(pattern=r"^[0-9]{4}-[0-9]{2}-[0-9]{2}\.[0-9]{1,3}$")
     site: str
     start_url: str = Field(pattern=r"^https://")
@@ -106,7 +122,7 @@ class Recipe(BaseModel):
     # Site features always used (DeepSeek: deep thinking and web search, the
     # owner's decision 2026-10-22); documentation only, the steps do it.
     features: list[str] = Field(default_factory=list, max_length=10)
-    tasks: dict[Literal["text", "image", "video"], Task]
+    tasks: dict[TaskName, Task]
 
     @field_validator("hosts", "login_hosts")
     @classmethod

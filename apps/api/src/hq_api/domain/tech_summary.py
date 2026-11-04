@@ -108,6 +108,9 @@ async def lines_for(tx: Tx, c: dict[str, Any], start: datetime, end: datetime) -
     )
     if hires:
         out.append(f"استخدام‌ها: {'، '.join(str(h['title']) for h in hires)}")
+    from hq_api.domain import ads  # ⟨1.13⟩ §31.6: what a budget rule stopped this week
+
+    out.extend(await ads.weekly_lines(tx, c["id"], start, end))
     return [HZ.humanize(x) for x in out]
 
 

@@ -85,6 +85,14 @@ WIPE: tuple[str, ...] = (
     # experiments, the home's mornings, suggestions and progress) goes
     "owner.order_reports", "owner.suggestions", "owner.progress",
     "growth.routine_runs", "growth.experiments", "growth.metrics_daily", "growth.home_mornings",
+    # ⟨1.13⟩ §31.6, §31.7: the ads' daily figures, campaigns' state, trips; the automations' runs
+    "growth.ad_daily", "growth.ad_campaigns", "growth.ad_trips", "growth.automation_runs",
+    # ⟨1.13⟩ prompt 22 part 3: the daily ranks and competitor figures, the competitor jumps,
+    # the newsletter campaigns that were sent and the owner's calendar items go
+    "growth.rank_daily", "growth.competitor_daily", "growth.competitor_jumps",
+    "growth.newsletter_campaigns", "growth.calendar_manual",
+    # ⟨1.12⟩ prompt 22: what the production lines ran and learned from it goes
+    "lines.runs", "lines.step_runs", "lines.run_features", "lines.insights",
     "people.department_ranks", "people.hr_rounds", "people.role_drafts", "people.star_rollups",
     "people.stars",
     "quality.claims",
@@ -139,6 +147,12 @@ KEEP: tuple[str, ...] = (
     # ⟨1.11⟩ prompt 21: what the hub is made of (the groups as data, their members,
     # the companies' connections and their non-secret config) stays
     "growth.groups", "growth.group_versions", "growth.memberships", "growth.connections",
+    "growth.ad_rules", "growth.automations",  # ⟨1.13⟩ the owner's budget rules and automations
+    # ⟨1.13⟩ prompt 22 part 3: definitions stay (the lists, the keywords, the competitors, the campaigns)
+    "growth.newsletter_lists", "growth.keywords", "growth.competitors", "growth.campaigns",
+    # ⟨1.12⟩ prompt 22: the production lines as the owner set them, their
+    # versions and the library stay
+    "lines.lines", "lines.line_versions", "lines.assets",
     "people.star_rubrics",
     "public.alembic_version_api", "public.alembic_version_llm_router",
     "revenue.accounts",
@@ -199,6 +213,9 @@ RESET: tuple[str, ...] = (
     "UPDATE governance.objectives SET decision_id = NULL WHERE decision_id IS NOT NULL",
     """UPDATE governance.risks SET accepted_decision_id = NULL
      WHERE accepted_decision_id IS NOT NULL""",
+    # ⟨1.12⟩ a line stays; the runs it counted and its last scheduled run are gone
+    """UPDATE lines.lines SET good_runs = 0, last_due_at = NULL
+     WHERE good_runs <> 0 OR last_due_at IS NOT NULL""",
 )
 
 # The ref sequences no table owns (nextval in the code): what they number.
@@ -212,6 +229,7 @@ REF_RESET: tuple[str, ...] = (
     "growth.rescue_ref_seq",
     "knowledge.ask_ref_seq", "knowledge.lesson_ref_seq",
     "legal.case_ref_seq",
+    "lines.run_ref_seq",
     "media.item_ref_seq", "media.series_ref_seq",
     "meetings.meeting_ref_seq", "meetings.request_ref_seq",
     "oversight.challenge_ref_seq", "oversight.finding_ref_seq", "oversight.hold_ref_seq",
@@ -233,8 +251,10 @@ REF_KEEP: tuple[str, ...] = (
     "dceo.principle_ref_seq",
     "governance.calendar_ref_seq", "governance.key_result_ref_seq", "governance.objective_ref_seq",
     "governance.risk_ref_seq",
+    "growth.automation_ref_seq",  # ⟨1.13⟩ the automations stay
     "growth.rule_ref_seq", "growth.template_ref_seq",
     "knowledge.entry_ref_seq", "knowledge.skill_ref_seq",
+    "lines.line_ref_seq",  # the lines stay
     "ops.incident_ref_seq",
     "provisioning.plan_ref_seq",
     "support.kb_ref_seq",

@@ -374,6 +374,8 @@ services:
       LLM_ROUTER_DB_PASSWORD: ${LLM_ROUTER_DB_PASSWORD:?run make env}
       HQ_API_DB_PASSWORD: ${HQ_API_DB_PASSWORD:?run make env}
       HQ_WORKER_DB_PASSWORD: ${HQ_WORKER_DB_PASSWORD:?run make env}
+      # prompt 22: n8n's own role and database (skipped while empty)
+      N8N_DB_PASSWORD: ${N8N_DB_PASSWORD:-}
     entrypoint: ["bash", "/hq/provision.sh"]
     volumes:
       - ../postgres/provision.sh:/hq/provision.sh:ro
@@ -582,7 +584,7 @@ services:
     # hq-prov: the provisioner (prompt 09) and its calls to /internal/v1.
     # hq-tts: the TTS one-shot's calls to /internal/v1/tts (prompt 12 §4).
     # hq-media: the render courier's calls to /internal/v1/media/render (prompt 13).
-    networks: [hq-internal, hq-core, hq-agent, hq-prov, hq-tts, hq-media]
+    networks: [hq-internal, hq-core, hq-agent, hq-prov, hq-tts, hq-media, hq-newsletter]
     build:
       context: ../../apps/api
       additional_contexts:
@@ -650,6 +652,8 @@ services:
       HQ_CATALOGUE_RUN_TOKENS: ${HQ_CATALOGUE_RUN_TOKENS:-1500000}
       # Prompt 21 (contract §29.11): the working groups' routines, switched on after the deploy's checks.
       HQ_GROUPS: ${HQ_GROUPS:-off}
+      # Prompt 22 (contract §30.3): the production lines' schedules and reads, switched on after the deploy's checks.
+      HQ_LINES: ${HQ_LINES:-off}
       OWNER_ZONE_DAILY_SHARE: ${OWNER_ZONE_DAILY_SHARE:-0.25}
       CONNECTION_SECRET_ROUTE: ${CONNECTION_SECRET_ROUTE:-api}
       # Prompt 12 §9.1: hq.sh sets it on only while the substitutes runner's
@@ -669,6 +673,9 @@ services:
       # "media" runs (hq.sh sets HQ_MEDIA_ACTIVE); else media.render answers
       # channel_not_configured and the item waits.
       HQ_MEDIA: ${HQ_MEDIA_ACTIVE:-off}
+      # ⟨1.13⟩ Prompt 22 part 3 (§31.3): the newsletter routes and the daily read are on
+      # only while the opt-in profile "newsletter" runs (hq.sh sets HQ_NEWSLETTER_ACTIVE).
+      HQ_NEWSLETTER: ${HQ_NEWSLETTER_ACTIVE:-off}
       # The deploy card's diff (§21.6): mirrors of the workspaces' repositories.
       HQ_GIT_MIRRORS: /var/lib/hq-git
     user: "10001:10001"
@@ -703,7 +710,7 @@ services:
     # hq-egress-api: the support desk's sends through egress (prompt 10 §4.2,
     # POST /v1/support/send; egress's own client check covers that subnet);
     # hq-ocr: the archive's OCR queue (prompt 14 §4; only the worker calls ocr).
-    networks: [hq-internal, hq-core, hq-agent, hq-stt, hq-egress-api, hq-ocr]
+    networks: [hq-internal, hq-core, hq-agent, hq-stt, hq-egress-api, hq-ocr, hq-newsletter]
     depends_on:
       api:
         condition: service_healthy
@@ -728,6 +735,8 @@ services:
       HQ_CATALOGUE_RUN_TOKENS: ${HQ_CATALOGUE_RUN_TOKENS:-1500000}
       # Prompt 21 (contract §29.11): the working groups' routines, switched on after the deploy's checks.
       HQ_GROUPS: ${HQ_GROUPS:-off}
+      # Prompt 22 (contract §30.3): the production lines' schedules and reads, switched on after the deploy's checks.
+      HQ_LINES: ${HQ_LINES:-off}
       OVERSIGHT_DAILY_SHARE: ${OVERSIGHT_DAILY_SHARE:-0.2}
       # Prompt 11 §1.2: the meetings' share of the daily cap (a meeting that does not fit is `written`).
       MEETINGS_DAILY_SHARE: ${MEETINGS_DAILY_SHARE:-0.15}
@@ -747,6 +756,11 @@ services:
       # HQ_OCR=on and it fits the memory budget, else empty (scans keep
       # text_state "none", nothing fails).
       HQ_OCR_URL: ${HQ_OCR_URL:-}
+      # prompt 22: n8n for the lines' rule workflows, set only while the profile "automations" is on
+      HQ_N8N_URL: ${HQ_N8N_URL:-}
+      # ⟨1.13⟩ Prompt 22 part 3 (§31.3): the newsletter routes and the daily read are on
+      # only while the opt-in profile "newsletter" runs (hq.sh sets HQ_NEWSLETTER_ACTIVE).
+      HQ_NEWSLETTER: ${HQ_NEWSLETTER_ACTIVE:-off}
       # Prompt 10 §4.2: support sends leave through egress (a channel's secret
       # is read from OpenBao for one call and handed to egress only).
       SUPPORT_EGRESS_URL: http://egress:8090
@@ -1137,6 +1151,72 @@ services:
       resources:
         limits:
           memory: ${MEM_ALLOY:?}
+
+  n8n:
+    # Rule automations for the production lines (prompt 22, contract §30.4):
+    # self-hosted n8n (Sustainable Use License, D-16), opt-in profile
+    # "automations" (HQ_AUTOMATIONS=on; `make n8n-on`). "First rule (n8n), last
+    # AI": its workflows (automations/n8n/*.json, `make n8n-import`) fetch, format
+    # and file; n8n holds no model key and calls no model. The hub calls a
+    # workflow's webhook with an HMAC signature and n8n answers the api's
+    # internal /internal/v1/lines/callback signed the same way (the secret:
+    # OpenBao kv/hq/n8n, written by `make n8n-secret` from N8N_SIGNING_PASSWORD).
+    # Its own Postgres database and role (infra/postgres/provision.sh). Its
+    # editor is published on 127.0.0.1:5678 only (reach it by an SSH tunnel);
+    # the webhooks are on the internal network. The owner's account is made on
+    # the first visit. Telemetry, update notices and templates are off.
+    <<: *service
+    profiles: [automations]
+    image: n8nio/n8n:2.44.4
+    depends_on:
+      db-provision:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: "5432"
+      DB_POSTGRESDB_DATABASE: n8n
+      DB_POSTGRESDB_USER: n8n
+      DB_POSTGRESDB_PASSWORD: ${N8N_DB_PASSWORD:?run make env}
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_PASSWORD:?run make env}
+      N8N_HOST: 127.0.0.1
+      N8N_PORT: "5678"
+      N8N_PROTOCOL: http
+      WEBHOOK_URL: http://n8n:5678/
+      GENERIC_TIMEZONE: UTC
+      TZ: UTC
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_VERSION_NOTIFICATIONS_ENABLED: "false"
+      N8N_TEMPLATES_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+      N8N_HIRING_BANNER_ENABLED: "false"
+      EXECUTIONS_DATA_PRUNE: "true"
+      EXECUTIONS_DATA_MAX_AGE: "168"
+      # the workflows sign with this and the Code node may load `crypto` only
+      HQ_SIGNING_SECRET: ${N8N_SIGNING_PASSWORD:?run make env}
+      HQ_CALLBACK_URL: http://api:8000/internal/v1/lines/callback
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      NODE_FUNCTION_ALLOW_BUILTIN: crypto
+      NODE_OPTIONS: --max-old-space-size=384
+    ports:
+      - "127.0.0.1:5678:5678"
+    volumes:
+      - n8n-data:/home/node/.n8n
+      - ../../automations/n8n:/workflows:ro
+    cap_drop: [ALL]
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:5678/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_N8N:?}
 
   grafana:
     <<: *service
@@ -1688,6 +1768,84 @@ services:
           pids: 512
           memory: ${MEM_MEDIA_RENDER:?}
 
+  newsletter-provision:
+    # ⟨1.13⟩ Prompt 22 part 3 (contract §31.3): Listmonk's own role and database
+    # (idempotent; opt-in profile "newsletter"). Kept apart from db-provision so the
+    # default stack needs no Listmonk password.
+    <<: *job
+    profiles: [newsletter]
+    image: pgvector/pgvector:0.8.7-pg17
+    networks: [hq-internal]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGUSER: postgres
+      PGPASSWORD: ${POSTGRES_PASSWORD:?run make env}
+      LISTMONK_DB_PASSWORD: ${LISTMONK_DB_PASSWORD:-}
+    entrypoint: ["bash", "/hq/provision.sh"]
+    volumes:
+      - ../newsletter/provision.sh:/hq/provision.sh:ro
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_DB_PROVISION:?}
+
+  listmonk:
+    # ⟨1.13⟩ Prompt 22 part 3 (contract §31.3): the newsletter (Listmonk, AGPL-3.0,
+    # self-hosted), opt-in profile "newsletter" (HQ_NEWSLETTER=on; `make newsletter-on`).
+    # It keeps the subscribers, their consent and the one-click unsubscribe; the api
+    # and the worker call its REST API on hq-newsletter (internal), with an API user's
+    # token from OpenBao (kv/hq/newsletter/api). Its own Postgres database and role
+    # (newsletter-provision). The admin login is created at install from
+    # LISTMONK_ADMIN_PASSWORD (also copied to OpenBao by `make newsletter-secret`).
+    # Port on 127.0.0.1 only (the owner's SSH tunnel to the admin page). Mail goes out
+    # over SMTP of the owner's provider, set in Listmonk's settings: hq-newsletter-out
+    # is its one route out (no Docker-internal service is on it). The public
+    # unsubscribe / tracking links need a public root URL: not routed by Caddy here
+    # (the owner decides, see infra/newsletter/README.md).
+    <<: *service
+    profiles: [newsletter]
+    image: listmonk/listmonk:v6.2.0@sha256:f535d59e14991337a9f2d570273685378ae86b0d7698c3e00da444e3bc205286
+    networks: [hq-internal, hq-newsletter, hq-newsletter-out]
+    depends_on:
+      newsletter-provision:
+        condition: service_completed_successfully
+    command:
+      - sh
+      - -c
+      - "./listmonk --install --idempotent --yes --config '' && exec ./listmonk --config ''"
+    environment:
+      LISTMONK_app__address: 0.0.0.0:9000
+      LISTMONK_db__host: postgres
+      LISTMONK_db__port: "5432"
+      LISTMONK_db__user: listmonk
+      LISTMONK_db__password: ${LISTMONK_DB_PASSWORD:-}
+      LISTMONK_db__database: listmonk
+      LISTMONK_db__ssl_mode: disable
+      LISTMONK_db__max_open: "5"
+      LISTMONK_db__max_idle: "2"
+      LISTMONK_ADMIN_USER: ${LISTMONK_ADMIN_USER:-hq-admin}
+      LISTMONK_ADMIN_PASSWORD: ${LISTMONK_ADMIN_PASSWORD:-}
+    ports:
+      - "127.0.0.1:9000:9000"
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    volumes:
+      - listmonk-uploads:/listmonk/uploads
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_LISTMONK:?}
+
   cadvisor:
     # Opt-in only (profile "cadvisor", prompt 05 §11): it needs the Docker and
     # containerd sockets, i.e. root on the host. The default profiles get
@@ -1915,8 +2073,29 @@ networks:
         - subnet: 172.30.23.0/24
           gateway: 172.30.23.1
 
+  hq-newsletter:
+    # ⟨1.13⟩ Listmonk's REST API for the api and the worker (prompt 22 part 3).
+    # Internal: no route out.
+    name: hq-newsletter
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.24.0/24
+          gateway: 172.30.24.1
+  hq-newsletter-out:
+    # ⟨1.13⟩ Listmonk's one route out: SMTP to the owner's mail provider (and the
+    # links it follows). Listmonk is its only member; nothing else of the hub is on it.
+    name: hq-newsletter-out
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.25.0/24
+          gateway: 172.30.25.1
+
 volumes:
   hq-tools:
+  n8n-data:
   pg-data:
   valkey-data:
   nats-data:
@@ -1940,3 +2119,5 @@ volumes:
   # prompt 13 §2.3: the render jobs between the courier and the renderer (a
   # job's folder is removed once sent; not in backups)
   hq-media-jobs:
+  # ⟨1.13⟩ prompt 22 part 3: the images a newsletter uses (uploads; subscribers are in Postgres)
+  listmonk-uploads:

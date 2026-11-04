@@ -39,17 +39,19 @@ def recipes_dir() -> Path:
 
 
 # ---------------------------------------------------------------- recipes --
-def test_the_three_reviewed_recipes_load_and_keep_to_their_own_hosts() -> None:
+def test_the_reviewed_recipes_load_and_keep_to_their_own_hosts() -> None:
     got = RC.load(recipes_dir())
-    assert sorted(got) == ["chatgpt-web", "deepseek-web", "gemini-web"]
+    assert sorted(got) == [
+        "aistudio-web", "chatgpt-web", "deepseek-web", "gemini-web", "pinterest-web",
+    ]  # fmt: skip
     for key, r in got.items():
         assert r.key == key and r.site in r.hosts
         for task in r.tasks.values():
             for st in task.steps:
                 assert st.do != "screenshot"  # no step can take a picture of the page
                 if st.do == "fill":
-                    assert st.text == "{prompt}"
-    assert set(got["chatgpt-web"].tasks) == {"text", "image"}
+                    assert st.text in ("{prompt}", "{style}")
+    assert set(got["chatgpt-web"].tasks) == {"text", "image", "cover"}
     assert set(got["gemini-web"].tasks) == {"text", "image", "video"}
     assert set(got["deepseek-web"].tasks) == {"text"}
     assert "temporary-chat=true" in got["chatgpt-web"].start_url
@@ -469,3 +471,66 @@ def test_alt_is_for_read_only() -> None:
     assert "alt" not in RC.RStep.model_validate({"do": "read", "selector": "a"}).model_dump(
         exclude_none=True
     )
+
+
+# ----------------------------------------------- prompt 22: production lines --
+def test_the_lines_recipes_are_read_only_or_type_only_what_the_job_gives() -> None:
+    got = RC.load(recipes_dir())
+    ai, pin = got["aistudio-web"], got["pinterest-web"]
+    assert set(ai.tasks) == {"tts"} and set(pin.tasks) == {"search"}
+    assert ai.tasks["tts"].timeout_s <= RC.TASK_CAP_S["tts"]
+    steps = ai.tasks["tts"].steps
+    assert [s.do for s in steps if s.do == "select"] == ["select"]
+    assert steps[-1].do == "download_media" and steps[-1].selector == "audio"
+    assert any(s.do == "fill" and s.text == "{style}" for s in steps)
+    # Pinterest is read only: it searches and collects, it never clicks a pin or a button
+    assert {s.do for s in pin.tasks["search"].steps} <= {
+        "goto", "wait", "fill", "press", "pause", "collect",
+    }  # fmt: skip
+    assert pin.tasks["search"].steps[-1].do == "collect"
+    # the cover task attaches the folder's files and brings an image back
+    cover = got["chatgpt-web"].tasks["cover"].steps
+    assert any(s.do == "attach" for s in cover) and cover[-1].do == "download_image"
+    for r in (ai, pin):
+        assert r.site in r.hosts and not any(h[0].isdigit() for h in r.hosts)
+
+
+@pytest.mark.parametrize(
+    "step",
+    [
+        {"do": "select", "selector": "x", "text": "Puck"},
+        {"do": "select", "selector": "x"},
+        {"do": "fill", "selector": "x", "text": "{voice}"},
+        {"do": "attach"},
+        {"do": "collect"},
+    ],
+)
+def test_the_new_steps_keep_their_rules(step: dict[str, Any]) -> None:
+    with pytest.raises(ValidationError):
+        RC.RStep.model_validate(step)
+    assert (
+        RC.RStep.model_validate({"do": "select", "selector": "x", "text": "{voice}"}).do == "select"
+    )
+
+
+def test_a_job_carries_the_voice_the_style_the_limit_and_the_files() -> None:
+    from hq_egress import substitutes_web as SW
+
+    a = SW.WebIn(
+        account="aistudio-web", task="tts", prompt="سلام", voice="Puck", style="calm", limit=5,
+        files=[SW.JobFile(name="a.png", b64="AAAA")],
+    )  # fmt: skip
+    assert a.voice == "Puck" and a.limit == 5 and a.files[0].name == "a.png"
+    with pytest.raises(ValidationError):
+        SW.WebIn(account="aistudio-web", task="tts", prompt="x", limit=99)
+    with pytest.raises(ValidationError):
+        SW.WebIn(account="nowhere-web", task="tts", prompt="x")  # type: ignore[arg-type]
+
+
+def test_an_audio_download_is_typed_by_content() -> None:
+    from hq_egress import substitutes_web as SW
+
+    assert SW.sniff(b"RIFF\x24\x00\x00\x00WAVEfmt ") == "audio/wav"
+    assert SW.sniff(b"ID3\x04\x00\x00\x00\x00\x00\x00abc") == "audio/mpeg"
+    assert SW.sniff(b"OggS\x00\x02" + b"\x00" * 10) == "audio/ogg"
+    assert SW.sniff(b"<html>not audio</html>") is None

@@ -70,7 +70,19 @@ TOPICS: dict[str, tuple[str, ...]] = {
     # feedback.item
     "revenue": ("revenue.",),
     "support": ("support.",),
-    "growth": ("rescue.", "lifecycle.", "nps."),
+    # ⟨1.13⟩ §31.8 insights.updated (a line's learning loop), ad.paused, ad.resumed, automation.run;
+    # rank.daily, competitor.jump, campaign.updated (SEO rank, competitors, the campaign calendar)
+    "growth": (
+        "rescue.",
+        "lifecycle.",
+        "nps.",
+        "insights.",
+        "ad.",
+        "automation.",
+        "rank.",
+        "competitor.",
+        "campaign.",
+    ),
     "feedback": ("feedback.",),
     # ⟨1.4.6⟩ prompt 9.1: brand.updated (contract §18.14)
     # ⟨1.10⟩ prompt 19 (contract §28.2): catalogue.updated (a company's catalogue run)
@@ -112,6 +124,9 @@ TOPICS: dict[str, tuple[str, ...]] = {
     # reads (group.run, connection.updated)
     "home": ("home.", "suggestion."),
     "groups": ("group.", "connection."),
+    # ⟨1.12⟩ prompt 22 (contract §30.5): a line changed (line.updated), a run
+    # moved (line_run.updated: its state, the step, a card)
+    "lines": ("line.", "line_run."),
 }
 
 

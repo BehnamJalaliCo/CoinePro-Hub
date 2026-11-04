@@ -66,6 +66,8 @@ SCHEMAS = (
     "media",
     # prompt 14: the archive of record (its open layer is the holding's)
     "archive",
+    # prompt 22: production lines, their runs, the library, the learning loop
+    "lines",
 )
 # The tools schema's tables without a company (holding configuration, read by
 # the api only): every other table there must carry company_id under RLS.
@@ -1271,6 +1273,135 @@ async def _fill_p21c(su: Any, co: dict[str, Any]) -> None:
         c,
         f"rls:{_s.token_hex(6)}",
     )
+    # prompt 22 part 3 (migration 0042): the ad rules, campaigns, days, trips; an automation, a run
+    await su.execute(
+        """INSERT INTO growth.ad_rules (company_id, platform, daily_cap) VALUES ($1, 'google_ads', 10)""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO growth.ad_campaigns (company_id, platform, campaign_id) VALUES ($1, 'google_ads', '1')""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO growth.ad_daily (company_id, platform, campaign_id, day)
+           VALUES ($1, 'google_ads', '1', current_date)""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO growth.ad_trips (company_id, rule_id, platform, campaign_id, day, reason, action,
+               outcome, detail_fa)
+           VALUES ($1, gen_random_uuid(), 'google_ads', '1', current_date, 'daily_cap', 'pause',
+                   'paused', 'سقف رد شد')""",
+        c,
+    )
+    automation = await su.fetchval(
+        """INSERT INTO growth.automations (company_id, scope, sentence_fa, rule)
+           VALUES ($1, 'company', 'جمله', '{}') RETURNING id""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO growth.automation_runs (company_id, automation_id, key, trigger, outcome)
+           VALUES ($1, $2, 'k', '{}', 'ok')""",
+        c,
+        automation,
+    )
+
+
+async def _fill_p22g(su: Any, co: dict[str, Any]) -> None:
+    """Prompt 22 part 3 (migration 0041): one row of company `co` in each new growth table."""
+    import secrets as _s
+
+    c = co["id"]
+    lm = _s.randbelow(10**9) + 1
+    await su.execute(
+        "INSERT INTO growth.newsletter_lists (company_id, listmonk_id, name) VALUES ($1, $2, 'x')",
+        c,
+        lm,
+    )
+    await su.execute(
+        """INSERT INTO growth.newsletter_campaigns (company_id, listmonk_id, list_id, subject)
+           VALUES ($1, $2, $2, 'x')""",
+        c,
+        lm,
+    )
+    kw = await su.fetchval(
+        "INSERT INTO growth.keywords (company_id, phrase, site) VALUES ($1, 'k', 'a.example') RETURNING id",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO growth.rank_daily (company_id, keyword_id, day, source, position)
+           VALUES ($1, $2, current_date, 'searxng', 3)""",
+        c,
+        kw,
+    )
+    comp = await su.fetchval(
+        "INSERT INTO growth.competitors (company_id, name_fa) VALUES ($1, 'رقیب') RETURNING id", c
+    )
+    await su.execute(
+        """INSERT INTO growth.competitor_daily (company_id, competitor_id, day, key, value, source)
+           VALUES ($1, $2, current_date, 'pages', 1, 'sitemap')""",
+        c,
+        comp,
+    )
+    await su.execute(
+        """INSERT INTO growth.competitor_jumps (company_id, competitor_id, day, key, before_value,
+               after_value) VALUES ($1, $2, current_date, 'new_pages', 0, 9)""",
+        c,
+        comp,
+    )
+    await su.execute(
+        """INSERT INTO growth.campaigns (company_id, title_fa, starts, ends)
+           VALUES ($1, 'x', current_date, current_date)""",
+        c,
+    )
+    await su.execute(
+        "INSERT INTO growth.calendar_manual (company_id, day, title_fa) VALUES ($1, current_date, 'x')",
+        c,
+    )
+
+
+async def _fill_p22(su: Any, co: dict[str, Any]) -> None:
+    """Prompt 22 (migration 0040): one row of company `co` in each table of lines."""
+    c = co["id"]
+    line = await su.fetchval(
+        """INSERT INTO lines.lines (company_id, template, template_version, platform, title_fa,
+               caps, steps) VALUES ($1, 'rls_line', 1, 'telegram_post', 'خط', '{}', '[]')
+           RETURNING id""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO lines.line_versions (company_id, line_id, version, body, by_kind, by_code)
+           VALUES ($1, $2, 1, '{}', 'owner', 'owner')""",
+        c,
+        line,
+    )
+    run = await su.fetchval(
+        """INSERT INTO lines.runs (company_id, line_id, line_version, trigger, state)
+           VALUES ($1, $2, 1, 'owner', 'done') RETURNING id""",
+        c,
+        line,
+    )
+    await su.execute(
+        """INSERT INTO lines.step_runs (company_id, run_id, pos, key, kind, state)
+           VALUES ($1, $2, 0, 'script', 'gpt_text', 'done')""",
+        c,
+        run,
+    )
+    await su.execute(
+        """INSERT INTO lines.run_features (run_id, company_id, line_id, platform, hook)
+           VALUES ($1, $2, $3, 'telegram_post', 'قلاب')""",
+        run,
+        c,
+        line,
+    )
+    await su.execute(
+        "INSERT INTO lines.insights (line_id, company_id, metric) VALUES ($1, $2, 'views')",
+        line,
+        c,
+    )
+    await su.execute(
+        "INSERT INTO lines.assets (company_id, kind, title_fa) VALUES ($1, 'prompt', 'دستور')", c
+    )
 
 
 async def _fill_p17(su: Any, co: dict[str, Any]) -> None:
@@ -1371,6 +1502,8 @@ async def test_no_table_leaks_between_companies(
     await _fill_p14(su, b)
     await _fill_p17(su, b)
     await _fill_p21c(su, b)
+    await _fill_p22g(su, b)
+    await _fill_p22(su, b)
     tables = await su.fetch(
         """SELECT c.table_schema AS s, c.table_name AS t FROM information_schema.columns c
            JOIN information_schema.tables x ON x.table_schema = c.table_schema AND x.table_name = c.table_name
