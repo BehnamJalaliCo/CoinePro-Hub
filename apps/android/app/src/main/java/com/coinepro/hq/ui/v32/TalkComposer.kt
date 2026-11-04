@@ -198,14 +198,17 @@ private fun HoldMic(hold: HoldUi, onStart: () -> Unit, onEnd: () -> Unit) {
     val level = hold.levels.lastOrNull() ?: 0f
     val grow by animateFloatAsState(if (hold.active) 1.16f + 0.2f * level else 1f, com.coinepro.hq.designsystem.motionShort(), label = "mic")
     val breath = rememberBreath(hold.active, periodMs = 900)
+    // The gesture lives across recompositions: it must call the newest handlers, not the first ones.
+    val start by androidx.compose.runtime.rememberUpdatedState(onStart)
+    val end by androidx.compose.runtime.rememberUpdatedState(onEnd)
     Box(
         Modifier.size(52.dp)
             .semantics { contentDescription = "نگه دار و حرف بزن"; role = Role.Button }
             .pointerInput(Unit) {
                 detectTapGestures(onPress = {
-                    onStart()
+                    start()
                     tryAwaitRelease()
-                    onEnd()
+                    end()
                 })
             },
         contentAlignment = Alignment.Center,
