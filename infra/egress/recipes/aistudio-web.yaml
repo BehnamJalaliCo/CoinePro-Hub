@@ -1,0 +1,59 @@
+# Google AI Studio's speech generation in the hub's signed-in browser profile
+# `aistudio-web` (prompt 22, contract §30.2 step kind `tts`): the text to speak
+# in the speaker (prebuilt voice) and style the owner chose; the audio is
+# downloaded. The owner's own Google account. A reviewed file: a change here
+# is a reviewed change, never an agent's write.
+# The profile is its own (a recipe is one profile with one lock), but it is the
+# SAME Google account as gemini-web: one sign-in with `make aistudio-web-login`.
+# Written against aistudio.google.com/generate-speech as documented on
+# 2026-11-04 and NOT yet verified on the live site (no sign-in exists until the
+# owner's login); as with the other recipes the first failing step shows in the
+# line's run, and the lesson goes here. The selectors lean on the page's
+# structure (element kinds, order, a control's role), never on a language: the
+# profile's locale is fa-IR.
+key: aistudio-web
+version: "2026-11-04.1"
+site: aistudio.google.com
+start_url: "https://aistudio.google.com/generate-speech"
+hosts:
+  - aistudio.google.com
+  - gstatic.com
+  - googleusercontent.com
+  - apis.google.com
+  - www.google.com
+  - play.google.com
+  # what AI Studio sends a generation through (its own API and anti-abuse check)
+  - alkalimakersuite-pa.clients6.google.com
+  - waa-pa.clients6.google.com
+  - generativelanguage.googleapis.com
+login_hosts:
+  - accounts.google.com
+  - gds.google.com
+  - consent.google.com
+  - ogs.google.com
+  - accounts.google.de
+  - accounts.youtube.com
+  - myaccount.google.com
+expired:
+  url_contains: ["accounts.google.com", "ServiceLogin"]
+  hosts: [accounts.google.com]
+  selectors:
+    - "a[href*='ServiceLogin']"
+tasks:
+  tts:
+    timeout_s: 240
+    steps:
+      - {do: goto, url: "{start_url}"}
+      - {do: wait, selector: "textarea", timeout_s: 40}
+      # the speaker: the voice control of the run settings (a mat-select), then its option by name
+      - do: select
+        selector: "mat-select[aria-label*='oice'], [data-test-id*='voice'] mat-select, ms-voice-selector mat-select, mat-select"
+        text: "{voice}"
+        timeout_s: 20
+      # the style note (the first box), when the job has one; the text to speak is the last box
+      - {do: fill, selector: "textarea >> nth=0", text: "{style}", optional: true}
+      - {do: fill, selector: "textarea >> nth=-1", text: "{prompt}"}
+      - {do: press, selector: "textarea >> nth=-1", key: "Control+Enter"}
+      - {do: wait, selector: "audio", state: attached, timeout_s: 180}
+      - {do: pause, ms: 1500}
+      - {do: download_media, selector: "audio", attr: src}

@@ -12,7 +12,8 @@ ENV_FILE := infra/compose/.env
 	audit-reanchor verify-live bootstrap-month1 prompt-check stt-fetch stt-eval tracing-on tracing-off \
 	backup-hourly restore-weekly pitr-test disk-hygiene gdrive-auth backup-password openbao-snapshot-token mcp-secret account-secret \
 	hetzner-token owner-ssh-key intake-secret telegram-bot-token connection-secret growth-secret \
-	chatgpt-login gemini-login chatgpt-web-login gemini-web-login deepseek-web-login
+	chatgpt-login gemini-login chatgpt-web-login gemini-web-login deepseek-web-login \
+	aistudio-web-login pinterest-web-login
 .PHONY: mcp-build mcp-test mcp-index catalogue-rerender
 
 help: ## Show the available commands
@@ -294,6 +295,12 @@ gemini-web-login: ## OWNER: sign in to Gemini in the hub's browser profile (noVN
 
 deepseek-web-login: ## OWNER: sign in to DeepSeek in the hub's browser profile (noVNC on 127.0.0.1:6080, 15 min)
 	@infra/substitutes/web-login.sh deepseek-web
+
+aistudio-web-login: ## OWNER: sign in to Google AI Studio (speech for production lines) in the hub's browser profile (noVNC on 127.0.0.1:6080, 15 min)
+	@infra/substitutes/web-login.sh aistudio-web
+
+pinterest-web-login: ## OWNER: sign in to Pinterest (pattern search, read only) in the hub's browser profile (noVNC on 127.0.0.1:6080, 15 min)
+	@infra/substitutes/web-login.sh pinterest-web
 
 hetzner-token: ## OWNER: the Hetzner project's API token for new servers (hidden input -> OpenBao)
 	@infra/openbao/hetzner-token.sh
