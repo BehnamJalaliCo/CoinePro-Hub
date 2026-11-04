@@ -104,6 +104,10 @@ class Activities:
 
         self.growth = GrowthActivities(hub, self._tx)  # prompt 21 part 3 (rule-only)
 
+        from hq_api.worker.channels_activities import ChannelsActivities
+
+        self.channels = ChannelsActivities(hub, self._tx)  # prompt 22 part 3 (rule-only)
+
         from hq_api.worker.routing_activities import RoutingActivities
 
         self.routing = RoutingActivities(hub, self._tx)  # prompt 21: orders, the tech summary
@@ -128,6 +132,7 @@ class Activities:
             *self.archive.all(),
             *self.growth.all(),
             *self.ops.all(),
+            *self.channels.all(),
             *self.media.all(),
             *self.brand.all(),
             *self.people.all(),

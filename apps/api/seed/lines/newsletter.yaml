@@ -1,0 +1,103 @@
+# Line template `newsletter` (contract §30.1 shape, §31.3): one issue of a company's own
+# newsletter, from the idea to a campaign in Listmonk (the platform string is `newsletter`;
+# the platforms of §30.1 are strings in data, so this adds one by a template only). It names
+# no company: the line made from it sets the company, the list and the voice.
+#
+# `publish` makes the campaign as a DRAFT in Listmonk and schedules it at settings.at (the
+# domain code is hq_api.domain.newsletter: create_campaign, then schedule); a list over the
+# size limit still needs the owner's seal (newsletter.send), whatever the line's mode.
+# The body is HTML written by the model; the subject and the preview line are plain text.
+key: newsletter
+title_fa: خبرنامه‌ی ایمیلی
+platform: newsletter
+version: 1
+outputs_fa: >-
+  یک شماره‌ی خبرنامه برای فهرست مشترکین شرکت: موضوع، متن آماده‌ی ارسال و زمان‌بندی در لیست‌مانک؛
+  آمار بازشدن و کلیک روزانه خوانده میشود.
+defaults:
+  caps: {runs_per_day: 1, tokens_per_run: 200000, opus_per_day: 0}
+  schedule: "FREQ=WEEKLY;BYDAY=SA;BYHOUR=10;BYMINUTE=0"
+  insights:
+    metric: opens
+steps:
+  - key: idea
+    kind: gpt_text
+    title_fa: ایده و سه موضوع پیشنهادی
+    prompt_fa: |-
+      برای خبرنامه‌ی {{company.name_fa}} با لحن «{{settings.tone}}» یک ایده‌ی شماره‌ی این هفته بنویس.
+      درس‌های شماره‌های قبلی: {{insights.lessons}}
+      بهترین موضوع‌های قبلی: {{insights.top_hooks}}
+      خروجی: سه موضوع ایمیل (هر کدام زیر ۶۰ نویسه، بی‌عدد ساختگی) و یک خط پیش‌نمایش برای هر کدام.
+    settings: {tone: "دوستانه، دقیق و کوتاه"}
+    inputs: []
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 300
+  - key: unique
+    kind: dedupe
+    title_fa: تکراری نبودن
+    prompt_fa: null
+    settings:
+      against: line_and_company
+    inputs: [idea]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 120
+  - key: body
+    kind: opus_build
+    title_fa: متن کامل ایمیل
+    prompt_fa: |-
+      از ایده‌ی بالا یک ایمیل کامل بساز: موضوع انتخاب‌شده، یک خط پیش‌نمایش، متن HTML ساده
+      (تیتر، حداکثر چهار بند کوتاه، یک دکمه‌ی دعوت به اقدام) و پایان‌بندی مودبانه.
+      هر عدد باید منبع داشته باشد؛ پیوند نامعتبر و ادعای مالی نگذار. نشانی لغو اشتراک را خود لیست‌مانک میگذارد.
+    settings:
+      task_class: line_build
+      output: newsletter_html
+    inputs: [idea, unique]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 1
+    timeout_s: 600
+  - key: check
+    kind: quality
+    title_fa: بررسی پیش از ارسال
+    prompt_fa: null
+    settings:
+      rules: newsletter
+    inputs: [body]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 1
+    timeout_s: 120
+  - key: approve
+    kind: seal
+    title_fa: تأیید مدیر کل
+    prompt_fa: null
+    settings: {}
+    inputs: [body, check]
+    gate: owner
+    optional: true
+    enabled: true
+    max_attempts: 1
+    timeout_s: 86400
+  - key: send
+    kind: publish
+    title_fa: ساخت کمپین و زمان‌بندی در لیست‌مانک
+    prompt_fa: null
+    settings:
+      target: listmonk
+      list: first
+      at: next_send_hour
+      send_hour: 9
+    inputs: [body, approve]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 300

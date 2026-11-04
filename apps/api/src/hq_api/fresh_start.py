@@ -87,6 +87,10 @@ WIPE: tuple[str, ...] = (
     "growth.routine_runs", "growth.experiments", "growth.metrics_daily", "growth.home_mornings",
     # ⟨1.13⟩ §31.6, §31.7: the ads' daily figures, campaigns' state, trips; the automations' runs
     "growth.ad_daily", "growth.ad_campaigns", "growth.ad_trips", "growth.automation_runs",
+    # ⟨1.13⟩ prompt 22 part 3: the daily ranks and competitor figures, the competitor jumps,
+    # the newsletter campaigns that were sent and the owner's calendar items go
+    "growth.rank_daily", "growth.competitor_daily", "growth.competitor_jumps",
+    "growth.newsletter_campaigns", "growth.calendar_manual",
     # ⟨1.12⟩ prompt 22: what the production lines ran and learned from it goes
     "lines.runs", "lines.step_runs", "lines.run_features", "lines.insights",
     "people.department_ranks", "people.hr_rounds", "people.role_drafts", "people.star_rollups",
@@ -144,6 +148,8 @@ KEEP: tuple[str, ...] = (
     # the companies' connections and their non-secret config) stays
     "growth.groups", "growth.group_versions", "growth.memberships", "growth.connections",
     "growth.ad_rules", "growth.automations",  # ⟨1.13⟩ the owner's budget rules and automations
+    # ⟨1.13⟩ prompt 22 part 3: definitions stay (the lists, the keywords, the competitors, the campaigns)
+    "growth.newsletter_lists", "growth.keywords", "growth.competitors", "growth.campaigns",
     # ⟨1.12⟩ prompt 22: the production lines as the owner set them, their
     # versions and the library stay
     "lines.lines", "lines.line_versions", "lines.assets",

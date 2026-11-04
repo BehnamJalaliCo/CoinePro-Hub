@@ -1231,15 +1231,17 @@ def check_template(t: dict[str, Any]) -> None:
                 )
             elif head == "library":
                 assert rest in LIBRARY_KINDS, f"{t['key']}.{s['key']}: {ref}"
+            elif head == "insights":  # §31.1 the line's learning loop
+                assert rest in ("lessons", "top_hooks"), f"{t['key']}.{s['key']}: {ref}"
             else:
                 raise AssertionError(f"{t['key']}.{s['key']}: unknown variable {ref}")
         seen.append(s["key"])
 
 
-def test_the_six_templates_load_and_validate_and_name_no_company() -> None:
+def test_the_templates_load_and_validate_and_name_no_company() -> None:
     got = templates()
     assert set(got) == {"instagram_reel", "instagram_story", "youtube_short", "youtube_long",
-                        "telegram_post", "site_article"}  # fmt: skip
+                        "telegram_post", "site_article", "newsletter"}  # fmt: skip
     for key, t in got.items():
         check_template(t)
         text = (SEED / f"{key}.yaml").read_text(encoding="utf-8").lower()
@@ -1251,6 +1253,7 @@ def test_the_six_templates_load_and_validate_and_name_no_company() -> None:
         "youtube_long",
         "telegram_post",
         "site_article",
+        "newsletter",
     }
 
 

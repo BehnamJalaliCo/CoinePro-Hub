@@ -79,9 +79,9 @@ class CouncilPick:
         async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
             roles = await CV.roles(tx)
         # the owner's roles (council_roles setting): each outside player in its own role
-        members = [(roles[p], p) for p in ("gemini", "deepseek", "gpt") if p in roles] or list(
-            PLAYER_OF_ROLE.items()
-        )
+        members: list[tuple[str, Any]] = [
+            (roles[p], p) for p in ("gemini", "deepseek", "gpt") if p in roles
+        ] or list(PLAYER_OF_ROLE.items())
         results = await asyncio.gather(
             *[
                 C.ask_seat(ctx, question(ctx, cands, role), player=player)

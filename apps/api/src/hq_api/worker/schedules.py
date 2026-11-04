@@ -66,6 +66,10 @@ Schedule ids:
                               files, members, the routines due -> one work item each)
     hq-connections-read       hourly        ConnectionsRead (§29.12: each connection's daily
                               read through egress; both do nothing while locked)
+    hq-newsletter-read        hourly        NewsletterRead (prompt 22 part 3, §31.3: Listmonk's figures
+                              into growth.metrics_daily; nothing while the profile is off)
+    hq-seo-read               daily 05:00 (owner's zone)  SeoRead (§31.4: positions, the SERP
+                              check, competitors' public figures; nothing while locked)
     hq-home-morning           daily 08:00 (owner's zone)  HomeMorning (§29.13: suggestions,
                               progress, the morning's lines; rule-only, no outside call)
     hq-lines-tick             every 5 min   LinesTick (prompt 22, §30.3: a run for each line's
@@ -150,6 +154,9 @@ HOME_MORNING = "hq-home-morning"
 P21C = (GROUPS_TICK, CONNECTIONS_READ, HOME_MORNING)
 OPS_TICK = "hq-ops-tick"  # prompt 22 part 3: ad rules, automations
 P22C = (OPS_TICK,)
+NEWSLETTER_READ = "hq-newsletter-read"  # prompt 22 part 3 (§31.3)
+SEO_READ = "hq-seo-read"  # prompt 22 part 3 (§31.4)
+P22G = (NEWSLETTER_READ, SEO_READ)
 LINES_TICK = "hq-lines-tick"  # prompt 22
 FIXED = (
     SUPPORT_SWEEP,
@@ -182,6 +189,7 @@ FIXED = (
     *P14,
     *P21C,
     *P22C,
+    *P22G,
     LINES_TICK,
 )
 
@@ -353,6 +361,7 @@ def fixed(
         *p14_fixed(tz),
         *p21c_fixed(tz),
         *p22c_fixed(),
+        *p22g_fixed(tz),
         Desired(LINES_TICK, "LinesTick", (), every(5), timedelta(minutes=5), timedelta(minutes=4)),
     ]
 
@@ -607,6 +616,29 @@ def p22c_fixed() -> list[Desired]:
     (hq_api.domain.gate), so nothing runs while the holding is locked."""
     return [
         Desired(OPS_TICK, "OpsTick", (), every(5), timedelta(minutes=5), timedelta(minutes=4)),
+    ]
+
+
+def p22g_fixed(tz: str) -> list[Desired]:
+    """Prompt 22 part 3 (contract §31.3, §31.4): rule-based; each gates itself
+    (the newsletter profile, the holding's and the company's lock)."""
+    return [
+        Desired(
+            NEWSLETTER_READ,
+            "NewsletterRead",
+            (),
+            every(60),
+            timedelta(minutes=30),
+            timedelta(minutes=15),
+        ),
+        Desired(
+            SEO_READ,
+            "SeoRead",
+            (),
+            daily_at(time(5, 0), tz),
+            timedelta(hours=6),
+            timedelta(minutes=45),
+        ),
     ]
 
 

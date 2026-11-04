@@ -52,6 +52,12 @@ path "transit/decrypt/archive-secret" {
   capabilities = ["update"]
 }
 
+# Prompt 22 part 3 (contract §31.3): the hub's Listmonk API user (key `user`, `token`), read
+# for one call at a time; the owner writes it (make newsletter-secret), never the API.
+path "kv/data/hq/newsletter/api" {
+  capabilities = ["read"]
+}
+
 # Prompt 22 (contract §30.4): the HMAC secret shared with n8n (kv/hq/n8n, key
 # `secret`), read only; written by `make n8n-secret` in the owner's terminal.
 # The callback's signature is checked with it.

@@ -22,7 +22,7 @@ daily figures, the campaigns' state, the trips and the runs go.
 Every new table carries company_id under FORCE RLS; nothing is deleted by the app.
 
 Revision ID: 0042
-Revises: 0040
+Revises: 0041
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ from __future__ import annotations
 from hq_api.migration_sql import execute_script
 
 revision = "0042"
-down_revision = "0040"
+down_revision = "0041"
 branch_labels = None
 depends_on = None
 

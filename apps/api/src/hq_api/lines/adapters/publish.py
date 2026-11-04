@@ -443,7 +443,7 @@ async def insights(ctx: Any, published: dict[str, Any]) -> dict[str, Any]:
         return _numbers(doc) if ans.outcome == "ok" and ans.status == 200 else {}
     if platform.startswith("youtube_"):
         fake = type("Ctx", (), {"hub": ctx.hub, "company": ctx.company})()
-        access = await Publish()._youtube_token(fake)  # type: ignore[arg-type]
+        access = await Publish()._youtube_token(fake)
         ans = await CN.http_for(ctx.hub).request(
             "GET", YT_STATS.format(id=quote(ext, safe="")), company=ctx.company,
             account={"key": "lines-youtube", "site": "www.googleapis.com", "secret": access,
