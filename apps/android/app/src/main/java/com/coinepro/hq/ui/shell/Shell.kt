@@ -149,6 +149,11 @@ private val GROUPS = listOf(
         // ⟨1.11⟩ §29.3 and §29.11: the owner's rules for the holding, and the working groups (content and publishing first).
         Tool("rules", "قانون‌های من", DivanIcon.SEAL, "آنچه همه‌ی هلدینگ باید رعایت کند، با مُهر تو"),
         Tool("groups", "کارگروه‌ها", DivanIcon.DEPARTMENT, "محتوا و انتشار و رشد؛ شاخص‌ها و آزمایش هفته"),
+        // ⟨1.12⟩ §30: the production lines' calendar (every company) and their library (covers, voices, prompts, patterns).
+        Tool("campaign-calendar", "تقویم کمپین", DivanIcon.PLANNER, "انتشار خط‌ها، خبرنامه، تبلیغ و کمپین همه‌ی شرکت‌ها، با تداخل‌ها"),
+        Tool("automations", "اتوماسیون از یک جمله", DivanIcon.SETTINGS, "بنویس چه شود؛ با مُهر تو کار میکند"),
+        Tool("kits", "شرکت آماده", DivanIcon.COMPANIES, "یک شرکت تازه با تیم و خط‌های تولیدش، با یک مُهر"),
+        Tool("library", "کتابخانه‌ی تولید", DivanIcon.IMAGE, "پوشه‌های کاور، صدا، پرامپت و الگو برای خط‌های تولید"),
         Tool("outputs", "خروجی‌ها", DivanIcon.DELIVERABLE, "گزارش‌ها و کارهای تحویل‌شده؛ بخوان و امتیاز بده"),
         Tool("planner", "پلنر", DivanIcon.PLANNER, "کارهای امروز و این هفته در یک تقویم"),
         Tool("runs", "اجرای ایجنت‌ها", DivanIcon.AGENT, "هر ایجنت الان چه میکند، قدم‌به‌قدم"),
@@ -425,6 +430,17 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     composable("rules") { com.coinepro.hq.ui.v29.RulesScreen() }
                     composable("groups") { com.coinepro.hq.ui.v29.GroupsScreen() }
                     composable("groups/{key}") { com.coinepro.hq.ui.v29.GroupScreen(it.arguments?.getString("key").orEmpty()) }
+                    // ⟨1.12⟩ §30 production lines: a line, its runs, one run, the calendar and the library.
+                    composable("lines/{ref}") { com.coinepro.hq.ui.v30.LineScreen(it.arguments?.getString("ref").orEmpty()) }
+                    composable("lines/{ref}/runs") { com.coinepro.hq.ui.v30.LineRunsScreen(it.arguments?.getString("ref").orEmpty()) }
+                    composable("line-runs/{ref}") { com.coinepro.hq.ui.v30.LineRunScreen(it.arguments?.getString("ref").orEmpty()) }
+                    // ⟨1.13⟩ §31: the §30 lines' calendar is the «خط تولید» filter of the one campaign calendar.
+                    composable("lines-calendar") { com.coinepro.hq.ui.v31.CampaignCalendarScreen(kind0 = "line") }
+                    composable("campaign-calendar") { com.coinepro.hq.ui.v31.CampaignCalendarScreen() }
+                    composable("automations") { com.coinepro.hq.ui.v31.AutomationsScreen() }
+                    composable("kits") { com.coinepro.hq.ui.v31.KitsScreen() }
+                    composable("library") { com.coinepro.hq.ui.v30.LibraryScreen() }
+                    composable("library/{company}") { com.coinepro.hq.ui.v30.LibraryScreen(it.arguments?.getString("company")) }
                     composable("employees/{code}") { EmployeeScreen(it.arguments?.getString("code").orEmpty()) }
                     composable("work/{id}") { WorkScreen(it.arguments?.getString("id").orEmpty()) }
                     composable("treasury") { TreasuryScreen() }

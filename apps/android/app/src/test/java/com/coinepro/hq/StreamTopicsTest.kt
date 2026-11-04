@@ -29,6 +29,8 @@ class StreamTopicsTest {
         "quality", "ask", "reviews", "dceo", "media", "legal", "archive", "servers",
         // ⟨1.11⟩ §29.16: the home and its suggestions, the working groups and the connections
         "home", "groups",
+        // ⟨1.12⟩ §30.5: the production lines (`line.`, `line_run.`)
+        "lines",
     )
 
     @Test

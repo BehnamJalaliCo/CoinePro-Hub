@@ -25,6 +25,8 @@ object StreamTopics {
         // ⟨1.11⟩ §29.16: the home and its suggestions (`home`), the working groups' runs and the connections (`groups`); the
         // owner's rules come on `oversight` (`rule.report`) and the order report on `orders` (`order.report`), as events.py serves them.
         "home", "groups",
+        // ⟨1.12⟩ §30.5: the production lines and their runs (`line.`, `line_run.`).
+        "lines",
     )
 
     /**
