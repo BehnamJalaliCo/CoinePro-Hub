@@ -26,6 +26,7 @@ from hq_api.worker.ops_workflows import OPS_WORKFLOWS
 from hq_api.worker.owner_tools_workflows import OWNER_TOOLS_WORKFLOWS
 from hq_api.worker.studio_workflows import STUDIO_WORKFLOWS
 from hq_api.worker.talk_workflows import TALK_WORKFLOWS
+from hq_api.worker.voice_workflows import VOICE_WORKFLOWS
 
 SCHEDULED_START = SearchAttributeKey.for_datetime("TemporalScheduledStartTime")
 SHORT = timedelta(seconds=30)
@@ -660,4 +661,5 @@ WORKFLOWS = [
     *CHANNELS_WORKFLOWS,  # prompt 22 part 3: newsletter and SEO reads (channels_workflows.py)
     *LINES_WORKFLOWS,  # prompt 22: production lines (lines_workflows.py)
     *TALK_WORKFLOWS,  # prompt 23: the owner's talk (talk_workflows.py)
+    *VOICE_WORKFLOWS,  # prompt 23: the voice layer (voice_workflows.py)
 ]

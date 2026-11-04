@@ -28,6 +28,7 @@ class FakeApi:
     ) -> None:
         self.jobs = list(jobs)
         self.voice_jobs = list(voice_jobs or [])
+        self.talk_jobs: list[dict[str, Any]] = []
         self.done: list[tuple[str, bytes, str]] = []
         self.params: list[dict[str, str]] = []
         self.failed: list[tuple[str, str]] = []
@@ -37,8 +38,16 @@ class FakeApi:
         path = request.url.path
         self.calls.append(f"{request.method} {path}")
         assert request.headers["authorization"] == "Bearer t"
-        if path in ("/internal/v1/tts/claim", "/internal/v1/voices/jobs/claim"):
-            queue = self.jobs if path.startswith("/internal/v1/tts") else self.voice_jobs
+        if path in (
+            "/internal/v1/tts/claim",
+            "/internal/v1/voices/jobs/claim",
+            "/internal/v1/voices/talk/claim",
+        ):
+            queue = {
+                "/internal/v1/tts/claim": self.jobs,
+                "/internal/v1/voices/jobs/claim": self.voice_jobs,
+                "/internal/v1/voices/talk/claim": self.talk_jobs,
+            }[path]
             if not queue:
                 return httpx.Response(204)
             return httpx.Response(200, json=queue.pop(0))
@@ -104,6 +113,44 @@ async def test_a_failure_is_reported_and_the_pass_goes_on() -> None:
     assert out["failed"] == ["BR-0003", "BR-0004"]
     assert [f[0] for f in api.failed] == ["b1", "b2"]
     assert api.failed[1][1] == "empty script"
+
+
+async def test_the_plain_pass_leaves_the_talk_queue_alone() -> None:
+    """Prompt 23: a sentence of the conversation is useless two minutes late; only the serving
+    mode answers that queue."""
+    api = FakeApi([])
+    api.talk_jobs.append({"id": "t0", "ref": "talk/t0", "script": "سلام.", "voice": None})
+    async with client(api) as c:
+        await J.run(c, E.Fake(), max_jobs=3)
+    assert "POST /internal/v1/voices/talk/claim" not in api.calls and len(api.talk_jobs) == 1
+
+
+async def test_the_talk_queue_is_spoken_with_the_shipped_voice_or_the_default() -> None:
+    api = FakeApi([])
+    api.talk_jobs += [
+        {"id": "t1", "ref": "talk/t1", "script": "سلام.", "voice": "fa_IR-amir-medium"},
+        {"id": "t2", "ref": "talk/t2", "script": "خداحافظ.", "voice": "not-shipped"},
+    ]
+    amir, default = E.Fake(), E.Fake()
+    async with client(api) as c:
+        out = await J.run_talk(c, default, 5, lambda v: amir if v == "fa_IR-amir-medium" else None)
+    assert out == {"done": ["talk/t1", "talk/t2"], "failed": []}
+    assert amir.scripts == ["سلام."] and default.scripts == ["خداحافظ."]
+    assert [d[0] for d in api.done] == ["t1", "t2"]
+    assert api.calls[-1] == "POST /internal/v1/voices/talk/claim"  # the 204 ended it
+
+
+async def test_serving_mode_answers_the_talk_queue_until_its_time_is_up() -> None:
+    from hq_tts.__main__ import serve
+
+    api = FakeApi([])
+    api.talk_jobs.append({"id": "t3", "ref": "talk/t3", "script": "یک.", "voice": None})
+    s = J.Settings(serve_s=1, serve_poll_s=0.2)
+    async with client(api) as c:
+        out = await serve(c, E.Fake(), s, lambda _v: None)
+    assert out == {"done": ["talk/t3"], "failed": []}
+    assert api.calls.count("POST /internal/v1/voices/talk/claim") >= 2  # it kept polling
+    assert not any("/tts/claim" in x or "/jobs/claim" in x for x in api.calls)
 
 
 async def test_the_pass_is_bounded_by_max_jobs() -> None:

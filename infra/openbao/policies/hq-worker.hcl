@@ -69,3 +69,10 @@ path "kv/data/hq/n8n" {
 path "kv/data/hq/newsletter/api" {
   capabilities = ["read"]
 }
+
+# Prompt 23 (contract §32.5): the voice layer's provider key (kv/hq/voice/<provider>), read for one
+# call at a time and handed to egress only (channel gemini-tts). Egress itself has no route to
+# OpenBao; the owner writes the key through the api (step-up), which cannot read it back.
+path "kv/data/hq/voice/*" {
+  capabilities = ["read"]
+}

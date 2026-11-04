@@ -1,0 +1,132 @@
+# Voice engines of the talk layer (contract §32.5-§32.6). Data, not code paths: a new engine of an
+# existing provider is a block here; a new provider is one adapter file in hq_api/voice/engines/.
+#
+# Prices are data with a date: `price` holds what is in force until `valid_until` (inclusive), and
+# `next` what applies from its `from` day; the code picks by the day of each sentence, so a
+# scheduled change applies by itself. The owner may override a price in the app
+# (PUT /voice/engines/{key}/price); the override lives in talk.engine_state, never in this file.
+# `text_in_per_m` / `audio_out_per_m` are USD per one million tokens; Google counts 25 audio tokens
+# per second of speech (`audio_tokens_per_s`). Sources and the day they were read are kept beside.
+#
+# The meter is Google's own token counts (usageMetadata) x this table; Google's bill (tax,
+# currency) can differ slightly.
+
+providers:
+  google:
+    title_fa: گوگل (Gemini)
+    # The shape of a key, used by the app to keep a pasted key out of the composer (contract §32.5).
+    key_pattern: 'AIza[0-9A-Za-z_-]{35}'
+    # Where the key lives in OpenBao (write-only for the api; read per call by the worker).
+    kv_path: hq/voice/google
+    host: generativelanguage.googleapis.com
+  local:
+    title_fa: روی خود هاب
+    key_pattern: null
+    kv_path: null
+    host: null
+
+engines:
+  - key: gemini-3.8-flash-tts
+    title_fa: Gemini 3.8 Flash · بهترین کیفیت
+    provider: google
+    model: gemini-3.8-flash-tts
+    languages: 130
+    rank_fa: بهترین کیفیت؛ ۱۳۰ زبان
+    price:
+      text_in_per_m: "0.50"
+      audio_out_per_m: "9.00"
+      audio_tokens_per_s: 25
+      valid_until: "2026-12-31"
+      next:
+        from: "2027-01-01"
+        text_in_per_m: "1.00"
+        audio_out_per_m: "18.00"
+      source_url: https://ai.google.dev/gemini-api/docs/pricing
+      as_of: "2026-11-04"
+    note_fa: قیمت‌های ۱ ژانویه از منبع غیررسمی است؛ مالک در اپ اصلاحش میکند.
+
+  - key: gemini-3.8-flash-lite-tts
+    title_fa: Gemini 3.8 Flash-Lite · ارزان‌تر
+    provider: google
+    model: gemini-3.8-flash-lite-tts
+    languages: 101
+    rank_fa: حدود یک‌سوم ارزان‌تر؛ ۱۰۱ زبان؛ فارسی را مالک با گوش تأیید کند
+    price:
+      text_in_per_m: "0.50"
+      audio_out_per_m: "6.00"
+      audio_tokens_per_s: 25
+      valid_until: "2026-12-31"
+      next:
+        from: "2027-01-01"
+        text_in_per_m: "1.00"
+        audio_out_per_m: "12.00"
+      source_url: https://openrouter.ai/google/gemini-3.8-flash-lite-tts
+      as_of: "2026-11-04"
+    note_fa: قیمت متن ورودی Flash-Lite در منبع نیامده؛ همان Flash گذاشته شد تا مالک اصلاح کند.
+
+  - key: piper
+    title_fa: Piper · صدای ساده روی هاب
+    provider: local
+    model: piper
+    languages: 1
+    rank_fa: رایگان و محلی؛ همیشه آخرین حلقه‌ی زنجیر
+    price:
+      text_in_per_m: "0"
+      audio_out_per_m: "0"
+      audio_tokens_per_s: 0
+      valid_until: null
+      next: null
+      source_url: https://github.com/OHF-Voice/piper1-gpl
+      as_of: "2026-11-04"
+
+# The Gemini prebuilt voices (the 30 names the speech-generation docs list, read 2026-11-04).
+# `gender_fa` is the voice's documented gender; `trait_fa` its documented character.
+voices_as_of: "2026-11-04"
+gemini_voices:
+  - {name: Zephyr, gender_fa: زن, trait_fa: روشن}
+  - {name: Puck, gender_fa: مرد, trait_fa: سرزنده}
+  - {name: Charon, gender_fa: مرد, trait_fa: اطلاع‌رسان}
+  - {name: Kore, gender_fa: زن, trait_fa: محکم}
+  - {name: Fenrir, gender_fa: مرد, trait_fa: پرشور}
+  - {name: Leda, gender_fa: زن, trait_fa: جوان}
+  - {name: Orus, gender_fa: مرد, trait_fa: محکم}
+  - {name: Aoede, gender_fa: زن, trait_fa: نرم و هوایی}
+  - {name: Callirrhoe, gender_fa: زن, trait_fa: راحت}
+  - {name: Autonoe, gender_fa: زن, trait_fa: روشن}
+  - {name: Enceladus, gender_fa: مرد, trait_fa: نفس‌دار}
+  - {name: Iapetus, gender_fa: مرد, trait_fa: شفاف}
+  - {name: Umbriel, gender_fa: مرد, trait_fa: راحت}
+  - {name: Algieba, gender_fa: مرد, trait_fa: نرم}
+  - {name: Despina, gender_fa: زن, trait_fa: نرم}
+  - {name: Erinome, gender_fa: زن, trait_fa: شفاف}
+  - {name: Algenib, gender_fa: مرد, trait_fa: خش‌دار}
+  - {name: Rasalgethi, gender_fa: مرد, trait_fa: اطلاع‌رسان}
+  - {name: Laomedeia, gender_fa: زن, trait_fa: سرزنده}
+  - {name: Achernar, gender_fa: زن, trait_fa: آرام}
+  - {name: Alnilam, gender_fa: مرد, trait_fa: محکم}
+  - {name: Schedar, gender_fa: مرد, trait_fa: یکنواخت}
+  - {name: Gacrux, gender_fa: زن, trait_fa: پخته}
+  - {name: Pulcherrima, gender_fa: زن, trait_fa: رو به جلو}
+  - {name: Achird, gender_fa: مرد, trait_fa: دوستانه}
+  - {name: Zubenelgenubi, gender_fa: مرد, trait_fa: خودمانی}
+  - {name: Vindemiatrix, gender_fa: زن, trait_fa: ملایم}
+  - {name: Sadachbia, gender_fa: مرد, trait_fa: پرجنب‌وجوش}
+  - {name: Sadaltager, gender_fa: مرد, trait_fa: دانا}
+  - {name: Sulafat, gender_fa: زن, trait_fa: گرم}
+
+# Piper voices the TTS image ships (services/tts/Dockerfile, pinned by hash in voice.lock.json).
+piper_voices:
+  - {name: fa_IR-amir-medium, gender_fa: مرد, trait_fa: امیر}
+  - {name: fa_IR-ganji-medium, gender_fa: مرد, trait_fa: گنجی}
+  - {name: fa_IR-ganji_adabi-medium, gender_fa: مرد, trait_fa: گنجی ادبی}
+  - {name: fa_IR-reza_ibrahim-medium, gender_fa: مرد, trait_fa: رضا ابراهیم}
+
+# The sample line and the check word (spoken in Persian; their cost goes on the meter).
+sample_text_fa: سلام، من صدای شما در گفتگو هستم.
+check_text_fa: سلام
+
+# The default chain when the owner has set none (Piper is always appended last by code).
+default_chain:
+  - gemini-3.8-flash-tts
+  - gemini-3.8-flash-lite-tts
+  - piper
