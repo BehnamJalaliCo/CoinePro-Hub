@@ -1,0 +1,104 @@
+# Template: site article (contract §30.6): keyword, outline, article, quality, publish, then
+# Search Console feedback by an n8n rule workflow. No company is named; the owner edits every prompt.
+# Publishing needs the site connected (settings.site = {kind: wordpress, base_url, user} and the
+# application password in OpenBao); until then the publish step says so plainly.
+key: site_article
+title_fa: مقاله‌ی سایت
+platform: site_article
+version: 1
+outputs_fa: یک مقاله‌ی سئوشده روی سایت و بازخورد سرچ‌کنسول بعد از چند روز.
+defaults:
+  caps: {runs_per_day: 1, tokens_per_run: 500000, opus_per_day: 0}
+  schedule: "FREQ=WEEKLY;BYDAY=MO,WE;BYHOUR=8;BYMINUTE=0"
+steps:
+  - key: keyword
+    kind: gpt_text
+    title_fa: انتخاب کلیدواژه
+    prompt_fa: |
+      تو کارشناس سئوی فارسی برای «{{company.name_fa}}» (خط «{{line.title_fa}}») هستی.
+      حوزه یا موضوع دلخواه مالک: {{settings.topic}}
+      منابع و نمونه‌های مرجع: {{library.pattern}}
+      یک کلیدواژه‌ی اصلی با قصد جستجوی روشن پیشنهاد کن که هنوز مقاله‌ی این خط را ندارد، به‌همراه سه
+      کلیدواژه‌ی فرعی و یک جمله درباره‌ی قصد کاربر. قالب خروجی: خط اول فقط خود کلیدواژه‌ی اصلی.
+    settings: {topic: ""}
+    inputs: []
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 420
+  - key: dedupe
+    kind: dedupe
+    title_fa: بررسی تکراری نبودن
+    prompt_fa: null
+    settings: {of: keyword, threshold: 0.85}
+    inputs: [keyword]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 3
+    timeout_s: 60
+  - key: outline
+    kind: gpt_text
+    title_fa: طرح مقاله
+    prompt_fa: |
+      برای این کلیدواژه طرح یک مقاله‌ی فارسی بنویس:
+      {{steps.keyword.text}}
+      تیتر اصلی (H1)، مقدمه‌ی دو جمله‌ای، پنج تا هفت زیرتیتر (H2) با یک خط توضیح هرکدام، یک بخش
+      پرسش‌های پرتکرار با سه پرسش، و جمع‌بندی. هر ادعای عددی باید منبعی برای بررسی داشته باشد.
+    settings: {}
+    inputs: [keyword]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 420
+  - key: article
+    kind: gpt_text
+    title_fa: متن مقاله
+    prompt_fa: |
+      بر پایه‌ی این طرح مقاله‌ی کامل را به فارسی روان بنویس، حدود {{settings.words}} کلمه:
+      {{steps.outline.text}}
+      کلیدواژه‌ی اصلی در تیتر، مقدمه و یک زیرتیتر بیاید ولی متن طبیعی بماند. در قالب Markdown بنویس
+      (# برای تیتر اصلی، ## برای زیرتیترها). عدد و ادعا فقط با منبع؛ بدون وعده‌ی سود؛ اگر درباره‌ی بازار
+      مالی است یک بند هشدار ریسک در پایان بگذار.
+    settings: {words: 1200}
+    inputs: [outline, keyword]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 600
+  - key: quality
+    kind: quality
+    title_fa: کنترل کیفیت
+    prompt_fa: null
+    settings: {text_from: article, persian: true, require_sources: true, banned_words: []}
+    inputs: [article, keyword]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 1
+    timeout_s: 60
+  - key: publish
+    kind: publish
+    title_fa: انتشار در سایت
+    prompt_fa: null
+    settings: {kind: article, text_from: article, status: publish, site: {}}
+    inputs: [article, quality]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 300
+  - key: feedback
+    kind: n8n
+    title_fa: بازخورد سرچ‌کنسول
+    prompt_fa: null
+    settings: {workflow: search-console-feedback, wait_days: 7}
+    inputs: [publish, keyword]
+    gate: auto
+    optional: true
+    enabled: false
+    max_attempts: 1
+    timeout_s: 86400

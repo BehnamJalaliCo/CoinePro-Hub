@@ -1,0 +1,183 @@
+# Template: Instagram reel (contract §30.6). A plan, not a company: the owner makes a line from it for one
+# company, one page and one channel, then edits every prompt and setting. Persian starting prompts.
+key: instagram_reel
+title_fa: ریلز اینستاگرام
+platform: instagram_reel
+version: 1
+outputs_fa: یک ریلز با صدا و کاور، کپشن و هشتگ؛ بعد از ریلز، همان روز یک استوری.
+defaults:
+  caps: {runs_per_day: 1, tokens_per_run: 400000, opus_per_day: 2}
+  schedule: "FREQ=DAILY;BYHOUR=7;BYMINUTE=0"
+steps:
+  - key: script
+    kind: gpt_text
+    title_fa: سناریو
+    prompt_fa: |
+      تو نویسنده‌ی ریلز برای «{{company.name_fa}}» هستی و برای خط «{{line.title_fa}}» می‌نویسی.
+      موضوع یا زاویه‌ی دلخواه مالک: {{settings.topic}}
+      نمونه‌ها و سبک مرجع: {{library.prompt}}
+      یک سناریوی گفتاری حدود {{settings.duration_s}} ثانیه به فارسی روان و محاوره‌ای-محترمانه بنویس:
+      ۱) یک جمله‌ی قلاب در سه ثانیه‌ی اول، ۲) یک نکته‌ی روشن و کاربردی، ۳) یک جمع‌بندی کوتاه.
+      موضوع تازه انتخاب کن و چیزی را که قبلاً در این خط گفته شده تکرار نکن. هیچ عدد یا ادعای بی‌منبع نیاور
+      و هیچ وعده‌ی سود نده. فقط متن گفتاری را بده، بدون توضیح اضافه.
+    settings: {topic: "", duration_s: 30}
+    inputs: []
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 420
+  - key: dedupe
+    kind: dedupe
+    title_fa: بررسی تکراری نبودن
+    prompt_fa: null
+    settings: {of: script, threshold: 0.8}
+    inputs: [script]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 3
+    timeout_s: 60
+  - key: voice
+    kind: tts
+    title_fa: صدا
+    prompt_fa: null
+    settings: {voice: Kore, style: "گرم، شمرده و دوستانه؛ سرعت متوسط", text_from: script}
+    inputs: [script]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 300
+  - key: direction
+    kind: gpt_text
+    title_fa: کارگردانی و برنامه‌ی تدوین
+    prompt_fa: |
+      برای «{{company.name_fa}}» این سناریو باید ریلز عمودی ۹:۱۶ شود:
+      {{steps.script.text}}
+      برنامه‌ی کارگردانی و تدوین را نماببند بنویس: هر نما چند ثانیه است، چه متنی روی صفحه می‌آید،
+      تصویر یا حرکت چیست و گذار بین نماها چیست. جمع زمان نماها برابر زمان صدا باشد
+      (اگر زمان صدا معلوم نیست حدود {{settings.duration_s}} ثانیه). زیرنویس درشت و خوانا، دور از
+      لبه‌های صفحه. فقط فهرست نماها را بده.
+    settings: {duration_s: 30}
+    inputs: [script, voice]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 420
+  - key: patterns
+    kind: pattern_search
+    title_fa: جستجوی الگو
+    prompt_fa: "{{settings.pattern_query}}"
+    settings: {pattern_query: "موشن گرافیک ریلز آموزشی", limit: 8}
+    inputs: [direction]
+    gate: auto
+    optional: true
+    enabled: true
+    max_attempts: 2
+    timeout_s: 120
+  - key: pick
+    kind: council_pick
+    title_fa: انتخاب الگو توسط شورا
+    prompt_fa: |
+      برای ریلزی با این سناریو، کدام الگوی بصری مناسب‌تر است؟
+      {{steps.script.text}}
+      معیار: خوانایی روی موبایل، هماهنگی با لحن سناریو و سادگی اجرا.
+    settings: {candidates_from: patterns}
+    inputs: [patterns, script]
+    gate: auto
+    optional: true
+    enabled: true
+    max_attempts: 2
+    timeout_s: 900
+  - key: build
+    kind: opus_build
+    title_fa: ساخت
+    prompt_fa: |
+      برای «{{company.name_fa}}» (خط «{{line.title_fa}}») یک ریلز عمودی ۹:۱۶ بساز.
+      سناریو:
+      {{steps.script.text}}
+      برنامه‌ی کارگردانی:
+      {{steps.direction.text}}
+      الگوی برگزیده‌ی شورا:
+      {{steps.pick.text}}
+      رنگ‌ها و نشان شرکت از برند آن می‌آید؛ متن روی صفحه کوتاه و فارسی باشد.
+      کپشن: دو تا چهار جمله با قلاب، بدون ادعای بی‌منبع. هشتگ: حداکثر ۱۵ تا، مرتبط و فارسی/انگلیسی.
+    settings: {}
+    inputs: [script, voice, direction, pick]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 600
+  - key: render
+    kind: render
+    title_fa: رندر
+    prompt_fa: null
+    settings: {where: media, spec_from: build, voice_from: voice}
+    inputs: [build, voice]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 600
+  - key: cover
+    kind: cover
+    title_fa: کاور
+    prompt_fa: |
+      با تصویرهای پوشه‌ی کاور صفحه (همان سبک، رنگ و چیدمان) یک کاور تازه برای این ریلز بساز.
+      محتوا و کپشن ریلز:
+      {{steps.build.text}}
+      متن کاور کوتاه و فارسی، خوانا و دور از لبه‌ها؛ نسبت ۹:۱۶.
+    settings: {max_files: 6}
+    inputs: [build]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 300
+  - key: quality
+    kind: quality
+    title_fa: کنترل کیفیت
+    prompt_fa: null
+    settings: {text_from: build, caption_max: 2200, hashtags_max: 30, persian: true, banned_words: []}
+    inputs: [script, build, render, cover]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 1
+    timeout_s: 60
+  - key: publish
+    kind: publish
+    title_fa: انتشار ریلز
+    prompt_fa: null
+    settings: {kind: reel, media_from: render, cover_from: cover, text_from: build, in_min: 60}
+    inputs: [render, build, cover, quality]
+    gate: auto
+    optional: false
+    enabled: true
+    max_attempts: 2
+    timeout_s: 300
+  - key: story
+    kind: publish
+    title_fa: استوری همان روز
+    prompt_fa: null
+    settings: {kind: story, media_from: render, after: publish, delay_min: 180}
+    inputs: [render, publish]
+    gate: auto
+    optional: true
+    enabled: true
+    max_attempts: 2
+    timeout_s: 300
+  - key: deliver
+    kind: deliver
+    title_fa: ارسال کاور برای مالک
+    prompt_fa: null
+    settings: {only_if: cover_not_set, check: publish, file_from: cover}
+    inputs: [publish, cover]
+    gate: auto
+    optional: true
+    enabled: true
+    max_attempts: 1
+    timeout_s: 120
