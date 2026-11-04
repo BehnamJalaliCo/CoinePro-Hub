@@ -118,3 +118,19 @@ model_never: [AIOPS]
 memory:
   similarity: 0.6
   look_back: 200
+# ⟨prompt 22⟩ contract §31.2: «یک شرکت تازه برای … بساز» is not a work item: it
+# becomes a kit preview card in the order report, and nothing is created before
+# the owner seals it.
+#
+# triggers: phrases that say a new company is wanted (whole words, after the
+#   same tidying as every rule here).
+# make: the verbs that end the company's name in the order («… بساز»).
+# kits: a kit key (seed/kits/<key>.yaml) and the words that choose it; the kit
+#   with the most words found wins (a tie: the first of this list), else `default`.
+kit:
+  triggers: [شرکت تازه, شرکت جدید, شرکت نو, کمپانی تازه, کمپانی جدید, یک شرکت دیگر]
+  make: [بساز, بسازید, بسازین, راه بینداز, راه اندازی کن, تاسیس کن, ایجاد کن, درست کن]
+  default: content_brand
+  kits:
+    saas_product: [محصول, اپ, اپلیکیشن, نرم افزار, سرویس, سایت, پلتفرم, ثبت نام, اشتراک]
+    content_brand: [محتوا, رسانه, برند, پیج, کانال, اینستاگرام, تلگرام, یوتیوب, ریلز, استوری, کلیپ, ویدیو]
