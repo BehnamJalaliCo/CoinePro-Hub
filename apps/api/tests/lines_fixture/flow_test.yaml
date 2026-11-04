@@ -1,0 +1,28 @@
+# A line with an n8n step (it waits for the signed callback) and a seal step
+# the CEO decides, for the engine's tests (prompt 22).
+key: flow_test
+title_fa: گردش آزمایشی
+platform: telegram_post
+version: 1
+outputs_fa: یک پست
+defaults:
+  caps: {runs_per_day: 10, tokens_per_run: 50000, opus_per_day: 1}
+steps:
+  - key: script
+    kind: gpt_text
+    title_fa: متن
+    prompt_fa: "یک پست برای {{company.name_fa}}"
+  - key: flow
+    kind: n8n
+    title_fa: گردش n8n
+    inputs: [script]
+    settings: {workflow: test-flow}
+  - key: approve
+    kind: seal
+    title_fa: مُهر مدیرعامل
+    gate: ceo
+  - key: publish
+    kind: publish
+    title_fa: انتشار
+    inputs: [flow]
+    settings: {kind: post}

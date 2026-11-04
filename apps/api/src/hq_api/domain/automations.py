@@ -109,15 +109,15 @@ OPS_FA = {
 AGG_FA = {"last": "آخرین مقدار", "sum": "جمع", "avg": "میانگین", "min": "کمترین", "max": "بیشترین"}
 CODE = re.compile(r"^[A-Z][A-Z0-9]{1,9}$")
 KEY = re.compile(r"^[a-z][a-z0-9_]{0,40}$")
-LINE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,59}$")
+LINE = re.compile(r"^LN-[0-9]{4,}$")
 WORKFLOW = re.compile(r"^[a-z0-9][a-z0-9_-]{1,60}$")
 ROLE = re.compile(r"^[a-z][a-z_]{1,30}$")
 
 # Every action: its arguments (required first), and whether it acts inside a company.
 ACTION_ARGS: dict[str, tuple[tuple[str, ...], tuple[str, ...], bool]] = {
     "work.create": (("title_fa",), ("brief_fa", "role", "priority", "company"), True),
-    "line.run": (("line",), ("company",), False),
-    "line.pause": (("line",), ("reason_fa", "company"), False),
+    "line.run": (("line",), ("company",), True),
+    "line.pause": (("line",), ("reason_fa", "company"), True),
     "notify.owner": (("title_fa",), ("body_fa",), False),
     "notify.lead": (("title_fa",), ("body_fa", "company"), True),
     "ad.pause": (("platform", "campaign"), ("company",), True),
@@ -234,7 +234,7 @@ def action_of(raw: Any, company: str | None, known: set[str]) -> dict[str, Any]:
         elif name == "line":
             got = v if isinstance(v, str) and LINE.match(v) else None
             if got is None:
-                raise Refused("نام خط تولید درست نیست.")
+                raise Refused("شماره‌ی خط تولید درست نیست (مثل LN-0001).")
         elif name == "workflow":
             got = v if isinstance(v, str) and WORKFLOW.match(v) else None
             if got is None:
@@ -727,26 +727,34 @@ def _lines() -> Any:
 
 
 async def _line(hub: Any, tx: Tx, auto: dict[str, Any], args: dict[str, Any], pause: bool) -> str:
+    """A line of the company, by its ref (LN-0001): run it once (a run for the
+    lines tick, started right after the commit), or pause it (reversible, by
+    the owner's hand)."""
     engine, store = _lines()
     co = await _company(tx, auto, args)
-    fn = getattr(store, "pause_line", None) if pause else getattr(engine, "start_run", None)
-    if fn is None:
-        raise ActionError("موتور خط‌های تولید این کار را هنوز ندارد.")
     try:
-        if pause:
-            await fn(
-                tx,
-                company_id=co["id"],
-                line=args["line"],
-                reason_fa=args.get("reason_fa") or f"{auto['ref']}: خودکارسازی",
-            )
-        else:
-            await fn(
-                hub, tx, company_id=co["id"], line=args["line"], source=f"automation:{auto['ref']}"
-            )
+        line = await store.load(tx, args["line"])
+    except ApiError as exc:
+        raise ActionError("این خط تولید پیدا نشد.") from exc
+    if line["company_id"] != co["id"]:
+        raise ActionError("این خط تولید مال این شرکت نیست.")
+    if pause:
+        if line["state"] == "paused":
+            return f"خط «{args['line']}» از پیش متوقف بود."
+        await store.set_state(tx, line, "paused")
+        return f"خط «{args['line']}» متوقف شد."
+    if line["state"] != "on":
+        raise ActionError("این خط تولید روشن نیست؛ اجرا نمیشود.")
+    try:
+        run = await engine.start_run(tx, line, trigger="owner", who=SERVICE)
     except ApiError as exc:
         raise ActionError(exc.message_fa or "خط تولید این درخواست را نپذیرفت.") from exc
-    return f"خط «{args['line']}» {'متوقف' if pause else 'اجرا'} شد."
+    auto.setdefault("_kicks", []).append(run["ref"])
+    return (
+        f"خط «{args['line']}» اجرا شد."
+        if run["state"] != "skipped"
+        else (f"اجرای خط «{args['line']}» رد شد: {run.get('note_fa') or 'سقف یا قفل'}")
+    )
 
 
 async def _notify_owner(tx: Tx, auto: dict[str, Any], args: dict[str, Any]) -> str:
@@ -1006,6 +1014,10 @@ async def fire(
                 source_code="automations",
                 owner_action=True,
             )
+    if kicks := auto.get("_kicks"):  # the lines it queued start now (the lines tick would anyway)
+        engine, _ = _lines()
+        for ref in kicks:
+            await engine.kick(hub, ref)
     return outcome
 
 

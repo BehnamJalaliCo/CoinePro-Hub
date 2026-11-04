@@ -568,12 +568,13 @@ async def test_n8n_run_posts_a_signed_webhook_and_a_missing_lines_engine_is_refu
     monkeypatch.setenv("HQ_N8N_URL", "http://n8n.test:5678")
     hub.bao = FakeBao({"hq/n8n": N8N_SECRET})
     rule = hourly({"kind": "n8n.run", "args": {"workflow": "report-weekly"}},
-                  {"kind": "line.run", "args": {"line": "tg-news"}})  # fmt: skip
+                  {"kind": "line.run", "args": {"line": "LN-0001"}})  # fmt: skip
     a = await propose(client, h, made, rule, co["code"])
     await seal(client, hub, owner_session, a["ref"])
-    monkeypatch.setitem(
-        sys.modules, "hq_api.lines.engine", None
-    )  # the lines engine is missing here
+    import hq_api.lines as lines_pkg
+
+    monkeypatch.delattr(lines_pkg, "engine", raising=False)  # the lines engine is missing here
+    monkeypatch.setitem(sys.modules, "hq_api.lines.engine", None)
     async with holding_switch(su, "released"):
         out = await AU.tick(hub, now=datetime.now(UTC) + timedelta(hours=2))
     assert out["failed"] == 1
@@ -602,27 +603,39 @@ async def test_lines_actions_call_the_engine_when_it_is_there(
     co = await new_company()
     calls: list[tuple[str, str]] = []
 
-    async def start_run(hub_: Any, tx: Any, *, company_id: Any, line: str, source: str) -> None:
-        calls.append(("run", line))
+    line = {"id": "line-id", "company_id": co["id"], "state": "on", "ref": "LN-0001"}
 
-    async def pause_line(tx: Any, *, company_id: Any, line: str, reason_fa: str) -> None:
-        calls.append(("pause", line))
+    async def load(tx: Any, ref: str) -> dict[str, Any]:
+        assert ref == "LN-0001"
+        return dict(line)
 
-    engine = types.SimpleNamespace(start_run=start_run)
-    store = types.SimpleNamespace(pause_line=pause_line)
+    async def set_state(tx: Any, row: dict[str, Any], state: str) -> dict[str, Any]:
+        calls.append(("state", state))
+        return {**row, "state": state}
+
+    async def start_run(tx: Any, row: dict[str, Any], *, trigger: str, who: Any) -> dict[str, Any]:
+        calls.append(("run", trigger))
+        return {"ref": "RN-0001", "state": "queued"}
+
+    async def kick(hub_: Any, ref: str) -> None:
+        calls.append(("kick", ref))
+
+    engine = types.SimpleNamespace(start_run=start_run, kick=kick)
+    store = types.SimpleNamespace(load=load, set_state=set_state)
     monkeypatch.setitem(sys.modules, "hq_api.lines.engine", engine)
     monkeypatch.setitem(sys.modules, "hq_api.lines.store", store)
     import hq_api.lines as lines_pkg
 
     monkeypatch.setattr(lines_pkg, "engine", engine, raising=False)
     monkeypatch.setattr(lines_pkg, "store", store, raising=False)
-    rule = hourly({"kind": "line.pause", "args": {"line": "tg-news"}},
-                  {"kind": "line.run", "args": {"line": "tg-news"}})  # fmt: skip
+    rule = hourly({"kind": "line.pause", "args": {"line": "LN-0001"}},
+                  {"kind": "line.run", "args": {"line": "LN-0001"}})  # fmt: skip
     a = await propose(client, h, made, rule, co["code"])
     await seal(client, hub, owner_session, a["ref"])
     async with holding_switch(su, "released"):
         out = await AU.tick(hub, now=datetime.now(UTC) + timedelta(hours=2))
-    assert out["fired"] == 1 and calls == [("pause", "tg-news"), ("run", "tg-news")]
+    assert out["fired"] == 1
+    assert calls == [("state", "paused"), ("run", "owner"), ("kick", "RN-0001")]
 
 
 # --------------------------------------------------------------- the ads --
@@ -1018,12 +1031,12 @@ async def test_migration_0042_downgrades_cleanly_and_keeps_other_kinds(su: Any) 
                    kind = ANY ('{bing,ga4,instagram,pagespeed,play_console,search_console,telegram,trends,x,youtube,google_ads,meta_ads,newsletter}'::text[]));"""
         )
         got = await su.fetchval(
-            "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'connections_kind_check'"
+            "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'connections_kind_check' AND conrelid = 'growth.connections'::regclass"
         )
         assert "'{" in got
         await su.execute(mod.DOWNGRADE)
         got = await su.fetchval(
-            "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'connections_kind_check'"
+            "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'connections_kind_check' AND conrelid = 'growth.connections'::regclass"
         )
         assert "newsletter" in got and "google_ads" not in got
         assert await su.fetchval("SELECT to_regclass('growth.ad_rules')") is None

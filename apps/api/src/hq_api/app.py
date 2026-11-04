@@ -77,6 +77,7 @@ from hq_api.routes import dceo as dceo_routes
 from hq_api.routes import groups as group_routes  # prompt 21 part 3: §29.9, §29.11
 from hq_api.routes import home as home_routes  # prompt 21 part 3: §29.13
 from hq_api.routes import legal as legal_routes  # prompt 13: the legal counsel
+from hq_api.routes import lines as line_routes  # prompt 22: production lines (§30, §31.1)
 from hq_api.routes import media as media_routes  # prompt 13, the media half
 from hq_api.routes import order_report as order_report_routes  # prompt 21: §29.1-§29.2, §29.6
 from hq_api.routes import reviews as review_routes
@@ -292,6 +293,9 @@ def create_app(
     # ⟨1.13⟩ prompt 22 part 3 (contract §31.6, §31.7): ad budgets, automations from a sentence.
     for p22c in (ads_routes, automation_routes):
         app.include_router(p22c.router, prefix="/api/v1")
+    # ⟨1.12⟩ prompt 22 (contract §30.5, §31.1): production lines; n8n's signed callback
+    app.include_router(line_routes.router, prefix="/api/v1")
+    app.include_router(line_routes.internal_router, prefix="/internal/v1")
     app.state.version = __version__
 
     plain_openapi = app.openapi

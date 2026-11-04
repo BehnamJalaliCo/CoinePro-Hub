@@ -3267,7 +3267,7 @@ Line     { ref "LN-0001", company, template, template_version, platform, channel
            good_runs, auto_after: int (default 7), caps: {runs_per_day, tokens_per_run, opus_per_day},
            version, steps: [StepDef as overridden for this line], library: [asset id], created_at, updated_at }
 LineVersion { line, version, body (the whole line), by, at, note_fa }
-Run      { ref "LR-000001", line, line_version, trigger: "schedule"|"owner"|"test"|"n8n"|"group", dry: bool,
+Run      { ref "RN-000001" (`LR-` is the growth page's), line, line_version, trigger: "schedule"|"owner"|"test"|"n8n"|"group", dry: bool,
            state: "queued"|"running"|"waiting"|"done"|"failed"|"skipped"|"cancelled", at, ended_at,
            steps: [StepRun], cost: {tokens, usd_equiv}, published: [{platform, kind, external_id|null, at, url|null}],
            metrics: {h24: {...}|null, d7: {...}|null}, note_fa }
@@ -3402,7 +3402,7 @@ CalendarItem { day, at|null, company, kind: "line"|"newsletter"|"ad"|"campaign"|
                state, conflict_fa|null }
 Campaign     { id, company, title_fa, goal_fa, starts, ends, channels: [platform], budget|null, state }
 ```
-- `GET /calendar?from&to&company?` merges line runs (§30), newsletters, ad campaigns and campaigns; conflicts (two posts on one
+- `GET /campaign-calendar?from&to&company?` (`/calendar` is the change calendar of §20) merges line runs (§30), newsletters, ad campaigns and campaigns; conflicts (two posts on one
   channel within its spacing, an Iranian holiday from the calendar data) are marked. `GET/POST/PUT/DELETE /campaigns[/{id}]`.
 - §30's `GET /calendar/lines` stays as it is.
 
@@ -3421,7 +3421,7 @@ AdDaily   { company, platform, campaign_id, day, spend, clicks, conversions, rev
 
 ### 31.7 An automation from one sentence
 ```
-Automation { ref "AU-0001", company|null, sentence_fa, rule: {trigger, conditions, actions}, state: "proposed"|"on"|"off",
+Automation { ref "AT-0001" (`AU-` is the archive's), company|null, sentence_fa, rule: {trigger, conditions, actions}, state: "proposed"|"on"|"off",
              runs: int, last_run_at|null, n8n_workflow|null }
 trigger    { kind: "schedule" (RRULE) | "event" (stream type) | "metric" (connection key, op, value, window) }
 actions    [ {kind: "work.create"|"line.run"|"line.pause"|"notify.owner"|"notify.lead"|"ad.pause"|"n8n.run", args} ]  -- allow-list only

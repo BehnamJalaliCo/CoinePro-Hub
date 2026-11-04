@@ -650,6 +650,8 @@ services:
       HQ_CATALOGUE_RUN_TOKENS: ${HQ_CATALOGUE_RUN_TOKENS:-1500000}
       # Prompt 21 (contract §29.11): the working groups' routines, switched on after the deploy's checks.
       HQ_GROUPS: ${HQ_GROUPS:-off}
+      # Prompt 22 (contract §30.3): the production lines' schedules and reads, switched on after the deploy's checks.
+      HQ_LINES: ${HQ_LINES:-off}
       OWNER_ZONE_DAILY_SHARE: ${OWNER_ZONE_DAILY_SHARE:-0.25}
       CONNECTION_SECRET_ROUTE: ${CONNECTION_SECRET_ROUTE:-api}
       # Prompt 12 §9.1: hq.sh sets it on only while the substitutes runner's
@@ -728,6 +730,8 @@ services:
       HQ_CATALOGUE_RUN_TOKENS: ${HQ_CATALOGUE_RUN_TOKENS:-1500000}
       # Prompt 21 (contract §29.11): the working groups' routines, switched on after the deploy's checks.
       HQ_GROUPS: ${HQ_GROUPS:-off}
+      # Prompt 22 (contract §30.3): the production lines' schedules and reads, switched on after the deploy's checks.
+      HQ_LINES: ${HQ_LINES:-off}
       OVERSIGHT_DAILY_SHARE: ${OVERSIGHT_DAILY_SHARE:-0.2}
       # Prompt 11 §1.2: the meetings' share of the daily cap (a meeting that does not fit is `written`).
       MEETINGS_DAILY_SHARE: ${MEETINGS_DAILY_SHARE:-0.15}
