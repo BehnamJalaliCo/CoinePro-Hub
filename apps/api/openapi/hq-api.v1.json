@@ -32067,6 +32067,33 @@
         "title": "Page[Story]",
         "type": "object"
       },
+      "Page_TalkConversation_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TalkConversation"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[TalkConversation]",
+        "type": "object"
+      },
       "Page_TreeEvent_": {
         "properties": {
           "items": {
@@ -44754,6 +44781,969 @@
         "title": "SupportTeachOut",
         "type": "object"
       },
+      "TalkAudio": {
+        "properties": {
+          "engine": {
+            "title": "Engine",
+            "type": "string"
+          },
+          "file_id": {
+            "title": "File Id",
+            "type": "string"
+          },
+          "seconds": {
+            "title": "Seconds",
+            "type": "number"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "seq",
+          "file_id",
+          "seconds",
+          "engine"
+        ],
+        "title": "TalkAudio",
+        "type": "object"
+      },
+      "TalkBrain": {
+        "properties": {
+          "effort": {
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "title": "Effort",
+            "type": "string"
+          },
+          "task_class": {
+            "const": "talk_turn",
+            "default": "talk_turn",
+            "title": "Task Class",
+            "type": "string"
+          }
+        },
+        "required": [
+          "effort"
+        ],
+        "title": "TalkBrain",
+        "type": "object"
+      },
+      "TalkCard": {
+        "properties": {
+          "body_fa": {
+            "title": "Body Fa",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "order",
+              "ask",
+              "hire",
+              "decision",
+              "planner",
+              "rule",
+              "automation",
+              "minutes",
+              "invite"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "made": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Made",
+            "type": "array"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "reason_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Fa"
+          },
+          "state": {
+            "enum": [
+              "offered",
+              "done",
+              "dismissed",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "turn": {
+            "format": "uuid",
+            "title": "Turn",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "turn",
+          "kind",
+          "title_fa",
+          "body_fa",
+          "payload",
+          "state",
+          "made",
+          "reason_fa"
+        ],
+        "title": "TalkCard",
+        "type": "object"
+      },
+      "TalkCardRun": {
+        "properties": {
+          "card": {
+            "$ref": "#/components/schemas/TalkCard"
+          },
+          "made": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Made",
+            "type": "array"
+          }
+        },
+        "required": [
+          "made",
+          "card"
+        ],
+        "title": "TalkCardRun",
+        "type": "object"
+      },
+      "TalkCardRunIn": {
+        "additionalProperties": false,
+        "properties": {
+          "payload": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payload"
+          }
+        },
+        "title": "TalkCardRunIn",
+        "type": "object"
+      },
+      "TalkConversation": {
+        "properties": {
+          "cost": {
+            "$ref": "#/components/schemas/TalkCost"
+          },
+          "last_turn_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Turn At"
+          },
+          "mode": {
+            "enum": [
+              "consult",
+              "work"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "open_cards": {
+            "title": "Open Cards",
+            "type": "integer"
+          },
+          "persona": {
+            "title": "Persona",
+            "type": "string"
+          },
+          "present": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Present",
+            "type": "array"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "summary_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Fa"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "turns": {
+            "title": "Turns",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ref",
+          "title_fa",
+          "persona",
+          "present",
+          "mode",
+          "started_at",
+          "last_turn_at",
+          "turns",
+          "summary_fa",
+          "cost",
+          "open_cards"
+        ],
+        "title": "TalkConversation",
+        "type": "object"
+      },
+      "TalkConversationDetail": {
+        "properties": {
+          "cost": {
+            "$ref": "#/components/schemas/TalkCost"
+          },
+          "last_turn_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Turn At"
+          },
+          "mode": {
+            "enum": [
+              "consult",
+              "work"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "open_cards": {
+            "title": "Open Cards",
+            "type": "integer"
+          },
+          "persona": {
+            "title": "Persona",
+            "type": "string"
+          },
+          "personas": {
+            "items": {
+              "$ref": "#/components/schemas/TalkPersona"
+            },
+            "title": "Personas",
+            "type": "array"
+          },
+          "present": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Present",
+            "type": "array"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "summary_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Fa"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "turns": {
+            "title": "Turns",
+            "type": "integer"
+          },
+          "turns_page": {
+            "$ref": "#/components/schemas/TalkTurnPage"
+          }
+        },
+        "required": [
+          "ref",
+          "title_fa",
+          "persona",
+          "present",
+          "mode",
+          "started_at",
+          "last_turn_at",
+          "turns",
+          "summary_fa",
+          "cost",
+          "open_cards",
+          "turns_page",
+          "personas"
+        ],
+        "title": "TalkConversationDetail",
+        "type": "object"
+      },
+      "TalkConversationIn": {
+        "additionalProperties": false,
+        "properties": {
+          "company": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "mode": {
+            "default": "consult",
+            "enum": [
+              "consult",
+              "work"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "persona": {
+            "default": "secretary",
+            "enum": [
+              "secretary",
+              "overseer",
+              "assistant",
+              "advisor",
+              "manager"
+            ],
+            "title": "Persona",
+            "type": "string"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]{1,40}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "title_fa": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title Fa"
+          }
+        },
+        "title": "TalkConversationIn",
+        "type": "object"
+      },
+      "TalkConversationPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "consult",
+                  "work"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
+          },
+          "title_fa": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title Fa"
+          }
+        },
+        "title": "TalkConversationPatch",
+        "type": "object"
+      },
+      "TalkCost": {
+        "properties": {
+          "tokens": {
+            "title": "Tokens",
+            "type": "integer"
+          },
+          "usd_equiv": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Usd Equiv",
+            "type": "string"
+          },
+          "voice_usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Voice Usd",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tokens",
+          "usd_equiv",
+          "voice_usd"
+        ],
+        "title": "TalkCost",
+        "type": "object"
+      },
+      "TalkInviteIn": {
+        "additionalProperties": false,
+        "properties": {
+          "company": {
+            "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+            "title": "Company",
+            "type": "string"
+          },
+          "role": {
+            "maxLength": 41,
+            "minLength": 2,
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "company"
+        ],
+        "title": "TalkInviteIn",
+        "type": "object"
+      },
+      "TalkPersona": {
+        "properties": {
+          "brain": {
+            "$ref": "#/components/schemas/TalkBrain"
+          },
+          "cards": {
+            "items": {
+              "enum": [
+                "order",
+                "ask",
+                "hire",
+                "decision",
+                "planner",
+                "rule",
+                "automation",
+                "minutes",
+                "invite"
+              ],
+              "type": "string"
+            },
+            "title": "Cards",
+            "type": "array"
+          },
+          "company": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "consult_only": {
+            "title": "Consult Only",
+            "type": "boolean"
+          },
+          "face": {
+            "title": "Face",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "secretary",
+              "overseer",
+              "assistant",
+              "advisor",
+              "manager"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "tools": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tools",
+            "type": "array"
+          },
+          "voice": {
+            "$ref": "#/components/schemas/TalkVoice"
+          }
+        },
+        "required": [
+          "key",
+          "kind",
+          "role",
+          "title_fa",
+          "company",
+          "voice",
+          "brain",
+          "tools",
+          "face",
+          "consult_only",
+          "cards"
+        ],
+        "title": "TalkPersona",
+        "type": "object"
+      },
+      "TalkPersonaIn": {
+        "additionalProperties": false,
+        "properties": {
+          "effort": {
+            "anyOf": [
+              {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "xhigh",
+                  "max"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effort"
+          },
+          "engine": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z0-9][a-z0-9._-]{1,60}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine"
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "maximum": 1.25,
+                "minimum": 0.8,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate"
+          },
+          "voice": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice"
+          }
+        },
+        "title": "TalkPersonaIn",
+        "type": "object"
+      },
+      "TalkTokens": {
+        "properties": {
+          "cache_read": {
+            "default": 0,
+            "title": "Cache Read",
+            "type": "integer"
+          },
+          "cache_write": {
+            "default": 0,
+            "title": "Cache Write",
+            "type": "integer"
+          },
+          "input": {
+            "default": 0,
+            "title": "Input",
+            "type": "integer"
+          },
+          "output": {
+            "default": 0,
+            "title": "Output",
+            "type": "integer"
+          }
+        },
+        "title": "TalkTokens",
+        "type": "object"
+      },
+      "TalkTurn": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "audio": {
+            "items": {
+              "$ref": "#/components/schemas/TalkAudio"
+            },
+            "title": "Audio",
+            "type": "array"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/TalkCard"
+            },
+            "title": "Cards",
+            "type": "array"
+          },
+          "conversation": {
+            "title": "Conversation",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "reason_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Fa"
+          },
+          "say_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Say Fa"
+          },
+          "show_md": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Show Md"
+          },
+          "source": {
+            "enum": [
+              "typed",
+              "hold",
+              "handsfree",
+              "system"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "streaming",
+              "done",
+              "stopped",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "tokens": {
+            "$ref": "#/components/schemas/TalkTokens"
+          },
+          "voice": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TalkVoiceUse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "conversation",
+          "n",
+          "by",
+          "source",
+          "text",
+          "say_fa",
+          "show_md",
+          "cards",
+          "audio",
+          "tokens",
+          "voice",
+          "state",
+          "reason_fa",
+          "at"
+        ],
+        "title": "TalkTurn",
+        "type": "object"
+      },
+      "TalkTurnAccepted": {
+        "properties": {
+          "events": {
+            "title": "Events",
+            "type": "string"
+          },
+          "owner_turn": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TalkTurn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "turn": {
+            "$ref": "#/components/schemas/TalkTurn"
+          }
+        },
+        "required": [
+          "turn",
+          "owner_turn",
+          "events"
+        ],
+        "title": "TalkTurnAccepted",
+        "type": "object"
+      },
+      "TalkTurnIn": {
+        "additionalProperties": false,
+        "properties": {
+          "client_id": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "source": {
+            "default": "typed",
+            "enum": [
+              "typed",
+              "hold",
+              "handsfree"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 10000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "TalkTurnIn",
+        "type": "object"
+      },
+      "TalkTurnPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TalkTurn"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "TalkTurnPage",
+        "type": "object"
+      },
+      "TalkVoice": {
+        "properties": {
+          "engine": {
+            "title": "Engine",
+            "type": "string"
+          },
+          "rate": {
+            "maximum": 1.25,
+            "minimum": 0.8,
+            "title": "Rate",
+            "type": "number"
+          },
+          "voice": {
+            "title": "Voice",
+            "type": "string"
+          }
+        },
+        "required": [
+          "engine",
+          "voice",
+          "rate"
+        ],
+        "title": "TalkVoice",
+        "type": "object"
+      },
+      "TalkVoiceUse": {
+        "properties": {
+          "audio_tokens": {
+            "title": "Audio Tokens",
+            "type": "integer"
+          },
+          "engine": {
+            "title": "Engine",
+            "type": "string"
+          },
+          "seconds": {
+            "title": "Seconds",
+            "type": "number"
+          },
+          "usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Usd",
+            "type": "string"
+          }
+        },
+        "required": [
+          "engine",
+          "seconds",
+          "audio_tokens",
+          "usd"
+        ],
+        "title": "TalkVoiceUse",
+        "type": "object"
+      },
       "Target-Input": {
         "additionalProperties": false,
         "properties": {
@@ -51011,7 +52001,8 @@
               "order",
               "rule",
               "message",
-              "note"
+              "note",
+              "talk"
             ],
             "title": "Purpose",
             "type": "string"
@@ -115516,6 +116507,1919 @@
         "summary": "Run Shadow",
         "tags": [
           "support"
+        ]
+      }
+    },
+    "/api/v1/talk/cards/{id}/dismiss": {
+      "post": {
+        "description": "The owner puts a card aside; nothing is made. A done card cannot be.",
+        "operationId": "talk_dismiss_card",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "body_fa": "توضیح کوتاه",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "order",
+                  "made": [
+                    "x"
+                  ],
+                  "payload": {},
+                  "reason_fa": "x",
+                  "state": "offered",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "turn": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TalkCard"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Talk Dismiss Card",
+        "tags": [
+          "talk"
+        ]
+      }
+    },
+    "/api/v1/talk/cards/{id}/run": {
+      "post": {
+        "description": "The owner taps a card (with edits in `payload`): it runs the existing\nroute of its kind with that route's own checks and step-ups (order and ask:\nthe dispatcher of §29.4; minutes: one order per task; hire: the manager's\nproposal; decision; planner; rule; automation: compiled, then proposed;\ninvite). → `made`: the refs it made. A done card answers what it made.\nRequires `Idempotency-Key` (each step of the card derives its own).",
+        "operationId": "talk_run_card",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "payload": {}
+              },
+              "schema": {
+                "$ref": "#/components/schemas/TalkCardRunIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "card": {
+                    "body_fa": "توضیح کوتاه",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "kind": "order",
+                    "made": [
+                      "x"
+                    ],
+                    "payload": {},
+                    "reason_fa": "x",
+                    "state": "offered",
+                    "title_fa": "گزارش هفتگی رشد",
+                    "turn": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  },
+                  "made": [
+                    "x"
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TalkCardRun"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Talk Run Card",
+        "tags": [
+          "talk"
+        ]
+      }
+    },
+    "/api/v1/talk/conversations": {
+      "get": {
+        "description": "The owner's conversations, the latest first; `persona` keeps those it took\npart in; `q` searches every turn's words (Persian-normalised full text, as\n§5.3: ی/ي, ک/ك and ZWNJ alike).",
+        "operationId": "talk_list_conversations",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "persona",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(secretary|overseer|assistant|advisor|[a-z][a-z0-9_]{1,40}@[A-Z][A-Z0-9]{1,9})$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Persona"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "cost": {
+                        "tokens": 1,
+                        "usd_equiv": "x",
+                        "voice_usd": "2.410000"
+                      },
+                      "last_turn_at": "2026-10-17T05:42:00Z",
+                      "mode": "consult",
+                      "open_cards": 1,
+                      "persona": "x",
+                      "present": [
+                        "x"
+                      ],
+                      "ref": "W-000789",
+                      "started_at": "2026-10-17T05:42:00Z",
+                      "summary_fa": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "turns": 1
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Page_TalkConversation_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Talk List Conversations",
+        "tags": [
+          "talk"
+        ]
+      },
+      "post": {
+        "description": "A new conversation with a persona (a manager: role and company, e.g.\nceo@TY), consult by default. `Idempotency-Key` optional.",
+        "operationId": "talk_open_conversation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "company": "TY",
+                "mode": "consult",
+                "persona": "secretary",
+                "role": "x",
+                "title_fa": "گزارش هفتگی رشد"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/TalkConversationIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "cost": {
+                    "tokens": 1,
+                    "usd_equiv": "x",
+                    "voice_usd": "2.410000"
+                  },
+                  "last_turn_at": "2026-10-17T05:42:00Z",
+                  "mode": "consult",
+                  "open_cards": 1,
+                  "persona": "x",
+                  "present": [
+                    "x"
+                  ],
+                  "ref": "W-000789",
+                  "started_at": "2026-10-17T05:42:00Z",
+                  "summary_fa": "x",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "turns": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TalkConversation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Talk Open Conversation",
+        "tags": [
+          "talk"
+        ]
+      }
+    },
+    "/api/v1/talk/conversations/{ref}": {
+      "get": {
+        "description": "One conversation with its turns: without `cursor` the latest `limit`\nturns, oldest first; with it, the turns after it (oldest first).",
+        "operationId": "talk_get_conversation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "cost": {
+                    "tokens": 1,
+                    "usd_equiv": "x",
+                    "voice_usd": "2.410000"
+                  },
+                  "last_turn_at": "2026-10-17T05:42:00Z",
+                  "mode": "consult",
+                  "open_cards": 1,
+                  "persona": "x",
+                  "personas": [
+                    {
+                      "brain": {
+                        "effort": "low",
+                        "task_class": "talk_turn"
+                      },
+                      "cards": [
+                        "order"
+                      ],
+                      "company": "TY",
+                      "consult_only": false,
+                      "face": "x",
+                      "key": "x",
+                      "kind": "secretary",
+                      "role": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "tools": [
+                        "x"
+                      ],
+                      "voice": {
+                        "engine": "x",
+                        "rate": 0.8,
+                        "voice": "x"
+                      }
+                    }
+                  ],
+                  "present": [
+                    "x"
+                  ],
+                  "ref": "W-000789",
+                  "started_at": "2026-10-17T05:42:00Z",
+                  "summary_fa": "x",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "turns": 1,
+                  "turns_page": {
+                    "items": [
+                      {
+                        "at": "2026-10-17T05:42:00Z",
+                        "audio": [
+                          {
+                            "engine": "x",
+                            "file_id": "x",
+                            "seconds": 1.0,
+                            "seq": 1
+                          }
+                        ],
+                        "by": "x",
+                        "cards": [
+                          {
+                            "body_fa": "توضیح کوتاه",
+                            "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                            "kind": "order",
+                            "made": [],
+                            "payload": {},
+                            "reason_fa": null,
+                            "state": "offered",
+                            "title_fa": "گزارش هفتگی رشد",
+                            "turn": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                          }
+                        ],
+                        "conversation": "x",
+                        "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "n": 1,
+                        "reason_fa": "x",
+                        "say_fa": "x",
+                        "show_md": "x",
+                        "source": "typed",
+                        "state": "streaming",
+                        "text": "x",
+                        "tokens": {
+                          "cache_read": 1,
+                          "cache_write": 1,
+                          "input": 1,
+                          "output": 1
+                        },
+                        "voice": {
+                          "audio_tokens": 1,
+                          "engine": "x",
+                          "seconds": 1.0,
+                          "usd": "2.410000"
+                        }
+                      }
+                    ],
+                    "next_cursor": "x"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TalkConversationDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Talk Get Conversation",
+        "tags": [
+          "talk"
+        ]
+      },
+      "patch": {
+        "description": "The working-meeting toggle (consult | work) and the title.",
+        "operationId": "talk_patch_conversation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "mode": "consult",
+                "title_fa": "گزارش هفتگی رشد"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/TalkConversationPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "cost": {
+                    "tokens": 1,
+                    "usd_equiv": "x",
+                    "voice_usd": "2.410000"
+                  },
+                  "last_turn_at": "2026-10-17T05:42:00Z",
+                  "mode": "consult",
+                  "open_cards": 1,
+                  "persona": "x",
+                  "present": [
+                    "x"
+                  ],
+                  "ref": "W-000789",
+                  "started_at": "2026-10-17T05:42:00Z",
+                  "summary_fa": "x",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "turns": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TalkConversation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Talk Patch Conversation",
+        "tags": [
+          "talk"
+        ]
+      }
+    },
+    "/api/v1/talk/conversations/{ref}/invite": {
+      "post": {
+        "description": "A manager joins (`role` is its charter, e.g. ceo or media_director, or a\ndepartment code whose manager is meant): role@company becomes present and\nanswers next, with its own charter, voice and its company's reads only;\ncode writes the one-line notice. Back to the secretary by her face or «منشی».",
+        "operationId": "talk_invite",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "company": "TY",
+                "role": "xx"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/TalkInviteIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "cost": {
+                    "tokens": 1,
+                    "usd_equiv": "x",
+                    "voice_usd": "2.410000"
+                  },
+                  "last_turn_at": "2026-10-17T05:42:00Z",
+                  "mode": "consult",
+                  "open_cards": 1,
+                  "persona": "x",
+                  "personas": [
+                    {
+                      "brain": {
+                        "effort": "low",
+                        "task_class": "talk_turn"
+                      },
+                      "cards": [
+                        "order"
+                      ],
+                      "company": "TY",
+                      "consult_only": false,
+                      "face": "x",
+                      "key": "x",
+                      "kind": "secretary",
+                      "role": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "tools": [
+                        "x"
+                      ],
+                      "voice": {
+                        "engine": "x",
+                        "rate": 0.8,
+                        "voice": "x"
+                      }
+                    }
+                  ],
+                  "present": [
+                    "x"
+                  ],
+                  "ref": "W-000789",
+                  "started_at": "2026-10-17T05:42:00Z",
+                  "summary_fa": "x",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "turns": 1,
+                  "turns_page": {
+                    "items": [
+                      {
+                        "at": "2026-10-17T05:42:00Z",
+                        "audio": [
+                          {
+                            "engine": "x",
+                            "file_id": "x",
+                            "seconds": 1.0,
+                            "seq": 1
+                          }
+                        ],
+                        "by": "x",
+                        "cards": [
+                          {
+                            "body_fa": "توضیح کوتاه",
+                            "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                            "kind": "order",
+                            "made": [],
+                            "payload": {},
+                            "reason_fa": null,
+                            "state": "offered",
+                            "title_fa": "گزارش هفتگی رشد",
+                            "turn": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                          }
+                        ],
+                        "conversation": "x",
+                        "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "n": 1,
+                        "reason_fa": "x",
+                        "say_fa": "x",
+                        "show_md": "x",
+                        "source": "typed",
+                        "state": "streaming",
+                        "text": "x",
+                        "tokens": {
+                          "cache_read": 1,
+                          "cache_write": 1,
+                          "input": 1,
+                          "output": 1
+                        },
+                        "voice": {
+                          "audio_tokens": 1,
+                          "engine": "x",
+                          "seconds": 1.0,
+                          "usd": "2.410000"
+                        }
+                      }
+                    ],
+                    "next_cursor": "x"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TalkConversationDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Talk Invite",
+        "tags": [
+          "talk"
+        ]
+      }
+    },
+    "/api/v1/talk/conversations/{ref}/minutes": {
+      "post": {
+        "description": "«صورت‌جلسه کن» by the button: one `minutes` card from the conversation so\nfar (a 5-10 line summary, the decisions, the tasks with their company,\ndepartment and due date the owner can edit), in an answer of the persona.\n«اجرا کن» on it makes one order per task. Requires `Idempotency-Key`.",
+        "operationId": "talk_make_minutes",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "events": "x",
+                  "owner_turn": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "audio": [
+                      {
+                        "engine": "x",
+                        "file_id": "x",
+                        "seconds": 1.0,
+                        "seq": 1
+                      }
+                    ],
+                    "by": "x",
+                    "cards": [
+                      {
+                        "body_fa": "توضیح کوتاه",
+                        "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "kind": "order",
+                        "made": [
+                          "x"
+                        ],
+                        "payload": {},
+                        "reason_fa": "x",
+                        "state": "offered",
+                        "title_fa": "گزارش هفتگی رشد",
+                        "turn": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                      }
+                    ],
+                    "conversation": "x",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "n": 1,
+                    "reason_fa": "x",
+                    "say_fa": "x",
+                    "show_md": "x",
+                    "source": "typed",
+                    "state": "streaming",
+                    "text": "x",
+                    "tokens": {
+                      "cache_read": 1,
+                      "cache_write": 1,
+                      "input": 1,
+                      "output": 1
+                    },
+                    "voice": {
+                      "audio_tokens": 1,
+                      "engine": "x",
+                      "seconds": 1.0,
+                      "usd": "2.410000"
+                    }
+                  },
+                  "turn": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "audio": [
+                      {
+                        "engine": "x",
+                        "file_id": "x",
+                        "seconds": 1.0,
+                        "seq": 1
+                      }
+                    ],
+                    "by": "x",
+                    "cards": [
+                      {
+                        "body_fa": "توضیح کوتاه",
+                        "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "kind": "order",
+                        "made": [
+                          "x"
+                        ],
+                        "payload": {},
+                        "reason_fa": "x",
+                        "state": "offered",
+                        "title_fa": "گزارش هفتگی رشد",
+                        "turn": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                      }
+                    ],
+                    "conversation": "x",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "n": 1,
+                    "reason_fa": "x",
+                    "say_fa": "x",
+                    "show_md": "x",
+                    "source": "typed",
+                    "state": "streaming",
+                    "text": "x",
+                    "tokens": {
+                      "cache_read": 1,
+                      "cache_write": 1,
+                      "input": 1,
+                      "output": 1
+                    },
+                    "voice": {
+                      "audio_tokens": 1,
+                      "engine": "x",
+                      "seconds": 1.0,
+                      "usd": "2.410000"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TalkTurnAccepted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Talk Make Minutes",
+        "tags": [
+          "talk"
+        ]
+      }
+    },
+    "/api/v1/talk/conversations/{ref}/turns": {
+      "post": {
+        "description": "The owner says something. The words are stored at once (a key-shaped\nstring replaced by «[کلید حذف شد]»: it never reaches a log, the Audit or a\nmodel), the rules act first (back to the secretary, a manager called in,\nthe mode, «یادت باشه», «صورت‌جلسه کن»), and the answer streams on\n`events` (SSE). Requires `Idempotency-Key`; the same `client_id` again\nanswers the same turn. Never 5xx: without a brain, the plain line.",
+        "operationId": "talk_add_turn",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "client_id": "x",
+                "source": "typed",
+                "text": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/TalkTurnIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "events": "x",
+                  "owner_turn": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "audio": [
+                      {
+                        "engine": "x",
+                        "file_id": "x",
+                        "seconds": 1.0,
+                        "seq": 1
+                      }
+                    ],
+                    "by": "x",
+                    "cards": [
+                      {
+                        "body_fa": "توضیح کوتاه",
+                        "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "kind": "order",
+                        "made": [
+                          "x"
+                        ],
+                        "payload": {},
+                        "reason_fa": "x",
+                        "state": "offered",
+                        "title_fa": "گزارش هفتگی رشد",
+                        "turn": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                      }
+                    ],
+                    "conversation": "x",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "n": 1,
+                    "reason_fa": "x",
+                    "say_fa": "x",
+                    "show_md": "x",
+                    "source": "typed",
+                    "state": "streaming",
+                    "text": "x",
+                    "tokens": {
+                      "cache_read": 1,
+                      "cache_write": 1,
+                      "input": 1,
+                      "output": 1
+                    },
+                    "voice": {
+                      "audio_tokens": 1,
+                      "engine": "x",
+                      "seconds": 1.0,
+                      "usd": "2.410000"
+                    }
+                  },
+                  "turn": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "audio": [
+                      {
+                        "engine": "x",
+                        "file_id": "x",
+                        "seconds": 1.0,
+                        "seq": 1
+                      }
+                    ],
+                    "by": "x",
+                    "cards": [
+                      {
+                        "body_fa": "توضیح کوتاه",
+                        "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "kind": "order",
+                        "made": [
+                          "x"
+                        ],
+                        "payload": {},
+                        "reason_fa": "x",
+                        "state": "offered",
+                        "title_fa": "گزارش هفتگی رشد",
+                        "turn": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                      }
+                    ],
+                    "conversation": "x",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "n": 1,
+                    "reason_fa": "x",
+                    "say_fa": "x",
+                    "show_md": "x",
+                    "source": "typed",
+                    "state": "streaming",
+                    "text": "x",
+                    "tokens": {
+                      "cache_read": 1,
+                      "cache_write": 1,
+                      "input": 1,
+                      "output": 1
+                    },
+                    "voice": {
+                      "audio_tokens": 1,
+                      "engine": "x",
+                      "seconds": 1.0,
+                      "usd": "2.410000"
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TalkTurnAccepted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Talk Add Turn",
+        "tags": [
+          "talk"
+        ]
+      }
+    },
+    "/api/v1/talk/personas": {
+      "get": {
+        "description": "The fixed personas (secretary, overseer, assistant, advisor) and every\nmanager already called into a conversation (role@CODE), with the voice,\nthe effort and the read tools each speaks with.",
+        "operationId": "talk_list_personas",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "brain": {
+                      "effort": "low",
+                      "task_class": "talk_turn"
+                    },
+                    "cards": [
+                      "order"
+                    ],
+                    "company": "TY",
+                    "consult_only": false,
+                    "face": "x",
+                    "key": "x",
+                    "kind": "secretary",
+                    "role": "x",
+                    "title_fa": "گزارش هفتگی رشد",
+                    "tools": [
+                      "x"
+                    ],
+                    "voice": {
+                      "engine": "x",
+                      "rate": 0.8,
+                      "voice": "x"
+                    }
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TalkPersona"
+                  },
+                  "title": "Response Talk List Personas",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Talk List Personas",
+        "tags": [
+          "talk"
+        ]
+      }
+    },
+    "/api/v1/talk/personas/{key}": {
+      "put": {
+        "description": "The owner's choice of a persona's voice, engine, rate and effort (the\ncharter is not editable here). An engine must be one of the voice layer's.",
+        "operationId": "talk_update_persona",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "effort": "low",
+                "engine": "x",
+                "rate": 0.8,
+                "voice": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/TalkPersonaIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "brain": {
+                    "effort": "low",
+                    "task_class": "talk_turn"
+                  },
+                  "cards": [
+                    "order"
+                  ],
+                  "company": "TY",
+                  "consult_only": false,
+                  "face": "x",
+                  "key": "x",
+                  "kind": "secretary",
+                  "role": "x",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "tools": [
+                    "x"
+                  ],
+                  "voice": {
+                    "engine": "x",
+                    "rate": 0.8,
+                    "voice": "x"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TalkPersona"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Talk Update Persona",
+        "tags": [
+          "talk"
+        ]
+      }
+    },
+    "/api/v1/talk/turns/{id}/events": {
+      "get": {
+        "description": "SSE of one answer (`event:` = its type, `id:` = its seq): `text` {delta}\nof show_md, `say` {seq, text} a finished spoken sentence, `audio` {seq,\nfile_id, seconds, engine}, `tool` {names} (the app plays its short local\nsound), `card` (a TalkCard), `invite` {persona, title_fa, notice_fa},\n`meter`, `error` {code, reason_fa}, `done` {state, turn}. Resumes after\n`Last-Event-ID` (or `?after`); ends after `done`; a comment line every\n15 s keeps the connection open.",
+        "operationId": "talk_turn_events",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 2147483647,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Last-Event-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last-Event-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": null,
+                "schema": {
+                  "title": "Response Talk Turn Events"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Talk Turn Events",
+        "tags": [
+          "talk"
+        ]
+      }
+    },
+    "/api/v1/talk/turns/{id}/stop": {
+      "post": {
+        "description": "Barge-in (§32.7): the owner started speaking. Generation ends within a\nmoment and sentences not yet spoken are not synthesised (not billed). A\nfinished turn answers as it is.",
+        "operationId": "talk_stop_turn",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "at": "2026-10-17T05:42:00Z",
+                  "audio": [
+                    {
+                      "engine": "x",
+                      "file_id": "x",
+                      "seconds": 1.0,
+                      "seq": 1
+                    }
+                  ],
+                  "by": "x",
+                  "cards": [
+                    {
+                      "body_fa": "توضیح کوتاه",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "kind": "order",
+                      "made": [
+                        "x"
+                      ],
+                      "payload": {},
+                      "reason_fa": "x",
+                      "state": "offered",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "turn": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                    }
+                  ],
+                  "conversation": "x",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "n": 1,
+                  "reason_fa": "x",
+                  "say_fa": "x",
+                  "show_md": "x",
+                  "source": "typed",
+                  "state": "streaming",
+                  "text": "x",
+                  "tokens": {
+                    "cache_read": 1,
+                    "cache_write": 1,
+                    "input": 1,
+                    "output": 1
+                  },
+                  "voice": {
+                    "audio_tokens": 1,
+                    "engine": "x",
+                    "seconds": 1.0,
+                    "usd": "2.410000"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TalkTurn"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Talk Stop Turn",
+        "tags": [
+          "talk"
         ]
       }
     },
