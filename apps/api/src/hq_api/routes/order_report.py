@@ -418,4 +418,8 @@ async def card_decide(
         if idem:
             await idem.store(tx, 200, result.model_dump(mode="json"))
     await workflows_client.decision_decided(ctx.hub, ref)
+    if d["kind"] == "line_publish":  # ⟨1.12⟩ the run looks again now
+        from hq_api.lines import engine as line_engine
+
+        await line_engine.wake(ctx.hub, str((d["payload"] or {}).get("run")))
     return result

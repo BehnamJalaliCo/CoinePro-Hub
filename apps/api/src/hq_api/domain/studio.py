@@ -1775,6 +1775,10 @@ async def render_done(
         ),
     )
     await events.emit(tx, item["company"], "media.item", item["ref"], {"render": "ready"})
+    if item.get("line_run_ref"):
+        # ⟨1.12⟩ a production line's render (§30.2): the line checks and
+        # publishes it itself; the studio's review and publish never take it
+        return {"state": "done", "purpose": "final", "line_run": item["line_run_ref"]}
     await advance(tx, hub, await load_item(tx, item["ref"], lock=True), "render")
     return {"state": "done", "purpose": "final"}
 

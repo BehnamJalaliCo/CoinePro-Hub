@@ -311,6 +311,10 @@ class Settings:
     # ⟨21⟩ §29.11 the working groups' routines run (the worker's tick) only once
     # the deploy switches them on, a step of its own after the checks (prompt 21)
     groups: bool = field(default_factory=lambda: _env("HQ_GROUPS", "off") == "on")
+    # ⟨1.12⟩ §30.3 the production lines' tick (a run for each schedule due, the
+    # 24h / 7d reads) runs only once the deploy switches it on (prompt 22); the
+    # owner's own runs from the app go on either way
+    lines: bool = field(default_factory=lambda: _env("HQ_LINES", "off") == "on")
     tts_voice: str = field(default_factory=lambda: _env("HQ_TTS_VOICE", "fa_IR-amir-medium"))
     # The deploy card's diff (§21.6): fetched with the hub's existing git access
     # (a workspace's token in OpenBao) into mirrors under this directory; the
