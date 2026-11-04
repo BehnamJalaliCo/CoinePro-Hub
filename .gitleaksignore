@@ -35,3 +35,4 @@ f86f63045b68a1737d15e998046cd2a088813603:services/provisioner/tests/test_app_vau
 553e1b777a77aab6197b35b27ace58aef9bb83e0:apps/android/app/src/test/java/com/coinepro/hq/ErrorLogTest.kt:generic-api-key:60
 # the OpenBao path of the newsletter's API user (a path, not a secret)
 443836a7d50f0fbcb23ab1e1b67759aa2097141e:apps/api/src/hq_api/domain/newsletter.py:generic-api-key:42
+/scan/apps/api/src/hq_api/domain/newsletter.py:generic-api-key:42
