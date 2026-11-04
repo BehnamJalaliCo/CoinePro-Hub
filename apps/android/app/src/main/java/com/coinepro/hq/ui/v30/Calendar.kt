@@ -119,7 +119,7 @@ fun DayCard(d: CalendarDay, onOpen: (CalendarItem) -> Unit) {
                     Modifier.fillMaxWidth().clickable(role = Role.Button) { onOpen(x) }.padding(vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Text(plain(jTime(x.at)), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary, modifier = Modifier.width(44.dp))
+                    Text(com.coinepro.hq.designsystem.timesFig(jTime(x.at)), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary, modifier = Modifier.width(44.dp))
                     DIcon(platformIcon(x.platform), size = 18.dp, tint = c.textSecondary)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(plain(x.titleFa ?: platformFa(x.platform)), style = Divan.type.small, maxLines = 2)

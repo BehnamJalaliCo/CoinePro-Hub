@@ -184,7 +184,7 @@ fun AutomationCard(a: GrowthAutomation) {
                 val runs = (detail.data ?: a).runList
                 if (runs.isEmpty()) Text("هنوز اجرایی نبوده.", style = Divan.type.caption, color = c.textMuted)
                 for (r in runs) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(plain(jDateTime(r.at)), style = Divan.type.micro, color = c.textMuted)
+                    Text(com.coinepro.hq.designsystem.timesFig(jDateTime(r.at)), style = Divan.type.micro, color = c.textMuted)
                     Pill(lineRunStateFa(r.state), lineRunStateTone(r.state), dot = true)
                     if (r.noteFa.isNotBlank()) Text(plain(r.noteFa), style = Divan.type.caption, color = c.textSecondary, modifier = Modifier.weight(1f), maxLines = 2)
                 }
