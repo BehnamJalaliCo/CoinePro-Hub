@@ -117,7 +117,7 @@ class RerunIn(Model):
     from_step: str = Field(pattern=KEY)
 
 
-class SealIn(Model):
+class LineSealIn(Model):
     approve: bool
     note_fa: str | None = Field(default=None, max_length=1000)
 
@@ -146,7 +146,7 @@ class StepTestOut(BaseModel):
     error_fa: str | None
 
 
-class CalendarItem(BaseModel):
+class LineCalendarItem(BaseModel):
     line: str
     company: str
     platform: str
@@ -157,10 +157,10 @@ class CalendarItem(BaseModel):
 
 class CalendarDay(BaseModel):
     day: date
-    items: list[CalendarItem]
+    items: list[LineCalendarItem]
 
 
-class Calendar(BaseModel):
+class LineCalendar(BaseModel):
     days: list[CalendarDay]
 
 
@@ -178,7 +178,7 @@ class AssetPut(Model):
     files: list[UUID] | None = Field(default=None, max_length=100)
 
 
-class Voice(BaseModel):
+class TtsVoice(BaseModel):
     name: str
     title_fa: str
     gender: str | None = None
@@ -250,15 +250,15 @@ async def _changed(
 
 
 # --------------------------------------------------------------- templates --
-@router.get("/line-templates", response_model=list[T.Template], responses=E)
-async def list_line_templates(ctx: Ctx = Depends(owner_ctx)) -> list[T.Template]:
+@router.get("/line-templates", response_model=list[T.LineTemplate], responses=E)
+async def list_line_templates(ctx: Ctx = Depends(owner_ctx)) -> list[T.LineTemplate]:
     """§30.1 every line template (seed/lines/*.yaml): its steps, defaults and
     what it makes. A file that does not hold together is left out."""
     return sorted(T.load().values(), key=lambda t: t.key)
 
 
-@router.get("/line-templates/{key}", response_model=T.Template, responses=E)
-async def get_line_template(key: str, ctx: Ctx = Depends(owner_ctx)) -> T.Template:
+@router.get("/line-templates/{key}", response_model=T.LineTemplate, responses=E)
+async def get_line_template(key: str, ctx: Ctx = Depends(owner_ctx)) -> T.LineTemplate:
     """One line template with its steps and their starting prompts."""
     return T.get(key)
 
@@ -455,9 +455,9 @@ async def copy_line(ref: str, body: CopyIn, request: Request, ctx: Ctx = Depends
     return res
 
 
-def _stub(row: dict[str, Any]) -> T.Template:
+def _stub(row: dict[str, Any]) -> T.LineTemplate:
     """A line whose template file is gone still copies (its own body)."""
-    return T.Template.model_validate(
+    return T.LineTemplate.model_validate(
         {
             "key": row["template"],
             "title_fa": row["title_fa"],
@@ -478,11 +478,11 @@ async def get_line_insights(ref: str, ctx: Ctx = Depends(owner_ctx)) -> store.In
 
 
 # -------------------------------------------------------------------- runs --
-async def _run_out(tx: Any, ref: str) -> store.Run:
+async def _run_out(tx: Any, ref: str) -> store.LineRunOut:
     return await store.render_run(tx, await store.load_run(tx, ref))
 
 
-@router.post("/lines/{ref}/runs", response_model=store.Run, status_code=201, responses=E)
+@router.post("/lines/{ref}/runs", response_model=store.LineRunOut, status_code=201, responses=E)
 async def start_line_run(
     ref: str, body: RunIn, request: Request, ctx: Ctx = Depends(owner_ctx)
 ) -> Any:
@@ -538,13 +538,13 @@ async def run_line_step_test(
         raise ApiError(503, "channel_not_configured", "the step could not run now") from exc
 
 
-@router.get("/lines/{ref}/runs", response_model=Page[store.Run], responses=E)
+@router.get("/lines/{ref}/runs", response_model=Page[store.LineRunOut], responses=E)
 async def list_line_runs(
     ref: str,
     limit: int = Query(default=20, ge=1, le=100),
     cursor: str | None = None,
     ctx: Ctx = Depends(owner_ctx),
-) -> Page[store.Run]:
+) -> Page[store.LineRunOut]:
     """The line's runs, newest first, each step by step with its output."""
     c0, c1 = pagination.time_id(cursor)
     async with ctx.tx() as tx:
@@ -563,15 +563,17 @@ async def list_line_runs(
         return Page(items=[await _run_out(tx, r["ref"]) for r in items], next_cursor=nxt)
 
 
-@router.get("/line-runs/{ref}", response_model=store.Run, responses=E)
-async def get_line_run(ref: str, ctx: Ctx = Depends(owner_ctx)) -> store.Run:
+@router.get("/line-runs/{ref}", response_model=store.LineRunOut, responses=E)
+async def get_line_run(ref: str, ctx: Ctx = Depends(owner_ctx)) -> store.LineRunOut:
     """One run, step by step: each output (text, files, data), the tool that
     answered, tokens, the reason of a failure, the card it waits on."""
     async with ctx.tx() as tx:
         return await _run_out(tx, ref)
 
 
-@router.post("/line-runs/{ref}/rerun", response_model=store.Run, status_code=201, responses=E)
+@router.post(
+    "/line-runs/{ref}/rerun", response_model=store.LineRunOut, status_code=201, responses=E
+)
 async def rerun_line_run(
     ref: str, body: RerunIn, request: Request, ctx: Ctx = Depends(owner_ctx)
 ) -> Any:
@@ -605,10 +607,10 @@ async def rerun_line_run(
     return out
 
 
-@router.post("/line-runs/{ref}/seal", response_model=store.Run, responses=E)
+@router.post("/line-runs/{ref}/seal", response_model=store.LineRunOut, responses=E)
 async def seal_line_run(
-    ref: str, body: SealIn, request: Request, ctx: Ctx = Depends(owner_ctx)
-) -> store.Run:
+    ref: str, body: LineSealIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+) -> store.LineRunOut:
     """The owner's seal on the step the run waits at (its `line_publish`
     card, A3): approving needs 🔏 `decision.approve` on the card's ref and
     lets the run go on; rejecting ends it with the note."""
@@ -651,8 +653,8 @@ async def seal_line_run(
     return out
 
 
-@router.post("/line-runs/{ref}/cancel", response_model=store.Run, responses=E)
-async def cancel_line_run(ref: str, ctx: Ctx = Depends(owner_ctx)) -> store.Run:
+@router.post("/line-runs/{ref}/cancel", response_model=store.LineRunOut, responses=E)
+async def cancel_line_run(ref: str, ctx: Ctx = Depends(owner_ctx)) -> store.LineRunOut:
     """Stops the run before its next step (its open card withdrawn)."""
     async with ctx.tx() as tx:
         run = await store.load_run(tx, ref, lock=True)
@@ -668,13 +670,13 @@ async def cancel_line_run(ref: str, ctx: Ctx = Depends(owner_ctx)) -> store.Run:
 
 
 # ---------------------------------------------------------------- calendar --
-@router.get("/calendar/lines", response_model=Calendar, responses=E)
+@router.get("/calendar/lines", response_model=LineCalendar, responses=E)
 async def line_calendar(
     from_: date | None = Query(default=None, alias="from"),
     to: date | None = None,
     company: str | None = Query(default=None, pattern=CODE),
     ctx: Ctx = Depends(owner_ctx),
-) -> Calendar:
+) -> LineCalendar:
     """Each day's planned runs of every `on` line (by its schedule, the
     owner's zone) and the runs already made; at most 62 days."""
     co = (await ctx.hub.companies.by_code(company)).id if company else None
@@ -691,7 +693,7 @@ async def line_calendar(
             UTC
         ) + timedelta(days=1)
         days = await store.calendar(tx, start, end, tz, co)
-    return Calendar.model_validate({"days": days})
+    return LineCalendar.model_validate({"days": days})
 
 
 # ----------------------------------------------------------------- library --
@@ -799,8 +801,8 @@ async def delete_library_asset(id: UUID, ctx: Ctx = Depends(owner_ctx)) -> Respo
     return Response(status_code=204)
 
 
-@router.get("/tts/voices", response_model=list[Voice], responses=E)
-async def list_tts_voices(ctx: Ctx = Depends(owner_ctx)) -> list[Voice]:
+@router.get("/tts/voices", response_model=list[TtsVoice], responses=E)
+async def list_tts_voices(ctx: Ctx = Depends(owner_ctx)) -> list[TtsVoice]:
     """The speakers the tts step can use (as AI Studio offers them), cached a
     day; empty until the tts adapter can read them."""
     if _voices["items"] and time.monotonic() - float(_voices["at"]) < VOICES_TTL_S:
@@ -810,7 +812,7 @@ async def list_tts_voices(ctx: Ctx = Depends(owner_ctx)) -> list[Voice]:
     if read is None:
         return []
     try:
-        got = [Voice.model_validate(v) for v in await read(ctx.hub)]
+        got = [TtsVoice.model_validate(v) for v in await read(ctx.hub)]
     except Exception:  # noqa: BLE001 - the list is a convenience; the step says why it fails
         return list(_voices["items"])
     _voices.update(at=time.monotonic(), items=got)

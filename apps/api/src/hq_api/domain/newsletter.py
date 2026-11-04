@@ -85,14 +85,14 @@ class NewsletterOut(BaseModel):
     note_fa: str | None = None
 
 
-class CampaignIn(BaseModel):
+class NewsletterCampaignIn(BaseModel):
     subject: str = Field(min_length=1, max_length=300)
     body: str = Field(min_length=1, max_length=200_000)
     content_type: Literal["richtext", "html", "markdown", "plain"] = "html"
     list_id: UUID | None = None
 
 
-class ScheduleIn(BaseModel):
+class NewsletterScheduleIn(BaseModel):
     at: AwareDatetime
 
 
@@ -324,7 +324,9 @@ async def overview(hub: Any, tx: Tx, company: Any) -> NewsletterOut:
     )
 
 
-async def create_campaign(hub: Any, tx: Tx, company: Any, body: CampaignIn) -> CampaignOut:
+async def create_campaign(
+    hub: Any, tx: Tx, company: Any, body: NewsletterCampaignIn
+) -> CampaignOut:
     """A draft in Listmonk for one of the company's lists (its first when none is named)."""
     lm = await client_for(hub)
     if body.list_id is not None:

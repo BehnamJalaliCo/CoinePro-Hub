@@ -948,7 +948,7 @@ async def test_ad_rules_and_resuming_are_the_owners_with_a_seal_where_it_loosens
     eg.fail_mutate = True
     su_h = await step_up(hub, sid, "ads.resume", f"google_ads:{cid}")
     refused = await client.post(url, headers={**h, **su_h})
-    assert refused.status_code == 422 and H.is_persian_answer(refused.json()["message_fa"])
+    assert refused.status_code == 502 and H.is_persian_answer(refused.json()["message_fa"])
     assert (await su.fetchval("SELECT status FROM growth.ad_campaigns WHERE company_id = $1 AND "
                               "campaign_id = $2", co["id"], cid)) == "paused"  # fmt: skip
     eg.fail_mutate = False

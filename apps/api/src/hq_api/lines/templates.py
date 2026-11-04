@@ -74,7 +74,7 @@ class Defaults(BaseModel):
     insights: InsightsDefaults = Field(default_factory=InsightsDefaults)
 
 
-class Template(BaseModel):
+class LineTemplate(BaseModel):
     key: str = Field(pattern=KEY.pattern)
     title_fa: str = Field(min_length=1, max_length=200)
     platform: str = Field(pattern=KEY.pattern)
@@ -108,16 +108,16 @@ def check_schedule(rule: str | None) -> None:
         recurrence.parse(rule)  # ApiError on a rule the calendar cannot hold
 
 
-def validate(data: dict[str, Any]) -> Template:
-    t = Template.model_validate(data)
+def validate(data: dict[str, Any]) -> LineTemplate:
+    t = LineTemplate.model_validate(data)
     check_steps(t.steps)
     check_schedule(t.defaults.schedule)
     return t
 
 
-def load_dir(root: Path) -> tuple[dict[str, Template], list[str]]:
+def load_dir(root: Path) -> tuple[dict[str, LineTemplate], list[str]]:
     """Every template of one directory, and each refused file with its reason."""
-    out: dict[str, Template] = {}
+    out: dict[str, LineTemplate] = {}
     refused: list[str] = []
     for p in sorted(root.glob("*.yaml")) if root.is_dir() else []:
         if p.name in NOT_TEMPLATES:
@@ -146,8 +146,8 @@ def load_dir(root: Path) -> tuple[dict[str, Template], list[str]]:
 
 
 @lru_cache(maxsize=4)
-def _load(dirs: tuple[Path, ...]) -> tuple[dict[str, Template], tuple[str, ...]]:
-    found: dict[str, Template] = {}
+def _load(dirs: tuple[Path, ...]) -> tuple[dict[str, LineTemplate], tuple[str, ...]]:
+    found: dict[str, LineTemplate] = {}
     refused: list[str] = []
     for d in dirs:
         got, bad = load_dir(d)
@@ -162,7 +162,7 @@ def use_dirs(*dirs: Path) -> None:
     _extra_dirs = tuple(dirs)
 
 
-def load() -> dict[str, Template]:
+def load() -> dict[str, LineTemplate]:
     return _load((SEED_DIR, *_extra_dirs))[0]
 
 
@@ -170,7 +170,7 @@ def refused() -> tuple[str, ...]:
     return _load((SEED_DIR, *_extra_dirs))[1]
 
 
-def get(key: str) -> Template:
+def get(key: str) -> LineTemplate:
     t = load().get(key)
     if t is None:
         raise ApiError(404, "not_found", f"no line template {key}")

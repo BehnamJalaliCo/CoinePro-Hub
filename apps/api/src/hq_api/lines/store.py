@@ -111,7 +111,7 @@ class StepRun(BaseModel):
     missing: list[str]
 
 
-class Cost(BaseModel):
+class LineCost(BaseModel):
     tokens: int
     usd_equiv: Decimal
 
@@ -129,7 +129,7 @@ class Metrics(BaseModel):
     d7: dict[str, Any] | None = None
 
 
-class Run(BaseModel):
+class LineRunOut(BaseModel):
     ref: str
     line: str
     company: str
@@ -142,7 +142,7 @@ class Run(BaseModel):
     at: datetime
     ended_at: datetime | None
     steps: list[StepRun]
-    cost: Cost
+    cost: LineCost
     published: list[Published]
     metrics: Metrics
     note_fa: str | None
@@ -293,7 +293,7 @@ async def insert_line(
     who: Principal,
     *,
     company_id: UUID,
-    template: T.Template,
+    template: T.LineTemplate,
     platform: str,
     channel: dict[str, Any],
     title_fa: str,
@@ -507,12 +507,12 @@ def render_step(s: dict[str, Any], title_fa: str) -> StepRun:
     )
 
 
-async def render_run(tx: Tx, r: dict[str, Any]) -> Run:
+async def render_run(tx: Tx, r: dict[str, Any]) -> LineRunOut:
     body = await version_body(tx, r["line_id"], r["line_version"])
     titles = step_titles(body)
     steps = [render_step(s, titles.get(s["key"], s["key"])) for s in await step_rows(tx, r["id"])]
     m = r["metrics"] or {}
-    return Run(
+    return LineRunOut(
         ref=r["ref"],
         line=r["line_ref"],
         company=r["company"],
@@ -525,7 +525,7 @@ async def render_run(tx: Tx, r: dict[str, Any]) -> Run:
         at=r["at"],
         ended_at=r["ended_at"],
         steps=steps,
-        cost=Cost(tokens=int(r["tokens"]), usd_equiv=Decimal(r["usd_equiv"])),
+        cost=LineCost(tokens=int(r["tokens"]), usd_equiv=Decimal(r["usd_equiv"])),
         published=[Published.model_validate(p) for p in r["published"] or []],
         metrics=Metrics(h24=m.get("h24"), d7=m.get("d7")),
         note_fa=r["note_fa"],

@@ -1,7 +1,7 @@
 """One campaign calendar (contract §31.5 ⟨1.13⟩).
 
 `GET /campaign-calendar` merges what is planned to go out, from every source, into
-one list of `CalendarItem`s and marks the conflicts by code:
+one list of `CampaignCalendarItem`s and marks the conflicts by code:
 
   line         the production lines' runs (§30). Read lazily: if the engine's tables are
                not there (or look different), the source is skipped, never an error
@@ -41,7 +41,7 @@ CAMPAIGN_STATES = "^(planned|running|done|cancelled)$"
 LINE_SKIP = ("cancelled", "skipped")
 
 
-class CalendarItem(Model):
+class CampaignCalendarItem(Model):
     day: date
     at: datetime | None
     company: str
@@ -61,7 +61,7 @@ class HolidayDay(Model):
 class CampaignCalendar(Model):
     start: date = Field(serialization_alias="from")
     to: date
-    items: list[CalendarItem]
+    items: list[CampaignCalendarItem]
     holidays: list[HolidayDay]
 
 
@@ -150,13 +150,13 @@ def check_window(start: date, to: date) -> None:
 
 
 def mark_conflicts(
-    items: list[CalendarItem], spacing_min: int, holidays: dict[date, list[str]]
+    items: list[CampaignCalendarItem], spacing_min: int, holidays: dict[date, list[str]]
 ) -> None:
     """Fill `conflict_fa` in place. Spacing: items of one company and platform with a
     time, closer than `spacing_min`; both are marked. Holiday: any item that publishes
     (not a campaign's span) on a holiday."""
     gap = timedelta(minutes=spacing_min)
-    groups: dict[tuple[str, str], list[CalendarItem]] = {}
+    groups: dict[tuple[str, str], list[CampaignCalendarItem]] = {}
     for it in items:
         if it.at is not None and it.platform and it.kind != "campaign" and it.state != "cancelled":
             groups.setdefault((it.company, it.platform), []).append(it)
@@ -175,7 +175,8 @@ def mark_conflicts(
 
 # ------------------------------------------------------------ the sources --
 Source = Callable[
-    [Tx, datetime, datetime, str, UUID | None, dict[UUID, str]], Awaitable[list[CalendarItem]]
+    [Tx, datetime, datetime, str, UUID | None, dict[UUID, str]],
+    Awaitable[list[CampaignCalendarItem]],
 ]
 
 
@@ -189,7 +190,7 @@ async def _optional(tx: Tx, table: str) -> bool:
 
 async def _manual(
     tx: Tx, lo: datetime, hi: datetime, tz: str, co: UUID | None, codes: dict[UUID, str]
-) -> list[CalendarItem]:
+) -> list[CampaignCalendarItem]:
     rows = await tx.all(
         "SELECT * FROM growth.calendar_manual WHERE day BETWEEN :a AND :b "
         "AND (CAST(:co AS uuid) IS NULL OR company_id = :co)",
@@ -198,7 +199,7 @@ async def _manual(
         co=co,
     )
     return [
-        CalendarItem(
+        CampaignCalendarItem(
             day=r["day"],
             at=r["at"],
             company=codes.get(r["company_id"], "-"),
@@ -214,7 +215,7 @@ async def _manual(
 
 async def _campaigns(
     tx: Tx, lo: datetime, hi: datetime, tz: str, co: UUID | None, codes: dict[UUID, str]
-) -> list[CalendarItem]:
+) -> list[CampaignCalendarItem]:
     a, b = _day(lo, tz), _day(hi, tz)
     rows = await tx.all(
         "SELECT * FROM growth.campaigns WHERE starts <= :b AND ends >= :a "
@@ -224,7 +225,7 @@ async def _campaigns(
         co=co,
     )
     return [
-        CalendarItem(
+        CampaignCalendarItem(
             day=max(r["starts"], a),
             at=None,
             company=codes.get(r["company_id"], "-"),
@@ -240,7 +241,7 @@ async def _campaigns(
 
 async def _newsletters(
     tx: Tx, lo: datetime, hi: datetime, tz: str, co: UUID | None, codes: dict[UUID, str]
-) -> list[CalendarItem]:
+) -> list[CampaignCalendarItem]:
     rows = await tx.all(
         "SELECT * FROM growth.newsletter_campaigns WHERE send_at >= :lo AND send_at < :hi "
         "AND (CAST(:co AS uuid) IS NULL OR company_id = :co)",
@@ -249,7 +250,7 @@ async def _newsletters(
         co=co,
     )
     return [
-        CalendarItem(
+        CampaignCalendarItem(
             day=_day(r["send_at"], tz),
             at=r["send_at"],
             company=codes.get(r["company_id"], "-"),
@@ -265,7 +266,7 @@ async def _newsletters(
 
 async def _lines(
     tx: Tx, lo: datetime, hi: datetime, tz: str, co: UUID | None, codes: dict[UUID, str]
-) -> list[CalendarItem]:
+) -> list[CampaignCalendarItem]:
     """The production lines (§30): the engine's own calendar (every `on` line's planned
     occurrences and the runs made), imported lazily. Without the engine (no module, no
     tables) or if it answers in another shape, the source gives nothing, never an error."""
@@ -288,7 +289,7 @@ async def _lines(
                 if str(it["state"]) in LINE_SKIP:
                     continue
                 out.append(
-                    CalendarItem(
+                    CampaignCalendarItem(
                         day=_day(it["at"], tz),
                         at=it["at"],
                         company=str(it["company"]),
@@ -310,7 +311,7 @@ async def _lines(
 
 async def _ads(
     tx: Tx, lo: datetime, hi: datetime, tz: str, co: UUID | None, codes: dict[UUID, str]
-) -> list[CalendarItem]:
+) -> list[CampaignCalendarItem]:
     """Ad campaigns that spent in the window (the ads part's growth.ad_daily, with the
     name and status of growth.ad_campaigns when that table is there), optional."""
     if not await _optional(tx, "growth.ad_daily"):
@@ -338,7 +339,7 @@ async def _ads(
         log.info("the ads tables look different; the ad source is skipped", exc_info=True)
         return []
     return [
-        CalendarItem(
+        CampaignCalendarItem(
             day=r["first_day"],
             at=None,
             company=codes.get(r["company_id"], "-"),
@@ -365,7 +366,7 @@ async def build(
     hi = datetime.combine(to + timedelta(days=1), datetime.min.time(), z).astimezone(UTC)
     codes = {r["id"]: r["code"] for r in await tx.all("SELECT id, code FROM core.companies")}
     co = company.id if company is not None else None
-    items: list[CalendarItem] = []
+    items: list[CampaignCalendarItem] = []
     for src in SOURCES:
         items.extend(await src(tx, lo, hi, tz, co, codes))
     holidays = {d: t for d, t in GC.load_holidays().items() if start <= d <= to}

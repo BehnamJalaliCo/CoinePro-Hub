@@ -93,8 +93,8 @@ def item(
     company: str = "AA",
     ref: str = "x",
     state: str = "planned",
-) -> CP.CalendarItem:
-    return CP.CalendarItem(
+) -> CP.CampaignCalendarItem:
+    return CP.CampaignCalendarItem(
         day=day or (at or NOW).date(),
         at=at,
         company=company,

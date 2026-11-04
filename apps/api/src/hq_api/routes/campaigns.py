@@ -189,9 +189,11 @@ async def delete_growth_campaign(campaign_id: UUID, ctx: Ctx = Depends(owner_ctx
 
 # ---------------------------------------------------------- manual items --
 @router.post(
-    "/campaign-calendar/items", response_model=CP.CalendarItem, status_code=201, responses=E
+    "/campaign-calendar/items", response_model=CP.CampaignCalendarItem, status_code=201, responses=E
 )
-async def create_calendar_item(body: CP.ManualIn, ctx: Ctx = Depends(owner_ctx)) -> CP.CalendarItem:
+async def create_calendar_item(
+    body: CP.ManualIn, ctx: Ctx = Depends(owner_ctx)
+) -> CP.CampaignCalendarItem:
     """An item of the owner's own on the calendar (a post he will make himself, a deadline)."""
     company = await ctx.hub.companies.by_code(body.company)
     async with ctx.tx() as tx:
@@ -214,8 +216,8 @@ async def create_calendar_item(body: CP.ManualIn, ctx: Ctx = Depends(owner_ctx))
     return _manual_out(company.code, dict(r))
 
 
-def _manual_out(code: str, r: dict[str, Any]) -> CP.CalendarItem:
-    return CP.CalendarItem(
+def _manual_out(code: str, r: dict[str, Any]) -> CP.CampaignCalendarItem:
+    return CP.CampaignCalendarItem(
         day=r["day"],
         at=r["at"],
         company=code,
@@ -227,10 +229,12 @@ def _manual_out(code: str, r: dict[str, Any]) -> CP.CalendarItem:
     )
 
 
-@router.put("/campaign-calendar/items/{item_id}", response_model=CP.CalendarItem, responses=E)
+@router.put(
+    "/campaign-calendar/items/{item_id}", response_model=CP.CampaignCalendarItem, responses=E
+)
 async def update_calendar_item(
     item_id: UUID, body: CP.ManualPut, ctx: Ctx = Depends(owner_ctx)
-) -> CP.CalendarItem:
+) -> CP.CampaignCalendarItem:
     """Move, rename or mark an item done or cancelled."""
     fields = body.model_dump(exclude_unset=True)
     if not fields:

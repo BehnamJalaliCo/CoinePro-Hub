@@ -5317,7 +5317,7 @@
           "voice": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/hq_api__routes__mgmt__Voice"
+                "$ref": "#/components/schemas/Voice"
               },
               {
                 "type": "null"
@@ -5710,6 +5710,30 @@
         "title": "ByRisk",
         "type": "object"
       },
+      "Calendar": {
+        "properties": {
+          "conflicts": {
+            "items": {
+              "$ref": "#/components/schemas/CalendarConflict"
+            },
+            "title": "Conflicts",
+            "type": "array"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/CalendarEvent"
+            },
+            "title": "Events",
+            "type": "array"
+          }
+        },
+        "required": [
+          "events",
+          "conflicts"
+        ],
+        "title": "Calendar",
+        "type": "object"
+      },
       "CalendarConflict": {
         "properties": {
           "a": {
@@ -5756,7 +5780,7 @@
           },
           "items": {
             "items": {
-              "$ref": "#/components/schemas/hq_api__routes__lines__CalendarItem"
+              "$ref": "#/components/schemas/LineCalendarItem"
             },
             "title": "Items",
             "type": "array"
@@ -6540,7 +6564,7 @@
           },
           "items": {
             "items": {
-              "$ref": "#/components/schemas/hq_api__domain__campaigns__CalendarItem"
+              "$ref": "#/components/schemas/CampaignCalendarItem"
             },
             "title": "Items",
             "type": "array"
@@ -6558,6 +6582,155 @@
           "holidays"
         ],
         "title": "CampaignCalendar",
+        "type": "object"
+      },
+      "CampaignCalendarItem": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "conflict_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conflict Fa"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "line",
+              "newsletter",
+              "ad",
+              "campaign",
+              "manual"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "day",
+          "at",
+          "company",
+          "kind",
+          "ref",
+          "title_fa",
+          "platform",
+          "state"
+        ],
+        "title": "CampaignCalendarItem",
+        "type": "object"
+      },
+      "CampaignIn": {
+        "additionalProperties": false,
+        "properties": {
+          "budget": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget"
+          },
+          "channels": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Channels",
+            "type": "array"
+          },
+          "company": {
+            "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+            "title": "Company",
+            "type": "string"
+          },
+          "ends": {
+            "format": "date",
+            "title": "Ends",
+            "type": "string"
+          },
+          "goal_fa": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Goal Fa",
+            "type": "string"
+          },
+          "starts": {
+            "format": "date",
+            "title": "Starts",
+            "type": "string"
+          },
+          "state": {
+            "default": "planned",
+            "pattern": "^(planned|running|done|cancelled)$",
+            "title": "State",
+            "type": "string"
+          },
+          "title_fa": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "company",
+          "title_fa",
+          "starts",
+          "ends"
+        ],
+        "title": "CampaignIn",
         "type": "object"
       },
       "CampaignOut": {
@@ -10716,6 +10889,25 @@
           "company"
         ],
         "title": "CopyIn",
+        "type": "object"
+      },
+      "Cost": {
+        "properties": {
+          "tokens": {
+            "title": "Tokens",
+            "type": "integer"
+          },
+          "usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Usd",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tokens",
+          "usd"
+        ],
+        "title": "Cost",
         "type": "object"
       },
       "Council": {
@@ -23541,6 +23733,87 @@
         "title": "Line",
         "type": "object"
       },
+      "LineCalendar": {
+        "properties": {
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/CalendarDay"
+            },
+            "title": "Days",
+            "type": "array"
+          }
+        },
+        "required": [
+          "days"
+        ],
+        "title": "LineCalendar",
+        "type": "object"
+      },
+      "LineCalendarItem": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "line": {
+            "title": "Line",
+            "type": "string"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "run": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "line",
+          "company",
+          "platform",
+          "at",
+          "state",
+          "run"
+        ],
+        "title": "LineCalendarItem",
+        "type": "object"
+      },
+      "LineCost": {
+        "properties": {
+          "tokens": {
+            "title": "Tokens",
+            "type": "integer"
+          },
+          "usd_equiv": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Usd Equiv",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tokens",
+          "usd_equiv"
+        ],
+        "title": "LineCost",
+        "type": "object"
+      },
       "LineIn": {
         "additionalProperties": false,
         "properties": {
@@ -23690,6 +23963,245 @@
           }
         },
         "title": "LinePut",
+        "type": "object"
+      },
+      "LineRunOut": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "cost": {
+            "$ref": "#/components/schemas/LineCost"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision"
+          },
+          "dry": {
+            "title": "Dry",
+            "type": "boolean"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "from_step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Step"
+          },
+          "line": {
+            "title": "Line",
+            "type": "string"
+          },
+          "line_version": {
+            "title": "Line Version",
+            "type": "integer"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/Metrics"
+          },
+          "note_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Fa"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "published": {
+            "items": {
+              "$ref": "#/components/schemas/Published"
+            },
+            "title": "Published",
+            "type": "array"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "rerun_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rerun Of"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "running",
+              "waiting",
+              "done",
+              "failed",
+              "skipped",
+              "cancelled"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/StepRun"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "trigger": {
+            "enum": [
+              "schedule",
+              "owner",
+              "test",
+              "n8n",
+              "group"
+            ],
+            "title": "Trigger",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "line",
+          "company",
+          "title_fa",
+          "platform",
+          "line_version",
+          "trigger",
+          "dry",
+          "state",
+          "at",
+          "ended_at",
+          "steps",
+          "cost",
+          "published",
+          "metrics",
+          "note_fa",
+          "decision",
+          "rerun_of",
+          "from_step"
+        ],
+        "title": "LineRunOut",
+        "type": "object"
+      },
+      "LineSealIn": {
+        "additionalProperties": false,
+        "properties": {
+          "approve": {
+            "title": "Approve",
+            "type": "boolean"
+          },
+          "note_fa": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Fa"
+          }
+        },
+        "required": [
+          "approve"
+        ],
+        "title": "LineSealIn",
+        "type": "object"
+      },
+      "LineTemplate": {
+        "properties": {
+          "defaults": {
+            "$ref": "#/components/schemas/Defaults"
+          },
+          "key": {
+            "pattern": "^[a-z][a-z0-9_]{1,40}$",
+            "title": "Key",
+            "type": "string"
+          },
+          "outputs_fa": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Outputs Fa",
+            "type": "array"
+          },
+          "platform": {
+            "pattern": "^[a-z][a-z0-9_]{1,40}$",
+            "title": "Platform",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/StepDef"
+            },
+            "maxItems": 40,
+            "minItems": 1,
+            "title": "Steps",
+            "type": "array"
+          },
+          "title_fa": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "title_fa",
+          "platform",
+          "version",
+          "steps"
+        ],
+        "title": "LineTemplate",
         "type": "object"
       },
       "LineVersion": {
@@ -24936,7 +25448,7 @@
             ]
           },
           "cost": {
-            "$ref": "#/components/schemas/hq_api__routes__media__Cost"
+            "$ref": "#/components/schemas/Cost"
           },
           "created_at": {
             "format": "date-time",
@@ -27815,6 +28327,51 @@
         "title": "NetworkNode",
         "type": "object"
       },
+      "NewsletterCampaignIn": {
+        "properties": {
+          "body": {
+            "maxLength": 200000,
+            "minLength": 1,
+            "title": "Body",
+            "type": "string"
+          },
+          "content_type": {
+            "default": "html",
+            "enum": [
+              "richtext",
+              "html",
+              "markdown",
+              "plain"
+            ],
+            "title": "Content Type",
+            "type": "string"
+          },
+          "list_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "List Id"
+          },
+          "subject": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Subject",
+            "type": "string"
+          }
+        },
+        "required": [
+          "subject",
+          "body"
+        ],
+        "title": "NewsletterCampaignIn",
+        "type": "object"
+      },
       "NewsletterList": {
         "properties": {
           "id": {
@@ -27898,6 +28455,20 @@
           "campaigns"
         ],
         "title": "NewsletterOut",
+        "type": "object"
+      },
+      "NewsletterScheduleIn": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "at"
+        ],
+        "title": "NewsletterScheduleIn",
         "type": "object"
       },
       "NoteIn": {
@@ -30875,6 +31446,33 @@
         "title": "Page[Lesson]",
         "type": "object"
       },
+      "Page_LineRunOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LineRunOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[LineRunOut]",
+        "type": "object"
+      },
       "Page_MediaItem_": {
         "properties": {
           "items": {
@@ -31224,6 +31822,33 @@
           "items"
         ],
         "title": "Page[RoutineRun]",
+        "type": "object"
+      },
+      "Page_Run_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Run"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[Run]",
         "type": "object"
       },
       "Page_ScoreRow_": {
@@ -38088,6 +38713,212 @@
         "title": "RuleIn",
         "type": "object"
       },
+      "Run": {
+        "properties": {
+          "addenda": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Addenda",
+            "type": "array"
+          },
+          "charter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charter"
+          },
+          "charter_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charter Version"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "cost_usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Cost Usd",
+            "type": "string"
+          },
+          "effort": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effort"
+          },
+          "employee": {
+            "title": "Employee",
+            "type": "string"
+          },
+          "equiv_cost_usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Equiv Cost Usd",
+            "type": "string"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "partial": {
+            "title": "Partial",
+            "type": "boolean"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "string"
+          },
+          "queued_at": {
+            "format": "date-time",
+            "title": "Queued At",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Skills",
+            "type": "array"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "steps": {
+            "title": "Steps",
+            "type": "integer"
+          },
+          "thread": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread"
+          },
+          "tokens": {
+            "$ref": "#/components/schemas/hq_api__routes__runs__RunTokens"
+          },
+          "tool_calls": {
+            "title": "Tool Calls",
+            "type": "integer"
+          },
+          "trigger": {
+            "title": "Trigger",
+            "type": "string"
+          },
+          "work_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Ref"
+          }
+        },
+        "required": [
+          "id",
+          "employee",
+          "company",
+          "work_ref",
+          "thread",
+          "trigger",
+          "reason",
+          "state",
+          "priority",
+          "model",
+          "effort",
+          "started_at",
+          "finished_at",
+          "queued_at",
+          "steps",
+          "tool_calls",
+          "tokens",
+          "equiv_cost_usd",
+          "cost_usd",
+          "charter_version",
+          "charter",
+          "partial",
+          "error_code"
+        ],
+        "title": "Run",
+        "type": "object"
+      },
       "RunBrief": {
         "properties": {
           "at": {
@@ -38469,6 +39300,28 @@
         "title": "Schedule",
         "type": "object"
       },
+      "ScheduleIn": {
+        "additionalProperties": false,
+        "properties": {
+          "rrule": {
+            "maxLength": 500,
+            "minLength": 5,
+            "title": "Rrule",
+            "type": "string"
+          },
+          "timezone": {
+            "default": "Asia/Tehran",
+            "maxLength": 64,
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rrule"
+        ],
+        "title": "ScheduleIn",
+        "type": "object"
+      },
       "Scope": {
         "properties": {
           "companies": {
@@ -38694,6 +39547,21 @@
           "step_up_id"
         ],
         "title": "Seal",
+        "type": "object"
+      },
+      "SealIn": {
+        "additionalProperties": false,
+        "properties": {
+          "digest": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Digest",
+            "type": "string"
+          }
+        },
+        "required": [
+          "digest"
+        ],
+        "title": "SealIn",
         "type": "object"
       },
       "SearchHit": {
@@ -44279,6 +45147,44 @@
         "title": "TeamRole",
         "type": "object"
       },
+      "Template": {
+        "properties": {
+          "blueprint": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateDepartment"
+            },
+            "title": "Blueprint",
+            "type": "array"
+          },
+          "departments": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Departments",
+            "type": "array"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name_en": {
+            "title": "Name En",
+            "type": "string"
+          },
+          "name_fa": {
+            "title": "Name Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name_fa",
+          "name_en",
+          "departments"
+        ],
+        "title": "Template",
+        "type": "object"
+      },
       "TemplateDepartment": {
         "description": "⟨1.6⟩ one department of a template with its mandate, identity and\nstarting team (contract §22.1).",
         "properties": {
@@ -45175,6 +46081,46 @@
         "title": "TtsMeta",
         "type": "object"
       },
+      "TtsVoice": {
+        "properties": {
+          "gender": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gender"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sample_file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample File"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "title_fa"
+        ],
+        "title": "TtsVoice",
+        "type": "object"
+      },
       "UsageIn": {
         "additionalProperties": false,
         "properties": {
@@ -45361,6 +46307,35 @@
           "sealed_at"
         ],
         "title": "VersionBrief",
+        "type": "object"
+      },
+      "Voice": {
+        "properties": {
+          "engine": {
+            "const": "piper",
+            "title": "Engine",
+            "type": "string"
+          },
+          "license": {
+            "title": "License",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          },
+          "voice": {
+            "title": "Voice",
+            "type": "string"
+          }
+        },
+        "required": [
+          "engine",
+          "version",
+          "voice",
+          "license"
+        ],
+        "title": "Voice",
         "type": "object"
       },
       "VoiceActivateIn": {
@@ -46683,7 +47658,7 @@
           "schedule": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/hq_api__domain__work__ScheduleIn"
+                "$ref": "#/components/schemas/ScheduleIn"
               },
               {
                 "type": "null"
@@ -47262,7 +48237,7 @@
           "schedule": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/hq_api__domain__work__ScheduleIn"
+                "$ref": "#/components/schemas/ScheduleIn"
               },
               {
                 "type": "null"
@@ -47631,155 +48606,6 @@
           "usd"
         ],
         "title": "Usage",
-        "type": "object"
-      },
-      "hq_api__domain__campaigns__CalendarItem": {
-        "additionalProperties": false,
-        "properties": {
-          "at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "At"
-          },
-          "company": {
-            "title": "Company",
-            "type": "string"
-          },
-          "conflict_fa": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Conflict Fa"
-          },
-          "day": {
-            "format": "date",
-            "title": "Day",
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "line",
-              "newsletter",
-              "ad",
-              "campaign",
-              "manual"
-            ],
-            "title": "Kind",
-            "type": "string"
-          },
-          "platform": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Platform"
-          },
-          "ref": {
-            "title": "Ref",
-            "type": "string"
-          },
-          "state": {
-            "title": "State",
-            "type": "string"
-          },
-          "title_fa": {
-            "title": "Title Fa",
-            "type": "string"
-          }
-        },
-        "required": [
-          "day",
-          "at",
-          "company",
-          "kind",
-          "ref",
-          "title_fa",
-          "platform",
-          "state"
-        ],
-        "title": "CalendarItem",
-        "type": "object"
-      },
-      "hq_api__domain__campaigns__CampaignIn": {
-        "additionalProperties": false,
-        "properties": {
-          "budget": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Budget"
-          },
-          "channels": {
-            "items": {
-              "type": "string"
-            },
-            "maxItems": 20,
-            "title": "Channels",
-            "type": "array"
-          },
-          "company": {
-            "pattern": "^[A-Z][A-Z0-9]{1,9}$",
-            "title": "Company",
-            "type": "string"
-          },
-          "ends": {
-            "format": "date",
-            "title": "Ends",
-            "type": "string"
-          },
-          "goal_fa": {
-            "default": "",
-            "maxLength": 1000,
-            "title": "Goal Fa",
-            "type": "string"
-          },
-          "starts": {
-            "format": "date",
-            "title": "Starts",
-            "type": "string"
-          },
-          "state": {
-            "default": "planned",
-            "pattern": "^(planned|running|done|cancelled)$",
-            "title": "State",
-            "type": "string"
-          },
-          "title_fa": {
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Title Fa",
-            "type": "string"
-          }
-        },
-        "required": [
-          "company",
-          "title_fa",
-          "starts",
-          "ends"
-        ],
-        "title": "CampaignIn",
         "type": "object"
       },
       "hq_api__domain__connections__Connection": {
@@ -48251,30 +49077,6 @@
         "title": "Step",
         "type": "object"
       },
-      "hq_api__domain__gov_calendar__Calendar": {
-        "properties": {
-          "conflicts": {
-            "items": {
-              "$ref": "#/components/schemas/CalendarConflict"
-            },
-            "title": "Conflicts",
-            "type": "array"
-          },
-          "events": {
-            "items": {
-              "$ref": "#/components/schemas/CalendarEvent"
-            },
-            "title": "Events",
-            "type": "array"
-          }
-        },
-        "required": [
-          "events",
-          "conflicts"
-        ],
-        "title": "Calendar",
-        "type": "object"
-      },
       "hq_api__domain__gov_kpis__Kpi": {
         "properties": {
           "aggregate": {
@@ -48435,65 +49237,6 @@
           "answer_md"
         ],
         "title": "AnswerIn",
-        "type": "object"
-      },
-      "hq_api__domain__newsletter__CampaignIn": {
-        "properties": {
-          "body": {
-            "maxLength": 200000,
-            "minLength": 1,
-            "title": "Body",
-            "type": "string"
-          },
-          "content_type": {
-            "default": "html",
-            "enum": [
-              "richtext",
-              "html",
-              "markdown",
-              "plain"
-            ],
-            "title": "Content Type",
-            "type": "string"
-          },
-          "list_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "List Id"
-          },
-          "subject": {
-            "maxLength": 300,
-            "minLength": 1,
-            "title": "Subject",
-            "type": "string"
-          }
-        },
-        "required": [
-          "subject",
-          "body"
-        ],
-        "title": "CampaignIn",
-        "type": "object"
-      },
-      "hq_api__domain__newsletter__ScheduleIn": {
-        "properties": {
-          "at": {
-            "format": "date-time",
-            "title": "At",
-            "type": "string"
-          }
-        },
-        "required": [
-          "at"
-        ],
-        "title": "ScheduleIn",
         "type": "object"
       },
       "hq_api__domain__order_report__Fix": {
@@ -48755,260 +49498,6 @@
           }
         },
         "title": "BudgetIn",
-        "type": "object"
-      },
-      "hq_api__domain__work__ScheduleIn": {
-        "additionalProperties": false,
-        "properties": {
-          "rrule": {
-            "maxLength": 500,
-            "minLength": 5,
-            "title": "Rrule",
-            "type": "string"
-          },
-          "timezone": {
-            "default": "Asia/Tehran",
-            "maxLength": 64,
-            "title": "Timezone",
-            "type": "string"
-          }
-        },
-        "required": [
-          "rrule"
-        ],
-        "title": "ScheduleIn",
-        "type": "object"
-      },
-      "hq_api__lines__store__Cost": {
-        "properties": {
-          "tokens": {
-            "title": "Tokens",
-            "type": "integer"
-          },
-          "usd_equiv": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Usd Equiv",
-            "type": "string"
-          }
-        },
-        "required": [
-          "tokens",
-          "usd_equiv"
-        ],
-        "title": "Cost",
-        "type": "object"
-      },
-      "hq_api__lines__store__Run": {
-        "properties": {
-          "at": {
-            "format": "date-time",
-            "title": "At",
-            "type": "string"
-          },
-          "company": {
-            "title": "Company",
-            "type": "string"
-          },
-          "cost": {
-            "$ref": "#/components/schemas/hq_api__lines__store__Cost"
-          },
-          "decision": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Decision"
-          },
-          "dry": {
-            "title": "Dry",
-            "type": "boolean"
-          },
-          "ended_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ended At"
-          },
-          "from_step": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "From Step"
-          },
-          "line": {
-            "title": "Line",
-            "type": "string"
-          },
-          "line_version": {
-            "title": "Line Version",
-            "type": "integer"
-          },
-          "metrics": {
-            "$ref": "#/components/schemas/Metrics"
-          },
-          "note_fa": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note Fa"
-          },
-          "platform": {
-            "title": "Platform",
-            "type": "string"
-          },
-          "published": {
-            "items": {
-              "$ref": "#/components/schemas/Published"
-            },
-            "title": "Published",
-            "type": "array"
-          },
-          "ref": {
-            "title": "Ref",
-            "type": "string"
-          },
-          "rerun_of": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Rerun Of"
-          },
-          "state": {
-            "enum": [
-              "queued",
-              "running",
-              "waiting",
-              "done",
-              "failed",
-              "skipped",
-              "cancelled"
-            ],
-            "title": "State",
-            "type": "string"
-          },
-          "steps": {
-            "items": {
-              "$ref": "#/components/schemas/StepRun"
-            },
-            "title": "Steps",
-            "type": "array"
-          },
-          "title_fa": {
-            "title": "Title Fa",
-            "type": "string"
-          },
-          "trigger": {
-            "enum": [
-              "schedule",
-              "owner",
-              "test",
-              "n8n",
-              "group"
-            ],
-            "title": "Trigger",
-            "type": "string"
-          }
-        },
-        "required": [
-          "ref",
-          "line",
-          "company",
-          "title_fa",
-          "platform",
-          "line_version",
-          "trigger",
-          "dry",
-          "state",
-          "at",
-          "ended_at",
-          "steps",
-          "cost",
-          "published",
-          "metrics",
-          "note_fa",
-          "decision",
-          "rerun_of",
-          "from_step"
-        ],
-        "title": "Run",
-        "type": "object"
-      },
-      "hq_api__lines__templates__Template": {
-        "properties": {
-          "defaults": {
-            "$ref": "#/components/schemas/Defaults"
-          },
-          "key": {
-            "pattern": "^[a-z][a-z0-9_]{1,40}$",
-            "title": "Key",
-            "type": "string"
-          },
-          "outputs_fa": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Outputs Fa",
-            "type": "array"
-          },
-          "platform": {
-            "pattern": "^[a-z][a-z0-9_]{1,40}$",
-            "title": "Platform",
-            "type": "string"
-          },
-          "steps": {
-            "items": {
-              "$ref": "#/components/schemas/StepDef"
-            },
-            "maxItems": 40,
-            "minItems": 1,
-            "title": "Steps",
-            "type": "array"
-          },
-          "title_fa": {
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Title Fa",
-            "type": "string"
-          },
-          "version": {
-            "minimum": 1.0,
-            "title": "Version",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "key",
-          "title_fa",
-          "platform",
-          "version",
-          "steps"
-        ],
-        "title": "Template",
         "type": "object"
       },
       "hq_api__routes__agent_tools__ReserveIn": {
@@ -49657,168 +50146,6 @@
         "title": "PlanIn",
         "type": "object"
       },
-      "hq_api__routes__lines__Calendar": {
-        "properties": {
-          "days": {
-            "items": {
-              "$ref": "#/components/schemas/CalendarDay"
-            },
-            "title": "Days",
-            "type": "array"
-          }
-        },
-        "required": [
-          "days"
-        ],
-        "title": "Calendar",
-        "type": "object"
-      },
-      "hq_api__routes__lines__CalendarItem": {
-        "properties": {
-          "at": {
-            "format": "date-time",
-            "title": "At",
-            "type": "string"
-          },
-          "company": {
-            "title": "Company",
-            "type": "string"
-          },
-          "line": {
-            "title": "Line",
-            "type": "string"
-          },
-          "platform": {
-            "title": "Platform",
-            "type": "string"
-          },
-          "run": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Run"
-          },
-          "state": {
-            "title": "State",
-            "type": "string"
-          }
-        },
-        "required": [
-          "line",
-          "company",
-          "platform",
-          "at",
-          "state",
-          "run"
-        ],
-        "title": "CalendarItem",
-        "type": "object"
-      },
-      "hq_api__routes__lines__SealIn": {
-        "additionalProperties": false,
-        "properties": {
-          "approve": {
-            "title": "Approve",
-            "type": "boolean"
-          },
-          "note_fa": {
-            "anyOf": [
-              {
-                "maxLength": 1000,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note Fa"
-          }
-        },
-        "required": [
-          "approve"
-        ],
-        "title": "SealIn",
-        "type": "object"
-      },
-      "hq_api__routes__lines__Voice": {
-        "properties": {
-          "gender": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Gender"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "sample_file": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sample File"
-          },
-          "title_fa": {
-            "title": "Title Fa",
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "title_fa"
-        ],
-        "title": "Voice",
-        "type": "object"
-      },
-      "hq_api__routes__media__Cost": {
-        "properties": {
-          "tokens": {
-            "title": "Tokens",
-            "type": "integer"
-          },
-          "usd": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Usd",
-            "type": "string"
-          }
-        },
-        "required": [
-          "tokens",
-          "usd"
-        ],
-        "title": "Cost",
-        "type": "object"
-      },
-      "hq_api__routes__media__SealIn": {
-        "additionalProperties": false,
-        "properties": {
-          "digest": {
-            "pattern": "^[0-9a-f]{64}$",
-            "title": "Digest",
-            "type": "string"
-          }
-        },
-        "required": [
-          "digest"
-        ],
-        "title": "SealIn",
-        "type": "object"
-      },
       "hq_api__routes__media__StepIn": {
         "additionalProperties": false,
         "description": "media.item (agents/tools.md).",
@@ -49922,35 +50249,6 @@
           "ref"
         ],
         "title": "Citation",
-        "type": "object"
-      },
-      "hq_api__routes__mgmt__Voice": {
-        "properties": {
-          "engine": {
-            "const": "piper",
-            "title": "Engine",
-            "type": "string"
-          },
-          "license": {
-            "title": "License",
-            "type": "string"
-          },
-          "version": {
-            "title": "Version",
-            "type": "string"
-          },
-          "voice": {
-            "title": "Voice",
-            "type": "string"
-          }
-        },
-        "required": [
-          "engine",
-          "version",
-          "voice",
-          "license"
-        ],
-        "title": "Voice",
         "type": "object"
       },
       "hq_api__routes__notifications__AnswerIn": {
@@ -50077,44 +50375,6 @@
           }
         },
         "title": "OrderIn",
-        "type": "object"
-      },
-      "hq_api__routes__org__Template": {
-        "properties": {
-          "blueprint": {
-            "items": {
-              "$ref": "#/components/schemas/TemplateDepartment"
-            },
-            "title": "Blueprint",
-            "type": "array"
-          },
-          "departments": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Departments",
-            "type": "array"
-          },
-          "key": {
-            "title": "Key",
-            "type": "string"
-          },
-          "name_en": {
-            "title": "Name En",
-            "type": "string"
-          },
-          "name_fa": {
-            "title": "Name Fa",
-            "type": "string"
-          }
-        },
-        "required": [
-          "key",
-          "name_fa",
-          "name_en",
-          "departments"
-        ],
-        "title": "Template",
         "type": "object"
       },
       "hq_api__routes__oversight__OrderIn": {
@@ -50252,212 +50512,6 @@
           "seen"
         ],
         "title": "SeenOut",
-        "type": "object"
-      },
-      "hq_api__routes__runs__Run": {
-        "properties": {
-          "addenda": {
-            "items": {
-              "format": "uuid",
-              "type": "string"
-            },
-            "title": "Addenda",
-            "type": "array"
-          },
-          "charter": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Charter"
-          },
-          "charter_version": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Charter Version"
-          },
-          "company": {
-            "title": "Company",
-            "type": "string"
-          },
-          "cost_usd": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Cost Usd",
-            "type": "string"
-          },
-          "effort": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Effort"
-          },
-          "employee": {
-            "title": "Employee",
-            "type": "string"
-          },
-          "equiv_cost_usd": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Equiv Cost Usd",
-            "type": "string"
-          },
-          "error_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Code"
-          },
-          "finished_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Finished At"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "model": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Model"
-          },
-          "partial": {
-            "title": "Partial",
-            "type": "boolean"
-          },
-          "priority": {
-            "title": "Priority",
-            "type": "string"
-          },
-          "queued_at": {
-            "format": "date-time",
-            "title": "Queued At",
-            "type": "string"
-          },
-          "reason": {
-            "title": "Reason",
-            "type": "string"
-          },
-          "skills": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Skills",
-            "type": "array"
-          },
-          "started_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Started At"
-          },
-          "state": {
-            "title": "State",
-            "type": "string"
-          },
-          "steps": {
-            "title": "Steps",
-            "type": "integer"
-          },
-          "thread": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Thread"
-          },
-          "tokens": {
-            "$ref": "#/components/schemas/hq_api__routes__runs__RunTokens"
-          },
-          "tool_calls": {
-            "title": "Tool Calls",
-            "type": "integer"
-          },
-          "trigger": {
-            "title": "Trigger",
-            "type": "string"
-          },
-          "work_ref": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Work Ref"
-          }
-        },
-        "required": [
-          "id",
-          "employee",
-          "company",
-          "work_ref",
-          "thread",
-          "trigger",
-          "reason",
-          "state",
-          "priority",
-          "model",
-          "effort",
-          "started_at",
-          "finished_at",
-          "queued_at",
-          "steps",
-          "tool_calls",
-          "tokens",
-          "equiv_cost_usd",
-          "cost_usd",
-          "charter_version",
-          "charter",
-          "partial",
-          "error_code"
-        ],
-        "title": "Run",
         "type": "object"
       },
       "hq_api__routes__runs__RunTokens": {
@@ -51192,60 +51246,6 @@
           "ref"
         ],
         "title": "Evidence",
-        "type": "object"
-      },
-      "hq_api__schemas__Page_Run___1": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/hq_api__routes__runs__Run"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "next_cursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Next Cursor"
-          }
-        },
-        "required": [
-          "items"
-        ],
-        "title": "Page[Run]",
-        "type": "object"
-      },
-      "hq_api__schemas__Page_Run___2": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/hq_api__lines__store__Run"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "next_cursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Next Cursor"
-          }
-        },
-        "required": [
-          "items"
-        ],
-        "title": "Page[Run]",
         "type": "object"
       },
       "hq_api__workshop__domain__Usage": {
@@ -60543,7 +60543,7 @@
                   ]
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/hq_api__domain__gov_calendar__Calendar"
+                  "$ref": "#/components/schemas/Calendar"
                 }
               }
             },
@@ -60829,7 +60829,7 @@
                   ]
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/hq_api__routes__lines__Calendar"
+                  "$ref": "#/components/schemas/LineCalendar"
                 }
               }
             },
@@ -61207,7 +61207,7 @@
                   "title_fa": "گزارش هفتگی رشد"
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/hq_api__domain__campaigns__CalendarItem"
+                  "$ref": "#/components/schemas/CampaignCalendarItem"
                 }
               }
             },
@@ -61404,7 +61404,7 @@
                   "title_fa": "گزارش هفتگی رشد"
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/hq_api__domain__campaigns__CalendarItem"
+                  "$ref": "#/components/schemas/CampaignCalendarItem"
                 }
               }
             },
@@ -61605,7 +61605,7 @@
                 "title_fa": "گزارش هفتگی رشد"
               },
               "schema": {
-                "$ref": "#/components/schemas/hq_api__domain__campaigns__CampaignIn"
+                "$ref": "#/components/schemas/CampaignIn"
               }
             }
           },
@@ -68724,7 +68724,7 @@
                 "subject": "x"
               },
               "schema": {
-                "$ref": "#/components/schemas/hq_api__domain__newsletter__CampaignIn"
+                "$ref": "#/components/schemas/NewsletterCampaignIn"
               }
             }
           },
@@ -87826,7 +87826,7 @@
                   "trigger": "schedule"
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/hq_api__lines__store__Run"
+                  "$ref": "#/components/schemas/LineRunOut"
                 }
               }
             },
@@ -87978,7 +87978,7 @@
                   "trigger": "schedule"
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/hq_api__lines__store__Run"
+                  "$ref": "#/components/schemas/LineRunOut"
                 }
               }
             },
@@ -88143,7 +88143,7 @@
                   "trigger": "schedule"
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/hq_api__lines__store__Run"
+                  "$ref": "#/components/schemas/LineRunOut"
                 }
               }
             },
@@ -88234,7 +88234,7 @@
                 "note_fa": "x"
               },
               "schema": {
-                "$ref": "#/components/schemas/hq_api__routes__lines__SealIn"
+                "$ref": "#/components/schemas/LineSealIn"
               }
             }
           },
@@ -88309,7 +88309,7 @@
                   "trigger": "schedule"
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/hq_api__lines__store__Run"
+                  "$ref": "#/components/schemas/LineRunOut"
                 }
               }
             },
@@ -88427,7 +88427,7 @@
                 ],
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/hq_api__lines__templates__Template"
+                    "$ref": "#/components/schemas/LineTemplate"
                   },
                   "title": "Response List Line Templates",
                   "type": "array"
@@ -88556,7 +88556,7 @@
                   "version": 1
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/hq_api__lines__templates__Template"
+                  "$ref": "#/components/schemas/LineTemplate"
                 }
               }
             },
@@ -89640,7 +89640,7 @@
                   "next_cursor": "x"
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/hq_api__schemas__Page_Run___2"
+                  "$ref": "#/components/schemas/Page_LineRunOut_"
                 }
               }
             },
@@ -89804,7 +89804,7 @@
                   "trigger": "schedule"
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/hq_api__lines__store__Run"
+                  "$ref": "#/components/schemas/LineRunOut"
                 }
               }
             },
@@ -92774,7 +92774,7 @@
                 "digest": "x"
               },
               "schema": {
-                "$ref": "#/components/schemas/hq_api__routes__media__SealIn"
+                "$ref": "#/components/schemas/SealIn"
               }
             }
           },
@@ -95488,7 +95488,7 @@
                 "at": "2026-10-17T05:42:00Z"
               },
               "schema": {
-                "$ref": "#/components/schemas/hq_api__domain__newsletter__ScheduleIn"
+                "$ref": "#/components/schemas/NewsletterScheduleIn"
               }
             }
           },
@@ -109159,7 +109159,7 @@
                   "next_cursor": "x"
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/hq_api__schemas__Page_Run___1"
+                  "$ref": "#/components/schemas/Page_Run_"
                 }
               }
             },
@@ -115566,7 +115566,7 @@
                 ],
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/hq_api__routes__org__Template"
+                    "$ref": "#/components/schemas/Template"
                   },
                   "title": "Response List Templates",
                   "type": "array"
@@ -119170,7 +119170,7 @@
                 ],
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/hq_api__routes__lines__Voice"
+                    "$ref": "#/components/schemas/TtsVoice"
                   },
                   "title": "Response List Tts Voices",
                   "type": "array"
@@ -129297,7 +129297,7 @@
                   ]
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/hq_api__domain__gov_calendar__Calendar"
+                  "$ref": "#/components/schemas/Calendar"
                 }
               }
             },

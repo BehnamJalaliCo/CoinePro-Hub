@@ -44,7 +44,7 @@ async def get_company_newsletter(
     responses=E,
 )
 async def create_newsletter_campaign(
-    body: NL.CampaignIn, code: str = Path(pattern=CODE), ctx: Ctx = Depends(owner_ctx)
+    body: NL.NewsletterCampaignIn, code: str = Path(pattern=CODE), ctx: Ctx = Depends(owner_ctx)
 ) -> NL.CampaignOut:
     """A campaign as a draft in Listmonk for the company's list (made on first
     use). Nothing is sent: a send is scheduled with `schedule`."""
@@ -68,7 +68,10 @@ async def create_newsletter_campaign(
     "/newsletter/campaigns/{campaign_id}/schedule", response_model=NL.CampaignOut, responses=E
 )
 async def schedule_newsletter_campaign(
-    campaign_id: UUID, body: NL.ScheduleIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+    campaign_id: UUID,
+    body: NL.NewsletterScheduleIn,
+    request: Request,
+    ctx: Ctx = Depends(owner_ctx),
 ) -> NL.CampaignOut:
     """The send time (in the future). 🔏 `newsletter.send` (target = the campaign
     id) when the list has more subscribers than the size limit; a small list
