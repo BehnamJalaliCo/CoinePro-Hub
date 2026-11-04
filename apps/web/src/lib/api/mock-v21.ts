@@ -22,6 +22,8 @@
 import { handle as base } from '@/lib/api/mock';
 import { handle28 } from './mock-v28';
 import { handle29 } from './mock-v29';
+import { handle30 } from './mock-v30';
+import { handle31 } from './mock-v31';
 
 const json = (body: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const problem = (status: number, code: string, message_fa: string) => json({ code, message_fa, status, title: code, type: 'about:blank' }, status);
@@ -510,6 +512,12 @@ export function tick21(): Ev[] {
 export async function handle(req: Request): Promise<Response> {
   const u = new URL(req.url);
   if (Date.now() >= restartUntil) {
+    // ⟨1.12⟩ §30 production lines (./mock-v30).
+    const v30 = await handle30(req, u.pathname.replace(/^\/api\/v1/, ''), u.searchParams);
+    if (v30) return v30;
+    // ⟨1.13⟩ §31 growth (./mock-v31).
+    const v31 = await handle31(req, u.pathname.replace(/^\/api\/v1/, ''), u.searchParams);
+    if (v31) return v31;
     const v29 = await handle29(req, u.pathname.replace(/^\/api\/v1/, ''), u.searchParams, handle21);
     if (v29) return v29;
   }

@@ -17,6 +17,8 @@ import { useDepartments19 } from '@/lib/api/v19';
 import { EmployeeStateChip, StuckLine, ringOf } from '@/components/v29/bits';
 import { CompanyConnections } from '@/components/v29/connections';
 import { CompanyReadiness } from '@/components/v29/readiness';
+import { CompanyLines } from '@/components/v30/lines';
+import { CompanyAds, CompanyNewsletter, CompanySeo } from '@/components/v31/company';
 import { CompanyTech, type TechTab } from '@/components/v29/tech';
 import { stuckOf, useEmployeeFix, type Stuck } from '@/lib/api/v29';
 import { DEPT_ICON, WORK_STATUS } from '@/lib/labels';
@@ -44,8 +46,8 @@ function OrgNode({ n, depth = 0 }: { n: Node; depth?: number }) {
   );
 }
 
-type Tab = 'control' | 'overview' | 'people' | 'work' | 'readiness' | 'connections' | 'tech' | 'brand';
-const TABS: Tab[] = ['control', 'overview', 'people', 'work', 'readiness', 'connections', 'tech', 'brand'];
+type Tab = 'control' | 'overview' | 'people' | 'work' | 'readiness' | 'connections' | 'lines' | 'newsletter' | 'seo' | 'ads' | 'tech' | 'brand';
+const TABS: Tab[] = ['control', 'overview', 'people', 'work', 'readiness', 'connections', 'lines', 'newsletter', 'seo', 'ads', 'tech', 'brand'];
 
 function CompanyInner({ code }: { code: string }) {
   const router = useRouter();
@@ -102,7 +104,7 @@ function CompanyInner({ code }: { code: string }) {
       {/* ⟨1.11⟩ the business first; everything technical (servers, the catalogue, technical findings) under «فنی». */}
       <div className="no-scrollbar max-w-4xl overflow-x-auto"><Segmented label="بخش" value={tab} onChange={setTab} options={[
         { value: 'control', label: 'اتاق کنترل' }, { value: 'overview', label: 'دپارتمان‌ها' }, { value: 'people', label: 'کارمندها' }, { value: 'work', label: 'کارها' },
-        ...(c && !holding ? [{ value: 'readiness' as const, label: 'آمادگی' }, { value: 'connections' as const, label: 'اتصال‌ها' }] : []),
+        ...(c && !holding ? [{ value: 'readiness' as const, label: 'آمادگی' }, { value: 'connections' as const, label: 'اتصال‌ها' }, { value: 'lines' as const, label: 'خط تولید' }, { value: 'newsletter' as const, label: 'خبرنامه' }, { value: 'seo' as const, label: 'سئو و رقبا' }, { value: 'ads' as const, label: 'تبلیغات' }] : []),
         { value: 'tech', label: 'فنی' },
         ...(c && !holding ? [{ value: 'brand' as const, label: 'نشان و مُهر' }] : []),
       ]} /></div>
@@ -146,6 +148,14 @@ function CompanyInner({ code }: { code: string }) {
         <CompanyTech code={code} nameFa={c?.name_fa ?? code} holding={holding} tab={techTab} onTab={setTechTab} />
       ) : tab === 'readiness' ? (
         <CompanyReadiness code={code} group={search.get('group')} />
+      ) : tab === 'lines' ? (
+        <CompanyLines code={code} />
+      ) : tab === 'newsletter' ? (
+        <CompanyNewsletter code={code} />
+      ) : tab === 'seo' ? (
+        <CompanySeo code={code} />
+      ) : tab === 'ads' ? (
+        <CompanyAds code={code} />
       ) : tab === 'connections' ? (
         <CompanyConnections code={code} />
       ) : tab === 'brand' && c ? (

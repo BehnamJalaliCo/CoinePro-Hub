@@ -20,6 +20,7 @@ import { useLive } from '@/lib/live';
 import { useNow } from '@/lib/store';
 import { ago, cx, jDate, jDateTime, jTime } from '@/lib/format';
 import { ownerDay } from '@/components/v21/bits';
+import { KitFlow } from '@/components/v31/kit';
 import { FaPara, FaText, FixButton, OrderStatePill } from './bits';
 
 function useNames() {
@@ -119,6 +120,17 @@ export function OrderReportsCard() {
   );
 }
 
+/** ⟨1.13⟩ §31.2: a «new company» order — the kit's form, preview and seal. The result stays on screen after the report refreshes as sealed. */
+function KitCard({ refId, kit }: { refId: string; kit: NonNullable<OrderReport['kit']> }) {
+  const [made, setMade] = useState(false);
+  return (
+    <section id="kit-card" className="flex scroll-mt-24 flex-col gap-3" aria-label="شرکت آماده">
+      <SectionTitle title="شرکت آماده" note={kit.sealed && !made ? 'این شرکت ساخته شده' : 'کد و نام را بنویس، پیش‌نمایش را ببین و مُهر بزن'} />
+      {kit.sealed && !made ? <Card className="p-5 text-[13px] text-sec">شرکت «{kit.name_fa ?? kit.title_fa}» با این فرمان ساخته شد.</Card> : <KitFlow kit={kit.summary} order={refId} nameFa={kit.name_fa} onStart={() => setMade(true)} />}
+    </section>
+  );
+}
+
 /** The whole report of one order. */
 export function OrderReportView({ refId }: { refId: string }) {
   const q = useOrderReport(refId);
@@ -165,6 +177,8 @@ export function OrderReportView({ refId }: { refId: string }) {
           </div>
         </Card>
       ) : null}
+
+      {r.kit ? <KitCard refId={refId} kit={r.kit} /> : null}
 
       {r.blockers.length ? (
         <Card className="flex flex-col gap-3 p-5 ring-1 ring-[var(--hq-neg-line)]" aria-label="گیرها">

@@ -55,6 +55,8 @@ export function localFix(f: Fix, company?: string | null): LocalFix | null {
     return { kind: 'guide', connection: (b ?? '').trim(), company: a ? a.trim() : company ?? null };
   }
   if ((f.action === 'series.seal' || f.action === 'card.seal') && DECISION_REF.test(t)) return { kind: 'go', href: `/cartable?ref=${t}` };
+  // `kit.create` is the sealed company-from-kit card on the report itself, never POST /orders/{ref}/fix.
+  if (f.action === 'kit.create') return { kind: 'go', href: '#kit-card' };
   if (f.action === 'lock.open') return { kind: 'go', href: company ? `/companies/${enc(company)}` : '/control' };
   if (f.action === 'series.propose' && !t) return { kind: 'go', href: '/media/series' };
   return null;
@@ -88,10 +90,10 @@ export type OutputKind = 'post' | 'reel' | 'story' | 'article' | 'report' | 'pla
 export const OUTPUT_KIND_FA: Record<OutputKind, string> = {
   post: 'پست', reel: 'ریلز', story: 'استوری', article: 'مقاله', report: 'گزارش', plan: 'برنامه', code: 'تغییر نرم‌افزار', answer: 'پاسخ', other: 'خروجی',
 };
-export type BlockerKind = 'no_employee' | 'hiring_closed' | 'locked' | 'series_unsealed' | 'budget' | 'player_down' | 'connection_missing' | 'no_progress' | 'talk_loop';
+export type BlockerKind = 'no_employee' | 'hiring_closed' | 'locked' | 'series_unsealed' | 'budget' | 'player_down' | 'connection_missing' | 'no_progress' | 'talk_loop' | 'kit_unsealed';
 export const BLOCKER_ICON: Record<BlockerKind, 'agent' | 'lock' | 'send' | 'treasury' | 'model' | 'globe' | 'time' | 'refresh'> = {
   no_employee: 'agent', hiring_closed: 'agent', locked: 'lock', series_unsealed: 'send', budget: 'treasury', player_down: 'model',
-  connection_missing: 'globe', no_progress: 'time', talk_loop: 'refresh',
+  connection_missing: 'globe', no_progress: 'time', talk_loop: 'refresh', kit_unsealed: 'agent',
 };
 export type Blocker = { kind: BlockerKind; title_fa: string; detail_fa: string; since: string; fix: Fix | null };
 export type OrderRouteFields = { companies: string[]; department: string | null; collaborators: string[]; output_kind: OutputKind; budget_tokens: number; mode: 'single' | 'council'; player: string };
@@ -102,6 +104,8 @@ export type OrderReport = {
   steps: Array<{ at: string; who_fa: string; what_fa: string }>;
   blockers: Blocker[]; outputs: Array<{ ref: string; title_fa: string; kind: string }>;
   summary: { done_fa: string; left_fa: string; need_fa: string } | null; updated_at: string;
+  /** A «شرکت آماده» order (route kind `kit`): the chosen kit, the name if given, whether it is sealed, and the kit's own shape (GET /kits/{key}). */
+  kit?: { kit: string; title_fa: string; name_fa: string | null; sealed: boolean; summary: import('./v31').Kit } | null;
 };
 
 export async function orderReport(ref: string): Promise<OrderReport | null> {
