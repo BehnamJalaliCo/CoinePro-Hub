@@ -107,6 +107,9 @@ class Activities:
         from hq_api.worker.routing_activities import RoutingActivities
 
         self.routing = RoutingActivities(hub, self._tx)  # prompt 21: orders, the tech summary
+        from hq_api.worker.ops_activities import OpsActivities
+
+        self.ops = OpsActivities(hub)  # prompt 22 part 3: ad rules, automations (rule-only)
         from hq_api.worker.lines_activities import LinesActivities
 
         self.lines = LinesActivities(hub, self._tx)  # prompt 22: production lines (§30)
@@ -124,6 +127,7 @@ class Activities:
             *self.legal_voice.all(),
             *self.archive.all(),
             *self.growth.all(),
+            *self.ops.all(),
             *self.media.all(),
             *self.brand.all(),
             *self.people.all(),

@@ -148,6 +148,8 @@ GROUPS_TICK = "hq-groups-tick"  # prompt 21 part 3
 CONNECTIONS_READ = "hq-connections-read"
 HOME_MORNING = "hq-home-morning"
 P21C = (GROUPS_TICK, CONNECTIONS_READ, HOME_MORNING)
+OPS_TICK = "hq-ops-tick"  # prompt 22 part 3: ad rules, automations
+P22C = (OPS_TICK,)
 LINES_TICK = "hq-lines-tick"  # prompt 22
 FIXED = (
     SUPPORT_SWEEP,
@@ -179,6 +181,7 @@ FIXED = (
     *P13B,
     *P14,
     *P21C,
+    *P22C,
     LINES_TICK,
 )
 
@@ -349,6 +352,7 @@ def fixed(
         *p13b_fixed(tz),
         *p14_fixed(tz),
         *p21c_fixed(tz),
+        *p22c_fixed(),
         Desired(LINES_TICK, "LinesTick", (), every(5), timedelta(minutes=5), timedelta(minutes=4)),
     ]
 
@@ -595,6 +599,14 @@ def p21c_fixed(tz: str) -> list[Desired]:
             timedelta(hours=6),
             timedelta(minutes=12),
         ),
+    ]
+
+
+def p22c_fixed() -> list[Desired]:
+    """Prompt 22 part 3 (contract §31.6, §31.7): rule-based; it gates itself
+    (hq_api.domain.gate), so nothing runs while the holding is locked."""
+    return [
+        Desired(OPS_TICK, "OpsTick", (), every(5), timedelta(minutes=5), timedelta(minutes=4)),
     ]
 
 

@@ -419,6 +419,662 @@
         "title": "Actor",
         "type": "object"
       },
+      "AdAccount": {
+        "properties": {
+          "label_fa": {
+            "title": "Label Fa",
+            "type": "string"
+          },
+          "last_error_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Fa"
+          },
+          "last_read_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Read At"
+          },
+          "missing_fa": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Fa",
+            "type": "array"
+          },
+          "platform": {
+            "enum": [
+              "google_ads",
+              "meta_ads"
+            ],
+            "title": "Platform",
+            "type": "string"
+          },
+          "secret": {
+            "enum": [
+              "set",
+              "missing"
+            ],
+            "title": "Secret",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "not_connected",
+              "connected",
+              "error"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "platform",
+          "label_fa",
+          "state",
+          "secret",
+          "missing_fa",
+          "last_read_at",
+          "last_error_fa"
+        ],
+        "title": "AdAccount",
+        "type": "object"
+      },
+      "AdCampaign": {
+        "properties": {
+          "campaign_id": {
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/AdDay"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "paused_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paused At"
+          },
+          "paused_by": {
+            "anyOf": [
+              {
+                "enum": [
+                  "rule",
+                  "owner",
+                  "platform"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paused By"
+          },
+          "paused_reason_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paused Reason Fa"
+          },
+          "platform": {
+            "enum": [
+              "google_ads",
+              "meta_ads"
+            ],
+            "title": "Platform",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "paused",
+              "removed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/AdTotals"
+          }
+        },
+        "required": [
+          "platform",
+          "campaign_id",
+          "name",
+          "status",
+          "paused_by",
+          "paused_at",
+          "paused_reason_fa",
+          "totals",
+          "days"
+        ],
+        "title": "AdCampaign",
+        "type": "object"
+      },
+      "AdDay": {
+        "properties": {
+          "clicks": {
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "conversions": {
+            "title": "Conversions",
+            "type": "number"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "revenue": {
+            "title": "Revenue",
+            "type": "number"
+          },
+          "roas": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roas"
+          },
+          "spend": {
+            "title": "Spend",
+            "type": "number"
+          }
+        },
+        "required": [
+          "day",
+          "spend",
+          "clicks",
+          "conversions",
+          "revenue",
+          "roas"
+        ],
+        "title": "AdDay",
+        "type": "object"
+      },
+      "AdRule": {
+        "properties": {
+          "action": {
+            "enum": [
+              "pause",
+              "notify"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "daily_cap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Cap"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "min_roas": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Roas"
+          },
+          "min_spend_before_judging": {
+            "title": "Min Spend Before Judging",
+            "type": "number"
+          },
+          "note_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Fa"
+          },
+          "platform": {
+            "enum": [
+              "google_ads",
+              "meta_ads"
+            ],
+            "title": "Platform",
+            "type": "string"
+          },
+          "scope": {
+            "title": "Scope",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "on",
+              "off"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "summary_fa": {
+            "title": "Summary Fa",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "window_days": {
+            "title": "Window Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "company",
+          "platform",
+          "scope",
+          "daily_cap",
+          "window_days",
+          "min_roas",
+          "min_spend_before_judging",
+          "action",
+          "state",
+          "note_fa",
+          "summary_fa",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AdRule",
+        "type": "object"
+      },
+      "AdRuleEdit": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "enum": [
+                  "pause",
+                  "notify"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action"
+          },
+          "daily_cap": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Cap"
+          },
+          "min_roas": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,11}0*$)\\d{0,6}\\.\\d{0,4}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Roas"
+          },
+          "min_spend_before_judging": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Spend Before Judging"
+          },
+          "note_fa": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Fa"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_.:-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "on",
+                  "off"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "window_days": {
+            "anyOf": [
+              {
+                "maximum": 90.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Days"
+          }
+        },
+        "title": "AdRuleEdit",
+        "type": "object"
+      },
+      "AdRuleIn": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "default": "pause",
+            "enum": [
+              "pause",
+              "notify"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "daily_cap": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Cap"
+          },
+          "min_roas": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,11}0*$)\\d{0,6}\\.\\d{0,4}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Roas"
+          },
+          "min_spend_before_judging": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+                "type": "string"
+              }
+            ],
+            "default": "0",
+            "title": "Min Spend Before Judging"
+          },
+          "note_fa": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Fa"
+          },
+          "platform": {
+            "enum": [
+              "google_ads",
+              "meta_ads"
+            ],
+            "title": "Platform",
+            "type": "string"
+          },
+          "scope": {
+            "default": "account",
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Scope",
+            "type": "string"
+          },
+          "state": {
+            "default": "on",
+            "enum": [
+              "on",
+              "off"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "window_days": {
+            "default": 7,
+            "maximum": 90.0,
+            "minimum": 1.0,
+            "title": "Window Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "platform"
+        ],
+        "title": "AdRuleIn",
+        "type": "object"
+      },
+      "AdTotals": {
+        "properties": {
+          "clicks": {
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "conversions": {
+            "title": "Conversions",
+            "type": "number"
+          },
+          "revenue": {
+            "title": "Revenue",
+            "type": "number"
+          },
+          "roas": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roas"
+          },
+          "spend": {
+            "title": "Spend",
+            "type": "number"
+          }
+        },
+        "required": [
+          "spend",
+          "clicks",
+          "conversions",
+          "revenue",
+          "roas"
+        ],
+        "title": "AdTotals",
+        "type": "object"
+      },
+      "AdTrip": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "campaign_id": {
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "detail_fa": {
+            "title": "Detail Fa",
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "paused",
+              "notified",
+              "failed"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "platform": {
+            "enum": [
+              "google_ads",
+              "meta_ads"
+            ],
+            "title": "Platform",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "day",
+          "platform",
+          "campaign_id",
+          "reason",
+          "action",
+          "outcome",
+          "detail_fa",
+          "at"
+        ],
+        "title": "AdTrip",
+        "type": "object"
+      },
       "Addendum": {
         "properties": {
           "active": {
@@ -514,6 +1170,43 @@
           "decision_ref"
         ],
         "title": "Adoption",
+        "type": "object"
+      },
+      "Ads": {
+        "properties": {
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/AdAccount"
+            },
+            "title": "Accounts",
+            "type": "array"
+          },
+          "campaigns": {
+            "items": {
+              "$ref": "#/components/schemas/AdCampaign"
+            },
+            "title": "Campaigns",
+            "type": "array"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "trips": {
+            "items": {
+              "$ref": "#/components/schemas/AdTrip"
+            },
+            "title": "Trips",
+            "type": "array"
+          }
+        },
+        "required": [
+          "company",
+          "accounts",
+          "campaigns",
+          "trips"
+        ],
+        "title": "Ads",
         "type": "object"
       },
       "AdvisorSettings": {
@@ -3446,6 +4139,382 @@
           }
         },
         "title": "AutoMemoSettings",
+        "type": "object"
+      },
+      "Automation": {
+        "properties": {
+          "company": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "failures_in_row": {
+            "default": 0,
+            "title": "Failures In Row",
+            "type": "integer"
+          },
+          "last_error_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Fa"
+          },
+          "last_run_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run At"
+          },
+          "n8n_workflow": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N8N Workflow"
+          },
+          "off_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "owner",
+                  "failures"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Off Reason"
+          },
+          "preview_fa": {
+            "title": "Preview Fa",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "rule": {
+            "additionalProperties": true,
+            "title": "Rule",
+            "type": "object"
+          },
+          "runs": {
+            "title": "Runs",
+            "type": "integer"
+          },
+          "sealed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sealed At"
+          },
+          "sentence_fa": {
+            "title": "Sentence Fa",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "proposed",
+              "on",
+              "off"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "company",
+          "sentence_fa",
+          "rule",
+          "preview_fa",
+          "state",
+          "runs",
+          "last_run_at",
+          "n8n_workflow",
+          "created_at"
+        ],
+        "title": "Automation",
+        "type": "object"
+      },
+      "AutomationDetail": {
+        "properties": {
+          "company": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "failures_in_row": {
+            "default": 0,
+            "title": "Failures In Row",
+            "type": "integer"
+          },
+          "last_error_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Fa"
+          },
+          "last_run_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run At"
+          },
+          "n8n_workflow": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N8N Workflow"
+          },
+          "off_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "owner",
+                  "failures"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Off Reason"
+          },
+          "preview_fa": {
+            "title": "Preview Fa",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "rule": {
+            "additionalProperties": true,
+            "title": "Rule",
+            "type": "object"
+          },
+          "run_log": {
+            "items": {
+              "$ref": "#/components/schemas/AutomationRun"
+            },
+            "title": "Run Log",
+            "type": "array"
+          },
+          "runs": {
+            "title": "Runs",
+            "type": "integer"
+          },
+          "sealed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sealed At"
+          },
+          "sentence_fa": {
+            "title": "Sentence Fa",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "proposed",
+              "on",
+              "off"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "company",
+          "sentence_fa",
+          "rule",
+          "preview_fa",
+          "state",
+          "runs",
+          "last_run_at",
+          "n8n_workflow",
+          "created_at",
+          "run_log"
+        ],
+        "title": "AutomationDetail",
+        "type": "object"
+      },
+      "AutomationIn": {
+        "additionalProperties": false,
+        "properties": {
+          "company": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "rule": {
+            "additionalProperties": true,
+            "title": "Rule",
+            "type": "object"
+          },
+          "sentence_fa": {
+            "maxLength": 1000,
+            "minLength": 3,
+            "title": "Sentence Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rule",
+          "sentence_fa"
+        ],
+        "title": "AutomationIn",
+        "type": "object"
+      },
+      "AutomationRun": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "error_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Fa"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "ok",
+              "failed",
+              "skipped"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "trigger": {
+            "additionalProperties": true,
+            "title": "Trigger",
+            "type": "object"
+          }
+        },
+        "required": [
+          "key",
+          "trigger",
+          "outcome",
+          "steps",
+          "error_fa",
+          "at"
+        ],
+        "title": "AutomationRun",
+        "type": "object"
+      },
+      "AutomationStateIn": {
+        "additionalProperties": false,
+        "properties": {
+          "state": {
+            "enum": [
+              "on",
+              "off"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "title": "AutomationStateIn",
         "type": "object"
       },
       "AwaySummary": {
@@ -8270,6 +9339,75 @@
           "budgets"
         ],
         "title": "CompanyState",
+        "type": "object"
+      },
+      "CompileIn": {
+        "additionalProperties": false,
+        "properties": {
+          "company": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "sentence_fa": {
+            "maxLength": 1000,
+            "minLength": 3,
+            "title": "Sentence Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sentence_fa"
+        ],
+        "title": "CompileIn",
+        "type": "object"
+      },
+      "Compiled": {
+        "properties": {
+          "preview_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview Fa"
+          },
+          "refused_fa": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Refused Fa",
+            "type": "array"
+          },
+          "rule": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule"
+          }
+        },
+        "required": [
+          "rule",
+          "preview_fa",
+          "refused_fa"
+        ],
+        "title": "Compiled",
         "type": "object"
       },
       "Complete": {
@@ -16576,7 +17714,9 @@
               "pagespeed",
               "trends",
               "bing",
-              "play_console"
+              "play_console",
+              "google_ads",
+              "meta_ads"
             ],
             "title": "Kind",
             "type": "string"
@@ -33168,6 +34308,39 @@
         "title": "ResultIn",
         "type": "object"
       },
+      "Resumed": {
+        "additionalProperties": false,
+        "properties": {
+          "campaign_id": {
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "platform": {
+            "enum": [
+              "google_ads",
+              "meta_ads"
+            ],
+            "title": "Platform",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "platform",
+          "campaign_id",
+          "company",
+          "status"
+        ],
+        "title": "Resumed",
+        "type": "object"
+      },
       "Retention": {
         "properties": {
           "daily": {
@@ -45502,7 +46675,9 @@
               "pagespeed",
               "trends",
               "bing",
-              "play_console"
+              "play_console",
+              "google_ads",
+              "meta_ads"
             ],
             "title": "Kind",
             "type": "string"
@@ -50265,6 +51440,111 @@
         "summary": "Reject Teaching",
         "tags": [
           "academy"
+        ]
+      }
+    },
+    "/api/v1/ads/campaigns/{platform}/{campaign_id}/resume": {
+      "post": {
+        "description": "⟨1.13⟩ §31.6 a paused campaign on again, 🔏 `ads.resume` (target\n`<platform>:<campaign id>`). The platform's API is called first; if it does\nnot answer, nothing changes and the step-up is not spent. The campaign is\nnot judged again for a day.",
+        "operationId": "resume_campaign",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "platform",
+            "required": true,
+            "schema": {
+              "pattern": "^(google_ads|meta_ads)$",
+              "title": "Platform",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{1,30}$",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "campaign_id": "x",
+                  "company": "TY",
+                  "platform": "google_ads",
+                  "status": "active"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Resumed"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Resume Campaign",
+        "tags": [
+          "ads"
         ]
       }
     },
@@ -56249,6 +57529,686 @@
         ]
       }
     },
+    "/api/v1/automations": {
+      "get": {
+        "description": "⟨1.13⟩ §31.7 the automations, newest first (filter by `state` or\n`company`), each with its plain-Persian preview.",
+        "operationId": "list_automations",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "proposed",
+                    "on",
+                    "off"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "company": "TY",
+                    "created_at": "2026-10-17T05:42:00Z",
+                    "failures_in_row": 1,
+                    "last_error_fa": "x",
+                    "last_run_at": "2026-10-17T05:42:00Z",
+                    "n8n_workflow": "x",
+                    "off_reason": "owner",
+                    "preview_fa": "x",
+                    "ref": "W-000789",
+                    "rule": {},
+                    "runs": 1,
+                    "sealed_at": "2026-10-17T05:42:00Z",
+                    "sentence_fa": "x",
+                    "state": "proposed"
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Automation"
+                  },
+                  "title": "Response List Automations",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Automations",
+        "tags": [
+          "automations"
+        ]
+      },
+      "post": {
+        "description": "⟨1.13⟩ §31.7 save a rule as `proposed`: it is checked again by code (a rule\nthe client made up is refused like the model's), its sentence and rule never\nchange afterwards. Nothing runs before the seal. Requires `Idempotency-Key`.",
+        "operationId": "add_automation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "company": "TY",
+                "rule": {},
+                "sentence_fa": "xxx"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/AutomationIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "company": "TY",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "failures_in_row": 1,
+                  "last_error_fa": "x",
+                  "last_run_at": "2026-10-17T05:42:00Z",
+                  "n8n_workflow": "x",
+                  "off_reason": "owner",
+                  "preview_fa": "x",
+                  "ref": "W-000789",
+                  "rule": {},
+                  "runs": 1,
+                  "sealed_at": "2026-10-17T05:42:00Z",
+                  "sentence_fa": "x",
+                  "state": "proposed"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Automation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Add Automation",
+        "tags": [
+          "automations"
+        ]
+      }
+    },
+    "/api/v1/automations/compile": {
+      "post": {
+        "description": "⟨1.13⟩ §31.7 one Persian sentence into a rule: ONE router call (task class\n`automation_compile`, a mid model, a strict JSON schema), then CODE decides\nwhat survives. `rule` has only allow-listed triggers (schedule, event,\nmetric) and actions (work.create, line.run, line.pause, notify.owner,\nnotify.lead, ad.pause, n8n.run); anything else is in `refused_fa` with a\nplain reason. `preview_fa` is written by code from the checked rule, so it\nsays what will really run. Nothing is saved or run.",
+        "operationId": "compile_automation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "company": "TY",
+                "sentence_fa": "xxx"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/CompileIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "preview_fa": "x",
+                  "refused_fa": [
+                    "x"
+                  ],
+                  "rule": {}
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Compiled"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Compile Automation",
+        "tags": [
+          "automations"
+        ]
+      }
+    },
+    "/api/v1/automations/{ref}": {
+      "get": {
+        "description": "⟨1.13⟩ §31.7 one automation with its last 50 runs (what fired it, each\naction's result in plain Persian).",
+        "operationId": "get_automation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "company": "TY",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "failures_in_row": 1,
+                  "last_error_fa": "x",
+                  "last_run_at": "2026-10-17T05:42:00Z",
+                  "n8n_workflow": "x",
+                  "off_reason": "owner",
+                  "preview_fa": "x",
+                  "ref": "W-000789",
+                  "rule": {},
+                  "run_log": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "error_fa": "x",
+                      "key": "x",
+                      "outcome": "ok",
+                      "steps": [
+                        {}
+                      ],
+                      "trigger": {}
+                    }
+                  ],
+                  "runs": 1,
+                  "sealed_at": "2026-10-17T05:42:00Z",
+                  "sentence_fa": "x",
+                  "state": "proposed"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/AutomationDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Automation",
+        "tags": [
+          "automations"
+        ]
+      }
+    },
+    "/api/v1/automations/{ref}/seal": {
+      "post": {
+        "description": "⟨1.13⟩ §31.7 the owner's seal, 🔏 `automation.seal` (target = the ref): the\nautomation is `on` from now. Only what happens after the seal counts (a\nschedule's earlier times and an event's earlier occurrences never run).\n409 when it is not `proposed`.",
+        "operationId": "seal_automation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "company": "TY",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "failures_in_row": 1,
+                  "last_error_fa": "x",
+                  "last_run_at": "2026-10-17T05:42:00Z",
+                  "n8n_workflow": "x",
+                  "off_reason": "owner",
+                  "preview_fa": "x",
+                  "ref": "W-000789",
+                  "rule": {},
+                  "runs": 1,
+                  "sealed_at": "2026-10-17T05:42:00Z",
+                  "sentence_fa": "x",
+                  "state": "proposed"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Automation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Seal Automation",
+        "tags": [
+          "automations"
+        ]
+      }
+    },
+    "/api/v1/automations/{ref}/state": {
+      "post": {
+        "description": "⟨1.13⟩ §31.7 switch a sealed automation on or off (no step-up: the seal\nalready covers exactly what runs). Switching it on again clears its failure\ncount. 409 while it is still `proposed`.",
+        "operationId": "set_automation_state",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "state": "on"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/AutomationStateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "company": "TY",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "failures_in_row": 1,
+                  "last_error_fa": "x",
+                  "last_run_at": "2026-10-17T05:42:00Z",
+                  "n8n_workflow": "x",
+                  "off_reason": "owner",
+                  "preview_fa": "x",
+                  "ref": "W-000789",
+                  "rule": {},
+                  "runs": 1,
+                  "sealed_at": "2026-10-17T05:42:00Z",
+                  "sentence_fa": "x",
+                  "state": "proposed"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Automation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Set Automation State",
+        "tags": [
+          "automations"
+        ]
+      }
+    },
     "/api/v1/backups/snapshots": {
       "get": {
         "description": "The snapshots each repository lists now, newest first.",
@@ -60088,6 +62048,606 @@
         ]
       }
     },
+    "/api/v1/companies/{code}/ad-rules": {
+      "get": {
+        "description": "⟨1.13⟩ §31.6 the company's budget rules, oldest first, each with a plain\nPersian summary of what it does.",
+        "operationId": "list_ad_rules",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "action": "pause",
+                    "company": "TY",
+                    "created_at": "2026-10-17T05:42:00Z",
+                    "daily_cap": 1.0,
+                    "id": "x",
+                    "min_roas": 1.0,
+                    "min_spend_before_judging": 1.0,
+                    "note_fa": "x",
+                    "platform": "google_ads",
+                    "scope": "company:TY",
+                    "state": "on",
+                    "summary_fa": "x",
+                    "updated_at": "2026-10-17T05:42:00Z",
+                    "window_days": 1
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AdRule"
+                  },
+                  "title": "Response List Ad Rules",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Ad Rules",
+        "tags": [
+          "ads"
+        ]
+      },
+      "post": {
+        "description": "⟨1.13⟩ §31.6 a new budget rule: a daily cap on a campaign's spend and/or a\nROAS floor over a window once a minimum was spent; the action pauses the\ncampaign (reversible) or only tells. A new rule only adds a guard, so it\nneeds no step-up. Requires `Idempotency-Key`.",
+        "operationId": "add_ad_rule",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "action": "pause",
+                "daily_cap": 1.0,
+                "min_roas": 0.0,
+                "min_spend_before_judging": 0.0,
+                "note_fa": "x",
+                "platform": "google_ads",
+                "scope": "company:TY",
+                "state": "on",
+                "window_days": 1
+              },
+              "schema": {
+                "$ref": "#/components/schemas/AdRuleIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "action": "pause",
+                  "company": "TY",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "daily_cap": 1.0,
+                  "id": "x",
+                  "min_roas": 1.0,
+                  "min_spend_before_judging": 1.0,
+                  "note_fa": "x",
+                  "platform": "google_ads",
+                  "scope": "company:TY",
+                  "state": "on",
+                  "summary_fa": "x",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "window_days": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/AdRule"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Add Ad Rule",
+        "tags": [
+          "ads"
+        ]
+      }
+    },
+    "/api/v1/companies/{code}/ad-rules/{rule_id}": {
+      "delete": {
+        "description": "⟨1.13⟩ §31.6 take a rule away: 🔏 `ads.cap` (target = the rule id), since\na guard is gone.",
+        "operationId": "delete_ad_rule",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "rule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rule Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Delete Ad Rule",
+        "tags": [
+          "ads"
+        ]
+      },
+      "put": {
+        "description": "⟨1.13⟩ §31.6 change a rule. 🔏 `ads.cap` (target = the rule id) when the\nnew rule lets more money through (a higher cap, a lower ROAS floor, a larger\nminimum before judging, only telling instead of pausing, switched off, fewer\ncampaigns); a tighter rule needs none.",
+        "operationId": "edit_ad_rule",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "rule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rule Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "action": "pause",
+                "daily_cap": 1.0,
+                "min_roas": 0.0,
+                "min_spend_before_judging": 0.0,
+                "note_fa": "x",
+                "scope": "company:TY",
+                "state": "on",
+                "window_days": 1
+              },
+              "schema": {
+                "$ref": "#/components/schemas/AdRuleEdit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "action": "pause",
+                  "company": "TY",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "daily_cap": 1.0,
+                  "id": "x",
+                  "min_roas": 1.0,
+                  "min_spend_before_judging": 1.0,
+                  "note_fa": "x",
+                  "platform": "google_ads",
+                  "scope": "company:TY",
+                  "state": "on",
+                  "summary_fa": "x",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "window_days": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/AdRule"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Edit Ad Rule",
+        "tags": [
+          "ads"
+        ]
+      }
+    },
+    "/api/v1/companies/{code}/ads": {
+      "get": {
+        "description": "⟨1.13⟩ §31.6 the company's ad accounts (Google Ads, Meta Ads: their\nconnection state and what is missing), every campaign with its last 30 days\n(spend, clicks, conversions, revenue, ROAS) and the rules' last trips. Read\nby code each day through egress; empty until the connection is complete.",
+        "operationId": "get_company_ads",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "accounts": [
+                    {
+                      "label_fa": "x",
+                      "last_error_fa": "x",
+                      "last_read_at": "2026-10-17T05:42:00Z",
+                      "missing_fa": [
+                        "x"
+                      ],
+                      "platform": "google_ads",
+                      "secret": "set",
+                      "state": "not_connected"
+                    }
+                  ],
+                  "campaigns": [
+                    {
+                      "campaign_id": "x",
+                      "days": [
+                        {
+                          "clicks": 1,
+                          "conversions": 1.0,
+                          "day": "2026-10-17",
+                          "revenue": 1.0,
+                          "roas": 1.0,
+                          "spend": 1.0
+                        }
+                      ],
+                      "name": "report.pdf",
+                      "paused_at": "2026-10-17T05:42:00Z",
+                      "paused_by": "rule",
+                      "paused_reason_fa": "x",
+                      "platform": "google_ads",
+                      "status": "active",
+                      "totals": {
+                        "clicks": 1,
+                        "conversions": 1.0,
+                        "revenue": 1.0,
+                        "roas": 1.0,
+                        "spend": 1.0
+                      }
+                    }
+                  ],
+                  "company": "TY",
+                  "trips": [
+                    {
+                      "action": "decision.approve",
+                      "at": "2026-10-17T05:42:00Z",
+                      "campaign_id": "x",
+                      "day": "2026-10-17",
+                      "detail_fa": "x",
+                      "outcome": "paused",
+                      "platform": "google_ads",
+                      "reason": "دلیل"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Ads"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Company Ads",
+        "tags": [
+          "ads"
+        ]
+      }
+    },
     "/api/v1/companies/{code}/brand": {
       "get": {
         "description": "The active version and, if any, the newest `proposed` one.",
@@ -61431,7 +63991,7 @@
             "name": "kind",
             "required": true,
             "schema": {
-              "pattern": "^(search_console|ga4|instagram|telegram|youtube|x|pagespeed|trends|bing|play_console)$",
+              "pattern": "^(search_console|ga4|instagram|telegram|youtube|x|pagespeed|trends|bing|play_console|google_ads|meta_ads)$",
               "title": "Kind",
               "type": "string"
             }
@@ -61577,7 +64137,7 @@
             "name": "kind",
             "required": true,
             "schema": {
-              "pattern": "^(search_console|ga4|instagram|telegram|youtube|x|pagespeed|trends|bing|play_console)$",
+              "pattern": "^(search_console|ga4|instagram|telegram|youtube|x|pagespeed|trends|bing|play_console|google_ads|meta_ads)$",
               "title": "Kind",
               "type": "string"
             }
@@ -61715,7 +64275,7 @@
             "name": "kind",
             "required": true,
             "schema": {
-              "pattern": "^(search_console|ga4|instagram|telegram|youtube|x|pagespeed|trends|bing|play_console)$",
+              "pattern": "^(search_console|ga4|instagram|telegram|youtube|x|pagespeed|trends|bing|play_console|google_ads|meta_ads)$",
               "title": "Kind",
               "type": "string"
             }
@@ -63272,7 +65832,7 @@
             "name": "kind",
             "required": true,
             "schema": {
-              "pattern": "^(search_console|ga4|instagram|telegram|youtube|x|pagespeed|trends|bing|play_console)$",
+              "pattern": "^(search_console|ga4|instagram|telegram|youtube|x|pagespeed|trends|bing|play_console|google_ads|meta_ads)$",
               "title": "Kind",
               "type": "string"
             }
@@ -119913,7 +122473,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "pattern": "^(search_console|ga4|instagram|telegram|youtube|x|pagespeed|trends|bing|play_console)$",
+                  "pattern": "^(search_console|ga4|instagram|telegram|youtube|x|pagespeed|trends|bing|play_console|google_ads|meta_ads)$",
                   "type": "string"
                 },
                 {

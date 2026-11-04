@@ -21,6 +21,7 @@ from hq_api.worker.growth_workflows import GROWTH_WORKFLOWS
 from hq_api.worker.legal_workflows import P13B_WORKFLOWS
 from hq_api.worker.lines_workflows import LINES_WORKFLOWS
 from hq_api.worker.mgmt_workflows import P12B_WORKFLOWS
+from hq_api.worker.ops_workflows import OPS_WORKFLOWS
 from hq_api.worker.owner_tools_workflows import OWNER_TOOLS_WORKFLOWS
 from hq_api.worker.studio_workflows import STUDIO_WORKFLOWS
 
@@ -653,5 +654,6 @@ WORKFLOWS = [
     *P13B_WORKFLOWS,  # prompt 13, legal and voice (legal_workflows.py)
     *P14_WORKFLOWS,  # prompt 14, the archive (archive_workflows.py)
     *GROWTH_WORKFLOWS,  # prompt 21 part 3: groups, connections, home (growth_workflows.py)
+    *OPS_WORKFLOWS,  # prompt 22 part 3: ad rules, automations (ops_workflows.py)
     *LINES_WORKFLOWS,  # prompt 22: production lines (lines_workflows.py)
 ]
