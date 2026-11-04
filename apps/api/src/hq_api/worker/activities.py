@@ -111,6 +111,9 @@ class Activities:
         from hq_api.worker.routing_activities import RoutingActivities
 
         self.routing = RoutingActivities(hub, self._tx)  # prompt 21: orders, the tech summary
+        from hq_api.worker.talk_activities import TalkActivities
+
+        self.talk = TalkActivities(hub, self.router, self.gateway)  # prompt 23: the owner's talk
         from hq_api.worker.ops_activities import OpsActivities
 
         self.ops = OpsActivities(hub)  # prompt 22 part 3: ad rules, automations (rule-only)
@@ -121,6 +124,7 @@ class Activities:
     def all(self) -> list[Any]:
         return [
             *self.routing.all(),
+            *self.talk.all(),
             *self.lines.all(),
             *self.meetings.all(),
             *self.studio.all(),
