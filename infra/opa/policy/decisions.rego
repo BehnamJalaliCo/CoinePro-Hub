@@ -39,6 +39,9 @@ kinds := {
 	# ⟨1.8⟩ prompt 17 (contract §26.3): a destructive command on a company
 	# server, raised by the hub's classification; the owner's seal only
 	"server_destructive",
+	# ⟨1.12⟩ prompt 22 (contract §30.3): a production line's gated step; the
+	# owner's, or the company's CEO's (card.decide) for a step with `gate: ceo`
+	"line_publish",
 }
 
 # Kinds a CEO may decide for its own company (each with its own condition below).

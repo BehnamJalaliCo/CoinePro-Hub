@@ -10,6 +10,8 @@ kv/support/pseudonym        key (hex, 32 bytes): the customer pseudonym's HMAC k
 kv/hq-agents/connector      api_token: the worker's own api service token ("worker"; its
                             sha256 is in hq-api/config service_tokens) for the gateway's
                             connector calls (prompt 10 §2.2); optional
+kv/hq/n8n                   secret: the HMAC key between the hub and n8n (contract §30.4);
+                            optional (absent: every n8n callback is refused)
 """
 
 from __future__ import annotations
@@ -42,6 +44,7 @@ class Secrets:
     # Prompt 10 §2.2: the worker's api service token, carried by the gateway's
     # connector calls (empty: no pull can leave; the pulls record why).
     worker_api_token: str = field(default="", repr=False)
+    n8n_secret: str = field(default="", repr=False)  # ⟨1.12⟩ §30.4
 
     @property
     def runtime_ready(self) -> bool:
@@ -91,6 +94,7 @@ async def load(bao: OpenBaoClient, *, api_config: bool = True, runtime: bool = F
         rt = await _read(bao, "hq-agents/runtime") if runtime else {}
         pseudonym = await _optional(bao, "support/pseudonym")
         connector = await _optional(bao, "hq-agents/connector") if runtime else {}
+        n8n = await _optional(bao, "hq/n8n")
     except OpenBaoError:
         log.warning("openbao unavailable; secrets not (re)loaded")
         raise
@@ -116,6 +120,7 @@ async def load(bao: OpenBaoClient, *, api_config: bool = True, runtime: bool = F
         gateway_token=str(rt.get("gateway_token") or ""),
         support_pseudonym_key=_hex_key(pseudonym.get("key")),
         worker_api_token=str(connector.get("api_token") or ""),
+        n8n_secret=str(n8n.get("secret") or ""),
     )
 
 

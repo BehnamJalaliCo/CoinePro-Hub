@@ -106,6 +106,7 @@ DECISION_DOMAIN = {
     "tool_enable": "tech",
     "media_series": "media",
     "media_publish": "media",
+    "line_publish": "media",
     "message_template": "product",
     "lifecycle_rule": "product",
     "support_go_live": "product",

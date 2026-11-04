@@ -45,7 +45,8 @@
           "server.write",
           "server.claude",
           "server.run",
-          "work.budget"
+          "work.budget",
+          "card.decide"
         ],
         "manager": [
           "work.delegate",

@@ -107,10 +107,14 @@ class Activities:
         from hq_api.worker.routing_activities import RoutingActivities
 
         self.routing = RoutingActivities(hub, self._tx)  # prompt 21: orders, the tech summary
+        from hq_api.worker.lines_activities import LinesActivities
+
+        self.lines = LinesActivities(hub, self._tx)  # prompt 22: production lines (§30)
 
     def all(self) -> list[Any]:
         return [
             *self.routing.all(),
+            *self.lines.all(),
             *self.meetings.all(),
             *self.studio.all(),
             *self.management.all(),
