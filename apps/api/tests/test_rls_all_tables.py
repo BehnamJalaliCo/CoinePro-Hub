@@ -1271,6 +1271,38 @@ async def _fill_p21c(su: Any, co: dict[str, Any]) -> None:
         c,
         f"rls:{_s.token_hex(6)}",
     )
+    # prompt 22 part 3 (migration 0042): the ad rules, campaigns, days, trips; an automation, a run
+    await su.execute(
+        """INSERT INTO growth.ad_rules (company_id, platform, daily_cap) VALUES ($1, 'google_ads', 10)""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO growth.ad_campaigns (company_id, platform, campaign_id) VALUES ($1, 'google_ads', '1')""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO growth.ad_daily (company_id, platform, campaign_id, day)
+           VALUES ($1, 'google_ads', '1', current_date)""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO growth.ad_trips (company_id, rule_id, platform, campaign_id, day, reason, action,
+               outcome, detail_fa)
+           VALUES ($1, gen_random_uuid(), 'google_ads', '1', current_date, 'daily_cap', 'pause',
+                   'paused', 'سقف رد شد')""",
+        c,
+    )
+    automation = await su.fetchval(
+        """INSERT INTO growth.automations (company_id, scope, sentence_fa, rule)
+           VALUES ($1, 'company', 'جمله', '{}') RETURNING id""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO growth.automation_runs (company_id, automation_id, key, trigger, outcome)
+           VALUES ($1, $2, 'k', '{}', 'ok')""",
+        c,
+        automation,
+    )
 
 
 async def _fill_p17(su: Any, co: dict[str, Any]) -> None:

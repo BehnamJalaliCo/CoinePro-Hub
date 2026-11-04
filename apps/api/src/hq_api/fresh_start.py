@@ -85,6 +85,8 @@ WIPE: tuple[str, ...] = (
     # experiments, the home's mornings, suggestions and progress) goes
     "owner.order_reports", "owner.suggestions", "owner.progress",
     "growth.routine_runs", "growth.experiments", "growth.metrics_daily", "growth.home_mornings",
+    # ⟨1.13⟩ §31.6, §31.7: the ads' daily figures, campaigns' state, trips; the automations' runs
+    "growth.ad_daily", "growth.ad_campaigns", "growth.ad_trips", "growth.automation_runs",
     "people.department_ranks", "people.hr_rounds", "people.role_drafts", "people.star_rollups",
     "people.stars",
     "quality.claims",
@@ -139,6 +141,7 @@ KEEP: tuple[str, ...] = (
     # ⟨1.11⟩ prompt 21: what the hub is made of (the groups as data, their members,
     # the companies' connections and their non-secret config) stays
     "growth.groups", "growth.group_versions", "growth.memberships", "growth.connections",
+    "growth.ad_rules", "growth.automations",  # ⟨1.13⟩ the owner's budget rules and automations
     "people.star_rubrics",
     "public.alembic_version_api", "public.alembic_version_llm_router",
     "revenue.accounts",
@@ -233,6 +236,7 @@ REF_KEEP: tuple[str, ...] = (
     "dceo.principle_ref_seq",
     "governance.calendar_ref_seq", "governance.key_result_ref_seq", "governance.objective_ref_seq",
     "governance.risk_ref_seq",
+    "growth.automation_ref_seq",  # ⟨1.13⟩ the automations stay
     "growth.rule_ref_seq", "growth.template_ref_seq",
     "knowledge.entry_ref_seq", "knowledge.skill_ref_seq",
     "ops.incident_ref_seq",

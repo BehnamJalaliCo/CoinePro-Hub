@@ -65,10 +65,12 @@ from hq_api.routes import (
     work,
     workshop,
 )
+from hq_api.routes import ads as ads_routes  # prompt 22 part 3: §31.6
 from hq_api.routes import advisor as advisor_routes  # prompt 12 part A
 from hq_api.routes import archive as archive_routes  # prompt 14: the archive
 from hq_api.routes import archive_agents as archive_agent_routes  # prompt 14: its agent tools
 from hq_api.routes import ask as ask_routes  # prompt 12 §2, §3, §13 (on prompt 11)
+from hq_api.routes import automations as automation_routes  # prompt 22 part 3: §31.7
 from hq_api.routes import connections as connection_routes  # prompt 21 part 3: §29.12
 from hq_api.routes import council as council_routes  # prompt 21: the council v2
 from hq_api.routes import dceo as dceo_routes
@@ -287,6 +289,9 @@ def create_app(
     # its fixes; order.ack, order.progress, work.budget, card.decide.
     app.include_router(order_report_routes.router, prefix="/api/v1")
     app.include_router(order_report_routes.internal_router, prefix="/internal/v1")
+    # ⟨1.13⟩ prompt 22 part 3 (contract §31.6, §31.7): ad budgets, automations from a sentence.
+    for p22c in (ads_routes, automation_routes):
+        app.include_router(p22c.router, prefix="/api/v1")
     app.state.version = __version__
 
     plain_openapi = app.openapi
