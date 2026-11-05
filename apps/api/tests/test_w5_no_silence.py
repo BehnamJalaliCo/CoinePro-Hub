@@ -148,3 +148,47 @@ async def test_a_seat_without_an_envelope_says_why_and_tells_the_owner(
         co["id"],
     )
     assert n is not None and n["owner_visible"] and "پاکت" in n["body_fa"]
+
+
+async def test_a_routine_action_needs_no_fingerprint_and_a_weighty_one_still_does(
+    client: httpx.AsyncClient, owner_session: dict[str, Any], new_company: Callable[..., Any]
+) -> None:
+    """The owner, 2026-11-05 («بروکراسی خیلی شدیدی»): a routine action's options answer is the token
+    itself (no passkey); it is single-use and bound to its action and target like any step-up. A
+    weighty action (deleting a company) still answers with a passkey challenge."""
+    from hq_api.security import stepup
+
+    h = owner_session["headers"]
+    code = (await new_company())["code"]
+    assert "department.create" in stepup.LIGHT and "company.delete" not in stepup.LIGHT
+    opts = (
+        await client.post(
+            "/api/v1/auth/step-up/options",
+            headers=h,
+            json={"action": "department.create", "target": code},
+        )
+    ).json()
+    assert opts["light"] is True and isinstance(opts["step_up_token"], str)
+    body = {
+        "code": "LIGHTX",
+        "name_fa": "آزمایش",
+        "name_en": "Trial",
+        "manager_title_fa": "مدیر آزمایش",
+        "manager_title_en": "Head of Trial",
+    }
+    hs = {**h, "X-Step-Up": opts["step_up_token"]}
+    r = await client.post(f"/api/v1/companies/{code}/departments", headers=hs, json=body)
+    assert r.status_code == 201, r.text
+    # single use
+    again = await client.post(
+        f"/api/v1/companies/{code}/departments", headers=hs, json={**body, "code": "LIGHTY"}
+    )
+    assert again.status_code == 403
+    heavy = (
+        await client.post(
+            "/api/v1/auth/step-up/options",
+            headers=h,
+            json={"action": "company.delete", "target": code},
+        )
+    ).json()
+    assert "step_up_token" not in heavy and "challenge" in heavy
