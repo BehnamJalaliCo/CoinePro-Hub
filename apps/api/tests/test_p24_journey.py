@@ -126,6 +126,10 @@ async def get_journey(client: httpx.AsyncClient, h: dict[str, str], code: str) -
     return out
 
 
+def J_at(text: str) -> datetime:  # a parsed timestamp of the journey JSON
+    return datetime.fromisoformat(text.replace("Z", "+00:00"))
+
+
 async def stage_events(su: Any, code: str) -> list[str]:
     rows = await su.fetch(
         "SELECT payload->>'ref' AS ref FROM core.outbox WHERE subject = $1 ORDER BY id",
@@ -150,9 +154,13 @@ def test_the_default_stages_are_the_contracts_and_data() -> None:
 
 
 def test_a_kits_stages_are_checked_and_both_seed_kits_have_them() -> None:
-    got = J.normalize_stages(["founded", {"key": "ten_paying", "rule": {"kind": "paying", "min": 3}}])
+    got = J.normalize_stages(
+        ["founded", {"key": "ten_paying", "rule": {"kind": "paying", "min": 3}}]
+    )
     assert got[1]["title_fa"] == "ده مشتری پرداخت‌کننده" and got[1]["rule"]["min"] == 3
-    own = J.normalize_stages([{"key": "first_demo", "title_fa": "اولین دمو", "rule": {"kind": "leads"}}])
+    own = J.normalize_stages(
+        [{"key": "first_demo", "title_fa": "اولین دمو", "rule": {"kind": "leads"}}]
+    )
     assert own[0]["key"] == "first_demo"
     for bad in (
         [], "founded", ["founded", "founded"], ["Bad Key"], [{"key": "x"}],
@@ -169,7 +177,7 @@ def test_a_kits_stages_are_checked_and_both_seed_kits_have_them() -> None:
     for key in ("content_brand", "saas_product"):
         assert J.normalize_stages(K.kit(key)["journey"])
     broken = {**K.kit("saas_product"), "journey": ["nope!"]}
-    with pytest.raises(ValueError, match="journey|stage"):
+    with pytest.raises(ValueError, match=r"journey|stage"):
         K.validate("saas_product", broken)
 
 
@@ -184,7 +192,10 @@ def test_the_persona_test_step_settings_are_checked() -> None:
             ],
         }  # fmt: skip
 
-    assert T.validate(tpl(min_score=80, aggregate="min", text_from="draft")).steps[1].kind == "persona_test"
+    assert (
+        T.validate(tpl(min_score=80, aggregate="min", text_from="draft")).steps[1].kind
+        == "persona_test"
+    )
     assert T.validate(tpl()).steps[1].settings == {}  # defaults: 60 and the mean
     for bad in ({"min_score": 101}, {"min_score": -1}, {"min_score": "70"}, {"min_score": True},
                 {"aggregate": "max"}, {"text_from": "later"}):  # fmt: skip
@@ -202,7 +213,10 @@ async def test_a_new_company_is_founded_and_one_line_is_written_once(
     j = await get_journey(client, h, co["code"])
     s = by_key(j)
     assert [x["key"] for x in j["stages"]] == [x["key"] for x in J.DEFAULT_STAGES]
-    assert s["founded"]["reached_at"] and s["founded"]["evidence"] == {"kind": "company", "ref": co["code"]}
+    assert s["founded"]["reached_at"] and s["founded"]["evidence"] == {
+        "kind": "company",
+        "ref": co["code"],
+    }
     assert all(s[k]["reached_at"] is None and s[k]["evidence"] is None for k in list(s)[1:])
     assert j["current"] == "founded" and j["days_in_stage"] == 0 and j["next_fa"] == NEXT_LINE
     # one mid-model call, its own task class, a strict schema, the company's own code
@@ -223,7 +237,9 @@ async def test_a_missing_upstream_table_leaves_its_stages_unreached_without_erro
 ) -> None:  # fmt: skip
     h = owner_session["headers"]
     co = await new_company()
-    have = [t for t in ("money.payments", "sales.leads", "growth.leads") if await table_exists(su, t)]
+    have = [
+        t for t in ("money.payments", "sales.leads", "growth.leads") if await table_exists(su, t)
+    ]
     if have:
         pytest.skip(f"the hub already has {have}; the stand-in tests below cover them")
     j = by_key(await get_journey(client, h, co["code"]))
@@ -237,7 +253,9 @@ async def test_a_missing_upstream_table_leaves_its_stages_unreached_without_erro
     try:
         await su.execute("INSERT INTO money.payments VALUES ($1)", co["id"])
         j = by_key(await get_journey(client, h, co["code"]))
-        assert all(j[k]["reached_at"] is None for k in ("first_payment", "ten_paying", "break_even"))
+        assert all(
+            j[k]["reached_at"] is None for k in ("first_payment", "ten_paying", "break_even")
+        )
     finally:
         await su.execute("DROP TABLE money.payments; DROP SCHEMA money")
 
@@ -272,7 +290,9 @@ async def test_stages_are_reached_from_existing_rows(
         co["id"], json.dumps([{"platform": "telegram_post", "kind": "post", "at": "2026-11-01T08:00:00+00:00"}]),
         True, h_line["ref"],
     )  # fmt: skip
-    assert by_key(await get_journey(client, h, co["code"]))["first_content"]["reached_at"] is None  # dry
+    assert (
+        by_key(await get_journey(client, h, co["code"]))["first_content"]["reached_at"] is None
+    )  # dry
     await su.execute(
         """INSERT INTO lines.runs (company_id, line_id, line_version, trigger, state, dry, published)
            SELECT $1, id, 1, 'owner', 'done', false, $2::jsonb FROM lines.lines WHERE ref = $3""",
@@ -298,19 +318,36 @@ async def test_stages_are_reached_from_existing_rows(
     assert s["first_content"]["evidence"]["kind"] == "line_run"
     assert s["first_content"]["reached_at"].startswith("2026-11-01T08:00")
     assert j["current"] == "first_visitor"  # the latest of the plan that is reached
-    assert sorted(await stage_events(su, co["code"])) == ["first_content", "first_visitor", "server_ready"]
+    assert sorted(await stage_events(su, co["code"])) == [
+        "first_content",
+        "first_visitor",
+        "server_ready",
+    ]
     assert len(router.of("journey_next")) == 3  # one call for both stages that changed together
     # a reached stage stays reached, whatever happens to its rows
     await su.execute("DELETE FROM growth.metrics_daily WHERE company_id = $1", co["id"])
-    assert by_key(await get_journey(client, h, co["code"]))["first_visitor"]["reached_at"] == visitor["reached_at"]
+    assert (
+        by_key(await get_journey(client, h, co["code"]))["first_visitor"]["reached_at"]
+        == visitor["reached_at"]
+    )
     # the timeline of all companies holds them, newest first
     r = await client.get(f"{API}/journeys", headers=h)
     assert r.status_code == 200, r.text
     board = r.json()
-    mine = [e for e in board["timeline"] if e["company"] == co["code"]]
-    assert {e["stage"] for e in mine} == {"founded", "server_ready", "first_content", "first_visitor"}
+    reached = {
+        st["key"]: st["reached_at"]
+        for x in board["journeys"]
+        if x["company"] == co["code"]
+        for st in x["stages"]
+        if st["reached_at"]
+    }
+    assert set(reached) == {"founded", "server_ready", "first_content", "first_visitor"}
     ats = [e["at"] for e in board["timeline"]]
     assert ats == sorted(ats, reverse=True)
+    # the timeline keeps the newest 200 of every company (the test database holds many)
+    mine = {e["stage"] for e in board["timeline"] if e["company"] == co["code"]}
+    full = len(ats) < 200
+    assert mine == {k for k, at in reached.items() if full or J_at(at) >= J_at(ats[-1])}
     assert co["code"] in {x["company"] for x in board["journeys"]}
     assert isinstance(await J.tick(hub), int)
 
@@ -331,7 +368,9 @@ async def test_payments_leads_and_break_even_read_the_other_parts_tables(
            VALUES ($1, 'google_ads', '1', $2, 500)""",
         co["id"], now.date(),
     )  # fmt: skip
-    await su.execute("INSERT INTO growth.leads (company_id, ref) VALUES ($1, 'LD-000001')", co["id"])
+    await su.execute(
+        "INSERT INTO growth.leads (company_id, ref) VALUES ($1, 'LD-000001')", co["id"]
+    )
     j = by_key(await get_journey(client, h, co["code"]))
     assert j["first_lead"]["evidence"] == {"kind": "lead", "ref": "LD-000001"}
     assert j["first_payment"]["reached_at"] is None
@@ -341,10 +380,15 @@ async def test_payments_leads_and_break_even_read_the_other_parts_tables(
     )
     assert by_key(await get_journey(client, h, co["code"]))["first_payment"]["reached_at"] is None
     await su.execute(
-        "INSERT INTO money.payments VALUES ($1, 'c1', 'matched', 100, $2)", co["id"], now - timedelta(minutes=5)
+        "INSERT INTO money.payments VALUES ($1, 'c1', 'matched', 100, $2)",
+        co["id"],
+        now - timedelta(minutes=5),
     )
     j = by_key(await get_journey(client, h, co["code"]))
-    assert j["first_payment"]["evidence"]["kind"] == "payment" and j["ten_paying"]["reached_at"] is None
+    assert (
+        j["first_payment"]["evidence"]["kind"] == "payment"
+        and j["ten_paying"]["reached_at"] is None
+    )
     assert j["break_even"]["reached_at"] is None  # 100 < 500
     for i in range(2, 10):  # nine paying customers: not ten
         await su.execute(
@@ -352,10 +396,15 @@ async def test_payments_leads_and_break_even_read_the_other_parts_tables(
         )
     j = by_key(await get_journey(client, h, co["code"]))
     assert j["ten_paying"]["reached_at"] is None and j["break_even"]["reached_at"] is None
-    await su.execute("INSERT INTO money.payments VALUES ($1, 'c10', 'chain_only', 200, $2)", co["id"], now)
+    await su.execute(
+        "INSERT INTO money.payments VALUES ($1, 'c10', 'chain_only', 200, $2)", co["id"], now
+    )
     j = by_key(await get_journey(client, h, co["code"]))
     assert j["ten_paying"]["evidence"] == {"kind": "customers", "ref": "10"}
-    assert j["break_even"]["evidence"] == {"kind": "month", "ref": now.strftime("%Y-%m")}  # 100 + 8*30 + 200 >= 500
+    assert j["break_even"]["evidence"] == {
+        "kind": "month",
+        "ref": now.strftime("%Y-%m"),
+    }  # 100 + 8*30 + 200 >= 500
 
 
 async def test_the_one_line_falls_back_to_code_when_the_model_is_down_or_wrong(
@@ -367,7 +416,9 @@ async def test_the_one_line_falls_back_to_code_when_the_model_is_down_or_wrong(
     co = await new_company()
     j = await get_journey(client, h, co["code"])
     assert j["next_fa"] == "گام بعدی: «سرور آماده»."
-    router.handlers["journey_next"] = lambda req: {"next_fa": "Buy more ads now and double the budget"}
+    router.handlers["journey_next"] = lambda req: {
+        "next_fa": "Buy more ads now and double the budget"
+    }
     co2 = await new_company()
     assert (await get_journey(client, h, co2["code"]))["next_fa"] == "گام بعدی: «سرور آماده»."
     assert await stage_events(su, co2["code"]) == []
@@ -383,7 +434,11 @@ async def test_a_company_made_from_a_kit_keeps_the_kits_stages(
         assert await J.adopt_kit(tx, co["id"], "saas_product", K.kit("saas_product"))
         assert not await J.adopt_kit(tx, co["id"], "x", {"title_fa": "no journey here"})
     j = await get_journey(client, h, co["code"])
-    assert [s["key"] for s in j["stages"]] == [s["key"] for s in K.kit("saas_product")["journey"] and J.normalize_stages(K.kit("saas_product")["journey"])]
+    assert [s["key"] for s in j["stages"]] == [
+        s["key"]
+        for s in K.kit("saas_product")["journey"]
+        and J.normalize_stages(K.kit("saas_product")["journey"])
+    ]
     assert len(j["stages"]) == 8
 
 
@@ -397,7 +452,9 @@ async def test_the_journey_is_the_owners(
         ("GET", f"/companies/{co['code']}/personas"),
         ("POST", f"/companies/{co['code']}/personas/test"),
     ):  # fmt: skip
-        r = await client.request(method, API + url, headers=ceo, json={"text": "x"} if method == "POST" else None)
+        r = await client.request(
+            method, API + url, headers=ceo, json={"text": "x"} if method == "POST" else None
+        )
         assert r.status_code in (401, 403), (url, r.status_code)
     assert (await client.get(f"{API}/companies/{co['code']}/journey")).status_code == 401
 
@@ -407,7 +464,9 @@ async def test_the_holding_and_unknown_companies_have_no_journey(
 ) -> None:  # fmt: skip
     h = owner_session["headers"]
     holding = await hub.companies.holding()
-    assert (await client.get(f"{API}/companies/{holding.code}/journey", headers=h)).status_code == 404
+    assert (
+        await client.get(f"{API}/companies/{holding.code}/journey", headers=h)
+    ).status_code == 404
     assert (await client.get(f"{API}/companies/NOPE/journey", headers=h)).status_code == 404
 
 
@@ -421,7 +480,9 @@ PERSONA = {
 }
 
 
-async def add_persona(client: httpx.AsyncClient, h: dict[str, str], code: str, **over: Any) -> dict[str, Any]:
+async def add_persona(
+    client: httpx.AsyncClient, h: dict[str, str], code: str, **over: Any
+) -> dict[str, Any]:
     r = await client.post(f"{API}/companies/{code}/personas", json={**PERSONA, **over}, headers=h)
     assert r.status_code == 201, r.text
     out: dict[str, Any] = r.json()
@@ -436,17 +497,27 @@ async def test_personas_are_the_owners_data(
     p = await add_persona(client, h, co["code"])
     assert p["company"] == co["code"] and p["version"] == 1 and p["source"] == "owner"
     assert p["pains_fa"] == PERSONA["pains_fa"]
-    kept = await add_persona(client, h, co["code"], name_fa="سرمایه‌گذار آرام", source="kb_suggested")
+    kept = await add_persona(
+        client, h, co["code"], name_fa="سرمایه‌گذار آرام", source="kb_suggested"
+    )
     assert kept["source"] == "kb_suggested"
     r = await client.get(f"{API}/companies/{co['code']}/personas", headers=h)
     assert [x["id"] for x in r.json()] == [p["id"], kept["id"]]
     # an edit counts a version; a kept suggestion edited becomes the owner's own
-    r = await client.patch(f"{API}/personas/{kept['id']}", json={"summary_fa": "خلاصه‌ی تازه"}, headers=h)
+    r = await client.patch(
+        f"{API}/personas/{kept['id']}", json={"summary_fa": "خلاصه‌ی تازه"}, headers=h
+    )
     assert r.status_code == 200, r.text
-    assert r.json()["version"] == 2 and r.json()["source"] == "owner" and r.json()["summary_fa"] == "خلاصه‌ی تازه"
+    assert (
+        r.json()["version"] == 2
+        and r.json()["source"] == "owner"
+        and r.json()["summary_fa"] == "خلاصه‌ی تازه"
+    )
     assert r.json()["name_fa"] == "سرمایه‌گذار آرام" and r.json()["pains_fa"] == PERSONA["pains_fa"]
     r = await client.patch(f"{API}/personas/{p['id']}", json={"pains_fa": ["یک درد"]}, headers=h)
-    assert r.json()["pains_fa"] == ["یک درد"] and r.json()["objections_fa"] == PERSONA["objections_fa"]
+    assert (
+        r.json()["pains_fa"] == ["یک درد"] and r.json()["objections_fa"] == PERSONA["objections_fa"]
+    )
     assert (await client.patch(f"{API}/personas/{p['id']}", json={}, headers=h)).status_code == 422
     # a secret in a persona is masked before it is stored
     token = "sk-" + "a1" * 20
@@ -455,15 +526,22 @@ async def test_personas_are_the_owners_data(
     # archive: out of the list, the row stays
     assert (await client.delete(f"{API}/personas/{leaky['id']}", headers=h)).status_code == 204
     assert (await client.delete(f"{API}/personas/{leaky['id']}", headers=h)).status_code == 404
-    assert (await client.patch(f"{API}/personas/{leaky['id']}", json={"name_fa": "x"}, headers=h)).status_code == 404
+    assert (
+        await client.patch(f"{API}/personas/{leaky['id']}", json={"name_fa": "x"}, headers=h)
+    ).status_code == 404
     assert len((await client.get(f"{API}/companies/{co['code']}/personas", headers=h)).json()) == 2
-    assert await su.fetchval("SELECT count(*) FROM growth.personas WHERE company_id = $1", co["id"]) == 3
+    assert (
+        await su.fetchval("SELECT count(*) FROM growth.personas WHERE company_id = $1", co["id"])
+        == 3
+    )
     # at most eight a company
     for i in range(6):
         await add_persona(client, h, co["code"], name_fa=f"پرسونا {i}")
     r = await client.post(f"{API}/companies/{co['code']}/personas", json=PERSONA, headers=h)
     assert r.status_code == 409 and "حداکثر" in r.json()["message_fa"]
-    bad = await client.post(f"{API}/companies/{co['code']}/personas", json={**PERSONA, "source": "agent"}, headers=h)
+    bad = await client.post(
+        f"{API}/companies/{co['code']}/personas", json={**PERSONA, "source": "agent"}, headers=h
+    )
     assert bad.status_code == 422
     assert (await client.get(f"{API}/companies/NOPE/personas", headers=h)).status_code == 404
 
@@ -494,17 +572,29 @@ async def test_suggestions_come_from_the_knowledge_and_are_saved_only_when_kept(
     url = f"{API}/companies/{co['code']}/personas/suggest"
     r = await client.post(url, headers=h)  # no knowledge yet
     assert r.status_code == 422 and "دانش" in r.json()["message_fa"] and not router.seen
-    await put_knowledge(su, co["id"], "مشتری ما کیست", "کاربران تازه‌کار بازار که آموزش ساده می‌خواهند.")
+    await put_knowledge(
+        su, co["id"], "مشتری ما کیست", "کاربران تازه‌کار بازار که آموزش ساده می‌خواهند."
+    )
     router.handlers["persona_suggest"] = suggestions
     r = await client.post(url, headers=h)
     assert r.status_code == 200, r.text
     out = r.json()
-    assert len(out["personas"]) == 4 and "تا نگه نداشته‌اید" in out["basis_fa"]  # clipped; the empty one is dropped
+    assert (
+        len(out["personas"]) == 4 and "تا نگه نداشته‌اید" in out["basis_fa"]
+    )  # clipped; the empty one is dropped
     q = router.of("persona_suggest")
     assert len(q) == 1 and q[0]["task_class"] == "persona_test" and "sonnet" in q[0]["model"]
-    assert "مشتری ما کیست" in q[0]["prompt"] and q[0]["json_schema"]["properties"]["routes"]["properties"]["personas"]["maxItems"] == 4
-    assert await su.fetchval("SELECT count(*) FROM growth.personas WHERE company_id = $1", co["id"]) == 0
-    kept = await add_persona(client, h, co["code"], **{**out["personas"][0], "source": "kb_suggested"})
+    assert (
+        "مشتری ما کیست" in q[0]["prompt"]
+        and q[0]["json_schema"]["properties"]["routes"]["properties"]["personas"]["maxItems"] == 4
+    )
+    assert (
+        await su.fetchval("SELECT count(*) FROM growth.personas WHERE company_id = $1", co["id"])
+        == 0
+    )
+    kept = await add_persona(
+        client, h, co["code"], **{**out["personas"][0], "source": "kb_suggested"}
+    )
     assert kept["source"] == "kb_suggested"
     # the model down or nonsense: 502 with a plain reason, nothing saved
     router.handlers["persona_suggest"] = lambda req: None
@@ -542,17 +632,32 @@ async def test_a_message_is_tested_in_one_call_and_checked_by_code(
     assert r.status_code == 200, r.text
     t = r.json()
     assert [x["persona"] for x in t["results"]] == [p1["id"], p2["id"]]  # the personas' own order
-    assert [x["score"] for x in t["results"]] == [85, 40] and t["average"] == 62 and t["lowest"] == 40
-    assert t["results"][0]["objection_fa"] is None and t["results"][1]["objection_fa"].startswith("ایراد")
+    assert (
+        [x["score"] for x in t["results"]] == [85, 40] and t["average"] == 62 and t["lowest"] == 40
+    )
+    assert t["results"][0]["objection_fa"] is None and t["results"][1]["objection_fa"].startswith(
+        "ایراد"
+    )
     assert t["results"][1]["name_fa"] == "سرمایه‌گذار آرام" and t["results"][0]["would_act"] is True
     assert token not in t["text"]
     q = router.of("persona_test")
     assert len(q) == 1  # ONE call for all the personas
-    assert q[0]["task_class"] == "persona_test" and "sonnet" in q[0]["model"] and token not in q[0]["prompt"]
+    assert (
+        q[0]["task_class"] == "persona_test"
+        and "sonnet" in q[0]["model"]
+        and token not in q[0]["prompt"]
+    )
     assert len(json.loads(q[0]["prompt"])["personas"]) == 2
     item = q[0]["json_schema"]["properties"]["routes"]["properties"]["results"]
-    assert item["minItems"] == item["maxItems"] == 2 and item["items"]["additionalProperties"] is False
-    assert await su.fetchval("SELECT count(*) FROM growth.persona_tests WHERE company_id = $1", co["id"]) == 1
+    assert (
+        item["minItems"] == item["maxItems"] == 2 and item["items"]["additionalProperties"] is False
+    )
+    assert (
+        await su.fetchval(
+            "SELECT count(*) FROM growth.persona_tests WHERE company_id = $1", co["id"]
+        )
+        == 1
+    )
     # an answer that fails the check is a 502 and is never stored
     good = verdicts(80, 80)
 
@@ -591,7 +696,12 @@ async def test_a_message_is_tested_in_one_call_and_checked_by_code(
     router.handlers["persona_test"] = lambda req: None
     r = await client.post(url, json={"text": "پیام"}, headers=h)
     assert r.status_code == 502 and r.json()["message_fa"]
-    assert await su.fetchval("SELECT count(*) FROM growth.persona_tests WHERE company_id = $1", co["id"]) == 1
+    assert (
+        await su.fetchval(
+            "SELECT count(*) FROM growth.persona_tests WHERE company_id = $1", co["id"]
+        )
+        == 1
+    )
     assert (await client.post(url, json={"text": ""}, headers=h)).status_code == 422
     assert (await client.post(url, json={"text": "  "}, headers=h)).status_code == 422
 
@@ -617,7 +727,9 @@ def line_fakes() -> Any:
     REGISTRY.update(saved)
 
 
-async def persona_line(client: httpx.AsyncClient, h: dict[str, str], co: dict[str, Any]) -> dict[str, Any]:
+async def persona_line(
+    client: httpx.AsyncClient, h: dict[str, str], co: dict[str, Any]
+) -> dict[str, Any]:
     await add_persona(client, h, co["code"])
     await add_persona(client, h, co["code"], name_fa="سرمایه‌گذار آرام")
     return await make_line(client, h, co["code"], template="persona_line")
@@ -640,7 +752,11 @@ async def test_below_min_score_the_run_waits_for_the_owner_with_the_objections(
         assert s["check"]["state"] == "waiting" and s["check"]["gate"] == "owner"
         assert s["send"]["state"] == "pending" and not line_fakes["deliver"]
         out = s["check"]["output"]
-        assert out["data"]["score"] == 45 and out["data"]["min_score"] == 70 and out["data"]["passed"] is False
+        assert (
+            out["data"]["score"] == 45
+            and out["data"]["min_score"] == 70
+            and out["data"]["passed"] is False
+        )
         assert len(out["data"]["results"]) == 2 and out["text"]
         card = (await client.get(f"{API}/decisions/{run['decision']}", headers=h)).json()
         assert card["kind"] == "line_publish" and card["payload"]["step"] == "check"
@@ -656,7 +772,12 @@ async def test_below_min_score_the_run_waits_for_the_owner_with_the_objections(
     assert s["send"]["state"] == "done" and len(line_fakes["deliver"]) == 1
     assert len(router.of("persona_test")) == 1
     assert run["cost"]["tokens"] == 250  # the test's tokens are in the run, once
-    assert await su.fetchval("SELECT count(*) FROM growth.persona_tests WHERE run_ref = $1", run["ref"]) == 1
+    assert (
+        await su.fetchval(
+            "SELECT count(*) FROM growth.persona_tests WHERE run_ref = $1", run["ref"]
+        )
+        == 1
+    )
 
 
 async def test_the_owner_can_refuse_a_message_that_scored_low(
@@ -670,7 +791,9 @@ async def test_the_owner_can_refuse_a_message_that_scored_low(
     async with holding_switch(su, "released"):
         run = await start(client, h, line["ref"])
         assert (await engine.drive(hub, run["ref"]))["state"] == "waiting"
-        run = await seal(client, hub, owner_session, await get_run(client, h, run["ref"]), approve=False)
+        run = await seal(
+            client, hub, owner_session, await get_run(client, h, run["ref"]), approve=False
+        )
     assert run["state"] == "cancelled" and not line_fakes["deliver"]
     assert steps_of(run)["check"]["state"] == "failed"
 
@@ -712,7 +835,9 @@ async def test_the_step_fails_plainly_when_the_model_or_the_personas_are_missing
         run = await get_run(client, h, run["ref"])
         assert "پرسونا" in steps_of(run)["check"]["error_fa"] and not line_fakes["deliver"]
         await add_persona(client, h, co["code"])
-        router.handlers["persona_test"] = lambda req: None  # the model is down: nothing passes untested
+        router.handlers["persona_test"] = lambda req: (
+            None
+        )  # the model is down: nothing passes untested
         run = await start(client, h, line["ref"])
         assert (await engine.drive(hub, run["ref"]))["state"] == "failed"
     run = await get_run(client, h, run["ref"])
@@ -731,7 +856,11 @@ async def test_the_lowest_score_can_be_the_measure(
         {**s, "settings": {**s["settings"], "aggregate": "min"}} if s["key"] == "check" else s
         for s in body["steps"]
     ]
-    r = await client.put(f"{API}/lines/{line['ref']}", json={"steps": steps}, headers={**h, "Idempotency-Key": uuid.uuid4().hex})
+    r = await client.put(
+        f"{API}/lines/{line['ref']}",
+        json={"steps": steps},
+        headers={**h, "Idempotency-Key": uuid.uuid4().hex},
+    )
     assert r.status_code == 200, r.text
     router.handlers["persona_test"] = verdicts(100, 60)  # mean 80 passes, the lowest (60) does not
     async with holding_switch(su, "released"):

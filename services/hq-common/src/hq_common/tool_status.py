@@ -28,6 +28,7 @@ GATEWAY_TOOLS: frozenset[str] = frozenset(
         "work.progress",
         "work.fail",
         "work.delegate",
+        "work.split",  # ⟨1.15⟩ prompt 24 (contract §33.7): parallel parts
         "work.request",
         "activity.set",
         "notify",

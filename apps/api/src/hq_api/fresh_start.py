@@ -113,6 +113,8 @@ WIPE: tuple[str, ...] = (
     # reports, the leads and their trails, the affiliate gaps (rebuilt from the radar)
     "money.alerts", "money.chain_transfers", "money.payments", "money.reconcile_days",
     "sales.affiliate_gaps", "sales.lead_events", "sales.leads", "sales.usage_reports",
+    # ⟨1.15⟩ §33.7, §33.10: a work's parallel parts and its workspace go with the work
+    "work.splits", "work.split_parts", "work.workspaces",
 )  # fmt: skip
 
 # Rows of a WIPE table that stay: the condition (on the row as `x`) keeps them

@@ -997,9 +997,16 @@ class Activities:
         (every few minutes) and falls back to auto after 30 minutes; open
         councils are brought up to date. The worker's role queues the runs."""
         from hq_api.domain import players
+        from hq_api.domain import split as SP
+        from hq_api.domain import workspace as WS
 
         async with self._tx() as tx:
-            return await players.sweep(tx, self.hub)
+            out: dict[str, Any] = dict(await players.sweep(tx, self.hub))
+            # ⟨1.15⟩ §33.7 parallel parts that all ended get their one merge run; §33.10 the
+            # workspaces of closed works get their close (told to the runner on its next poll)
+            out["splits"] = await SP.sweep(tx)
+            out["workspaces_closed"] = await WS.sweep(tx)
+            return out
 
     @activity.defn(name="secretary_tick")
     async def secretary_tick(self) -> dict[str, Any]:

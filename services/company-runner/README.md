@@ -15,7 +15,7 @@
 | `claude` | Claude Code خود سرور را اجرا میکند (`claude -p … --output-format stream-json --verbose`) در پوشه‌ی ریپو (`args.cwd`)، زیر CLAUDE.md همان ریپو. پیام‌های بعدی مالک با `--resume` ادامه میدهند. هر خط stream-json یک `session_event` میشود و مصرف توکن از خط آخر به خزانه میرود. |
 | `publish` | فایل‌های رندرشده را از ستاد میگیرد (فقط از نشانی خود هاب)، دستور انتشار محلی همین سرور را اجرا میکند و `{external_id, url}` را برمیگرداند (§۲۶.۱b). |
 | `netcheck` | سنجش شبکه (§۲۶.۶): اتصال TCP به هر پورت (۳ ثانیه) و ping هر مقصد اگر ping باشد، به‌علاوه‌ی آدرس خصوصی هاب. |
-| `ledger` | ⟨0.3.0⟩ دفتر پرداخت خود شرکت (§۳۳.۲): `args {contract: "ledger_v1", since, limit ≤ 5000}`. پرس‌وجوی `~/.config/hq-runner/ledger.sql` و DSN و نمکِ `ledger.env` (هر دو `600`) فقط روی همین سرورند. پرس‌وجو در تراکنش READ ONLY با سقف زمان اجرا میشود، ستون‌هایش باید دقیقاً ستون‌های قرارداد باشد و `customer` با HMAC-SHA256 هش میشود. نتیجه: `{rows, count, next_since, more}`. هیچ SQL از هاب نمیآید. |
+| `ledger` | ⟨0.3.0⟩ دفتر پرداخت خود شرکت (§۳۳.۲): `args {contract: "ledger_v1", since_cursor, limit ≤ 500}`. پرس‌وجوی `~/.config/hq-runner/ledger.sql` و DSN و نمکِ `ledger.env` (هر دو `600`) فقط روی همین سرورند. پرس‌وجو در تراکنش READ ONLY با سقف زمان اجرا میشود، ستون‌هایش باید دقیقاً ستون‌های قرارداد باشد و `customer` با HMAC-SHA256 هش میشود. هر ردیف پیش از ارسال با قواعد `ledger_v1` سنجیده میشود (رشته‌ها، زمان UTC با Z، مبلغ دهدهی، هش هر شبکه) و یک ردیف خراب کل دسته را رد میکند. نتیجه: `{contract, rows, next_cursor, has_more, count}`. هیچ SQL از هاب نمیآید. |
 
 **کنترل:**
 - **همزمانی:** حداکثر ۲ کار همزمان، هر کار با سقف زمان خودش.
@@ -56,7 +56,7 @@ mkdir -p ~/.local/bin && ln -sf ~/.local/share/hq-runner/venv/bin/hq-runner ~/.l
 - بعد `sudo systemctl restart hq-runner@$USER`.
 - جزئیات: `docs/server-prompts/COMPANY_SERVER_ACCESS_SETUP.md`، بخش «به‌روزرسانی runner».
 - **0.3.0:**
-  - کار `ledger` و دستور `hq-runner ledger-check` (فایل‌ها، دسترسی ۶۰۰، `SELECT 1`، نقشی که نمیتواند بنویسد، و ستون‌های پرس‌وجو؛ «ok» یا دلیل را چاپ میکند و هیچ رمزی را نه).
+  - کار `ledger` و دستور `hq-runner ledger-check` (فایل‌ها، دسترسی ۶۰۰، `SELECT 1`، نقشی که نمیتواند بنویسد، ستون‌های پرس‌وجو و ۲۰ ردیف اول در برابر قرارداد؛ «ok» یا دلیل را چاپ میکند و هیچ رمز یا مقداری را نه).
   - در پرس‌وجو `:since` را این‌طور به کار ببرید: `WHERE (CAST(:since AS timestamptz) IS NULL OR paid_at > CAST(:since AS timestamptz))`.
   - کار `claude` با `args.workspace: "W-…"` در پوشه‌ی ماندگار `~/hq-workspace/<شماره‌ی کار>` (۷۰۰) کار میکند و ادامه‌ها همان پوشه را میبینند. وقتی هاب بستن کار را خبر داد، ثبت و log میشود و یک جاروی روزانه پوشه را ۳۰ روز بعد پاک میکند.
 - **0.2.2:**

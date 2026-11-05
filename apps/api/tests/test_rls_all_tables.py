@@ -1360,6 +1360,70 @@ async def _fill_p22g(su: Any, co: dict[str, Any]) -> None:
     )
 
 
+async def _fill_p24(su: Any, co: dict[str, Any]) -> None:
+    """Prompt 24 (migrations 0048, 0049): the journey, personas, parallel parts, a workspace."""
+    c = co["id"]
+    await su.execute(
+        """INSERT INTO growth.journey_plans (company_id, kit, stages)
+           VALUES ($1, 'rls', '[{"key": "founded", "title_fa": "تأسیس", "rule": {"kind": "company"}}]')""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO growth.journey_stages (company_id, key, reached_at, evidence_kind)
+           VALUES ($1, 'founded', now(), 'company')""",
+        c,
+    )
+    await su.execute(
+        "INSERT INTO growth.journey_state (company_id, current_key) VALUES ($1, 'founded')", c
+    )
+    await su.execute(
+        "INSERT INTO growth.personas (company_id, name_fa, summary_fa) VALUES ($1, 'تازه‌کار', 'خلاصه')",
+        c,
+    )
+    await su.execute(
+        "INSERT INTO growth.persona_tests (company_id, message, results) VALUES ($1, 'پیام', '[]')",
+        c,
+    )
+    parent = await su.fetchval(
+        """INSERT INTO work.work (company_id, kind, title, created_by_kind, created_by_code)
+           VALUES ($1, 'one_off', 'p24 split', 'owner', 'owner') RETURNING id""",
+        c,
+    )
+    child = await su.fetchval(
+        """INSERT INTO work.work (company_id, kind, title, created_by_kind, created_by_code, parent_id)
+           VALUES ($1, 'one_off', 'p24 part', 'owner', 'owner', $2) RETURNING id""",
+        c,
+        parent,
+    )
+    sp = await su.fetchval(
+        """INSERT INTO work.splits (company_id, work_id, parts, proposed_by)
+           VALUES ($1, $2, 2, 'X-CEO') RETURNING id""",
+        c,
+        parent,
+    )
+    await su.execute(
+        """INSERT INTO work.split_parts (split_id, company_id, work_id, n, role)
+           VALUES ($1, $2, $3, 1, 'TECH')""",
+        sp,
+        c,
+        child,
+    )
+    server = await su.fetchval(
+        """INSERT INTO infra.servers (company_id, origin, name, state)
+           VALUES ($1, 'attached', 'ws-1', 'online') RETURNING id""",
+        c,
+    )
+    ref = await su.fetchval("SELECT ref FROM work.work WHERE id = $1", parent)
+    await su.execute(
+        """INSERT INTO work.workspaces (company_id, work_id, work_ref, server_id)
+           VALUES ($1, $2, $3, $4)""",
+        c,
+        parent,
+        ref,
+        server,
+    )
+
+
 async def _fill_p22(su: Any, co: dict[str, Any]) -> None:
     """Prompt 22 (migration 0040): one row of company `co` in each table of lines."""
     c = co["id"]
@@ -1504,6 +1568,7 @@ async def test_no_table_leaks_between_companies(
     await _fill_p21c(su, b)
     await _fill_p22g(su, b)
     await _fill_p22(su, b)
+    await _fill_p24(su, b)
     tables = await su.fetch(
         """SELECT c.table_schema AS s, c.table_name AS t FROM information_schema.columns c
            JOIN information_schema.tables x ON x.table_schema = c.table_schema AND x.table_name = c.table_name

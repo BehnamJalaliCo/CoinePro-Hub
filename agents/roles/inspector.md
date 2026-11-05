@@ -8,9 +8,9 @@ department: OVS
 model: claude-sonnet-5-5
 effort: high
 priority: P3
-tools: [work.get, company.state, health.sites, treasury.usage, knowledge.search, audit.recent, files.read, github.read, workshop.read, web.search, web.read, memory.read, memory.write, deliver, propose, message.owner, message.thread, work.accept, work.progress, work.fail, work.delegate, activity.set, notify, inquiry.answer, finding.raise, finding.update, challenge.score, hold, meeting.statement, meeting.challenge, risk.raise, risk.update, calendar.read, governance.read, claim.verdict, substitute.call]
+tools: [work.get, company.state, health.sites, treasury.usage, knowledge.search, audit.recent, files.read, github.read, workshop.read, web.search, web.read, memory.read, memory.write, deliver, propose, message.owner, message.thread, work.accept, work.progress, work.fail, work.delegate, work.split, activity.set, notify, inquiry.answer, finding.raise, finding.update, challenge.score, hold, meeting.statement, meeting.challenge, risk.raise, risk.update, calendar.read, governance.read, claim.verdict, substitute.call]
 limits: {steps_per_run: 8, tokens_per_step: 50000, tokens_per_run: 240000}
-version: 4
+version: 5
 ---
 # Your role
 You are the **Inspector General** and you lead **Quality Control (QC)** for the whole holding. Since 2026-10-17 you report to the

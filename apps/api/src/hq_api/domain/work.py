@@ -101,7 +101,8 @@ class Work(BaseModel):
     # ⟨1.9⟩ contract §27.1-§27.2: who plays it and how; `player_fallback`
     # once a named player was unavailable for 30 minutes (auto since)
     player: Literal["auto", "claude", "gpt", "gemini", "deepseek"] = "auto"
-    mode: Literal["single", "council"] = "single"
+    # ⟨1.15⟩ §33.10 `on_server`: done by its company server's own Claude Code in a workspace
+    mode: Literal["single", "council", "on_server"] = "single"
     media: Literal["image", "video"] | None = None
     player_fallback: bool = False
     version: int
@@ -327,7 +328,9 @@ async def create(
 
     if parent is not None:
         player = player or parent.get("player") or "auto"
-        mode = mode or parent.get("mode") or "single"
+        # ⟨1.15⟩ a workspace belongs to one work: a child is not `on_server` unless asked
+        inherited = parent.get("mode") if parent.get("mode") != "on_server" else None
+        mode = mode or inherited or "single"
         if parent.get("player_fallback_at") is not None:
             player = "auto"  # the parent already fell back
         if target["kind"] in CLAUDE_ONLY_KINDS:

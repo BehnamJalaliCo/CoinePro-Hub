@@ -8,7 +8,8 @@ groups_tick       every 10 minutes (hq-groups-tick): the group files, the
                   nothing while the holding is locked
 connections_read  hourly (hq-connections-read): each connection's daily read
                   through egress, IG-Hub's runner jobs; the hub's own figures;
-                  nothing while the holding is locked
+                  nothing while the holding is locked; then the companies'
+                  journeys (§33.8: stages by code, one line when a stage changes)
 connection_test   the owner's «آزمودن» (one read now; the launch gate is
                   checked by the read itself)
 home_morning      08:00 the owner's time (hq-home-morning): suggestions,
@@ -25,6 +26,7 @@ from temporalio import activity
 from hq_api.domain import connections as CN
 from hq_api.domain import groups as GR
 from hq_api.domain import home as HM
+from hq_api.domain import journey as JN
 from hq_api.hub import Hub
 
 
@@ -44,7 +46,14 @@ class GrowthActivities:
 
     @activity.defn(name="connections_read")
     async def connections_read(self) -> dict[str, Any]:
-        return await CN.read_due(self.hub)
+        out = await CN.read_due(self.hub)
+        if "skipped" in out:  # the holding is locked: no journey line either
+            return out
+        try:  # ⟨1.15⟩ §33.8: after the figures are in, each company's stages (rows only)
+            out = {**out, "journeys_changed": await JN.tick(self.hub)}
+        except Exception:  # noqa: BLE001 - the journey never fails the connections' read
+            out = {**out, "journeys_changed": None}
+        return out
 
     @activity.defn(name="connection_test")
     async def connection_test(self, company_id: str, kind: str) -> dict[str, Any]:
