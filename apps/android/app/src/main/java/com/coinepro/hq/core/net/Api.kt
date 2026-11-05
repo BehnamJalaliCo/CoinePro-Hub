@@ -1743,7 +1743,8 @@ class Api(
 
     suspend fun personas(code: String): List<SalesPersona> = items("/companies/${seg(code)}/personas", SalesPersona.serializer())
     suspend fun savePersona(code: String, id: String?, body: JsonObject): SalesPersona =
-        if (id == null) post("/companies/${seg(code)}/personas", body) else put("/personas/${seg(id)}", body)
+        if (id == null) post("/companies/${seg(code)}/personas", body)
+        else send("PATCH", "/personas/${seg(id)}", JsonObject(body.filterKeys { it in PERSONA_FIELDS }).toString())
     suspend fun deletePersona(id: String) { execute(Request.Builder().url(url("/personas/${seg(id)}")).delete().build()).use { check(it) } }
     /** Up to four personas the company's knowledge base suggests; saved only when the owner keeps one. */
     suspend fun suggestPersonas(code: String): List<SalesPersona> {
@@ -1881,6 +1882,8 @@ class Api(
         const val REQUEST_ID = "X-Request-Id"
         /** The hub's page ceiling (`pagination.MAX_LIMIT`); a `limit` above it is refused with 422. */
         const val MAX_PAGE = 200
+        /** `PATCH /personas/{id}` takes these fields only (the hub refuses any other). */
+        val PERSONA_FIELDS = setOf("name_fa", "summary_fa", "pains_fa", "objections_fa", "channel_fa")
         /** How long a call took, on the response the app hands on (never sent anywhere). */
         private const val ELAPSED = "X-HQ-Elapsed-Ms"
         /** A read that met a 502/503/504 or no answer is tried again after these pauses. */

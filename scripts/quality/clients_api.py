@@ -64,7 +64,7 @@ def check_android(spec, errors: list[str]) -> int:
             for m in KT_CALL.finditer(s):
                 n += 1
                 verb, path = KT_VERB[m.group(1)], kt_path(m.group(2))
-                if (verb, path) not in spec and not any(p == path for _, p in spec):
+                if (verb, path) not in spec:
                     errors.append(f"{rel}: {verb} {m.group(2)} is not in the hub's OpenAPI")
                 line = s[m.end(): s.find("\n", m.end())]
                 cap = spec.get(("GET", path))

@@ -159,7 +159,7 @@ const ORDERS: Record<string, unknown> = {
 
 // ================================================================================================= handler ==
 export async function handle33(req: Request, p: string, q: URLSearchParams, next: () => Promise<Response>): Promise<Response | null> {
-  if (!/^\/(usage\/|payment-sources|companies\/[^/]+\/(payment-sources|payments|reconcile|leads|pipeline|journey|personas)|revenue\/(board|affiliate-gaps|summary)|leads\/|journeys$|decisions|orders\/F-009[67]\/report)/.test(p)) return null;
+  if (!/^\/(usage\/|payment-sources|personas\/|companies\/[^/]+\/(payment-sources|payments|reconcile|leads|pipeline|journey|personas)|revenue\/(board|affiliate-gaps|summary)|leads\/|journeys$|decisions|orders\/F-009[67]\/report)/.test(p)) return null;
   const m = req.method;
   const body = async <T,>() => (await req.clone().json().catch(() => ({}))) as T;
   const stepUp = req.headers.get('X-Step-Up');
@@ -264,14 +264,15 @@ export async function handle33(req: Request, p: string, q: URLSearchParams, next
       return { persona: x.id, score, would_act: score >= 60, objection_fa: score >= 60 ? null : (x.objections_fa[0] ?? null), fix_fa: score >= 60 ? null : 'قیمت را کنار یک نمونه‌ی ملموس از صرفه‌جویی بگذار.' };
     }) });
   }
-  if (pr && pr[2] && m === 'PUT') {
-    const i = personas.findIndex((x) => x.id === pr[2]);
+  const one = /^\/personas\/([^/]+)$/.exec(p); // PATCH and DELETE /personas/{id} (contract §33.9)
+  if (one && m === 'PATCH') {
+    const i = personas.findIndex((x) => x.id === one[1]);
     if (i < 0) return problem(404, 'not_found', 'این پرسونا پیدا نشد.');
     const b = await body<any>();
     personas[i] = { ...personas[i], ...b, version: personas[i].version + 1 };
     return json(personas[i]);
   }
-  if (pr && pr[2] && m === 'DELETE') { const i = personas.findIndex((x) => x.id === pr[2]); if (i >= 0) personas.splice(i, 1); return json(null, 204); }
+  if (one && m === 'DELETE') { const i = personas.findIndex((x) => x.id === one[1]); if (i >= 0) personas.splice(i, 1); return json(null, 204); }
 
   // ---------------------------------------------------------------------------------------------- impact --
   if (p === '/decisions' && m === 'GET') {

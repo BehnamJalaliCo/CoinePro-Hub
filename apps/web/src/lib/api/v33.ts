@@ -179,9 +179,13 @@ export function usePersonaActions(c: string) {
   return {
     /** Keeping a suggestion, or adding by hand: `POST …/personas`. */
     add: useMutation({ mutationFn: (b: PersonaDraft) => call<PersonaRow>('POST', `/companies/${enc(c)}/personas`, b), onSettled: settle }),
-    /** Assumed: `PUT …/personas/{id}` with the version it was read at. */
-    edit: useMutation({ mutationFn: (b: PersonaDraft & { id: string; version: number }) => call<PersonaRow>('PUT', `/companies/${enc(c)}/personas/${enc(b.id)}`, b), onSettled: settle }),
-    remove: useMutation({ mutationFn: (id: string) => call<void>('DELETE', `/companies/${enc(c)}/personas/${enc(id)}`), onSettled: settle }),
+    /** `PATCH /personas/{id}`: the fields only (the hub refuses any other key). */
+    edit: useMutation({
+      mutationFn: (b: PersonaDraft & { id: string; version: number }) =>
+        call<PersonaRow>('PATCH', `/personas/${enc(b.id)}`, { name_fa: b.name_fa, summary_fa: b.summary_fa, pains_fa: b.pains_fa, objections_fa: b.objections_fa, channel_fa: b.channel_fa }),
+      onSettled: settle,
+    }),
+    remove: useMutation({ mutationFn: (id: string) => call<void>('DELETE', `/personas/${enc(id)}`), onSettled: settle }),
     /** Proposes up to four from the knowledge base; nothing is saved until the owner keeps one. Assumed answer: an array or `{items}` of drafts. */
     suggest: useMutation({ mutationFn: async () => listOf(await call<PersonaDraft[] | { items: PersonaDraft[] }>('POST', `/companies/${enc(c)}/personas/suggest`, {})) }),
     test: useMutation({ mutationFn: (text: string) => call<PersonaTest>('POST', `/companies/${enc(c)}/personas/test`, { text }) }),
