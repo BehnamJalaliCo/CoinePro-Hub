@@ -126,6 +126,10 @@ async def get_journey(client: httpx.AsyncClient, h: dict[str, str], code: str) -
     return out
 
 
+def J_at(text: str) -> datetime:  # a parsed timestamp of the journey JSON
+    return datetime.fromisoformat(text.replace("Z", "+00:00"))
+
+
 async def stage_events(su: Any, code: str) -> list[str]:
     rows = await su.fetch(
         "SELECT payload->>'ref' AS ref FROM core.outbox WHERE subject = $1 ORDER BY id",
@@ -330,15 +334,20 @@ async def test_stages_are_reached_from_existing_rows(
     r = await client.get(f"{API}/journeys", headers=h)
     assert r.status_code == 200, r.text
     board = r.json()
-    mine = [e for e in board["timeline"] if e["company"] == co["code"]]
-    assert {e["stage"] for e in mine} == {
-        "founded",
-        "server_ready",
-        "first_content",
-        "first_visitor",
+    reached = {
+        st["key"]: st["reached_at"]
+        for x in board["journeys"]
+        if x["company"] == co["code"]
+        for st in x["stages"]
+        if st["reached_at"]
     }
+    assert set(reached) == {"founded", "server_ready", "first_content", "first_visitor"}
     ats = [e["at"] for e in board["timeline"]]
     assert ats == sorted(ats, reverse=True)
+    # the timeline keeps the newest 200 of every company (the test database holds many)
+    mine = {e["stage"] for e in board["timeline"] if e["company"] == co["code"]}
+    full = len(ats) < 200
+    assert mine == {k for k, at in reached.items() if full or J_at(at) >= J_at(ats[-1])}
     assert co["code"] in {x["company"] for x in board["journeys"]}
     assert isinstance(await J.tick(hub), int)
 
