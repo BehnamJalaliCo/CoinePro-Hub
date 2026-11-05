@@ -48,6 +48,7 @@ def mid_model() -> str:
 
     return MODEL
 
+
 TASK_CLASS = "decision_impact"
 MAX_OUTPUT_TOKENS = 900
 MEASURED_KINDS = ("budget_change", "hire")
@@ -89,6 +90,8 @@ SORT_SQL = """(CASE WHEN d.impact IS NULL THEN NULL ELSE
     (abs(COALESCE((d.impact->>'revenue_usdt')::numeric, 0))
      + abs(COALESCE((d.impact->>'cost_usd')::numeric, 0)))
     * 30.0 / greatest(COALESCE((d.impact->>'horizon_days')::numeric, 1), 1) END)"""
+# ascending: the largest impact first, the cards without one last (`GET /decisions?sort=impact`)
+SORT_KEY_SQL = f"COALESCE(-{SORT_SQL}, 1)"
 
 
 def _num(v: Decimal | float | None) -> float | None:
@@ -110,7 +113,9 @@ def measured(
 
 
 # ---------------------------------------------------------------- measuring --
-async def _cost_per_token(tx: Tx, scope_type: str, scope_ref: str, company_id: Any) -> Decimal | None:
+async def _cost_per_token(
+    tx: Tx, scope_type: str, scope_ref: str, company_id: Any
+) -> Decimal | None:
     """What a token of this scope really cost over the last 30 days."""
     where = {
         "holding": "TRUE",
@@ -156,7 +161,9 @@ async def measure_budget(tx: Tx, d: dict[str, Any]) -> dict[str, Any] | None:
             "بیشترین هزینه‌ی اضافه همین تفاوت است.",
         )  # fmt: skip
     if new_tok is not None and now_row["token_limit"] is not None:
-        rate = await _cost_per_token(tx, str(scope.get("scope_type")), str(scope.get("scope_ref")), d["company_id"])
+        rate = await _cost_per_token(
+            tx, str(scope.get("scope_type")), str(scope.get("scope_ref")), d["company_id"]
+        )
         if rate is None:
             return None
         delta = (Decimal(int(new_tok)) - Decimal(int(now_row["token_limit"]))) * rate
@@ -192,7 +199,9 @@ async def measure_hire(tx: Tx, d: dict[str, Any]) -> dict[str, Any] | None:
             basis_tokens = f"میانه‌ی مصرف ماهانه‌ی همین نقش ({tokens:,} توکن)"
     if not tokens or not isinstance(model, str):
         return None
-    table = await tx.first("SELECT pricing FROM llm.connections WHERE pricing ? :m LIMIT 1", m=model)
+    table = await tx.first(
+        "SELECT pricing FROM llm.connections WHERE pricing ? :m LIMIT 1", m=model
+    )
     if table is None:
         return None
     pr = table["pricing"] if isinstance(table["pricing"], dict) else json.loads(table["pricing"])
@@ -204,7 +213,9 @@ async def measure_hire(tx: Tx, d: dict[str, Any]) -> dict[str, Any] | None:
     if cost is None:
         return None
     return measured(
-        None, cost, 30,
+        None,
+        cost,
+        30,
         f"{basis_tokens}، با قیمت مدل {model} در جدول قیمت هاب (۷۰٪ ورودی، ۳۰٪ خروجی).",
     )
 
@@ -275,7 +286,9 @@ async def measure(tx: Tx, d: dict[str, Any]) -> dict[str, Any] | None:
     except ValueError:
         return None
     if inp.kind == "ads.cap" and inp.platform and inp.campaign and inp.new_daily_cap is not None:
-        return await measure_ads_cap(tx, d["company_id"], inp.platform, inp.campaign, inp.new_daily_cap)
+        return await measure_ads_cap(
+            tx, d["company_id"], inp.platform, inp.campaign, inp.new_daily_cap
+        )
     if inp.kind == "line.caps" and inp.line and inp.new_runs_per_day is not None:
         return await measure_line_caps(tx, inp.line, inp.new_runs_per_day)
     return None
@@ -347,7 +360,12 @@ def estimate_request(holding_code: str, d: dict[str, Any]) -> dict[str, Any]:
 def checked_estimate(raw: Any) -> dict[str, Any] | None:
     """The model's estimate, or None when it is not usable: figures finite and not
     negative, at least one of them present, a plain Persian basis."""
-    if not isinstance(raw, dict) or set(raw) != {"revenue_usdt", "cost_usd", "horizon_days", "basis_fa"}:
+    if not isinstance(raw, dict) or set(raw) != {
+        "revenue_usdt",
+        "cost_usd",
+        "horizon_days",
+        "basis_fa",
+    }:
         return None
     figures: dict[str, float | None] = {}
     for k in ("revenue_usdt", "cost_usd"):
@@ -377,7 +395,9 @@ def checked_estimate(raw: Any) -> dict[str, Any] | None:
     ).model_dump()
 
 
-async def estimate(hub: Any, holding_code: str, d: dict[str, Any], ask: Ask | None = None) -> dict[str, Any] | None:
+async def estimate(
+    hub: Any, holding_code: str, d: dict[str, Any], ask: Ask | None = None
+) -> dict[str, Any] | None:
     call = ask or (lambda r: workflows_client.route_order(hub, r, 70.0))
     try:
         answer = await call(estimate_request(holding_code, d))
@@ -397,7 +417,9 @@ async def _store(tx: Tx, d: dict[str, Any], impact: dict[str, Any] | None) -> No
     )
 
 
-async def sweep(hub: Any, ask: Ask | None = None, now: datetime | None = None) -> dict[str, int]:
+async def sweep(
+    hub: Any, ask: Ask | None = None, now: datetime | None = None, *, only: list[Any] | None = None
+) -> dict[str, int]:
     """Impact for the pending cards that have none: the measured ones by code, the estimates
     (proposal, a3_action) one model call per card. A card the owner has decided is never
     touched. Each card is tried at most MAX_TRIES times."""
@@ -411,9 +433,11 @@ async def sweep(hub: Any, ask: Ask | None = None, now: datetime | None = None) -
                FROM cartable.decisions d
                WHERE d.status = 'pending' AND d.impact IS NULL AND d.impact_tries < :n
                  AND d.kind IN ('budget_change', 'hire', 'proposal', 'a3_action')
+                 AND (CAST(:only AS uuid[]) IS NULL OR d.id = ANY(CAST(:only AS uuid[])))
                ORDER BY d.created_at LIMIT :lim""",
             n=MAX_TRIES,
             lim=BATCH,
+            only=only,
         )
         for d in rows:
             m = await measure(tx, d)

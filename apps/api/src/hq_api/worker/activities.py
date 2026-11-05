@@ -123,6 +123,9 @@ class Activities:
         from hq_api.worker.voice_activities import VoiceActivities
 
         self.voice = VoiceActivities(hub)  # prompt 23: the voice layer's provider calls (§32.5)
+        from hq_api.worker.money_activities import MoneyActivities
+
+        self.money = MoneyActivities(hub, self.router)  # prompt 24: payments, usage, sales (§33)
 
     def all(self) -> list[Any]:
         return [
@@ -130,6 +133,7 @@ class Activities:
             *self.talk.all(),
             *self.lines.all(),
             *self.voice.all(),
+            *self.money.all(),
             *self.meetings.all(),
             *self.studio.all(),
             *self.management.all(),

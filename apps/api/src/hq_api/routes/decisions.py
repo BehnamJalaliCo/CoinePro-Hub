@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from typing import Any, Literal
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
@@ -11,6 +14,7 @@ from hq_api import idempotency, pagination, workflows_client
 from hq_api.context import Ctx, owner_ctx
 from hq_api.domain import dceo, gov_authority, routing
 from hq_api.domain import decisions as D
+from hq_api.domain import impact as IM
 from hq_api.errors import ApiError, responses
 from hq_api.schemas import Model, Page
 from hq_api.security import stepup
@@ -116,6 +120,17 @@ async def put_destructive(
     return DestructiveSettings(owner_categories=cats)
 
 
+def _impact_cursor(cursor: str | None) -> tuple[Decimal | None, datetime | None, UUID | None]:
+    """⟨1.15⟩ §33.6 a `sort=impact` cursor: (the sort key, created_at, id)."""
+    after = pagination.decode(cursor, 3)
+    if after is None:
+        return None, None, None
+    try:
+        return Decimal(str(after[0])), datetime.fromisoformat(str(after[1])), UUID(str(after[2]))
+    except (ValueError, InvalidOperation) as exc:
+        raise ApiError(422, "validation_failed", fields={"cursor": "invalid"}) from exc
+
+
 @router.get("/decisions", response_model=Page[D.Decision], responses=E)
 async def list_decisions(
     status: Literal[
@@ -166,19 +181,36 @@ async def list_decisions(
     cursor: str | None = None,
     scope: Literal["owner", "all"] = "owner",
     domain: list[str] | None = Query(default=None, max_length=7),
+    sort: Literal["created", "impact"] = "created",
     ctx: Ctx = Depends(owner_ctx),
 ) -> Page[D.Decision]:
-    """Default `status=pending`, oldest first. ⟨1.4.3⟩ by default only the cards
-    the owner decides (`approver` null); `?approver=all` adds the CEOs' (§18.11).
+    """Default `status=pending`, oldest first. ⟨1.15⟩ §33.6 `?sort=impact`: the largest money impact
+    per 30 days first (revenue and cost together; the cards without an impact last), then oldest.
+    ⟨1.4.3⟩ by default only the cards the owner decides (`approver` null); `?approver=all` adds the CEOs' (§18.11).
     ⟨21⟩ §29.1: `?scope=all` adds every card someone else decides (a CEO's
     hire, a CTO's destructive command), `&domain=` narrows by domain."""
-    after_t, after_id = pagination.time_id(cursor)
     domains = routing.parse_domains(domain)
     if scope == "all":
         approver = "all"
+    after_s: Decimal | None = None
+    if sort == "impact":
+        after_s, after_t, after_id = _impact_cursor(cursor)
+        after_sql = f"""(CAST(:after_t AS timestamptz) IS NULL
+                 OR ({IM.SORT_KEY_SQL}, d.created_at, d.id) >
+                    (CAST(:after_s AS numeric), CAST(:after_t AS timestamptz), CAST(:after_id AS uuid)))"""
+        order = f"{IM.SORT_KEY_SQL}, d.created_at, d.id"
+        keys: tuple[str, ...] = ("impact_key", "created_at", "id")
+    else:
+        after_t, after_id = pagination.time_id(cursor)
+        after_sql = """(CAST(:after_t AS timestamptz) IS NULL
+                 OR (d.created_at, d.id) > (CAST(:after_t AS timestamptz), CAST(:after_id AS uuid)))"""
+        order = "d.created_at, d.id"
+        keys = ("created_at", "id")
     async with ctx.tx() as tx:
         rows = await tx.all(
-            D.DECISION_SQL
+            D.DECISION_SQL.replace(
+                "SELECT d.*,", f"SELECT d.*, {IM.SORT_KEY_SQL} AS impact_key,", 1
+            )
             + """ WHERE d.status = :status
                     AND (:approver = 'all' OR d.approver_code IS NULL)
                     AND (CAST(:domains AS text[]) IS NULL OR d.domain = ANY(CAST(:domains AS text[])))
@@ -187,9 +219,9 @@ async def list_decisions(
                     AND (CAST(:risk AS text) IS NULL OR d.risk = :risk)
                     AND (CAST(:q AS text) IS NULL OR d.ref = :q
                          OR core.fa_normalize(d.title) LIKE '%' || core.like_escape(core.fa_normalize(:q)) || '%')
-                    AND (CAST(:after_t AS timestamptz) IS NULL
-                         OR (d.created_at, d.id) > (CAST(:after_t AS timestamptz), CAST(:after_id AS uuid)))
-                  ORDER BY d.created_at, d.id LIMIT :lim""",
+                    AND """
+            + after_sql
+            + f""" ORDER BY {order} LIMIT :lim""",
             status=status,
             approver=approver,
             domains=domains,
@@ -197,11 +229,12 @@ async def list_decisions(
             kind=kind,
             risk=risk,
             q=q,
+            after_s=after_s,
             after_t=after_t,
             after_id=after_id,
             lim=limit + 1,
         )
-        items, nxt = pagination.page(rows, limit, ("created_at", "id"))
+        items, nxt = pagination.page(rows, limit, keys)
         out = [D.render(r) for r in items]
         await dceo.reveal(tx, out)  # ⟨1.5⟩ only with reveal "before" (prompt 12 §13)
     return Page(items=out, next_cursor=nxt)

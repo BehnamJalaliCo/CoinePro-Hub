@@ -101,9 +101,7 @@ async def _coverage(tx: Tx, company_id: UUID) -> dict[str, Coverage]:
            WHERE company_id = :co AND kind = 'chain' AND enabled GROUP BY network""",
         co=company_id,
     )
-    return {
-        r["network"]: Coverage(r["f"], r["t"] if r["read"] == r["n"] else None) for r in rows
-    }
+    return {r["network"]: Coverage(r["f"], r["t"] if r["read"] == r["n"] else None) for r in rows}
 
 
 async def reconcile(tx: Tx, company_id: UUID, at: datetime | None = None) -> dict[str, int]:
@@ -125,7 +123,7 @@ async def reconcile(tx: Tx, company_id: UUID, at: datetime | None = None) -> dic
     counts = dict.fromkeys(P.STATUSES, 0)
     unchanged: list[UUID] = []
     for p in await tx.all(
-        """SELECT id, amount_usdt, network, tx_hash, paid_at, status, chain_amount, note_fa
+        """SELECT id, customer, amount_usdt, network, tx_hash, paid_at, status, chain_amount, note_fa
            FROM money.payments
            WHERE company_id = :co AND origin = 'ledger' AND kind = 'crypto' AND paid_at >= :since""",
         co=company_id,
@@ -151,6 +149,9 @@ async def reconcile(tx: Tx, company_id: UUID, at: datetime | None = None) -> dic
                 n=note,
                 at=at,
             )
+            if status == "matched" and p["status"] != "matched":
+                # §33.4: `paid` is set by code when the money of a pseudonym has arrived
+                await P._lead_paid(tx, company_id, p["customer"], Decimal(p["amount_usdt"]))
         else:
             unchanged.append(p["id"])
     if unchanged:
@@ -173,7 +174,7 @@ async def _chain_only(tx: Tx, company_id: UUID, since: datetime, at: datetime) -
         co=company_id,
     )
     for net, conf in P.networks().items():
-        await tx.exec(
+        made = await tx.all(
             """INSERT INTO money.payments (company_id, source_id, ext_id, origin, kind, amount_usdt,
                    network, tx_hash, paid_at, status, chain_amount, note_fa, checked_at)
                SELECT t.company_id, t.source_id, 'chain:' || t.tx_hash, 'chain', 'crypto',
@@ -187,19 +188,38 @@ async def _chain_only(tx: Tx, company_id: UUID, since: datetime, at: datetime) -
                HAVING min(t.confirmations) >= :th
                ON CONFLICT (company_id, source_id, ext_id) DO UPDATE SET
                    amount_usdt = EXCLUDED.amount_usdt, chain_amount = EXCLUDED.chain_amount,
-                   checked_at = EXCLUDED.checked_at""",
+                   checked_at = EXCLUDED.checked_at
+               RETURNING tx_hash, amount_usdt, (xmax = 0) AS inserted""",
             co=company_id,
             n=net,
             since=since,
             th=int(conf["confirmations"]),
             at=at,
         )
+        for m in made:  # §33.4: money without a customer is a lead to claim
+            if m["inserted"]:
+                await _chain_lead(tx, company_id, m["tx_hash"], Decimal(m["amount_usdt"]))
     return int(
         await tx.scalar(
             "SELECT count(*) FROM money.payments WHERE company_id = :co AND origin = 'chain'",
             co=company_id,
         )
     )
+
+
+async def _chain_lead(tx: Tx, company_id: UUID, tx_hash: str, amount: Decimal) -> None:
+    """A `chain_only` payment makes a lead in the first stage (a pseudonym of the hash, never an
+    address), for the company to find its customer."""
+    from hq_api.domain import leads
+    from hq_api.errors import ApiError
+
+    try:
+        async with tx.conn.begin_nested():
+            await leads.from_payment(
+                tx, company_id, "tx-" + tx_hash.removeprefix("0x")[:40], amount, paid=False
+            )
+    except ApiError as exc:
+        log.warning("lead of a chain payment refused", extra={"code": exc.code})
 
 
 def day_note(c: dict[str, int]) -> str:
@@ -407,8 +427,7 @@ async def weekly_line(tx: Tx, since: datetime) -> str:
                   count(*) FILTER (WHERE status = 'ledger_only') AS ledger_only,
                   count(*) FILTER (WHERE status = 'chain_only') AS chain_only,
                   count(*) FILTER (WHERE status = 'amount_mismatch') AS amount_mismatch
-           FROM money.payments WHERE paid_at >= :s"""
-        ,
+           FROM money.payments WHERE paid_at >= :s""",
         s=since,
     )
     bad = r["ledger_only"] + r["chain_only"] + r["amount_mismatch"]

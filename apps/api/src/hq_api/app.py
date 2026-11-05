@@ -82,11 +82,13 @@ from hq_api.routes import kits as kit_routes  # prompt 22: §31.2 company kits
 from hq_api.routes import legal as legal_routes  # prompt 13: the legal counsel
 from hq_api.routes import lines as line_routes  # prompt 22: production lines (§30, §31.1)
 from hq_api.routes import media as media_routes  # prompt 13, the media half
+from hq_api.routes import money as money_routes  # prompt 24: §33.2-§33.3 payments, the board
 from hq_api.routes import newsletter as newsletter_routes  # prompt 22 part 3: §31.3
 from hq_api.routes import order_report as order_report_routes  # prompt 21: §29.1-§29.2, §29.6
 from hq_api.routes import reviews as review_routes
 from hq_api.routes import role_drafts as role_draft_routes  # prompt 13 §1.1
 from hq_api.routes import rules as rule_routes  # prompt 21: the owner's rules
+from hq_api.routes import sales as sales_routes  # prompt 24: §33.1, §33.4-§33.5
 from hq_api.routes import seo as seo_routes  # prompt 22 part 3: §31.4
 from hq_api.routes import servers as server_routes  # prompt 17: company server runners
 from hq_api.routes import substitutes as substitute_routes  # prompt 12 part A
@@ -313,6 +315,11 @@ def create_app(
     app.include_router(talk_routes.router, prefix="/api/v1")
     # ⟨1.15⟩ prompt 24 (contract §33.8-§33.9): the company journey, personas and the message test
     app.include_router(journey_routes.router, prefix="/api/v1")
+    # ⟨1.15⟩ prompt 24 (contract §33.1-§33.6): payments and the revenue board; usage reports, the
+    # CRM and affiliate follow-up (OPA hq.money); the agents' read of them
+    app.include_router(money_routes.router, prefix="/api/v1")
+    app.include_router(sales_routes.router, prefix="/api/v1")
+    app.include_router(money_routes.internal_router, prefix="/internal/v1")
     # prompt 23 (contract §32.5-§32.6): the voice engines, the key and its light, the meter and the
     # cap; Piper's queue for the TTS one-shot
     app.include_router(voice_engine_routes.router, prefix="/api/v1")

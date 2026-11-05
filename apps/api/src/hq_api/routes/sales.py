@@ -12,7 +12,7 @@ CRM of each company, affiliate follow-up.
     GET   /revenue/affiliate-gaps                 ?company&state: due against received
     POST  /revenue/affiliate-receipts             what arrived for an account's month
 
-Owner only here (OPA `hq.sales`, which also lets a company's own sales or finance managers
+Owner only here (OPA `hq.money`, which also lets a company's CEO, FIN and SALES managers
 read in their company when a tool asks). The model is called only by `POST /usage/reports`
 and `POST /leads/{ref}/draft`; nothing here sends a message to anyone.
 """
@@ -46,7 +46,7 @@ REF = r"^LD-[0-9]{6,}$"
 
 async def _policy(ctx: Ctx, op: str, target: dict[str, Any] | None = None) -> None:
     await ctx.hub.policy.require(
-        "sales", {"principal": ctx.who.opa(), "op": op, "target": target or {}}
+        "money", {"principal": ctx.who.opa(), "op": op, "target": target or {}}
     )
 
 
@@ -242,7 +242,9 @@ async def patch_lead(
                 id=row["id"],
                 **sets,
             )
-            changed += [k for k in sets if k not in ("reminded_for", "assignee_kind", "assignee_code")]
+            changed += [
+                k for k in sets if k not in ("reminded_for", "assignee_kind", "assignee_code")
+            ]
         row = await L.load(tx, ref)
         if body.note_fa:
             await L.add_event(tx, row, "note", " ".join(scrub(body.note_fa).split()))
@@ -307,7 +309,10 @@ async def affiliate_gaps(
 
 
 @router.post(
-    "/revenue/affiliate-receipts", response_model=AG.SalesAffiliateReceipt, status_code=201, responses=E
+    "/revenue/affiliate-receipts",
+    response_model=AG.SalesAffiliateReceipt,
+    status_code=201,
+    responses=E,
 )
 async def affiliate_receipt(
     body: SalesReceiptIn, ctx: Ctx = Depends(owner_ctx)
@@ -323,4 +328,3 @@ async def affiliate_receipt(
         received_usdt=body.received_usdt,
         note_fa=body.note_fa,
     )
-

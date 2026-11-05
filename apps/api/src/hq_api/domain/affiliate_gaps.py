@@ -39,6 +39,7 @@ def mid_model() -> str:
 
     return MODEL
 
+
 SEED = Path(__file__).resolve().parents[3] / "seed" / "sales" / "affiliate.yaml"
 SERVICE = Principal(kind="service", code="sales", role="service")
 MONTHS_BACK = 12
@@ -156,7 +157,9 @@ def judge(
 
 async def stored(tx: Tx, account_id: Any, month: date) -> dict[str, Any] | None:
     return await tx.first(
-        "SELECT * FROM sales.affiliate_gaps WHERE account_id = :a AND month = :m", a=account_id, m=month
+        "SELECT * FROM sales.affiliate_gaps WHERE account_id = :a AND month = :m",
+        a=account_id,
+        m=month,
     )
 
 
@@ -182,7 +185,7 @@ async def listing(
                 received_usdt=Decimal(r["received"]),
                 gap_usdt=gap,
                 gap_pct=pct,
-                state=state,  # type: ignore[arg-type]
+                state=state,
                 settles_on=settle,
                 work_ref=g["work_ref"] if g else None,
                 draft_fa=g["draft_fa"] if g else None,
@@ -345,7 +348,13 @@ async def _close(tx: Tx, g: dict[str, Any], r: dict[str, Any], gap: Decimal, pct
 
 
 async def receive(
-    hub: Any, who: Principal, *, account_id: Any, month: date, received_usdt: Decimal, note_fa: str | None
+    hub: Any,
+    who: Principal,
+    *,
+    account_id: Any,
+    month: date,
+    received_usdt: Decimal,
+    note_fa: str | None,
 ) -> SalesAffiliateReceipt:
     """Record what arrived for an account's month and close its gap if that settles it."""
     if month != month_start(month):

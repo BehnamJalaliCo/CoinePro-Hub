@@ -266,6 +266,7 @@ DROP TABLE money.reconcile_days;
 DROP TABLE money.payments;
 DROP TABLE money.chain_transfers;
 DROP TABLE money.payment_sources;
+DROP FUNCTION money.keep_ledger_rows();
 DROP SCHEMA money;
 -- past `ledger` jobs stay as they are: the narrower check holds for new rows only
 """

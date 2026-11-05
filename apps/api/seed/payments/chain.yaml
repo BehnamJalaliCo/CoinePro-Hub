@@ -30,3 +30,15 @@ reconcile:
                                # its time by this much
   critical_ledger_only_usdt: "100"   # above this a `ledger_only` also reaches the owner (critical)
   max_lines_per_alert: 15      # payments named in one work item
+
+board:                         # the revenue board (contract §33.3), code only
+  months: 12                   # the months the board shows (the current one included)
+  churn_grace_days: 7          # a customer whose last period ended this long ago without a renewal churned
+  churn_window_months: 3       # the complete months the churn rate (and so LTV) is taken over
+  min_months_ltv: 3            # LTV is null with fewer months than this
+  default_period_days: 30      # a payment without a period covers this many days from paid_at
+  forecast_min_months: 4       # Holt's forecast only with this many complete months
+  forecast_months: 3
+  holt_alpha: 0.5
+  holt_beta: 0.3
+  band_z: 1.28                 # the band: ±z·σ of the one-step residuals

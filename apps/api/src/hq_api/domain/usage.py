@@ -44,6 +44,7 @@ def mid_model() -> str:
 
     return MODEL
 
+
 TASK_CLASS = "usage_report"
 MAX_OUTPUT_TOKENS = 4000
 SERVICE = Principal(kind="service", code="usage", role="service")
@@ -147,9 +148,7 @@ def _pct(now: float, before: float) -> float | None:
 
 
 # --------------------------------------------------------------------- pack --
-async def _totals(
-    tx: Tx, start: datetime, end: datetime
-) -> tuple[int, float, int, int]:
+async def _totals(tx: Tx, start: datetime, end: datetime) -> tuple[int, float, int, int]:
     """(tokens, usd, calls, failed calls) of every call in [start, end)."""
     row = await tx.one(
         f"""SELECT {spend.TOKENS_SQL} AS tokens,
@@ -232,7 +231,7 @@ async def build_pack(tx: Tx, period: str, tz: str, now: datetime) -> UsagePack:
     vs = UsageVsPrev(tokens_pct=_pct(tokens, p_tokens), usd_pct=_pct(usd, p_usd))
     anomalies = _anomalies(by_domain, vs, float(voice or 0), usd, calls, failed, p_tokens)
     return UsagePack(
-        period=period,  # type: ignore[arg-type]
+        period=period,
         **{"from": start},
         to=end,
         by_domain=by_domain,
@@ -266,9 +265,7 @@ def _anomalies(
         )
     if prev_tokens > 0 and vs.tokens_pct is not None and vs.tokens_pct >= (SPIKE_RATIO - 1) * 100:
         out.append(
-            UsageAnomaly(
-                kind="spike", note=f"مصرف توکن {vs.tokens_pct:g}٪ بیشتر از دوره‌ی قبل است."
-            )
+            UsageAnomaly(kind="spike", note=f"مصرف توکن {vs.tokens_pct:g}٪ بیشتر از دوره‌ی قبل است.")
         )
     if usd > 0 and voice_usd / usd >= VOICE_SHARE:
         out.append(UsageAnomaly(kind="voice_high", note="هزینه‌ی صدا سهم بزرگی از مصرف دارد."))
@@ -525,7 +522,8 @@ async def make(
                 f=start,
             )
             if have is not None:
-                return have
+                found: dict[str, Any] = have
+                return found
         pack = await build_pack(tx, period, tz, now)
     text, words = await write_words(hub, holding.code, pack, ask)  # the slow part, outside a tx
     async with hub.db.tx(await hub.companies.ids()) as tx:
@@ -544,11 +542,12 @@ async def make(
             by=made_by,
         )
         if row is None:  # a second tick won the race
-            return await tx.one(
+            won: dict[str, Any] = await tx.one(
                 "SELECT * FROM sales.usage_reports WHERE period = :p AND from_at = :f AND made_by = 'schedule'",
                 p=period,
                 f=pack.from_,
             )
+            return won
         await audit.record(
             tx,
             who,
@@ -569,7 +568,8 @@ async def make(
                     id=row["id"],
                 )
         await events.emit(tx, holding.code, "usage.report", row["ref"], {"period": period})
-    return row
+    made: dict[str, Any] = row
+    return made
 
 
 # ----------------------------------------------------------------- delivery --
@@ -582,14 +582,26 @@ def details_md(pack: UsagePack) -> str:
             f"({round(d.share * 100, 1):g}٪)، حدود {d.usd_equiv:.2f} دلار"
         )
     if pack.by_company:
-        out.append("- شرکت‌ها: " + "، ".join(f"{c.company} {fmt_tokens(c.tokens)}" for c in pack.by_company[:6]))
-    out.append(f"- صدا: {pack.voice_usd:.2f} دلار · خط‌های تولید: {pack.lines.runs} اجرا، {fmt_tokens(pack.lines.tokens)} توکن")
+        out.append(
+            "- شرکت‌ها: "
+            + "، ".join(f"{c.company} {fmt_tokens(c.tokens)}" for c in pack.by_company[:6])
+        )
+    out.append(
+        f"- صدا: {pack.voice_usd:.2f} دلار · خط‌های تولید: {pack.lines.runs} اجرا، "
+        f"{fmt_tokens(pack.lines.tokens)} توکن"
+    )
     out.append(f"- تبلیغات: {pack.ads_spend_usd:.2f} دلار")
     return "\n".join(out)
 
 
 def message_md(text: UsageText, pack: UsagePack, ref: str) -> str:
-    body = ["**گزارش مصرف هفته**", "", *[f"- {x}" for x in text.lines_fa], "", f"**یک صرفه‌جویی:** {text.saving_fa}"]
+    body = [
+        "**گزارش مصرف هفته**",
+        "",
+        *[f"- {x}" for x in text.lines_fa],
+        "",
+        f"**یک صرفه‌جویی:** {text.saving_fa}",
+    ]
     return "\n".join(body) + "\n" + details_md(pack) + f"\n\n({ref})"
 
 
@@ -631,7 +643,11 @@ def spoken(row: dict[str, Any]) -> tuple[str, str]:
     saving = str(text.get("saving_fa") or "")
     say = " ".join([*lines, f"یک صرفه‌جویی: {saving}" if saving else ""]).strip()
     show = "\n".join(
-        [f"**گزارش مصرف ({'روزانه' if row['period'] == 'day' else 'هفتگی'})**", "", *[f"- {x}" for x in lines]]
+        [
+            f"**گزارش مصرف ({'روزانه' if row['period'] == 'day' else 'هفتگی'})**",
+            "",
+            *[f"- {x}" for x in lines],
+        ]
         + ([f"\n**یک صرفه‌جویی:** {saving}"] if saving else [])
     )
     return say, show

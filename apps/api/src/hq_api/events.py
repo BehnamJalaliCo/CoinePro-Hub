@@ -130,9 +130,9 @@ TOPICS: dict[str, tuple[str, ...]] = {
     # ⟨1.14⟩ prompt 23 (contract §32.9): the owner's talk (talk.turn, talk.card)
     # and the voice layer (voice.engine, voice.meter)
     "talk": ("talk.", "voice."),
-    # ⟨1.15⟩ prompt 24 (contract §33.11): topic `money`; journey.stage here (the payment, lead and
-    # usage events join it from their parts)
-    "money": ("journey.",),
+    # ⟨1.15⟩ prompt 24 (contract §33.11): topic `money`: payment.read, payment.alert,
+    # lead.updated, usage.report, journey.stage
+    "money": ("payment.", "lead.", "usage.", "journey."),
 }
 
 
