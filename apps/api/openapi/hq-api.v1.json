@@ -60174,7 +60174,7 @@
     },
     "/api/v1/auth/step-up/options": {
       "post": {
-        "description": "Request options for a fresh passkey assertion bound to one action and target.",
+        "description": "Request options for a fresh passkey assertion bound to one action and target.\n\nThe owner, 2026-11-05 («بروکراسی خیلی شدیدی»): a routine action (`stepup.LIGHT`: nothing sent out,\nspent, signed away, deleted or opened to access) needs no fingerprint. Its options answer is the\nsingle-use token itself (`step_up_token`, same action, target and 120 s), so the apps skip the\npasskey ceremony; every route still consumes it exactly as before.",
         "operationId": "step_up_options",
         "requestBody": {
           "content": {
