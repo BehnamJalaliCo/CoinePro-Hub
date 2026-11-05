@@ -301,8 +301,21 @@ class Api(
 
     /** ⟨1.7.4⟩ every event of a work and of its sub-works (two levels down) in one list, oldest first, with the agents' run steps
      *  (summaries and tool metadata only). */
-    suspend fun treeEvents(id: String, limit: Int = 500, cursor: String? = null): Page<TreeEvent> =
-        get("/work/${seg(id)}/tree-events", mapOf("limit" to limit, "cursor" to cursor))
+    /** One page; the hub takes at most [MAX_PAGE] (`pagination.MAX_LIMIT`): a bigger `limit` is a 422. */
+    suspend fun treeEvents(id: String, limit: Int = MAX_PAGE, cursor: String? = null): Page<TreeEvent> =
+        get("/work/${seg(id)}/tree-events", mapOf("limit" to limit.coerceIn(1, MAX_PAGE), "cursor" to cursor))
+
+    /** The whole tree, oldest first: pages of [MAX_PAGE] followed to the end (at most [pages] pages, so a runaway tree stays bounded). */
+    suspend fun treeEventsAll(id: String, pages: Int = 15): Page<TreeEvent> {
+        val out = ArrayList<TreeEvent>()
+        var cursor: String? = null
+        repeat(pages) {
+            val p = treeEvents(id, MAX_PAGE, cursor)
+            out += p.items
+            cursor = p.nextCursor ?: return Page(out, null)
+        }
+        return Page(out, cursor)
+    }
 
     /** Work by id, or by its ref ("W-000104") as planner items and messages carry it: the API addresses work
      *  by UUID, so a ref is resolved through the list search first. */
@@ -1822,6 +1835,8 @@ class Api(
     companion object {
         /** The id each call carries; the hub accepts it (`^[A-Za-z0-9-]{8,64}$`), logs it and sends it back as `X-Request-ID`. */
         const val REQUEST_ID = "X-Request-Id"
+        /** The hub's page ceiling (`pagination.MAX_LIMIT`); a `limit` above it is refused with 422. */
+        const val MAX_PAGE = 200
         /** How long a call took, on the response the app hands on (never sent anywhere). */
         private const val ELAPSED = "X-HQ-Elapsed-Ms"
         /** A read that met a 502/503/504 or no answer is tried again after these pauses. */

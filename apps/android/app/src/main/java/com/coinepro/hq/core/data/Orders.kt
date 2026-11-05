@@ -329,7 +329,7 @@ suspend fun Api.orderTrack(id: String, full: Boolean = false): OrderTrack = coro
     val kidList = kids.awaitAll().filterNotNull()
     // On its own page, every descendant's events and runs (the children and the grandchildren; delegation stops at depth 2): one
     // tree-events call (⟨1.7.4⟩), or, from a hub without it, one call per descendant.
-    val tree = if (full) runCatching { treeEvents(root.id).items }.getOrNull() else null
+    val tree = if (full) runCatching { treeEventsAll(root.id).items }.getOrNull() else null
     val below = if (full && tree == null) kidList.map { it.id to it.ref } + kidList.flatMap { k -> k.children.map { it.id to it.ref } } else emptyList()
     val split = tree?.let { splitTree(it, root.company) }
     val kidEvents = split?.first?.filterKeys { it != root.ref }
