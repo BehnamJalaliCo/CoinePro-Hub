@@ -6,8 +6,8 @@ networks:
     confirmations: 15          # head - block, counted by code
     lookback_days: 7           # how far back the first scan of a new address goes
     span_blocks: 2000          # blocks one egress call scans (the nodes refuse more than ~5000)
-    overlap_blocks: 60         # a later scan restarts this far back, so a late log or a deeper
-                               # confirmation is never missed
+    # a later scan restarts this far back, so a late log or a deeper confirmation is never missed
+    overlap_blocks: 60
     address_pattern: '^0x[0-9a-fA-F]{40}$'
   trc20_usdt:
     title_fa: "TRON (TRC20)"
@@ -26,8 +26,8 @@ read:
 
 reconcile:
   window_days: 90              # payments older than this are no longer re-judged
-  grace_minutes: 60            # a ledger row is `ledger_only` only once the chain scan has passed
-                               # its time by this much
+  # a ledger row is `ledger_only` only once the chain scan has passed its time by this much
+  grace_minutes: 60
   critical_ledger_only_usdt: "100"   # above this a `ledger_only` also reaches the owner (critical)
   max_lines_per_alert: 15      # payments named in one work item
 
