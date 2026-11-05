@@ -686,4 +686,25 @@ else
   pass "memory: a service at 85% of its cap for 15 minutes alerts (not a one-shot); Temporal's caches bounded"
 fi
 
+# ------------------------------------------ duplicate subnets (23.1) --------
+dup_json='{"networks":{"hq-ocr":{"name":"hq-ocr","ipam":{"config":[{"subnet":"172.30.24.0/24"}]}},
+  "hq-newsletter":{"name":"hq-newsletter","ipam":{"config":[{"subnet":"172.30.24.0/24"}]}},
+  "hq-newsletter-out":{"name":"hq-newsletter-out","ipam":{"config":[{"subnet":"172.30.25.0/24"}]}},
+  "default":{"name":"coinepro-hq_default"}}}'
+ok_json='{"networks":{"hq-ocr":{"name":"hq-ocr","ipam":{"config":[{"subnet":"172.30.24.0/24"}]}},
+  "hq-newsletter":{"name":"hq-newsletter","ipam":{"config":[{"subnet":"172.30.26.0/24"}]}}}}'
+dup_out="$(duplicate_subnets <<<"$dup_json")"
+ok_out="$(duplicate_subnets <<<"$ok_json")"
+mapfile -t opt_all < <(opt_in_profiles)
+real_out="$(compose_json full "${opt_all[@]}" | duplicate_subnets)"
+if [[ "$dup_out" != "172.30.24.0/24 hq-newsletter,hq-ocr" ]]; then
+  fail "subnets: a shared subnet was not found (got: ${dup_out:-nothing})"
+elif [[ -n "$ok_out" ]]; then
+  fail "subnets: distinct subnets reported as shared: $ok_out"
+elif [[ -n "$real_out" ]]; then
+  fail "subnets: the compose model shares a subnet: $real_out"
+else
+  pass "subnets: two networks on one subnet are refused; distinct subnets pass; the compose model has none"
+fi
+
 exit "$failed"

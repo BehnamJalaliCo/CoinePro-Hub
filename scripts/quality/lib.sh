@@ -22,6 +22,16 @@ ensure_env() {
   fi
 }
 
+# ⟨23.1⟩ Subnets declared by more than one network of a rendered compose model
+# (JSON on stdin), one line each: "<subnet> <net>,<net>". Docker refuses the
+# second pool on the host ("Pool overlaps", prompt 22: hq-newsletter on hq-ocr's
+# 172.30.24.0/24), so the first `up` that creates it fails.
+duplicate_subnets() {
+  jq -r '[(.networks // {}) | to_entries[] | (.value.name // .key) as $n
+      | (.value.ipam.config // [])[] | select(.subnet != null) | {subnet, n: $n}]
+    | group_by(.subnet)[] | select(length > 1) | "\(.[0].subnet) \([.[].n] | unique | join(","))"'
+}
+
 # Rendered compose model (JSON) for one profile, plus any opt-in profiles:
 # compose_json PROFILE [OPT_IN_PROFILE...]
 compose_json() {

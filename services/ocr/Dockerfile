@@ -21,8 +21,9 @@ RUN apt-get update \
     && mkdir -p /models && chown 10001:10001 /models
 
 COPY hq-common/src /app/hq-common/src
-COPY --chmod=0644 ocr/model.lock.json /app/ocr/model.lock.json
 COPY ocr/src /app/ocr/src
+# After the sources: a --chmod COPY would make the missing /app/ocr 0644 too (BuildKit, 23.1).
+COPY --chmod=0644 ocr/model.lock.json /app/ocr/model.lock.json
 
 USER 10001
 WORKDIR /app/ocr

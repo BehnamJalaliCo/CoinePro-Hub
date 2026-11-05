@@ -72,8 +72,9 @@ RUN chmod 0644 /opt/hq-media/fonts/* /usr/share/fonts/truetype/iranyekanx/* \
     && fc-list : family | grep IRANYekanX >/dev/null
 
 COPY hq-common/src /app/hq-common/src
-COPY --chmod=0644 media-render/assets.lock.json /app/media-render/assets.lock.json
 COPY media-render/src /app/media-render/src
+# After the sources: a --chmod COPY would make the missing /app/media-render 0644 too (BuildKit, 23.1).
+COPY --chmod=0644 media-render/assets.lock.json /app/media-render/assets.lock.json
 
 USER 10001
 WORKDIR /tmp
