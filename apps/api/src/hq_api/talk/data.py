@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 import yaml
 
@@ -37,7 +38,7 @@ class PersonaSpec:
     tools: tuple[str, ...] | None  # None = every A0 tool of the charter
     cards: tuple[str, ...]
     consult_only: bool
-    face: str
+    face: str | None  # a hub file id (UUID) or None
 
 
 @dataclass(frozen=True)
@@ -51,6 +52,18 @@ def _load(name: str) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError(f"seed/talk/{name} is not a mapping")
     return data
+
+
+def _file_id(v: Any) -> str | None:
+    """A persona's face is a hub file id (contract §32.1: an avatar file of the hub) or None, never a bare
+    name: the apps load it from GET /files/{id}, which takes a UUID (23.2: `secretary.webp` was a 422 on
+    every talk screen)."""
+    if v is None:
+        return None
+    try:
+        return str(UUID(str(v)))
+    except ValueError:
+        return None
 
 
 @lru_cache(maxsize=1)
@@ -76,7 +89,7 @@ def personas() -> dict[str, PersonaSpec]:
             tools=None if tools == "charter_reads" else tuple(str(t) for t in tools or ()),
             cards=cards,
             consult_only=consult_only,
-            face=str(p.get("face") or f"{key}.webp"),
+            face=_file_id(p.get("face")),
         )
     return out
 

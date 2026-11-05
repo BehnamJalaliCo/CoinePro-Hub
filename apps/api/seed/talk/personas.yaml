@@ -13,7 +13,10 @@
 # cards         the card kinds the persona may offer; a card of another kind is
 #               dropped by code (§32.2)
 # consult_only  never offers an order card (§32.3)
-# face          the avatar file the apps show at the top of the talk screen
+# face          optional: the hub file id (files.files) of the avatar the apps show at
+#               the top of the talk screen; none = the apps draw a medallion (23.2:
+#               a bare name like secretary.webp named no file and every talk screen
+#               asked GET /files/secretary.webp, a 422)
 # The conversation's running summary every 10 turns (task class talk_summary,
 # §32.8): a light model, a low effort, a small answer.
 summary: {model: claude-haiku-5-5, effort: low, max_output_tokens: 700, every_turns: 10}
@@ -26,7 +29,6 @@ personas:
     tools: charter_reads
     cards: [order, ask, decision, planner, rule, automation, minutes, invite]
     consult_only: false
-    face: secretary.webp
   - key: overseer
     role: overseer
     employee_role: overseer
@@ -36,7 +38,6 @@ personas:
             backups.status, revenue.read, calendar.read, governance.read, memory.read]
     cards: [decision, ask, minutes, invite]
     consult_only: true
-    face: overseer.webp
   - key: assistant
     role: assistant
     employee_role: assistant
@@ -45,7 +46,6 @@ personas:
     tools: [knowledge.search, memory.read, web.search, web.read]
     cards: [order, ask, planner, decision, minutes]
     consult_only: false
-    face: assistant.webp
   - key: advisor
     role: advisor
     employee_role: advisor
@@ -55,7 +55,6 @@ personas:
             memory.read, web.search, web.read]
     cards: [ask, decision, rule, minutes, invite]
     consult_only: true
-    face: advisor.webp
   - key: manager
     role: null
     employee_role: null
@@ -64,4 +63,3 @@ personas:
     tools: charter_reads
     cards: [order, hire, decision, ask]
     consult_only: false
-    face: manager.webp

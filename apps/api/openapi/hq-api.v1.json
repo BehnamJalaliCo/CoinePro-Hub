@@ -45384,8 +45384,15 @@
             "type": "boolean"
           },
           "face": {
-            "title": "Face",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Face"
           },
           "key": {
             "title": "Key",
