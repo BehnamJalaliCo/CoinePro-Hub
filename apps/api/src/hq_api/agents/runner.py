@@ -277,7 +277,8 @@ class Runner:
                     if refuse is None and await OR.stopped(tx, run["work_id"]):
                         refuse = "talk_loop"  # ⟨21⟩ §29.2: its order talked without output
             if refuse is None and await tx.scalar(
-                "SELECT 1 FROM agents.runs WHERE employee_id = :e AND state = 'running'",
+                # a talk run (contract §32) reads beside the employee's work; it never makes it busy (0045)
+                "SELECT 1 FROM agents.runs WHERE employee_id = :e AND state = 'running' AND trigger <> 'talk'",
                 e=run["employee_id"],
             ):
                 return Claim("busy")
@@ -1490,7 +1491,8 @@ class Runner:
             partial=partial,
         )
         busy = await tx.scalar(
-            "SELECT 1 FROM agents.runs WHERE employee_id = :e AND state = 'running' AND id <> :id",
+            """SELECT 1 FROM agents.runs WHERE employee_id = :e AND state = 'running' AND id <> :id
+               AND trigger <> 'talk'""",
             e=emp["id"],
             id=run["id"],
         )

@@ -241,6 +241,12 @@ def test_the_voice_is_pinned_by_hash_with_a_free_licence() -> None:
             assert f"--checksum=sha256:{f['sha256']}" in dockerfile
             assert f"{lock['revision']}/{v['path']}/{fname}" in dockerfile
         assert name.startswith("fa_IR-")
+    for name, v in lock.get("extra", {}).items():  # a voice from its own repository (2026-11-05)
+        assert v["repo_license"] == "MIT" and v["dataset_license"] == "CC0-1.0"
+        for fname, f in v["files"].items():
+            assert f"--checksum=sha256:{f['sha256']}" in dockerfile
+            assert f"{v['repo']}/resolve/{v['revision']}/{fname}" in dockerfile
+        assert name.startswith("fa_IR-")
 
 
 async def test_the_token_comes_from_openbao(monkeypatch: pytest.MonkeyPatch) -> None:

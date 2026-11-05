@@ -204,20 +204,20 @@ SEED: tuple[dict[str, Any], ...] = (
     {
         "id": "manatts-piper",
         "engine": "piper",
-        "name_fa": "پایپر آموزش‌دیده روی ManaTTS (زن)",
-        "licence": "ManaTTS corpus CC0-1.0; Piper (VITS) MIT",
+        "name_fa": "پایپر · مانا (زن)",
+        "licence": "MIT (weights, MahtaFetrat/Mana-Persian-Piper); dataset Mana-TTS CC0-1.0",
         "licence_commercial": True,
         "speaker": "model",
-        "runtime": None,
+        "runtime": {"piper_voice": "fa_IR-mana-medium"},
         "source": {
+            "repo": "MahtaFetrat/Mana-Persian-Piper",
+            "revision": "ad9dd8518bedf517bd7cbc9f63b8e5c844bf5bc0",
             "dataset": "MahtaFetrat/Mana-TTS",
             "architecture": "Piper/VITS fine-tune from fa_IR-amir-medium",
+            "onnx_sha256": "e390c0e74ba71fd97c49ba662ee0c6e1724b462ba2d4561698af4f564840f126",
         },
-        "sort": 20,
-        "note_fa": (
-            "هنوز آموزش ندیده: آموزش روی ۸۶ ساعت ManaTTS حدود ۲۴ تا ۴۸ ساعت GPU میخواهد "
-            "(برآورد ۱۵ تا ۷۰ دلار کرایه)؛ کرایه‌ی GPU تصمیم مالک است (§۰.۹ بند ۳)."
-        ),
+        "sort": 15,
+        "note_fa": "صدای زن، آموزش‌دیده روی ۸۶ ساعت گفتار فارسی Mana؛ برای آزمون کور مالک (۲۰۲۶-۱۱-۰۵).",
     },
     {
         "id": "parsvoice-xtts",
@@ -354,7 +354,25 @@ async def seed(tx: Tx, holding_id: UUID) -> int:
         if row is not None:
             added += 1
             has_active = has_active or active
-        elif rtf is not None:
+            continue
+        if v.get("runtime"):
+            # A candidate installed later (2026-11-05: Mana Persian Piper in the TTS image): the row
+            # gains its runtime and its source; the owner's score and choice stay.
+            await tx.exec(
+                """UPDATE media.voices SET runtime = CAST(:rt AS jsonb), source = CAST(:src AS jsonb),
+                       name_fa = :name, licence = :lic, licence_commercial = :com, note_fa = :note,
+                       sort = :sort, updated_at = now()
+                   WHERE id = :id AND runtime IS NULL""",
+                id=v["id"],
+                rt=json.dumps(v["runtime"]),
+                src=json.dumps(v.get("source") or {}),
+                name=v["name_fa"],
+                lic=v["licence"],
+                com=v["licence_commercial"],
+                note=v.get("note_fa"),
+                sort=int(v.get("sort", 100)),
+            )
+        if rtf is not None:
             await tx.exec(
                 """UPDATE media.voices SET rtf = :rtf, mem_mb = :mem, measured_at = CAST(:at AS timestamptz),
                        measured_on = :on WHERE id = :id AND measured_at IS NULL""",

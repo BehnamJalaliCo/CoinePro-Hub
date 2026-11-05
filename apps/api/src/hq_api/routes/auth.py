@@ -518,8 +518,29 @@ async def passkey_login_verify(
     responses=responses(401, 403, 422, 429, 503),
 )
 async def step_up_options(body: StepUpOptionsIn, ctx: Ctx = Depends(owner_ctx)) -> dict[str, Any]:
-    """Request options for a fresh passkey assertion bound to one action and target."""
+    """Request options for a fresh passkey assertion bound to one action and target.
+
+    The owner, 2026-11-05 («بروکراسی خیلی شدیدی»): a routine action (`stepup.LIGHT`: nothing sent out,
+    spent, signed away, deleted or opened to access) needs no fingerprint. Its options answer is the
+    single-use token itself (`step_up_token`, same action, target and 120 s), so the apps skip the
+    passkey ceremony; every route still consumes it exactly as before."""
     challenge = passkeys.new_challenge()
+    if body.action in stepup.LIGHT:
+        token = sessions.new_token()
+        async with ctx.hub.db.raw() as tx:
+            row = await tx.one(
+                """INSERT INTO auth.step_ups (session_id, action, target, challenge, challenge_expires_at,
+                       token_sha256, verified_at, expires_at)
+                   VALUES (:s, :a, :t, :c, now(), :h, now(), now() + make_interval(secs => :ttl))
+                   RETURNING expires_at""",
+                s=ctx.who.session_id,
+                a=body.action,
+                t=body.target,
+                c=challenge,
+                h=digest(token),
+                ttl=ctx.hub.settings.step_up_ttl_s,
+            )
+        return {"light": True, "step_up_token": token, "expires_at": row["expires_at"].isoformat()}
     async with ctx.hub.db.raw() as tx:
         await tx.exec(
             """INSERT INTO auth.step_ups (session_id, action, target, challenge,

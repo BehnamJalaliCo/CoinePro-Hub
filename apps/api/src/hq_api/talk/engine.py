@@ -425,8 +425,8 @@ class TurnRun:
 
     # -------------------------------------------------------------- tools --
     async def _open_run(self) -> bool:
-        """The persona's short `talk` run (the gateway's run gate needs one).
-        False when its employee is busy in a run of its own."""
+        """The persona's short `talk` run (the gateway's run gate needs one). It opens beside the employee's
+        own run (0045: a talk run never counts as busy); None only for an employee who is not active."""
         if self.run_id is not None:
             return True
         if self.run_refused:

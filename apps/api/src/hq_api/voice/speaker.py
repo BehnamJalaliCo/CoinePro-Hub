@@ -220,7 +220,9 @@ async def speak(hub: Any, req: SpeakRequest) -> SpeechOut:
         st = await store.states(tx, holding.id)
         clk = await store.clock(tx)
         month = await store.month_usd(tx, clk.month_start)
-    chain = store.chain_for(req.choice.engine, cfg["chain"])
+    chain = store.chain_for(req.choice.engine, cfg["chain"], local=cfg["local"])
+    if not chain:  # the persona's voice is the local one, and it is off: the answer stays text
+        raise VoiceUnavailable(UNAVAILABLE_FA)
     cap = Decimal(str(cfg["month_cap_usd"])) if cfg["month_cap_usd"] is not None else None
     why: list[tuple[str, str]] = []
     for key in chain:

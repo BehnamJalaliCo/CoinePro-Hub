@@ -61,6 +61,9 @@ export async function enrol(opts: { enrolmentToken?: string; name: string; stepU
 /** Step-up: a fresh passkey assertion bound to one action and target (single use, 120 s). */
 export async function stepUp(action: string, target: string): Promise<string> {
   const options = await ok(api.POST('/api/v1/auth/step-up/options', { body: { action, target } }));
+  // The owner, 2026-11-05: a routine action needs no fingerprint; the hub answers with the token itself.
+  const light = (options as { step_up_token?: unknown }).step_up_token;
+  if (typeof light === 'string') return light;
   let credential: Json;
   try {
     credential = isMock ? {} : ((await startAuthentication({ optionsJSON: options as never })) as unknown as Json);

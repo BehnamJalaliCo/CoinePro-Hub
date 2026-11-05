@@ -960,11 +960,32 @@ class Activities:
                     p=r["priority"],
                 ):
                     requeued += 1
+            # A talk run its turn never closed (a worker stopped mid-turn) is failed once its token expired (0045).
+            # No silence (handoff 2026-11-05): an owner's message unanswered for minutes tells him why, once.
+            # Each in its own savepoint: a failure here never stops the requeue.
+            from hq_api.domain import no_silence
+
+            reaped = unanswered = -1
+            try:
+                async with tx.conn.begin_nested():
+                    reaped = int(await tx.scalar("SELECT talk.reap_runs(NULL)") or 0)
+            except Exception:
+                log.exception("talk run reaper failed")
+            try:
+                async with tx.conn.begin_nested():
+                    unanswered = await no_silence.sweep_unanswered(tx)
+            except Exception:
+                log.exception("unanswered-message sweep failed")
             stuck = await tx.exec(
                 """UPDATE agents.runs SET dispatched_at = NULL
                    WHERE state = 'queued' AND dispatched_at < now() - interval '10 minutes'"""
             )
-        return {"requeued": requeued, "redispatched": stuck}
+        return {
+            "requeued": requeued,
+            "redispatched": stuck,
+            "talk_reaped": reaped,
+            "unanswered_told": unanswered,
+        }
 
     @activity.defn(name="players_sweep")
     async def players_sweep(self) -> dict[str, Any]:

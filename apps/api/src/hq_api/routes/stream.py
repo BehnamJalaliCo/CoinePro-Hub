@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import time
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -77,19 +78,31 @@ async def bridge(
     )
     try:
         yield f": topics{' ' + served if served else ''}\nretry: 3000\n\n".encode()
+        # The heartbeat is by the clock, not only on an idle bus (handoff 2026-11-05, bug 2): a busy bus whose events
+        # this client does not take (another company's, another topic's, or a replay from a far `Last-Event-ID`) used to
+        # keep `next_msg` answering, so nothing was written for minutes and the app's 50 s read timeout cut the stream.
+        sent = time.monotonic()
         while True:
+            wait = max(0.1, HEARTBEAT_S - (time.monotonic() - sent))
             try:
-                msg = await sub.next_msg(timeout=HEARTBEAT_S)
+                msg = await sub.next_msg(timeout=wait)
             except TimeoutError:
-                yield b": heartbeat\n\n"
-                continue
-            try:
-                env = json.loads(msg.data)
-            except ValueError:
-                continue
-            if not matches(env, topics, companies):
-                continue
-            yield sse(int(msg.metadata.sequence.stream), holding_view(env) if summary else env)
+                msg = None
+            out: bytes | None = None
+            if msg is not None:
+                try:
+                    env = json.loads(msg.data)
+                except ValueError:
+                    env = None
+                if env is not None and matches(env, topics, companies):
+                    out = sse(
+                        int(msg.metadata.sequence.stream), holding_view(env) if summary else env
+                    )
+            if out is None and time.monotonic() - sent >= HEARTBEAT_S:
+                out = b": heartbeat\n\n"
+            if out is not None:
+                sent = time.monotonic()
+                yield out
     finally:
         with contextlib.suppress(Exception):
             await sub.unsubscribe()

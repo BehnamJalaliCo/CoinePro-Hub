@@ -90,6 +90,8 @@ async def step_up(
         f"{BASE}/step-up/options", json={"action": action, "target": target}, headers=headers
     )
     assert opts.status_code == 200, opts.text
+    if "step_up_token" in opts.json():  # a routine action: no passkey (the owner, 2026-11-05)
+        return str(opts.json()["step_up_token"])
     r = await client.post(
         f"{BASE}/step-up/verify", json={"credential": auth.sign(opts.json())}, headers=headers
     )

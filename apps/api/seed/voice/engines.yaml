@@ -120,12 +120,14 @@ piper_voices:
   - {name: fa_IR-ganji-medium, gender_fa: مرد, trait_fa: گنجی}
   - {name: fa_IR-ganji_adabi-medium, gender_fa: مرد, trait_fa: گنجی ادبی}
   - {name: fa_IR-reza_ibrahim-medium, gender_fa: مرد, trait_fa: رضا ابراهیم}
+  - {name: fa_IR-mana-medium, gender_fa: زن, trait_fa: مانا}
 
 # The sample line and the check word (spoken in Persian; their cost goes on the meter).
 sample_text_fa: سلام، من صدای شما در گفتگو هستم.
 check_text_fa: سلام
 
-# The default chain when the owner has set none (Piper is always appended last by code).
+# The default chain when the owner has set none. Piper is appended last by code only while the owner's
+# local voice is on (owner.settings.voice.local, off until he picks one in the blind test, 2026-11-05).
 default_chain:
   - gemini-3.8-flash-tts
   - gemini-3.8-flash-lite-tts

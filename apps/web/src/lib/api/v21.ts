@@ -154,7 +154,16 @@ export const useTreeEvents = (id: string | null | undefined) =>
     enabled: !!id && (isUuid(id) || !refPrefix(id)),
     queryFn: async () => {
       try {
-        return (await call<Page<TreeEvent>>('GET', `/work/${enc(id!)}/tree-events${qs({ limit: 200 })}`)).items;
+        // Oldest first, 200 a page (the hub's ceiling): follow the cursor so the newest moments are not cut off.
+        const out: TreeEvent[] = [];
+        let cursor: string | null = null;
+        for (let i = 0; i < 15; i++) {
+          const p: Page<TreeEvent> = await call<Page<TreeEvent>>('GET', `/work/${enc(id!)}/tree-events${qs({ limit: 200, cursor })}`);
+          out.push(...p.items);
+          cursor = p.next_cursor;
+          if (!cursor) break;
+        }
+        return out;
       } catch (e) {
         if (!(e instanceof ApiError) || (e.status !== 404 && e.status !== 405)) throw e;
         const own = await call<Page<Schemas['WorkEvent']>>('GET', `/work/${enc(id!)}/events`);

@@ -59,6 +59,8 @@ class Auth(private val api: Api, private val tokens: SessionTokens, private val 
     suspend fun stepUp(activity: Activity, action: String, target: String): String {
         if (demo) return "demo"
         val options = api.stepUpOptions(action, target)
+        // The owner, 2026-11-05: a routine action needs no fingerprint; the hub answers with the token itself.
+        (options["step_up_token"] as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.let { return it.content }
         val credential = Passkeys.get(activity, options.toString())
         return api.stepUpVerify(parse(credential)).stepUpToken
     }

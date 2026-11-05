@@ -179,8 +179,12 @@ data class WorkGroup(
     val state: String = "on",
 )
 
+/** Why an empty seat stays empty (handoff 2026-11-05): the refusal's code, why and what fixes it, in Persian. */
 @Serializable
-data class MemberSeat(val seat: String, val employee: String? = null)
+data class SeatBlocked(val code: String = "", val whyFa: String = "", val fixFa: String = "")
+
+@Serializable
+data class MemberSeat(val seat: String, val employee: String? = null, val blocked: SeatBlocked? = null)
 
 @Serializable
 data class Membership(

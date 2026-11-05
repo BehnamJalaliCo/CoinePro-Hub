@@ -15,6 +15,36 @@ from hq_common.tokens import digest
 
 HEADER = "x-step-up"
 
+# The owner, 2026-11-05 («بروکراسی خیلی شدیدی به کار رفته»): routine actions need no fingerprint. The plan's
+# rule (PLAN_2026-11-02 v3 §1, Claude Duet's line): reading, drafting, preparing and running the holding
+# are free; sending out, spending, signing away, deleting and opening access keep the passkey. These are
+# the routine ones: their options call answers with the token itself (routes/auth.step_up_options).
+LIGHT = frozenset(
+    {
+        "academy.approve",
+        "archive.seal",
+        "charter.seal",
+        "company.archive",
+        "company.brand",
+        "company.create",
+        "connection.logout",
+        "connection.update",
+        "department.create",
+        "department.mandate",
+        "growth.template",
+        "hiring.start",
+        "meetings.settings",
+        "oversight.order",
+        "oversight.release",
+        "rule.seal",
+        "sites.update",
+        "skill.activate",
+        "substitute.web_logout",
+        "support.kb",
+        "voice.activate",
+    }
+)
+
 
 async def consume(tx: Tx, request: Request, who: Principal, action: str, target: str) -> UUID:
     if not who.is_owner:

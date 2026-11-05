@@ -39,6 +39,7 @@ from pydantic import BaseModel
 from hq_api import events
 from hq_api.db import Tx
 from hq_api.domain import gate, recurrence
+from hq_api.domain import no_silence as NS
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
 
@@ -103,12 +104,22 @@ class Group(BaseModel):
     lead: str | None = None
 
 
+class SeatBlocked(BaseModel):
+    """Why an empty seat stays empty (handoff 2026-11-05): the refusal's code, why and what fixes it, in Persian."""
+
+    code: str
+    why_fa: str
+    fix_fa: str
+
+
 class MemberSeat(BaseModel):
     seat: str
     role: str
     title_fa: str
     employee: str | None
     optional: bool = False
+    # ⟨additive⟩ an empty seat automatic hiring could not fill, and why
+    blocked: SeatBlocked | None = None
 
 
 class Membership(BaseModel):
@@ -336,6 +347,7 @@ def render_member(r: dict[str, Any], g: Group | None = None) -> Membership:
                 title_fa=s.title_fa,
                 employee=(seats.get(s.seat) or {}).get("employee"),
                 optional=s.optional,
+                blocked=(seats.get(s.seat) or {}).get("blocked"),
             )
             for s in order
         ],
@@ -447,13 +459,15 @@ def _auto_filler() -> Any:
     return getattr(hiring, "auto_fill", None)
 
 
-async def _auto_fill(tx: Tx, fill: Any, company_id: UUID, role: str, seat_title: str) -> Any:
-    """An empty seat filled by code. Called defensively: failing, the seat
-    stays empty and readiness shows it."""
+async def _auto_fill(
+    tx: Tx, fill: Any, company_id: UUID, role: str, seat_title: str
+) -> tuple[Any, str | None]:
+    """An empty seat filled by code: (the hiring's answer, None) or (None, the refusal's code). Called defensively:
+    failing, the seat stays empty, keeps the reason, and the owner is told (no_silence)."""
     try:
         async with tx.conn.begin_nested():
-            return await fill(tx, company_id, role, seat_title)
-    except Exception as e:  # noqa: BLE001 - a refused hire is the hiring module's to report
+            return await fill(tx, company_id, role, seat_title), None
+    except Exception as e:  # noqa: BLE001 - a refused hire is reported below, never raised
         # Why, in the log (hub, prompt 21 §5): the code and the fields' reasons, never a value.
         why = (
             {"code": e.code, "fields": sorted(f"{k}: {v}" for k, v in (e.fields or {}).items())}
@@ -461,7 +475,7 @@ async def _auto_fill(tx: Tx, fill: Any, company_id: UUID, role: str, seat_title:
             else {"code": type(e).__name__}
         )
         log.warning("auto fill of a seat failed", extra={"role": role, **why})
-        return None
+        return None, (e.code if isinstance(e, ApiError) else "internal_error")
 
 
 async def reconcile_members(
@@ -503,16 +517,25 @@ async def reconcile_members(
                 and m["company_status"] == "active"
                 and (asked is None or datetime.fromisoformat(asked) < now - FILL_EVERY)
             )
-            if (
-                wants
-                and filler is not None
-                and await gate.automation_lock(tx, m["company_id"]) is None
-            ):
-                await _auto_fill(tx, filler, m["company_id"], s.role, s.title_fa)
-                asked = now.isoformat()
-                out["asked"] += 1
-                emp = (await seat_holders(tx, m["company_id"], [s.role])).get(s.role)
-                entry["employee"] = emp
+            blocked: str | None = None
+            if wants and filler is not None:
+                if await gate.automation_lock(tx, m["company_id"]) is not None:
+                    blocked = "locked"
+                else:
+                    _, blocked = await _auto_fill(tx, filler, m["company_id"], s.role, s.title_fa)
+                    asked = now.isoformat()
+                    out["asked"] += 1
+                    emp = (await seat_holders(tx, m["company_id"], [s.role])).get(s.role)
+                    entry["employee"] = emp
+                if emp is None and blocked is not None:
+                    # handoff 2026-11-05: a seat that stays empty says why, and the owner hears it once a day
+                    entry["blocked"] = NS.hire_why(blocked)
+                    await NS.tell_seat_blocked(
+                        tx, m["company_id"], str(m.get("company") or m.get("code") or ""), g.key, g.title_fa,
+                        s.title_fa, blocked,
+                    )  # fmt: skip
+            elif emp is None and prev.get("blocked") is not None:
+                entry["blocked"] = prev["blocked"]
             if emp is not None and prev.get("employee") is None:
                 out["filled"] += 1
             if asked is not None and emp is None:

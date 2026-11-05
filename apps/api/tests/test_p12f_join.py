@@ -65,8 +65,9 @@ async def test_the_chain_runs_through_prompt_11_then_prompt_12(su: Any) -> None:
     assert rev["0042"] == "0041"  # 22: ad budgets, automations from a sentence
     assert rev["0043"] == "0042"  # 23: the owner's talk
     assert rev["0044"] == "0043"  # 23: the voice engines and the meter
-    assert heads == {"0044"}
-    assert await su.fetchval("SELECT version_num FROM alembic_version_api") == "0044"
+    assert rev["0045"] == "0044"  # 23.2: talk runs beside work, reaped when their token expired
+    assert heads == {"0045"}
+    assert await su.fetchval("SELECT version_num FROM alembic_version_api") == "0045"
 
 
 async def test_the_kind_check_holds_every_kind_and_is_validated(su: Any) -> None:
