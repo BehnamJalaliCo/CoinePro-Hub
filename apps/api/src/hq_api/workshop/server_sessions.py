@@ -74,6 +74,8 @@ async def open_session(
     work_ref: str | None = None,
     request_id: str | None = None,
     holding_driver: bool = False,
+    extra_args: dict[str, Any] | None = None,
+    timeout_s: int = TURN_TIMEOUT_S,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """The session and its first `claude` job (423 while the company is
     locked: nothing is made). `actor`: who the job runs as (the driver, or
@@ -132,13 +134,14 @@ async def open_session(
             "session_ref": s["ref"],
             "resume": None,
             "attachments": [str(a) for a in attachments or []],
+            **(extra_args or {}),  # ⟨1.15⟩ §33.10 `workspace: <work-ref>` (runner 0.3.0)
         },
         actor_kind=ak,
         actor_code=ac,
         on_behalf=on_behalf,
         work_ref=work_ref,
         summary=title,
-        timeout_s=TURN_TIMEOUT_S,
+        timeout_s=timeout_s,
         session_id=s["id"],
         request_id=request_id,
     )
@@ -169,7 +172,13 @@ async def open_job(tx: Tx, session_id: UUID) -> dict[str, Any] | None:
 
 
 async def steer(
-    tx: Tx, who: Principal, s: dict[str, Any], text: str, request_id: str | None = None
+    tx: Tx,
+    who: Principal,
+    s: dict[str, Any],
+    text: str,
+    request_id: str | None = None,
+    extra_args: dict[str, Any] | None = None,
+    timeout_s: int = TURN_TIMEOUT_S,
 ) -> dict[str, Any]:
     """An owner's (or the driver's) message: the next turn, resuming the
     server's Claude session. 409 while a turn still runs; 423 while locked."""
@@ -192,7 +201,15 @@ async def steer(
     )
     if who.is_owner and s["driver_kind"] == "owner":
         ak, ac = "owner", "owner"
-    return await SV.create_job(
+    # ⟨1.15⟩ §33.10 a work's workspace session: every turn (the owner's message too) stays in the
+    # work's own folder on the server
+    ws_ref = await tx.scalar(
+        "SELECT work_ref FROM work.workspaces WHERE session_id = :s AND state NOT IN ('stopped', 'failed')",
+        s=s["id"],
+    )
+    if ws_ref:
+        extra_args = {"workspace": ws_ref, **(extra_args or {})}
+    job = await SV.create_job(
         tx,
         server=server,
         kind="claude",
@@ -201,16 +218,26 @@ async def steer(
             "cwd": s["cwd"],
             "session_ref": s["ref"],
             "resume": s["external_id"],
+            **(extra_args or {}),
         },
         actor_kind=ak,
         actor_code=ac,
         on_behalf=last["on_behalf_code"] if last else None,
         work_ref=last["work_ref"] if last else None,
         summary=text[:300],
-        timeout_s=TURN_TIMEOUT_S,
+        timeout_s=timeout_s,
         session_id=s["id"],
         request_id=request_id,
     )
+    if ws_ref:
+        await tx.exec(
+            """UPDATE work.workspaces SET state = 'starting', turns = turns + 1, last_job_id = :j,
+                   note_fa = NULL, updated_at = now()
+               WHERE session_id = :s""",
+            j=job["id"],
+            s=s["id"],
+        )
+    return job
 
 
 async def stop(tx: Tx, s: dict[str, Any]) -> None:
