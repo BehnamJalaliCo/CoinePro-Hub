@@ -5,6 +5,11 @@ brief, in the repository folder `args.cwd`, under that repository's CLAUDE.md.
            [--resume <session_id>] [--model M] [--permission-mode P] [--max-turns N]
            [--allowedTools <tool> ...]
 
+⟨0.3.0⟩ `args.workspace: "<work-ref>"` (contract §33.10): the session works
+in the work's own persistent folder `~/hq-workspace/<work-ref>` (700, made
+on first use, kept across resumes) instead of `args.cwd`; the hub's close of
+the work and the 30-day sweep are in workspace.py.
+
 ⟨0.2.2⟩ `args.token_cap` (contract §28.6, prompt 20.1): the session's token
 cap. Every assistant message's usage (input + output + cache reads and
 writes, counted once per message id) is added up as it streams; the moment
@@ -46,6 +51,7 @@ from hq_runner.config import config_path
 from hq_runner.jobs import JobContext, JobError, JobResult, _cwd, _timeout
 from hq_runner.mask import Masker, StreamMasker
 from hq_runner.proc import run_streamed
+from hq_runner.workspace import WorkspaceError, prepare
 
 CLAUDE_DEFAULT_TIMEOUT_S = 3600
 CLAUDE_MAX_TIMEOUT_S = 4 * 3600
@@ -307,7 +313,18 @@ async def run_claude(ctx: JobContext) -> JobResult:
     brief = args.get("brief")
     if not isinstance(brief, str) or not brief.strip():
         raise JobError("شرح کار (brief) داده نشده است.")
-    cwd = _cwd(args.get("cwd"))
+    workspace = args.get("workspace")
+    if workspace is not None:
+        # ⟨0.3.0⟩ §33.10: the work's own persistent folder, never args.cwd
+        try:
+            cwd = str(await asyncio.to_thread(prepare, workspace, ctx.cfg_path))
+        except WorkspaceError:
+            raise JobError(
+                "نام محیط کاری (workspace) باید شماره‌ی یک کار باشد، مثل W-000123."
+            ) from None
+        ctx.sink.emit("progress", {"text": f"workspace {workspace}"})
+    else:
+        cwd = _cwd(args.get("cwd"))
     timeout = _timeout(args, CLAUDE_DEFAULT_TIMEOUT_S, CLAUDE_MAX_TIMEOUT_S)
     allow = allowed_tools(args.get("allowed_tools"))
     cap = token_cap(args.get("token_cap"))
@@ -460,6 +477,8 @@ async def run_claude(ctx: JobContext) -> JobResult:
     if cap is not None:
         output["token_cap"] = cap
         output["token_cap_reached"] = capped
+    if workspace is not None:
+        output["workspace"] = {"ref": workspace, "path": cwd}
     if capped and not ctx.cancel.is_set():
         summary = f"نشست Claude به سقف {cap} توکن رسید و متوقف شد."
     elif res.reason == "timeout":

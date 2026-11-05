@@ -109,6 +109,9 @@ class Backoff:
 class NextJob:
     job: dict[str, Any] | None
     cancels: list[str]
+    # ⟨0.3.0⟩ §33.10: the works the hub closed since, once each:
+    # [{workspace: "<work-ref>", closed_at}]
+    closed: list[Any] = field(default_factory=list)
 
 
 class Hub:
@@ -223,7 +226,12 @@ class Hub:
         if isinstance(job, dict) and job.get("state") == "cancelled":
             cancels.append(str(job.get("id")))
             job = None
-        return NextJob(job if isinstance(job, dict) else None, cancels)
+        closed = body.get("closed")
+        return NextJob(
+            job if isinstance(job, dict) else None,
+            cancels,
+            closed[:500] if isinstance(closed, list) else [],
+        )
 
     async def post_events(self, job_id: str, events: list[dict[str, Any]]) -> None:
         await self.request(

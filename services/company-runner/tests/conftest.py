@@ -40,6 +40,7 @@ class FakeHub:
     revoked: bool = False
     jobs: deque[dict[str, Any]] = field(default_factory=deque)
     cancels: list[str] = field(default_factory=list)
+    closed: list[dict[str, Any]] = field(default_factory=list)  # ⟨0.3.0⟩ works the hub closed
     events: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     results: dict[str, dict[str, Any]] = field(default_factory=dict)
     requests: list[tuple[str, str, dict[str, str], Any]] = field(default_factory=list)
@@ -106,6 +107,9 @@ class FakeHub:
             if self.cancels:
                 c, self.cancels = self.cancels, []
                 return httpx.Response(200, json={"job": None, "cancel": c})
+            if self.closed:
+                done, self.closed = self.closed, []
+                return httpx.Response(200, json={"job": None, "cancels": [], "closed": done})
             if self.jobs:
                 return httpx.Response(200, json={"job": self.jobs.popleft()})
             await asyncio.sleep(0.02)
