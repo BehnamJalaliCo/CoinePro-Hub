@@ -343,6 +343,8 @@ class HoldingStream(
             "deliverable." to arrayOf("deliverables", "inbox"),
             // ⟨1.9⟩ §27.2: a council's members and its synthesis (the order's «شورا» section), before the rest of `work.`.
             "work.council" to arrayOf("council", "work"),
+            // ⟨1.15⟩ §33.7: a work split into parallel parts (the order's report shows them side by side).
+            "work.split" to arrayOf("order-report", "orders", "work"),
             "work." to arrayOf("work", "planner", "companies"),
             "message." to arrayOf("threads", "messages", "inbox"),
             "notification." to arrayOf("notifications", "inbox"),
@@ -369,6 +371,11 @@ class HoldingStream(
             // ⟨1.14⟩ §32.9 (topic `talk`): a turn or card changed; a voice engine's light or the meter moved.
             "talk." to arrayOf("talk"),
             "voice." to arrayOf("voice"),
+            // ⟨1.15⟩ §33.11 (topic `money`): a payment source read or an alert, a lead, a usage report, a company's journey stage.
+            "payment." to arrayOf("money", "payments", "home"),
+            "lead." to arrayOf("money", "leads"),
+            "usage." to arrayOf("usage", "home"),
+            "journey." to arrayOf("journey"),
             "insights." to arrayOf("insights", "lines"),
             "rank." to arrayOf("seo"),
             "competitor." to arrayOf("seo"),

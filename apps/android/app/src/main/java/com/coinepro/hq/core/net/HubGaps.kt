@@ -39,6 +39,10 @@ enum class HubFeature {
     GROWTH,
     /** ⟨1.14⟩ §32: `/talk/...` and `/voice/...`; without them the talk button is hidden. */
     TALK,
+    /** ⟨1.15⟩ §33: usage reports, payments, the revenue board, the leads and the affiliate gaps; without them none of the money screens shows. */
+    MONEY,
+    /** ⟨1.15⟩ §33.8, §33.9: the company journey and the personas; without them those screens are hidden. */
+    JOURNEY,
 }
 
 /**

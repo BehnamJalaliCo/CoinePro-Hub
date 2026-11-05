@@ -51,6 +51,9 @@ fun jDayOfMonth(millis: Long = HqClock.millis()): Int = pattern("d").format(Date
 
 fun jTime(iso: String?): String = fmt("HH:mm", iso)
 
+/** The Jalali month's name ("مهر") of a "YYYY-MM" key (the middle of that month, so the name is the one most of it falls in). */
+fun jMonth(month: String?): String = if (month == null || month.length < 7) "—" else fmt("MMMM", "${month.take(7)}-15")
+
 fun jDateTime(iso: String?): String = if (iso == null) "—" else "${jDate(iso)}، ${jTime(iso)}"
 
 /** Owner-zone calendar day of an instant, ISO (for grouping). */

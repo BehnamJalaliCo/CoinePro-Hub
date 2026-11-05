@@ -1626,8 +1626,8 @@ class Api(
         call(write("POST", "/transcribe/sessions/${seg(id)}/finish", JsonObject(emptyMap()), null), serializer<SttDone>(), transferClient)
 
     /** A write whose answer the app does not need whole (a 204, or a shape a newer hub may change): the object when there is one. */
-    private suspend fun writeLoose(method: String, path: String, body: JsonElement, stepUp: String? = null): JsonObject? =
-        execute(write(method, path, body, stepUp)).use { r ->
+    private suspend fun writeLoose(method: String, path: String, body: JsonElement, stepUp: String? = null, key: String? = null): JsonObject? =
+        execute(write(method, path, body, stepUp, key)).use { r ->
             check(r)
             val t = r.body.string()
             if (t.isBlank()) null else runCatching { json.parseToJsonElement(t) as? JsonObject }.getOrNull()
@@ -1695,6 +1695,50 @@ class Api(
             put("text_in_per_m", price.textInPerM); put("audio_out_per_m", price.audioOutPerM); put("audio_tokens_per_s", price.audioTokensPerS)
             price.validUntil?.let { put("valid_until", it) }
         })
+
+    // ------------------------------------------- ⟨1.15⟩ §33 money and the working style --
+    suspend fun paymentSources(code: String): List<PaySource> = items("/companies/${seg(code)}/payment-sources", PaySource.serializer())
+    /** 🔏 `payment.source`, sealed on the exact body. The ledger query and every key stay on the company's own server. */
+    suspend fun savePaymentSource(code: String, body: JsonObject, stepUp: StepUp): PaySource =
+        sealedPost("/companies/${seg(code)}/payment-sources", json.encodeToString(JsonObject.serializer(), body)) { stepUp("payment.source", it) }
+    /** «بخوان»: read the source now ([key] is the press's; a company system or the chain answering badly is a `502` with a Persian message). */
+    suspend fun readPaymentSource(id: String, key: String): JsonObject? = writeLoose("POST", "/payment-sources/${seg(id)}/read", JsonObject(emptyMap()), null, key)
+    suspend fun payments(code: String, from: String? = null, to: String? = null): List<PayRow> =
+        items("/companies/${seg(code)}/payments", PayRow.serializer(), mapOf("from" to from, "to" to to))
+    suspend fun reconcile(code: String, from: String, to: String): List<PayReconcile> =
+        items("/companies/${seg(code)}/reconcile", PayReconcile.serializer(), mapOf("from" to from, "to" to to))
+
+    /** The revenue board of a company, or of the whole holding when [company] is null. */
+    suspend fun revenueBoard(company: String?): RevenueBoard = get("/revenue/board", mapOf("company" to company))
+    /** The radar's summary read for its `by_source` (additive, §33.3). */
+    suspend fun revenueBySource(period: String = "month"): RevSummary33 = get("/revenue/summary", mapOf("period" to period))
+
+    suspend fun usageReports(period: String? = null, cursor: String? = null): List<UsageReport> =
+        items("/usage/reports", UsageReport.serializer(), mapOf("period" to period, "cursor" to cursor))
+    suspend fun makeUsageReport(period: String): UsageReport = post("/usage/reports", buildJsonObject { put("period", period) })
+
+    suspend fun leads(code: String, stage: String? = null): List<SalesLead> = items("/companies/${seg(code)}/leads", SalesLead.serializer(), mapOf("stage" to stage))
+    suspend fun lead(ref: String): SalesLead = get("/leads/${seg(ref)}")
+    suspend fun patchLead(ref: String, body: JsonObject): SalesLead = send("PATCH", "/leads/${seg(ref)}", json.encodeToString(JsonElement.serializer(), body))
+    /** The follow-up draft in the company's voice; it is only drafted, never sent. */
+    suspend fun leadDraft(ref: String): LeadDraft = post("/leads/${seg(ref)}/draft", JsonObject(emptyMap()))
+    suspend fun pipeline(code: String): SalesPipeline = get("/companies/${seg(code)}/pipeline")
+    suspend fun affiliateGaps(company: String? = null): List<AffiliateGap> = items("/revenue/affiliate-gaps", AffiliateGap.serializer(), mapOf("company" to company))
+
+    suspend fun journey(code: String): Journey = get("/companies/${seg(code)}/journey")
+    suspend fun journeys(): List<Journey> = items("/journeys", Journey.serializer())
+
+    suspend fun personas(code: String): List<SalesPersona> = items("/companies/${seg(code)}/personas", SalesPersona.serializer())
+    suspend fun savePersona(code: String, id: String?, body: JsonObject): SalesPersona =
+        if (id == null) post("/companies/${seg(code)}/personas", body) else put("/personas/${seg(id)}", body)
+    suspend fun deletePersona(id: String) { execute(Request.Builder().url(url("/personas/${seg(id)}")).delete().build()).use { check(it) } }
+    /** Up to four personas the company's knowledge base suggests; saved only when the owner keeps one. */
+    suspend fun suggestPersonas(code: String): List<SalesPersona> {
+        val path = "/companies/${seg(code)}/personas/suggest"
+        val e: JsonElement = post(path, JsonObject(emptyMap()))
+        return decoded(path) { e.itemsOrSelf().map { json.decodeFromJsonElement(SalesPersona.serializer(), it) } }
+    }
+    suspend fun testMessage(code: String, text: String): PersonaTest = post("/companies/${seg(code)}/personas/test", buildJsonObject { put("text", text) })
 
     // ------------------------------------------------------------ plumbing --
     private fun seg(s: String): String = java.net.URLEncoder.encode(s, "UTF-8").replace("+", "%20")

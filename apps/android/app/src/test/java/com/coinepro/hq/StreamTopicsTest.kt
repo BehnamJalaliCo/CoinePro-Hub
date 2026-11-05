@@ -33,6 +33,8 @@ class StreamTopicsTest {
         "lines",
         // ⟨1.14⟩ §32.9: talk (`talk.turn`, `talk.card`, `voice.engine`, `voice.meter`)
         "talk",
+        // ⟨1.15⟩ §33.11: payments, leads, usage reports and the journey (`payment.`, `lead.`, `usage.`, `journey.`)
+        "money",
     )
 
     @Test
