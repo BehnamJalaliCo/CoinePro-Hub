@@ -65,7 +65,10 @@ export const NAV_GOVERNANCE: NavItem[] = [
 
 export const NAV_TOOLS: NavItem[] = [
   // ⟨1.5⟩ revenue and support (§19)
-  { href: '/revenue', label: 'درآمد', icon: 'chart' },
+  { href: '/revenue', label: 'درآمد', icon: 'chart', exact: true },
+  // ⟨1.15⟩ §33: usage in the advisor's words, and every company's journey on one timeline.
+  { href: '/usage', label: 'مصرف', icon: 'treasury' },
+  { href: '/journeys', label: 'سفر شرکت‌ها', icon: 'planner' },
   { href: '/support', label: 'پشتیبانی', icon: 'messages' },
   { href: '/growth', label: 'رشد و پیام‌ها', icon: 'send' },
   { href: '/feedback', label: 'بازخورد', icon: 'rate' },

@@ -109,6 +109,15 @@ function CompanyInner({ code }: { code: string }) {
         ...(c && !holding ? [{ value: 'brand' as const, label: 'نشان و مُهر' }] : []),
       ]} /></div>
 
+      {/* ⟨1.15⟩ §33: the company's money, sales, journey and personas have their own pages. */}
+      {c && !holding ? (
+        <nav aria-label="پول و فروش" className="no-scrollbar -mt-1 flex gap-2 overflow-x-auto">
+          {([['money', 'پول'], ['sales', 'فروش'], ['journey', 'سفر شرکت'], ['personas', 'پرسونا']] as const).map(([seg, fa]) => (
+            <Link key={seg} href={`/companies/${code}/${seg}`} className="inline-flex h-9 flex-none items-center rounded-full bg-tile px-4 text-[13px] font-semibold text-sec hover:bg-hover">{fa}</Link>
+          ))}
+        </nav>
+      ) : null}
+
       {tab === 'control' ? (
         c ? <ControlRoom co={c} d={d} ui={ui} /> : <Skeleton className="h-64 rounded-[16px]" />
       ) : tab === 'overview' ? (
