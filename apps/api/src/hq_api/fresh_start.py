@@ -109,6 +109,8 @@ WIPE: tuple[str, ...] = (
     "talk.turn_events",  # ⟨1.14⟩ a turn's stream events (the turn itself stays)
     # ⟨1.15⟩ §33.8-§33.9: the journey's stage cache and state (recomputed from the rows) and the tests
     "growth.journey_stages", "growth.journey_state", "growth.persona_tests",
+    # ⟨1.15⟩ §33.7, §33.10: a work's parallel parts and its workspace go with the work
+    "work.splits", "work.split_parts", "work.workspaces",
 )  # fmt: skip
 
 # Rows of a WIPE table that stay: the condition (on the row as `x`) keeps them
