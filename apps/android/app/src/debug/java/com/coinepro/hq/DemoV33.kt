@@ -271,7 +271,7 @@ internal class V33Demo {
         "state" to "in_progress",
         "ack" to jo("at" to ago(238), "by" to jo("kind" to "agent", "code" to "TY-CEO", "display_fa" to "مدیرعامل تریدیار"),
             "plan_fa" to "کار را به سه بخش مستقل میدهم که همزمان پیش بروند؛ بعد یکی همه را در یک گزارش ادغام میکند. ریلز روی سرور خود تریدیار ساخته میشود.", "assigned" to ja(emptyList())),
-        "route" to jo("companies" to ja(listOf(JsonPrimitive("TY"))), "department" to "CONTENT", "collaborators" to ja(emptyList()), "output_kind" to "report", "player" to "claude",
+        "route" to jo("companies" to ja(listOf(JsonPrimitive("TY"))), "department" to "CONTENT", "collaborators" to ja(emptyList()), "output_kind" to "report", "player" to "auto",
             "budget_tokens" to 600_000, "mode" to "parallel"),
         "steps" to ja(listOf(jo("at" to ago(238), "who_fa" to "مدیرعامل تریدیار", "what_fa" to "کار را به سه بخش موازی تقسیم کرد."))),
         "blockers" to ja(emptyList()), "outputs" to ja(emptyList()), "summary" to null,

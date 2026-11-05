@@ -194,7 +194,7 @@ class V33Test {
     @Test
     fun orderReportPartsAndWorkspacesDecode() {
         val o = json.decodeFromString(OrderReport.serializer(), """{"ref":"F-0045","text_fa":"گزارش","at":"2026-10-17T04:30:00Z","state":"in_progress",
-            "route":{"companies":["TY"],"collaborators":[],"output_kind":"report","player":"claude","mode":"parallel"},"updated_at":"2026-10-17T08:24:00Z",
+            "route":{"companies":["TY"],"collaborators":[],"output_kind":"report","player":"auto","mode":"parallel"},"updated_at":"2026-10-17T08:24:00Z",
             "parts":[{"work_ref":"W-000300","state":"running","proposed_by":"TY-CEO","created_at":"2026-10-17T04:34:00Z","parts":[
             {"n":1,"ref":"W-000301","title_fa":"تحلیل","role":"analyst","state":"delivered","status":"done","progress_pct":100,"output_ref":"O-1",
             "output_title_fa":"خروجی","tokens_used":142000},{"n":2,"ref":"W-000302","title_fa":"خبر","role":"researcher","state":"failed","status":"failed",
