@@ -70,5 +70,26 @@
   },
   "not_installed": {
     "fa_IR-gyro-medium": "its MODEL_CARD states no dataset licence (\"See URL\"): not shipped (prompt 13 §4)"
+  },
+  "extra": {
+    "fa_IR-mana-medium": {
+      "repo": "MahtaFetrat/Mana-Persian-Piper",
+      "repo_license": "MIT",
+      "revision": "ad9dd8518bedf517bd7cbc9f63b8e5c844bf5bc0",
+      "path": "",
+      "dataset": "https://huggingface.co/datasets/MahtaFetrat/Mana-TTS",
+      "dataset_license": "CC0-1.0",
+      "model_card_sha256": "98ecc05027f96fbb9ce01652e189b6ebec255fc8866f737a3ac12df325d9616f",
+      "files": {
+        "fa_IR-mana-medium.onnx": {
+          "size": 63531379,
+          "sha256": "e390c0e74ba71fd97c49ba662ee0c6e1724b462ba2d4561698af4f564840f126"
+        },
+        "fa_IR-mana-medium.onnx.json": {
+          "size": 7088,
+          "sha256": "d102276a05436613a05e1fbad8f125abcf8f56759aaf4fd36adf216653949997"
+        }
+      }
+    }
   }
 }

@@ -171,6 +171,9 @@ class VoiceSettings(BaseModel):
     month_cap_usd: float | None = None
     warn_at: float = 0.8
     chain: list[str] = Field(default_factory=list)
+    # ⟨additive⟩ the owner, 2026-11-05: the local voice (Piper) speaks only after he picked one in the
+    # blind test; off, a sentence no remote engine could say stays text (never a bad voice)
+    local: bool = False
 
 
 class VoiceSettingsIn(BaseModel):
@@ -179,6 +182,7 @@ class VoiceSettingsIn(BaseModel):
     month_cap_usd: float | None = Field(default=None, ge=0, le=100_000)
     warn_at: float | None = Field(default=None, gt=0, le=1)
     chain: list[str] | None = Field(default=None, min_length=1, max_length=10)
+    local: bool | None = None
 
     @field_validator("chain")
     @classmethod

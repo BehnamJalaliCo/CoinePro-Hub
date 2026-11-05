@@ -54,6 +54,14 @@ ADD --chmod=644 --checksum=sha256:99f0c31464a2120831ca87d079e10a9a2b3e426cc1ee66
 ADD --chmod=644 --checksum=sha256:e9866c88c16245f8b8f4d0eaeaa6eab4f2e193db69a2ab4683d83fe78a30b6ca \
     https://huggingface.co/rhasspy/piper-voices/resolve/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/fa/fa_IR/reza_ibrahim/medium/fa_IR-reza_ibrahim-medium.onnx.json \
     /voices/fa_IR-reza_ibrahim-medium.onnx.json
+# The owner, 2026-11-05: Mana Persian Piper (a female voice fine-tuned from fa_IR-amir-medium on the
+# 86-hour Mana-TTS corpus, CC0-1.0; weights MIT) for the blind test against the voices above.
+ADD --chmod=644 --checksum=sha256:e390c0e74ba71fd97c49ba662ee0c6e1724b462ba2d4561698af4f564840f126 \
+    https://huggingface.co/MahtaFetrat/Mana-Persian-Piper/resolve/ad9dd8518bedf517bd7cbc9f63b8e5c844bf5bc0/fa_IR-mana-medium.onnx \
+    /voices/fa_IR-mana-medium.onnx
+ADD --chmod=644 --checksum=sha256:d102276a05436613a05e1fbad8f125abcf8f56759aaf4fd36adf216653949997 \
+    https://huggingface.co/MahtaFetrat/Mana-Persian-Piper/resolve/ad9dd8518bedf517bd7cbc9f63b8e5c844bf5bc0/fa_IR-mana-medium.onnx.json \
+    /voices/fa_IR-mana-medium.onnx.json
 RUN chmod 0755 /voices
 
 COPY hq-common/src /app/hq-common/src

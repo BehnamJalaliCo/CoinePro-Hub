@@ -150,7 +150,8 @@ class FakePiper:
 async def voice(hub: Hub, su: Any) -> AsyncIterator[SimpleNamespace]:
     """Clean voice data, a fake secret store, a fake egress, the local transport, a fake Piper."""
     await su.execute("TRUNCATE talk.voice_usage, talk.engine_state, talk.voice_jobs")
-    await su.execute("UPDATE owner.settings SET voice = '{}'::jsonb WHERE id = 1")
+    # these tests walk the chain down to Piper: the owner's local voice on (off by default, 2026-11-05)
+    await su.execute("""UPDATE owner.settings SET voice = '{"local": true}'::jsonb WHERE id = 1""")
     bao, egress, local = FakeBao(), FakeEgress(), LocalTransport()
     piper = FakePiper(hub)
     old_bao, hub.bao = hub.bao, bao
@@ -541,8 +542,8 @@ async def test_the_owner_cap_moves_the_sentence_to_the_next_engine_and_says_so(
     assert local.fell_back_fa == "سقف ماه پر شد؛ با صدای ساده ادامه میدهم."
     assert voice.piper.spoken[-1] == (
         "سلام دنیا",
-        "fa_IR-amir-medium",
-    )  # the man's/woman's voice, translated
+        "fa_IR-mana-medium",
+    )  # a woman's voice stays a woman's (Mana, 2026-11-05)
     # the cap is the owner's alone: speaking never raised it; the light is amber
     assert (await client.get("/api/v1/owner/settings", headers=owner)).json()["voice"][
         "month_cap_usd"
@@ -605,7 +606,7 @@ async def test_a_persona_voice_is_translated_for_the_engines_down_the_chain(
 ) -> None:
     await arm(hub, voice, su)
     assert (
-        S.voice_for(LITE, "Kore") == "Kore" and S.voice_for("piper", "Kore") == "fa_IR-amir-medium"
+        S.voice_for(LITE, "Kore") == "Kore" and S.voice_for("piper", "Kore") == "fa_IR-mana-medium"
     )
     assert S.voice_for(FLASH, "fa_IR-amir-medium") == "Charon"  # a man's voice stays a man's
     assert S.voice_for(FLASH, "unknown") in {v["name"] for v in catalog.load().gemini_voices}
@@ -773,13 +774,19 @@ async def test_the_owner_settings_carry_the_voice_cap_and_chain_additively(
         "month_cap_usd": None,
         "warn_at": 0.8,
         "chain": ["gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts", "piper"],
+        "local": True,
     }
     assert got["timezone"] and "council_roles" in got  # everything that was there is still there
     r = await set_voice_settings(client, owner, {"month_cap_usd": 12.5})
     assert r.status_code == 200 and r.json()["voice"]["month_cap_usd"] == 12.5
     assert r.json()["voice"]["warn_at"] == 0.8  # the fields left out keep their value
     r = await set_voice_settings(client, owner, {"chain": [LITE, "piper"], "warn_at": 0.9})
-    assert r.json()["voice"] == {"month_cap_usd": 12.5, "warn_at": 0.9, "chain": [LITE, "piper"]}
+    assert r.json()["voice"] == {
+        "month_cap_usd": 12.5,
+        "warn_at": 0.9,
+        "chain": [LITE, "piper"],
+        "local": True,
+    }
     r = await set_voice_settings(client, owner, {"month_cap_usd": None})
     assert r.json()["voice"]["month_cap_usd"] is None  # null on purpose removes the cap
     assert (await set_voice_settings(client, owner, {"chain": ["nope"]})).status_code == 422
@@ -805,6 +812,11 @@ async def test_the_chain_the_owner_set_is_the_order_the_sentence_walks(
     assert S.store.chain_for(FLASH, [LITE, "piper"]) == [FLASH, LITE, "piper"]
     assert S.store.chain_for("piper", [FLASH]) == ["piper"]  # the free voice never spends by itself
     assert S.store.chain_for("not-an-engine", []) == ["piper"]
+    # the owner, 2026-11-05: the local voice off (the default) -> no Piper; what no engine says stays text
+    assert S.store.chain_for(FLASH, [LITE, "piper"], local=False) == [FLASH, LITE]
+    assert S.store.chain_for("piper", [FLASH], local=False) == [FLASH]
+    assert S.store.chain_for("not-an-engine", [], local=False) == []
+    assert S.store.settings_of(None)["local"] is False
 
 
 async def test_the_owner_can_set_and_reset_a_price(
@@ -890,7 +902,7 @@ async def test_the_voices_of_each_engine(client: httpx.AsyncClient, owner: dict[
     )
     assert all(v["sample_file"] is None for v in flash)
     local = (await client.get("/api/v1/voice/engines/piper/voices", headers=owner)).json()
-    assert local[0]["name"] == "fa_IR-amir-medium" and len(local) == 4
+    assert local[0]["name"] == "fa_IR-amir-medium" and len(local) == 5  # Mana too (2026-11-05)
     assert (await client.get("/api/v1/voice/engines/none/voices", headers=owner)).status_code == 404
     every = (await client.get("/api/v1/voice/engines", headers=owner)).json()
     assert [e["key"] for e in every] == [FLASH, LITE, "piper"]
@@ -1305,3 +1317,15 @@ def test_the_seed_file_is_the_source_of_engines_prices_and_voices() -> None:
         from hq_api.routes.owner import VoiceSettingsIn
 
         VoiceSettingsIn(chain=["x"])
+
+
+async def test_without_the_local_voice_a_sentence_no_remote_engine_says_stays_text(
+    hub: Hub, su: Any, voice: SimpleNamespace
+) -> None:
+    """The owner, 2026-11-05: never a bad voice. The local voice off (the default) and no key given:
+    nothing is spoken (VoiceUnavailable: the turn stays text) and Piper is never asked."""
+    await su.execute("UPDATE owner.settings SET voice = '{}'::jsonb WHERE id = 1")
+    req = SpeakRequest("سلام", VoiceChoice(FLASH, "Kore", 1.0), "secretary", "CV-0009", "t9", 0)
+    with pytest.raises(VoiceUnavailable):
+        await S.speak(hub, req)
+    assert voice.piper.spoken == []

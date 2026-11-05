@@ -139,7 +139,9 @@ async def test_the_registry_has_every_candidate_with_its_licence_and_numbers(
         by["chatterbox-fa"]["licence"].startswith("CC BY-NC")
         and not by["chatterbox-fa"]["licence_commercial"]
     )
-    assert by["manatts-piper"]["installed"] is False and "GPU" in by["manatts-piper"]["note_fa"]
+    # 2026-11-05: Mana Persian Piper ships in the TTS image for the owner's blind test
+    mana = by["manatts-piper"]
+    assert mana["installed"] is True and mana["licence_commercial"] and "مانا" in mana["name_fa"]
     assert by["piper-gyro"]["licence_commercial"] is False  # its dataset licence is unstated
     assert by["piper-gyro"]["installed"] is False  # ... so it is not shipped
 
@@ -223,7 +225,7 @@ async def test_the_bakeoff_queues_once_and_its_audio_goes_through_17_1(
         )
         assert len(jobs) == runnable * len(V.SCRIPTS)
         assert not {j["voice_id"] for j in jobs} & {
-            "parsvoice-xtts", "chatterbox-fa", "manatts-piper", "piper-gyro"
+            "parsvoice-xtts", "chatterbox-fa", "piper-gyro"
         }  # fmt: skip
         for j in jobs:
             assert_spoken(j["script"])  # the hub's own spoken form: no digit left

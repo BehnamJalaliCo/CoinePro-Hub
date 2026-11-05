@@ -136,7 +136,9 @@ def test_every_shipped_voice_is_pinned_and_the_unlicensed_one_is_not_shipped() -
     assert {"fa_IR-amir-medium", "fa_IR-ganji-medium", "fa_IR-ganji_adabi-medium",
             "fa_IR-reza_ibrahim-medium"} == set(lock["voices"])  # fmt: skip
     assert "fa_IR-gyro-medium" in lock["not_installed"] and "gyro" not in dockerfile
-    assert dockerfile.count("--checksum=sha256:") == 2 * len(lock["voices"])
+    # 2026-11-05: the Mana voice from its own repository (the owner's blind test), under "extra"
+    assert set(lock["extra"]) == {"fa_IR-mana-medium"}
+    assert dockerfile.count("--checksum=sha256:") == 2 * (len(lock["voices"]) + len(lock["extra"]))
     assert all(len(v["model_card_sha256"]) == 64 for v in lock["voices"].values())
 
 

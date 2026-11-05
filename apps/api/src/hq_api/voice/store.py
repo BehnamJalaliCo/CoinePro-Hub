@@ -70,6 +70,8 @@ def settings_of(block: dict[str, Any] | None) -> dict[str, Any]:
         "month_cap_usd": float(cap) if cap is not None else None,
         "warn_at": float(b.get("warn_at") or DEFAULT_WARN_AT),
         "chain": chain,
+        # the owner, 2026-11-05: Piper only after he chose a local voice (off: text, never a bad voice)
+        "local": bool(b.get("local", False)),
     }
 
 
@@ -77,16 +79,20 @@ async def voice_settings(tx: Tx) -> dict[str, Any]:
     return settings_of(await tx.scalar("SELECT voice FROM owner.settings WHERE id = 1"))
 
 
-def chain_for(first: str, configured: list[str]) -> list[str]:
-    """The walk order: the persona's engine, then the owner's chain, Piper always last."""
+def chain_for(first: str, configured: list[str], *, local: bool = True) -> list[str]:
+    """The walk order: the persona's engine, then the owner's chain, Piper last, and Piper only
+    while the owner's local voice is on (`local`); off, the walk ends with the remote engines and a
+    sentence none of them could say stays text (the owner, 2026-11-05: never a bad voice)."""
     cat = catalog.load()
-    if first == catalog.LOCAL:  # a persona that chose the free local voice never spends by itself
+    if (
+        first == catalog.LOCAL and local
+    ):  # a persona that chose the free local voice never spends by itself
         return [catalog.LOCAL]
     seen: list[str] = []
     for key in [first, *configured]:
         if key in cat.engines and key != catalog.LOCAL and key not in seen:
             seen.append(key)
-    return [*seen, catalog.LOCAL]
+    return [*seen, catalog.LOCAL] if local else seen
 
 
 # ------------------------------------------------------------------ light --
