@@ -112,7 +112,7 @@ function CompanyInner({ code }: { code: string }) {
       {/* ⟨1.15⟩ §33: the company's money, sales, journey and personas have their own pages. */}
       {c && !holding ? (
         <nav aria-label="پول و فروش" className="no-scrollbar -mt-1 flex gap-2 overflow-x-auto">
-          {([['money', 'پول'], ['sales', 'فروش'], ['journey', 'سفر شرکت'], ['personas', 'پرسونا']] as const).map(([seg, fa]) => (
+          {([['money', 'پول'], ['sales', 'فروش'], ['journey', 'سفر شرکت'], ['personas', 'مخاطب‌ها']] as const).map(([seg, fa]) => (
             <Link key={seg} href={`/companies/${code}/${seg}`} className="inline-flex h-9 flex-none items-center rounded-full bg-tile px-4 text-[13px] font-semibold text-sec hover:bg-hover">{fa}</Link>
           ))}
         </nav>

@@ -9,7 +9,7 @@ export default function Page({ params }: { params: Promise<{ code: string }> }) 
   const { code } = use(params);
   return (
     <>
-      <CompanyHead code={code} here="personas" title="پرسونا" note="مخاطب‌های شرکت و آزمون پیام پیش از انتشار. نمره‌ها نظر مدل است، نه اندازه‌گیری." />
+      <CompanyHead code={code} here="personas" title="مخاطب‌ها" note="مخاطب‌های شرکت و سنجش پیام پیش از انتشار. نمره‌ها حدس است، نه اندازه‌گیری." />
       <CompanyPersonas code={code} />
     </>
   );
