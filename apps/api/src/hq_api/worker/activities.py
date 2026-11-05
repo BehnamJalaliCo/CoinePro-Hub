@@ -960,11 +960,13 @@ class Activities:
                     p=r["priority"],
                 ):
                     requeued += 1
+            # A talk run its turn never closed (a worker stopped mid-turn) is failed once its token expired (0045).
+            reaped = int(await tx.scalar("SELECT talk.reap_runs(NULL)") or 0)
             stuck = await tx.exec(
                 """UPDATE agents.runs SET dispatched_at = NULL
                    WHERE state = 'queued' AND dispatched_at < now() - interval '10 minutes'"""
             )
-        return {"requeued": requeued, "redispatched": stuck}
+        return {"requeued": requeued, "redispatched": stuck, "talk_reaped": reaped}
 
     @activity.defn(name="players_sweep")
     async def players_sweep(self) -> dict[str, Any]:

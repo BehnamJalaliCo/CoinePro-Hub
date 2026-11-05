@@ -43,7 +43,7 @@ LATER_KINDS = (
     "archive_schema",
     "archive_disposal",
 )
-HEAD = "0044"  # 14.1, 15, 15.2, 17, 18, 19 and 19.3 sit on 0029 (which still validates the kind CHECKs)
+HEAD = "0045"  # 14.1, 15, 15.2, 17, 18, 19 and 19.3 sit on 0029 (which still validates the kind CHECKs)
 
 
 def test_only_the_head_validates_the_kind_checks() -> None:
