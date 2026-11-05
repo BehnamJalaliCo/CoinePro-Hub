@@ -25,6 +25,7 @@ import { handle29 } from './mock-v29';
 import { handle30 } from './mock-v30';
 import { handle31 } from './mock-v31';
 import { handle32 } from './mock-v32';
+import { handle33 } from './mock-v33';
 
 const json = (body: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const problem = (status: number, code: string, message_fa: string) => json({ code, message_fa, status, title: code, type: 'about:blank' }, status);
@@ -511,6 +512,16 @@ export function tick21(): Ev[] {
 // ================================================================================================== handler ==
 /** ⟨1.11⟩ §29 first (./mock-v29), which hands on what is not its own and decorates the employees with their state. */
 export async function handle(req: Request): Promise<Response> {
+  const u = new URL(req.url);
+  if (Date.now() >= restartUntil) {
+    // ⟨1.15⟩ §33 money and the Grok-like working style (./mock-v33); what is not its own (or what it decorates) goes on below.
+    const v33 = await handle33(req, u.pathname.replace(/^\/api\/v1/, ''), u.searchParams, () => handleBelow(req));
+    if (v33) return v33;
+  }
+  return handleBelow(req);
+}
+
+async function handleBelow(req: Request): Promise<Response> {
   const u = new URL(req.url);
   if (Date.now() >= restartUntil) {
     // ⟨1.12⟩ §30 production lines (./mock-v30).

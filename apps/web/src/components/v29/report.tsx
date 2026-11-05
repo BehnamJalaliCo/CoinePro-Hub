@@ -21,6 +21,8 @@ import { useNow } from '@/lib/store';
 import { ago, cx, jDate, jDateTime, jTime } from '@/lib/format';
 import { ownerDay } from '@/components/v21/bits';
 import { KitFlow } from '@/components/v31/kit';
+import { SplitParts, WorkspaceCard } from '@/components/v33/parallel';
+import type { OrderParallel } from '@/lib/api/v33';
 import { FaPara, FaText, FixButton, OrderStatePill } from './bits';
 
 function useNames() {
@@ -179,6 +181,10 @@ export function OrderReportView({ refId }: { refId: string }) {
       ) : null}
 
       {r.kit ? <KitCard refId={refId} kit={r.kit} /> : null}
+
+      {/* ⟨1.15⟩ §33.7 and §33.10: the parallel parts with their merge, and the workspace on the company's own server. */}
+      <SplitParts r={r as OrderParallel} />
+      <WorkspaceCard r={r as OrderParallel} />
 
       {r.blockers.length ? (
         <Card className="flex flex-col gap-3 p-5 ring-1 ring-[var(--hq-neg-line)]" aria-label="گیرها">

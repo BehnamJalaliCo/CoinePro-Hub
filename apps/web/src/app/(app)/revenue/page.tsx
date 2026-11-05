@@ -10,6 +10,9 @@ import { useCompanies } from '@/lib/api/hooks';
 import { useRevenueDays, useRevenueSummary, type RevenuePeriod } from '@/lib/api/v16';
 import { companyColor } from '@/lib/company';
 import { useScope } from '@/lib/scope';
+import Link from 'next/link';
+import { RevenueBoardView } from '@/components/v33/money';
+import { BySourceCard } from '@/components/v33/revenue';
 import { cx, usd } from '@/lib/format';
 
 const PERIOD_FA: Record<RevenuePeriod, string> = { day: 'دیروز', week: '۷ روز', month: '۳۰ روز' };
@@ -112,11 +115,18 @@ export default function RevenuePage() {
           <FunnelCard initial={company} />
         </div>
         <div className="flex min-w-0 flex-col gap-4">
+          <BySourceCard period={period} company={company} />
           <AlertsCard alerts={s?.alerts} />
           <AccountsCard />
           <RescueCard company={company} />
         </div>
       </div>
+      {/* ⟨1.15⟩ §33.3: the revenue board of the whole holding (or of the chosen company): MRR, forecast, cohorts, ROI. */}
+      <section className="flex flex-col gap-3" aria-label="تابلوی درآمد مشتریان">
+        <div className="flex flex-wrap items-end gap-3"><h2 className="flex-1 text-h3 font-semibold">درآمد مشتریان</h2>
+          <Link href="/revenue/affiliate-gaps" className="text-[13px] font-semibold text-gold-ink hover:underline">پیگیری طلب و دریافت کمیسیون</Link></div>
+        <RevenueBoardView company={company} />
+      </section>
     </>
   );
 }
