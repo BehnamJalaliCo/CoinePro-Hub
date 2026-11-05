@@ -571,6 +571,14 @@ async def test_a_daily_cap_refusal_comes_back_once_the_day_has_room(
     assert (await acts.requeue_runs())["requeued"] >= 1
     last = (await runs_of(su, f"{co}-CEO"))[-1]
     assert last["id"] != row["id"] and last["reason"].startswith("requeue:")
+    # a run the cap stopped mid-way (failed, daily_cap) comes back the same way
+    await su.execute(
+        """UPDATE agents.runs SET state = 'failed', error_code = 'daily_cap', finished_at = now()
+           WHERE id = $1""",
+        last["id"],
+    )
+    assert (await acts.requeue_runs())["requeued"] >= 1
+    assert (await runs_of(su, f"{co}-CEO"))[-1]["id"] != last["id"]
 
 
 async def test_daily_cap_refuses_runs(

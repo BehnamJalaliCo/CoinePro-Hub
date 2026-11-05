@@ -935,8 +935,9 @@ class Activities:
                    ORDER BY r.employee_id, r.work_id, r.thread_id, r.queued_at DESC"""
             )
             for r in rows:
-                if r["state"] != "refused" or r["error_code"] not in ("locked", "daily_cap"):
-                    continue
+                capped = r["error_code"] == "daily_cap" and r["state"] in ("refused", "failed")
+                if not capped and (r["state"] != "refused" or r["error_code"] != "locked"):
+                    continue  # a run the day's cap stopped mid-way (failed) comes back too
                 if r["error_code"] == "daily_cap" and await runner.day_cap_reached(
                     tx, r["company_id"]
                 ):
