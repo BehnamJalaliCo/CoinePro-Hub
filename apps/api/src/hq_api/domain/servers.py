@@ -1295,6 +1295,10 @@ async def finish(
     )
     if usage:
         await record_usage(tx, j, usage)
+    if j["kind"] == "ledger":  # ⟨1.15⟩ §33.2: the payment rows are validated and stored at once
+        from hq_api.domain import payments
+
+        await payments.on_job_finished(tx, j)
     if j["session_id"]:
         if ok:
             await _session_end(tx, j, "idle", None, j["summary_fa"] or "")

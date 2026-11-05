@@ -75,6 +75,17 @@ Schedule ids:
     hq-lines-tick             every 5 min   LinesTick (prompt 22, §30.3: a run for each line's
                               schedule due, open runs started again, the 24h / 7d reads;
                               only with HQ_LINES=on, nothing while the holding is locked)
+    hq-money-read             every 120 min  MoneyRead (prompt 24, §33.2: each payment source one
+                              step: the chain through egress, the ledger's runner job; rule-only)
+    hq-money-reconcile        daily 06:40 Asia/Tehran  MoneyReconcile (§33.2: the reconcile and
+                              its alerts to the company's CEO and FIN; the owner only if critical)
+    hq-money-weekly           Saturday 09:05 Asia/Tehran  MoneyWeekly (§33.2: the owner's line)
+    hq-usage-daily            daily 07:55 Asia/Tehran  UsageReport("day") (§33.1: before the
+                              morning summary, which shows its 3 lines)
+    hq-usage-weekly           Saturday 09:00 Asia/Tehran  UsageReport("week") (§33.1: the
+                              advisor's thread)
+    hq-sales-tick             every 15 min  SalesTick (§33.4, §33.6: lead reminders; impacts)
+    hq-affiliate-gaps         daily 07:20 Asia/Tehran  AffiliateGaps (§33.5, after the revenue pull)
     recurring-<work ref>      the work's RRULE as a calendar spec in its zone,
                               end = min(UNTIL, escrow expiry); paused while the
                               company or the holding is locked
@@ -159,6 +170,22 @@ SEO_READ = "hq-seo-read"  # prompt 22 part 3 (§31.4)
 P22G = (NEWSLETTER_READ, SEO_READ)
 LINES_TICK = "hq-lines-tick"  # prompt 22
 VOICE_CHECK = "hq-voice-check"  # prompt 23: the voice engines' light, free metadata calls (§32.5)
+MONEY_READ = "hq-money-read"  # prompt 24 (§33.1-§33.6)
+MONEY_RECONCILE = "hq-money-reconcile"
+MONEY_WEEKLY = "hq-money-weekly"
+USAGE_DAILY = "hq-usage-daily"
+USAGE_WEEKLY = "hq-usage-weekly"
+SALES_TICK = "hq-sales-tick"
+AFFILIATE_GAPS = "hq-affiliate-gaps"
+P24M = (
+    MONEY_READ,
+    MONEY_RECONCILE,
+    MONEY_WEEKLY,
+    USAGE_DAILY,
+    USAGE_WEEKLY,
+    SALES_TICK,
+    AFFILIATE_GAPS,
+)
 FIXED = (
     SUPPORT_SWEEP,
     MAINTENANCE,
@@ -193,6 +220,7 @@ FIXED = (
     *P22G,
     LINES_TICK,
     VOICE_CHECK,
+    *P24M,
 )
 
 
@@ -373,6 +401,68 @@ def fixed(
             every(360),
             timedelta(hours=1),
             timedelta(minutes=3),
+        ),
+        *p24m_fixed(),
+    ]
+
+
+def p24m_fixed() -> list[Desired]:
+    """Prompt 24 (contract §33.1-§33.6): each activity gates itself on the holding's lock; the
+    times are real Tehran times (the contract's), not the owner's view."""
+    from hq_api.domain import payments as P
+
+    sat = 6  # Temporal: 0 = Sunday
+    return [
+        Desired(
+            MONEY_READ,
+            "MoneyRead",
+            (),
+            every(int(P.cfg()["read"]["every_minutes"])),
+            timedelta(minutes=30),
+            timedelta(minutes=55),
+        ),
+        Desired(
+            MONEY_RECONCILE,
+            "MoneyReconcile",
+            (),
+            daily_at(time(6, 40), TEHRAN),
+            timedelta(hours=6),
+            timedelta(minutes=35),
+        ),
+        Desired(
+            MONEY_WEEKLY,
+            "MoneyWeekly",
+            (),
+            weekly_at(sat, time(9, 5), TEHRAN),
+            timedelta(hours=12),
+            timedelta(minutes=10),
+        ),
+        Desired(
+            USAGE_DAILY,
+            "UsageReport",
+            ("day",),
+            daily_at(time(7, 55), TEHRAN),
+            timedelta(hours=3),
+            timedelta(minutes=10),
+        ),
+        Desired(
+            USAGE_WEEKLY,
+            "UsageReport",
+            ("week",),
+            weekly_at(sat, time(9, 0), TEHRAN),
+            timedelta(hours=12),
+            timedelta(minutes=10),
+        ),
+        Desired(
+            SALES_TICK, "SalesTick", (), every(15), timedelta(minutes=10), timedelta(minutes=14)
+        ),
+        Desired(
+            AFFILIATE_GAPS,
+            "AffiliateGaps",
+            (),
+            daily_at(time(7, 20), TEHRAN),
+            timedelta(hours=6),
+            timedelta(minutes=25),
         ),
     ]
 

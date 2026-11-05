@@ -54,6 +54,7 @@ def mid_model() -> str:
 
     return MODEL
 
+
 SEED = Path(__file__).resolve().parents[3] / "seed" / "sales" / "stages.yaml"
 SERVICE = Principal(kind="service", code="sales", role="service")
 SOURCES = ("support", "telegram", "site", "payment", "referral", "manual")
@@ -157,16 +158,19 @@ def default_stages() -> list[dict[str, str]]:
 
 
 async def ensure_stages(
-    tx: Tx, company_id: UUID, spec: list[dict[str, str]] | None = None
+    tx: Tx, company_id: UUID, spec: list[dict[str, str]] | None = None, *, write: bool = True
 ) -> list[dict[str, Any]]:
     """The company's stages; made from `spec` (a kit's), else the default list, when it
-    has none. Existing stages are never changed here."""
+    has none (`write=False`, a read-only transaction: the default list, not stored).
+    Existing stages are never changed here."""
     have = await tx.all(
         "SELECT key, title_fa, position, kind FROM sales.lead_stages WHERE company_id = :co ORDER BY position",
         co=company_id,
     )
     if have:
         return have
+    if not write:
+        return [{**s, "position": i} for i, s in enumerate(spec or default_stages())]
     for i, s in enumerate(spec or default_stages()):
         await tx.exec(
             """INSERT INTO sales.lead_stages (company_id, key, title_fa, position, kind)
@@ -268,11 +272,13 @@ async def company_row(tx: Tx, company: Any) -> dict[str, Any]:
     `id` and `code` (what the money builder has at hand)."""
     if isinstance(company, str) and re.match(r"^[A-Z][A-Z0-9]{1,9}$", company):
         row = await tx.first(
-            "SELECT id, code, name_fa FROM core.companies WHERE code = :c AND kind <> 'holding'", c=company
+            "SELECT id, code, name_fa FROM core.companies WHERE code = :c AND kind <> 'holding'",
+            c=company,
         )
     elif isinstance(company, UUID):
         row = await tx.first(
-            "SELECT id, code, name_fa FROM core.companies WHERE id = :i AND kind <> 'holding'", i=company
+            "SELECT id, code, name_fa FROM core.companies WHERE id = :i AND kind <> 'holding'",
+            i=company,
         )
     else:
         row = await tx.first(
@@ -335,9 +341,21 @@ async def create(
         )
         return existing, False
     lead = await tx.one(LEAD_SQL + " WHERE l.id = :i", i=row["id"])
-    await add_event(tx, lead, "created", note_fa or {"support": "از پشتیبانی آمد",
-        "telegram": "از تلگرام آمد", "payment": "از یک پرداخت آمد", "site": "از سایت آمد",
-        "referral": "از معرفی آمد", "manual": "دستی ثبت شد"}[source], {"source": source})
+    await add_event(
+        tx,
+        lead,
+        "created",
+        note_fa
+        or {
+            "support": "از پشتیبانی آمد",
+            "telegram": "از تلگرام آمد",
+            "payment": "از یک پرداخت آمد",
+            "site": "از سایت آمد",
+            "referral": "از معرفی آمد",
+            "manual": "دستی ثبت شد",
+        }[source],
+        {"source": source},
+    )
     await audit.record(
         tx,
         who,
@@ -365,7 +383,9 @@ async def from_inbound(
     customer (the mystery channel never makes one). The pseudonym is the customer's."""
     if mystery or channel == "mystery":
         return None
-    company = await tx.first("SELECT id, code FROM core.companies WHERE id = :i AND kind <> 'holding'", i=company_id)
+    company = await tx.first(
+        "SELECT id, code FROM core.companies WHERE id = :i AND kind <> 'holding'", i=company_id
+    )
     if company is None:
         return None
     source = "telegram" if channel.startswith("telegram") else "support"
@@ -377,7 +397,11 @@ async def from_inbound(
 
 
 async def from_payment(
-    tx: Tx, company: Any, pseudonym: str, amount: Decimal | float | int | str | None, *,
+    tx: Tx,
+    company: Any,
+    pseudonym: str,
+    amount: Decimal | float | int | str | None,
+    *,
     paid: bool = True,
 ) -> dict[str, Any]:
     """For the payments (§33.2) to call; imports nothing of theirs. A lead of this
@@ -417,8 +441,12 @@ async def from_payment(
             lead,
             "paid",
             "پرداخت رسید" + (f" ({value} تتر)" if value is not None else ""),
-            {"amount": str(value) if value is not None else None, "created": made,
-             "from": old_stage, "to": won["key"]},
+            {
+                "amount": str(value) if value is not None else None,
+                "created": made,
+                "from": old_stage,
+                "to": won["key"],
+            },
         )
         await audit.record(
             tx, SERVICE, company_id=co["id"], action="lead.paid", action_class="A1",
@@ -426,12 +454,16 @@ async def from_payment(
         )  # fmt: skip
         await _emit(tx, lead, "paid")
     elif not made and value is not None:
-        await add_event(tx, lead, "payment", f"پرداخت دیگری رسید ({value} تتر)", {"amount": str(value)})
+        await add_event(
+            tx, lead, "payment", f"پرداخت دیگری رسید ({value} تتر)", {"amount": str(value)}
+        )
     return lead
 
 
 # ------------------------------------------------------------------- change --
-async def check_assignee(tx: Tx, company_id: UUID, a: dict[str, str] | None) -> tuple[str, str] | None:
+async def check_assignee(
+    tx: Tx, company_id: UUID, a: dict[str, str] | None
+) -> tuple[str, str] | None:
     if a is None:
         return None
     kind, code = a.get("kind"), a.get("code")
@@ -445,7 +477,11 @@ async def check_assignee(tx: Tx, company_id: UUID, a: dict[str, str] | None) -> 
         )
         if ok:
             return ("agent", code)
-    raise ApiError(422, "validation_failed", fields={"assignee": "the owner or an active employee of this company"})
+    raise ApiError(
+        422,
+        "validation_failed",
+        fields={"assignee": "the owner or an active employee of this company"},
+    )
 
 
 async def move(
@@ -477,18 +513,24 @@ async def move(
     )
     moved = await tx.one(LEAD_SQL + " WHERE l.id = :i", i=row["id"])
     await add_event(
-        tx, moved, "stage", f"به مرحله‌ی «{target['title_fa']}» رفت", {"from": lead["stage"], "to": stage}
+        tx,
+        moved,
+        "stage",
+        f"به مرحله‌ی «{target['title_fa']}» رفت",
+        {"from": lead["stage"], "to": stage},
     )
     await _emit(tx, moved, "stage")
     return moved
 
 
 # ----------------------------------------------------------------- pipeline --
-async def pipeline(tx: Tx, company: dict[str, Any], now: datetime | None = None) -> LeadPipeline:
+async def pipeline(
+    tx: Tx, company: dict[str, Any], now: datetime | None = None, *, write: bool = True
+) -> LeadPipeline:
     """Counts and value by stage, the win rate (won / (won + lost)), and the median days
     a lead stayed in each stage, all computed from the rows and their trail."""
     now = now or datetime.now(UTC)
-    stages = await ensure_stages(tx, company["id"])
+    stages = await ensure_stages(tx, company["id"], write=write)
     rows = await tx.all(
         """SELECT stage, count(*) AS n, COALESCE(sum(value_usdt), 0) AS value
            FROM sales.leads WHERE company_id = :co GROUP BY stage""",
@@ -524,15 +566,15 @@ async def pipeline(tx: Tx, company: dict[str, Any], now: datetime | None = None)
         span(stage, at, now)
     out: list[LeadPipelineStage] = []
     for s in stages:
-        r = by.get(s["key"])
+        got = by.get(s["key"])
         days = spans.get(s["key"])
         out.append(
             LeadPipelineStage(
                 stage=s["key"],
                 title_fa=s["title_fa"],
                 kind=s["kind"],
-                count=int(r["n"]) if r else 0,
-                value_usdt=Decimal(r["value"]) if r else Decimal(0),
+                count=int(got["n"]) if got else 0,
+                value_usdt=Decimal(got["value"]) if got else Decimal(0),
                 median_days=round(statistics.median(days), 1) if days else None,
             )
         )
@@ -623,7 +665,9 @@ async def tick(hub: Any, now: datetime | None = None) -> dict[str, int]:
             now=now,
         )
         for r in rows:
-            company = await tx.one("SELECT id, code, name_fa FROM core.companies WHERE id = :i", i=r["company_id"])
+            company = await tx.one(
+                "SELECT id, code, name_fa FROM core.companies WHERE id = :i", i=r["company_id"]
+            )
             assignee = (r["assignee_kind"], r["assignee_code"]) if r["assignee_kind"] else None
             who = r["name_fa"] or r["ref"]
             ref = await planner_item(
@@ -706,7 +750,11 @@ async def guard(tx: Tx, company_id: UUID, text: str) -> tuple[bool, list[str]]:
 
 
 def clean_draft(raw: Any) -> str | None:
-    if not isinstance(raw, dict) or set(raw) - {"draft_fa"} or not isinstance(raw.get("draft_fa"), str):
+    if (
+        not isinstance(raw, dict)
+        or set(raw) - {"draft_fa"}
+        or not isinstance(raw.get("draft_fa"), str)
+    ):
         return None
     text = humanize.humanize(" ".join(raw["draft_fa"].split()))
     if len(text) < 5 or humanize.persian_share(text) < 0.4:
@@ -720,7 +768,9 @@ async def draft(hub: Any, ref: str, ask: Ask | None = None) -> LeadDraft:
     holding = await hub.companies.holding()
     async with hub.db.tx(await hub.companies.ids()) as tx:
         lead = await load(tx, ref)
-        company = await tx.one("SELECT id, code, name_fa FROM core.companies WHERE id = :i", i=lead["company_id"])
+        company = await tx.one(
+            "SELECT id, code, name_fa FROM core.companies WHERE id = :i", i=lead["company_id"]
+        )
         stages = await ensure_stages(tx, lead["company_id"])
         title = next((s["title_fa"] for s in stages if s["key"] == lead["stage"]), lead["stage"])
         trail = await events_of(tx, lead["id"])

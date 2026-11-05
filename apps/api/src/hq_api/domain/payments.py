@@ -63,7 +63,8 @@ def cfg() -> dict[str, Any]:
 def contract() -> dict[str, Any]:
     """seed/payments/ledger_v1.yaml: the output contract of a company's ledger."""
     doc = yaml.safe_load((SEED / "ledger_v1.yaml").read_text(encoding="utf-8"))
-    assert isinstance(doc, dict) and doc.get("contract") == LEDGER_ADAPTER
+    assert isinstance(doc, dict)
+    assert doc.get("contract") == LEDGER_ADAPTER
     return doc
 
 
@@ -174,7 +175,9 @@ class LedgerBatch:
 
 def _break(n: int | None, col: str | None, why: str) -> LedgerBreak:
     where = f"ردیف {n}، ستون {col}" if n is not None and col else "پاسخ دفتر"
-    return LedgerBreak(f"{where}: با قرارداد ledger_v1 نمی‌خواند ({why}). هیچ‌چیز از این دسته ذخیره نشد.")
+    return LedgerBreak(
+        f"{where}: با قرارداد ledger_v1 نمی‌خواند ({why}). هیچ‌چیز از این دسته ذخیره نشد."
+    )
 
 
 def _timestamp(text: str, n: int, col: str) -> datetime:
@@ -212,7 +215,9 @@ def validate_batch(doc: Any) -> LedgerBatch:
         raise _break(None, None, f"rows باید فهرستی حداکثر {limit} ردیفی باشد")
     cursor = doc.get("next_cursor")
     cursor_spec = spec["response"]["next_cursor"]
-    if cursor is not None and (not isinstance(cursor, str) or len(cursor) > cursor_spec["max_length"]):
+    if cursor is not None and (
+        not isinstance(cursor, str) or len(cursor) > cursor_spec["max_length"]
+    ):
         raise _break(None, None, "next_cursor")
     has_more = doc.get("has_more", False)
     if not isinstance(has_more, bool):
@@ -322,7 +327,8 @@ async def load_source(tx: Tx, source_id: UUID, *, lock: bool = False) -> dict[st
 
 async def list_sources(tx: Tx, company_id: UUID) -> list[dict[str, Any]]:
     return await tx.all(
-        SOURCE_SQL + " WHERE s.company_id = :co ORDER BY s.kind, s.network NULLS FIRST, s.created_at",
+        SOURCE_SQL
+        + " WHERE s.company_id = :co ORDER BY s.kind, s.network NULLS FIRST, s.created_at",
         co=company_id,
     )
 
@@ -331,9 +337,7 @@ def valid_address(network: str, address: str) -> bool:
     return bool(re.fullmatch(networks()[network]["address_pattern"], address))
 
 
-async def paired_runner(
-    tx: Tx, company_id: UUID, name: str | None = None
-) -> dict[str, Any] | None:
+async def paired_runner(tx: Tx, company_id: UUID, name: str | None = None) -> dict[str, Any] | None:
     """The company's runner server a ledger is read through: the named one, else the first
     online one, else the first paired one. None when no runner is paired."""
     if name:
@@ -367,7 +371,8 @@ async def put_source(
         if runner is None:
             raise ApiError(
                 409,
-                "validation_failed",
+                "not_ready",
+                "no paired runner",
                 fields={"server": "no paired runner"},
                 message_fa="برای خواندن دفتر شرکت، اول runner سرور شرکت باید جفت شود.",
             )
@@ -507,43 +512,97 @@ async def ingest(tx: Tx, src: dict[str, Any], batch: LedgerBatch) -> int:
             if store
             else None,
         )
-        new += 1 if row["inserted"] else 0
+        if row["inserted"]:
+            new += 1
+            if store:  # an in-app purchase is paid by the store: its lead is paid (§33.4)
+                await _lead_paid(tx, src["company_id"], r.customer, None)
     return new
+
+
+async def _lead_paid(
+    tx: Tx, company_id: UUID, customer: str | None, amount: Decimal | None
+) -> None:
+    """§33.4: a payment of a pseudonym sets its lead `paid` (one is made when there is none). A
+    lead that cannot be written never stops the payments (its own savepoint)."""
+    if not customer:
+        return
+    from hq_api.domain import leads
+
+    try:
+        async with tx.conn.begin_nested():
+            await leads.from_payment(tx, company_id, customer, amount)
+    except ApiError as exc:
+        log.warning("lead of a payment refused", extra={"code": exc.code})
+
+
+async def collect(tx: Tx, src: dict[str, Any], job: dict[str, Any]) -> dict[str, Any]:
+    """A finished `ledger` job of this source: validated against ledger_v1 and stored, the cursor
+    moved (one broken row refuses the whole batch, with a plain reason on the source)."""
+    out: dict[str, Any] = {"ingested": 0, "rows": 0, "error": None, "has_more": False}
+    await tx.exec(
+        "UPDATE money.payment_sources SET pending_job_id = NULL WHERE id = :id", id=src["id"]
+    )
+    if job["state"] != "done":
+        why = "لغو شد" if job["state"] == "cancelled" else "شکست خورد"
+        out["error"] = f"خواندن دفتر روی سرور شرکت {why}؛ runner و پرونده‌ی ledger.sql را ببین."
+        await mark(tx, src, error_fa=out["error"], read=True)
+        return out
+    try:
+        batch = validate_batch(job["result"])
+    except LedgerBreak as b:
+        out["error"] = b.reason_fa
+        await mark(tx, src, error_fa=b.reason_fa, read=True)
+        return out
+    out["ingested"] = await ingest(tx, src, batch)
+    out["rows"] = len(batch.rows)
+    out["has_more"] = batch.has_more
+    cursor = batch.next_cursor if batch.next_cursor is not None else src["cursor"]
+    await mark(tx, src, error_fa=None, read=True, cursor=cursor)
+    out["cursor"] = cursor
+    return out
+
+
+async def on_job_finished(tx: Tx, job: dict[str, Any]) -> None:
+    """servers.finish calls this for a `ledger` job: the rows are stored at once (the next read
+    then asks for the next page when there is one)."""
+    src = await tx.first(SOURCE_SQL + " WHERE s.pending_job_id = :j FOR UPDATE OF s", j=job["id"])
+    if src is None:
+        return
+    try:
+        async with tx.conn.begin_nested():
+            got = await collect(tx, src, job)
+            if got["has_more"] and got["error"] is None:  # the next page at once
+                await queue_ledger(tx, {**src, "cursor": got["cursor"]})
+    except Exception:
+        log.exception("ledger job could not be collected")
+        return
+    await emit_read(
+        tx, src, rows=got["rows"], ingested=got["ingested"], error=got["error"] is not None
+    )
 
 
 async def read_ledger(tx: Tx, src: dict[str, Any]) -> dict[str, Any]:
     """One step of a ledger source: collect the finished job (validate it, store it, move the
     cursor) and queue the next one. Never waits for the runner. Returns what happened."""
     out: dict[str, Any] = {"ingested": 0, "queued": False, "error": None}
-    conf = cfg()["read"]
     if src["pending_job_id"]:
         job = await SV.load_job(tx, src["pending_job_id"])
         if job["state"] in SV.OPEN:
             out["waiting"] = True
             return out
-        await tx.exec(
-            "UPDATE money.payment_sources SET pending_job_id = NULL WHERE id = :id", id=src["id"]
-        )
-        src = {**src, "pending_job_id": None}
-        if job["state"] == "done":
-            try:
-                batch = validate_batch(job["result"])
-            except LedgerBreak as b:
-                out["error"] = b.reason_fa
-                await mark(tx, src, error_fa=b.reason_fa, read=True)
-                return out
-            out["ingested"] = await ingest(tx, src, batch)
-            out["rows"] = len(batch.rows)
-            cursor = batch.next_cursor if batch.next_cursor is not None else src["cursor"]
-            await mark(tx, src, error_fa=None, read=True, cursor=cursor)
-            src = {**src, "cursor": cursor}
-            if not batch.has_more:
-                return out
-        else:
-            why = "لغو شد" if job["state"] == "cancelled" else "شکست خورد"
-            out["error"] = f"خواندن دفتر روی سرور شرکت {why}؛ runner و پرونده‌ی ledger.sql را ببین."
-            await mark(tx, src, error_fa=out["error"], read=True)
+        got = await collect(tx, src, job)
+        out.update(ingested=got["ingested"], rows=got["rows"], error=got["error"])
+        if got["error"] is not None or not got["has_more"]:
             return out
+        src = {**src, "pending_job_id": None, "cursor": got["cursor"]}
+    return {**out, **await queue_ledger(tx, src)}
+
+
+async def queue_ledger(tx: Tx, src: dict[str, Any]) -> dict[str, Any]:
+    """The next `ledger` job of this source on the company's runner (runner 0.3.0 or later):
+    {queued, error}. A company locked (kill switch) refuses it (423 from servers)."""
+    out: dict[str, Any] = {"queued": False, "error": None}
+    conf = cfg()["read"]
     runner = await paired_runner(tx, src["company_id"], src.get("server_name"))
     if runner is None:
         out["error"] = "runner شرکت جفت نیست؛ دفتر پرداخت خوانده نمیشود."

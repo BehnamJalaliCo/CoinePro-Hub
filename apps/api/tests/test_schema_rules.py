@@ -60,6 +60,9 @@ SCHEMAS = (
     "media",
     # prompt 14: the archive
     "archive",
+    # ⟨1.15⟩ prompt 24: the payments and reconcile; usage reports, leads, affiliate gaps
+    "money",
+    "sales",
 )
 # The tools schema's tables without a company (holding configuration, read by
 # the api only): every other table there must carry company_id under RLS.

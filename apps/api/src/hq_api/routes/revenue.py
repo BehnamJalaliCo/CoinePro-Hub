@@ -117,6 +117,18 @@ class SummaryAlert(Model):
     note_fa: str
 
 
+class RevenueBySource(Model):
+    """⟨1.15⟩ §33.3: a company's revenue by where it came from: the exchange's affiliate
+    commission (§19.1) and the payments that reached its own addresses (§33.2); a store's in-app
+    billing is counted, never summed."""
+
+    company: str
+    affiliate_usdt: Decimal
+    payments_usdt: Decimal
+    store_payments: int = 0
+    total_usdt: Decimal
+
+
 class RevenueSummary(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True, serialize_by_alias=True)
     period: Literal["day", "week", "month"]
@@ -128,6 +140,7 @@ class RevenueSummary(BaseModel):
     by_account: list[AccountRevenue]
     trend: list[TrendPoint]
     alerts: list[SummaryAlert]
+    by_source: list[RevenueBySource] = Field(default_factory=list)  # ⟨1.15⟩ §33.3, additive
 
 
 class RevenueAccountIn(BaseModel):
@@ -172,7 +185,9 @@ async def revenue_summary(
     ctx: Ctx = Depends(owner_ctx),
 ) -> Any:
     """Commission per company and account against the Token Treasury's cost
-    of the same days (`net_usd = usdt - token_cost_usd`; USDT taken as USD)."""
+    of the same days (`net_usd = usdt - token_cost_usd`; USDT taken as USD).
+    ⟨1.15⟩ §33.3 `by_source`: per company, the affiliate commission and the crypto payments
+    that reached its addresses (UTC days of the same range)."""
     co = await _company_id(ctx, company)
     async with ctx.tx() as tx:
         return RevenueSummary.model_validate(await V.summary(tx, period, co))

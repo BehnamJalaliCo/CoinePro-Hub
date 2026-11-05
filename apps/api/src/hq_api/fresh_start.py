@@ -109,6 +109,10 @@ WIPE: tuple[str, ...] = (
     "talk.turn_events",  # ⟨1.14⟩ a turn's stream events (the turn itself stays)
     # ⟨1.15⟩ §33.8-§33.9: the journey's stage cache and state (recomputed from the rows) and the tests
     "growth.journey_stages", "growth.journey_state", "growth.persona_tests",
+    # ⟨1.15⟩ §33.1-§33.6: what was read and derived (re-read from the sources), the usage
+    # reports, the leads and their trails, the affiliate gaps (rebuilt from the radar)
+    "money.alerts", "money.chain_transfers", "money.payments", "money.reconcile_days",
+    "sales.affiliate_gaps", "sales.lead_events", "sales.leads", "sales.usage_reports",
 )  # fmt: skip
 
 # Rows of a WIPE table that stay: the condition (on the row as `x`) keeps them
@@ -153,6 +157,9 @@ KEEP: tuple[str, ...] = (
     # the companies' connections and their non-secret config) stays
     "growth.groups", "growth.group_versions", "growth.memberships", "growth.connections",
     "growth.ad_rules", "growth.automations",  # ⟨1.13⟩ the owner's budget rules and automations
+    # ⟨1.15⟩ §33.2, §33.4, §33.5: the sources the owner configured, the companies' lead stages,
+    # what the owner said an exchange paid
+    "money.payment_sources", "sales.lead_stages", "sales.affiliate_receipts",
     "growth.personas", "growth.journey_plans",  # ⟨1.15⟩ §33.8-§33.9: the owner's personas; a company's stages
     # ⟨1.13⟩ prompt 22 part 3: definitions stay (the lists, the keywords, the competitors, the campaigns)
     "growth.newsletter_lists", "growth.keywords", "growth.competitors", "growth.campaigns",
@@ -227,6 +234,12 @@ RESET: tuple[str, ...] = (
     # ⟨1.12⟩ a line stays; the runs it counted and its last scheduled run are gone
     """UPDATE lines.lines SET good_runs = 0, last_due_at = NULL
      WHERE good_runs <> 0 OR last_due_at IS NOT NULL""",
+    # ⟨1.15⟩ a payment source stays; what it read is gone, so it reads again from the start
+    """UPDATE money.payment_sources SET cursor = NULL, pending_job_id = NULL, scan_next = NULL,
+           scan_fingerprint = NULL, scan_from_at = NULL, scanned_to_at = NULL, last_read_at = NULL,
+           last_error_fa = NULL, state = 'not_configured'
+     WHERE cursor IS NOT NULL OR pending_job_id IS NOT NULL OR scan_next IS NOT NULL
+        OR scanned_to_at IS NOT NULL OR last_read_at IS NOT NULL OR state <> 'not_configured'""",
 )
 
 # The ref sequences no table owns (nextval in the code): what they number.
@@ -250,6 +263,7 @@ REF_RESET: tuple[str, ...] = (
     "people.hr_round_ref_seq", "people.role_draft_ref_seq",
     "quality.claim_ref_seq",
     "reports.briefing_ref_seq",
+    "sales.lead_ref_seq", "sales.usage_report_ref_seq",  # ⟨1.15⟩ the leads and reports go
     "substitutes.creative_ref_seq",
     "support.conversation_ref_seq",
     "work.work_ref_seq",
