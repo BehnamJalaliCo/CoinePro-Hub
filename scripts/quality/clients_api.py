@@ -24,12 +24,13 @@ ANDROID = ROOT / "apps/android/app/src/main/java"
 WEB = ROOT / "apps/web/src"
 PAGE_CEILING = 200  # apps/api/src/hq_api/pagination.py MAX_LIMIT
 
-KT_CALL = re.compile(r'\b(get|post|listAny|postUnit|put|patch|delete|del)[A-Za-z]*\("(/[^"]*)"')
+KT_CALL = re.compile(r'\b(get|post|listAny|postUnit|put|patch|delete|del|items|sealedPost)[A-Za-z]*\("(/[^"]*)"')
+KT_METHOD_CALL = re.compile(r'\b(?:send|write|request)\("(GET|POST|PUT|PATCH|DELETE)",\s*"(/[^"]*)"')
 KT_DEFAULT = re.compile(
     r'fun (?:Api\.)?(\w+)\(([^)]*?\blimit: Int = (\d+)[^)]*)\)[^={]*=\s*(?:get|listAny)\("(/[^"]*)"'
 )
-KT_VERB = {"get": "GET", "listAny": "GET", "post": "POST", "postUnit": "POST", "put": "PUT", "patch": "PATCH",
-           "delete": "DELETE", "del": "DELETE"}
+KT_VERB = {"get": "GET", "listAny": "GET", "items": "GET", "post": "POST", "postUnit": "POST", "sealedPost": "POST",
+           "put": "PUT", "patch": "PATCH", "delete": "DELETE", "del": "DELETE"}
 
 
 def norm(path: str) -> str:
@@ -61,6 +62,12 @@ def check_android(spec, errors: list[str]) -> int:
         s = f.read_text()
         rel = f.relative_to(ROOT)
         if f.parent.name == "net":
+            # calls that name their method first: send("PATCH", "/x"), write("DELETE", "/x"), …
+            for m in KT_METHOD_CALL.finditer(s):
+                n += 1
+                verb, path = m.group(1), kt_path(m.group(2))
+                if (verb, path) not in spec:
+                    errors.append(f"{rel}: {verb} {m.group(2)} is not in the hub's OpenAPI")
             for m in KT_CALL.finditer(s):
                 n += 1
                 verb, path = KT_VERB[m.group(1)], kt_path(m.group(2))
