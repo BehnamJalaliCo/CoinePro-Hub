@@ -156,6 +156,18 @@ async def store_inbound(
             id=conv["id"],
             at=message["at"],
         )
+        # ⟨1.15⟩ §33.4: a customer who writes is a lead (one per pseudonym; the mystery channel
+        # never makes one). Only the pseudonym and the display name go to the CRM.
+        from hq_api.domain import leads
+
+        await leads.from_inbound(
+            tx,
+            UUID(str(company_id)),
+            channel=channel_kind,
+            subject=sub,
+            display_name=display_name,
+            mystery=mystery,
+        )
     return {
         "customer_id": customer["id"],
         "subject": sub,
