@@ -257,9 +257,13 @@ async def test_a_technical_finding_goes_to_the_cto_not_the_owner(
     assert set(rows[tech["ref"]]) >= {"domain", "owner_visible", "routed_to", "critical_reason"}
     # its notification (a high finding) is stored for the handler, never pushed or listed
     async with await all_tx(hub) as tx:
+        # by kind and company too: the fresh-start tests (p16) restart the ref sequences, so a
+        # new finding can carry the ref of an older one whose notification is still there
         n = await tx.one(
-            "SELECT owner_visible, routed_to, state FROM notify.notifications WHERE link_ref = :r",
+            """SELECT owner_visible, routed_to, state FROM notify.notifications
+               WHERE link_kind = 'finding' AND link_ref = :r AND company_id = :co""",
             r=tech["ref"],
+            co=company["id"],
         )
     assert not n["owner_visible"] and n["routed_to"] == f"{co}-TECH-MGR"
     listed = await client.get(f"/api/v1/notifications?company={co}", headers=owner)
