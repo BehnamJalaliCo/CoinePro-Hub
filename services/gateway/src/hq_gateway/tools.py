@@ -422,6 +422,20 @@ class DelegateIn(In):
     key_result: str | None = Field(default=None, pattern=r"^KR-[0-9]{4,}$")  # ⟨1.5⟩ prompt 11
 
 
+class SplitPartIn(In):
+    title_fa: str = Field(min_length=1, max_length=300)
+    # who receives it: an employee code, a department code (its manager) or a charter role
+    role: str = Field(min_length=2, max_length=64, pattern=r"^[A-Za-z][A-Za-z0-9_-]{1,63}$")
+    brief: str = Field(min_length=1, max_length=20000)
+
+
+class SplitIn(In):
+    """⟨1.15⟩ §33.7 work.split: independent parallel parts (the api checks PARALLEL_MAX)."""
+
+    ref: str = Field(pattern=WORK_REF)
+    parts: list[SplitPartIn] = Field(min_length=2, max_length=10)
+
+
 class RequestIn(In):
     to: str = Field(pattern=r"^[A-Z][A-Z0-9]{1,9}(-[A-Z0-9]+(-[A-Z0-9]+)?)?$")
     title_fa: str = Field(min_length=1, max_length=300)
@@ -820,6 +834,38 @@ async def work_delegate(api: Api, call: Call, a: DelegateIn) -> Result:
     return r
 
 
+async def work_split(api: Api, call: Call, a: SplitIn) -> Result:
+    """⟨1.15⟩ §33.7 the agent's own work split into parallel parts; one merge run follows when
+    every part has ended."""
+    wid, err = await _work_id(api, call, a.ref)
+    if err is not None:
+        return err
+    parts = [
+        {"title_fa": await _text(p.title_fa), "role": p.role, "brief": await _text(p.brief)}
+        for p in a.parts
+    ]
+    resp = await api.request(
+        "POST",
+        f"/internal/v1/work/{wid}/split",
+        call.token,
+        json={"parts": parts},
+        idem=call.idem("work.split"),
+    )
+    r = from_response(resp, None)
+    if r.outcome == "ok" and isinstance(r.data, dict):
+        r.ref = a.ref
+        r.data = {
+            "work": a.ref,
+            "state": r.data.get("state"),
+            "parts": [
+                {"ref": p.get("ref"), "assignee": p.get("assignee")}
+                for p in r.data.get("parts") or []
+                if isinstance(p, dict)
+            ],
+        }
+    return r
+
+
 async def work_request(api: Api, call: Call, a: RequestIn) -> Result:
     parts = a.to.split("-")
     target: dict[str, Any]
@@ -1011,6 +1057,7 @@ TOOLS: dict[str, tuple[type[In], Handler]] = {
     "work.progress": (ProgressIn, work_progress),
     "work.fail": (FailIn, work_fail),
     "work.delegate": (DelegateIn, work_delegate),
+    "work.split": (SplitIn, work_split),  # ⟨1.15⟩ prompt 24, §33.7
     "work.request": (RequestIn, work_request),
     "activity.set": (ActivityIn, activity_set),
     "notify": (NotifyIn, notify),

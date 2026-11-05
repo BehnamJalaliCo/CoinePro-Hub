@@ -655,6 +655,50 @@ async def test_work_lifecycle(mock: respx.MockRouter, gw: Gateway) -> None:
     assert (await call(gw, "work.accept", {"ref": "W-000555"}))["code"] == "not_found"
 
 
+async def test_work_split(mock: respx.MockRouter, gw: Gateway) -> None:
+    """⟨1.15⟩ §33.7: the parts go to the api's split route; the answer names each part."""
+    s = Stub(mock)
+    work_route(mock)
+    route = mock.post(f"{API}/internal/v1/work/11111111-1111-1111-1111-111111111111/split").mock(
+        return_value=httpx.Response(
+            201,
+            json={
+                "work_ref": "W-000101",
+                "state": "running",
+                "parts": [
+                    {"ref": "W-000102", "assignee": "TY-TECH-01", "title_fa": "a"},
+                    {"ref": "W-000103", "assignee": "TY-TECH-02", "title_fa": "b"},
+                ],
+            },
+        )
+    )
+    parts = [
+        {"title_fa": "بررسی سرعت", "role": "TY-TECH-01", "brief": "صفحه‌ی اصلی"},
+        {"title_fa": "بررسی امنیت", "role": "security_analyst", "brief": "هدرها"},
+    ]
+    out = await call(gw, "work.split", {"ref": "W-000101", "parts": parts})
+    assert (out["outcome"], out["class"]) == ("ok", "A1")
+    assert out["result"] == {
+        "work": "W-000101",
+        "state": "running",
+        "parts": [
+            {"ref": "W-000102", "assignee": "TY-TECH-01"},
+            {"ref": "W-000103", "assignee": "TY-TECH-02"},
+        ],
+    }
+    sent = json.loads(route.calls.last.request.content)
+    assert [p["role"] for p in sent["parts"]] == ["TY-TECH-01", "security_analyst"]
+    assert s.opa_inputs[-1]["action"]["name"] == "work.split"
+    # one part is no split; a role is a name, never free text
+    assert (await call(gw, "work.split", {"ref": "W-000101", "parts": parts[:1]}))[
+        "code"
+    ] == "invalid_args"
+    bad = [{**parts[0], "role": "rm -rf /"}, parts[1]]
+    assert (await call(gw, "work.split", {"ref": "W-000101", "parts": bad}))[
+        "code"
+    ] == "invalid_args"
+
+
 @pytest.mark.parametrize(
     ("to", "expected"),
     [
