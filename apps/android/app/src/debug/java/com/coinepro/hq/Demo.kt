@@ -111,6 +111,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             val b = if (!isJson) null else req.body?.let { rb -> Buffer().also { rb.writeTo(it) }.readUtf8() }?.takeIf { it.isNotBlank() }
                 ?.let { runCatching { Api.json.parseToJsonElement(it) as? JsonObject }.getOrNull() }
             val q = req.url.queryParameterNames.associateWith { req.url.queryParameter(it) }
+            // ⟨1.15⟩ §33 first: its order report (F-0045) and the stop of a workspace answer before §29's reports and the orders' /work.
+            v33.handle(req.method, path, q, b)?.let { Thread.sleep(60); return respond(req, it) }
             v29.handle(req.method, path, q, b)?.let { Thread.sleep(60); return respond(req, it) }
             v30.handle(req.method, path, q, b)?.let { Thread.sleep(60); return respond(req, it) }
             v31.handle(req.method, path, q, b)?.let { Thread.sleep(60); return respond(req, it) }
@@ -297,6 +299,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     /** ⟨1.13⟩ §31: insights, kits, the newsletter, SEO, the campaign calendar, ads and automations. */
     private val v31 = V31Demo()
     private val v32 = V32Demo()
+    private val v33 = V33Demo()
     /** ⟨1.8⟩ before [scripts]: wakes on the first look at a server, so other screens see the holding as before. */
     private val servers = ServersDemo(store)
 

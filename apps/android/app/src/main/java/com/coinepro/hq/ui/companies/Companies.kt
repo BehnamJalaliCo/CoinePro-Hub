@@ -180,6 +180,9 @@ fun CompanyScreen(code: String, tab0: String = "control", dept0: String? = null,
                     (if (brand && com.coinepro.hq.ui.v29.served(com.coinepro.hq.core.net.HubFeature.LINES)) listOf("lines" to "خط تولید") else emptyList()) +
                     // ⟨1.13⟩ §31 the owned channel, search rank with competitors, and ad budgets.
                     (if (brand && com.coinepro.hq.ui.v29.served(com.coinepro.hq.core.net.HubFeature.GROWTH)) listOf("newsletter" to "خبرنامه", "seo" to "سئو و رقبا", "ads" to "تبلیغات") else emptyList()) +
+                    // ⟨1.15⟩ §33 its money, sales, personas and journey.
+                    (if (brand && com.coinepro.hq.ui.v29.served(com.coinepro.hq.core.net.HubFeature.MONEY)) listOf("money" to "پول", "sales" to "فروش") else emptyList()) +
+                    (if (brand && com.coinepro.hq.ui.v29.served(com.coinepro.hq.core.net.HubFeature.JOURNEY)) listOf("personas" to "مخاطب‌ها", "journey" to "مسیر") else emptyList()) +
                     listOf("departments" to "دپارتمان‌ها", "people" to "کارمندها", "work" to "کارها") +
                     (if (brand) listOf("servers" to "فنی", "brand" to "نشان و مُهر") else emptyList()))
                     .forEach { (k, l) -> com.coinepro.hq.designsystem.FilterChip(l, tab == k, { tab = k }) }
@@ -221,6 +224,10 @@ fun CompanyScreen(code: String, tab0: String = "control", dept0: String? = null,
             "newsletter" -> item(key = "newsletter") { com.coinepro.hq.ui.v31.CompanyNewsletter(code) }
             "seo" -> item(key = "seo") { com.coinepro.hq.ui.v31.CompanySeo(code) }
             "ads" -> item(key = "ads") { com.coinepro.hq.ui.v31.CompanyAds(code) }
+            "money" -> item(key = "money") { com.coinepro.hq.ui.v33.CompanyMoney(code) }
+            "sales" -> item(key = "sales") { com.coinepro.hq.ui.v33.CompanySales(code) }
+            "personas" -> item(key = "personas") { com.coinepro.hq.ui.v33.CompanyPersonas(code) }
+            "journey" -> item(key = "journey") { com.coinepro.hq.ui.v33.CompanyJourney(code) }
             "brand" -> item {
                 Loadable(co) { x -> HqCard(Modifier.fillMaxWidth()) { BrandBlock(x.code, x.nameFa ?: x.code, x.nameEn ?: x.code) } }
             }
