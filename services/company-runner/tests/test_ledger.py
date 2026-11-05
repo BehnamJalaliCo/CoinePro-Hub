@@ -171,16 +171,20 @@ def test_the_ledger_job_reads_hashes_and_pages(
     fake_hub: FakeHub, cfg: Config, cfg_path: Path, fake_db: list[FakeConn]
 ) -> None:
     write_files(cfg_path.parent)
-    res = drive_one(fake_hub, cfg, cfg_path, ledger_job("l1", since=None, limit=3))
+    res = drive_one(fake_hub, cfg, cfg_path, ledger_job("l1", since_cursor=None, limit=3))
     assert res["exit_code"] == 0, res
     out = res["data"]
-    assert out["contract"] == "ledger_v1" and out["count"] == 3 and out["more"] is True
+    assert out["contract"] == "ledger_v1" and out["count"] == 3 and out["has_more"] is True
     row = out["rows"][0]
     assert list(row) == list(ledger.COLUMNS)
+    assert row["ext_id"] == "P0000"
     assert row["customer"] == hmac.new(SALT.encode(), b"1000", hashlib.sha256).hexdigest()
-    assert row["amount_usdt"] == "49.990000" and row["paid_at"] == T0.isoformat()
-    assert row["period_start"] == "2026-11-01" and row["period_end"] == "2026-12-01"
-    assert out["next_since"] == (T0 + timedelta(hours=2)).isoformat()
+    assert row["amount_usdt"] == "49.990000" and row["paid_at"] == "2026-11-01T10:00:00Z"
+    assert row["period_start"] == "2026-11-01T00:00:00Z"
+    assert row["period_end"] == "2026-12-01T00:00:00Z"
+    assert out["next_cursor"] == "t:2026-11-01T12:00:00Z"
+    # every value is what the hub's contract takes: a string or null
+    assert all(v is None or isinstance(v, str) for r in out["rows"] for v in r.values())
     conn = fake_db[0]
     # One statement, `:since` bound as $1 (never in the text), read only, with a timeout.
     assert conn.log[0] == "BEGIN READ ONLY"
@@ -195,13 +199,15 @@ def test_the_ledger_job_reads_hashes_and_pages(
     assert all(len(r["customer"]) == 64 and r["customer"] != "1000" for r in out["rows"])
 
     # The next page from the cursor.
-    res = drive_one(fake_hub, cfg, cfg_path, ledger_job("l2", since=out["next_since"], limit=3))
+    res = drive_one(
+        fake_hub, cfg, cfg_path, ledger_job("l2", since_cursor=out["next_cursor"], limit=3)
+    )
     out2 = res["data"]
-    assert [r["ext_id"] for r in out2["rows"]] == ["P0003", "P0004"] and out2["more"] is False
+    assert [r["ext_id"] for r in out2["rows"]] == ["P0003", "P0004"] and out2["has_more"] is False
     assert fake_db[1].params[0] == T0 + timedelta(hours=2)
     # Nothing new: the cursor stays where it was.
-    res = drive_one(fake_hub, cfg, cfg_path, ledger_job("l3", since=out2["next_since"]))
-    assert res["data"]["rows"] == [] and res["data"]["next_since"] == out2["next_since"]
+    res = drive_one(fake_hub, cfg, cfg_path, ledger_job("l3", since_cursor=out2["next_cursor"]))
+    assert res["data"]["rows"] == [] and res["data"]["next_cursor"] == out2["next_cursor"]
 
 
 def test_a_page_never_splits_rows_of_one_time() -> None:
@@ -298,10 +304,11 @@ def test_the_job_fails_with_a_plain_reason_and_no_secret(
     ("args", "says"),
     [
         ({"contract": "ledger_v2"}, "ledger_v1"),
-        ({"contract": "ledger_v1", "limit": 5001}, "5000"),
-        ({"contract": "ledger_v1", "limit": True}, "5000"),
-        ({"contract": "ledger_v1", "since": "yesterday"}, "ISO 8601"),
-        ({"contract": "ledger_v1", "since": 5}, "ISO 8601"),
+        ({"contract": "ledger_v1", "limit": 501}, "500"),
+        ({"contract": "ledger_v1", "limit": True}, "500"),
+        ({"contract": "ledger_v1", "since_cursor": "yesterday"}, "ISO 8601"),
+        ({"contract": "ledger_v1", "since_cursor": 5}, "since_cursor"),
+        ({"contract": "ledger_v1", "since_cursor": "t:" + "9" * 300}, "since_cursor"),
     ],
 )
 def test_bad_arguments_are_refused(
@@ -349,6 +356,68 @@ def test_units() -> None:
     assert ledger.plain(1.5) == "1.5" and ledger.plain(uuid.UUID(int=1)).endswith("1")
     assert repr(ledger.LedgerConfig(DSN, SALT, SQL)) == "LedgerConfig(<hidden>)"
     assert ledger.parse_since("2026-11-01T10:00:00") == T0
+    assert ledger.parse_since("t:2026-11-01T10:00:00Z") == T0
+    assert ledger.utc_z(datetime(2026, 1, 1, 12, 0, 0, 5000, tzinfo=UTC)) == (
+        "2026-01-01T12:00:00.005000Z"
+    )
+    assert ledger.amount_text(Decimal("49.990000000000000000")) == "49.99"
+    assert ledger.amount_text(Decimal("1E+2")) == "100" and ledger.amount_text(2.5) == "2.5"
+
+
+def _row(i: int = 1, **extra: Any) -> dict[str, Any]:
+    return payment(i, T0, **extra)
+
+
+@pytest.mark.parametrize(
+    ("extra", "column"),
+    [
+        ({"ext_id": None}, "ext_id"),
+        ({"ext_id": "bad id"}, "ext_id"),
+        ({"plan": "Pro Plan"}, "plan"),
+        ({"amount_usdt": Decimal("1.123456789")}, "amount_usdt"),
+        ({"amount_usdt": Decimal("0")}, "amount_usdt"),
+        ({"amount_usdt": None}, "amount_usdt"),
+        ({"network": "erc20"}, "network"),
+        ({"tx_hash": "0x12"}, "tx_hash"),
+        ({"network": "trc20_usdt"}, "tx_hash"),  # a BSC hash on TRON
+        ({"kind": "card"}, "kind"),
+        ({"kind": "store"}, "amount_usdt"),
+        ({"period_end": None}, "period_start"),
+        ({"period_end": T0.date()}, "period_end"),
+        ({"paid_at": "soon"}, "paid_at"),
+        ({"customer": None}, "customer"),
+    ],
+)
+def test_every_row_is_checked_against_the_contract(extra: dict[str, Any], column: str) -> None:
+    with pytest.raises(ledger.RowError) as exc:
+        ledger.contract_row(3, _row(**extra), SALT)
+    assert exc.value.n == 3 and exc.value.column == column
+    assert "0x" not in str(exc.value)  # the reason never carries a value
+
+
+def test_a_store_row_and_a_tron_row_pass() -> None:
+    store = ledger.contract_row(
+        1, _row(kind="store", amount_usdt=None, network=None, tx_hash=None), SALT
+    )
+    assert store["amount_usdt"] is None and store["kind"] == "store"
+    tron = ledger.contract_row(2, _row(network="trc20_usdt", tx_hash="ab" * 32), SALT)
+    assert tron["network"] == "trc20_usdt"
+
+
+def test_a_broken_row_refuses_the_whole_batch(
+    fake_hub: FakeHub, cfg: Config, cfg_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_files(cfg_path.parent)
+    rows = [payment(0, T0), payment(1, T0 + timedelta(hours=1), plan="Bad Plan!")]
+
+    async def connect(lc: ledger.LedgerConfig) -> FakeConn:
+        return FakeConn(rows)
+
+    monkeypatch.setattr(ledger, "connect", connect)
+    res = drive_one(fake_hub, cfg, cfg_path, ledger_job("b1"))
+    assert res["exit_code"] == ledger.EXIT_QUERY
+    assert "ردیف 2، ستون plan" in res["summary_fa"]
+    assert "rows" not in (res.get("data") or {})
 
 
 # ------------------------------------------------------------- ledger-check --
@@ -368,6 +437,14 @@ def test_ledger_check_prints_ok_or_the_reason(
     out = io.StringIO()
     assert cli.ledger_check(cfg_path, out) == 1
     assert out.getvalue() == "error: the ledger role can write: write access to a table or view\n"
+
+    async def broken(lc: ledger.LedgerConfig) -> FakeConn:
+        return FakeConn([payment(0, T0, network="erc20")])
+
+    monkeypatch.setattr(ledger, "connect", broken)
+    out = io.StringIO()
+    assert cli.ledger_check(cfg_path, out) == 1
+    assert "row 1, column network" in out.getvalue() and "erc20" not in out.getvalue()
 
     os.chmod(cfg_path.parent / "ledger.env", 0o640)
     out = io.StringIO()
@@ -413,7 +490,14 @@ def real_db() -> Any:
         await c.executemany(
             "INSERT INTO pay VALUES ($1, $2, 'pro', 49.99, 'trc20_usdt', $3, $4, $5, $6, 'crypto')",
             [
-                (i, f"u{i}", f"tx{i}", T0 + timedelta(minutes=i), T0.date(), T0.date())
+                (
+                    i,
+                    f"u{i}",
+                    f"{i:064x}",
+                    T0 + timedelta(minutes=i),
+                    T0.date(),
+                    T0.date() + timedelta(days=30),
+                )
                 for i in range(1, 8)
             ],
         )
@@ -453,12 +537,15 @@ def test_real_ledger_read_and_check(
     out = io.StringIO()
     assert cli.ledger_check(cfg_path, out) == 0, out.getvalue()
     assert out.getvalue().endswith("ok\n")
-    res = drive_one(fake_hub, cfg, cfg_path, ledger_job("r1", since=None, limit=5))
+    res = drive_one(fake_hub, cfg, cfg_path, ledger_job("r1", since_cursor=None, limit=5))
     data = res["data"]
-    assert res["exit_code"] == 0 and data["count"] == 5 and data["more"] is True
+    assert res["exit_code"] == 0 and data["count"] == 5 and data["has_more"] is True, res
     assert data["rows"][0]["customer"] == hmac.new(SALT.encode(), b"u1", hashlib.sha256).hexdigest()
     assert data["rows"][0]["amount_usdt"] == "49.990000"
-    res = drive_one(fake_hub, cfg, cfg_path, ledger_job("r2", since=data["next_since"], limit=5))
+    assert data["rows"][0]["paid_at"] == "2026-11-01T10:01:00Z"
+    res = drive_one(
+        fake_hub, cfg, cfg_path, ledger_job("r2", since_cursor=data["next_cursor"], limit=5)
+    )
     assert [r["ext_id"] for r in res["data"]["rows"]] == ["6", "7"]
     assert real_db["secret"] not in json.dumps(fake_hub.requests, default=str)
 

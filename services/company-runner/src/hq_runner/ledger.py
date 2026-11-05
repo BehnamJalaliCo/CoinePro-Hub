@@ -1,10 +1,17 @@
 """⟨0.3.0⟩ The `ledger` job (contract §33.2): the company's own payment
 records, read on this server and nowhere else.
 
-    args    {contract: "ledger_v1", since: ISO 8601 | null, limit: 1..5000}
+    args    {contract: "ledger_v1", since_cursor: str | null, limit: 1..500}
     result  data = {contract, rows: [{ext_id, customer, plan, amount_usdt,
                     network, tx_hash, paid_at, period_start, period_end, kind}],
-                    count, next_since, more}
+                    next_cursor, has_more, count}
+
+The shapes are the hub's output contract (apps/api/seed/payments/ledger_v1.yaml):
+every value is a string or null, times are ISO 8601 UTC ending in Z, amounts
+are decimal strings; the runner checks every row against the contract's rules
+before anything leaves the server, and one broken row refuses the whole batch
+(with the row and the column, never the value). `next_cursor` is opaque to
+the hub (`t:<paid_at>`); a bare ISO time is also read as a cursor.
 
 Everything the job needs lives on this server, in the runner's folder:
 
@@ -18,8 +25,7 @@ the cursor, nothing else. The query runs as one statement inside a READ ONLY
 transaction with a statement timeout, its one parameter `:since` bound (never
 formatted into the text); its output columns must be exactly the contract's;
 the `customer` column leaves this server only as HMAC-SHA256(salt, value) in
-hex. Values: timestamps and dates in ISO 8601, amounts as decimal strings.
-A secret is never printed, logged or sent: a failure says only what to fix.
+hex. A secret is never printed, logged or sent: a failure says only what to fix.
 """
 
 from __future__ import annotations
@@ -53,8 +59,25 @@ COLUMNS = (
     "period_end",
     "kind",
 )
-MAX_LIMIT = 5000
-DEFAULT_LIMIT = 1000
+MAX_LIMIT = 500  # the contract's response.max_rows
+DEFAULT_LIMIT = 500
+MAX_CURSOR = 200
+CHECK_ROWS = 20  # ledger-check reads this many rows and checks them
+CURSOR_PREFIX = "t:"
+NETWORKS = ("bsc_usdt", "trc20_usdt")
+KINDS = ("crypto", "store")
+# The column rules of ledger_v1 (the hub's seed file is the source; these mirror it).
+PATTERNS = {
+    "ext_id": re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"),
+    "customer": re.compile(r"^[0-9a-f]{64}$"),
+    "plan": re.compile(r"^[a-z0-9][a-z0-9_.-]{0,59}$"),
+    "amount_usdt": re.compile(r"^[0-9]{1,12}(\.[0-9]{1,8})?$"),
+}
+TX_HASH = {
+    "bsc_usdt": re.compile(r"^0x[0-9a-fA-F]{64}$"),
+    "trc20_usdt": re.compile(r"^[0-9a-fA-F]{64}$"),
+}
+NULLABLE = ("amount_usdt", "network", "tx_hash", "period_start", "period_end")
 STATEMENT_TIMEOUT_MS = 30_000
 CONNECT_TIMEOUT_S = 10.0
 MAX_SQL_BYTES = 64 * 1024
@@ -189,6 +212,112 @@ def plain(value: Any) -> Any:
     return str(value)
 
 
+def utc_z(value: Any) -> str | None:
+    """A time (or a date: its midnight) as ISO 8601 UTC ending in Z."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            raise ValueError("not a time") from None
+    if isinstance(value, datetime):
+        dt = (value if value.tzinfo else value.replace(tzinfo=UTC)).astimezone(UTC)
+    elif isinstance(value, date):
+        dt = datetime(value.year, value.month, value.day, tzinfo=UTC)
+    else:
+        raise ValueError("not a time")
+    text = dt.strftime("%Y-%m-%dT%H:%M:%S")
+    return text + (f".{dt.microsecond:06d}" if dt.microsecond else "") + "Z"
+
+
+def amount_text(value: Any) -> str | None:
+    """A decimal string of at most 8 decimals (trailing zeros beyond them dropped)."""
+    if value is None:
+        return None
+    if isinstance(value, float):
+        value = Decimal(repr(value))
+    try:
+        d = Decimal(str(value).strip())
+    except ArithmeticError:
+        raise ValueError("not a number") from None
+    if not d.is_finite():
+        raise ValueError("not a number")
+    text = format(d, "f")
+    if "." in text and len(text.split(".")[1]) > 8:
+        text = text.rstrip("0").rstrip(".")
+    return text
+
+
+class RowError(ValueError):
+    """One row against ledger_v1: the row number and the column, never the value."""
+
+    def __init__(self, n: int, column: str, why: str) -> None:
+        super().__init__(f"row {n}, column {column}: {why}")
+        self.n, self.column, self.why = n, column, why
+
+
+def contract_row(n: int, raw: dict[str, Any], salt: str) -> dict[str, Any]:
+    """One database row as a ledger_v1 row, checked by every rule of the contract."""
+    out: dict[str, Any] = {}
+    for col in COLUMNS:
+        value = raw.get(col)
+        try:
+            if value is None:
+                out[col] = None
+            elif col == "customer":
+                out[col] = pseudonym(salt, value)
+            elif col == "amount_usdt":
+                out[col] = amount_text(value)
+            elif col in ("paid_at", "period_start", "period_end"):
+                out[col] = utc_z(value)
+            elif col == "plan":
+                out[col] = str(value).strip().lower()
+            else:
+                out[col] = str(plain(value)).strip()
+        except ValueError as exc:
+            raise RowError(n, col, str(exc)) from None
+        if out[col] is None and col not in NULLABLE:
+            raise RowError(n, col, "empty")
+        rule = PATTERNS.get(col)
+        if out[col] is not None and rule is not None and not rule.fullmatch(out[col]):
+            raise RowError(n, col, "wrong format")
+    if out["kind"] not in KINDS:
+        raise RowError(n, "kind", "must be crypto or store")
+    if out["network"] is not None and out["network"] not in NETWORKS:
+        raise RowError(n, "network", "must be bsc_usdt or trc20_usdt")
+    if out["tx_hash"] is not None and len(out["tx_hash"]) > 80:
+        raise RowError(n, "tx_hash", "too long")
+    if out["kind"] == "crypto":
+        for col in ("amount_usdt", "network", "tx_hash"):
+            if out[col] is None:
+                raise RowError(n, col, "required for a crypto payment")
+        if not TX_HASH[out["network"]].fullmatch(out["tx_hash"]):
+            raise RowError(n, "tx_hash", "not a hash of its network")
+        if Decimal(out["amount_usdt"]) <= 0:
+            raise RowError(n, "amount_usdt", "must be above zero")
+    else:
+        for col in ("amount_usdt", "network", "tx_hash"):
+            if out[col] is not None:
+                raise RowError(n, col, "must be empty for a store payment")
+    if (out["period_start"] is None) != (out["period_end"] is None):
+        raise RowError(n, "period_start", "both period columns or neither")
+    if out["period_start"] is not None and utc_z_key(out["period_end"]) <= utc_z_key(
+        out["period_start"]
+    ):
+        raise RowError(n, "period_end", "must be after period_start")
+    return out
+
+
+def utc_z_key(text: str) -> datetime:
+    return datetime.fromisoformat(text.replace("Z", "+00:00"))
+
+
+def cursor_of(paid_at: Any) -> str | None:
+    t = utc_z(paid_at)
+    return None if t is None else CURSOR_PREFIX + t
+
+
 def check_columns(names: list[str]) -> None:
     if len(names) != len(set(names)) or set(names) != set(COLUMNS):
         missing = [c for c in COLUMNS if c not in names]
@@ -208,14 +337,16 @@ def check_columns(names: list[str]) -> None:
 
 
 def parse_since(value: Any) -> datetime | None:
+    """The cursor the hub sends back (`t:<time>`, or a bare ISO 8601 time) as a time."""
     if value is None:
         return None
-    if not isinstance(value, str):
-        raise JobError("since باید یک زمان ISO 8601 یا null باشد.")
+    if not isinstance(value, str) or len(value) > MAX_CURSOR:
+        raise JobError("since_cursor باید متنی که runner داده (یا null) باشد.")
+    text = value.removeprefix(CURSOR_PREFIX)
     try:
-        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError:
-        raise JobError("since یک زمان ISO 8601 درست نیست.") from None
+        raise JobError("since_cursor یک نشانگر درست runner (زمان ISO 8601) نیست.") from None
     return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
 
@@ -330,17 +461,28 @@ async def read(lc: LedgerConfig, since: datetime | None, limit: int) -> dict[str
             await asyncio.wait_for(conn.close(), 5)
     raw = [dict(r.items()) for r in records]
     rows, more = page(raw, limit)
-    out = [
-        {c: (pseudonym(lc.salt, r.get(c)) if c == "customer" else plain(r.get(c))) for c in COLUMNS}
-        for r in rows
-    ]
-    last = rows[-1]["paid_at"] if rows else since
+    try:
+        out = [contract_row(n, r, lc.salt) for n, r in enumerate(rows, 1)]
+    except RowError as exc:
+        raise LedgerError(
+            f"ledger.sql output breaks ledger_v1 at {exc}; nothing was sent",
+            f"خروجی ledger.sql در ردیف {exc.n}، ستون {exc.column} با قرارداد ledger_v1 "
+            "نمی‌خواند؛ هیچ ردیفی فرستاده نشد.",
+            EXIT_QUERY,
+        ) from None
+    if len({r["ext_id"] for r in out}) != len(out):
+        raise LedgerError(
+            "ledger.sql returned the same ext_id twice in one batch",
+            "ledger.sql یک ext_id را در یک دسته دو بار داد.",
+            EXIT_QUERY,
+        )
+    cursor = cursor_of(rows[-1]["paid_at"]) if rows else (cursor_of(since) if since else None)
     return {
         "contract": CONTRACT,
         "rows": out,
+        "next_cursor": cursor,
+        "has_more": more,
         "count": len(out),
-        "next_since": plain(last),
-        "more": more,
     }
 
 
@@ -348,14 +490,14 @@ async def run_ledger(ctx: JobContext) -> JobResult:
     args = ctx.args
     if args.get("contract") != CONTRACT:
         raise JobError(f"قرارداد خروجی دفتر باید {CONTRACT} باشد.")
-    since = parse_since(args.get("since"))
+    since = parse_since(args.get("since_cursor", args.get("since")))
     limit = parse_limit(args.get("limit"))
     try:
         lc = await asyncio.to_thread(load_config, ctx.cfg_path)
         out = await read(lc, since, limit)
     except LedgerError as exc:
         raise JobError(exc.fa, exc.exit_code) from None
-    more = " (ادامه دارد)" if out["more"] else ""
+    more = " (ادامه دارد)" if out["has_more"] else ""
     return JobResult(0, f"دفتر پرداخت خوانده شد: {out['count']} ردیف{more}.", output=out)
 
 
@@ -415,6 +557,17 @@ async def check(cfg_path: Path | None = None) -> list[str]:
                 f"SELECT * FROM ({lc.sql}) AS hq_ledger ORDER BY paid_at, ext_id LIMIT $2"  # noqa: S608 - the server's own file
             )
             check_columns([a.name for a in stmt.get_attributes()])
+            # the first rows, checked like a batch (they stay on this server)
+            for n, r in enumerate(await stmt.fetch(None, CHECK_ROWS), 1):
+                try:
+                    contract_row(n, dict(r.items()), lc.salt)
+                except RowError as exc:
+                    raise LedgerError(
+                        f"ledger.sql output breaks ledger_v1 at {exc}",
+                        f"خروجی ledger.sql در ردیف {exc.n}، ستون {exc.column} "
+                        "با ledger_v1 نمی‌خواند.",
+                        EXIT_QUERY,
+                    ) from None
         finally:
             with contextlib.suppress(Exception):
                 await tr.rollback()
