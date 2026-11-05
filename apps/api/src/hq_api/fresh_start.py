@@ -107,6 +107,8 @@ WIPE: tuple[str, ...] = (
     "work.councils", "work.escrows", "work.schedules", "work.work", "work.work_events",
     "workshop.approvals", "workshop.events", "workshop.grants", "workshop.sessions",
     "talk.turn_events",  # ⟨1.14⟩ a turn's stream events (the turn itself stays)
+    # ⟨1.15⟩ §33.8-§33.9: the journey's stage cache and state (recomputed from the rows) and the tests
+    "growth.journey_stages", "growth.journey_state", "growth.persona_tests",
 )  # fmt: skip
 
 # Rows of a WIPE table that stay: the condition (on the row as `x`) keeps them
@@ -151,6 +153,7 @@ KEEP: tuple[str, ...] = (
     # the companies' connections and their non-secret config) stays
     "growth.groups", "growth.group_versions", "growth.memberships", "growth.connections",
     "growth.ad_rules", "growth.automations",  # ⟨1.13⟩ the owner's budget rules and automations
+    "growth.personas", "growth.journey_plans",  # ⟨1.15⟩ §33.8-§33.9: the owner's personas; a company's stages
     # ⟨1.13⟩ prompt 22 part 3: definitions stay (the lists, the keywords, the competitors, the campaigns)
     "growth.newsletter_lists", "growth.keywords", "growth.competitors", "growth.campaigns",
     # ⟨1.12⟩ prompt 22: the production lines as the owner set them, their

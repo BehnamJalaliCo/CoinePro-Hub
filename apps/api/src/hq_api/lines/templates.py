@@ -100,7 +100,24 @@ def check_steps(steps: list[StepDef]) -> None:
         for i in s.inputs:
             if i not in seen:
                 raise ValueError(f"step {s.key!r}: input {i!r} is no earlier step")
+        if s.kind == "persona_test":
+            check_persona_test(s, seen)
         seen.add(s.key)
+
+
+def check_persona_test(s: StepDef, earlier: set[str]) -> None:
+    """§33.9 the `persona_test` step: `min_score` (0..100, default 60) is what the message must reach
+    or the run waits for the owner; `aggregate` is `mean` (default) or `min` of the personas' scores;
+    `text_from` names the earlier step whose text is tested (else the last input with a text)."""
+    cfg = s.settings
+    score = cfg.get("min_score", 60)
+    if isinstance(score, bool) or not isinstance(score, int) or not 0 <= score <= 100:
+        raise ValueError(f"step {s.key!r}: min_score is a whole number from 0 to 100")
+    if cfg.get("aggregate", "mean") not in ("mean", "min"):
+        raise ValueError(f"step {s.key!r}: aggregate is mean or min")
+    src = cfg.get("text_from")
+    if src is not None and src not in earlier:
+        raise ValueError(f"step {s.key!r}: text_from {src!r} is no earlier step")
 
 
 def check_schedule(rule: str | None) -> None:

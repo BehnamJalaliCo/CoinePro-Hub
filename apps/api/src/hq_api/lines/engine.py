@@ -192,6 +192,17 @@ def waits_for_callback(out: StepOutput) -> bool:
     return out.data.get("wait") == CALLBACK or out.data.get("waiting") is True
 
 
+def holds_for_owner(out: StepOutput, cur: dict[str, Any], run: dict[str, Any]) -> bool:
+    """§33.9 a step that finished but asks the owner before the run goes on (the `persona_test`
+    step below its `min_score`): once, a dry run never waits, and after the owner's seal it passes."""
+    return (
+        out.data.get("hold") == "owner"
+        and cur["sealed_at"] is None
+        and not run["dry"]
+        and not waits_for_callback(out)
+    )
+
+
 def step_def(body: dict[str, Any], key: str) -> dict[str, Any]:
     for s in body.get("steps") or []:
         if s["key"] == key:
@@ -214,7 +225,7 @@ def preview_of(steps: list[dict[str, Any]], upto: int) -> dict[str, Any]:
 
 async def _card(
     tx: Tx, run: dict[str, Any], step: dict[str, Any], sdef: dict[str, Any], g: str,
-    steps: list[dict[str, Any]],
+    steps: list[dict[str, Any]], why_fa: str | None = None,
 ) -> dict[str, Any]:  # fmt: skip
     from hq_api.domain import decisions as D
 
@@ -223,7 +234,7 @@ async def _card(
         f"اجرای **{run['ref']}** از خط **{run['line_ref']}** ({run['platform']}) به گام "
         f"«{sdef['title_fa']}» رسیده و منتظر مُهر است."
     )
-    why = (
+    why = why_fa or (
         "خط در حالت پیش‌نویس است؛ انتشار فقط با مُهر تو."
         if sdef["kind"] == "publish" and (sdef.get("gate") or "auto") == "auto"
         else "این گام مُهر میخواهد."
@@ -668,7 +679,8 @@ async def _done(
     tx: Tx, hub: Any, run: dict[str, Any], cur: dict[str, Any], sdef: dict[str, Any],
     out: StepOutput,
 ) -> str:  # fmt: skip
-    waiting = waits_for_callback(out)
+    held = holds_for_owner(out, cur, run)
+    waiting = waits_for_callback(out) or held
     await tx.exec(
         """UPDATE lines.step_runs SET state = :s, output = CAST(:o AS jsonb), via = :via,
                tokens = tokens + :t, usd_equiv = usd_equiv + :u, error_fa = NULL, hint_fa = NULL,
@@ -695,6 +707,26 @@ async def _done(
     )
     if published:
         await learning.record_features(tx, run, await owner_tz(tx))
+    card: dict[str, Any] | None = None
+    if held:  # §33.9 the owner's card, with the objections; the run waits for his seal
+        steps = await store.step_rows(tx, run["id"])
+        card = await _card(
+            tx,
+            run,
+            cur,
+            sdef,
+            "owner",
+            steps,
+            why_fa=str(out.data.get("why_fa") or "")[:2000] or None,
+        )
+        await tx.exec(
+            "UPDATE lines.step_runs SET gate = 'owner', decision_id = :d WHERE id = :id",
+            id=cur["id"],
+            d=card["id"],
+        )
+        await tx.exec(
+            "UPDATE lines.runs SET decision_id = :d WHERE id = :id", id=run["id"], d=card["id"]
+        )
     await audit.record(
         tx,
         SERVICE,
@@ -708,7 +740,12 @@ async def _done(
         + (" (dry)" if run["dry"] and sdef["kind"] in LEAVING else ""),
     )
     await _emit(
-        tx, run, state="waiting" if waiting else "running", step=sdef["key"], step_state="done"
+        tx,
+        run,
+        state="waiting" if waiting else "running",
+        step=sdef["key"],
+        step_state="waiting" if held else "done",
+        **({"decision": card["ref"]} if card else {}),
     )
     return "waiting" if waiting else "running"
 

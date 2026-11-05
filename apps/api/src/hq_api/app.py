@@ -77,6 +77,7 @@ from hq_api.routes import council as council_routes  # prompt 21: the council v2
 from hq_api.routes import dceo as dceo_routes
 from hq_api.routes import groups as group_routes  # prompt 21 part 3: §29.9, §29.11
 from hq_api.routes import home as home_routes  # prompt 21 part 3: §29.13
+from hq_api.routes import journey as journey_routes  # prompt 24: §33.8-§33.9
 from hq_api.routes import kits as kit_routes  # prompt 22: §31.2 company kits
 from hq_api.routes import legal as legal_routes  # prompt 13: the legal counsel
 from hq_api.routes import lines as line_routes  # prompt 22: production lines (§30, §31.1)
@@ -310,6 +311,8 @@ def create_app(
     app.include_router(kit_routes.router, prefix="/api/v1")
     # ⟨1.14⟩ prompt 23 (contract §32): the owner's talk (owner only)
     app.include_router(talk_routes.router, prefix="/api/v1")
+    # ⟨1.15⟩ prompt 24 (contract §33.8-§33.9): the company journey, personas and the message test
+    app.include_router(journey_routes.router, prefix="/api/v1")
     # prompt 23 (contract §32.5-§32.6): the voice engines, the key and its light, the meter and the
     # cap; Piper's queue for the TTS one-shot
     app.include_router(voice_engine_routes.router, prefix="/api/v1")

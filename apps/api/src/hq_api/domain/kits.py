@@ -35,7 +35,7 @@ from pydantic import BaseModel, Field
 
 from hq_api.db import Tx
 from hq_api.domain import connections as CN
-from hq_api.domain import gov_kpis, templates
+from hq_api.domain import gov_kpis, journey, templates
 from hq_api.domain import groups as GR
 from hq_api.errors import ApiError
 
@@ -51,7 +51,7 @@ PLATFORMS = (
 )  # fmt: skip
 TOP_KEYS = {
     "key", "title_fa", "purpose_fa", "team_template", "groups", "lines", "kpis", "connections",
-    "defaults",
+    "defaults", "journey",
 }  # fmt: skip
 KPI_CARDS = gov_kpis.CARDS
 MAX_LINES = 12
@@ -129,6 +129,11 @@ def validate(key: str, d: dict[str, Any]) -> None:
         raise _bad(key, f"connections must be distinct kinds of the connections: {conns!r}")
     if not isinstance(d.get("defaults", {}), dict):
         raise _bad(key, "`defaults` is an object")
+    if "journey" in d:  # ⟨1.15⟩ §33.8 the company journey's stages (additive)
+        try:
+            journey.normalize_stages(d["journey"])
+        except ValueError as exc:
+            raise _bad(key, str(exc)) from exc
 
 
 def load_files(root: Path | None = None) -> dict[str, dict[str, Any]]:
@@ -400,6 +405,7 @@ async def create(tx: Tx, company_id: UUID, company_code: str, key: str) -> dict[
     kpis = await _add_kpis(tx, company_id, d)
     connections = await _add_connections(tx, company_id, d)
     lines, lines_pending = await _add_lines(tx, company_id, d)
+    await journey.adopt_kit(tx, company_id, key, d)  # ⟨1.15⟩ §33.8 its own stages, when it has them
     out: dict[str, Any] = {
         "team": added,
         "groups": joined,
