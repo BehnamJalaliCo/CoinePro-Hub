@@ -1,0 +1,11 @@
+# The default stages of a company's leads (contract §33.4), data, never naming a company.
+# A company made from a kit (seed/kits/*.yaml `lead_stages`) starts with the kit's own list;
+# any other company gets this one the first time it needs it. The order is the order of
+# the pipeline. `kind`: open (still being worked), won (a payment came) or lost (given up).
+stages:
+  - {key: new, title_fa: جدید, kind: open}
+  - {key: contacted, title_fa: تماس گرفته شد, kind: open}
+  - {key: qualified, title_fa: واجد شرایط, kind: open}
+  - {key: trial, title_fa: آزمایشی, kind: open}
+  - {key: paid, title_fa: پرداخت کرد, kind: won}
+  - {key: lost, title_fa: از دست رفت, kind: lost}

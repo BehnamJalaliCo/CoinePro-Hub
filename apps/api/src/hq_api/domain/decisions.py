@@ -34,6 +34,7 @@ from hq_api.domain import (
 from hq_api.domain import substitutes as S
 from hq_api.domain import work as W
 from hq_api.domain.charter import CharterAmendmentPayload
+from hq_api.domain.impact import Impact, ImpactInput
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
 from hq_api.schemas import Actor, Model, actor
@@ -277,6 +278,7 @@ class A3Payload(Model):
     tool: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_][A-Za-z0-9_.:/-]{0,127}$")
     args: dict[str, Any] | None = None
     registration_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    impact_input: ImpactInput | None = None  # ⟨1.15⟩ §33.6
 
 
 class ListingDiff(Model):
@@ -296,6 +298,8 @@ class ToolEnablePayload(Model):
 
 
 class ProposalPayload(Model):
+    # ⟨1.15⟩ §33.6 an ads cap or a line's caps the card names: its impact is then measured
+    impact_input: ImpactInput | None = None
     okr: str = Field(default="", max_length=500)
     cost: str = Field(default="", max_length=1000)
     risk: str = Field(default="", max_length=1000)
@@ -793,6 +797,9 @@ class Decision(BaseModel):
     owner_visible: bool = True
     routed_to: str | None = None
     critical_reason: Literal["data_leak", "product_down", "money", "legal"] | None = None
+    # ⟨1.15⟩ §33.6: the money impact, measured by code or an estimate of the model (labelled);
+    # null where there is none
+    impact: Impact | None = None
 
 
 # ⟨21⟩ §29.1 / §29.15: the card kinds an agent approver decides with `card.decide`
@@ -866,8 +873,15 @@ def render(r: dict[str, Any]) -> Decision:
         memos=list(r.get("memos") or []),
         waiting_h=_waiting_h(r),
         reminders=list(r.get("reminders") or []),
+        impact=_impact(r.get("impact")),
         **routing.fields(r),
     )
+
+
+def _impact(v: Any) -> Impact | None:
+    if isinstance(v, str):
+        v = json.loads(v)
+    return Impact.model_validate(v) if isinstance(v, dict) else None
 
 
 def _prediction(v: Any) -> dict[str, Any] | None:

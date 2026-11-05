@@ -51,7 +51,7 @@ PLATFORMS = (
 )  # fmt: skip
 TOP_KEYS = {
     "key", "title_fa", "purpose_fa", "team_template", "groups", "lines", "kpis", "connections",
-    "defaults",
+    "defaults", "lead_stages",
 }  # fmt: skip
 KPI_CARDS = gov_kpis.CARDS
 MAX_LINES = 12
@@ -129,6 +129,10 @@ def validate(key: str, d: dict[str, Any]) -> None:
         raise _bad(key, f"connections must be distinct kinds of the connections: {conns!r}")
     if not isinstance(d.get("defaults", {}), dict):
         raise _bad(key, "`defaults` is an object")
+    if "lead_stages" in d:  # ⟨1.15⟩ §33.4 the stages of this kit's leads (data)
+        from hq_api.domain import leads
+
+        leads.validate_stages(key, d["lead_stages"])
 
 
 def load_files(root: Path | None = None) -> dict[str, dict[str, Any]]:
@@ -400,6 +404,9 @@ async def create(tx: Tx, company_id: UUID, company_code: str, key: str) -> dict[
     kpis = await _add_kpis(tx, company_id, d)
     connections = await _add_connections(tx, company_id, d)
     lines, lines_pending = await _add_lines(tx, company_id, d)
+    from hq_api.domain import leads
+
+    await leads.apply_kit(tx, company_id, d)  # ⟨1.15⟩ §33.4 the kit's lead stages, if it names any
     out: dict[str, Any] = {
         "team": added,
         "groups": joined,

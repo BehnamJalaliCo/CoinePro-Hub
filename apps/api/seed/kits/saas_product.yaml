@@ -29,3 +29,10 @@ kpis:
     aggregate: sum
 connections: [search_console, ga4, telegram]
 defaults: {}
+# ⟨1.15⟩ §33.4 the stages of this company's leads: a visitor becomes a user on trial, then pays.
+lead_stages:
+  - {key: new, title_fa: جدید, kind: open}
+  - {key: contacted, title_fa: تماس گرفته شد, kind: open}
+  - {key: trial, title_fa: آزمایشی, kind: open}
+  - {key: paid, title_fa: پرداخت کرد, kind: won}
+  - {key: lost, title_fa: از دست رفت, kind: lost}
