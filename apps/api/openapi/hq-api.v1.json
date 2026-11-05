@@ -27193,6 +27193,16 @@
       },
       "MemberSeat": {
         "properties": {
+          "blocked": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SeatBlocked"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "employee": {
             "anyOf": [
               {
@@ -39710,6 +39720,30 @@
           "title_fa"
         ],
         "title": "Seat",
+        "type": "object"
+      },
+      "SeatBlocked": {
+        "description": "Why an empty seat stays empty (handoff 2026-11-05): the refusal's code, why and what fixes it, in Persian.",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "fix_fa": {
+            "title": "Fix Fa",
+            "type": "string"
+          },
+          "why_fa": {
+            "title": "Why Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "why_fa",
+          "fix_fa"
+        ],
+        "title": "SeatBlocked",
         "type": "object"
       },
       "SeatIn": {
@@ -82032,6 +82066,11 @@
                     "plan_at": "2026-10-17T05:42:00Z",
                     "seats": [
                       {
+                        "blocked": {
+                          "code": "TY",
+                          "fix_fa": "x",
+                          "why_fa": "x"
+                        },
                         "employee": "TY-GROWTH-01",
                         "optional": false,
                         "role": "x",
@@ -82176,6 +82215,11 @@
                   "plan_at": "2026-10-17T05:42:00Z",
                   "seats": [
                     {
+                      "blocked": {
+                        "code": "TY",
+                        "fix_fa": "x",
+                        "why_fa": "x"
+                      },
                       "employee": "TY-GROWTH-01",
                       "optional": false,
                       "role": "x",

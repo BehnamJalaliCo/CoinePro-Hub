@@ -226,6 +226,14 @@ private fun SeatsCard(g: WorkGroup, members: List<Membership>) {
                             }
                         }
                     }
+                    // Why an empty seat stays empty, and what fixes it (no silence, 2026-11-05).
+                    for (m in members) {
+                        val b = m.seats.firstOrNull { it.seat == s.seat && it.employee == null }?.blocked ?: continue
+                        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            com.coinepro.hq.designsystem.CompanyMark(m.company, height = 11.dp, mono = true, ink = c.warning)
+                            Text("${b.whyFa} ${b.fixFa}".trim(), style = Divan.type.micro, color = c.warning)
+                        }
+                    }
                 }
             }
         }

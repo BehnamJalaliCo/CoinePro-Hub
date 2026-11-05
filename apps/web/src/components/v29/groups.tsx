@@ -121,11 +121,18 @@ function Seats({ g, list }: { g: Group; list: Membership[] }) {
               <tr key={s.seat} className="border-t border-div align-top">
                 <td className="px-2 py-2.5 font-semibold">{s.title_fa}</td>
                 {list.map((m) => {
-                  const code = m.seats.find((x) => x.seat === s.seat)?.employee ?? null;
+                  const ms = m.seats.find((x) => x.seat === s.seat);
+                  const code = ms?.employee ?? null;
                   const e = code ? byCode.get(code) : undefined;
+                  const blocked = ms?.blocked;
                   return (
                     <td key={m.company} className="px-2 py-2.5">
-                      {!code ? <span className="text-[12px] text-warn">خالی</span> : (
+                      {!code ? (
+                        <span className="flex flex-col gap-0.5">
+                          <span className="text-[12px] text-warn">خالی</span>
+                          {blocked ? <span className="text-[11px] leading-5 text-warn">{blocked.why_fa} {blocked.fix_fa}</span> : null}
+                        </span>
+                      ) : (
                         <Link href={`/employees/${code}`} className="flex flex-col items-start gap-1 hover:text-gold-ink">
                           <span className="text-[12px]">{e?.display_name ?? e?.title_fa ?? s.title_fa}</span>
                           {e ? <EmployeeStateChip e={e as { state?: string | null; activity?: string | null }} /> : null}

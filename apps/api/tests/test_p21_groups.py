@@ -465,7 +465,10 @@ async def test_a_refused_auto_hire_says_why_in_the_log(
     holding = await hub.companies.holding()
     async with hub.db.raw() as tx:
         with caplog.at_level("WARNING", logger=GR.log.name):
-            assert await GR._auto_fill(tx, refuse, holding.id, "publisher", "ناشر") is None
+            assert await GR._auto_fill(tx, refuse, holding.id, "publisher", "ناشر") == (
+                None,
+                "validation_failed",
+            )
     [rec] = [r for r in caplog.records if r.getMessage() == "auto fill of a seat failed"]
     assert rec.__dict__["role"] == "publisher" and rec.__dict__["code"] == "validation_failed"
     assert rec.__dict__["fields"] == ["payload.model: no enabled connection offers it"]

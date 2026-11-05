@@ -276,7 +276,7 @@ export type Group = {
   kpis: Array<{ key: string; title_fa: string; unit: string; source: string }>; connections: string[]; eligible: 'has_channel' | 'all'; state: 'on' | 'off';
   members?: Membership[] | null;
 };
-export type Membership = { group: string; company: string; state: 'on' | 'paused'; joined_at: string; seats: Array<{ seat: string; employee: string | null }> };
+export type Membership = { group: string; company: string; state: 'on' | 'paused'; joined_at: string; seats: Array<{ seat: string; employee: string | null; blocked?: { code: string; why_fa: string; fix_fa: string } | null }> };
 export type RoutineRun = { id: string; group: string; company: string; routine: string; at: string; work_ref: string | null; state: 'queued' | 'done' | 'failed' | 'skipped'; note_fa: string };
 export const RUN_STATE: Record<RoutineRun['state'], { fa: string; tone: 'neutral' | 'pos' | 'neg' | 'silver' }> = {
   queued: { fa: 'در صف', tone: 'neutral' }, done: { fa: 'انجام شد', tone: 'pos' }, failed: { fa: 'ناموفق', tone: 'neg' }, skipped: { fa: 'رد شد', tone: 'silver' },
