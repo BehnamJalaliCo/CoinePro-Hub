@@ -41,7 +41,9 @@ from hq_api.db import Tx
 from hq_api.domain import humanize as HZ
 from hq_api.domain import kits as KT
 from hq_api.domain import notify
+from hq_api.domain import split as SP
 from hq_api.domain import work as W
+from hq_api.domain import workspace as WS
 from hq_api.principal import Principal
 from hq_api.schemas import Actor, actor
 
@@ -168,6 +170,10 @@ class OrderReport(BaseModel):
     updated_at: datetime
     # ⟨additive⟩ §31.2 the secretary's draft of «یک شرکت تازه …»: a kit card, no work item
     kit: KT.KitCard | None = None
+    # ⟨additive⟩ §33.7 the order's works split into parallel parts, each split's parts side by side
+    parts: list[SP.WorkSplit] = Field(default_factory=list)
+    # ⟨additive⟩ §33.10 the order's works done on a company's own server: each workspace's progress
+    workspaces: list[WS.WorkspaceProgress] = Field(default_factory=list)
 
 
 # ----------------------------------------------------------------- reading --
@@ -826,10 +832,22 @@ async def report(tx: Tx, ref: str) -> OrderReport | None:
         return None
     order = await load_order(tx, ref)
     assert order is not None
-    return render(rep, order)
+    ids = [w["id"] for w in await tree(tx, root_refs(order))]
+    return render(
+        rep,
+        order,
+        parts=await SP.views(tx, ids) if ids else [],
+        workspaces=await WS.progress(tx, ids) if ids else [],
+    )
 
 
-def render(rep: dict[str, Any], order: dict[str, Any]) -> OrderReport:
+def render(
+    rep: dict[str, Any],
+    order: dict[str, Any],
+    *,
+    parts: list[SP.WorkSplit] | None = None,
+    workspaces: list[WS.WorkspaceProgress] | None = None,
+) -> OrderReport:
     ack = _j(rep["ack"])
     if ack:
         by = actor(ack["by"]["kind"], ack["by"]["code"])
@@ -851,6 +869,8 @@ def render(rep: dict[str, Any], order: dict[str, Any]) -> OrderReport:
         summary=Summary.model_validate(_j(rep["summary"])) if rep["summary"] else None,
         updated_at=rep["updated_at"],
         kit=kit_card(order, sealed=rep["ended_at"] is not None),
+        parts=parts or [],
+        workspaces=workspaces or [],
     )
 
 
