@@ -11,6 +11,7 @@ import { WorkActions } from '@/components/v15/work-actions';
 import { OrderTrackerCard, TimelineCard, useTrack } from '@/components/v21/orders';
 import { PriorityTag } from '@/components/v21/priority';
 import { CouncilCard } from '@/components/v28/council';
+import { WorkSplitCard } from '@/components/v33/parallel';
 import { PlayerLine } from '@/components/work/player';
 import { useWorkRuns } from '@/lib/api/v15';
 import { isOwnerOrder } from '@/lib/api/v21';
@@ -53,6 +54,8 @@ export default function WorkPage({ params }: { params: Promise<{ id: string }> }
           {order && track ? <OrderTrackerCard t={track} /> : null}
           {/* ⟨1.9⟩ §27.2 an order given to the council: each player, and Claude's synthesis (⟨1.10⟩ §28.4: failures in plain Persian). */}
           <CouncilCard work={w.ref} mode={(w as { mode?: string | null }).mode} title={w.title} />
+          {/* ⟨1.15⟩ §33.7: a work split into parallel parts shows them side by side with the merge. */}
+          <WorkSplitCard id={w.id} />
           {track ? <TimelineCard t={track} /> : null}
           <Card className="flex flex-col gap-4 p-5">
             <h2 className="text-[14px] font-semibold">مسیر ارجاع</h2>

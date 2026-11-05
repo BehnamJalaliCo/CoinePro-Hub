@@ -12,8 +12,8 @@ import { useToast } from '@/components/ui/toast';
 import { FaText, fig } from '@/components/v29/text';
 import { errText, field, notYet } from '@/components/v31/kit';
 import {
-  NETWORK_FA, OUTPUT_COST_FA, PAY_STATUS, SOURCE_STATE, usePayments, useReconcile, useRevenueBoard, useSourceActions, useSources,
-  type PayStatus, type PaymentSource, type RevenueBoard, type SourceBody,
+  ADDRESS_RE, NETWORK_FA, OUTPUT_COST_FA, PAY_STATUS, SOURCE_STATE, dec0, usePayments, useReconcile, useRevenueBoard, useSourceActions, useSources,
+  type Network, type PayReadResult, type PaySourceIn, type PayStatus, type PaymentSource, type RevenueBoard,
 } from '@/lib/api/v33';
 import { cx, jDateTime } from '@/lib/format';
 import { Loading, Txt, dayShort, dollars, monthLabel, pctOf, usdt } from './bits';
@@ -25,8 +25,8 @@ const rate = (v: number | null | undefined) => (v == null ? null : v <= 1 ? v * 
 function MrrChart({ b }: { b: RevenueBoard }) {
   const [hi, setHi] = useState<number | null>(null);
   const W = 720, H = 240, P = { l: 52, r: 16, t: 14, b: 28 };
-  const hist = b.months.map((m) => ({ month: m.month, v: m.mrr_usdt }));
-  const fc = b.forecast;
+  const hist = b.months.map((m) => ({ month: m.month, v: dec0(m.mrr_usdt) }));
+  const fc = b.forecast.map((f) => ({ month: f.month, mrr_usdt: dec0(f.mrr_usdt), low: dec0(f.low), high: dec0(f.high) }));
   const all = [...hist.map((h) => h.month), ...fc.map((f) => f.month)];
   const n = all.length;
   const [yMax, yStep] = axisOf([...hist.map((h) => h.v), ...fc.map((f) => f.high)]);
@@ -45,7 +45,7 @@ function MrrChart({ b }: { b: RevenueBoard }) {
   return (
     <div className="flex flex-col gap-2">
       <ul className="flex flex-wrap gap-x-4 gap-y-1.5 text-[12px] text-sec" aria-label="راهنما">
-        <li className="flex items-center gap-2"><span className="h-[2px] w-4 rounded-full bg-[var(--hq-gold-bright)]" />درآمد ماهانه (MRR)</li>
+        <li className="flex items-center gap-2"><span className="h-[2px] w-4 rounded-full bg-[var(--hq-gold-bright)]" />درآمد ماهانه</li>
         {fc.length ? <li className="flex items-center gap-2"><span className="h-0 w-4 border-t-2 border-dashed border-[var(--hq-lapis,#5B8DEF)]" />پیش‌بینی</li> : null}
         {fc.length ? <li className="flex items-center gap-2"><span className="h-3 w-4 rounded-sm bg-[var(--hq-lapis,#5B8DEF)] opacity-20" />بازه‌ی پیش‌بینی</li> : null}
       </ul>
@@ -107,47 +107,48 @@ export function RevenueBoardView({ company }: { company: string | null }) {
   if (!b.months.length) return <Card><Empty icon="chart" title="هنوز پرداختی خوانده نشده" body="بعد از وصل شدن دفتر شرکت یا آدرس عمومی، درآمد ماهانه این‌جا میاید." /></Card>;
   const cur = b.months.at(-1)!;
   const prev = b.months.at(-2);
-  const mrrChange = prev?.mrr_usdt ? ((cur.mrr_usdt - prev.mrr_usdt) / prev.mrr_usdt) * 100 : null;
+  const mrrNow = dec0(cur.mrr_usdt), mrrPrev = dec0(prev?.mrr_usdt);
+  const mrrChange = mrrPrev ? ((mrrNow - mrrPrev) / mrrPrev) * 100 : null;
   const cost = b.roi.cost_usd;
-  const costTotal = cost.tokens + cost.voice + cost.ads + (cost.servers ?? 0);
+  const costTotal = dec0(cost.tokens) + dec0(cost.voice) + dec0(cost.ads) + dec0(cost.servers);
   return (
     <div className="flex flex-col gap-4" aria-label="تابلوی درآمد">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <StatTile label="درآمد ماهانه (MRR)" value={<span className="fig">{usdt(cur.mrr_usdt)}</span>}
+        <StatTile label="درآمد ماهانه" value={<span className="fig">{usdt(cur.mrr_usdt)}</span>}
           sub={mrrChange == null ? 'ماه قبل داده ندارد' : <span><span className={cx('fig font-semibold', mrrChange >= 0 ? 'text-pos' : 'text-neg')}>{mrrChange >= 0 ? '+' : '−'}{Math.abs(mrrChange).toFixed(1)}%</span> نسبت به ماه قبل</span>} />
         <StatTile label="مشتری فعال" value={<span className="fig">{fig(cur.active)}</span>} sub={<span>تازه <span className="fig">{fig(cur.new_customers)}</span>، رفته <span className="fig">{fig(cur.churned)}</span></span>} />
         <StatTile label="نرخ ریزش" value={<span className="fig">{pctOf(rate(b.churn_rate), 1)}</span>} sub="ماهانه" />
-        <StatTile label="ارزش هر مشتری (LTV)" value={<span className="fig">{b.ltv_usdt == null ? '—' : usdt(b.ltv_usdt)}</span>} sub={b.ltv_usdt == null ? 'با ریزش صفر یا کم‌تر از ۳ ماه داده حساب نمیشود' : `میانگین هر مشتری ${usdt(cur.arpu_usdt, 1)}`} />
-        <StatTile label="هزینه‌ی جذب (CAC)" value={<span className="fig">{b.cac_usdt == null ? '—' : usdt(b.cac_usdt, 1)}</span>} sub={b.payback_months == null ? 'بازگشت سرمایه نامعلوم' : <span>برگشت در <span className="fig">{fig(b.payback_months, 1)}</span> ماه</span>} />
+        <StatTile label="ارزش هر مشتری" value={<span className="fig">{usdt(b.ltv_usdt)}</span>} sub={b.ltv_usdt == null ? 'با ریزش صفر یا کم‌تر از ۳ ماه داده حساب نمیشود' : <span>هر مشتری در ماه <span className="fig">{usdt(cur.arpu_usdt, 1)}</span></span>} />
+        <StatTile label="هزینه‌ی جذب هر مشتری" value={<span className="fig">{b.cac_usdt == null ? '—' : usdt(b.cac_usdt, 1)}</span>} sub={b.payback_months == null ? 'بازگشت سرمایه نامعلوم' : <span>برگشت در <span className="fig">{fig(b.payback_months, 1)}</span> ماه</span>} />
       </div>
       <Card as="section" className="flex flex-col gap-3 p-5" aria-label="درآمد ماهانه و پیش‌بینی">
         <SectionTitle title="درآمد ماهانه و پیش‌بینی" note="عددها از ردیف‌های ذخیره‌شده با کد حساب میشوند" />
         <MrrChart b={b} />
         <p className="text-[13px] leading-6 text-sec" aria-label="پایه‌ی پیش‌بینی">
-          {b.forecast.length ? <><Pill tone="warn" className="me-2">تخمین</Pill><FaText text={b.forecast_basis_fa} /></> : <FaText text={b.forecast_basis_fa ?? 'پیش‌بینی با دست‌کم ۴ ماه داده ممکن است.'} />}
+          {b.forecast.length ? <><Pill tone="warn" className="me-2">تخمین</Pill><FaText text={b.forecast_basis_fa} /></> : <FaText text={b.forecast_basis_fa || 'پیش‌بینی با دست‌کم ۴ ماه داده ممکن است.'} />}
         </p>
       </Card>
-      <div className="grid items-start gap-4 xl:grid-cols-2">
-        <Card as="section" className="flex flex-col gap-3 p-5" aria-label="گروه‌های ماهانه">
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 xl:grid-cols-2">
+        <Card as="section" className="flex min-w-0 flex-col gap-3 p-5" aria-label="گروه‌های ماهانه">
           <SectionTitle title="گروه‌های ماهانه" note="هر ردیف مشتریان یک ماه؛ درصدِ هنوز پرداخت‌کننده بعد از هر ماه" />
           <Cohorts b={b} />
         </Card>
         <div className="flex min-w-0 flex-col gap-4">
           <Card as="section" className="flex flex-col gap-3 p-5" aria-label="بازده سرمایه">
-            <SectionTitle title="بازده (ROI)" note="درآمد در برابر هزینه‌ی همین دوره" />
+            <SectionTitle title="بازده" note="درآمد در برابر هزینه‌ی همین دوره" />
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded-[12px] bg-tile p-3"><div className="text-[11px] text-muted">درآمد</div><div className="fig pt-1 text-[15px] font-semibold">{usdt(b.roi.revenue_usdt)}</div></div>
               <div className="rounded-[12px] bg-tile p-3"><div className="text-[11px] text-muted">هزینه</div><div className="fig pt-1 text-[15px] font-semibold">{dollars(costTotal, 0)}</div></div>
             </div>
             <ul className="flex flex-col text-[13px]" aria-label="هزینه به تفکیک">
-              {([['توکن', cost.tokens], ['صدا', cost.voice], ['تبلیغات', cost.ads], ['سرورها', cost.servers]] as const).map(([k, v]) => (
+              {([['هوش مصنوعی', cost.tokens], ['صدا', cost.voice], ['تبلیغات', cost.ads], ['سرورها', cost.servers]] as const).map(([k, v]) => (
                 <li key={k} className="flex items-center justify-between border-t border-div py-1.5 first:border-0"><span className="text-sec">{k}</span><span className="fig">{v == null ? 'هنوز حساب نمیشود' : dollars(v, 0)}</span></li>
               ))}
             </ul>
             <p className="text-[13px]">هر دلار هزینه <span className="fig font-semibold">{b.roi.ratio == null ? '—' : fig(b.roi.ratio, 1)}</span> دلار درآمد آورده.</p>
           </Card>
           <Card as="section" className="flex flex-col gap-2 p-5" aria-label="هزینه‌ی هر خروجی">
-            <SectionTitle title="هزینه‌ی هر خروجی" note="میانگین هزینه‌ی توکن، با شمار" />
+            <SectionTitle title="هزینه‌ی هر خروجی" note="میانگین هزینه، با شمار" />
             {b.cost_per_output.length ? (
               <ul className="flex flex-col">{b.cost_per_output.map((c) => (
                 <li key={c.kind} className="flex items-center justify-between gap-3 border-t border-div py-2 text-[13px] first:border-0"><span>{OUTPUT_COST_FA[c.kind] ?? c.kind}<span className="text-muted"> · <span className="fig">{fig(c.count)}</span> بار</span></span><span className="fig font-semibold">{dollars(c.usd_each, 2)}</span></li>
@@ -172,29 +173,26 @@ export function PaymentsCard({ code }: { code: string }) {
   const q = usePayments(code, { status, from, to });
   const rec = useReconcile(code, from, to);
   const sums = useMemo(() => {
-    const s = { matched: 0, ledger_only: 0, chain_only: 0, amount_mismatch: 0 };
-    for (const d of rec.data ?? []) { s.matched += d.matched; s.ledger_only += d.ledger_only; s.chain_only += d.chain_only; s.amount_mismatch += d.amount_mismatch; }
+    const s: Record<PayStatus, number> = { matched: 0, ledger_only: 0, chain_only: 0, amount_mismatch: 0, pending_chain: 0 };
+    for (const d of rec.data ?? []) { s.matched += d.matched; s.ledger_only += d.ledger_only; s.chain_only += d.chain_only; s.amount_mismatch += d.amount_mismatch; s.pending_chain += d.pending_chain ?? 0; }
     return s;
   }, [rec.data]);
   const rows = q.data ?? [];
-  const sum = rows.reduce((a, p) => a + (p.amount_usdt ?? 0), 0);
+  const sum = rows.reduce((a, p) => a + dec0(p.amount_usdt), 0);
   const noAmount = rows.filter((p) => p.amount_usdt == null).length;
   return (
     <Card as="section" className="flex flex-col gap-3 p-5" aria-label="پرداخت‌ها">
-      <SectionTitle title="پرداخت‌ها" note="هر پرداخت دفتر شرکت با پول روی زنجیره تطبیق داده میشود؛ این‌جا فقط خوانده میشود" />
+      <SectionTitle title="پرداخت‌ها" note="هر پرداخت دفتر شرکت با پولی که روی شبکه رسیده مقایسه میشود؛ این‌جا فقط خوانده میشود" />
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-wrap gap-2" role="group" aria-label="وضعیت پرداخت">
           <FilterChip selected={status === null} onClick={() => setStatus(null)}>همه</FilterChip>
-          {ORDER.map((s) => {
-            const n = s === 'pending_chain' ? undefined : sums[s];
-            return <FilterChip key={s} selected={status === s} onClick={() => setStatus(status === s ? null : s)} count={n}>{PAY_STATUS[s].fa}</FilterChip>;
-          })}
+          {ORDER.map((s) => <FilterChip key={s} selected={status === s} onClick={() => setStatus(status === s ? null : s)} count={rec.data ? sums[s] : undefined}>{PAY_STATUS[s].fa}</FilterChip>)}
         </div>
         <label className="flex flex-col gap-1 text-[12px] text-sec">از<input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} dir="ltr" aria-label="از روز" className={cx(field, 'h-9 w-auto text-[12px]')} /></label>
         <label className="flex flex-col gap-1 text-[12px] text-sec">تا<input type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} dir="ltr" aria-label="تا روز" className={cx(field, 'h-9 w-auto text-[12px]')} /></label>
       </div>
       {q.isLoading ? <Loading h="h-40" /> : q.error ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
-        : !q.data ? notYet('budget', 'پرداخت‌ها بعد از به‌روزرسانی ستاد میاید', 'پرداخت‌های دفتر شرکت و زنجیره با هم تطبیق داده میشوند.')
+        : !q.data ? notYet('budget', 'پرداخت‌ها بعد از به‌روزرسانی ستاد میاید', 'پرداخت‌های دفتر شرکت با پول رسیده روی شبکه مقایسه میشوند.')
         : !rows.length ? <Empty icon="budget" title="پرداختی با این فیلتر نیست" body="بازه یا وضعیت را عوض کن، یا یک منبع پرداخت را «بخوان»." />
         : (
           <>
@@ -205,11 +203,15 @@ export function PaymentsCard({ code }: { code: string }) {
                 return (
                   <li key={p.id} aria-label={`پرداخت ${p.ext_id}`} className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-div py-3 first:border-0">
                     <span className="flex min-w-0 flex-[1_1_13rem] flex-col">
-                      <span className="text-[14px] font-semibold"><span className="fig" dir="ltr">{p.customer}</span>{p.plan ? <span className="text-sec"> · {p.plan}</span> : null}</span>
+                      <span className="text-[14px] font-semibold">{p.customer ? <span className="fig" dir="ltr">{p.customer}</span> : <span className="text-sec">مشتری نامعلوم</span>}{p.plan ? <span className="text-sec"> · <FaText text={p.plan} /></span> : null}</span>
                       <span className="text-[11px] text-muted">{jDateTime(p.paid_at)}{p.network ? ` · ${NETWORK_FA[p.network] ?? p.network}` : ''}</span>
                       {p.tx_hash ? <span className="fig truncate text-[11px] text-muted" dir="ltr" title={p.tx_hash}>{short(p.tx_hash)}</span> : null}
+                      {p.note_fa ? <span className="text-[12px] leading-6 text-sec"><FaText text={p.note_fa} /></span> : null}
                     </span>
-                    <span className="fig text-[14px] font-semibold">{p.amount_usdt == null ? <span className="text-[12px] font-normal text-muted">درون‌برنامه</span> : usdt(p.amount_usdt, 2)}</span>
+                    <span className="fig flex flex-col items-end text-[14px] font-semibold">
+                      {p.amount_usdt == null ? <span className="text-[12px] font-normal text-muted">درون‌برنامه</span> : usdt(p.amount_usdt, 2)}
+                      {p.status === 'amount_mismatch' && p.chain_amount != null ? <span className="text-[11px] font-normal text-warn">رسیده {usdt(p.chain_amount, 2)}</span> : null}
+                    </span>
                     <span title={s.hint}><Pill tone={s.tone} dot>{s.fa}</Pill></span>
                   </li>
                 );
@@ -231,11 +233,11 @@ export function ReconcileCard({ code }: { code: string }) {
   const days = [...q.data].sort((a, b) => b.day.localeCompare(a.day));
   return (
     <Card as="section" className="flex flex-col gap-3 p-5" aria-label="تطبیق روزانه">
-      <SectionTitle title="تطبیق روزانه" note="۱۴ روز اخیر؛ هر روز دفتر شرکت در برابر زنجیره" />
+      <SectionTitle title="تطبیق روزانه" note="۱۴ روز اخیر؛ هر روز دفتر شرکت در برابر پول رسیده روی شبکه" />
       {!days.length ? <p className="text-[13px] text-muted">هنوز روزی تطبیق داده نشده.</p> : (
         <div className="no-scrollbar overflow-x-auto">
           <table className="w-full min-w-[520px] text-[13px]" aria-label="تطبیق روزانه‌ی پرداخت‌ها">
-            <thead><tr className="text-[11px] text-muted"><th className="py-1.5 text-start font-normal">روز</th><th className="font-normal">دفتر</th><th className="font-normal">زنجیره</th><th className="font-normal">تطبیق</th><th className="font-normal">فقط دفتر</th><th className="font-normal">فقط زنجیره</th><th className="font-normal">مبلغ کم</th></tr></thead>
+            <thead><tr className="text-[11px] text-muted"><th className="py-1.5 text-start font-normal">روز</th><th className="font-normal">دفتر</th><th className="font-normal">شبکه</th><th className="font-normal">جور</th><th className="font-normal">فقط دفتر</th><th className="font-normal">فقط شبکه</th><th className="font-normal">مبلغ کم</th><th className="font-normal">در انتظار</th></tr></thead>
             <tbody>
               {days.map((d) => (
                 <tr key={d.day} className="border-t border-div text-center">
@@ -245,11 +247,12 @@ export function ReconcileCard({ code }: { code: string }) {
                   <td className={cx('fig', d.ledger_only ? 'font-semibold text-neg' : 'text-muted')}>{fig(d.ledger_only)}</td>
                   <td className={cx('fig', d.chain_only ? 'font-semibold text-warn' : 'text-muted')}>{fig(d.chain_only)}</td>
                   <td className={cx('fig', d.amount_mismatch ? 'font-semibold text-warn' : 'text-muted')}>{fig(d.amount_mismatch)}</td>
+                  <td className="fig text-muted">{fig(d.pending_chain ?? 0)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {days.filter((d) => d.note_fa).map((d) => <p key={d.day} className="pt-1 text-[12px] text-sec"><span className="fig" dir="ltr">{dayShort(d.day)}</span>: <FaText text={d.note_fa} /></p>)}
+          {days.filter((d) => d.note_fa.trim()).map((d) => <p key={d.day} className="pt-1 text-[12px] text-sec"><span className="fig" dir="ltr">{dayShort(d.day)}</span>: <FaText text={d.note_fa} /></p>)}
         </div>
       )}
     </Card>
@@ -257,8 +260,13 @@ export function ReconcileCard({ code }: { code: string }) {
 }
 
 // =========================================================================================== payment sources ==
-type Form = { id?: string; kind: 'ledger' | 'chain'; adapter: string; network: '' | 'bsc_usdt' | 'trc20_usdt'; address: string };
-const blank: Form = { kind: 'chain', adapter: '', network: 'bsc_usdt', address: '' };
+/** The form of `PayPaymentSourceIn`: a public address on one network, or the company's own ledger through its server. */
+type Form = { kind: 'ledger' | 'chain'; network: Network; address: string; server: string; enabled: boolean; editing: boolean };
+const blank: Form = { kind: 'chain', network: 'bsc_usdt', address: '', server: '', enabled: true, editing: false };
+const shortAddr = (a: string) => (a.length > 20 ? `${a.slice(0, 8)}…${a.slice(-6)}` : a);
+const sourceTitle = (s: PaymentSource) => (s.kind === 'ledger' ? 'دفتر شرکت' : s.network ? NETWORK_FA[s.network] : 'کیف پول');
+/** «خوانده شد» in the owner's words: a chain read counts what came in; a ledger read is asked of the company's server. */
+const readFa = (r: PayReadResult) => (r.queued ? 'از سرور شرکت خواسته شد؛ نتیجه کمی بعد میرسد.' : r.source.kind === 'chain' ? `خوانده شد؛ ${fig(r.transfers ?? 0)} واریز تازه.` : `خوانده شد؛ ${fig(r.payments ?? 0)} پرداخت.`);
 
 export function SourcesCard({ code }: { code: string }) {
   const q = useSources(code);
@@ -267,37 +275,46 @@ export function SourcesCard({ code }: { code: string }) {
   const [form, setForm] = useState<Form | null>(null);
   if (q.isLoading) return <Loading h="h-40" />;
   if (q.error) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
-  if (!q.data) return notYet('globe', 'منبع‌های پرداخت بعد از به‌روزرسانی ستاد میاید', 'دفتر شرکت و آدرس عمومی کیف پول این‌جا وصل میشود.');
-  const valid = !!form && form.adapter.trim() && (form.kind === 'ledger' || (form.network && form.address.trim()));
+  if (!q.data) return notYet('globe', 'منبع‌های پرداخت بعد از به‌روزرسانی ستاد میاید', 'دفتر شرکت و نشانی عمومی کیف پول این‌جا وصل میشود.');
+  const addr = form?.address.trim() ?? '';
+  const addrOk = !!form && (form.kind === 'ledger' || ADDRESS_RE[form.network].test(addr));
   const save = () => {
-    if (!form) return;
-    const body: SourceBody = { id: form.id, kind: form.kind, adapter: form.adapter.trim(), network: form.kind === 'chain' && form.network ? form.network : null, address: form.kind === 'chain' ? form.address.trim() : null };
+    if (!form || !addrOk) return;
+    const body: PaySourceIn = form.kind === 'chain'
+      ? { kind: 'chain', network: form.network, address: addr, enabled: form.enabled }
+      : { kind: 'ledger', server: form.server.trim() || null, enabled: form.enabled };
     act.save.mutate(body, { onSuccess: () => { toast({ tone: 'ok', text: 'منبع ذخیره شد.' }); setForm(null); }, onError: (e) => toast({ tone: 'error', text: errText(e, 'ذخیره نشد.') }) });
   };
   return (
     <Card as="section" className="flex flex-col gap-3 p-5" aria-label="منبع‌های پرداخت">
-      <SectionTitle title="منبع‌های پرداخت" note="دفتر خود شرکت (از راه runner) و آدرس عمومی روی زنجیره؛ کلید خصوصی هرگز این‌جا نیست" action={<Button size="sm" variant="primary" icon="add" onClick={() => setForm(blank)}>منبع تازه</Button>} />
+      <SectionTitle title="منبع‌های پرداخت" note="دفتر خود شرکت و نشانی عمومی کیف پول روی شبکه؛ کلید کیف پول هرگز این‌جا نیست" action={<Button size="sm" variant="primary" icon="add" onClick={() => setForm(blank)}>منبع تازه</Button>} />
       {form ? (
         <div className="hq-rise flex flex-col gap-3 rounded-[12px] bg-tile p-4" aria-label="مشخصات منبع">
           <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="نوع منبع">
-            {([['chain', 'زنجیره (آدرس عمومی)'], ['ledger', 'دفتر شرکت (runner)']] as const).map(([k, l]) => (
-              <button key={k} type="button" role="radio" aria-checked={form.kind === k} disabled={!!form.id} onClick={() => setForm({ ...form, kind: k })} className={cx('h-9 rounded-full px-3.5 text-[13px] font-semibold', form.kind === k ? 'bg-gold text-on-gold' : 'bg-card text-sec')}>{l}</button>
+            {([['chain', 'کیف پول روی شبکه'], ['ledger', 'دفتر شرکت']] as const).map(([k, l]) => (
+              <button key={k} type="button" role="radio" aria-checked={form.kind === k} disabled={form.editing} onClick={() => setForm({ ...form, kind: k })} className={cx('h-9 rounded-full px-3.5 text-[13px] font-semibold disabled:opacity-60', form.kind === k ? 'bg-gold text-on-gold' : 'bg-card text-sec')}>{l}</button>
             ))}
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Txt label="نام آداپتور" value={form.adapter} set={(v) => setForm({ ...form, adapter: v })} ltr />
-            {form.kind === 'chain' ? (
+          {form.kind === 'chain' ? (
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)]">
               <label className="flex flex-col gap-1.5"><span className="text-[12px] text-sec">شبکه</span>
-                <select value={form.network} onChange={(e) => setForm({ ...form, network: e.target.value as Form['network'] })} aria-label="شبکه" className={cx(field, 'h-10')}>
+                <select value={form.network} disabled={form.editing} onChange={(e) => setForm({ ...form, network: e.target.value as Network })} aria-label="شبکه" className={cx(field, 'h-10')}>
                   <option value="bsc_usdt">{NETWORK_FA.bsc_usdt}</option><option value="trc20_usdt">{NETWORK_FA.trc20_usdt}</option>
                 </select></label>
-            ) : null}
-          </div>
-          {form.kind === 'chain' ? <Txt label="آدرس عمومی کیف پول" value={form.address} set={(v) => setForm({ ...form, address: v })} ltr /> : (
-            <p className="text-[12px] leading-6 text-sec">برای دفتر شرکت، runner آن سرور باید جفت شده و نسخه‌اش ۰٫۳٫۰ یا بالاتر باشد. پرسش دفتر روی خود آن سرور می‌ماند.</p>
+              <div className="flex min-w-0 flex-col gap-1">
+                <Txt label="نشانی عمومی کیف پول" value={form.address} set={(v) => setForm({ ...form, address: v.trim() })} ltr placeholder={form.network === 'bsc_usdt' ? '0x…' : 'T…'} />
+                {addr && !addrOk ? <span className="text-[12px] text-neg" role="alert">این نشانی برای {NETWORK_FA[form.network]} درست نیست.</span> : null}
+              </div>
+            </div>
+          ) : (
+            <>
+              <Txt label="نام سرور شرکت (اختیاری)" value={form.server} set={(v) => setForm({ ...form, server: v })} ltr />
+              <p className="text-[12px] leading-6 text-sec">دفتر از روی سرور خود شرکت خوانده میشود و آن سرور باید به ستاد وصل باشد. اگر نامی ننویسی، اولین سرور وصل شرکت به کار میرود.</p>
+            </>
           )}
+          <label className="flex items-center gap-2 text-[13px]"><input type="checkbox" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} aria-label="روشن باشد" className="size-4 accent-[var(--hq-gold-bright)]" />روشن باشد و هر روز خوانده شود</label>
           <div className="flex gap-2">
-            <Button variant="primary" loading={act.save.isPending} disabled={!valid} onClick={save}>ذخیره</Button>
+            <Button variant="primary" loading={act.save.isPending} disabled={!addrOk} onClick={save}>ذخیره</Button>
             <Button onClick={() => setForm(null)}>بی‌خیال</Button>
           </div>
           <p className="text-[11px] text-muted">ذخیره با اثر انگشت یا چهره تأیید میشود.</p>
@@ -305,8 +322,8 @@ export function SourcesCard({ code }: { code: string }) {
       ) : null}
       {!q.data.length ? <p className="text-[13px] text-muted">هنوز منبعی وصل نشده.</p> : (
         <ul className="flex flex-col">{q.data.map((s) => <SourceRow key={s.id} s={s} busy={act.read.isPending && act.read.variables === s.id}
-          onRead={() => act.read.mutate(s.id, { onSuccess: () => toast({ tone: 'ok', text: 'خوانده شد.' }), onError: (e) => toast({ tone: 'error', text: errText(e, 'خواندن نشد.') }) })}
-          onEdit={() => setForm({ id: s.id, kind: s.kind, adapter: s.adapter, network: s.network ?? '', address: s.address ?? '' })} />)}</ul>
+          onRead={() => act.read.mutate(s.id, { onSuccess: (r) => toast({ tone: 'ok', text: readFa(r) }), onError: (e) => toast({ tone: 'error', text: errText(e, 'خواندن نشد.') }) })}
+          onEdit={() => setForm({ kind: s.kind, network: s.network ?? 'bsc_usdt', address: s.address ?? '', server: s.server ?? '', enabled: s.enabled !== false, editing: true })} />)}</ul>
       )}
     </Card>
   );
@@ -314,19 +331,21 @@ export function SourcesCard({ code }: { code: string }) {
 
 function SourceRow({ s, busy, onRead, onEdit }: { s: PaymentSource; busy: boolean; onRead: () => void; onEdit: () => void }) {
   const st = SOURCE_STATE[s.state];
-  const title = s.kind === 'ledger' ? 'دفتر شرکت' : `زنجیره${s.network ? ` · ${NETWORK_FA[s.network] ?? s.network}` : ''}`;
+  const title = sourceTitle(s);
+  const name = s.kind === 'ledger' ? title : `${title} ${s.address ? shortAddr(s.address) : ''}`.trim();
+  const off = s.enabled === false;
   return (
-    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-div py-3 first:border-0" aria-label={`منبع ${title}`}>
+    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-div py-3 first:border-0" aria-label={`منبع ${name}`}>
       <span className="flex min-w-0 flex-[1_1_14rem] flex-col">
         <span className="text-[14px] font-semibold">{title}</span>
-        <span className="fig text-[11px] text-muted" dir="ltr">{s.adapter}{s.address ? ` · ${s.address.length > 20 ? `${s.address.slice(0, 8)}…${s.address.slice(-6)}` : s.address}` : ''}</span>
+        {s.address ? <span className="fig truncate text-[11px] text-muted" dir="ltr" title={s.address}>{shortAddr(s.address)}</span> : s.server ? <span className="text-[11px] text-muted">از سرور <span className="fig" dir="ltr">{s.server}</span></span> : null}
         <span className="text-[11px] text-muted">{s.last_read_at ? `آخرین خواندن ${jDateTime(s.last_read_at)}` : 'هنوز خوانده نشده'}</span>
-        {s.state === 'error' && s.last_error_fa ? <span className="text-[12px] leading-6 text-neg" role="alert"><FaText text={s.last_error_fa} /></span> : null}
+        {s.last_error_fa ? <span className="text-[12px] leading-6 text-neg" role="alert"><FaText text={s.last_error_fa} /></span> : null}
       </span>
-      <Pill tone={st.tone} dot>{st.fa}</Pill>
+      {off ? <Pill tone="silver">خاموش</Pill> : <Pill tone={st.tone} dot>{st.fa}</Pill>}
       <span className="flex gap-2">
-        <Button size="sm" icon="refresh" loading={busy} disabled={s.state === 'not_configured'} onClick={onRead} aria-label={`بخوان ${s.adapter}`}>بخوان</Button>
-        <Button size="sm" icon="edit" onClick={onEdit} aria-label={`ویرایش ${s.adapter}`}>ویرایش</Button>
+        <Button size="sm" icon="refresh" loading={busy} disabled={off} onClick={onRead} aria-label={`بخوان ${name}`}>بخوان</Button>
+        <Button size="sm" icon="edit" onClick={onEdit} aria-label={`ویرایش ${name}`}>ویرایش</Button>
       </span>
     </li>
   );
@@ -343,4 +362,3 @@ export function CompanyMoney({ code }: { code: string }) {
     </>
   );
 }
-

@@ -9,7 +9,7 @@ export default function Page({ params }: { params: Promise<{ code: string }> }) 
   const { code } = use(params);
   return (
     <>
-      <CompanyHead code={code} here="journey" title="سفر شرکت" note="هر مرحله وقتی میرسد که ردیف‌هایش در سامانه باشد، نه با اعلام ایجنت." />
+      <CompanyHead code={code} here="journey" title="سفر شرکت" note="هر مرحله وقتی ثبت میشود که نشانه‌اش در سامانه باشد، نه با گفته‌ی کسی." />
       <CompanyJourney code={code} />
     </>
   );

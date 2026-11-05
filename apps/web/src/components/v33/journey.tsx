@@ -8,14 +8,18 @@ import { CompanyMark } from '@/components/brand/marks';
 import { Card, Empty, ErrorState, Pill, SectionTitle } from '@/components/ui/primitives';
 import { FaText, fig } from '@/components/v29/text';
 import { notYet } from '@/components/v31/kit';
-import { useJourney, useJourneys, type Journey } from '@/lib/api/v33';
+import { useJourney, useJourneys, type Journey, type JourneyEvent } from '@/lib/api/v33';
+import { useCompanies } from '@/lib/api/hooks';
 import { cx, jDate } from '@/lib/format';
 import { linkRoute, refRoute } from '@/lib/refs';
 import { Loading, useCompanyName } from './bits';
 
 const progressOf = (j: Journey) => j.stages.filter((s) => s.reached_at).length;
+/** `current` is the latest stage reached; the one after it is what the company works toward. */
+const stateOf = (j: Journey, key: string, reached: boolean) => (key === j.current && reached ? 'مرحله‌ی فعلی' : reached ? 'رسیده' : 'پیش رو');
 
-function Evidence({ e }: { e: { kind: string; ref: string } }) {
+function Evidence({ e }: { e: { kind: string; ref?: string | null } }) {
+  if (!e.ref) return null;
   const href = refRoute(e.ref) ?? linkRoute(e.kind, e.ref);
   const t = <span className="fig text-[11px]">{e.ref}</span>;
   return href ? <Link href={href} className="text-gold-ink hover:underline">{t}</Link> : <span className="text-muted">{t}</span>;
@@ -27,9 +31,9 @@ export function JourneyTimeline({ j }: { j: Journey }) {
     <ol className="relative flex flex-col" aria-label="مرحله‌های سفر">
       {j.stages.map((s, i) => {
         const done = !!s.reached_at;
-        const cur = s.key === j.current;
+        const cur = s.key === j.current && done;
         return (
-          <li key={s.key} className="flex gap-3" aria-current={cur ? 'step' : undefined} aria-label={`${s.title_fa}: ${done ? 'رسیده' : cur ? 'مرحله‌ی فعلی' : 'پیش رو'}`}>
+          <li key={s.key} className="flex gap-3" aria-current={cur ? 'step' : undefined} aria-label={`${s.title_fa}: ${stateOf(j, s.key, done)}`}>
             <span className="flex flex-none flex-col items-center">
               <span className={cx('mt-1 flex size-5 flex-none items-center justify-center rounded-full border-2 text-[10px] font-bold', done ? 'border-pos bg-pos text-on-gold' : cur ? 'border-gold-ink bg-gold-soft' : 'border-strong bg-tile')}>{done ? '✓' : ''}</span>
               {i < j.stages.length - 1 ? <span className={cx('w-px flex-1', done ? 'bg-pos' : 'bg-div')} /> : null}
@@ -48,9 +52,9 @@ export function JourneyTimeline({ j }: { j: Journey }) {
 function NextLine({ j }: { j: Journey }) {
   return (
     <div className="flex flex-col gap-1 rounded-[12px] bg-gold-soft p-3" aria-label="قدم بعدی">
-      <h3 className="text-[12px] font-semibold text-gold-ink">قدم بعدی</h3>
+      <h3 className="text-[12px] font-semibold text-gold-ink">قدم بعدی{(() => { const n = j.stages.find((s) => !s.reached_at); return n ? <span className="font-normal text-sec">: رسیدن به «{n.title_fa}»</span> : null; })()}</h3>
       <p className="text-[14px] leading-7">{j.next_fa ? <FaText text={j.next_fa} /> : <span className="text-sec">وقتی مرحله‌ای عوض شود، یک خط درباره‌ی قدم بعدی این‌جا میاید.</span>}</p>
-      {j.days_in_stage != null ? <span className="text-[11px] text-muted"><span className="fig">{fig(j.days_in_stage)}</span> روز است در همین مرحله</span> : null}
+      {progressOf(j) ? <span className="text-[11px] text-muted"><span className="fig">{fig(j.days_in_stage)}</span> روز است در همین مرحله</span> : null}
     </div>
   );
 }
@@ -79,12 +83,38 @@ export function AllJourneys() {
   if (q.isLoading) return <Loading h="h-80" />;
   if (q.error) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   if (!q.data) return notYet('planner', 'سفر شرکت‌ها بعد از به‌روزرسانی ستاد میاید', 'همه‌ی شرکت‌ها روی یک خط زمان.');
-  if (!q.data.length) return <Card><Empty icon="companies" title="شرکتی نیست" /></Card>;
-  const rows = [...q.data].sort((a, b) => progressOf(b) - progressOf(a) || a.company.localeCompare(b.company));
+  if (!q.data.journeys.length) return <Card><Empty icon="companies" title="شرکتی نیست" /></Card>;
+  const rows = [...q.data.journeys].sort((a, b) => progressOf(b) - progressOf(a) || a.company.localeCompare(b.company));
   return (
-    <div className="flex flex-col gap-3" aria-label="سفر همه‌ی شرکت‌ها">
-      {rows.map((j) => <JourneyRow key={j.company} j={j} />)}
+    <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+      <div className="flex min-w-0 flex-col gap-3" aria-label="سفر همه‌ی شرکت‌ها">
+        {rows.map((j) => <JourneyRow key={j.company} j={j} />)}
+      </div>
+      <Timeline events={q.data.timeline} />
     </div>
+  );
+}
+
+/** Every stage any company reached, newest first, on one line of time. */
+function Timeline({ events }: { events: JourneyEvent[] }) {
+  const { data: companies } = useCompanies();
+  const name = (c: string) => companies?.find((x) => x.code === c)?.name_fa ?? c;
+  const rows = [...events].sort((a, b) => b.at.localeCompare(a.at));
+  return (
+    <Card as="section" className="flex flex-col gap-2 p-4" aria-label="خط زمان">
+      <SectionTitle title="خط زمان" note="هر مرحله‌ای که شرکتی به آن رسید" />
+      {!rows.length ? <p className="text-[13px] text-muted">هنوز مرحله‌ای ثبت نشده.</p> : (
+        <ol className="flex flex-col">
+          {rows.map((e) => (
+            <li key={`${e.company}-${e.stage}`} className="flex items-center gap-3 border-t border-div py-2 text-[13px] first:border-0">
+              <span className="fig w-24 flex-none text-[11px] text-muted">{jDate(e.at)}</span>
+              <span className="inline-flex min-w-0 items-center gap-1.5 font-semibold"><CompanyMark code={e.company} height={11} mono />{name(e.company)}</span>
+              <span className="min-w-0 flex-1 truncate text-sec">{e.title_fa}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </Card>
   );
 }
 
@@ -101,12 +131,12 @@ function JourneyRow({ j }: { j: Journey }) {
       <ol className="flex flex-wrap gap-x-1 gap-y-3">
         {j.stages.map((s) => {
           const done = !!s.reached_at;
-          const here = s.key === j.current;
+          const here = s.key === j.current && done;
           return (
-            <li key={s.key} className="flex w-[7.5rem] flex-col gap-1" aria-label={`${s.title_fa}: ${done ? 'رسیده' : here ? 'مرحله‌ی فعلی' : 'پیش رو'}`}>
+            <li key={s.key} className="flex w-[7.5rem] flex-col gap-1" aria-label={`${s.title_fa}: ${stateOf(j, s.key, done)}`}>
               <span className="flex items-center gap-1"><span className={cx('size-3.5 flex-none rounded-full border-2', done ? 'border-pos bg-pos' : here ? 'border-gold-ink bg-gold-soft' : 'border-strong bg-tile')} /><span className={cx('h-px flex-1', done ? 'bg-pos' : 'bg-div')} /></span>
               <span className={cx('text-[12px] leading-5', done || here ? 'font-semibold' : 'text-muted')}>{s.title_fa}</span>
-              <span className="fig text-[11px] text-muted">{s.reached_at ? jDate(s.reached_at) : here ? 'الان' : '—'}</span>
+              <span className="fig text-[11px] text-muted">{s.reached_at ? jDate(s.reached_at) : '—'}</span>
             </li>
           );
         })}

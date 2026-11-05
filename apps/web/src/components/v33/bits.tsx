@@ -10,14 +10,14 @@ import { Pill, Skeleton } from '@/components/ui/primitives';
 import { FaText, fig } from '@/components/v29/text';
 import { field } from '@/components/v31/kit';
 import { useCompanies } from '@/lib/api/hooks';
-import { impactOf, type Impact } from '@/lib/api/v33';
+import { dec, impactOf, type Dec, type Impact } from '@/lib/api/v33';
 import { cx } from '@/lib/format';
 
 export const Loading = ({ h = 'h-48' }: { h?: string }) => <Skeleton className={cx(h, 'rounded-[16px]')} />;
 
-/** «1,200 USDT». */
-export const usdt = (n: number | null | undefined, digits = 0) => (n == null ? '—' : `${fig(n, digits)} USDT`);
-export const dollars = (n: number | null | undefined, digits = 2) => (n == null ? '—' : `$${fig(n, digits)}`);
+/** «1,200 USDT»; a Decimal string of the hub is read as a number first. */
+export const usdt = (v: Dec | number | null | undefined, digits = 0) => { const n = dec(v); return n == null ? '—' : `${fig(n, digits)} USDT`; };
+export const dollars = (v: Dec | number | null | undefined, digits = 2) => { const n = dec(v); return n == null ? '—' : `$${fig(n, digits)}`; };
 export const pctOf = (n: number | null | undefined, digits = 0) => (n == null ? '—' : `${fig(n, digits)}%`);
 /** «2026-11»: the month as the hub writes it, in Latin digits. */
 export const monthLabel = (m: string) => m.slice(0, 7);
@@ -30,9 +30,9 @@ export function useCompanyName(code: string) {
 }
 
 const SECTIONS = [
-  { seg: 'money', fa: 'پول' }, { seg: 'sales', fa: 'فروش' }, { seg: 'journey', fa: 'سفر شرکت' }, { seg: 'personas', fa: 'پرسونا' },
+  { seg: 'money', fa: 'پول' }, { seg: 'sales', fa: 'فروش' }, { seg: 'journey', fa: 'سفر شرکت' }, { seg: 'personas', fa: 'مخاطب‌ها' },
 ] as const;
-/** Header of a company's new sections: the company, and links among «پول، فروش، سفر، پرسونا». */
+/** Header of a company's new sections: the company, and links among «پول، فروش، سفر، مخاطب‌ها». */
 export function CompanyHead({ code, here, title, note, actions }: { code: string; here: (typeof SECTIONS)[number]['seg']; title: string; note?: ReactNode; actions?: ReactNode }) {
   const { name } = useCompanyName(code);
   return (
@@ -90,7 +90,7 @@ export function ImpactBlock({ d }: { d: unknown }) {
     <section className="flex flex-col gap-1.5" aria-label="اثر پولی">
       <h3 className="text-[12px] font-semibold text-gold-ink">اثر پولی</h3>
       <div className="flex flex-wrap items-center gap-2"><ImpactChip d={d} /><span className="text-[12px] text-muted">در <span className="fig">{fig(i.horizon_days)}</span> روز</span></div>
-      <p className="text-[13px] leading-6 text-sec"><FaText text={i.basis_fa} />{i.kind === 'estimate' ? ' این عدد حدس مدل است، نه اندازه‌گیری.' : ''}</p>
+      <p className="text-[13px] leading-6 text-sec"><FaText text={i.basis_fa} />{i.kind === 'estimate' ? ' این عدد حدس است، نه اندازه‌گیری.' : ''}</p>
     </section>
   );
 }
