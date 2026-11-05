@@ -178,6 +178,11 @@ private val GROUPS = listOf(
     ToolGroupDef("money", "پول و مشتری", "خرج مدل‌ها، درآمد شرکت‌ها و حرف مشتری‌ها", listOf(
         Tool("treasury", "خزانه‌ی توکن", DivanIcon.TREASURY, "مصرف مدل‌ها، بودجه‌ها و سهمیه‌ی اشتراک"),
         Tool("revenue", "درآمد", DivanIcon.CHART, "درآمد هر شرکت و هشدار وقتی افت کند"),
+        // ⟨1.15⟩ §33: the board computed from the payments, the commission an exchange still owes, usage in the advisor's words, the journeys.
+        Tool("revenue-board", "تابلوی درآمد", DivanIcon.CHART, "درآمد ماهانه، ریزش، ارزش هر مشتری و پیش‌بینی"),
+        Tool("affiliate-gaps", "کسری کمیسیون", DivanIcon.TREASURY, "ماه‌هایی که صرافی کمتر از حقش پرداخت"),
+        Tool("usage", "گزارش مصرف", DivanIcon.REPORT, "مشاور میگوید هزینه کجا رفت و کجا کم کنی"),
+        Tool("journeys", "مسیر شرکت‌ها", DivanIcon.FOUND, "هر شرکت کجای راه است، از تأسیس تا سربه‌سر"),
         Tool("support", "پشتیبانی", DivanIcon.MESSAGES, "گفت‌وگوی مشتری‌ها و پاسخ‌های آماده"),
         Tool("growth", "رشد و پیام‌ها", DivanIcon.SEND, "قالب پیام، قاعده‌های ارسال و نظرسنجی"),
         Tool("feedback", "بازخورد", DivanIcon.RATE, "حرف کاربران، پرتکرارها اول"),
@@ -469,6 +474,13 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     composable("errors") { com.coinepro.hq.ui.settings.ErrorLogScreen(graph.errors) }
                     // ⟨1.5⟩ §19
                     composable("revenue") { com.coinepro.hq.ui.revenue.RevenueScreen() }
+                    // ⟨1.15⟩ §33 money and the working style.
+                    composable("revenue-board") { com.coinepro.hq.ui.v33.RevenueBoardScreen() }
+                    composable("revenue-board/{company}") { com.coinepro.hq.ui.v33.RevenueBoardScreen(company0 = it.arguments?.getString("company")) }
+                    composable("affiliate-gaps") { com.coinepro.hq.ui.v33.AffiliateGapsScreen() }
+                    composable("usage") { com.coinepro.hq.ui.v33.UsageScreen() }
+                    composable("journeys") { com.coinepro.hq.ui.v33.JourneysScreen() }
+                    composable("leads/{ref}") { com.coinepro.hq.ui.v33.LeadScreen(it.arguments?.getString("ref").orEmpty()) }
                     composable("support") { com.coinepro.hq.ui.support.SupportScreen() }
                     composable("support/{ref}") { com.coinepro.hq.ui.support.ConversationScreen(it.arguments?.getString("ref").orEmpty()) }
                     composable("growth") { com.coinepro.hq.ui.growth.GrowthScreen() }

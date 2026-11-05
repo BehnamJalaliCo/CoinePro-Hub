@@ -283,3 +283,22 @@ fun personaOf(list: List<SalesPersona>, s: PersonaScore): SalesPersona? =
 fun wouldActCount(results: List<PersonaScore>): Int = results.count { it.wouldAct }
 
 val PERSONA_SOURCE_FA = mapOf("owner" to "از طرف تو", "kb_suggested" to "پیشنهاد دانش شرکت")
+
+/** A lead's next step [days] ahead at 09:00 Tehran, as the instant the hub stores (`next_at`). */
+fun nextAtIso(days: Long, today: java.time.LocalDate = com.coinepro.hq.core.format.HqClock.today()): String =
+    today.plusDays(days).atTime(9, 0).atZone(java.time.ZoneId.of("Asia/Tehran")).toInstant().toString()
+
+/** A value typed by the owner as the hub's decimal ("1,250" → "1250"; "12.5" stays); null when it is not a non-negative number. */
+fun usdtInput(s: String): String? {
+    val t = s.trim().replace(",", "").replace("٬", "")
+        .map { ch -> if (ch in '۰'..'۹') '0' + (ch - '۰') else if (ch in '٠'..'٩') '0' + (ch - '٠') else ch }.joinToString("")
+    if (t.isEmpty()) return null
+    val v = t.toBigDecimalOrNull() ?: return null
+    return if (v.signum() < 0) null else v.stripTrailingZeros().toPlainString()
+}
+
+/** The stages of a lead's company from its pipeline (the company's own data), else the default list. */
+fun leadStages(p: com.coinepro.hq.core.net.SalesPipeline?): List<com.coinepro.hq.core.net.PipeStage> =
+    p?.stages?.takeIf { it.isNotEmpty() } ?: LEAD_STAGE_FA.map { (k, v) ->
+        com.coinepro.hq.core.net.PipeStage(stage = k, titleFa = v, kind = when (k) { "paid" -> "won"; "lost" -> "lost"; else -> "open" })
+    }
