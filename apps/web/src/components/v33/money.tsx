@@ -128,8 +128,8 @@ export function RevenueBoardView({ company }: { company: string | null }) {
           {b.forecast.length ? <><Pill tone="warn" className="me-2">تخمین</Pill><FaText text={b.forecast_basis_fa} /></> : <FaText text={b.forecast_basis_fa || 'پیش‌بینی با دست‌کم ۴ ماه داده ممکن است.'} />}
         </p>
       </Card>
-      <div className="grid items-start gap-4 xl:grid-cols-2">
-        <Card as="section" className="flex flex-col gap-3 p-5" aria-label="گروه‌های ماهانه">
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 xl:grid-cols-2">
+        <Card as="section" className="flex min-w-0 flex-col gap-3 p-5" aria-label="گروه‌های ماهانه">
           <SectionTitle title="گروه‌های ماهانه" note="هر ردیف مشتریان یک ماه؛ درصدِ هنوز پرداخت‌کننده بعد از هر ماه" />
           <Cohorts b={b} />
         </Card>
