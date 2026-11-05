@@ -101,7 +101,7 @@ kinds:
       bsc_usdt: '^0x[0-9a-fA-F]{64}$'
       trc20_usdt: '^[0-9a-fA-F]{64}$'
   store:
-    null: [amount_usdt, network, tx_hash]
+    empty: [amount_usdt, network, tx_hash]   # must be null
 
 # Both period columns or neither; the end after the start.
 period:

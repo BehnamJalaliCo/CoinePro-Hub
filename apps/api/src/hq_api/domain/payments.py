@@ -233,7 +233,7 @@ def validate_batch(doc: Any) -> LedgerBatch:
         for col in rules.get("required", []):
             if v[col] is None:
                 raise _break(n, col, "برای این نوع پرداخت لازم است")
-        for col in rules.get("null", []):
+        for col in rules.get("empty", []):
             if v[col] is not None:
                 raise _break(n, col, "برای این نوع پرداخت باید خالی باشد")
         if v["tx_hash"] is not None and not re.fullmatch(
