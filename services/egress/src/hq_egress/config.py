@@ -140,6 +140,22 @@ class Settings:
     lbank_public_url: str = field(
         default_factory=lambda: os.environ.get("EGRESS_LBANK_PUBLIC_URL", "https://api.lbkex.com")
     )
+    # Prompt 24 (contract §33.2): the public chain, read only (`chain-read`). The BSC JSON-RPC
+    # nodes are tried in this order; TronGrid is one host. Only these are ever called (https/443).
+    chain_bsc_hosts: tuple[str, ...] = field(
+        default_factory=lambda: tuple(
+            h.strip().lower()
+            for h in os.environ.get(
+                "EGRESS_CHAIN_BSC_HOSTS", "bsc-dataseed.binance.org,bsc-rpc.publicnode.com"
+            ).split(",")
+            if h.strip()
+        )
+    )
+    chain_tron_host: str = field(
+        default_factory=lambda: (
+            os.environ.get("EGRESS_CHAIN_TRON_HOST", "api.trongrid.io").strip().lower()
+        )
+    )
     # How long a connector call may wait for its exchange's rate limit.
     connector_wait_s: float = field(
         default_factory=lambda: float(os.environ.get("EGRESS_CONNECTOR_WAIT_S", "8"))
