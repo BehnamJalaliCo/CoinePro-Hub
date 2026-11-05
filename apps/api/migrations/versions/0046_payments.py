@@ -19,16 +19,16 @@ Every table carries company_id under FORCE RLS as 0042's; nothing is deleted by 
 start wipes the payments, transfers, days and alerts (re-read from the sources) and keeps the
 sources the owner configured (their cursors and open jobs are reset).
 
-Revision ID: 0045
-Revises: 0044
+Revision ID: 0046
+Revises: 0045
 """
 
 from __future__ import annotations
 
 from hq_api.migration_sql import execute_script
 
-revision = "0045"
-down_revision = "0044"
+revision = "0046"
+down_revision = "0045"
 branch_labels = None
 depends_on = None
 

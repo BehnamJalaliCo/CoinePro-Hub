@@ -22,16 +22,16 @@ the reports, the leads and their trails, and the gaps go (they are rebuilt).
 
 Every new table carries company_id under FORCE RLS; nothing is deleted by the app.
 
-Revision ID: 0046
-Revises: 0045
+Revision ID: 0047
+Revises: 0046
 """
 
 from __future__ import annotations
 
 from hq_api.migration_sql import execute_script
 
-revision = "0046"
-down_revision = "0045"
+revision = "0047"
+down_revision = "0046"
 branch_labels = None
 depends_on = None
 

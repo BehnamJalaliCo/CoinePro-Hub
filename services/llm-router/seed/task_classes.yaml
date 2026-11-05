@@ -68,12 +68,12 @@ task_classes:
   - {key: talk_summary, transferable: false, description: "A conversation's running summary every 10 turns, a light model (contract 32.8)"}
   # prompt 24 (contract §33.1, §33.4–33.6): the holding's usage in the advisor's words, a lead's or an affiliate
   # gap's follow-up draft (never sent) and a card's money impact (an estimate, labelled); each a mid model with
-  # a strict schema; api migration 0046 inserts the same rows.
+  # a strict schema; api migration 0047 inserts the same rows.
   - {key: usage_report, transferable: false, description: "The holding's usage in the advisor's words: a mid model, low effort, a strict schema (contract 33.1)"}
   - {key: sales_followup, transferable: false, description: "A follow-up message drafted for a lead or an affiliate gap, in the company's voice; never sent (contract 33.4, 33.5)"}
   - {key: decision_impact, transferable: false, description: "The money impact of a proposal or an A3 card, one call per card, a strict schema, labelled an estimate (contract 33.6)"}
   # prompt 24 (contract §33.8, §33.9): the one line of what a company does next (written when a stage
   # changes) and a message tested against the personas (also the personas suggested from the company's
-  # knowledge); mid model; api migration 0047 inserts the same rows.
+  # knowledge); mid model; api migration 0048 inserts the same rows.
   - {key: journey_next, transferable: false, description: "The one line that says what the company does next, written when a stage changes (contract 33.8)"}
   - {key: persona_test, transferable: false, description: "A message tested against a company's personas, and the personas suggested from its knowledge (contract 33.9)"}
