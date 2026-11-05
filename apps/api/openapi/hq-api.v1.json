@@ -20747,6 +20747,167 @@
         "title": "JobQueued",
         "type": "object"
       },
+      "Journey": {
+        "description": "Where one company is on its way from founding to break-even.",
+        "properties": {
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "current": {
+            "title": "Current",
+            "type": "string"
+          },
+          "days_in_stage": {
+            "title": "Days In Stage",
+            "type": "integer"
+          },
+          "next_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Fa"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/JourneyStage"
+            },
+            "title": "Stages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "company",
+          "stages",
+          "current",
+          "days_in_stage"
+        ],
+        "title": "Journey",
+        "type": "object"
+      },
+      "JourneyBoard": {
+        "description": "Every company's journey, and all reached stages on one timeline (newest first).",
+        "properties": {
+          "journeys": {
+            "items": {
+              "$ref": "#/components/schemas/Journey"
+            },
+            "title": "Journeys",
+            "type": "array"
+          },
+          "timeline": {
+            "items": {
+              "$ref": "#/components/schemas/JourneyEvent"
+            },
+            "title": "Timeline",
+            "type": "array"
+          }
+        },
+        "required": [
+          "journeys",
+          "timeline"
+        ],
+        "title": "JourneyBoard",
+        "type": "object"
+      },
+      "JourneyEvent": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "company",
+          "stage",
+          "title_fa"
+        ],
+        "title": "JourneyEvent",
+        "type": "object"
+      },
+      "JourneyEvidence": {
+        "properties": {
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "JourneyEvidence",
+        "type": "object"
+      },
+      "JourneyStage": {
+        "properties": {
+          "evidence": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JourneyEvidence"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "reached_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reached At"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title_fa"
+        ],
+        "title": "JourneyStage",
+        "type": "object"
+      },
       "KbApproveIn": {
         "additionalProperties": false,
         "properties": {
@@ -32351,6 +32512,380 @@
           "share"
         ],
         "title": "PaletteShare",
+        "type": "object"
+      },
+      "PersonaDraft": {
+        "description": "A persona as the model proposed it; nothing is saved.",
+        "properties": {
+          "channel_fa": {
+            "title": "Channel Fa",
+            "type": "string"
+          },
+          "name_fa": {
+            "title": "Name Fa",
+            "type": "string"
+          },
+          "objections_fa": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Objections Fa",
+            "type": "array"
+          },
+          "pains_fa": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Pains Fa",
+            "type": "array"
+          },
+          "summary_fa": {
+            "title": "Summary Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name_fa",
+          "summary_fa",
+          "pains_fa",
+          "objections_fa",
+          "channel_fa"
+        ],
+        "title": "PersonaDraft",
+        "type": "object"
+      },
+      "PersonaIn": {
+        "additionalProperties": false,
+        "properties": {
+          "channel_fa": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Channel Fa",
+            "type": "string"
+          },
+          "name_fa": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name Fa",
+            "type": "string"
+          },
+          "objections_fa": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 8,
+            "title": "Objections Fa",
+            "type": "array"
+          },
+          "pains_fa": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 8,
+            "title": "Pains Fa",
+            "type": "array"
+          },
+          "source": {
+            "default": "owner",
+            "enum": [
+              "owner",
+              "kb_suggested"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "summary_fa": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Summary Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name_fa",
+          "summary_fa"
+        ],
+        "title": "PersonaIn",
+        "type": "object"
+      },
+      "PersonaPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "channel_fa": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Fa"
+          },
+          "name_fa": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name Fa"
+          },
+          "objections_fa": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 8,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Objections Fa"
+          },
+          "pains_fa": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 8,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pains Fa"
+          },
+          "summary_fa": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Fa"
+          }
+        },
+        "title": "PersonaPatch",
+        "type": "object"
+      },
+      "PersonaRecord": {
+        "description": "One persona of a company.",
+        "properties": {
+          "channel_fa": {
+            "title": "Channel Fa",
+            "type": "string"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name_fa": {
+            "title": "Name Fa",
+            "type": "string"
+          },
+          "objections_fa": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Objections Fa",
+            "type": "array"
+          },
+          "pains_fa": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Pains Fa",
+            "type": "array"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "summary_fa": {
+            "title": "Summary Fa",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "company",
+          "name_fa",
+          "summary_fa",
+          "pains_fa",
+          "objections_fa",
+          "channel_fa",
+          "source",
+          "version"
+        ],
+        "title": "PersonaRecord",
+        "type": "object"
+      },
+      "PersonaSuggestion": {
+        "description": "Up to four proposals from the company's knowledge; the owner keeps the ones he likes.",
+        "properties": {
+          "basis_fa": {
+            "title": "Basis Fa",
+            "type": "string"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "personas": {
+            "items": {
+              "$ref": "#/components/schemas/PersonaDraft"
+            },
+            "title": "Personas",
+            "type": "array"
+          }
+        },
+        "required": [
+          "company",
+          "personas",
+          "basis_fa"
+        ],
+        "title": "PersonaSuggestion",
+        "type": "object"
+      },
+      "PersonaTest": {
+        "description": "A message tested against the company's personas (one model call for all of them).",
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "average": {
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Average",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "lowest": {
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Lowest",
+            "type": "integer"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/PersonaTestResult"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "results",
+          "average",
+          "lowest",
+          "at"
+        ],
+        "title": "PersonaTest",
+        "type": "object"
+      },
+      "PersonaTestIn": {
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "PersonaTestIn",
+        "type": "object"
+      },
+      "PersonaTestResult": {
+        "properties": {
+          "fix_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fix Fa"
+          },
+          "name_fa": {
+            "title": "Name Fa",
+            "type": "string"
+          },
+          "objection_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Objection Fa"
+          },
+          "persona": {
+            "format": "uuid",
+            "title": "Persona",
+            "type": "string"
+          },
+          "score": {
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Score",
+            "type": "integer"
+          },
+          "would_act": {
+            "title": "Would Act",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "persona",
+          "name_fa",
+          "score",
+          "would_act"
+        ],
+        "title": "PersonaTestResult",
         "type": "object"
       },
       "PlanItem": {
@@ -69620,6 +70155,111 @@
         ]
       }
     },
+    "/api/v1/companies/{code}/journey": {
+      "get": {
+        "description": "⟨1.15⟩ §33.8 the company's stages (data: the default list, or its kit's), each reached by\ncode from existing rows with its evidence; `current` is the latest reached; `next_fa` is one line\nwritten by a mid model only when a stage changed (a plain line made by code when it is down).\nA source another part has not built yet leaves its stage unreached, never an error.",
+        "operationId": "get_journey",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "company": "TY",
+                  "current": "x",
+                  "days_in_stage": 1,
+                  "next_fa": "x",
+                  "stages": [
+                    {
+                      "evidence": {
+                        "kind": "one_off",
+                        "ref": "W-000789"
+                      },
+                      "key": "x",
+                      "reached_at": "2026-10-17T05:42:00Z",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Journey"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Journey",
+        "tags": [
+          "journey"
+        ]
+      }
+    },
     "/api/v1/companies/{code}/keywords": {
       "get": {
         "description": "The company's keywords with their latest known position (Search Console first).",
@@ -70644,6 +71284,483 @@
         "summary": "Create Newsletter Campaign",
         "tags": [
           "growth"
+        ]
+      }
+    },
+    "/api/v1/companies/{code}/personas": {
+      "get": {
+        "description": "⟨1.15⟩ §33.9 the company's personas, oldest first (archived ones are not listed).",
+        "operationId": "list_personas",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "channel_fa": "x",
+                    "company": "TY",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "name_fa": "تریدیار",
+                    "objections_fa": [
+                      "x"
+                    ],
+                    "pains_fa": [
+                      "x"
+                    ],
+                    "source": "x",
+                    "summary_fa": "x",
+                    "version": 1
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PersonaRecord"
+                  },
+                  "title": "Response List Personas",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Personas",
+        "tags": [
+          "journey"
+        ]
+      },
+      "post": {
+        "description": "⟨1.15⟩ §33.9 a persona the owner wrote, or (`source: kb_suggested`) one of the suggestion\nhe decided to keep. At most 8 per company.",
+        "operationId": "add_persona",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "channel_fa": "x",
+                "name_fa": "تریدیار",
+                "objections_fa": [
+                  "x"
+                ],
+                "pains_fa": [
+                  "x"
+                ],
+                "source": "owner",
+                "summary_fa": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/PersonaIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "channel_fa": "x",
+                  "company": "TY",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "name_fa": "تریدیار",
+                  "objections_fa": [
+                    "x"
+                  ],
+                  "pains_fa": [
+                    "x"
+                  ],
+                  "source": "x",
+                  "summary_fa": "x",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/PersonaRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Add Persona",
+        "tags": [
+          "journey"
+        ]
+      }
+    },
+    "/api/v1/companies/{code}/personas/suggest": {
+      "post": {
+        "description": "⟨1.15⟩ §33.9 up to four personas proposed from the company's approved knowledge by ONE\nmid-model call (task class `persona_test`). Nothing is saved: the owner keeps one by posting it\nto the personas with `source: kb_suggested`. 422 when the company has no knowledge yet; 502 when\nthe model cannot answer.",
+        "operationId": "suggest_personas",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "basis_fa": "x",
+                  "company": "TY",
+                  "personas": [
+                    {
+                      "channel_fa": "x",
+                      "name_fa": "تریدیار",
+                      "objections_fa": [
+                        "x"
+                      ],
+                      "pains_fa": [
+                        "x"
+                      ],
+                      "summary_fa": "x"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/PersonaSuggestion"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Suggest Personas",
+        "tags": [
+          "journey"
+        ]
+      }
+    },
+    "/api/v1/companies/{code}/personas/test": {
+      "post": {
+        "description": "⟨1.15⟩ §33.9 a message tested against every persona of the company in ONE model call (task\nclass `persona_test`, a strict schema, checked by code): a score 0..100, whether the persona\nwould act, its objection and a fix. `average` and `lowest` are computed by code. 422 with no\npersonas; 502 when the model cannot answer.",
+        "operationId": "run_persona_test",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "text": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/PersonaTestIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "at": "2026-10-17T05:42:00Z",
+                  "average": 0,
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "lowest": 0,
+                  "results": [
+                    {
+                      "fix_fa": "x",
+                      "name_fa": "تریدیار",
+                      "objection_fa": "x",
+                      "persona": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "score": 0,
+                      "would_act": false
+                    }
+                  ],
+                  "text": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/PersonaTest"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Run Persona Test",
+        "tags": [
+          "journey"
         ]
       }
     },
@@ -86457,6 +87574,112 @@
         "summary": "Put Source",
         "tags": [
           "intake"
+        ]
+      }
+    },
+    "/api/v1/journeys": {
+      "get": {
+        "description": "⟨1.15⟩ §33.8 every company's journey, and every reached stage of every company on one\ntimeline, newest first.",
+        "operationId": "get_journeys",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "journeys": [
+                    {
+                      "company": "TY",
+                      "current": "x",
+                      "days_in_stage": 1,
+                      "next_fa": "x",
+                      "stages": [
+                        {
+                          "evidence": {
+                            "kind": null,
+                            "ref": null
+                          },
+                          "key": "x",
+                          "reached_at": "2026-10-17T05:42:00Z",
+                          "title_fa": "گزارش هفتگی رشد"
+                        }
+                      ]
+                    }
+                  ],
+                  "timeline": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "company": "TY",
+                      "stage": "x",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/JourneyBoard"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Journeys",
+        "tags": [
+          "journey"
         ]
       }
     },
@@ -104424,6 +105647,211 @@
         "summary": "Put Destructive",
         "tags": [
           "decisions"
+        ]
+      }
+    },
+    "/api/v1/personas/{pid}": {
+      "delete": {
+        "description": "⟨1.15⟩ §33.9 archive a persona (it leaves the list and the tests; the row stays).",
+        "operationId": "archive_persona",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Archive Persona",
+        "tags": [
+          "journey"
+        ]
+      },
+      "patch": {
+        "description": "⟨1.15⟩ §33.9 edit a persona; `version` goes up by one and a kept suggestion becomes the\nowner's own (`source: owner`).",
+        "operationId": "edit_persona",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "channel_fa": "x",
+                "name_fa": "تریدیار",
+                "objections_fa": [
+                  "x"
+                ],
+                "pains_fa": [
+                  "x"
+                ],
+                "summary_fa": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/PersonaPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "channel_fa": "x",
+                  "company": "TY",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "name_fa": "تریدیار",
+                  "objections_fa": [
+                    "x"
+                  ],
+                  "pains_fa": [
+                    "x"
+                  ],
+                  "source": "x",
+                  "summary_fa": "x",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/PersonaRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Edit Persona",
+        "tags": [
+          "journey"
         ]
       }
     },

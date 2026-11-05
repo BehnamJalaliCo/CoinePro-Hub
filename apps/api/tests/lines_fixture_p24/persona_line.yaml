@@ -1,0 +1,23 @@
+# A line with a persona_test step for prompt 24's tests (§33.9): the text is tested against the
+# company's personas and the run waits for the owner below min_score.
+key: persona_line
+title_fa: خط آزمون پیام
+platform: telegram_post
+version: 1
+outputs_fa: یک پست
+defaults:
+  caps: {runs_per_day: 20, tokens_per_run: 50000, opus_per_day: 1}
+steps:
+  - key: draft
+    kind: gpt_text
+    title_fa: متن
+    prompt_fa: "یک پست برای {{company.name_fa}}"
+  - key: check
+    kind: persona_test
+    title_fa: آزمون پیام
+    inputs: [draft]
+    settings: {min_score: 70, text_from: draft}
+  - key: send
+    kind: deliver
+    title_fa: تحویل
+    inputs: [check]

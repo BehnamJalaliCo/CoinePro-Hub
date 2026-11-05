@@ -36,3 +36,14 @@ lead_stages:
   - {key: trial, title_fa: آزمایشی, kind: open}
   - {key: paid, title_fa: پرداخت کرد, kind: won}
   - {key: lost, title_fa: از دست رفت, kind: lost}
+
+# ⟨1.15⟩ §33.8 the stages of the company journey, each reached by code from rows.
+journey:
+  - founded
+  - server_ready
+  - first_content
+  - first_visitor
+  - first_lead
+  - first_payment
+  - {key: ten_paying, rule: {kind: paying, min: 10}}
+  - break_even
