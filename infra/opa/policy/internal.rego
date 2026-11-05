@@ -79,6 +79,8 @@ ops := {
 	# ⟨1.11⟩ prompt 21 part 1 (routing.rego): every order answered, the delegation
 	# budget, the destructive cards a CTO decides
 	"order.ack", "order.progress", "work.budget", "card.decide",
+	# ⟨1.15⟩ prompt 24 (grok.rego): a work split into parallel parts (contract §33.7)
+	"work.split",
 }
 
 # The oversight roles of the holding: the overseer, QC (the inspector) and
