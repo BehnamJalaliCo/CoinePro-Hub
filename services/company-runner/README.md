@@ -3,7 +3,7 @@
 برنامه‌ای کوچک و متن‌باز (لایسنس MIT) که روی هر سرور شرکت، با **کاربر کاری همان سرور**، اجرا میشود و کارهای ایجنت‌های هلدینگ را از ستاد میگیرد. طرحش مثل runner خودمیزبان GitHub Actions است.
 
 - **مرجع:** قرارداد هاب §۲۶ (۲۶.۱ تا ۲۶.۶)، پرامپت ۱۷ و راهنمای نصب `docs/server-prompts/COMPANY_SERVER_ACCESS_SETUP.md`.
-- **زبان و وابستگی:** Python 3.12، فقط کتابخانه‌ی استاندارد به‌علاوه‌ی `httpx` (BSD). نسخه‌ها با hash در `requirements.lock` قفل‌اند.
+- **زبان و وابستگی:** Python 3.12، کتابخانه‌ی استاندارد به‌علاوه‌ی `httpx` (BSD) و از 0.3.0 `asyncpg` (Apache-2.0، فقط برای کار `ledger`). نسخه‌ها با hash در `requirements.lock` قفل‌اند.
 - **هیچ پورتی باز نمیکند و روی هیچ پورتی گوش نمیدهد.** runner فقط از داخل سرور با HTTPS به `hq.coinepro.com` وصل میشود. هاب هرگز به سرور وصل نمیشود؛ کلید SSH، قانون فایروال یا DOCKER-USER لازم نیست.
 
 ## چه کارهایی میکند
@@ -15,6 +15,7 @@
 | `claude` | Claude Code خود سرور را اجرا میکند (`claude -p … --output-format stream-json --verbose`) در پوشه‌ی ریپو (`args.cwd`)، زیر CLAUDE.md همان ریپو. پیام‌های بعدی مالک با `--resume` ادامه میدهند. هر خط stream-json یک `session_event` میشود و مصرف توکن از خط آخر به خزانه میرود. |
 | `publish` | فایل‌های رندرشده را از ستاد میگیرد (فقط از نشانی خود هاب)، دستور انتشار محلی همین سرور را اجرا میکند و `{external_id, url}` را برمیگرداند (§۲۶.۱b). |
 | `netcheck` | سنجش شبکه (§۲۶.۶): اتصال TCP به هر پورت (۳ ثانیه) و ping هر مقصد اگر ping باشد، به‌علاوه‌ی آدرس خصوصی هاب. |
+| `ledger` | ⟨0.3.0⟩ دفتر پرداخت خود شرکت (§۳۳.۲): `args {contract: "ledger_v1", since, limit ≤ 5000}`. پرس‌وجوی `~/.config/hq-runner/ledger.sql` و DSN و نمکِ `ledger.env` (هر دو `600`) فقط روی همین سرورند. پرس‌وجو در تراکنش READ ONLY با سقف زمان اجرا میشود، ستون‌هایش باید دقیقاً ستون‌های قرارداد باشد و `customer` با HMAC-SHA256 هش میشود. نتیجه: `{rows, count, next_since, more}`. هیچ SQL از هاب نمیآید. |
 
 **کنترل:**
 - **همزمانی:** حداکثر ۲ کار همزمان، هر کار با سقف زمان خودش.
@@ -54,6 +55,10 @@ mkdir -p ~/.local/bin && ln -sf ~/.local/share/hq-runner/venv/bin/hq-runner ~/.l
 - بعد همان دستور نصب، با `--force`: `pipx install --force …`، یا در venv `pip install --no-deps --force-reinstall .`.
 - بعد `sudo systemctl restart hq-runner@$USER`.
 - جزئیات: `docs/server-prompts/COMPANY_SERVER_ACCESS_SETUP.md`، بخش «به‌روزرسانی runner».
+- **0.3.0:**
+  - کار `ledger` و دستور `hq-runner ledger-check` (فایل‌ها، دسترسی ۶۰۰، `SELECT 1`، نقشی که نمیتواند بنویسد، و ستون‌های پرس‌وجو؛ «ok» یا دلیل را چاپ میکند و هیچ رمزی را نه).
+  - در پرس‌وجو `:since` را این‌طور به کار ببرید: `WHERE (CAST(:since AS timestamptz) IS NULL OR paid_at > CAST(:since AS timestamptz))`.
+  - کار `claude` با `args.workspace: "W-…"` در پوشه‌ی ماندگار `~/hq-workspace/<شماره‌ی کار>` (۷۰۰) کار میکند و ادامه‌ها همان پوشه را میبینند. وقتی هاب بستن کار را خبر داد، ثبت و log میشود و یک جاروی روزانه پوشه را ۳۰ روز بعد پاک میکند.
 - **0.2.2:**
   - کار `claude` سقف توکن هاب (`token_cap`) را رعایت میکند: مصرف هر پیام جمع میشود و با رد شدن از سقف، نشست متوقف میشود (کد خروج `125`) و مصرفِ تا آن لحظه با نتیجه برمیگردد.
 - **0.2.1:**

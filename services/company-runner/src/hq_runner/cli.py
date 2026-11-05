@@ -1,4 +1,5 @@
-"""Command line: pair, run, status, unpair (and the internal classify-hook).
+"""Command line: pair, run, status, unpair, ledger-check (and the internal
+classify-hook).
 
 Output is English; the one instruction the owner acts on is also in Persian.
 The runner token is never printed.
@@ -214,6 +215,23 @@ def unpair(cfg_path: Path | None, out: TextIO = sys.stdout) -> int:
     return 0
 
 
+def ledger_check(cfg_path: Path | None, out: TextIO = sys.stdout) -> int:
+    """⟨0.3.0⟩ contract §33.2: ledger.env and ledger.sql (mode 600), a
+    connection, SELECT 1, a role that cannot write, the query's columns.
+    Prints «ok» or the reason; never a secret."""
+    from hq_runner import ledger
+
+    try:
+        warnings = asyncio.run(ledger.check(cfg_path))
+    except ledger.LedgerError as exc:
+        print(f"error: {exc.en}", file=out)
+        return 1
+    for w in warnings:
+        print(f"warning: {w}", file=out)
+    print("ok", file=out)
+    return 0
+
+
 def run(cfg_path: Path | None) -> int:
     from hq_runner.runner import Runner
 
@@ -250,6 +268,10 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("run", help="run the runner (the systemd service runs this)")
     sub.add_parser("status", help="show whether the runner is online (never prints the token)")
     sub.add_parser("unpair", help="remove this runner's stored credentials")
+    sub.add_parser(
+        "ledger-check",
+        help="check the company ledger's files, role and query (prints ok or the reason)",
+    )
     hp = sub.add_parser("classify-hook", help=argparse.SUPPRESS)
     hp.add_argument("--job")
     return p
@@ -296,6 +318,8 @@ def main(argv: list[str] | None = None) -> int:
         return status(cfg_path)
     if args.cmd == "unpair":
         return unpair(cfg_path)
+    if args.cmd == "ledger-check":
+        return ledger_check(cfg_path)
     if args.cmd == "classify-hook":
         from hq_runner import hook
 
