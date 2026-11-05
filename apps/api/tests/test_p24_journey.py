@@ -596,12 +596,12 @@ async def test_suggestions_come_from_the_knowledge_and_are_saved_only_when_kept(
         client, h, co["code"], **{**out["personas"][0], "source": "kb_suggested"}
     )
     assert kept["source"] == "kb_suggested"
-    # the model down or nonsense: 502 with a plain reason, nothing saved
+    # the model down or nonsense: 422 with a plain reason, nothing saved (never a 5xx)
     router.handlers["persona_suggest"] = lambda req: None
     r = await client.post(url, headers=h)
-    assert r.status_code == 502 and r.json()["message_fa"]
+    assert r.status_code == 422 and r.json()["message_fa"]
     router.handlers["persona_suggest"] = lambda req: {"personas": [{"name_fa": ""}]}
-    assert (await client.post(url, headers=h)).status_code == 502
+    assert (await client.post(url, headers=h)).status_code == 422
 
 
 def verdicts(*scores: int) -> Callable[[dict[str, Any]], Any]:
@@ -658,7 +658,7 @@ async def test_a_message_is_tested_in_one_call_and_checked_by_code(
         )
         == 1
     )
-    # an answer that fails the check is a 502 and is never stored
+    # an answer that fails the check is a 422 and is never stored
     good = verdicts(80, 80)
 
     def broken(mutate: Callable[[list[dict[str, Any]]], None]) -> Callable[[dict[str, Any]], Any]:
@@ -690,12 +690,12 @@ async def test_a_message_is_tested_in_one_call_and_checked_by_code(
     for mutate in (duplicate, stranger, too_high, not_a_number, no_verdict, missing):
         router.handlers["persona_test"] = broken(mutate)
         r = await client.post(url, json={"text": "پیام"}, headers=h)
-        assert r.status_code == 502, mutate.__name__
+        assert r.status_code == 422, mutate.__name__
     router.handlers["persona_test"] = lambda req: ["not", "an", "object"]
-    assert (await client.post(url, json={"text": "پیام"}, headers=h)).status_code == 502
+    assert (await client.post(url, json={"text": "پیام"}, headers=h)).status_code == 422
     router.handlers["persona_test"] = lambda req: None
     r = await client.post(url, json={"text": "پیام"}, headers=h)
-    assert r.status_code == 502 and r.json()["message_fa"]
+    assert r.status_code == 422 and r.json()["message_fa"]
     assert (
         await su.fetchval(
             "SELECT count(*) FROM growth.persona_tests WHERE company_id = $1", co["id"]

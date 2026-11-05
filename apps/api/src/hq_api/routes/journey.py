@@ -13,7 +13,7 @@ Owner only (OPA hq.journey).
 
 A stage is reached by code from rows; the model only writes the one line `next_fa` when a stage
 changes, and the persona answers. The owner's explicit suggest or test that the model cannot answer
-is a 502 with a plain Persian reason."""
+is a 422 with a plain Persian reason (never a 5xx)."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ from hq_api.schemas import Model
 
 router = APIRouter(tags=["journey"])
 E = responses(401, 403, 404, 409, 422)
-E502 = {**E, 502: E[422]}
+E502 = E  # a model that cannot answer is a 422 with message_fa (as the leads' draft)
 
 
 class PersonaIn(Model):
@@ -216,7 +216,7 @@ async def archive_persona(pid: UUID, ctx: Ctx = Depends(owner_ctx)) -> Response:
 async def suggest_personas(code: str, ctx: Ctx = Depends(owner_ctx)) -> P.PersonaSuggestion:
     """⟨1.15⟩ §33.9 up to four personas proposed from the company's approved knowledge by ONE
     mid-model call (task class `persona_test`). Nothing is saved: the owner keeps one by posting it
-    to the personas with `source: kb_suggested`. 422 when the company has no knowledge yet; 502 when
+    to the personas with `source: kb_suggested`. 422 when the company has no knowledge yet, or when
     the model cannot answer."""
     await _policy(ctx, "persona.suggest", code)
     return await P.suggest(ctx.hub, await _company(ctx, code))
@@ -229,7 +229,7 @@ async def run_persona_test(
     """⟨1.15⟩ §33.9 a message tested against every persona of the company in ONE model call (task
     class `persona_test`, a strict schema, checked by code): a score 0..100, whether the persona
     would act, its objection and a fix. `average` and `lowest` are computed by code. 422 with no
-    personas; 502 when the model cannot answer."""
+    personas, or when the model cannot answer."""
     await _policy(ctx, "persona.test", code)
     company = await _company(ctx, code)
     test, _ = await P.run_test(ctx.hub, company, body.text)

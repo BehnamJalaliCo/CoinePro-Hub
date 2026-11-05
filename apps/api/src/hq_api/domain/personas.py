@@ -293,7 +293,11 @@ async def suggest(hub: Any, company: Any) -> PersonaSuggestion:
     items = got.get("personas") if isinstance(got, dict) else None
     drafts = [d for d in (draft_of(x) for x in items or []) if d is not None][:MAX_SUGGESTED]
     if not drafts:
-        raise ApiError(502, "connector_failed", "no usable personas", message_fa=BAD_ANSWER_FA)
+        # 422 as the leads' draft and the automations do: the model gave nothing usable (never a 5xx)
+        raise ApiError(
+            422, "validation_failed", "no usable personas", message_fa=BAD_ANSWER_FA,
+            fields={"personas": "not made"},
+        )  # fmt: skip
     return PersonaSuggestion(
         company=company.code,
         personas=drafts,
@@ -375,7 +379,7 @@ async def run_test(
     hub: Any, company: Any, text: str, *, source: str = "owner", run_ref: str | None = None
 ) -> tuple[PersonaTest, int]:
     """ONE model call for all the company's personas. (the stored test, tokens). 422 when the
-    company has no persona or the text is empty; 502 when the model failed or answered badly (the
+    company has no persona or the text is empty; 422 when the model failed or answered badly (the
     caller decides what that means: the owner's explicit test, or a step that may retry)."""
     message = scrub(text).strip()[:MAX_TEXT]
     if not message:
@@ -412,12 +416,16 @@ async def run_test(
         hub, _request(company.code, "persona_test", TEST_SYSTEM, prompt, test_schema(list(labels)))
     )
     if got is None:
-        raise ApiError(502, "connector_failed", "the model did not answer", message_fa=DOWN_FA)
+        raise ApiError(
+            422, "validation_failed", "the model did not answer", message_fa=DOWN_FA,
+            fields={"results": "not made"},
+        )  # fmt: skip
     results = checked_results(got, labels)
     if results is None:
         raise ApiError(
-            502, "connector_failed", "the model's answer failed the check", message_fa=BAD_ANSWER_FA
-        )
+            422, "validation_failed", "the model's answer failed the check", message_fa=BAD_ANSWER_FA,
+            fields={"results": "not made"},
+        )  # fmt: skip
     scores = [r.score for r in results]
     async with hub.db.tx(await hub.companies.ids()) as tx:
         row = await tx.first(

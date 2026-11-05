@@ -74823,7 +74823,7 @@
     },
     "/api/v1/companies/{code}/personas/suggest": {
       "post": {
-        "description": "⟨1.15⟩ §33.9 up to four personas proposed from the company's approved knowledge by ONE\nmid-model call (task class `persona_test`). Nothing is saved: the owner keeps one by posting it\nto the personas with `source: kb_suggested`. 422 when the company has no knowledge yet; 502 when\nthe model cannot answer.",
+        "description": "⟨1.15⟩ §33.9 up to four personas proposed from the company's approved knowledge by ONE\nmid-model call (task class `persona_test`). Nothing is saved: the owner keeps one by posting it\nto the personas with `source: kb_suggested`. 422 when the company has no knowledge yet, or when\nthe model cannot answer.",
         "operationId": "suggest_personas",
         "parameters": [
           {
@@ -74918,17 +74918,6 @@
               "application/problem+json": {}
             },
             "description": "Problem"
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
           }
         },
         "summary": "Suggest Personas",
@@ -74939,7 +74928,7 @@
     },
     "/api/v1/companies/{code}/personas/test": {
       "post": {
-        "description": "⟨1.15⟩ §33.9 a message tested against every persona of the company in ONE model call (task\nclass `persona_test`, a strict schema, checked by code): a score 0..100, whether the persona\nwould act, its objection and a fix. `average` and `lowest` are computed by code. 422 with no\npersonas; 502 when the model cannot answer.",
+        "description": "⟨1.15⟩ §33.9 a message tested against every persona of the company in ONE model call (task\nclass `persona_test`, a strict schema, checked by code): a score 0..100, whether the persona\nwould act, its objection and a fix. `average` and `lowest` are computed by code. 422 with no\npersonas, or when the model cannot answer.",
         "operationId": "run_persona_test",
         "parameters": [
           {
@@ -75038,17 +75027,6 @@
             "description": "Problem"
           },
           "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              },
-              "application/problem+json": {}
-            },
-            "description": "Problem"
-          },
-          "502": {
             "content": {
               "application/json": {
                 "schema": {
