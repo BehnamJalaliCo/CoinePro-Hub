@@ -27,6 +27,14 @@ from .conftest import step_up
 from .p10_fakes import holding_switch
 
 TZ = "Asia/Tehran"
+
+
+def _owner_today() -> str:
+    from zoneinfo import ZoneInfo
+
+    return datetime.now(ZoneInfo(TZ)).date().isoformat()
+
+
 DAY = date(2026, 11, 4)
 NOW = datetime(2026, 11, 4, 6, 0, tzinfo=UTC)
 
@@ -454,7 +462,8 @@ class FakeEgress:
         }
         if host == "rival.example":
             urls = "".join(
-                f"<url><loc>https://rival.example/p{i}</loc><lastmod>2026-11-04</lastmod></url>"
+                # modified today in the owner's zone (a fixed date went stale on 2026-11-06)
+                f"<url><loc>https://rival.example/p{i}</loc><lastmod>{_owner_today()}</lastmod></url>"
                 for i in range(self.sitemap_pages)
             )
             return CN.Answer("ok", 200, f"<urlset>{urls}</urlset>", None, [entry])
