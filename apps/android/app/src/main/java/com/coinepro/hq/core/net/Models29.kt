@@ -90,6 +90,11 @@ data class OrderReport(
     val outputs: List<ReportOutput> = emptyList(),
     val summary: OrderSummary? = null,
     val updatedAt: String = "",
+    /** ⟨1.15⟩ §33.7, §33.10: `on_server` when the work runs on its company's own server; the parallel parts and their merge. */
+    val mode: String? = null,
+    val parts: List<ReportPart> = emptyList(),
+    val merge: ReportMerge? = null,
+    val workspace: ReportWorkspace? = null,
 )
 
 // ------------------------------------------------------------- §29.3 rules --

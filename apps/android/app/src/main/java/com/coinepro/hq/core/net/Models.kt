@@ -160,6 +160,8 @@ data class Decision(
     val reminders: List<Reminder> = emptyList(),
     /** ⟨1.5⟩ §21.10: the digital CEO's sealed prediction, null while the card is pending (reveal "after"). */
     val digitalCeoPrediction: DceoBrief? = null,
+    /** ⟨1.15⟩ §33.6: the money this card moves, measured by code or estimated with its basis; null when the hub has none. */
+    val impact: DecisionImpact? = null,
 )
 
 @Serializable
