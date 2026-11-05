@@ -417,7 +417,9 @@ async def _store(tx: Tx, d: dict[str, Any], impact: dict[str, Any] | None) -> No
     )
 
 
-async def sweep(hub: Any, ask: Ask | None = None, now: datetime | None = None) -> dict[str, int]:
+async def sweep(
+    hub: Any, ask: Ask | None = None, now: datetime | None = None, *, only: list[Any] | None = None
+) -> dict[str, int]:
     """Impact for the pending cards that have none: the measured ones by code, the estimates
     (proposal, a3_action) one model call per card. A card the owner has decided is never
     touched. Each card is tried at most MAX_TRIES times."""
@@ -431,9 +433,11 @@ async def sweep(hub: Any, ask: Ask | None = None, now: datetime | None = None) -
                FROM cartable.decisions d
                WHERE d.status = 'pending' AND d.impact IS NULL AND d.impact_tries < :n
                  AND d.kind IN ('budget_change', 'hire', 'proposal', 'a3_action')
+                 AND (CAST(:only AS uuid[]) IS NULL OR d.id = ANY(CAST(:only AS uuid[])))
                ORDER BY d.created_at LIMIT :lim""",
             n=MAX_TRIES,
             lim=BATCH,
+            only=only,
         )
         for d in rows:
             m = await measure(tx, d)
