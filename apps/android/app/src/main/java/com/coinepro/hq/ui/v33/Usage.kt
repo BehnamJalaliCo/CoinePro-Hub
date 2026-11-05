@@ -30,7 +30,7 @@ import com.coinepro.hq.core.data.domainFa
 import com.coinepro.hq.core.data.pctText
 import com.coinepro.hq.core.data.tokensShort
 import com.coinepro.hq.core.data.usagePeriodFa
-import com.coinepro.hq.core.data.usdText
+import com.coinepro.hq.core.data.dollars
 import com.coinepro.hq.core.data.vsPrevFa
 import com.coinepro.hq.core.format.jDate
 import com.coinepro.hq.core.format.jDateTime
@@ -145,7 +145,7 @@ private fun HistoryRow(r: UsageReport, onClick: () -> Unit) {
             Text(plain(r.text?.linesFa?.firstOrNull() ?: "گزارش ${usagePeriodFa(r.period)}"), style = Divan.type.small, color = c.textPrimary, maxLines = 2)
             Text(plain("${jDate(r.from)} تا ${jDate(r.to)}"), style = Divan.type.micro, color = c.textMuted)
         }
-        Fig(usdText(r.pack.byDomain.sumOf { it.usdEquiv }), style = Divan.type.figureSmall, color = c.textSecondary)
+        Fig(dollars(r.pack.byDomain.sumOf { it.usdEquiv }), style = Divan.type.figureSmall, color = c.textSecondary)
     }
 }
 
@@ -203,24 +203,24 @@ fun UsagePackBody(p: UsagePack) {
     val total = p.byDomain.sumOf { it.usdEquiv }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         StatRow {
-            StatTile("خرج مدل‌ها", usdText(total), Modifier.weight(1f), sub = vsPrevFa(p.vsPrev.usdPct) ?: "دوره‌ی قبل نبود")
+            StatTile("خرج مدل‌ها", dollars(total), Modifier.weight(1f), sub = vsPrevFa(p.vsPrev.usdPct) ?: "دوره‌ی قبل نبود")
             StatTile("توکن", tokensShort(p.byDomain.sumOf { it.tokens }), Modifier.weight(1f), sub = vsPrevFa(p.vsPrev.tokensPct) ?: "دوره‌ی قبل نبود")
         }
         StatRow {
-            StatTile("صدا", usdText(p.voiceUsd), Modifier.weight(1f))
-            StatTile("تبلیغات", usdText(p.adsSpendUsd), Modifier.weight(1f))
+            StatTile("صدا", dollars(p.voiceUsd), Modifier.weight(1f))
+            StatTile("تبلیغات", dollars(p.adsSpendUsd), Modifier.weight(1f))
             StatTile("خط تولید", "${p.lines.runs}", Modifier.weight(1f), sub = "اجرا، ${tokensShort(p.lines.tokens)} توکن")
         }
         if (p.byDomain.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("به تفکیک کار", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
             HBars(p.byDomain.sortedByDescending { it.usdEquiv }.map { d ->
-                HBarRow(d.domain, d.usdEquiv, "${usdText(d.usdEquiv)} · ${pctText(d.share * 100)}") { Text(domainFa(d.domain), style = Divan.type.small) }
+                HBarRow(d.domain, d.usdEquiv, "${dollars(d.usdEquiv)} · ${pctText(d.share * 100)}") { Text(domainFa(d.domain), style = Divan.type.small) }
             })
         }
         if (p.byCompany.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("به تفکیک شرکت", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
             HBars(p.byCompany.sortedByDescending { it.usdEquiv }.map { x ->
-                HBarRow(x.company, x.usdEquiv, "${usdText(x.usdEquiv)} · ${pctText(x.share * 100)}") { Text(companyOf(companies, x.company).nameFa, style = Divan.type.small) }
+                HBarRow(x.company, x.usdEquiv, "${dollars(x.usdEquiv)} · ${pctText(x.share * 100)}") { Text(companyOf(companies, x.company).nameFa, style = Divan.type.small) }
             })
         }
         if (p.topRuns.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {

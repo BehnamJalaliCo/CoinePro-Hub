@@ -124,7 +124,7 @@ fun tokensShort(n: Long): String = when {
 }
 
 /** Dollars of spend: «$12.40», «$0.35». */
-fun usdText(v: Double?): String = if (v == null) "—" else "$" + String.format(Locale.US, "%,.2f", v)
+fun dollars(v: Double?): String = if (v == null) "—" else "$" + String.format(Locale.US, "%,.2f", v)
 
 /** A change since the last period (a percent) as words: «12% بیشتر از دوره‌ی قبل»; null when the hub gave none. */
 fun vsPrevFa(pct: Double?): String? = when {
