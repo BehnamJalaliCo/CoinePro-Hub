@@ -222,8 +222,9 @@ class Api(
     suspend fun ownerSettings(): OwnerSettings = get("/owner/settings")
 
     // ---------------------------------------------------------- decisions --
-    suspend fun decisions(status: String? = "pending", risk: String? = null, company: String? = null, limit: Int = 50): Page<Decision> =
-        get("/decisions", mapOf("status" to status, "risk" to risk, "company" to company, "limit" to limit))
+    /** ⟨1.15⟩ §33.6 [sort] `impact`: the cards that move the most money first (the default order otherwise). */
+    suspend fun decisions(status: String? = "pending", risk: String? = null, company: String? = null, limit: Int = 50, sort: String? = null): Page<Decision> =
+        get("/decisions", mapOf("status" to status, "risk" to risk, "company" to company, "limit" to limit, "sort" to sort))
     /**
      * «همه»: the hub lists one status at a time (`status` defaults to `pending`; there is no "all"), so every status is read and the
      * pages merged, newest first. A hub change (`status=all` or several statuses) would make this one call.
@@ -1710,15 +1711,22 @@ class Api(
         })
 
     // ------------------------------------------- ⟨1.15⟩ §33 money and the working style --
+    // Shapes and bodies as `hq-api.v1.json` gives them: every body carries only its model's keys (the hub forbids any other), lists are
+    // read in pages of at most [MAX_PAGE], a PATCH carries `If-Match`, a POST its own `Idempotency-Key`.
     suspend fun paymentSources(code: String): List<PaySource> = items("/companies/${seg(code)}/payment-sources", PaySource.serializer())
-    /** 🔏 `payment.source`, sealed on the exact body. The ledger query and every key stay on the company's own server. */
-    suspend fun savePaymentSource(code: String, body: JsonObject, stepUp: StepUp): PaySource =
-        sealedPost("/companies/${seg(code)}/payment-sources", json.encodeToString(JsonObject.serializer(), body)) { stepUp("payment.source", it) }
-    /** «بخوان»: read the source now ([key] is the press's; a company system or the chain answering badly is a `502` with a Persian message). */
-    suspend fun readPaymentSource(id: String, key: String): JsonObject? = writeLoose("POST", "/payment-sources/${seg(id)}/read", JsonObject(emptyMap()), null, key)
-    suspend fun payments(code: String, from: String? = null, to: String? = null): List<PayRow> =
-        items("/companies/${seg(code)}/payments", PayRow.serializer(), mapOf("from" to from, "to" to to))
-    suspend fun reconcile(code: String, from: String, to: String): List<PayReconcile> =
+    /** 🔏 `payment.source`, sealed on the SHA-256 of the exact body. A ledger names at most its runner's server; a chain a public address.
+     *  The same body with `enabled: false` turns a source off; no key ever goes in. */
+    suspend fun savePaymentSource(code: String, body: PaySourceIn, stepUp: StepUp): PaySource =
+        sealedPost("/companies/${seg(code)}/payment-sources", json.encodeToString(PaySourceIn.serializer(), body)) { stepUp("payment.source", it) }
+    /** «بخوان»: read the source now. [key] is the press's own (a retry of one press sends the same); a chain answering badly is a `502`
+     *  with a Persian message, and the same reason stays on the source. */
+    suspend fun readPaymentSource(id: String, key: String): PayReadResult =
+        call(write("POST", "/payment-sources/${seg(id)}/read", JsonObject(emptyMap()), null, key), serializer())
+    /** One page of the company's payments, newest first ([status] filters; `from`/`to` are UTC days). */
+    suspend fun payments(code: String, status: String? = null, cursor: String? = null, from: String? = null, to: String? = null, limit: Int = MAX_PAGE): Page<PayRow> =
+        get("/companies/${seg(code)}/payments", mapOf("status" to status, "from" to from, "to" to to, "cursor" to cursor, "limit" to limit.coerceIn(1, MAX_PAGE)))
+    /** The reconcile per UTC day, newest first (the hub's default is the last 30 days, at most 400). */
+    suspend fun reconcile(code: String, from: String? = null, to: String? = null): List<PayReconcile> =
         items("/companies/${seg(code)}/reconcile", PayReconcile.serializer(), mapOf("from" to from, "to" to to))
 
     /** The revenue board of a company, or of the whole holding when [company] is null. */
@@ -1726,33 +1734,45 @@ class Api(
     /** The radar's summary read for its `by_source` (additive, §33.3). */
     suspend fun revenueBySource(period: String = "month"): RevSummary33 = get("/revenue/summary", mapOf("period" to period))
 
-    suspend fun usageReports(period: String? = null, cursor: String? = null): List<UsageReport> =
-        items("/usage/reports", UsageReport.serializer(), mapOf("period" to period, "cursor" to cursor))
+    suspend fun usageReports(period: String? = null, cursor: String? = null, limit: Int = 30): Page<UsageReport> =
+        get("/usage/reports", mapOf("period" to period, "cursor" to cursor, "limit" to limit.coerceIn(1, MAX_PAGE)))
+    /** One now (a model call for the words; the same period asked within a minute is answered with the same report). */
     suspend fun makeUsageReport(period: String): UsageReport = post("/usage/reports", buildJsonObject { put("period", period) })
 
-    suspend fun leads(code: String, stage: String? = null): List<SalesLead> = items("/companies/${seg(code)}/leads", SalesLead.serializer(), mapOf("stage" to stage))
+    suspend fun leads(code: String, stage: String? = null, q: String? = null, cursor: String? = null, limit: Int = 100): Page<SalesLead> =
+        get("/companies/${seg(code)}/leads", mapOf("stage" to stage, "q" to q?.trim()?.ifEmpty { null }, "cursor" to cursor, "limit" to limit.coerceIn(1, MAX_PAGE)))
     suspend fun lead(ref: String): SalesLead = get("/leads/${seg(ref)}")
-    suspend fun patchLead(ref: String, body: JsonObject): SalesLead = send("PATCH", "/leads/${seg(ref)}", json.encodeToString(JsonElement.serializer(), body))
-    /** The follow-up draft in the company's voice; it is only drafted, never sent. */
+    /** A lead by hand: a pseudonym and a display name only (a phone number or an address is refused). */
+    suspend fun createLead(code: String, body: LeadIn): SalesLead = post("/companies/${seg(code)}/leads", json.encodeToJsonElement(LeadIn.serializer(), body))
+    /** `If-Match` the lead's version. [body] carries only `LeadPatch` keys; a key sent as null clears it. */
+    suspend fun patchLead(l: SalesLead, body: JsonObject): SalesLead =
+        send("PATCH", "/leads/${seg(l.ref)}", jsonBody.encodeToString(JsonElement.serializer(), JsonObject(body.filterKeys { it in LEAD_FIELDS })), ifMatch = l.version)
+    /** The follow-up draft in the company's voice, checked by the outbound guard; it is only drafted, never sent. */
     suspend fun leadDraft(ref: String): LeadDraft = post("/leads/${seg(ref)}/draft", JsonObject(emptyMap()))
     suspend fun pipeline(code: String): SalesPipeline = get("/companies/${seg(code)}/pipeline")
-    suspend fun affiliateGaps(company: String? = null): List<AffiliateGap> = items("/revenue/affiliate-gaps", AffiliateGap.serializer(), mapOf("company" to company))
+    suspend fun affiliateGaps(company: String? = null, state: String? = null): List<AffiliateGap> =
+        items("/revenue/affiliate-gaps", AffiliateGap.serializer(), mapOf("company" to company, "state" to state))
 
     suspend fun journey(code: String): Journey = get("/companies/${seg(code)}/journey")
-    suspend fun journeys(): List<Journey> = items("/journeys", Journey.serializer())
+    suspend fun journeys(): JourneyBoard = get("/journeys")
 
     suspend fun personas(code: String): List<SalesPersona> = items("/companies/${seg(code)}/personas", SalesPersona.serializer())
-    suspend fun savePersona(code: String, id: String?, body: JsonObject): SalesPersona =
-        if (id == null) post("/companies/${seg(code)}/personas", body)
-        else send("PATCH", "/personas/${seg(id)}", JsonObject(body.filterKeys { it in PERSONA_FIELDS }).toString())
+    /** A new persona (`PersonaIn`, [PersonaIn.source] `owner` or `kb_suggested` for a kept suggestion). */
+    suspend fun addPersona(code: String, body: PersonaIn): SalesPersona = post("/companies/${seg(code)}/personas", json.encodeToJsonElement(PersonaIn.serializer(), body))
+    /** A change (`PersonaPatch`: the same fields without `source`). */
+    suspend fun editPersona(id: String, body: PersonaIn): SalesPersona =
+        send("PATCH", "/personas/${seg(id)}", json.encodeToString(PersonaIn.serializer(), body.copy(source = null)))
+    /** Archived: it leaves the list and the tests; the row stays. */
     suspend fun deletePersona(id: String) { execute(Request.Builder().url(url("/personas/${seg(id)}")).delete().build()).use { check(it) } }
-    /** Up to four personas the company's knowledge base suggests; saved only when the owner keeps one. */
-    suspend fun suggestPersonas(code: String): List<SalesPersona> {
-        val path = "/companies/${seg(code)}/personas/suggest"
-        val e: JsonElement = post(path, JsonObject(emptyMap()))
-        return decoded(path) { e.itemsOrSelf().map { json.decodeFromJsonElement(SalesPersona.serializer(), it) } }
-    }
+    /** Up to four personas the company's knowledge base suggests; nothing is saved until the owner keeps one. */
+    suspend fun suggestPersonas(code: String): PersonaSuggestion = post("/companies/${seg(code)}/personas/suggest", JsonObject(emptyMap()))
     suspend fun testMessage(code: String, text: String): PersonaTest = post("/companies/${seg(code)}/personas/test", buildJsonObject { put("text", text) })
+
+    /** §33.10: stop a work's workspace on its company's server (the work stays open). A ref is resolved to the work's id first. */
+    suspend fun stopWork(idOrRef: String): WorkStopped {
+        val id = if (REF.matches(idOrRef)) workOne(idOrRef).id else idOrRef
+        return post("/work/${seg(id)}/stop", JsonObject(emptyMap()))
+    }
 
     // ------------------------------------------------------------ plumbing --
     private fun seg(s: String): String = java.net.URLEncoder.encode(s, "UTF-8").replace("+", "%20")
@@ -1882,8 +1902,8 @@ class Api(
         const val REQUEST_ID = "X-Request-Id"
         /** The hub's page ceiling (`pagination.MAX_LIMIT`); a `limit` above it is refused with 422. */
         const val MAX_PAGE = 200
-        /** `PATCH /personas/{id}` takes these fields only (the hub refuses any other). */
-        val PERSONA_FIELDS = setOf("name_fa", "summary_fa", "pains_fa", "objections_fa", "channel_fa")
+        /** `PATCH /leads/{ref}` (`LeadPatch`) takes these fields only (the hub refuses any other). */
+        val LEAD_FIELDS = setOf("stage", "lost_reason_fa", "name_fa", "value_usdt", "next_at", "next_fa", "note_fa", "assignee")
         /** How long a call took, on the response the app hands on (never sent anywhere). */
         private const val ELAPSED = "X-HQ-Elapsed-Ms"
         /** A read that met a 502/503/504 or no answer is tried again after these pauses. */

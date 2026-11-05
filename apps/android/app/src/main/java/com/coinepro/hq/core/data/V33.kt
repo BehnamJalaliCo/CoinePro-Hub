@@ -12,6 +12,7 @@ import com.coinepro.hq.core.net.PersonaScore
 import com.coinepro.hq.core.net.RevCohort
 import com.coinepro.hq.core.net.SalesLead
 import com.coinepro.hq.core.net.SalesPersona
+import com.coinepro.hq.core.net.SplitPart
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -32,12 +33,14 @@ fun usdtText(v: Double?): String = if (v == null) "—" else moneyFigure(v) + " 
 /** A signed figure: "+120", "−22" (the true minus sign). */
 fun signedFigure(v: Double): String = (if (v < 0) "−" else "+") + moneyFigure(abs(v))
 
-/** A rate given as a fraction (0.04) or already a percent (4): "4%". */
-fun rateText(v: Double?, digits: Int = 0): String =
-    if (v == null) "—" else String.format(Locale.US, "%.${digits}f%%", if (abs(v) <= 1.0) v * 100 else v)
+/** A rate the hub gives as a fraction (churn, win rate, a share: 0.04): "4%". */
+fun rateText(v: Double?, digits: Int = 0): String = if (v == null) "—" else pctText(v * 100, digits)
 
-/** A cohort's retention values as percents, whichever way the hub writes them (all at most 1 means fractions). */
-fun retainedPercents(c: RevCohort): List<Double> = if (c.retained.all { it <= 1.0 }) c.retained.map { it * 100 } else c.retained
+/** A figure the hub gives already in percent (a gap, a change since the last period: 4.5): "4.5%". */
+fun pctText(v: Double?, digits: Int = 0): String = if (v == null) "—" else String.format(Locale.US, "%.${digits}f%%", v)
+
+/** A cohort's retention as percents (the hub writes them so: the first month is 100). */
+fun retainedPercents(c: RevCohort): List<Double> = c.retained.map { it.coerceIn(0.0, 100.0) }
 
 /** A hash or address in short form: «0x12ab…9f3c». The full text is never needed to recognise it. */
 fun shortHash(s: String?): String = when {
@@ -72,6 +75,13 @@ val PAY_STATUS_HINT_FA = mapOf(
 )
 
 val PAY_NETWORK_FA = mapOf("bsc_usdt" to "BSC", "trc20_usdt" to "TRON")
+
+/** A public address of the network, as the hub checks it (`seed/payments/chain.yaml`): BSC «0x» and 40 hex digits, TRON «T» and 33. */
+fun payAddressOk(network: String, address: String): Boolean = when (network) {
+    "bsc_usdt" -> Regex("^0x[0-9a-fA-F]{40}$").matches(address)
+    "trc20_usdt" -> Regex("^T[1-9A-HJ-NP-Za-km-z]{33}$").matches(address)
+    else -> false
+}
 fun payNetworkFa(n: String?): String? = n?.let { PAY_NETWORK_FA[it] ?: it }
 
 val PAY_SOURCE_KIND_FA = mapOf("ledger" to "دفتر خود شرکت", "chain" to "زنجیره‌ی عمومی")
@@ -85,16 +95,14 @@ fun payCounts(rows: List<PayRow>): Map<String, Int> = rows.groupingBy { it.statu
 /** A day of the reconcile list: how many of its payments matched, and how many did not. */
 fun reconcileProblems(r: PayReconcile): Int = r.ledgerOnly + r.chainOnly + r.amountMismatch
 
-/** «۱۲ از ۱۴ تطبیق شد» for a reconcile day; null when the day had no payment at all. */
+/** Every payment the day saw, from either side. */
+fun reconcileTotal(r: PayReconcile): Int = maxOf(r.ledgerCount, r.chainCount, r.matched + reconcileProblems(r) + r.pendingChain)
+
+/** «12 از 14 تطبیق شد» for a reconcile day; null when the day had no payment at all. */
 fun reconcileLine(r: PayReconcile): String? {
-    val total = maxOf(r.ledgerCount, r.chainCount, r.matched + reconcileProblems(r))
+    val total = reconcileTotal(r)
     return if (total == 0) null else "${r.matched} از $total تطبیق شد"
 }
-
-val REVENUE_SOURCE_FA = mapOf(
-    "affiliate" to "کمیسیون افیلیت", "payments" to "پرداخت مشتریان", "payment" to "پرداخت مشتریان", "crypto" to "پرداخت مشتریان", "chain" to "پرداخت مشتریان",
-)
-fun revenueSourceFa(s: String): String = REVENUE_SOURCE_FA[s] ?: s
 
 /** The kinds of what one output costs (§33.3 `cost_per_output`). */
 val COST_PER_FA = mapOf("line_run" to "هر اجرای خط تولید", "deliverable" to "هر خروجی", "order" to "هر فرمان")
@@ -102,7 +110,23 @@ val COST_PER_FA = mapOf("line_run" to "هر اجرای خط تولید", "delive
 // ------------------------------------------------------------------ usage --
 fun usagePeriodFa(p: String?): String = when (p) { "week" -> "هفتگی"; "day" -> "روزانه"; else -> "گزارش" }
 
-/** A change since the last period as words: «۱۲٪ بیشتر از قبل»; null when the hub gave none. */
+/** What the code noticed in the pack (`anomalies[].kind`), as a short title. */
+val USAGE_ANOMALY_FA = mapOf(
+    "tech_domain_largest" to "بیشترین خرج در کار فنی", "spike" to "جهش مصرف", "voice_high" to "خرج صدا بالا", "failed_calls" to "فراخوانی‌های ناموفق",
+)
+
+/** Tokens in short form: «1.2M», «840K», «950». */
+fun tokensShort(n: Long): String = when {
+    n >= 1_000_000 -> String.format(Locale.US, "%.1fM", n / 1_000_000.0)
+    n >= 10_000 -> String.format(Locale.US, "%.0fK", n / 1_000.0)
+    n >= 1_000 -> String.format(Locale.US, "%.1fK", n / 1_000.0)
+    else -> n.toString()
+}
+
+/** Dollars of spend: «$12.40», «$0.35». */
+fun usdText(v: Double?): String = if (v == null) "—" else "$" + String.format(Locale.US, "%,.2f", v)
+
+/** A change since the last period (a percent) as words: «12% بیشتر از دوره‌ی قبل»; null when the hub gave none. */
 fun vsPrevFa(pct: Double?): String? = when {
     pct == null -> null
     abs(pct) < 1.0 -> "تقریباً مثل دوره‌ی قبل"
@@ -117,7 +141,7 @@ private val DOMAIN_FA = mapOf(
 )
 
 // ------------------------------------------------------------------ leads --
-val LEAD_STAGE_FA = mapOf("new" to "تازه", "contacted" to "تماس گرفته شد", "qualified" to "واجد شرایط", "trial" to "آزمایشی", "paid" to "پرداخت کرد", "lost" to "از دست رفت")
+val LEAD_STAGE_FA = mapOf("new" to "جدید", "contacted" to "تماس گرفته شد", "qualified" to "واجد شرایط", "trial" to "آزمایشی", "paid" to "پرداخت کرد", "lost" to "از دست رفت")
 fun leadStageFa(key: String, title: String? = null): String = title?.takeIf { it.isNotBlank() } ?: LEAD_STAGE_FA[key] ?: key
 
 fun leadStageTone(key: String): Tone = when (key) {
@@ -131,20 +155,26 @@ fun leadStageTone(key: String): Tone = when (key) {
 val LEAD_SOURCE_FA = mapOf("support" to "پشتیبانی", "telegram" to "تلگرام", "site" to "سایت", "payment" to "پرداخت", "referral" to "معرفی", "manual" to "دستی")
 fun leadSourceFa(s: String): String = LEAD_SOURCE_FA[s] ?: s
 
-val LEAD_EVENT_FA = mapOf("created" to "ساخته شد", "stage" to "مرحله عوض شد", "note" to "یادداشت", "contact" to "تماس", "draft" to "پیش‌نویس پیگیری", "payment" to "پرداخت", "reminder" to "یادآوری")
+val LEAD_EVENT_FA = mapOf(
+    "created" to "ساخته شد", "stage" to "مرحله عوض شد", "note" to "یادداشت", "contact" to "تماس", "draft" to "پیش‌نویس پیگیری", "payment" to "پرداخت",
+    "reminder" to "یادآوری", "updated" to "تغییر کرد", "assigned" to "مسئول عوض شد",
+)
 fun leadEventFa(k: String): String = LEAD_EVENT_FA[k] ?: k
 
 /** A lead's title: its display name, else its pseudonym. */
 fun leadTitle(l: SalesLead): String = l.nameFa?.takeIf { it.isNotBlank() } ?: l.contact.ifBlank { l.ref }
 
-/** The leads still open (neither paid nor lost), the ones with the nearest next step first. */
-fun openLeads(list: List<SalesLead>): List<SalesLead> =
-    list.filter { it.stage != "paid" && it.stage != "lost" }.sortedWith(compareBy({ it.nextAt ?: "9999" }, { it.createdAt }))
+/** The leads still open (by the pipeline's own kinds when known: a stage of kind won or lost is closed), nearest next step first. */
+fun openLeads(list: List<SalesLead>, closed: Set<String> = setOf("paid", "lost")): List<SalesLead> =
+    list.filter { it.stage !in closed }.sortedWith(compareBy({ it.nextAt ?: "9999" }, { it.createdAt }))
 
-val GAP_STATE_FA: Map<String, Pair<String, Tone>> = mapOf("open" to ("باز" to Tone.WARN), "followup" to ("در پیگیری" to Tone.LAPIS), "paid" to ("تسویه شد" to Tone.POS))
+/** waiting · ok · open · closed: before the exchange settles, on par, a gap to follow, a gap closed. */
+val GAP_STATE_FA: Map<String, Pair<String, Tone>> = mapOf(
+    "waiting" to ("در انتظار تسویه" to Tone.SILVER), "ok" to ("درست" to Tone.POS), "open" to ("کسری باز" to Tone.WARN), "closed" to ("بسته شد" to Tone.POS),
+)
 
-/** The gap of an affiliate month in USDT (due minus received; never below zero). */
-fun gapUsdt(g: AffiliateGap): Double = (g.dueUsdt - g.receivedUsdt).coerceAtLeast(0.0)
+/** The gap of an affiliate month in USDT as the hub computed it (never below zero). */
+fun gapUsdt(g: AffiliateGap): Double = g.gapUsdt.coerceAtLeast(0.0)
 
 // --------------------------------------------------------------- decisions --
 /** The impact over its horizon, as a monthly figure (the cards are compared on one scale). Revenue counts for, cost against. */
@@ -181,19 +211,28 @@ fun hasImpact(i: DecisionImpact?): Boolean = i != null && (i.revenueUsdt != null
 fun impactSortKey(i: DecisionImpact?): Double = if (hasImpact(i)) -abs(impactMonthly(i!!)) else Double.MAX_VALUE
 
 // ---------------------------------------------------------------- parallel --
+/** A part: working · delivered · failed. */
 val PART_STATE_FA: Map<String, Pair<String, Tone>> = mapOf(
-    "queued" to ("در صف" to Tone.SILVER), "working" to ("در حال کار" to Tone.GOLD), "waiting" to ("منتظر" to Tone.LAPIS),
-    "done" to ("تمام شد" to Tone.POS), "failed" to ("ناموفق" to Tone.NEG),
-)
-val MERGE_STATE_FA: Map<String, Pair<String, Tone>> = mapOf(
-    "waiting" to ("منتظر بخش‌ها" to Tone.SILVER), "working" to ("در حال ادغام" to Tone.GOLD), "done" to ("ادغام شد" to Tone.POS), "failed" to ("ناموفق" to Tone.NEG),
+    "working" to ("در حال کار" to Tone.GOLD), "delivered" to ("تحویل شد" to Tone.POS), "failed" to ("نشد" to Tone.NEG),
 )
 
-/** A progress that may be a fraction or a percent, as a percent 0..100. */
-fun progressPercent(v: Double?): Double? = v?.let { if (it <= 1.0) it * 100 else it }?.coerceIn(0.0, 100.0)
+/** The split as a whole: running · merging · done · failed · cancelled. */
+val SPLIT_STATE_FA: Map<String, Pair<String, Tone>> = mapOf(
+    "running" to ("بخش‌ها در کارند" to Tone.GOLD), "merging" to ("در حال ادغام" to Tone.LAPIS), "done" to ("ادغام شد" to Tone.POS),
+    "failed" to ("نشد" to Tone.NEG), "cancelled" to ("لغو شد" to Tone.SILVER),
+)
 
-/** The parts finished, as «2 از 3». */
-fun partsDoneLine(parts: List<com.coinepro.hq.core.net.ReportPart>): String = "${parts.count { it.state == "done" }} از ${parts.size}"
+/** The parts delivered, as «2 از 3». */
+fun partsDoneLine(parts: List<SplitPart>): String = "${parts.count { it.state == "delivered" }} از ${parts.size}"
+
+/** A workspace on a company's server: starting · working · awaiting_seal · idle · delivered · stopped · failed. */
+val WORKSPACE_STATE_FA: Map<String, Pair<String, Tone>> = mapOf(
+    "starting" to ("در حال آماده شدن" to Tone.SILVER), "working" to ("در حال کار" to Tone.GOLD), "awaiting_seal" to ("منتظر مُهر تو" to Tone.WARN),
+    "idle" to ("منتظر" to Tone.LAPIS), "delivered" to ("تحویل شد" to Tone.POS), "stopped" to ("متوقف شد" to Tone.SILVER), "failed" to ("نشد" to Tone.NEG),
+)
+
+/** Whether «توقف» means anything: the workspace is still running or about to. */
+fun workspaceStoppable(state: String): Boolean = state in setOf("starting", "working", "idle", "awaiting_seal")
 
 // ------------------------------------------------------------------ journey --
 /** The index of the current stage in a journey (the first stage not yet reached when `current` names none). */
@@ -210,36 +249,35 @@ fun journeyReached(j: Journey): Int = j.stages.count { it.reachedAt != null }
 /** Where a stage's evidence opens in the app; null when the evidence has no page of its own. */
 fun evidenceRoute(company: String, s: JourneyStage): String? {
     val e = s.evidence ?: return null
+    val ref = e.ref.orEmpty()
     return when (e.kind) {
         "company" -> "companies/$company"
         "server" -> "companies/$company/servers"
-        "line", "line_run" -> if (e.ref.startsWith("LN-")) "lines/${e.ref}" else "companies/$company/lines"
-        "deliverable", "output" -> "outputs/${e.ref}"
-        "lead" -> if (e.ref.startsWith("LD-")) "leads/${e.ref}" else "companies/$company/sales"
-        "payment", "revenue", "revenue_board" -> "companies/$company/money"
-        "analytics", "connection" -> "companies/$company/connections"
-        else -> "companies/$company"
+        "line_run" -> if (ref.isNotBlank()) "line-runs/$ref" else "companies/$company/lines"
+        "lead" -> if (ref.startsWith("LD-")) "leads/$ref" else "companies/$company/sales"
+        "payment", "customers", "month" -> "companies/$company/money"
+        "metric" -> "companies/$company/connections"
+        else -> null
     }
 }
 
+/** What proved a stage, in the owner's words. */
 val EVIDENCE_KIND_FA = mapOf(
-    "company" to "شرکت", "server" to "سرور", "line" to "خط تولید", "line_run" to "اجرای خط", "deliverable" to "خروجی", "output" to "خروجی", "lead" to "سرنخ",
-    "payment" to "پرداخت", "revenue" to "درآمد", "revenue_board" to "درآمد", "analytics" to "آمار", "connection" to "اتصال",
+    "company" to "ثبت شرکت", "server" to "سرور شرکت", "line_run" to "اولین انتشار", "metric" to "آمار بازدید", "lead" to "اولین سرنخ",
+    "payment" to "اولین پرداخت", "customers" to "مشتری‌های پرداخت‌کننده", "month" to "حساب ماه",
 )
 
 // ---------------------------------------------------------------- personas --
 /** A message-test score: 70 and over reads well, 40 to 69 so-so, below that badly. */
-fun scoreTone(score: Double): Tone = when {
+fun scoreTone(score: Int): Tone = when {
     score >= 70 -> Tone.POS
     score >= 40 -> Tone.WARN
     else -> Tone.NEG
 }
 
 /** The persona a score belongs to, by id first and then by name; null when neither is in the list. */
-fun personaOf(list: List<SalesPersona>, s: PersonaScore): SalesPersona? {
-    val key = (s.persona as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
-    return list.firstOrNull { (it.id).content == key } ?: list.firstOrNull { it.nameFa == key }
-}
+fun personaOf(list: List<SalesPersona>, s: PersonaScore): SalesPersona? =
+    list.firstOrNull { it.id == s.persona } ?: list.firstOrNull { it.nameFa == s.nameFa }
 
 /** How many of the personas would act on the message. */
 fun wouldActCount(results: List<PersonaScore>): Int = results.count { it.wouldAct }

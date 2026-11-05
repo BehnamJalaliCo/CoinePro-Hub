@@ -39,6 +39,8 @@ import com.coinepro.hq.core.data.payStatusTone
 import com.coinepro.hq.core.data.rateText
 import com.coinepro.hq.core.data.reconcileLine
 import com.coinepro.hq.core.data.reconcileProblems
+import com.coinepro.hq.core.data.reconcileTotal
+import com.coinepro.hq.core.data.payAddressOk
 import com.coinepro.hq.core.data.shortHash
 import com.coinepro.hq.core.data.signedFigure
 import com.coinepro.hq.core.data.usdtText
@@ -49,10 +51,11 @@ import com.coinepro.hq.core.net.HubFeature
 import com.coinepro.hq.core.net.PayReconcile
 import com.coinepro.hq.core.net.PayRow
 import com.coinepro.hq.core.net.PaySource
+import com.coinepro.hq.core.net.PaySourceIn
+import com.coinepro.hq.core.net.PayReadResult
 import com.coinepro.hq.core.net.RevenueBoard
 import com.coinepro.hq.core.net.StepUp
 import com.coinepro.hq.core.net.gated
-import com.coinepro.hq.core.net.idText
 import com.coinepro.hq.designsystem.BarTone
 import com.coinepro.hq.designsystem.BtnSize
 import com.coinepro.hq.designsystem.BtnVariant
@@ -68,6 +71,7 @@ import com.coinepro.hq.designsystem.FilterChip
 import com.coinepro.hq.designsystem.HqButton
 import com.coinepro.hq.designsystem.HqCard
 import com.coinepro.hq.designsystem.HqTextField
+import com.coinepro.hq.designsystem.HqSwitch
 import com.coinepro.hq.designsystem.MeterBar
 import com.coinepro.hq.designsystem.Pill
 import com.coinepro.hq.designsystem.Radius
@@ -90,8 +94,6 @@ import com.coinepro.hq.ui.rememberQuery
 import com.coinepro.hq.ui.v29.Para
 import com.coinepro.hq.ui.v29.plain
 import com.coinepro.hq.ui.v29.served
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 
 // Contract §33.2, §33.3 ⟨1.15⟩ the company's «پول» tab, in three short views: the revenue board (computed by code from the payments), the
 // payments with how well the company's own ledger and the public chain agree, and the places they are read from. The hub reads money; it
@@ -211,69 +213,98 @@ fun RevenueBoardBody(b: RevenueBoard, modifier: Modifier = Modifier) {
 }
 
 // ------------------------------------------------------------ payments --
+/** Payments, newest first, in pages of [com.coinepro.hq.core.net.Api.MAX_PAGE]: a status chip asks the hub for that status only. */
 @Composable
 private fun PaymentsView(code: String) {
-    val today = com.coinepro.hq.core.format.HqClock.today()
-    val from = today.minusDays(13).toString()
-    val to = today.toString()
-    val pay = rememberQuery("payments:$code", "money", "payments", maxAgeMs = 30_000) { gated(HubFeature.MONEY) { payments(code) } }
-    val rec = rememberQuery("reconcile:$code:$from", "money", "payments", maxAgeMs = 60_000) { gated(HubFeature.MONEY) { reconcile(code, from, to) } }
+    val env = LocalEnv.current
+    val more = rememberAction()
     var filter by rememberSaveable { mutableStateOf<String?>(null) }
-    val rows = pay.data.orEmpty()
-    val counts = payCounts(rows)
+    var days by rememberSaveable { mutableStateOf(7) }
+    val today = com.coinepro.hq.core.format.HqClock.today()
+    val from = today.minusDays(days - 1L).toString()
+    val rec = rememberQuery("reconcile:$code:$days:$from", "money", "payments", maxAgeMs = 60_000) { gated(HubFeature.MONEY) { reconcile(code, from, today.toString()) } }
+    val first = rememberQuery("payments:$code:${filter ?: "all"}", "money", "payments", maxAgeMs = 30_000) { gated(HubFeature.MONEY) { payments(code, status = filter) } }
+    // Pages after the first, kept while this filter stays; a refresh of the first page starts over.
+    val extra = androidx.compose.runtime.remember(code, filter, first.data) { androidx.compose.runtime.mutableStateListOf<PayRow>() }
+    var cursor by androidx.compose.runtime.remember(code, filter, first.data) { mutableStateOf(first.data?.nextCursor) }
+    val rows = first.data?.items.orEmpty() + extra
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        ReconcileCard(rec.data.orEmpty().sortedByDescending { it.day })
+        ReconcileCard(rec.data.orEmpty(), days) { days = it }
+        ScrollRow {
+            FilterChip("همه", filter == null, { filter = null })
+            for (s in PAY_STATUS_ORDER) FilterChip(payStatusFa(s), filter == s, { filter = if (filter == s) null else s })
+        }
+        filter?.let { f -> PAY_STATUS_HINT_FA[f]?.let { Para(it, style = Divan.type.caption, color = Divan.colors.textMuted) } }
         when {
-            pay.data == null && pay.error != null -> ErrorBlock(pay.error, { pay.refresh() })
-            pay.data == null -> Skeleton(Modifier.fillMaxWidth().height(220.dp), radius = 16.dp)
-            rows.isEmpty() -> Empty("هنوز پرداختی خوانده نشده", icon = DivanIcon.TREASURY, body = "بعد از وصل شدن منبع‌ها و اولین خواندن، پرداخت‌ها این‌جا میایند.")
+            first.data == null && first.error != null -> ErrorBlock(first.error, { first.refresh() })
+            first.data == null -> Skeleton(Modifier.fillMaxWidth().height(220.dp), radius = 16.dp)
+            rows.isEmpty() -> Empty(
+                if (filter == null) "هنوز پرداختی خوانده نشده" else "پرداختی با این وضعیت نیست", icon = DivanIcon.TREASURY,
+                body = if (filter == null) "بعد از وصل شدن منبع‌ها و اولین خواندن، پرداخت‌ها این‌جا میایند." else null,
+            )
             else -> {
-                ScrollRow {
-                    FilterChip("همه", filter == null, { filter = null }, count = rows.size)
-                    for (s in PAY_STATUS_ORDER) if ((counts[s] ?: 0) > 0) FilterChip(payStatusFa(s), filter == s, { filter = if (filter == s) null else s }, count = counts[s])
-                }
-                filter?.let { f -> PAY_STATUS_HINT_FA[f]?.let { Para(it, style = Divan.type.caption, color = Divan.colors.textMuted) } }
-                // The problems first when nothing is chosen, then the newest.
-                val shown = rows.filter { filter == null || it.status == filter }
-                    .sortedWith(compareByDescending<PayRow> { r -> filter == null && r.status != "matched" }.thenByDescending { r -> r.paidAt })
                 HqCard(Modifier.fillMaxWidth(), padding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 6.dp)) {
-                    shown.forEachIndexed { i, r ->
+                    rows.forEachIndexed { i, r ->
                         if (i > 0) HorizontalDivider(color = Divan.colors.lineDivider)
-                        androidx.compose.runtime.key(r.id.idText) { PaymentRow(r) }
+                        androidx.compose.runtime.key(r.id) { PaymentRow(r) }
                     }
+                }
+                cursor?.let { cur ->
+                    HqButton("پرداخت‌های قدیمی‌تر", {
+                        more.run {
+                            val p = env.api.payments(code, status = filter, cursor = cur)
+                            extra += p.items
+                            cursor = p.nextCursor
+                        }
+                    }, Modifier.fillMaxWidth(), variant = BtnVariant.SILVER, icon = DivanIcon.NEXT, loading = more.busy)
                 }
             }
         }
     }
 }
 
-/** The last days, one line each: how many of the day's payments the company's ledger and the chain agree on. */
+/** The days of the chosen window, one line each: how many of the day's payments the company's ledger and the chain agree on. */
 @Composable
-private fun ReconcileCard(days: List<PayReconcile>) {
+private fun ReconcileCard(list: List<PayReconcile>, days: Int, onDays: (Int) -> Unit) {
     val c = Divan.colors
-    val list = days.filter { reconcileLine(it) != null }.take(7)
-    if (list.isEmpty()) return
+    val shown = list.filter { reconcileLine(it) != null }.sortedByDescending { it.day }
     HqCard(Modifier.fillMaxWidth()) {
         SectionTitle("تطبیق روزانه", note = "دفتر خود شرکت در برابر زنجیره‌ی عمومی", icon = DivanIcon.SCOPE)
-        Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            for (r in list) {
-                val problems = reconcileProblems(r)
-                val total = maxOf(r.ledgerCount, r.chainCount, r.matched + problems).coerceAtLeast(1)
-                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(plain(jDate(r.day)), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f))
-                        Text(plain(reconcileLine(r).orEmpty()), style = Divan.type.caption, color = if (problems > 0) c.warning else c.textMuted)
-                    }
-                    MeterBar(r.matched * 100.0 / total, tone = if (problems > 0) BarTone.WARN else BarTone.POS, height = 5.dp)
-                    if (problems > 0) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        if (r.ledgerOnly > 0) Pill("${r.ledgerOnly} بی‌پول", Tone.NEG)
-                        if (r.chainOnly > 0) Pill("${r.chainOnly} بی‌مشتری", Tone.WARN)
-                        if (r.amountMismatch > 0) Pill("${r.amountMismatch} مبلغ کم", Tone.WARN)
-                    }
-                    if (r.noteFa.isNotBlank()) Para(r.noteFa, style = Divan.type.micro, color = c.textMuted)
-                }
+        ScrollRow(Modifier.padding(top = 10.dp)) {
+            for ((d, l) in listOf(7 to "7 روز", 30 to "30 روز", 90 to "90 روز")) FilterChip(l, days == d, { onDays(d) }, figure = true)
+        }
+        if (shown.isEmpty()) Text("در این روزها پرداختی نبود.", Modifier.padding(top = 10.dp), style = Divan.type.caption, color = c.textMuted)
+        else {
+            val problems = shown.sumOf { reconcileProblems(it) }
+            Text(
+                plain("${shown.sumOf { it.matched }} پرداخت تطبیق شد" + if (problems > 0) "؛ $problems مورد نیاز به بررسی دارد" else "؛ همه درست"),
+                Modifier.padding(top = 10.dp), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = if (problems > 0) c.warning else c.positive,
+            )
+            Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                for (r in shown.take(14)) ReconcileDay(r)
             }
         }
+    }
+}
+
+@Composable
+private fun ReconcileDay(r: PayReconcile) {
+    val c = Divan.colors
+    val problems = reconcileProblems(r)
+    val total = reconcileTotal(r).coerceAtLeast(1)
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(plain(jDate(r.day)), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f))
+            Text(plain(reconcileLine(r).orEmpty()), style = Divan.type.caption, color = if (problems > 0) c.warning else c.textMuted)
+        }
+        MeterBar(r.matched * 100.0 / total, tone = if (problems > 0) BarTone.WARN else BarTone.POS, height = 5.dp)
+        if (problems > 0 || r.pendingChain > 0) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (r.ledgerOnly > 0) Pill("${r.ledgerOnly} بی‌پول", Tone.NEG, figure = true)
+            if (r.chainOnly > 0) Pill("${r.chainOnly} بی‌مشتری", Tone.WARN, figure = true)
+            if (r.amountMismatch > 0) Pill("${r.amountMismatch} مبلغ کم", Tone.WARN, figure = true)
+            if (r.pendingChain > 0) Pill("${r.pendingChain} در انتظار زنجیره", Tone.LAPIS, figure = true)
+        }
+        if (r.noteFa.isNotBlank()) Para(r.noteFa, style = Divan.type.micro, color = c.textMuted)
     }
 }
 
@@ -281,11 +312,12 @@ private fun ReconcileCard(days: List<PayReconcile>) {
 @Composable
 fun PaymentRow(r: PayRow) {
     val c = Divan.colors
-    var open by rememberSaveable(r.id.idText) { mutableStateOf(false) }
+    var open by rememberSaveable(r.id) { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.tile)).clickable(role = Role.Button, onClickLabel = "جزئیات") { open = !open }.padding(vertical = 10.dp, horizontal = 4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Fig(r.customer.ifBlank { r.extId }, style = Divan.type.figure.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
+                if (r.customer.isNullOrBlank()) Text("بدون مشتری در دفتر", style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
+                else Fig(r.customer, style = Divan.type.figure.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     r.plan?.takeIf { it.isNotBlank() }?.let { Text(plain(it), style = Divan.type.micro, color = c.textSecondary, maxLines = 1) }
                     payNetworkFa(r.network)?.let { Text(it, style = Divan.type.micro, color = c.textMuted) }
@@ -293,14 +325,16 @@ fun PaymentRow(r: PayRow) {
                 }
             }
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (r.amountUsdt != null) Fig(usdtText(r.amountUsdt), style = Divan.type.figure, color = c.textPrimary)
+                val amount = r.amountUsdt ?: r.chainAmount
+                if (amount != null) Fig(usdtText(amount), style = Divan.type.figure, color = c.textPrimary)
                 else Text("پرداخت درون‌برنامه‌ای", style = Divan.type.micro, color = c.textMuted)
                 Pill(payStatusFa(r.status), payStatusTone(r.status), dot = true)
             }
         }
         Expand(open) {
             Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                PAY_STATUS_HINT_FA[r.status]?.let { Para(it, style = Divan.type.caption, color = c.textSecondary) }
+                Para(r.noteFa?.takeIf { it.isNotBlank() } ?: PAY_STATUS_HINT_FA[r.status].orEmpty(), style = Divan.type.caption, color = c.textSecondary)
+                if (r.chainAmount != null && r.amountUsdt != null && r.chainAmount != r.amountUsdt) Text(plain("روی زنجیره: ${usdtText(r.chainAmount)}"), style = Divan.type.micro, color = c.warning)
                 if (!r.txHash.isNullOrBlank()) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("تراکنش", style = Divan.type.micro, color = c.textMuted)
                     Fig(shortHash(r.txHash), style = Divan.type.figureSmall, color = c.textSecondary)
@@ -325,13 +359,13 @@ private fun SourcesView(code: String) {
         when {
             list == null && q.error != null -> ErrorBlock(q.error, { q.refresh() })
             list == null -> Skeleton(Modifier.fillMaxWidth().height(150.dp), radius = 16.dp)
-            list.isEmpty() -> Empty("هنوز منبعی وصل نیست", icon = DivanIcon.SERVER, body = "دفتر شرکت از راه runner خوانده میشود و زنجیره از آدرس عمومی.")
-            else -> list.forEachIndexed { i, s -> Box(Modifier.springIn(i)) { SourceCard(s) { editing = s.id.idText } } }
+            list.isEmpty() -> Empty("هنوز منبعی وصل نیست", icon = DivanIcon.SERVER, body = "دفتر شرکت از راه سرور خودش خوانده میشود و زنجیره از نشانی عمومی کیف پول.")
+            else -> list.forEachIndexed { i, s -> Box(Modifier.springIn(i)) { SourceCard(s) { editing = s.id } } }
         }
     }
     editing?.let { id ->
-        val src = list?.firstOrNull { it.id.idText == id }
-        com.coinepro.hq.ui.v14.HqSheet({ editing = null }, if (src == null) "منبع پرداخت تازه" else "ویرایش منبع", sub = "با اثر انگشت یا رمز تو مُهر میشود.") {
+        val src = list?.firstOrNull { it.id == id }
+        com.coinepro.hq.ui.v14.HqSheet({ editing = null }, if (src == null) "منبع پرداخت تازه" else "تغییر منبع", sub = "با اثر انگشت یا رمز تو مُهر میشود.") {
             SourceForm(code, src) { editing = null }
         }
     }
@@ -343,6 +377,8 @@ private fun SourceCard(s: PaySource, onEdit: () -> Unit) {
     val env = LocalEnv.current
     val toasts = LocalToasts.current
     val read = rememberAction()
+    // One key per press: a retry after a lost answer is the same read, never a second one.
+    var key by androidx.compose.runtime.remember(s.id) { mutableStateOf(java.util.UUID.randomUUID().toString()) }
     val st = PAY_SOURCE_STATE_FA[s.state] ?: (s.state to Tone.SILVER)
     HqCard(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -353,33 +389,46 @@ private fun SourceCard(s: PaySource, onEdit: () -> Unit) {
                 Text(PAY_SOURCE_KIND_FA[s.kind] ?: s.kind, style = Divan.type.bodyStrong)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     payNetworkFa(s.network)?.let { Pill(it, Tone.SILVER) }
-                    if (s.adapter.isNotBlank()) Fig(s.adapter, style = Divan.type.figureSmall, color = c.textMuted)
+                    s.server?.takeIf { it.isNotBlank() }?.let { Text(plain("سرور $it"), style = Divan.type.micro, color = c.textMuted) }
+                    if (!s.enabled) Pill("خاموش", Tone.SILVER)
                 }
             }
             Pill(st.first, st.second, dot = true)
         }
         s.address?.takeIf { it.isNotBlank() }?.let {
             Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("آدرس عمومی", style = Divan.type.micro, color = c.textMuted)
+                Text("نشانی عمومی", style = Divan.type.micro, color = c.textMuted)
                 Fig(shortHash(it), style = Divan.type.figureSmall, color = c.textSecondary)
             }
         }
         Text(plain(if (s.lastReadAt == null) "هنوز خوانده نشده" else "آخرین خواندن ${ago(s.lastReadAt)}"), Modifier.padding(top = 6.dp), style = Divan.type.caption, color = c.textMuted)
         s.lastErrorFa?.takeIf { it.isNotBlank() }?.let { Para(it, Modifier.padding(top = 4.dp), style = Divan.type.caption, color = c.warning) }
         Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            HqButton("بخوان", {
+            HqButton("همین حالا بخوان", {
                 read.run {
-                    env.api.readPaymentSource(s.id.idText, java.util.UUID.randomUUID().toString())
+                    val r = env.api.readPaymentSource(s.id, key)
+                    key = java.util.UUID.randomUUID().toString()
                     env.cache.invalidate("money", "payments")
-                    toasts.ok("خواندن انجام شد.")
+                    toasts.ok(readResultFa(r))
                 }
-            }, variant = BtnVariant.PRIMARY, size = BtnSize.SM, icon = DivanIcon.REFRESH, loading = read.busy)
-            HqButton("ویرایش", onEdit, variant = BtnVariant.GHOST, size = BtnSize.SM, icon = DivanIcon.EDIT)
+            }, variant = BtnVariant.PRIMARY, size = BtnSize.SM, icon = DivanIcon.REFRESH, loading = read.busy, enabled = s.enabled)
+            HqButton("تغییر", onEdit, variant = BtnVariant.GHOST, size = BtnSize.SM, icon = DivanIcon.EDIT)
         }
     }
 }
 
-/** A source added or changed (🔏 `payment.source`). Only public things go in: a ledger needs its adapter, the chain a public address. */
+/** What a read did, in one line. */
+fun readResultFa(r: PayReadResult): String = when {
+    r.source.kind == "ledger" && r.queued -> "خواندن دفتر به سرور شرکت سپرده شد؛ چند دقیقه‌ی دیگر میرسد."
+    r.source.kind == "ledger" -> "دفتر خوانده شد: ${r.payments} پرداخت."
+    else -> "زنجیره خوانده شد: ${r.transfers} انتقال."
+}
+
+/**
+ * A source added or changed (🔏 `payment.source`, on the exact body). A ledger names at most the company server whose runner reads it; a
+ * chain names a network and a public address. A source already there is changed by sending the same kind (and address) again: here only
+ * its server and whether it is on.
+ */
 @Composable
 fun SourceForm(code: String, src: PaySource?, onDone: () -> Unit) {
     val env = LocalEnv.current
@@ -387,39 +436,50 @@ fun SourceForm(code: String, src: PaySource?, onDone: () -> Unit) {
     val act = activity()
     val c = Divan.colors
     val save = rememberAction()
-    val key = src?.id?.idText
-    var kind by rememberSaveable(key) { mutableStateOf(src?.kind ?: "ledger") }
-    var adapter by rememberSaveable(key) { mutableStateOf(src?.adapter ?: "") }
+    val key = src?.id
+    var kind by rememberSaveable(key) { mutableStateOf(src?.kind ?: "chain") }
+    var server by rememberSaveable(key) { mutableStateOf(src?.server) }
     var network by rememberSaveable(key) { mutableStateOf(src?.network ?: "bsc_usdt") }
     var address by rememberSaveable(key) { mutableStateOf(src?.address.orEmpty()) }
-    val valid = if (kind == "chain") address.trim().length >= 20 else adapter.trim().isNotEmpty()
+    var enabled by rememberSaveable(key) { mutableStateOf(src?.enabled ?: true) }
+    val servers = rememberQuery("servers:$code", "servers", maxAgeMs = 60_000) { servers(code) }
+    val valid = if (kind == "chain") payAddressOk(network, address.trim()) else true
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("از کجا بخوانم", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            for ((k, l) in PAY_SOURCE_KIND_FA) FilterChip(l, kind == k, { kind = k })
+        if (src == null) {
+            Text("از کجا بخوانم", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                for ((k, l) in PAY_SOURCE_KIND_FA) FilterChip(l, kind == k, { kind = k })
+            }
         }
         if (kind == "ledger") {
-            Text("نام آداپتور", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
-            HqTextField(adapter, { adapter = it.trim() }, "ledger_v1", Modifier.fillMaxWidth(), figure = true, maxLength = 40)
-            Para("پرس‌وجوی دفتر روی سرور خود شرکت میماند؛ این‌جا فقط قالب خروجی‌اش را میخوانم. runner شرکت باید وصل باشد.", style = Divan.type.caption, color = c.textMuted)
-        } else {
+            Text("سرور شرکت", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                FilterChip("هر سرور وصل‌شده", server == null, { server = null })
+                for (sv in servers.data.orEmpty().filter { it.origin == "attached" }) FilterChip(sv.name, server == sv.name, { server = sv.name }, figure = true)
+            }
+            Para("دفتر را سرور خود شرکت میخواند و فقط نتیجه‌ی خلاصه به هاب میاید؛ مشتری‌ها با نام مستعار. سرور شرکت باید از قبل وصل شده باشد.", style = Divan.type.caption, color = c.textMuted)
+        } else if (src == null) {
             Text("شبکه", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 FilterChip("BSC (BEP20)", network == "bsc_usdt", { network = "bsc_usdt" }, figure = true)
                 FilterChip("TRON (TRC20)", network == "trc20_usdt", { network = "trc20_usdt" }, figure = true)
             }
-            Text("آدرس عمومی کیف پول شرکت", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
-            HqTextField(address, { address = it.trim() }, "0x…", Modifier.fillMaxWidth(), figure = true, maxLength = 80)
-            Para("فقط آدرس عمومی. کلید خصوصی هرگز این‌جا نمیاید و هاب هیچ پولی جابه‌جا نمیکند.", style = Divan.type.caption, color = c.textMuted)
+            Text("نشانی عمومی کیف پول شرکت", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
+            HqTextField(address, { address = it.trim() }, if (network == "bsc_usdt") "0x…" else "T…", Modifier.fillMaxWidth(), figure = true, maxLength = 80)
+            if (address.isNotBlank() && !valid) Text("این نشانی برای این شبکه درست نیست.", style = Divan.type.caption, color = c.warning)
+            Para("فقط نشانی عمومی. کلید خصوصی هرگز این‌جا نمیاید و هاب هیچ پولی جابه‌جا نمیکند.", style = Divan.type.caption, color = c.textMuted)
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                payNetworkFa(network)?.let { Pill(it, Tone.SILVER) }
+                Fig(shortHash(address), style = Divan.type.figureSmall, color = c.textSecondary)
+            }
+            Para("برای نشانی دیگر، یک منبع تازه بساز.", style = Divan.type.caption, color = c.textMuted)
         }
+        HqSwitch(enabled, { enabled = it }, "خوانده شود")
         HqButton(if (src == null) "اضافه کن" else "ذخیره", {
             save.run {
-                val body = buildJsonObject {
-                    if (src != null) put("id", src.id.idText)
-                    put("kind", kind)
-                    put("adapter", if (kind == "chain") "chain_read" else adapter.trim())
-                    if (kind == "chain") { put("network", network); put("address", address.trim()) }
-                }
+                val body = if (kind == "chain") PaySourceIn(kind = "chain", network = network, address = address.trim(), enabled = enabled)
+                else PaySourceIn(kind = "ledger", server = server, enabled = enabled)
                 val sign: StepUp = { a, t -> env.auth.stepUp(act, a, t) }
                 env.api.savePaymentSource(code, body, sign)
                 env.cache.invalidate("money", "payments")
