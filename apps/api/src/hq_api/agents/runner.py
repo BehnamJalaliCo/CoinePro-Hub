@@ -692,6 +692,16 @@ class Runner:
                 return True
             return company_id is not None and await self._company_cap_reached(tx, company_id)
 
+    async def day_cap_reached(self, tx: Tx, company_id: Any) -> bool:
+        """The claim's daily-cap refusal, on a caller's transaction: the hub's cap
+        (0 = nothing at all) or the company's own (requeue_runs asks it before a
+        `daily_cap` refusal comes back)."""
+        if self.s.agent_daily_token_cap <= 0:
+            return True
+        if await self._spent_today(tx) >= self.s.agent_daily_token_cap:
+            return True
+        return await self._company_cap_reached(tx, company_id)
+
     async def _company_cap_reached(self, tx: Tx, company_id: Any) -> bool:
         """⟨20.1⟩ §28.6 a company's own agent runs of today (UTC) against its
         cap: core.companies.daily_token_cap, else AGENT_COMPANY_DAILY_TOKEN_CAP
