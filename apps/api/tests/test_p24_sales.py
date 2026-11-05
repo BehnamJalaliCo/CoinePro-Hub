@@ -522,6 +522,18 @@ async def test_a_budget_change_is_measured_from_the_limit_in_force(
         and m["horizon_days"] == 30
     )
     assert none is None
+    # a hire: the card's own monthly cost; a model nobody prices is not measured (no guess)
+    hire = {"kind": "hire", "company_id": co["id"],
+            "payload": {"model": "m-x", "quota_estimate_month": {"usd": "12.5"}}}  # fmt: skip
+    unpriced = {"kind": "hire", "company_id": co["id"], "payload": {
+        "model": "nope-model-x", "role": "content_writer", "quota_estimate_month": {"tokens": 100000}}}  # fmt: skip
+    line = {"kind": "proposal", "company_id": co["id"], "payload": {"impact_input": {
+        "kind": "line.caps", "line": "LN-999999", "new_runs_per_day": 4}}}  # fmt: skip
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        h = await IM.measure(tx, hire)
+        assert await IM.measure(tx, unpriced) is None
+        assert await IM.measure(tx, line) is None  # no such line: nothing to measure from
+    assert h is not None and h["cost_usd"] == 12.5 and h["kind"] == "measured"
     assert IM.score(m) == 30.0 and IM.score(None) == 0.0
 
 
