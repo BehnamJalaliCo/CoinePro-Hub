@@ -1,5 +1,5 @@
 # hq-runner: the holding's job runner on a company server (contract §26).
-# Runtime: Python 3.12 standard library + httpx (BSD). Licence: MIT.
+# Runtime: Python 3.12 standard library + httpx (BSD) + asyncpg (Apache-2.0, the ledger job). Licence: MIT.
 
 [build-system]
 requires = ["setuptools>=77"]
@@ -7,13 +7,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hq-runner"
-version = "0.2.2"
+version = "0.3.0"
 description = "CoinePro HQ job runner for a company server: outbound HTTPS only, like a self-hosted CI runner"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.12"
-dependencies = ["httpx>=0.28.1,<0.29"]
+dependencies = ["httpx>=0.28.1,<0.29", "asyncpg>=0.31.0,<0.32"]
 
 [project.scripts]
 hq-runner = "hq_runner.cli:main"

@@ -26,6 +26,7 @@ import type { Decision18 } from '@/lib/api/v18';
 import { MEDIA_KINDS, sealTarget } from '@/lib/api/v19';
 import { ARCHIVE_KINDS } from '@/lib/api/v20';
 import { SealPayload } from '@/components/v26/bits';
+import { ImpactBlock } from '@/components/v33/bits';
 import { SERVER_DESTRUCTIVE, sealCardOf } from '@/lib/api/v26';
 import { ACTOR_FA, DECISION_KIND, DECISION_STATUS, RISK } from '@/lib/labels';
 import { ago, cx, jDateTime, modelLabel, tokens, until, usd } from '@/lib/format';
@@ -260,6 +261,7 @@ export function DecisionDetail({ d, onDone }: { d: Decision; onDone?: () => void
       <Section title="چرا"><Md text={d.why} /></Section>
       <Payload d={d} />
       {/* ⟨1.5⟩ §20.6: what the card promises, and its 30/60/90-day reviews once sealed. */}
+      <ImpactBlock d={d} />
       <ExpectedBlock d={d} />
       <DecisionOutcomes d={d} />
       {/* ⟨1.5⟩ §21.1: the advisor's memo, standard or devil's advocate, with the substitutes' second and third opinions. */}

@@ -14,7 +14,7 @@ from typing import Any, Protocol
 
 KINDS = (
     "gpt_text", "dedupe", "tts", "pattern_search", "council_pick", "opus_build", "render",
-    "cover", "quality", "publish", "deliver", "n8n", "seal",
+    "cover", "quality", "publish", "deliver", "n8n", "seal", "persona_test",
 )  # fmt: skip
 
 

@@ -663,10 +663,30 @@ async def summary(tx: Tx, period: str, company_id: UUID | str | None = None) -> 
         since=_window(start, end)[0],
         co=co,
     )
+    # ⟨1.15⟩ §33.3: the payments of §33.2 beside the affiliate commission, per company
+    from hq_api.domain import revenue_board
+
+    paid = await revenue_board.payments_by_company(
+        tx,
+        datetime.combine(start, datetime.min.time(), UTC),
+        datetime.combine(end + timedelta(days=1), datetime.min.time(), UTC),
+        UUID(co) if co else None,
+    )
+    by_source = [
+        {
+            "company": c,
+            "affiliate_usdt": by_company.get(c, Decimal(0)),
+            "payments_usdt": paid.get(c, {}).get("usdt", Decimal(0)),
+            "store_payments": paid.get(c, {}).get("store", 0),
+            "total_usdt": by_company.get(c, Decimal(0)) + paid.get(c, {}).get("usdt", Decimal(0)),
+        }
+        for c in sorted(set(by_company) | set(paid))
+    ]
     return {
         "period": period,
         "from": start.isoformat(),
         "to": end.isoformat(),
+        "by_source": by_source,
         "total_usdt": total,
         "prev_total_usdt": Decimal(prev) if prev is not None else None,
         "by_company": [

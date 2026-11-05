@@ -1,3 +1,5 @@
 # hq-runner dependencies (exact pins; resolved + hashed in requirements.lock)
 # Standard library plus httpx (BSD-3-Clause) and what httpx needs.
 httpx==0.28.1
+# The ledger job (0.3.0, contract §33.2): the company's SELECT-only ledger role.
+asyncpg==0.31.0

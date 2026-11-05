@@ -489,6 +489,13 @@ class Runner:
                     "SELECT run_meta FROM work.work WHERE id = :id", id=run["work_id"]
                 )
             rc.run_meta = dict(meta) if isinstance(meta, dict) else {}
+        # ⟨1.15⟩ §33.10 an `on_server` work: the turn is done by its company server's own Claude
+        # Code in the work's workspace (no model call here); None: it runs on the hub as today
+        from hq_api.domain import workspace as WS
+
+        handed = await WS.hand_over(self.hub, run, emp)
+        if handed is not None:
+            return await self.finish(run_id, "done", None, note=handed)
         deadline = time.monotonic() + self.s.agent_max_run_s
         try:
             outcome = await self._steps(rc, deadline)
@@ -1320,6 +1327,12 @@ class Runner:
             id=work_id,
         )
         w["brief"] = (w["brief"] or "")[:8000]
+        # ⟨1.15⟩ §33.7 a work split into parallel parts: every part side by side (its output, or
+        # why it failed) and what to do (merge once all have ended)
+        from hq_api.domain import split as SP
+
+        if (parts := await SP.merge_brief(tx, work_id)) is not None:
+            w["parallel_parts"] = parts
         return w
 
     async def _reply_thread(self, rc: RunCtx) -> str | None:

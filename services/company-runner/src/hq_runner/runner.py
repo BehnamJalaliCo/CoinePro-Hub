@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from hq_runner import __version__
+from hq_runner import __version__, workspace
 from hq_runner.claude_job import run_claude
 from hq_runner.config import Config, save, save_state
 from hq_runner.events import MAX_OUTPUT_BYTES, EventSink
@@ -46,6 +46,7 @@ from hq_runner.jobs import (
     run_read,
     run_write,
 )
+from hq_runner.ledger import run_ledger
 from hq_runner.mask import Masker
 from hq_runner.net import Route
 from hq_runner.proc import EXIT_CANCELLED
@@ -65,6 +66,7 @@ KIND_CEILING_S = {
     "exec": 3700,
     "publish": 3700,
     "claude": 4 * 3600 + 120,
+    "ledger": 120,
 }
 PROCESS_KINDS = {"exec", "claude", "publish"}
 
@@ -76,6 +78,7 @@ HANDLERS: dict[str, Handler] = {
     "claude": run_claude,
     "publish": run_publish,
     "netcheck": run_netcheck,
+    "ledger": run_ledger,
 }
 
 
@@ -156,6 +159,7 @@ class Runner:
         self.stop_event = asyncio.Event()
         self.fatal: Fatal | None = None
         self.last_ok: float | None = None
+        self.last_sweep: float | None = None
 
     @property
     def masker(self) -> Masker:
@@ -261,9 +265,23 @@ class Runner:
             if r is not None:
                 log.info("job %s cancelled by the hub", jid)
                 r.cancel.set()
+        if nxt.closed:
+            await asyncio.to_thread(workspace.close, nxt.closed, self.cfg_path)
         if nxt.job is not None:
             self.start_job(nxt.job)
+        await self.maybe_sweep()
         self.write_state("online")
+
+    async def maybe_sweep(self) -> None:
+        """⟨0.3.0⟩ once a day: workspaces 30 days past their work's close go."""
+        now = time.time()
+        if self.last_sweep is not None and now - self.last_sweep < workspace.SWEEP_EVERY_S:
+            return
+        self.last_sweep = now
+        try:
+            await asyncio.to_thread(workspace.sweep, self.cfg_path, now)
+        except OSError as exc:
+            log.error("workspace sweep failed (%s)", type(exc).__name__)
 
     async def poll_loop(self) -> None:
         while not self.stop_event.is_set():

@@ -136,6 +136,8 @@ fun RevenueScreen() {
 
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
         item { PageHeader("درآمد", eyebrow = "کمیسیون رفرال صرافی‌ها، هر روز بعد از تسویه") }
+        // ⟨1.15⟩ §33.3, §33.5: the board computed from the payments, and the commission an exchange still owes.
+        item { RevenueLinks() }
         item {
             Text(
                 prose("درآمد به USDT است و این‌جا هم‌ارز دلار خوانده میشود (USDT ≈ USD). هزینه‌ی توکن از خزانه میاید، نه از گزارش ایجنت. pull کار کد است و کلید صرافی هرگز از egress بیرون نمیرود."),
@@ -582,5 +584,15 @@ private fun RescueSheet(seed: RescueCase, onClose: () -> Unit) {
             r.closedAt != null -> Text(com.coinepro.hq.designsystem.timesFig("بسته شد، ${jDateTime(r.closedAt)}"), style = Divan.type.caption, color = c.textMuted)
         }
         Text("در این‌جا فقط نام مستعار مشتری است؛ UID و نام کاربری خام هرگز از شرکتش بیرون نمیاید.", style = Divan.type.micro, color = c.textMuted)
+    }
+}
+
+/** ⟨1.15⟩ The two money pages beside the radar. */
+@Composable
+private fun RevenueLinks() {
+    val nav = com.coinepro.hq.ui.LocalNav.current
+    androidx.compose.foundation.layout.Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+        com.coinepro.hq.designsystem.HqButton("تابلوی درآمد", { nav.go("revenue-board") }, Modifier.weight(1f), variant = com.coinepro.hq.designsystem.BtnVariant.SILVER, icon = com.coinepro.hq.designsystem.generated.DivanIcon.CHART)
+        com.coinepro.hq.designsystem.HqButton("کسری کمیسیون", { nav.go("affiliate-gaps") }, Modifier.weight(1f), variant = com.coinepro.hq.designsystem.BtnVariant.SILVER, icon = com.coinepro.hq.designsystem.generated.DivanIcon.TREASURY)
     }
 }

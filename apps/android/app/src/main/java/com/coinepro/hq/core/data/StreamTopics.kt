@@ -29,6 +29,8 @@ object StreamTopics {
         "lines",
         // ⟨1.14⟩ §32.9: talk (`talk.turn`, `talk.card`) and the voice (`voice.engine`, `voice.meter`).
         "talk",
+        // ⟨1.15⟩ §33.11: payments read and alerts, a lead, a usage report, a journey stage (`payment.`, `lead.`, `usage.`, `journey.`).
+        "money",
     )
 
     /**

@@ -157,6 +157,8 @@ fun DecisionRow(d: Decision, companies: List<Company>, onClick: () -> Unit) {
                 Text("·", style = Divan.type.micro, color = c.textMuted)
                 Text(k.fa, style = Divan.type.micro, color = c.textMuted, maxLines = 1)
             }
+            // ⟨1.15⟩ §33.6 the money the card moves (measured, or an estimate with its basis).
+            com.coinepro.hq.ui.v33.ImpactChip(d.impact)
         }
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             val (_, fg) = toneColors(r.tone)
@@ -187,7 +189,11 @@ fun CartableScreen(company0: String? = null) {
     var coF by rememberSaveable { mutableStateOf(company0) }
     // Cartable age (M8): what expires first, what has waited longest, or the newest.
     var sort by rememberSaveable { mutableStateOf("expiry") }
-    val q = rememberQuery("decisions:$tab", "decisions") { if (tab == "pending") decisions("pending", limit = 100) else decisionsAll(limit = 100) }
+    // ⟨1.15⟩ §33.6 «بیشترین اثر پولی»: the hub sorts by impact (`?sort=impact`); every other order is the phone's.
+    val byImpact = tab == "pending" && sort == "impact"
+    val q = rememberQuery("decisions:$tab${if (byImpact) ":impact" else ""}", "decisions") {
+        if (tab == "pending") decisions("pending", limit = 100, sort = if (byImpact) "impact" else null) else decisionsAll(limit = 100)
+    }
     val r = refresher(q)
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
         item {
@@ -219,7 +225,7 @@ fun CartableScreen(company0: String? = null) {
         }
         if (tab == "pending") item {
             com.coinepro.hq.designsystem.ScrollRow {
-                for ((key, label) in listOf("expiry" to "زودتر منقضی", "oldest" to "بیشترین انتظار", "newest" to "تازه‌ترین")) FilterChip(label, sort == key, { sort = key })
+                for ((key, label) in listOf("expiry" to "زودتر منقضی", "oldest" to "بیشترین انتظار", "newest" to "تازه‌ترین", "impact" to "بیشترین اثر پولی")) FilterChip(label, sort == key, { sort = key })
             }
         }
         // ⟨1.8⟩ §26.3: a destructive command on a company's server waits here first, the command itself on the card.
@@ -234,6 +240,7 @@ fun CartableScreen(company0: String? = null) {
             when (sort) {
                 "expiry" -> xs.sortedWith(compareBy({ it.expiresAt ?: "9999" }, { it.createdAt }))
                 "oldest" -> xs.sortedBy { it.createdAt }
+                "impact" -> xs
                 else -> xs.sortedByDescending { it.createdAt }
             }
         }
@@ -484,6 +491,8 @@ private fun DecisionDetail(d: Decision, onChanged: (Decision) -> Unit) {
         Section("چی") { Md(d.what) }
         Section("چرا") { Md(d.why) }
         Payload(d)
+        // ⟨1.15⟩ §33.6 the card's money impact and what the figure is made of.
+        if (com.coinepro.hq.core.data.hasImpact(d.impact)) Section("اثر پولی") { com.coinepro.hq.ui.v33.ImpactBasis(d.impact!!) }
         // ⟨1.5⟩ §20.6: what the card promises, and its 30/60/90-day reviews once sealed.
         ExpectedBlock(d)
         DecisionOutcomes(d)

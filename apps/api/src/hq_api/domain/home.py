@@ -658,7 +658,15 @@ async def morning_lines(tx: Tx, tz: str, today: date) -> list[str]:
     )
     if open_orders:
         lines.append(f"فرمان‌های در جریان شما: {open_orders}.")
-    return [x for x in (clean(line, 300) for line in lines) if x and shown(x)][:5]
+    base = [x for x in (clean(line, 300) for line in lines) if x and shown(x)][:5]
+    # ⟨1.15⟩ §33.1: yesterday's usage report, 3 lines in the advisor's words, inside the 5
+    from hq_api.domain import usage
+
+    spent = [
+        x for x in (clean(line, 300) for line in await usage.morning_lines(tx, tz, today)) if x
+    ]
+    spent = [x for x in spent if shown(x)][: usage.MORNING_LINES]
+    return base[: 5 - len(spent)] + spent
 
 
 async def store_morning(tx: Tx, holding_id: UUID, day: date, lines: list[str]) -> None:

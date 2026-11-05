@@ -1,0 +1,8 @@
+# Affiliate follow-up (contract §33.5), data. The exchange's settlement window is the number
+# of days after a month ends by which its commission should have been paid; a gap above
+# `gap_pct` percent of what was due, after that window, opens a follow-up for the FIN
+# manager. An exchange not named here uses `default`. The owner may change these numbers;
+# no code names an exchange.
+gap_pct: 5
+settlement_window_days:
+  default: 15

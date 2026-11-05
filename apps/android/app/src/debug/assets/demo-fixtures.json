@@ -595,7 +595,14 @@
        "mode": "standard",
        "state": "ready"
       }
-     ]
+     ],
+     "impact": {
+      "revenue_usdt": null,
+      "cost_usd": 18.0,
+      "horizon_days": 30,
+      "basis_fa": "هزینه‌ی سرور و اجرای خط تولید در 14 روز اخیر، برای یک ماه.",
+      "kind": "measured"
+     }
     },
     {
      "action_class": "A3",
@@ -806,7 +813,14 @@
      "waiting_h": 6,
      "reminders": [],
      "digital_ceo_prediction": null,
-     "memos": []
+     "memos": [],
+     "impact": {
+      "revenue_usdt": 210.0,
+      "cost_usd": 6.2,
+      "horizon_days": 30,
+      "basis_fa": "از روی نرخ بازگشت پیام‌های خوش‌آمد مشابه در 14 روز اخیر.",
+      "kind": "estimate"
+     }
     },
     {
      "action_class": "A1",
@@ -930,7 +944,14 @@
      "waiting_h": 5,
      "reminders": [],
      "digital_ceo_prediction": null,
-     "memos": []
+     "memos": [],
+     "impact": {
+      "revenue_usdt": 640.0,
+      "cost_usd": null,
+      "horizon_days": 30,
+      "basis_fa": "از روی 14 روز اخیر: کاربرانی که پیام راهنما گرفتند 18% بیشتر به حداقل موجودی رسیدند؛ با کمیسیون میانگین هر کاربر حساب شده.",
+      "kind": "estimate"
+     }
     },
     {
      "action_class": "A1",
@@ -1013,7 +1034,14 @@
       }
      ],
      "digital_ceo_prediction": null,
-     "memos": []
+     "memos": [],
+     "impact": {
+      "revenue_usdt": null,
+      "cost_usd": 42.5,
+      "horizon_days": 30,
+      "basis_fa": "مدل بالاتر × توکن منشور این نقش × مصرف میانه‌ی 30 روز اخیرش، با جدول قیمت مسیریاب.",
+      "kind": "measured"
+     }
     },
     {
      "reversible": false,
@@ -1776,7 +1804,14 @@
        "mode": "standard",
        "state": "ready"
       }
-     ]
+     ],
+     "impact": {
+      "revenue_usdt": null,
+      "cost_usd": 18.0,
+      "horizon_days": 30,
+      "basis_fa": "هزینه‌ی سرور و اجرای خط تولید در 14 روز اخیر، برای یک ماه.",
+      "kind": "measured"
+     }
     },
     {
      "ref": "D-000011",
@@ -2038,7 +2073,14 @@
      "waiting_h": 6,
      "reminders": [],
      "digital_ceo_prediction": null,
-     "memos": []
+     "memos": [],
+     "impact": {
+      "revenue_usdt": 210.0,
+      "cost_usd": 6.2,
+      "horizon_days": 30,
+      "basis_fa": "از روی نرخ بازگشت پیام‌های خوش‌آمد مشابه در 14 روز اخیر.",
+      "kind": "estimate"
+     }
     },
     {
      "action_class": "A1",
@@ -2162,7 +2204,14 @@
      "waiting_h": 5,
      "reminders": [],
      "digital_ceo_prediction": null,
-     "memos": []
+     "memos": [],
+     "impact": {
+      "revenue_usdt": 640.0,
+      "cost_usd": null,
+      "horizon_days": 30,
+      "basis_fa": "از روی 14 روز اخیر: کاربرانی که پیام راهنما گرفتند 18% بیشتر به حداقل موجودی رسیدند؛ با کمیسیون میانگین هر کاربر حساب شده.",
+      "kind": "estimate"
+     }
     },
     {
      "action_class": "A1",
@@ -2672,7 +2721,14 @@
       }
      ],
      "digital_ceo_prediction": null,
-     "memos": []
+     "memos": [],
+     "impact": {
+      "revenue_usdt": null,
+      "cost_usd": 42.5,
+      "horizon_days": 30,
+      "basis_fa": "مدل بالاتر × توکن منشور این نقش × مصرف میانه‌ی 30 روز اخیرش، با جدول قیمت مسیریاب.",
+      "kind": "measured"
+     }
     },
     {
      "reversible": false,
@@ -8091,7 +8147,14 @@
      "mode": "standard",
      "state": "ready"
     }
-   ]
+   ],
+   "impact": {
+    "revenue_usdt": null,
+    "cost_usd": 18.0,
+    "horizon_days": 30,
+    "basis_fa": "هزینه‌ی سرور و اجرای خط تولید در 14 روز اخیر، برای یک ماه.",
+    "kind": "measured"
+   }
   }
  },
  "/decisions/D-000011": {
@@ -33250,6 +33313,29 @@
      "account": "ra-pc",
      "note_fa": "دو pull پشت‌سرهم شکست خورد؛ IP هاب در whitelist API افیلیت LBank نیست. یک کار برای SRE پلتفرم باز شد."
     }
+   ],
+   "by_source": [
+    {
+     "company": "TY",
+     "affiliate_usdt": "7409.53",
+     "payments_usdt": "1840.00",
+     "store_payments": 0,
+     "total_usdt": "9249.53"
+    },
+    {
+     "company": "FX",
+     "affiliate_usdt": "3878.92",
+     "payments_usdt": "620.00",
+     "store_payments": 0,
+     "total_usdt": "4498.92"
+    },
+    {
+     "company": "PC",
+     "affiliate_usdt": "1293.81",
+     "payments_usdt": "0.00",
+     "store_payments": 3,
+     "total_usdt": "1293.81"
+    }
    ]
   }
  },
@@ -36593,7 +36679,14 @@
    "waiting_h": 6,
    "reminders": [],
    "digital_ceo_prediction": null,
-   "memos": []
+   "memos": [],
+   "impact": {
+    "revenue_usdt": 210.0,
+    "cost_usd": 6.2,
+    "horizon_days": 30,
+    "basis_fa": "از روی نرخ بازگشت پیام‌های خوش‌آمد مشابه در 14 روز اخیر.",
+    "kind": "estimate"
+   }
   }
  },
  "/meetings": {
@@ -58042,7 +58135,14 @@
    "waiting_h": 5,
    "reminders": [],
    "digital_ceo_prediction": null,
-   "memos": []
+   "memos": [],
+   "impact": {
+    "revenue_usdt": 640.0,
+    "cost_usd": null,
+    "horizon_days": 30,
+    "basis_fa": "از روی 14 روز اخیر: کاربرانی که پیام راهنما گرفتند 18% بیشتر به حداقل موجودی رسیدند؛ با کمیسیون میانگین هر کاربر حساب شده.",
+    "kind": "estimate"
+   }
   }
  },
  "/decisions/D-000004": {
@@ -89982,7 +90082,14 @@
     }
    ],
    "digital_ceo_prediction": null,
-   "memos": []
+   "memos": [],
+   "impact": {
+    "revenue_usdt": null,
+    "cost_usd": 42.5,
+    "horizon_days": 30,
+    "basis_fa": "مدل بالاتر × توکن منشور این نقش × مصرف میانه‌ی 30 روز اخیرش، با جدول قیمت مسیریاب.",
+    "kind": "measured"
+   }
   }
  },
  "/media/series": {

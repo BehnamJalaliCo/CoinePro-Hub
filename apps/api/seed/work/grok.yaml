@@ -1,0 +1,18 @@
+# ⟨1.15⟩ Prompt 24 (contract §33.7, §33.10): the Grok-like working style. Data, not code.
+#
+# parallel: a work split into independent parts that run at the same time (`work.split`, A1, by the
+#   parent's assignee). max: at most this many parts (PARALLEL_MAX); min: fewer is no split.
+#   merge_share: the share of the parent's remaining tokens kept for the one merge run (the rest is
+#   divided equally between the parts, when the parent has a token budget at all).
+# workspace: a work done on its company's own server (`mode: on_server`) by that server's Claude
+#   Code in `~/hq-workspace/<work-ref>` (runner 0.3.0). runner_min: an older runner keeps the work on
+#   the hub. keep_days: the runner removes the folder this many days after the work closes.
+#   turn_timeout_s: one turn (one `claude` job) at most.
+parallel:
+  max: 3
+  min: 2
+  merge_share: 0.25
+workspace:
+  runner_min: "0.3.0"
+  keep_days: 30
+  turn_timeout_s: 3600

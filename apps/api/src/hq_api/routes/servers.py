@@ -45,6 +45,7 @@ from pydantic import BaseModel, Field, field_validator
 from hq_api import idempotency, pagination
 from hq_api.context import Ctx, internal_ctx, owner_ctx
 from hq_api.domain import servers as SV
+from hq_api.domain import workspace as WS
 from hq_api.errors import ApiError, responses
 from hq_api.hub import Hub, get_hub
 from hq_api.principal import Principal
@@ -358,6 +359,8 @@ async def runner_next(
 ) -> Any:
     """Long-poll ≤ 30 s: `{job, cancels: [job ids]}` (the jobs it was given
     that were cancelled since: it kills their process group), or 204.
+    ⟨1.15⟩ `closed: [{workspace, closed_at}]` (§33.10): the works whose
+    workspace folder the runner removes 30 days after their close.
     `slots`: how many more jobs it can run now (0: only cancels). `via` and
     `hub_rtt_ms` (also the X-HQ-Runner-* headers) are stored on the server.
     Nothing new starts while the company is locked."""
@@ -372,8 +375,11 @@ async def runner_next(
             cancels = await SV.cancels_for(tx, r)
             job = await SV.dispatch(tx, r) if slots > 0 else None
             out = SV.runner_job(job, hub) if job else None
-        if out is not None or cancels:
-            return {"job": out, "cancels": cancels}
+            # ⟨1.15⟩ §33.10 the works closed since, once each: the runner removes their
+            # folders 30 days later (only a runner on 0.3.0 has workspaces)
+            closed = await WS.closed_for(tx, r["server_id"])
+        if out is not None or cancels or closed:
+            return {"job": out, "cancels": cancels, **({"closed": closed} if closed else {})}
         if await request.is_disconnected() or asyncio.get_running_loop().time() >= deadline:
             return Response(status_code=204)
         await asyncio.sleep(POLL_S)
@@ -441,6 +447,10 @@ async def runner_result(
         from hq_api.domain import dispatch
 
         await dispatch.after_server_job(hub, j["id"])  # ⟨1.11⟩ §29.8 an inside question
+    elif (
+        j["kind"] == "claude" and (j.get("args") or {}).get("workspace") and j["state"] in SV.FINAL
+    ):
+        await WS.after_job(hub, j["id"])  # ⟨1.15⟩ §33.10 a workspace's turn, after the commit
     return {"state": j["state"]}
 
 

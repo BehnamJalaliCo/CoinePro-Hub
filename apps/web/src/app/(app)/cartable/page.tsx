@@ -7,7 +7,7 @@ import { DecisionDetail } from '@/components/cartable/decision-detail';
 import { BatchSeal } from '@/components/v17/cartable';
 import { Card, Empty, ErrorState, FilterChip, PageHeader, Segmented, Skeleton } from '@/components/ui/primitives';
 import { Sheet } from '@/components/ui/overlay';
-import { useDecision, useDecisions } from '@/lib/api/hooks';
+import { useDecision, useDecisions, type DecisionFilter } from '@/lib/api/hooks';
 import { useScope } from '@/lib/scope';
 import { SealCards, useServerSeals } from '@/components/v26/bits';
 import { SERVER_DESTRUCTIVE } from '@/lib/api/v26';
@@ -36,17 +36,20 @@ function CartableInner() {
   const wide = useWide();
   const [tab, setTab] = useState<Tab>('pending');
   const [risk, setRisk] = useState<string | null>(null);
-  const q = useDecisions({ status: tab, company: company ? [company] : undefined, risk: (risk ?? undefined) as never });
-  // Cartable age (M8): what expires first, what has waited longest, or the newest.
-  const [sort, setSort] = useState<'expiry' | 'oldest' | 'newest'>('expiry');
+  // Cartable age (M8): what expires first, what has waited longest, or the newest. ⟨1.15⟩ §33.6: by money impact the hub orders the list
+  // itself (`?sort=impact`: the largest impact per 30 days first, the cards without one last); the generated types predate the parameter.
+  const [sort, setSort] = useState<'expiry' | 'oldest' | 'newest' | 'impact'>('expiry');
+  const byImpact = sort === 'impact' && tab === 'pending';
+  const q = useDecisions({ status: tab, company: company ? [company] : undefined, risk: (risk ?? undefined) as never, ...(byImpact ? { sort: 'impact' } : {}) } as DecisionFilter);
   const items = useMemo(() => {
     // ⟨1.8⟩ §26.3: a server's destructive command stands above as its own card, with its command and its seal.
     const xs = (q.data?.items ?? []).filter((d) => tab !== 'pending' || d.kind !== SERVER_DESTRUCTIVE);
     const t = (s: string | null | undefined, empty: number) => (s ? new Date(s).getTime() : empty);
+    if (byImpact) return xs; // the hub's order
     if (sort === 'expiry') xs.sort((a, b) => t(a.expires_at, Infinity) - t(b.expires_at, Infinity) || t(a.created_at, 0) - t(b.created_at, 0));
     else xs.sort((a, b) => (sort === 'oldest' ? 1 : -1) * (t(a.created_at, 0) - t(b.created_at, 0)));
     return xs;
-  }, [q.data, sort, tab]);
+  }, [q.data, sort, tab, byImpact]);
   const serverSeals = useServerSeals(company);
   const selected = params.get('ref') ?? (wide ? items[0]?.ref ?? null : null);
   const detail = useDecision(selected);
@@ -89,7 +92,7 @@ function CartableInner() {
           {tab === 'pending' ? (
             <label className="flex items-center gap-2 text-[12px] text-sec">ترتیب
               <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} className="h-9 rounded-[10px] border border-strong bg-tile px-2 text-[13px] text-ink outline-none focus:border-gold-ink">
-                <option value="expiry">زودتر منقضی</option><option value="oldest">بیشترین انتظار</option><option value="newest">تازه‌ترین</option>
+                <option value="expiry">زودتر منقضی</option><option value="oldest">بیشترین انتظار</option><option value="newest">تازه‌ترین</option><option value="impact">بیشترین اثر پولی</option>
               </select>
             </label>
           ) : null}

@@ -90,6 +90,10 @@ data class OrderReport(
     val outputs: List<ReportOutput> = emptyList(),
     val summary: OrderSummary? = null,
     val updatedAt: String = "",
+    /** ⟨1.15⟩ §33.7 (additive): each split work of the order, its parts side by side. */
+    val parts: List<WorkSplit> = emptyList(),
+    /** ⟨1.15⟩ §33.10 (additive): the works done in their own folder on their company's server. */
+    val workspaces: List<WorkspaceProgress> = emptyList(),
 )
 
 // ------------------------------------------------------------- §29.3 rules --

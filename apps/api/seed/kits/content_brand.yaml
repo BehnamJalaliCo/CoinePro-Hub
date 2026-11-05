@@ -43,3 +43,21 @@ kpis:
     aggregate: sum
 connections: [instagram, telegram, youtube, search_console, ga4]
 defaults: {}
+# ⟨1.15⟩ §33.4 the stages of this company's leads: a sponsor or partner who might pay for reach.
+lead_stages:
+  - {key: new, title_fa: جدید, kind: open}
+  - {key: contacted, title_fa: تماس گرفته شد, kind: open}
+  - {key: negotiating, title_fa: در حال مذاکره, kind: open}
+  - {key: won, title_fa: قرارداد بسته شد, kind: won}
+  - {key: lost, title_fa: از دست رفت, kind: lost}
+
+# ⟨1.15⟩ §33.8 the stages of the company journey, each reached by code from rows (a bare key is the default
+# stage of that name; a stage may carry its own title_fa and rule {kind, min}).
+journey:
+  - founded
+  - server_ready
+  - first_content
+  - first_visitor
+  - first_lead
+  - first_payment
+  - break_even

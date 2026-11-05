@@ -48,6 +48,11 @@ const INVALIDATE: Array<[string, Array<string | readonly string[]>]> = [
   ['automation.', ['g31']],
   ['campaign.', ['g31']],
   // ⟨1.14⟩ §32.9 topic `talk`: a turn finished, a card, an engine's light, the meter.
+  // ⟨1.15⟩ §33.11 topic `money`: a payment read or alert, a lead, a usage report, a journey stage; and `work.split` (covered by `work.`).
+  ['payment.', ['g33']],
+  ['lead.', ['g33']],
+  ['usage.', ['g33']],
+  ['journey.', ['g33']],
   ['talk.', ['talk']],
   ['voice.', ['voice']],
   ['connection.', ['connections', 'groups']],

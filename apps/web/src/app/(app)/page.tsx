@@ -10,6 +10,7 @@ import { HomeOrdersCard } from '@/components/v21/orders';
 import { CriticalCard, GroupKpiCard, HomeNotServed, HomeOrders, HomeSkeleton, MorningCard, ProgressCard, SuggestionCard } from '@/components/v29/home';
 import { useDecisions, usePresence } from '@/lib/api/hooks';
 import { useHome } from '@/lib/api/v29';
+import { UsageHomeCard } from '@/components/v33/usage';
 import { useScope } from '@/lib/scope';
 import { jWeekday } from '@/lib/format';
 
@@ -81,6 +82,7 @@ export default function OwnerHome() {
           <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
             <div className="flex min-w-0 flex-col gap-4">
               <MorningCard lines={h.morning} />
+              <UsageHomeCard />
               {h.groups.map((g) => <GroupKpiCard key={g.key} g={g} />)}
             </div>
             <div className="flex min-w-0 flex-col gap-4">

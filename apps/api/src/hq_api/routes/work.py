@@ -54,7 +54,9 @@ class WorkCreate(Model):
     # ⟨1.9⟩ contract §27.1-§27.2: who plays it, and alone or as a council;
     # `media`: a council that makes images or video (each player its own)
     player: Literal["auto", "claude", "gpt", "gemini", "deepseek"] = "auto"
-    mode: Literal["single", "council"] = "single"
+    # ⟨1.15⟩ §33.10 `on_server`: on its company's own server (paired, runner >= 0.3.0), in a
+    # workspace; otherwise it runs on the hub as today
+    mode: Literal["single", "council", "on_server"] = "single"
     media: Literal["image", "video"] | None = None
 
 
@@ -66,7 +68,7 @@ class WorkPatch(Model):
     # ⟨1.9⟩ §27.1: a new player starts afresh (no wait, no fallback); a
     # council started on an open order runs from then on
     player: Literal["auto", "claude", "gpt", "gemini", "deepseek"] | None = None
-    mode: Literal["single", "council"] | None = None
+    mode: Literal["single", "council", "on_server"] | None = None
 
 
 class Reason(Model):

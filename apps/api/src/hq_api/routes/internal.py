@@ -27,6 +27,7 @@ from hq_api.db import Tx
 from hq_api.domain import control, errands, founding, gov_authority, hiring, inquiries, notify, org
 from hq_api.domain import decisions as D
 from hq_api.domain import files as F
+from hq_api.domain import split as SP
 from hq_api.domain import work as W
 from hq_api.errors import ApiError, responses
 from hq_api.principal import Principal
@@ -206,6 +207,8 @@ OP_CLASS: dict[str, str] = {
     "file.upload": "A1",
     "work.delegate": "A2",
     "work.create": "A2",
+    # ⟨1.15⟩ §33.7: the parent's assignee splits its work into parallel parts (routes/grok.py)
+    "work.split": "A1",
     "kill_switch.set": "A2",
     "deploy_freeze.set": "A2",
     # prompt 05: the Tool Gateway's reads, memory, the run itself, live replies
@@ -740,6 +743,9 @@ async def deliver_work(
         from hq_api.domain import players
 
         await players.on_deliverable(tx, ctx.hub, w)
+        # ⟨1.15⟩ §33.7: a parallel part's output (the merge waits for every part), or the merge
+        await SP.after_part(tx, w["id"])
+        await SP.after_parent(tx, w["id"])
         await ctx.emit(
             tx,
             w["company"],
@@ -795,6 +801,8 @@ async def fail_work(id: UUID, body: Fail, ctx: Ctx = Depends(internal_ctx)) -> W
             tx, w, "declined" if body.decline else "failed", ctx.who, {"reason": body.reason[:200]}
         )
         await _audit_work(ctx, tx, w, "work.decline" if body.decline else "work.fail")
+        await SP.after_part(tx, w["id"])  # ⟨1.15⟩ §33.7: a failed part is reported, never hidden
+        await SP.after_parent(tx, w["id"])
         await ctx.emit(tx, w["company"], "work.updated", w["ref"], {"status": status})
         return W.render(await W.load(tx, id))
 

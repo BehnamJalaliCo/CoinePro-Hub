@@ -71,7 +71,7 @@ from hq_common.redact import mask_secrets, scrub
 
 log = logging.getLogger("hq_api.servers")
 
-JOB_KINDS = ("map", "exec", "read", "write", "claude", "publish", "netcheck")
+JOB_KINDS = ("map", "exec", "read", "write", "claude", "publish", "netcheck", "ledger")
 OPEN = ("queued", "running", "awaiting_seal")
 FINAL = ("done", "failed", "cancelled")
 PAIR_TTL_S = 900
@@ -115,6 +115,7 @@ KIND_FA = {
     "claude": "Claude Code",
     "publish": "انتشار",
     "netcheck": "سنجش شبکه",
+    "ledger": "خواندن دفتر پرداخت",  # ⟨1.15⟩ §33.2 (runner 0.3.0)
 }
 
 
@@ -177,6 +178,8 @@ def shown_cmd(kind: str, args: dict[str, Any]) -> str:
             "netcheck "
             + " ".join(f"{t.get('host')}:{t.get('port')}" for t in args.get("targets") or [])[:1990]
         )
+    if kind == "ledger":  # ⟨1.15⟩ §33.2: the contract name, nothing else
+        return f"ledger {args.get('contract')}"
     return kind
 
 
@@ -789,6 +792,8 @@ def check_args(kind: str, args: dict[str, Any]) -> None:
         bad["brief"] = "required"
     if kind == "publish" and not str(args.get("command") or "").strip():
         bad["command"] = "required"
+    if kind == "ledger" and args.get("contract") != "ledger_v1":
+        bad["contract"] = "ledger_v1"
     if kind == "claude" and "allowed_tools" in args and not allowed_tools_ok(args["allowed_tools"]):
         bad["allowed_tools"] = "a list of tool names or Bash(<prefix>) patterns"
     if bad:
@@ -1290,6 +1295,10 @@ async def finish(
     )
     if usage:
         await record_usage(tx, j, usage)
+    if j["kind"] == "ledger":  # ⟨1.15⟩ §33.2: the payment rows are validated and stored at once
+        from hq_api.domain import payments
+
+        await payments.on_job_finished(tx, j)
     if j["session_id"]:
         if ok:
             await _session_end(tx, j, "idle", None, j["summary_fa"] or "")
@@ -1350,6 +1359,11 @@ async def _apply(tx: Tx, hub: Any, j: dict[str, Any], data: dict[str, Any]) -> d
         return {"links": await store_links(tx, j, links)}
     if kind == "publish":
         return await _apply_publish(tx, j, data, True, None)
+    if kind == "ledger":
+        # ⟨1.15⟩ §33.2: the rows are pseudonymous by contract and are validated against
+        # seed/payments/ledger_v1.yaml when the money domain ingests them; masking would
+        # damage a hash, so only the contract's own keys are kept, as sent
+        return {k: data[k] for k in ("contract", "rows", "next_cursor", "has_more") if k in data}
     if kind == "claude":
         sid = data.get("session_id")
         if sid and j["session_id"]:

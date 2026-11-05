@@ -81,6 +81,9 @@ fun OrderReportScreen(ref: String) {
                 if (o.blockers.isNotEmpty()) item(key = "blockers") { BlockersCard(o) }
                 o.summary?.takeIf { orderEnded(o.state) }?.let { s -> item(key = "summary") { SummaryCard(o, s) } }
                 item(key = "plan") { PlanCard(o) }
+                // ⟨1.15⟩ §33.10 a work on its company's own server, with «توقف»; §33.7 a split work's parts side by side.
+                for (w in o.workspaces) item(key = "ws-${w.workRef}") { com.coinepro.hq.ui.v33.WorkspaceCard(w) }
+                for (s in o.parts) item(key = "split-${s.workRef}") { com.coinepro.hq.ui.v33.SplitCard(s) }
                 item(key = "steps") { StepsCard(o) }
                 if (o.outputs.isNotEmpty()) item(key = "outputs") { OutputsCard(o) }
             }

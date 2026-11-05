@@ -15,6 +15,8 @@
 >
 > **v1.14 (۲۰۲۶-۱۱-۰۴):** «گفتگو» (§۳۲، پرامپت ۲۳): گفتگوی صوتی و متنی مالک با منشی هلدینگ، ناظر کل، دستیار شخصی و هر مدیر هر شرکت؛ هر کدام با صدای خودش، حالت مشورت یا جلسه‌ی کاری، کارت به‌جای کار خودسر، کلید صدا در خود چت با چراغ وضعیت، و کنتور زنده‌ی هزینه با سقف مالک.
 >
+> **v1.15 (۲۰۲۶-۱۱-۰۵):** پول و شیوه‌ی کار Grok (§۳۳، پرامپت ۲۴): گزارش مصرف به زبان مشاور، خواندن و تطبیق پرداخت‌های کریپتویی شرکت‌ها (دفتر خود شرکت از راه runner و زنجیره‌ی عمومی)، تحلیل درآمد، CRM کوچک، پیگیری افیلیت، اثر پولی تصمیم‌ها، ایجنت‌های موازی، سفر شرکت، پرسونا و تست پیام، و محیط کاری روی سرور هر شرکت.
+>
 > **v1.11 (۲۰۲۶-۱۱-۰۲):** مالک فقط کسب‌وکار میبیند (§۲۹، پرامپت ۲۱): مسیر بر پایه‌ی حوزه، ضمانت جواب هر فرمان با «گزارش فرمان»، قانون‌گذاری مالک از اپ، منشی هلدینگ، صدای بلند، بودجه‌ی ارجاع، زبان فارسی و بازنویسی برای مدیر کل، شورای v2، آمادگی، استخدام خودکار، کارگروه‌ها، اتصال‌ها، خانه‌ی سه‌کارتی، وضعیت کارمند و مرز تأیید.
 
 > **v1.10.2 (۲۰۲۶-۱۱-۰۲):** هزینه‌ی هلدینگ (§۲۸.۷، پرامپت ۲۰.۱): کاتالوگ فقط با دستور مالک و با سقف توکن، دیده‌بان اول با قاعده، سقف روزانه‌ی هر شرکت، سهم هر حوزه در گزارش، و متن GPT از چت وب ChatGPT.
@@ -3602,3 +3604,153 @@ VoiceMeter { period: "today"|"month", voice_usd, cap_usd|null, projected_usd, by
 - Step-up: `voice.secret`. Cards keep the step-ups of the routes they run.
 - Data: migrations `0043` (schema `talk`: `conversations`, `turns`, `cards`) and `0044` (`talk.voice_usage`, `talk.engine_state`), RLS as the rest
   (manager turns carry `company_id`). Router task classes `talk_turn` and `talk_summary` (migration and router seed, as §31.7).
+
+## 33. Money and the Grok-like working style: usage in the advisor's words, crypto payments, revenue, CRM, parallel agents, the company journey, personas, workspaces ⟨1.15⟩ (2026-11-05, prompt 24)
+
+The owner's request (2026-11-05): the usage report comes from the holding to the advisor, who delivers it in plain human words; the open items
+of the Grok gap review (`docs/GAP_REVIEW_2026-11-04.md`) are built, with a mid model (a "Sonnet class" router assignment) wherever a model
+is needed; the companies' payment gateways are crypto on chain, and they are reviewed and read.
+
+Principles (on top of §0, §30, §31):
+- **Numbers by code, words by a model.** Every figure, rate, forecast and match is computed by code from stored rows; a model only phrases,
+  drafts or estimates, and an estimate is always labelled «تخمین» with its basis.
+- **Money is read, never moved.** The hub never holds a private key, never signs a transaction, never approves or rejects a company's payment.
+  It reads the companies' own records (through their runner, §26) and the public chain (through egress), and reconciles the two.
+- **Companies are data.** Every adapter, plan, stage and persona is a row or a seed file; nothing names a company in code.
+- **Every model call** has its own task class, goes through the LLM Router and is in the Token Treasury.
+
+### 33.1 Usage in the advisor's words
+- **The pack (code):** `UsagePack { period: "day"|"week", from, to, by_domain: [{domain, tokens, usd_equiv, share}], by_company: [...],
+  top_runs: [{ref, role, tokens}], voice_usd, lines: {runs, tokens}, ads_spend_usd, vs_prev: {tokens_pct, usd_pct}, anomalies: [{kind,
+  note}] }` from the Token Treasury (§20.1 query), the voice meter (§32.6), lines (§30) and ads (§31.6).
+- **The words (model):** one router call, task class `usage_report` (mid model, low effort, ≤ 4 000 output tokens), the advisor's charter
+  voice: what happened, where it was high and why (from the pack only), one concrete saving. Strict schema `{lines_fa: [3..8], saving_fa}`.
+- **Delivery:** daily at 07:55 Tehran, 3 lines inside the morning summary (§29.13); weekly (Saturday 09:00 Tehran) the full text as a message
+  of the advisor's thread `A` with the pack under «جزئیات»; in Talk (§32) the advisor reads the latest one aloud when the owner asks
+  («گزارش مصرف»), from the stored text (no new model call).
+- `GET /usage/reports?period&cursor` → `UsageReport { ref "UR-0001", period, from, to, pack, text: {lines_fa, saving_fa}, at }`;
+  `POST /usage/reports {period}` (owner) makes one now.
+
+### 33.2 Crypto payments, read and reconciled
+What the companies do today (review of 2026-11-05): users pay USDT on chain (BEP20 on BSC and TRC20 on TRON) to the company's public
+wallet and submit the transaction hash; there is no third-party processor and no webhook. The hub therefore reads two independent sources:
+```
+PaymentSource { id, company, kind: "ledger"|"chain", adapter, network: "bsc_usdt"|"trc20_usdt"|null, address|null (public),
+                state: "not_configured"|"ok"|"error", last_read_at|null, last_error_fa|null }
+Payment       { id, company, source, ext_id, customer: pseudonym, plan, amount_usdt, network|null, tx_hash|null, paid_at,
+                period_start|null, period_end|null, status: "matched"|"ledger_only"|"chain_only"|"amount_mismatch"|"pending_chain",
+                checked_at }
+Reconcile     { company, day, ledger_count, chain_count, matched, ledger_only, chain_only, amount_mismatch, note_fa }
+```
+- **Ledger (the company's own records):** a runner job kind `ledger` (§26, runner 0.3.0) runs the company's installed read-only ledger
+  query on the company server against a SELECT-only database role the company creates (its DSN lives only on the company server, in the
+  runner's config, never on the hub). **The query itself lives on the company server** (`~/.config/hq-runner/ledger.sql`, written by
+  that server's own Claude): this repository is public and never holds a company's schema. The hub keeps only the **output contract**
+  (`apps/api/seed/payments/ledger_v1.yaml`: the columns `ext_id, customer, plan, amount_usdt, network, tx_hash, paid_at, period_start,
+  period_end, kind` with their types and rules), sends `{contract: "ledger_v1", since_cursor}` and validates every row it gets back. Customer ids are hashed on the company
+  server (HMAC with a per-company salt kept there) before they leave it. Rows of a store's in-app billing carry `amount_usdt: null` and are
+  counted, not summed.
+- **Chain (public):** egress channel `chain-read` reads USDT transfers **to** the configured public addresses: BSC through a public JSON-RPC
+  (`eth_getLogs` on the USDT contract, Transfer topic, `to` = address) and TRON through TronGrid's public API; confirmations counted by
+  code (BSC 15, TRON 20, data). No key is needed; an API key, if the owner adds one for rate limits, is an egress secret like any other.
+- **Reconcile (code, daily and on demand):** a ledger row with a tx hash that is on chain to our address with amount ≥ the plan's price is
+  `matched`; a ledger row not found on chain is `ledger_only` (an approved payment without money: an alert); an on-chain transfer with no
+  ledger row is `chain_only` (money without a customer: shown for the company to claim); a lower amount is `amount_mismatch`.
+  Alerts go to the company's CEO and FIN manager; the owner sees only a weekly line unless a `ledger_only` exceeds 100 USDT (critical).
+- **Never:** approve, reject, refund or extend anything in a company system; call a mutating admin endpoint; store a wallet's private key.
+- Routes (owner; CEOs and FIN of their company read): `GET/POST /companies/{code}/payment-sources` (POST adds or changes one; a ledger
+  source needs the runner paired), `POST /payment-sources/{id}/read` (`Idempotency-Key`), `GET /companies/{code}/payments?status&from&to&cursor`,
+  `GET /companies/{code}/reconcile?from&to`.
+
+### 33.3 Revenue analytics (code only)
+```
+RevenueBoard { company|null, period: "month", months: [{month, mrr_usdt, new_customers, churned, active, arpu_usdt}],
+               churn_rate, ltv_usdt, cac_usdt|null, payback_months|null,
+               cohorts: [{start_month, size, retained: [pct by month]}],
+               forecast: [{month, mrr_usdt, low, high}], forecast_basis_fa,
+               roi: {revenue_usdt, cost_usd: {tokens, voice, ads, servers|null}, ratio},
+               cost_per_output: [{kind: "line_run"|"deliverable"|"order", count, usd_each}] }
+```
+- **MRR:** the paid amount spread over its period; **churned:** a customer whose last period ended > 7 days ago without a renewal; **LTV** =
+  ARPU ÷ monthly churn (null when churn is 0 or fewer than 3 months exist); **CAC** = (ads spend + tokens of the growth domain) ÷ new paying
+  customers of the month; **forecast:** Holt's linear trend on monthly MRR with a ±1.28σ band of its residuals, only with ≥ 4 months, and
+  `forecast_basis_fa` says so in one line.
+- **Revenue joins the radar:** §19.1's affiliate commission and §33.2's payments are summed per company in `GET /revenue/summary`
+  (additive field `by_source`).
+- `GET /revenue/board?company` (owner, the advisor, CEOs and FIN of their company).
+
+### 33.4 Sales: a small CRM per company
+```
+Lead { ref "LD-000001", company, source: "support"|"telegram"|"site"|"payment"|"referral"|"manual", name_fa|null, contact: pseudonym,
+       stage: key, value_usdt|null, next_at|null, next_fa|null, assignee: Actor|null, lost_reason_fa|null, events: [{at, kind, note_fa}],
+       created_at, updated_at }
+```
+- Stages are data per company (default `new → contacted → qualified → trial → paid | lost`, from the kit, §31.2). A lead is made by code from
+  the support desk (§19.3), Telegram intake (§19.8), a `chain_only` payment (§33.2) or by hand; `paid` is set by code when a payment of the
+  same pseudonym arrives.
+- **Follow-up:** code reminds the assignee at `next_at`; a mid-model call (task class `sales_followup`) drafts the message in the company's
+  voice; sending goes only through the existing outbound guard and approval rules (§19.6, A2/A3 as today). Contact details stay in the
+  company's own systems; the hub keeps a pseudonym and the company's display name only.
+- Routes: `GET/POST /companies/{code}/leads`, `GET/PATCH /leads/{ref}`, `POST /leads/{ref}/draft` (the draft, not sent), `GET /companies/{code}/pipeline`
+  (counts and value by stage, win rate, median days per stage).
+
+### 33.5 Affiliate follow-up
+- From §19.1's daily rows code computes **due vs received** commission per account and month; a gap over 5% after the exchange's
+  settlement window opens a follow-up (a planner item for the FIN manager, with the figures and a drafted message, task class
+  `sales_followup`); a paid gap closes it. `GET /revenue/affiliate-gaps?company`.
+
+### 33.6 Decisions with their money impact
+- `Decision` gains `impact: {revenue_usdt|null, cost_usd|null, horizon_days, basis_fa, kind: "measured"|"estimate"}|null` (additive).
+- **Measured** by code where the inputs exist: `budget_change` (the delta), `hire` (model × charter tokens × the role's median use, priced by
+  the router's table), ads (`ads.cap`, from the campaign's 14-day ROAS), a line's caps (its last 14 days per run).
+- **Estimate** (task class `decision_impact`, mid model, one call per card, strict schema) only for `proposal` and `a3_action` cards, labelled
+  «تخمین» with its basis; never for a card the owner has already decided.
+- The owner's decision list can be sorted by impact (`GET /decisions?sort=impact`).
+
+### 33.7 Agents in parallel
+- A work may be split into up to `PARALLEL_MAX` (data, default 3) **independent** child works that run at the same time (the depth limit of
+  2 stays). The parent's assignee proposes the split (`work.split {parts: [{title_fa, role, brief}]}`, A1); code refuses parts that depend
+  on each other (a part naming another part's output).
+- Each part is an ordinary work with its own run and budget share; the router's concurrency (per connection) still applies, so parts
+  queue rather than overload.
+- **The short meeting:** when every part is done, code gathers the deliverables and the parent's assignee writes one merge (its own run);
+  a failed part is reported as such, never hidden. The order report (§29.2) shows the parts side by side.
+
+### 33.8 The company journey
+```
+Journey { company, stages: [{key, title_fa, reached_at|null, evidence: {kind, ref}|null}], current, next_fa, days_in_stage }
+```
+- Stages are data (from the kit, default: `founded`, `server_ready`, `first_content`, `first_visitor`, `first_lead`, `first_payment`,
+  `ten_paying`, `break_even`); each is reached by code from existing rows (company, servers, lines' first publish, analytics, leads,
+  payments, revenue board). `next_fa` is one line from a mid-model call (task class `journey_next`) only when a stage changes.
+- `GET /companies/{code}/journey`, `GET /journeys` (all companies on one timeline).
+
+### 33.9 Personas and the message test
+```
+Persona { id, company, name_fa, summary_fa, pains_fa: [str], objections_fa: [str], channel_fa, source: "owner"|"kb_suggested", version }
+PersonaTest { text, results: [{persona, score: 0..100, would_act: bool, objection_fa|null, fix_fa|null}], at }
+```
+- Personas are the company's data; the owner edits them; `POST /companies/{code}/personas/suggest` proposes up to 4 from the company's
+  knowledge base (one mid-model call), saved only when the owner keeps them.
+- `POST /companies/{code}/personas/test {text}` → `PersonaTest` (task class `persona_test`, one call for all personas, strict schema).
+- A line step kind `persona_test` (§30.2, additive) gates a run: below the step's `min_score` (data) the run waits for the owner with the
+  objections shown.
+
+### 33.10 The company workspace (a working computer per company)
+- A work can be done **on its company's own server** (`mode: "on_server"`): the server's Claude Code (§26.2 `server.claude`) works in a
+  persistent folder `~/hq-workspace/<work-ref>` (runner 0.3.0 makes it; it survives across resumes) until the deliverable is ready or an
+  approval is needed; A3 steps stop as `awaiting_seal` exactly as today. One workspace per work, never shared; it is removed 30 days after
+  the work closes (runner, logged).
+- The owner sees the workspace's progress in the order report and can stop it (`POST /work/{id}/stop`, existing).
+- Only works of companies whose server is paired and on runner ≥ 0.3.0; otherwise the work runs on the hub as today.
+
+### 33.11 Routes, stream, policy, data
+- Stream topic `money`: `payment.read`, `payment.alert`, `lead.updated`, `usage.report`, `journey.stage`; topic `work`: `work.split`.
+- Step-up: `payment.source` (adding or changing a payment source).
+- OPA: `money.rego` and `grok.rego` with tests (100%). Errors in Persian; a company system or chain answering badly is `502` only on an
+  owner's explicit read; scheduled reads record the error on the source.
+- Data: migrations `0046` (payments, reconcile, revenue board caches), `0047` (usage reports, leads, decision impact, affiliate gaps),
+  `0048` (journey, personas, the `persona_test` step), `0049` (work split and workspaces). Router task classes `usage_report`,
+  `sales_followup`, `decision_impact`, `journey_next`, `persona_test`.
+- Runner **0.3.0**: job kinds `ledger` (§33.2) and the `claude` job's `workspace` (§33.10). A company server on 0.2.x keeps working; the two
+  features wait for 0.3.0.
