@@ -66,12 +66,13 @@ async def test_the_chain_runs_through_prompt_11_then_prompt_12(su: Any) -> None:
     assert rev["0043"] == "0042"  # 23: the owner's talk
     assert rev["0044"] == "0043"  # 23: the voice engines and the meter
     assert rev["0045"] == "0044"  # 23.2: talk runs beside work, reaped when their token expired
-    assert rev["0046"] == "0045"  # 24: crypto payments, revenue board
-    assert rev["0047"] == "0046"  # 24: usage reports, leads, decisions' impact
-    assert rev["0048"] == "0047"  # 24: the company journey, personas
-    assert rev["0049"] == "0048"  # 24: parallel parts, workspaces
-    assert heads == {"0049"}
-    assert await su.fetchval("SELECT version_num FROM alembic_version_api") == "0049"
+    assert rev["0046"] == "0045"  # 23.2: ref defaults pad but never cut (no meeting since 11-03)
+    assert rev["0047"] == "0046"  # 24: crypto payments, revenue board
+    assert rev["0048"] == "0047"  # 24: usage reports, leads, decisions' impact
+    assert rev["0049"] == "0048"  # 24: the company journey, personas
+    assert rev["0050"] == "0049"  # 24: parallel parts, workspaces
+    assert heads == {"0050"}
+    assert await su.fetchval("SELECT version_num FROM alembic_version_api") == "0050"
 
 
 async def test_the_kind_check_holds_every_kind_and_is_validated(su: Any) -> None:

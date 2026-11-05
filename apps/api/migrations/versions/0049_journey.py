@@ -14,16 +14,16 @@
 Fresh start: the personas stay (the owner's own data); the stage cache, the state and the tests go.
 Every new table carries company_id under FORCE RLS; nothing is deleted by the app.
 
-Revision ID: 0048
-Revises: 0047
+Revision ID: 0049
+Revises: 0048
 """
 
 from __future__ import annotations
 
 from hq_api.migration_sql import execute_script
 
-revision = "0048"
-down_revision = "0047"
+revision = "0049"
+down_revision = "0048"
 branch_labels = None
 depends_on = None
 

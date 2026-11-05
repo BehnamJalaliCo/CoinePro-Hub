@@ -923,9 +923,13 @@ class Activities:
     @activity.defn(name="requeue_runs")
     async def requeue_runs(self) -> dict[str, Any]:
         """Runs refused while a kill switch was engaged come back once it is
-        released (the cause - open work, an unanswered message - still there);
-        queued runs whose workflow never started are dispatched again."""
+        released, and runs refused by the daily token cap once the day has room
+        again (a new UTC day, or a cap the owner raised; 23.2: they never came back,
+        though the owner was told «فردا خودکار جواب میدهد») - the cause (open work,
+        an unanswered message) still there; queued runs whose workflow never
+        started are dispatched again."""
         requeued = 0
+        runner = self._runner()
         async with self._tx() as tx:
             rows = await tx.all(
                 """SELECT DISTINCT ON (r.employee_id, r.work_id, r.thread_id)
@@ -935,8 +939,13 @@ class Activities:
                    ORDER BY r.employee_id, r.work_id, r.thread_id, r.queued_at DESC"""
             )
             for r in rows:
-                if r["state"] != "refused" or r["error_code"] != "locked":
-                    continue
+                capped = r["error_code"] == "daily_cap" and r["state"] in ("refused", "failed")
+                if not capped and (r["state"] != "refused" or r["error_code"] != "locked"):
+                    continue  # a run the day's cap stopped mid-way (failed) comes back too
+                if r["error_code"] == "daily_cap" and await runner.day_cap_reached(
+                    tx, r["company_id"]
+                ):
+                    continue  # still no room today
                 # still a kill switch or a deploy freeze: stays refused (prompt 5.1 §2.6)
                 if (
                     await tx.scalar("SELECT control.lock_state(:co)", co=r["company_id"])

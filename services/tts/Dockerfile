@@ -65,9 +65,11 @@ ADD --chmod=644 --checksum=sha256:d102276a05436613a05e1fbad8f125abcf8f56759aaf4f
 RUN chmod 0755 /voices
 
 COPY hq-common/src /app/hq-common/src
+COPY tts/src /app/tts/src
+# After the sources: a --chmod COPY would make the missing /app/tts 0644 too
+# (BuildKit; 23.1: the image built 2026-11-04 could not import hq_tts).
 COPY --chmod=0644 tts/voice.lock.json /app/tts/voice.lock.json
 COPY --chmod=0644 tts/bakeoff_scripts.json /app/tts/bakeoff_scripts.json
-COPY tts/src /app/tts/src
 
 USER 10001
 WORKDIR /app/tts

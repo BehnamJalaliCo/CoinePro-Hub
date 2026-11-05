@@ -7,7 +7,7 @@ The parent's assignee proposes the split (`work.split {parts: [{title_fa, role, 
   with its own run (the work's arrival wakes its assignee) and an equal share of what is left of the
   parent's budget (a share is kept for the merge); the router's concurrency still applies, so the
   parts queue rather than overload;
-- does not wake the parent's assignee for each part's output (migration 0049): when every part has
+- does not wake the parent's assignee for each part's output (migration 0050): when every part has
   ended (delivered, done, failed or cancelled) it queues ONE merge run of the parent's assignee,
   whose context carries every part side by side (a failed part as failed, never hidden).
 

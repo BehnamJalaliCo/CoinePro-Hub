@@ -16,16 +16,16 @@ companies' own servers.
 Fresh start: the splits, their parts and the workspaces go with the work. Every new table carries
 company_id under FORCE RLS; nothing is deleted by the app.
 
-Revision ID: 0049
-Revises: 0048
+Revision ID: 0050
+Revises: 0049
 """
 
 from __future__ import annotations
 
 from hq_api.migration_sql import execute_script
 
-revision = "0049"
-down_revision = "0048"
+revision = "0050"
+down_revision = "0049"
 branch_labels = None
 depends_on = None
 

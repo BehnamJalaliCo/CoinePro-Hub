@@ -150,7 +150,33 @@ async def test_serving_mode_answers_the_talk_queue_until_its_time_is_up() -> Non
         out = await serve(c, E.Fake(), s, lambda _v: None)
     assert out == {"done": ["talk/t3"], "failed": []}
     assert api.calls.count("POST /internal/v1/voices/talk/claim") >= 2  # it kept polling
-    assert not any("/tts/claim" in x or "/jobs/claim" in x for x in api.calls)
+    # the other queues were asked once in an idle moment (204 both), then not again this pass
+    assert api.calls.count("POST /internal/v1/tts/claim") == 1
+    assert api.calls.count("POST /internal/v1/voices/jobs/claim") == 1
+
+
+async def test_serving_mode_speaks_the_other_queues_when_the_talk_is_idle() -> None:
+    """23.2: with TTS_SERVE_S set (the hub since 23.1) the pass answered only the talk, so no
+    briefing voice and no blind-test sample was made. The talk still goes first."""
+    from hq_tts.__main__ import serve
+
+    api = FakeApi(
+        [{"id": "b1", "ref": "BR-0001", "script": "خلاصه.", "voice": None}],
+        [
+            {"id": f"s{i}", "kind": "sample", "ref": f"manatts-piper/{i}", "engine": "piper",
+             "voice": "fa_IR-mana-medium", "script": "نمونه."}
+            for i in range(4)
+        ],
+    )  # fmt: skip
+    api.talk_jobs.append({"id": "t4", "ref": "talk/t4", "script": "سلام.", "voice": None})
+    mana = E.Fake()
+    s = J.Settings(serve_s=1, serve_poll_s=0.2, max_jobs=3)
+    async with client(api) as c:
+        out = await serve(c, E.Fake(), s, lambda v: mana if v == "fa_IR-mana-medium" else None)
+    assert out["failed"] == []
+    assert out["done"][0] == "talk/t4"  # the talk first
+    assert out["done"][1:] == ["BR-0001", "manatts-piper/0", "manatts-piper/1"]  # TTS_MAX_JOBS
+    assert len(api.voice_jobs) == 2 and mana.scripts == ["نمونه.", "نمونه."]
 
 
 async def test_the_pass_is_bounded_by_max_jobs() -> None:

@@ -42,7 +42,7 @@ class Persona:
     tools: tuple[str, ...]
     cards: tuple[str, ...]
     consult_only: bool
-    face: str
+    face: str | None
 
     @property
     def company_code(self) -> str | None:

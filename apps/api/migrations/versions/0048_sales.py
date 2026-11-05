@@ -22,16 +22,16 @@ the reports, the leads and their trails, and the gaps go (they are rebuilt).
 
 Every new table carries company_id under FORCE RLS; nothing is deleted by the app.
 
-Revision ID: 0047
-Revises: 0046
+Revision ID: 0048
+Revises: 0047
 """
 
 from __future__ import annotations
 
 from hq_api.migration_sql import execute_script
 
-revision = "0047"
-down_revision = "0046"
+revision = "0048"
+down_revision = "0047"
 branch_labels = None
 depends_on = None
 
@@ -80,7 +80,7 @@ GRANT USAGE ON SEQUENCE sales.usage_report_ref_seq TO {APP_ROLES};
 CREATE TABLE sales.usage_reports (
     id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     ref         text NOT NULL UNIQUE
-                     DEFAULT 'UR-' || lpad(nextval('sales.usage_report_ref_seq')::text, 4, '0'),
+                     DEFAULT core.pad_ref('UR-', nextval('sales.usage_report_ref_seq'), 4),
     company_id  uuid NOT NULL REFERENCES core.companies (id),        -- the holding's
     period      text NOT NULL CHECK (period IN ('day', 'week')),
     from_at     timestamptz NOT NULL,
@@ -121,7 +121,7 @@ GRANT USAGE ON SEQUENCE sales.lead_ref_seq TO {APP_ROLES};
 CREATE TABLE sales.leads (
     id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     ref              text NOT NULL UNIQUE
-                          DEFAULT 'LD-' || lpad(nextval('sales.lead_ref_seq')::text, 6, '0'),
+                          DEFAULT core.pad_ref('LD-', nextval('sales.lead_ref_seq'), 6),
     company_id       uuid NOT NULL REFERENCES core.companies (id),
     source           text NOT NULL CHECK (source IN ({SOURCES})),
     name_fa          text CHECK (length(name_fa) BETWEEN 1 AND 200),

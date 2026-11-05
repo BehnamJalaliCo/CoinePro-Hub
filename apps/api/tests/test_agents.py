@@ -528,6 +528,59 @@ async def test_claim_refusals_and_busy(
     assert c.code == "budget_used_up"
 
 
+async def test_a_daily_cap_refusal_comes_back_once_the_day_has_room(
+    client: httpx.AsyncClient,
+    owner: dict[str, str],
+    su: Any,
+    agents: Any,
+    new_company: Callable[..., Any],
+) -> None:
+    """23.2: runs refused by the daily cap never came back (only `locked` ones did), though the
+    owner was told «فردا خودکار جواب میدهد». Now requeue_runs brings them back once the hub's and
+    the company's caps have room (a new UTC day, or a cap the owner raised), never before."""
+    from dataclasses import replace
+
+    from hq_api.worker.activities import Activities
+
+    co = (await new_company())["code"]
+    await order(client, owner, co)
+    row = (await runs_of(su, f"{co}-CEO"))[-1]
+    real = agents.runner.s
+    agents.runner.s = replace(real, agent_daily_token_cap=1)
+    try:
+        assert (await agents.runner.claim(str(row["id"]))).code == "daily_cap"
+    finally:
+        agents.runner.s = real
+    acts = Activities(
+        agents.whub, None, router=agents.router, gateway=agents.gateway, live=agents.live
+    )
+    made = acts._runner
+
+    def capped(cap: int) -> Any:
+        def runner(**kw: Any) -> Any:
+            r = made(**kw)
+            r.s = replace(r.s, agent_daily_token_cap=cap, company_daily_token_cap=0)
+            return r
+
+        return runner
+
+    acts._runner = capped(1)  # type: ignore[method-assign]
+    await acts.requeue_runs()
+    assert (await runs_of(su, f"{co}-CEO"))[-1]["id"] == row["id"]  # still no room: stays refused
+    acts._runner = capped(10**15)  # type: ignore[method-assign]
+    assert (await acts.requeue_runs())["requeued"] >= 1
+    last = (await runs_of(su, f"{co}-CEO"))[-1]
+    assert last["id"] != row["id"] and last["reason"].startswith("requeue:")
+    # a run the cap stopped mid-way (failed, daily_cap) comes back the same way
+    await su.execute(
+        """UPDATE agents.runs SET state = 'failed', error_code = 'daily_cap', finished_at = now()
+           WHERE id = $1""",
+        last["id"],
+    )
+    assert (await acts.requeue_runs())["requeued"] >= 1
+    assert (await runs_of(su, f"{co}-CEO"))[-1]["id"] != last["id"]
+
+
 async def test_daily_cap_refuses_runs(
     client: httpx.AsyncClient,
     owner: dict[str, str],

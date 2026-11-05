@@ -3749,8 +3749,8 @@ PersonaTest { text, results: [{persona, score: 0..100, would_act: bool, objectio
 - Step-up: `payment.source` (adding or changing a payment source).
 - OPA: `money.rego` and `grok.rego` with tests (100%). Errors in Persian; a company system or chain answering badly is `502` only on an
   owner's explicit read; scheduled reads record the error on the source.
-- Data: migrations `0046` (payments, reconcile, revenue board caches), `0047` (usage reports, leads, decision impact, affiliate gaps),
-  `0048` (journey, personas, the `persona_test` step), `0049` (work split and workspaces). Router task classes `usage_report`,
+- Data: migrations `0047` (payments, reconcile, revenue board caches), `0048` (usage reports, leads, decision impact, affiliate gaps),
+  `0049` (journey, personas, the `persona_test` step), `0050` (work split and workspaces). Router task classes `usage_report`,
   `sales_followup`, `decision_impact`, `journey_next`, `persona_test`.
 - Runner **0.3.0**: job kinds `ledger` (§33.2) and the `claude` job's `workspace` (§33.10). A company server on 0.2.x keeps working; the two
   features wait for 0.3.0.

@@ -185,6 +185,17 @@ for profile in "${PROFILES[@]}"; do
     failed=1
   fi
 done
+# ⟨23.1⟩ No two networks share a subnet (every profile with every opt-in, so a
+# network that exists only with one opt-in is seen too).
+for profile in "${PROFILES[@]}"; do
+  dups="$(compose_json "$profile" "${OPT_IN[@]}" | duplicate_subnets)"
+  if [[ -n "$dups" ]]; then
+    while read -r subnet nets; do
+      printf 'compose-rules: %s: subnet %s is declared by more than one network (%s)\n' "$profile" "$subnet" "$nets" >&2
+    done <<<"$dups"
+    failed=1
+  fi
+done
 for profile in "${PROFILES[@]}"; do
   problems="$(jq -r --argjson jobs "$JOBS" --argjson hardened "$HARDENED" \
     --argjson not_internal "$NOT_INTERNAL" --argjson only_on "$ONLY_ON" \

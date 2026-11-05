@@ -51,7 +51,7 @@ class TalkPersona(BaseModel):
     voice: TalkVoice
     brain: TalkBrain
     tools: list[str]
-    face: str
+    face: str | None
     consult_only: bool
     # ⟨additive⟩ the card kinds this persona may offer
     cards: list[CardKind]
