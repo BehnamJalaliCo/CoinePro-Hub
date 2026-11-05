@@ -226,7 +226,15 @@ RESET: tuple[str, ...] = (
     "UPDATE oversight.protocols SET decision_id = NULL WHERE decision_id IS NOT NULL",
     """UPDATE support.settings SET thresholds_decision_id = NULL
      WHERE thresholds_decision_id IS NOT NULL""",
-    "UPDATE support.channels SET go_live_decision_id = NULL WHERE go_live_decision_id IS NOT NULL",
+    # a live channel loses the card that took it live: it pauses until approved again (a live channel
+    # needs that card; before 2026-11-05 this UPDATE broke the CHECK and stopped the whole fresh start)
+    """UPDATE support.channels
+          SET state = CASE WHEN state = 'live' AND kind <> 'mystery' THEN 'paused' ELSE state END,
+              paused_at = CASE WHEN state = 'live' AND kind <> 'mystery' THEN now() ELSE paused_at END,
+              paused_reason = CASE WHEN state = 'live' AND kind <> 'mystery'
+                                   THEN 'شروع تازه: دوباره تأیید شود' ELSE paused_reason END,
+              go_live_decision_id = NULL
+        WHERE go_live_decision_id IS NOT NULL""",
     "UPDATE growth.templates SET decision_id = NULL WHERE decision_id IS NOT NULL",
     "UPDATE growth.rules SET decision_id = NULL WHERE decision_id IS NOT NULL",
     "UPDATE growth.opt_outs SET message_id = NULL WHERE message_id IS NOT NULL",
