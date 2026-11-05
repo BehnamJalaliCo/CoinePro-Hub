@@ -200,8 +200,14 @@ async def test_bsc_head(egress: tuple[httpx.AsyncClient, Chain]) -> None:
     c, chain = egress
     out = await post(c, bsc_call("head"))
     assert out["outcome"] == "ok" and out["code"] is None
-    assert out["data"] == {"network": "bsc_usdt", "head": HEAD, "head_at": "2027-01-15T08:00:00Z"}
-    assert [e["host"] for e in out["entries"]] == [BSC_HOSTS[0]]
+    # (the fake chain makes a block every 3 s: HEAD - n blocks back is 3 n seconds earlier)
+    assert out["data"] == {
+        "network": "bsc_usdt",
+        "head": HEAD,
+        "head_at": "2027-01-15T08:00:00Z",
+        "block_s": 3.0,
+    }
+    assert [e["host"] for e in out["entries"]] == [BSC_HOSTS[0]] * 2
     assert {r.url.host for r in chain.seen} <= set(BSC_HOSTS)
 
 
@@ -300,7 +306,12 @@ async def test_tron_head_and_the_optional_key_in_a_header_only(
 ) -> None:
     c, chain = egress
     out = await post(c, tron_call("head", key=KEY))
-    assert out["data"] == {"network": "trc20_usdt", "head": HEAD, "head_at": "2027-01-15T08:00:00Z"}
+    assert out["data"] == {
+        "network": "trc20_usdt",
+        "head": HEAD,
+        "head_at": "2027-01-15T08:00:00Z",
+        "block_s": 3.0,
+    }
     (seen,) = chain.seen
     assert seen.headers["TRON-PRO-API-KEY"] == KEY
     assert KEY not in str(seen.url) and KEY not in seen.content.decode()

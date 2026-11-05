@@ -7,7 +7,8 @@ Code calls it (the hub's worker, on hq-egress-api), never an agent. Channel `cha
        address?, from_block?, max_span?, since_ms?, fingerprint?, key?}
       -> {outcome: ok | blocked | error, code, data, entries}
 
-head  the chain's head: {head, head_at}.
+head  the chain's head: {head, head_at, block_s} (block_s: the measured seconds per block, so the
+      caller can say how many blocks a number of days is).
 scan  one page of USDT transfers to `address`, normalised to
         {tx_hash, idx, from, to, amount_usdt (a decimal string), block, confirmations, at}
       BSC: one `eth_getLogs` over [from_block, from_block + max_span) on the USDT BEP20 contract,
@@ -240,6 +241,15 @@ def _block_time(block: Any) -> tuple[int, int]:
 # -------------------------------------------------------------------- BSC --
 async def _bsc_head(state: Any) -> tuple[int, int]:
     return _block_time(await _rpc(state, "eth_getBlockByNumber", ["latest", False]))
+
+
+async def _bsc_block_s(state: Any, head: int, head_ts: int) -> float:
+    """Seconds per block over the last 1 000 blocks (one more node call)."""
+    back = min(1000, head)
+    if back < 10:
+        return 3.0
+    _, ts = _block_time(await _rpc(state, "eth_getBlockByNumber", [hex(head - back), False]))
+    return round(max(head_ts - ts, 1) / back, 3)
 
 
 def _padded(address: str) -> str:
@@ -497,12 +507,17 @@ async def _call(state: Any, a: CallIn, entries: list[Entry]) -> JSONResponse:
         if a.network == "bsc_usdt":
             if a.op == "head":
                 head, ts = await _bsc_head(state)
-                data: dict[str, Any] = {"network": a.network, "head": head, "head_at": _iso(ts)}
+                data: dict[str, Any] = {
+                    "network": a.network,
+                    "head": head,
+                    "head_at": _iso(ts),
+                    "block_s": await _bsc_block_s(state, head, ts),
+                }
             else:
                 data = await _bsc_scan(state, a, entries)
         elif a.op == "head":
             head, ts = await _tron_head(state, a)
-            data = {"network": a.network, "head": head, "head_at": _iso(ts)}
+            data = {"network": a.network, "head": head, "head_at": _iso(ts), "block_s": 3.0}
         else:
             data = await _tron_scan(state, a, entries)
     except Refused as r:

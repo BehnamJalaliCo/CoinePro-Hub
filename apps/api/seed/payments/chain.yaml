@@ -1,0 +1,32 @@
+# ⟨1.15⟩ Prompt 24 (contract §33.2): the numbers of the payments' reading and reconcile. Data, not
+# code: a threshold or a lookback changes here. Nothing in this file is a company's address.
+networks:
+  bsc_usdt:
+    title_fa: "BSC (BEP20)"
+    confirmations: 15          # head - block, counted by code
+    lookback_days: 7           # how far back the first scan of a new address goes
+    span_blocks: 2000          # blocks one egress call scans (the nodes refuse more than ~5000)
+    overlap_blocks: 60         # a later scan restarts this far back, so a late log or a deeper
+                               # confirmation is never missed
+    address_pattern: '^0x[0-9a-fA-F]{40}$'
+  trc20_usdt:
+    title_fa: "TRON (TRC20)"
+    confirmations: 20
+    lookback_days: 7
+    overlap_seconds: 600
+    address_pattern: '^T[1-9A-HJ-NP-Za-km-z]{33}$'
+
+read:
+  every_minutes: 120           # the schedule hq-money-read
+  max_pages_per_read: 40       # egress calls one source may spend in one read
+  ledger_limit: 500            # rows asked of the runner in one ledger job
+  ledger_timeout_s: 300
+  runner_min_version: "0.3.0"  # the first runner that knows the `ledger` job
+  api_key_path: "hq/chain/trongrid"   # OpenBao kv path of the optional TronGrid key ("secret")
+
+reconcile:
+  window_days: 90              # payments older than this are no longer re-judged
+  grace_minutes: 60            # a ledger row is `ledger_only` only once the chain scan has passed
+                               # its time by this much
+  critical_ledger_only_usdt: "100"   # above this a `ledger_only` also reaches the owner (critical)
+  max_lines_per_alert: 15      # payments named in one work item
