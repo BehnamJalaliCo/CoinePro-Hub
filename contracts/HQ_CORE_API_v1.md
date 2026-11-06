@@ -4011,3 +4011,19 @@ server through its runner (§26, as today), **the hub itself through a fixed cat
   holding's AIOPS for the hub) with what to do. `_common.md`: «never say a capability is missing: do it, or hand it to who can, and tell
   the owner who has it».
 - Data: migration `0056` (`ops.hub_jobs`, the `hub_op` decision kind).
+
+### 38.3 The owner's «سرویس‌ها» page
+The hub server's proposal (2026-11-06), adopted: a page in the app with an on/off switch for each optional service and the free memory;
+the owner's word is recorded (audit) and the same hub-ops dispatcher (38.1) runs it, the memory budget checked; the answer comes back.
+- `GET /hub/services` (owner) → `HubServices {memory: {total_mb, budget_mb, caps_mb, free_mb}, services: [HubService], at}`; `HubService
+  {key, title_fa, what_fa (one plain line: what it is for), state: "on"|"off"|"starting"|"failed", optional: bool, mem_cap_mb,
+  mem_used_mb|null, can_toggle: bool, note_fa|null}`. Optional (toggleable): `media` (ساخت ویدیو و کاور), `tts` (صدای ساده‌ی هاب),
+  `stt` (تبدیل گفتار به متن), `ocr` (خواندن اسکن بایگانی), `newsletter` (خبرنامه), `automations` (n8n), `mcp`, `tracing`; core services
+  are listed with `optional: false, can_toggle: false`. The figures are the dispatcher's latest snapshot (≤ 60 s old; `at`); while the
+  dispatcher has never reported, `memory` is null and the page says the hub part is not installed yet.
+- `POST /hub/services/{key}` {on: bool, turn_off?: [key]} (owner; `Idempotency-Key`; no passkey: optional services only) → `202
+  HubJob {ref, state, result_fa|null, blocking: [{key, title_fa, mem_cap_mb}]}`; `turn_off` switches those off first, in the same job.
+  `GET /hub/jobs/{ref}` → `HubJob` (the app polls, or the stream's `hub.job` event); done: `result_fa` «روشن شد» / «خاموش شد»;
+  refused by the memory budget: `state: "refused"`, `result_fa` «جا نیست؛ این‌ها جا را گرفته‌اند» and `blocking` = the optional
+  services that are on, largest first, so the app offers one tap: «<x> را خاموش کن و <y> را روشن کن» (`turn_off`).
+- Every switch is audited (A2) and is an interaction; the agents' `hub.ops profile` is the same job.
