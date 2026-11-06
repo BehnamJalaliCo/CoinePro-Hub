@@ -27,7 +27,7 @@ personas:
     title_fa: منشی هلدینگ
     effort: medium
     tools: charter_reads
-    cards: [order, ask, decision, planner, rule, automation, minutes, invite]
+    cards: [order, ask, decision, planner, rule, automation, minutes, invite, group]
     consult_only: false
   - key: overseer
     role: overseer
@@ -35,7 +35,7 @@ personas:
     title_fa: ناظر کل
     effort: high
     tools: [work.get, company.state, health.sites, health.hub, treasury.usage, knowledge.search, audit.recent,
-            backups.status, revenue.read, calendar.read, governance.read, memory.read]
+            backups.status, revenue.read, calendar.read, governance.read, memory.read, connection.read]
     cards: [decision, ask, minutes, invite]
     consult_only: true
   - key: assistant
@@ -52,8 +52,8 @@ personas:
     title_fa: مشاور کل
     effort: high
     tools: [work.get, company.state, treasury.usage, knowledge.search, revenue.read, governance.read, calendar.read,
-            memory.read, web.search, web.read]
-    cards: [ask, decision, rule, minutes, invite]
+            memory.read, web.search, web.read, connection.read]
+    cards: [ask, decision, rule, automation, minutes, invite]
     consult_only: true
   - key: manager
     role: null

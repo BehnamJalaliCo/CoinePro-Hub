@@ -232,7 +232,7 @@ class TurnRun:
         unsolicited = not bound and intent.imperative and card_room(self.conv, int(self.t["n"]))
         if bound:
             cards: tuple[str, ...] = tuple(
-                dict.fromkeys(("order", "ask", "hire", *data.SESSION_CARDS, *p.cards))
+                dict.fromkeys(("order", "ask", "hire", "invite", *data.SESSION_CARDS, *p.cards))
             )
         else:
             cards = p.cards
@@ -545,8 +545,8 @@ class TurnRun:
                 await self.queue.put(s)
         cards: list[dict[str, Any]] = []
         for c in ans.cards[: 1 if unsolicited else A.CARDS_MAX]:
-            if c["kind"] == "invite":
-                continue  # an invite is the turn's `invite`, joined by code
+            if c["kind"] == "invite" and not c["payload"].get("player"):
+                continue  # an invite is the turn's `invite`, joined by code (a player: a card)
             if c["kind"] == "order" and p.is_manager and not self.conv.get("order_ref"):
                 # §32.4 the dispatcher's route preset to the manager's company/department
                 c["payload"] = {

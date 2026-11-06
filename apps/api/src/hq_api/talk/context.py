@@ -60,7 +60,10 @@ CARD_HELP = {
     "decision": 'decision: a card for the owner to decide later; payload {"what_fa", "why_fa"}',
     "planner": 'planner: a dated reminder in the owner\'s planner; payload {"title_fa", "at": ISO date-time}',
     "rule": 'rule: a standing rule of the owner (sealed later); payload {"text": the rule}',
-    "automation": 'automation: a rule that runs by itself (sealed later); payload {"sentence_fa": one sentence}',
+    "automation": (
+        "automation: a rule that runs by itself (sealed later); payload "
+        '{"sentence_fa": one sentence, "company"?: code (a manager: its own company)}'
+    ),
     "invite": 'invite: suggest calling a manager in; payload {"role", "company"}',
     # ⟨1.17⟩ §35.4 the cards of a session (an order's talk)
     "delegate": (
@@ -83,6 +86,11 @@ BOUND_HELP = {
     "hire": (
         'hire: a hire for a company named explicitly; payload {"company": code, "role": the charter, '
         '"department"?, "title_fa"?, "why_fa"?}'
+    ),
+    # ⟨2026-11-06⟩ an outside player joins the session as a participant (never substitute.call here)
+    "invite": (
+        "invite: bring ChatGPT, Gemini or DeepSeek into this session (it answers here when asked); "
+        'payload {"player": "gpt" | "gemini" | "deepseek"}'
     ),
 }
 
@@ -140,8 +148,10 @@ def persona_section(
             "own work on it runs at once; it is never a new order. When the owner wants someone "
             "hired, a task handed to someone, more budget, a working group joined or a production "
             "line started, offer that card (hire, delegate, budget, group, line): the owner taps "
-            "it, the hub does it with its own checks, and it becomes a step of the order. Never say "
-            "you did it before the card ran."
+            "it, the hub does it with its own checks, and it becomes a step of the order. When "
+            "ChatGPT, Gemini or DeepSeek would help (a draft, a cover, a third opinion), offer an "
+            "`invite` card with `player`: it joins this session and answers here. Never say you "
+            "have no connection to them, and never say you did it before the card ran."
         )
     elif order_ref:
         out.append(

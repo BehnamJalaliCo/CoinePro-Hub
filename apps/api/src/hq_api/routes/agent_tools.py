@@ -217,6 +217,9 @@ class CompanyState(BaseModel):
     # ⟨1.4.2⟩ hiring starts with the owner (§18.11): while closed, record a team gap
     # in an output instead of proposing a hire
     hiring: Literal["closed", "open"] = "closed"
+    # ⟨2026-11-06⟩ while open: proposals (the owner decides every card), delegated (the CEO decides
+    # inside the envelope) or auto (a working group's empty seat is filled by code)
+    hiring_mode: Literal["proposals", "delegated", "auto"] | None = None
     # ⟨1.17⟩ §35.6 the company's `on` links: [{company, name_fa, kind, purpose_fa, outgoing}]
     links: list[dict[str, Any]] = Field(default_factory=list)
 
@@ -224,6 +227,7 @@ class CompanyState(BaseModel):
 class HoldingState(BaseModel):
     companies: list[CompanyState]
     hiring: Literal["closed", "open"] = "closed"
+    hiring_mode: Literal["proposals", "delegated", "auto"] | None = None
 
 
 async def _company_state(
@@ -284,8 +288,14 @@ async def _company_state(
         decisions_pending=int(pending or 0),
         budgets=budgets,
         hiring=await hiring.state(tx),
+        hiring_mode=await _hiring_mode(tx),
         links=await links_of(tx, co.id),
     )
+
+
+async def _hiring_mode(tx: Tx) -> Any:
+    m = await hiring.mode(tx)
+    return m if m in ("proposals", "delegated", "auto") else None
 
 
 async def _budget_use(tx: Tx, company_id: Any, period: str) -> list[dict[str, Any]]:
@@ -335,6 +345,7 @@ async def tool_company_state(
                     for c in await ctx.hub.companies.all()
                 ],
                 hiring=await hiring.state(tx),
+                hiring_mode=await _hiring_mode(tx),
             )
     co = await _company(ctx, "company.read", company)
     own = ctx.who.department if co.id == ctx.who.company_id else None

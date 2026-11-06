@@ -16,7 +16,8 @@ own checks, confirmations and step-ups; talk never makes work by itself:
     planner     an item in the owner's planner (§18.3)
     rule        POST /rules (§29.3): a proposed rule, sealed later 🔏
     automation  §31.7: one compile, then a `proposed` automation (sealed later 🔏)
-    invite      the manager joins the conversation (§32.4)
+    invite      the manager joins the conversation (§32.4); ⟨2026-11-06⟩ `{player}` in a session:
+                ChatGPT, Gemini or DeepSeek joins it (sessions.add_participant)
 
 ⟨1.17⟩ §35.4 in a session (a talk bound to an order) the cards run the order's own routes and
 every result is a step of the order (its report refreshed, so it streams):
@@ -311,6 +312,8 @@ async def _carry_out(
         items = [{"text": t.get("title_fa"), "company": t.get("company"),
                   "department": t.get("department"), "due": t.get("due")} for t in tasks]  # fmt: skip
         return await _orders(ctx, items, ref, answer=False)
+    if kind == "invite" and payload.get("player") is not None:
+        return await _invite_player(ctx, conv, payload)
     if kind == "invite":
         async with ctx.tx() as tx:
             key = await personas.invite_key(tx, ctx.hub, str(payload.get("role") or ""),
@@ -343,6 +346,7 @@ async def _carry_out(
 
         sentence = str(payload.get("sentence_fa") or text)[:1000]
         company = payload.get("company") if isinstance(payload.get("company"), str) else None
+        company = company or p.company_code  # ⟨2026-11-06⟩ a manager's: its own company
         compiled = await AU.compile_sentence(ctx.hub, sentence, company)
         if compiled.rule is None:
             raise _fail(
@@ -476,8 +480,12 @@ async def _session_card(
         key = str(payload.get("group") or "")
         if not re.fullmatch(CODE, code) or not key:
             raise _fail("شرکت و کارگروه هر دو لازم است.", "payload")
-        company = await ctx.hub.companies.by_code(code)
+        company = await ctx.hub.companies.find(code)
+        if company is None:  # ⟨2026-11-06⟩ plain words, in a session or outside one
+            raise _fail("این شرکت را نمیشناسم.", "payload.company")
         async with ctx.tx() as tx:
+            if await tx.first("SELECT 1 FROM growth.groups WHERE key = :k", k=key) is None:
+                raise _fail("این کارگروه را نمیشناسم.", "payload.group")
             grow = await GR.row_of(tx, key, lock=True)
             await tx.exec(
                 """INSERT INTO growth.memberships (company_id, group_id) VALUES (:co, :g)
@@ -579,6 +587,35 @@ async def _decision(
 
 
 # -------------------------------------------------------------- invites --
+NO_SESSION_FA = (
+    "ChatGPT، Gemini و DeepSeek فقط در جلسه‌ی یک فرمان به گفتگو می‌آیند؛ "
+    "این کار را به شکل فرمان بدهید تا جلسه‌اش باز شود."
+)
+
+
+async def _invite_player(
+    ctx: Ctx, conv: dict[str, Any], payload: dict[str, Any]
+) -> tuple[list[str], list[Any]]:
+    """⟨2026-11-06⟩ `invite {player}`: ChatGPT, Gemini or DeepSeek joins the session of the order
+    this talk is bound to (§35.4, the same path as the owner's «+»); outside a session, refused."""
+    from hq_api.domain import sessions as SE
+
+    player = str(payload.get("player") or "").strip().lower()
+    player = player.split(":", 1)[1] if player.startswith("player:") else player
+    if player not in SE.PLAYERS:
+        raise _fail("بازیکن را از میان ChatGPT، Gemini و DeepSeek انتخاب کنید.", "payload.player")
+    ref = conv.get("order_ref")
+    if not ref:
+        raise _fail(NO_SESSION_FA, "payload.player")
+    async with ctx.tx() as tx:
+        added = await SE.add_participant(ctx, tx, str(ref), "player", player)
+        holding = await ctx.hub.companies.holding()
+        await ctx.audit(tx, company_id=holding.id, action="session.participant", action_class="A1",
+                        target_kind="order", target_ref=str(ref),
+                        summary=f"+{added} from {conv['ref']}")  # fmt: skip
+    return [added], []
+
+
 async def join_with_notice(tx: Tx, hub: Any, conv: dict[str, Any], p: Persona) -> dict[str, Any]:
     """§32.4: the manager joins and answers next; code writes the one line."""
     from hq_api.talk.engine import join

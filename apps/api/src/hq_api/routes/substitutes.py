@@ -426,6 +426,8 @@ async def substitute_call(body: S.CallIn, ctx: Ctx = Depends(internal_ctx)) -> d
         reason = await S.guard(tx, hub, body.seat, body.input_md)
         if reason is not None:
             raise ApiError(403, "policy_denied", f"the input may not leave the hub: {reason}")
+        # ⟨2026-11-06⟩ the work of the run that asks: a creative and a late answer belong to it
+        mine = await S.run_work(tx, who)
         if body.seat == "creative":
             assert body.placement is not None
             row = await S.create_creative(
@@ -440,6 +442,7 @@ async def substitute_call(body: S.CallIn, ctx: Ctx = Depends(internal_ctx)) -> d
                 overlay=body.overlay,
                 duration_s=body.duration_s,
                 player=body.player if body.player in ("gpt", "gemini") else None,
+                work_id=mine,
             )
             if row["state"] == "failed":
                 call = await tx.one(
@@ -471,6 +474,7 @@ async def substitute_call(body: S.CallIn, ctx: Ctx = Depends(internal_ctx)) -> d
             player=body.player,
             checkout={"repo": body.repo, "head_sha": body.head_sha} if body.repo else None,
             file_ids=body.file_ids,
+            purpose=(S.CALLER_WORK, str(mine)) if mine is not None else None,
         )
         if call["state"] == "skipped":
             raise S.refusal(str(call["state_reason"]))

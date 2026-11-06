@@ -41,7 +41,8 @@ def test_the_tools_are_live_and_held_by_the_groups_seats() -> None:
     for tool in GT.TOOLS:
         assert tool in LIB.tools, tool
     holders = {t: {r for r, c in LIB.roles.items() if t in c.tools} for t in GT.TOOLS}
-    assert holders["group.plan"] == {"media_director"}
+    # ⟨2026-11-06⟩ the CEO too (groups.rego grants it the company's plan)
+    assert holders["group.plan"] == {"media_director", "ceo"}
     assert holders["experiment.write"] == {"media_director", "content_analyst"}
     assert {"media_director", "content_analyst", "publisher", "scriptwriter", "visual_designer",
             "motion_designer"} <= holders["connection.read"]  # fmt: skip

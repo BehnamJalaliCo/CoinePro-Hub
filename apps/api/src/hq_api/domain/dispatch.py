@@ -13,7 +13,9 @@ Rules first (seed/order_rules.yaml, data):
     the order the order names them (a longer name beats one inside it);
   - a person named by title (مدیر فنی …) is who receives it; else the
     department that owns the output (a reel to the media director, never AI
-    operations: finding 1 of prompt 20); else a department word;
+    operations: finding 1 of prompt 20); else a department word; ⟨2026-11-06⟩ an
+    automation («اتوماسیون», «n8n») goes to the CEO (the holding's: AI
+    operations) before any output or department word;
   - the output kind and its count («۳ ریلز»); the budget from the kind's
     table (`budgets`);
   - questions: an inside one (servers, data, code, real figures) goes to the
@@ -115,6 +117,7 @@ class Draft:
     workspace: str | None = None  # the model's workspace of a code order
     kit: str | None = None  # §31.2 the kit of «یک شرکت تازه …»
     kit_name_fa: str | None = None
+    automation: bool = False  # ⟨2026-11-06⟩ an automation order: the CEO's (the holding's: AIOPS)
 
     def open(self) -> bool:
         """The rules left the company (work, code, meeting) or the department
@@ -236,6 +239,32 @@ def kit_of(text: str, norm: str) -> tuple[str, str | None] | None:
         if name is not None and len(name) < 2:
             name = None
     return key, name
+
+
+def is_automation(norm: str) -> bool:
+    """⟨2026-11-06⟩ the order asks for an automation (the rules' `automation.words`), not one
+    that only says how a production runs («اتوماسیون شده»: a word of `not_before` after it)."""
+    a = rules().get("automation") or {}
+    after = {O.normalise(str(x)) for x in a.get("not_before") or []}
+    hay = f" {norm} "
+    for w in a.get("words") or []:
+        p = O.normalise(str(w))
+        start = 0
+        while p and (i := hay.find(f" {p} ", start)) >= 0:
+            rest = hay[i + len(p) + 2 :].split()
+            if not rest or rest[0] not in after:
+                return True
+            start = i + 1
+    return False
+
+
+def automation_department(company: str | None, d: dict[str, Any]) -> str | None:
+    """Who receives an automation order: the company's CEO (None); the holding has none, so its
+    `holding_department` (AI operations)."""
+    if company is None or company != O.holding_code(d):
+        return None
+    dept = (rules().get("automation") or {}).get("holding_department")
+    return str(dept) if dept else None
 
 
 def question_scope(norm: str) -> str | None:
@@ -366,6 +395,13 @@ def by_rules(
         elif titled and titled[0] == "ceo":
             dr.department_open = False
             dr.why.append("مدیرعامل را خودتان نام بردید")
+        elif is_automation(norm):
+            # ⟨2026-11-06⟩ never a production department by a stray word: the CEO proposes it
+            dr.automation = True
+            dr.department = automation_department(named[0] if named else None, d)
+            dr.department_open = False
+            dr.output_kind, dr.count = "other", None
+            dr.why.append("کار خودکارسازی است و پیشنهادش با مدیرعامل است")
         elif dr.output_kind in owners:
             dr.department, dr.department_open = owners[dr.output_kind], False
             dr.why.append(f"خروجی {OUTPUT_FA[dr.output_kind]} است و کار همان بخش است")
@@ -471,6 +507,8 @@ def complete(dr: Draft, d: dict[str, Any], names: dict[str, dict[str, str]]) -> 
         companies = companies[:1] or [adv.get("company") or O.holding_code(d)]
     if not companies:
         companies = [O.holding_code(d)]
+    if dr.automation and dr.kind == "work" and not dr.department:
+        dr.department = automation_department(companies[0], d)  # the model chose the holding
     if dr.department and dr.department not in (names.get(companies[0]) or {}):
         dr.department = None  # the company has no such department: its CEO
     collaborators = companies[1:] if dr.kind == "work" else []

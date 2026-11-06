@@ -9769,6 +9769,22 @@
             "title": "Hiring",
             "type": "string"
           },
+          "hiring_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "proposals",
+                  "delegated",
+                  "auto"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hiring Mode"
+          },
           "kill_switch": {
             "title": "Kill Switch",
             "type": "string"
@@ -19115,6 +19131,22 @@
             ],
             "title": "Hiring",
             "type": "string"
+          },
+          "hiring_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "proposals",
+                  "delegated",
+                  "auto"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hiring Mode"
           }
         },
         "required": [
@@ -142871,6 +142903,7 @@
                   "deploy_freeze_until": "2026-10-17T05:42:00Z",
                   "employees": {},
                   "hiring": "closed",
+                  "hiring_mode": "proposals",
                   "kill_switch": "x",
                   "kind": "one_off",
                   "links": [

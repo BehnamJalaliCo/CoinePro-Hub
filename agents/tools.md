@@ -7,7 +7,7 @@ Classes (OPERATING_MODEL §1.12): **A0** observe · **A1** propose/draft · **A2
 | Tool | Class | Input | What it does |
 |---|---|---|---|
 | `work.get` | A0 | `{ref}` | One work item with its delegation chain, brief, budget left, evidence and deliverables. Own company only. |
-| `company.state` | A0 | `{}` (holding roles: `{company?}`) | Snapshot: departments, active employees, open work by status, pending decisions, kill switch, deploy freeze, budget use %, hiring (`closed`/`open`, contract §18.11). |
+| `company.state` | A0 | `{}` (holding roles: `{company?}`) | Snapshot: departments, active employees, open work by status, pending decisions, kill switch, deploy freeze, budget use %, hiring (`closed`/`open`, contract §18.11) and, while open, `hiring_mode` (`proposals`/`delegated`/`auto`). |
 | `health.sites` | A0 | `{company?, since?}` | Latest results of the rule-based site checks (status, latency, TLS days left, consecutive failures) and open incidents. |
 | `health.hub` | A0 | `{}` | The hub's own state: services up/down and restarts, disk, memory, certificate days left, last backup age and restore-test result. |
 | `treasury.usage` | A0 | `{scope, period}` | Tokens and equivalent cost by company/department/role/model, budget use %, anomalies. |
@@ -29,7 +29,7 @@ Classes (OPERATING_MODEL §1.12): **A0** observe · **A1** propose/draft · **A2
 | `order.progress` | A1 | `{ref, step_fa, done?: [n]}` | ⟨1.16⟩ One real step of the order, in plain Persian for the owner (what was done, what it produced). ⟨1.17⟩ `done`: the numbers of the plan's tasks this step finished (`order.plan` shows them as `n. title [state]`). |
 | `order.ask` | A1 | `{ref, question_fa}` | ⟨1.16⟩ One short question to the owner on the order (contract §34.3): the owner is told at once, the order waits for the owner's word, and the answer comes back to this same work as a new run (`order.steps`). A step-by-step order asks after each step; a general order asks only when it truly cannot go on. Never for a technical matter: that goes to your CTO or the holding's AI operations head. ⟨1.17⟩ A second ask while the owner has not answered joins the open question (both are asked together; the answer wakes you both). |
 | `automation.propose` | A1 | `{sentence_fa}` | ⟨2026-11-06⟩ A CEO or a manager proposes an automation of its own company in one Persian sentence (when / what): the hub compiles and checks it (schedule, event or metric triggers; create work, run or pause a production line, notify, pause an ad, start an n8n workflow `n8n.run`); it is `proposed` and the owner seals it. Answers its ref and the plain preview. |
-| `work.request` | A2 | `{to, title_fa, brief_md}` | Request to another department's manager, or (CEO only) another company's CEO. |
+| `work.request` | A2 | `{to, title_fa, brief_md}` | Request to another department's manager, or (CEO only) another company's CEO (`to: "CODE"`); or, along an `on` link (company.state `links`), a CEO or a manager asks the linked company's CEO (`to: "CODE"`) or a department's manager there (`to: "CODE-DEPT"`). Never a named person of another company. |
 | `activity.set` | A2 | `{state, note?}` | Live-stream activity of the employee (`working`, `waiting`, `idle`). |
 | `notify` | A2 | `{level, category?, title_fa, body_fa, link?}` | Raise a notification. `urgent` only with an incident `category` (service down, security, data loss, budget hard stop), max 5/hour/company. |
 

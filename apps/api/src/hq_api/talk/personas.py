@@ -29,6 +29,9 @@ EFFORTS = ("low", "medium", "high", "xhigh", "max")
 FIXED = ("secretary", "overseer", "assistant", "advisor")
 # ⟨1.17⟩ §35.4 a player in a session: ChatGPT, Gemini or DeepSeek through its substitute seat
 PLAYER_FA = {"gpt": "ChatGPT", "gemini": "Gemini", "deepseek": "DeepSeek"}
+# ⟨2026-11-06⟩ A0 in every charter, but never a talk read: in talk it would answer `queued` and land as
+# a work item; a player comes into a session as a participant (the `invite` card with `player`)
+NOT_IN_TALK = ("substitute.call",)
 
 
 @dataclass(frozen=True)
@@ -80,7 +83,11 @@ def read_tools(lib: Any, role: str, wanted: tuple[str, ...] | None) -> tuple[str
     charter = lib.get(role) if lib is not None else None
     if charter is None:
         return ()
-    reads = [t for t in charter.tools if t in lib.tools and lib.tools[t].cls == "A0"]
+    reads = [
+        t
+        for t in charter.tools
+        if t in lib.tools and lib.tools[t].cls == "A0" and t not in NOT_IN_TALK
+    ]
     return tuple(t for t in reads if wanted is None or t in wanted)
 
 

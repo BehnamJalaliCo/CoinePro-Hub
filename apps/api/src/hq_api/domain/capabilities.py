@@ -10,7 +10,8 @@ every talk persona's, so that nobody claims a capability does not exist or inven
     automations       the holding's rule engine (`automation.propose`: one Persian sentence; the
                       owner seals it), which can also start an n8n workflow (`n8n.run`) when n8n is up
     the company       its connections (Instagram, Telegram, Search Console…: connected or not), its
-                      links to other companies (what to ask whom), its working groups and lines
+                      links to other companies (what to ask whom), its working groups and its
+                      production lines (ref, title, platform, state, mode: what line.run can name)
     how               hire, delegate, split, ask another company, ask the owner, report
 """
 
@@ -22,6 +23,7 @@ from uuid import UUID
 from hq_api.db import Tx
 
 PLAYER_FA = {"gpt": "ChatGPT", "gemini": "Gemini", "deepseek": "DeepSeek"}
+LINES_MAX = 20  # the company's production lines named in the brief (the ones on first)
 STATE_FA = {
     "ready": "آماده",
     "limited": "سهمیه‌ی امروزش پر است",
@@ -38,12 +40,21 @@ HOW = {
     "cover_image_video": (
         "substitute.call {seat: creative, kind: image | video, player?: gpt | gemini, input_md: the "
         "brief, placement: instagram_post | instagram_story | telegram_post | …, overlay?: the "
-        "Persian words}: a creative CR-… that waits for review; deliver it with your work"
+        "Persian words}: a creative CR-… that waits for review; deliver its ref with your work; "
+        "the owner accepts it on the creatives screen. Publishing it once is the owner's: propose "
+        "{kind: a3_action, payload: {action: publish, target: 'CR-… → the channel', preview}} (A3); "
+        "nothing is published by itself"
     ),
     "automation": (
-        "automation.propose {sentence_fa}: one Persian sentence (when / what); the hub checks it "
-        "and the owner seals it; it can create work, run or pause a production line, notify, or "
-        "start an n8n workflow (n8n.run)"
+        "a CEO or a manager only (an employee asks its manager): automation.propose {sentence_fa}: "
+        "one Persian sentence (when / what); the hub checks it and the owner seals it; it can "
+        "create work, run or pause a production line, notify, or start an n8n workflow (n8n.run "
+        "names a workflow that already exists in n8n). A brand-new n8n workflow is a propose "
+        "{kind: proposal} with its steps, for the owner"
+    ),
+    "production_line": (
+        "to run a line of your company on a schedule or an event: automation.propose with "
+        "line.run <its ref LN-…> (or line.pause); the lines are under your_company.production_lines"
     ),
     "hire": "propose {kind: hire} (a CEO decides inside its envelope; hiring rules in company.state)",
     "delegate": "work.delegate / work.split; another company: work.request to a linked company",
@@ -88,7 +99,13 @@ async def _company(tx: Tx, company_id: UUID) -> dict[str, Any]:
            JOIN growth.groups g ON g.id = m.group_id WHERE m.company_id = :co ORDER BY g.key""",
         co=company_id,
     )
-    lines = await tx.scalar(
+    lines = await tx.all(
+        """SELECT ref, title_fa, platform, state, mode FROM lines.lines
+           WHERE company_id = :co ORDER BY (state = 'on') DESC, created_at LIMIT :l""",
+        co=company_id,
+        l=LINES_MAX,
+    )
+    on = await tx.scalar(
         "SELECT count(*) FROM lines.lines WHERE company_id = :co AND state = 'on'", co=company_id
     )
     return {
@@ -97,7 +114,8 @@ async def _company(tx: Tx, company_id: UUID) -> dict[str, Any]:
         "working_groups": [
             {"key": g["key"], "title_fa": g["title_fa"], "state": g["state"]} for g in groups
         ],
-        "production_lines_on": int(lines or 0),
+        "production_lines": [dict(x) for x in lines],
+        "production_lines_on": int(on or 0),
     }
 
 

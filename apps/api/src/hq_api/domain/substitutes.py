@@ -1288,7 +1288,11 @@ async def _applied(tx: Tx, hub: Any, call: dict[str, Any]) -> None:
         await advisor.apply_opinion(tx, str(call["purpose_ref"]), str(call["seat"]), call)
     elif call["purpose_kind"] == "claim" and call["seat"] == "overseer_cross_check":
         await apply_cross_check(tx, hub, call)
-    elif call["caller_kind"] == "agent" and call["purpose_kind"] is None and call["kind"] == "call":
+    elif (
+        call["caller_kind"] == "agent"
+        and call["purpose_kind"] in (None, CALLER_WORK)
+        and call["kind"] == "call"
+    ):
         await deliver_to_agent(tx, hub, call)
     elif call["purpose_kind"] in ("work", "council"):  # ⟨1.9⟩ §27.1-§27.2
         from hq_api.domain import players
@@ -1303,12 +1307,63 @@ async def _applied(tx: Tx, hub: Any, call: dict[str, Any]) -> None:
 REPLY_TOKENS = 20_000
 REPLY_BRIEF = 48_000  # a work brief holds 50 000; a longer answer goes whole into a file
 REPLY_HEAD = 6_000
+# ⟨2026-11-06⟩ an agent's substitute.call names the work of the run that made it (purpose_ref: the
+# work's id): the answer's reply work is requested by that work, so it belongs to the same order
+CALLER_WORK = "caller_work"
+TALK_SNIPPET = 280
+PLAYER_NAMES = {"gpt": "ChatGPT", "gemini": "Gemini", "deepseek": "DeepSeek"}
+
+
+async def run_work(tx: Tx, who: Principal) -> UUID | None:
+    """The work of the run behind an agent's token (of its own company), or None."""
+    if not who.is_agent or not who.run_id:
+        return None
+    found: UUID | None = await tx.scalar(
+        """SELECT r.work_id FROM agents.runs r JOIN work.work w ON w.id = r.work_id
+           WHERE r.id = CAST(:run AS uuid) AND w.company_id = :co""",
+        run=who.run_id,
+        co=who.company_id,
+    )
+    return found
+
+
+async def _caller_work(tx: Tx, call: dict[str, Any], company_id: UUID) -> dict[str, Any] | None:
+    if call["purpose_kind"] != CALLER_WORK or not call["purpose_ref"]:
+        return None
+    try:
+        wid = UUID(str(call["purpose_ref"]))
+    except ValueError:
+        return None
+    return await tx.first(
+        "SELECT id, ref FROM work.work WHERE id = :id AND company_id = :co", id=wid, co=company_id
+    )
+
+
+async def _answer_to_talk(
+    tx: Tx, work_id: UUID, caller_code: str, player: str, answer: str
+) -> None:
+    """The order the caller's work belongs to hears one line in its live session (if open)."""
+    from hq_api.domain import order_report as OR
+    from hq_api.domain import order_turns as OT
+
+    ref = await OR.order_of_work(tx, work_id)
+    if ref is None:
+        return
+    rep = await OR.ensure(tx, ref)
+    if rep is None or rep.get("closed_at") is not None or rep.get("ended_at") is not None:
+        return
+    flat = " ".join(scrub(answer).split())
+    head = flat[:TALK_SNIPPET] + ("…" if len(flat) > TALK_SNIPPET else "")
+    name = PLAYER_NAMES.get(player, player)
+    await OT.to_talk(tx, rep, caller_code, f"جواب {name} رسید: {head}")
 
 
 async def deliver_to_agent(tx: Tx, hub: Any, call: dict[str, Any]) -> None:
     """An agent's call that answered after substitute.call said `queued`: the
     labelled answer (or why it was skipped) goes back to the caller as a work
-    item (work is a record; the caller sleeps until it arrives)."""
+    item (work is a record; the caller sleeps until it arrives). ⟨2026-11-06⟩ The
+    reply work is requested by the caller's own work (the same order sees it), and
+    the order's live session hears that the answer came."""
     from hq_api.domain import work as W
 
     if call["delivered_at"] is not None:
@@ -1321,15 +1376,18 @@ async def deliver_to_agent(tx: Tx, hub: Any, call: dict[str, Any]) -> None:
     )
     if emp is None:
         return
+    mine = await _caller_work(tx, call, emp["company_id"])
+    for_work = f" Asked for your work {mine['ref']}." if mine is not None else ""
     res = call["result"] or {}
+    answer = ""
     if call["state"] == "done":
         answer = await full_text(tx, hub, res) or json.dumps(
             res.get("findings") or [], ensure_ascii=False
         )
         head = (
             f"The substitute player's answer to your substitute.call ({call['seat']}, call "
-            f"{call['id']}). Source: {json.dumps(source(call))}. It is never evidence: check it, "
-            "use it or drop it; you answer for the result.\n\n"
+            f"{call['id']}).{for_work} Source: {json.dumps(source(call))}. It is never evidence: "
+            "check it, use it or drop it; you answer for the result.\n\n"
         )
         body = head + str(answer)
         if len(body) > REPLY_BRIEF:
@@ -1346,7 +1404,7 @@ async def deliver_to_agent(tx: Tx, hub: Any, call: dict[str, Any]) -> None:
     else:
         body = (
             f"Your substitute.call ({call['seat']}, call {call['id']}) was {call['state']}: "
-            f"{call['state_reason'] or 'no answer'}. Carry on with your own model."
+            f"{call['state_reason'] or 'no answer'}.{for_work} Carry on with your own model."
         )
     w = await W.create(
         tx,
@@ -1359,7 +1417,10 @@ async def deliver_to_agent(tx: Tx, hub: Any, call: dict[str, Any]) -> None:
         priority="P3",
         assignee_code=emp["code"],
         budget=W.BudgetIn(tokens=REPLY_TOKENS),
+        requested_by_work_id=mine["id"] if mine is not None else None,
     )
+    if mine is not None and call["state"] == "done" and answer:
+        await _answer_to_talk(tx, mine["id"], emp["code"], call["player"], str(answer))
     await tx.exec(
         "UPDATE substitutes.calls SET delivered_at = now(), reply_work_id = :w WHERE id = :id",
         w=w["id"],

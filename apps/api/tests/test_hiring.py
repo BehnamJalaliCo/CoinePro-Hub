@@ -250,15 +250,16 @@ async def test_company_state_tells_agents_the_hiring_state(
     await _set_hiring(su, "closed")  # ⟨21⟩ migration 0037 opens it (auto): closed here first
     r = await client.get("/internal/v1/company/state", headers=h)
     assert r.status_code == 200 and r.json()["hiring"] == "closed"
+    assert r.json()["hiring_mode"] is None
     await _set_hiring(su, "open")
     try:
-        assert (await client.get("/internal/v1/company/state", headers=h)).json()[
-            "hiring"
-        ] == "open"
+        r = await client.get("/internal/v1/company/state", headers=h)
+        assert r.json()["hiring"] == "open" and r.json()["hiring_mode"] == "proposals"
         r = await client.get(
             "/internal/v1/company/state", headers=await agent_headers("HQ-OVS-MGR")
         )
         assert r.json()["hiring"] == "open" and r.json()["companies"]
+        assert r.json()["hiring_mode"] == "proposals"
     finally:
         await _set_hiring(su, "closed")
 

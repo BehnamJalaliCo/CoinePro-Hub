@@ -115,6 +115,16 @@ questions:
   outside: [بازار, بازارها, رقبا, رقیب, رقیبها, رقابت, روند, ترند, ایده, ایدهها, کلیدواژه, کلمه کلیدی,
             سئو, seo, تبلیغ, تبلیغات, متن تبلیغ, قیمت گذاری, قیمتگذاری, مخاطب, مخاطبان, برندینگ]
 model_never: [AIOPS]
+# ⟨2026-11-06⟩ an automation (a schedule, a rule, an n8n workflow) is the CEO's to propose
+# (automation.propose; the owner seals it), never a production department's: these words send the
+# order to the company's CEO (in the holding, which has none: AI operations), whatever output or
+# topic word it also has («اتوماسیون انتشار ریلز» is not a reel), unless a manager is named outright.
+# not_before: a word right after an automation word that makes it describe how a production runs
+#   («همه‌اش اتوماسیون شده اجرا بشه»): that order stays its output's.
+automation:
+  words: [اتوماسیون, خودکارسازی, خودکار سازی, n8n, ان هشت ان]
+  not_before: [شده, شود, بشه, میشه, میشود]
+  holding_department: AIOPS
 memory:
   similarity: 0.6
   look_back: 200
