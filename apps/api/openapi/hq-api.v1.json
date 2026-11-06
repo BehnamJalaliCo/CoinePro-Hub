@@ -30221,6 +30221,104 @@
         "title": "Objective",
         "type": "object"
       },
+      "Office": {
+        "properties": {
+          "approvals": {
+            "items": {
+              "$ref": "#/components/schemas/Decision"
+            },
+            "title": "Approvals",
+            "type": "array"
+          },
+          "approvals_total": {
+            "title": "Approvals Total",
+            "type": "integer"
+          },
+          "canvas": {
+            "$ref": "#/components/schemas/Canvas"
+          },
+          "critical": {
+            "items": {
+              "$ref": "#/components/schemas/Notification"
+            },
+            "title": "Critical",
+            "type": "array"
+          },
+          "money": {
+            "$ref": "#/components/schemas/OfficeMoney"
+          },
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/SessionCard"
+            },
+            "title": "Sessions",
+            "type": "array"
+          },
+          "suggestions": {
+            "items": {
+              "$ref": "#/components/schemas/Suggestion"
+            },
+            "title": "Suggestions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "sessions",
+          "approvals",
+          "approvals_total",
+          "money",
+          "critical",
+          "suggestions",
+          "canvas"
+        ],
+        "title": "Office",
+        "type": "object"
+      },
+      "OfficeMoney": {
+        "properties": {
+          "budget_month_usd": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Month Usd"
+          },
+          "line_fa": {
+            "title": "Line Fa",
+            "type": "string"
+          },
+          "revenue_month_usd": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue Month Usd"
+          },
+          "spend_month_usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Spend Month Usd",
+            "type": "string"
+          }
+        },
+        "required": [
+          "revenue_month_usd",
+          "spend_month_usd",
+          "budget_month_usd",
+          "line_fa"
+        ],
+        "title": "OfficeMoney",
+        "type": "object"
+      },
       "OkrCheckin": {
         "properties": {
           "at": {
@@ -105399,6 +105497,246 @@
         "summary": "Read Notification",
         "tags": [
           "notifications"
+        ]
+      }
+    },
+    "/api/v1/office": {
+      "get": {
+        "description": "The office: sessions (≤ 30, as GET /sessions), approvals (owner-visible, ≤ 10, and their\ntotal), money (dollars, one plain line), critical (owner-visible only), suggestions (any\nsubject), canvas (as GET /links). Code only, no model.",
+        "operationId": "get_office",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "approvals": [
+                    {
+                      "action_class": "x",
+                      "amendments": {},
+                      "approver": {
+                        "code": "TY-CEO",
+                        "display_fa": "x",
+                        "kind": "agent"
+                      },
+                      "company": "TY",
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "critical_reason": "data_leak",
+                      "decided_at": "2026-10-17T05:42:00Z",
+                      "decided_by": {
+                        "code": "TY-CEO",
+                        "display_fa": "x",
+                        "kind": "agent"
+                      },
+                      "digital_ceo_prediction": {},
+                      "domain": "business",
+                      "effect_status": "x",
+                      "expected": {},
+                      "expires_at": "2026-10-17T05:42:00Z",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "impact": {
+                        "basis_fa": "x",
+                        "cost_usd": 1.0,
+                        "horizon_days": 1,
+                        "kind": "measured",
+                        "revenue_usdt": 1.0
+                      },
+                      "kind": "hire",
+                      "memos": [
+                        {}
+                      ],
+                      "note": "یادداشت",
+                      "owner_visible": false,
+                      "payload": {},
+                      "proposer": {
+                        "code": "TY-CEO",
+                        "display_fa": "x",
+                        "kind": "agent"
+                      },
+                      "quota_estimate": {
+                        "tokens": 1,
+                        "usd": "2.410000"
+                      },
+                      "reason_code": "x",
+                      "ref": "D-000123",
+                      "reminders": [
+                        {}
+                      ],
+                      "resolution": "M-0001",
+                      "reversible": false,
+                      "risk": "low",
+                      "risk_note": "x",
+                      "routed_to": "x",
+                      "seal": {
+                        "method": "x",
+                        "sealed_at": "2026-10-17T05:42:00Z",
+                        "step_up_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                      },
+                      "status": "pending",
+                      "thread": "TY-CEO",
+                      "title": "گزارش هفتگی رشد",
+                      "version": 1,
+                      "waiting_h": 1.0,
+                      "warnings": [
+                        "x"
+                      ],
+                      "what": "x",
+                      "why": "x",
+                      "work_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                    }
+                  ],
+                  "approvals_total": 1,
+                  "canvas": {
+                    "links": [
+                      {
+                        "from": "x",
+                        "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                        "kind": "serves",
+                        "open_works": 1,
+                        "purpose_fa": "x",
+                        "state": "on",
+                        "to": "TY-GROWTH-MGR",
+                        "updated_at": "2026-10-17T05:42:00Z"
+                      }
+                    ],
+                    "nodes": [
+                      {
+                        "code": "TY",
+                        "kind": "holding",
+                        "line_fa": "x",
+                        "name_fa": "تریدیار",
+                        "open_sessions": 1,
+                        "x": 1.0,
+                        "y": 1.0
+                      }
+                    ]
+                  },
+                  "critical": [
+                    {
+                      "answer": "x",
+                      "body_fa": "توضیح کوتاه",
+                      "choices": [
+                        {
+                          "id": "x",
+                          "label_fa": "x"
+                        }
+                      ],
+                      "company": "TY",
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "critical_reason": "data_leak",
+                      "delivered": {
+                        "fcm": false,
+                        "in_app": false,
+                        "telegram": false,
+                        "web_push": false
+                      },
+                      "domain": "business",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "level": "urgent",
+                      "link": {
+                        "kind": "one_off",
+                        "ref": "W-000789"
+                      },
+                      "owner_visible": false,
+                      "read_at": "2026-10-17T05:42:00Z",
+                      "routed_to": "x",
+                      "state": "x",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "money": {
+                    "budget_month_usd": "2.410000",
+                    "line_fa": "x",
+                    "revenue_month_usd": "2.410000",
+                    "spend_month_usd": "2.410000"
+                  },
+                  "sessions": [
+                    {
+                      "badge": "your_turn",
+                      "brief": {
+                        "done_fa": "x",
+                        "need_fa": "x",
+                        "now_fa": "x"
+                      },
+                      "closed_at": "2026-10-17T05:42:00Z",
+                      "conversation_ref": "x",
+                      "hidden": false,
+                      "holder": {
+                        "code": "TY",
+                        "company": "TY",
+                        "company_fa": "x",
+                        "title_fa": "گزارش هفتگی رشد"
+                      },
+                      "last_at": "2026-10-17T05:42:00Z",
+                      "opened_at": "2026-10-17T05:42:00Z",
+                      "pace": "auto",
+                      "participants": [
+                        {
+                          "company": "TY",
+                          "key": "x",
+                          "kind": "holder",
+                          "title_fa": "گزارش هفتگی رشد"
+                        }
+                      ],
+                      "reason_fa": "x",
+                      "ref": "W-000789",
+                      "tasks": {
+                        "done": 1,
+                        "total": 1
+                      },
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "suggestions": [
+                    {
+                      "company": "TY",
+                      "cost_fa": "x",
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "impact_fa": "x",
+                      "kind": "effective",
+                      "name_fa": "تریدیار",
+                      "order_ref": "x",
+                      "reason_fa": "x",
+                      "source": "council",
+                      "state": "new",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "why_fa": "x"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Office"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Office",
+        "tags": [
+          "office"
         ]
       }
     },

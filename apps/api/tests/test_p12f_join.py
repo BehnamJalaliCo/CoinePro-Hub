@@ -73,8 +73,9 @@ async def test_the_chain_runs_through_prompt_11_then_prompt_12(su: Any) -> None:
     assert rev["0050"] == "0049"  # 24: parallel parts, workspaces
     assert rev["0051"] == "0050"  # 25: the order answered live (pace, turn, its talk)
     assert rev["0052"] == "0051"  # 25: every order a session (close, hide, tasks, players)
-    assert heads == {"0052"}
-    assert await su.fetchval("SELECT version_num FROM alembic_version_api") == "0052"
+    assert rev["0053"] == "0052"  # 25: company links and the canvas
+    assert heads == {"0053"}
+    assert await su.fetchval("SELECT version_num FROM alembic_version_api") == "0053"
 
 
 async def test_the_kind_check_holds_every_kind_and_is_validated(su: Any) -> None:

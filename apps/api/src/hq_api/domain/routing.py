@@ -82,6 +82,8 @@ ROLE_DOMAIN = {
 # protocols of the holding's own process (the truth, delivery, quality and
 # people of its governance) are their answerers' work, never the owner's page.
 # Added after migration 0037 (its one data move used the rules without them).
+# The token-budget protocols (2026-11-06, new rows only): the technical team's, never the owner's.
+TOKEN_PROTOCOLS = ("PR-020", "PR-021", "PR-022", "PR-023", "PR-099")
 PROCESS_PROTOCOLS = (
     "PR-001",  # every figure of an output has a source
     "PR-002",  # the morning report reads with the raw data
@@ -112,7 +114,7 @@ PROTOCOL_DOMAIN = {
     "PR-060": "infra",  # the sites' health
     "PR-062": "infra",  # the hub's health
     # token budgets and the models' fit (2026-11-06: no token jargon for the owner)
-    **dict.fromkeys(("PR-020", "PR-021", "PR-022", "PR-023", "PR-099"), "infra"),
+    **dict.fromkeys(TOKEN_PROTOCOLS, "infra"),
     "PR-013": "tech",  # tools within each role's list
     "PR-034": "tech",  # skills and charters reviewed
     "PR-142": "tech",  # the monthly code review

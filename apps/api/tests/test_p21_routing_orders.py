@@ -209,7 +209,7 @@ def test_the_rules_name_a_domain_for_every_kind() -> None:
 
 async def test_the_sql_rules_of_the_data_move_match_the_code(su: Any) -> None:
     """Migration 0037's rules (SQL) and hq_api.domain.routing say the same (the rules
-    added after it, for new rows only, aside: the process protocols, the later links)."""
+    added after it, for new rows only, aside: the process and token protocols, the later links)."""
     from hq_common import charters
 
     protocols = O.protocol_file(charters.load().root)
@@ -218,6 +218,9 @@ async def test_the_sql_rules_of_the_data_move_match_the_code(su: Any) -> None:
         for p in protocols:
             if p["ref"] in RT.PROCESS_PROTOCOLS:
                 assert RT.finding_domain(protocol=p["ref"], area=p["area"]) == "tech"
+                continue
+            if p["ref"] in RT.TOKEN_PROTOCOLS:
+                assert RT.finding_domain(protocol=p["ref"], area=p["area"]) == "infra"
                 continue
             for kind in (None, "security", "code"):
                 sql = await su.fetchval(
