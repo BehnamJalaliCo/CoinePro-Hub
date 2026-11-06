@@ -977,6 +977,12 @@ class Runner:
         """⟨21⟩ §29.6 the next prompt as the run's cap counts it: what the last
         call read from the cache (the same context, sent again) at a tenth."""
         est = prompt_tokens(system, rc.messages)
+        if rc.run["trigger"] == "meeting" and rc.last_cache_read == 0:
+            # ⟨2026-11-06⟩ a meeting turn's system prompt is the role's fixed preamble, the same
+            # for each of its turns and read from the cache: counted as a cached read, so a turn
+            # cap of a few thousand tokens is spent on the statement, not on the charter
+            fixed = min(len(system) // 4, est)
+            return est - fixed + round(fixed * W.CACHE_READ_SHARE)
         cached = min(rc.last_cache_read, est)
         return est - cached + round(cached * W.CACHE_READ_SHARE)
 
