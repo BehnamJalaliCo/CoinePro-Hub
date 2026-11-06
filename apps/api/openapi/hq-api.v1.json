@@ -4818,6 +4818,29 @@
         "title": "Blocker",
         "type": "object"
       },
+      "Blocking": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "mem_cap_mb": {
+            "title": "Mem Cap Mb",
+            "type": "number"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title_fa",
+          "mem_cap_mb"
+        ],
+        "title": "Blocking",
+        "type": "object"
+      },
       "BrandChecks": {
         "properties": {
           "contrast_day": {
@@ -12227,7 +12250,8 @@
               "archive_disposal",
               "server_destructive",
               "line_publish",
-              "erase"
+              "erase",
+              "hub_op"
             ],
             "title": "Kind",
             "type": "string"
@@ -13857,120 +13881,6 @@
           "knowledge_transfer_work"
         ],
         "title": "DismissResult",
-        "type": "object"
-      },
-      "DoneIn": {
-        "additionalProperties": false,
-        "description": "The dispatcher's result of one CLI job (the interface file).",
-        "properties": {
-          "error": {
-            "anyOf": [
-              {
-                "enum": [
-                  "limited",
-                  "signed_out",
-                  "timeout",
-                  "failed",
-                  "no_access",
-                  "not_ready",
-                  "unavailable"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error"
-          },
-          "findings": {
-            "anyOf": [
-              {
-                "items": {
-                  "additionalProperties": true,
-                  "type": "object"
-                },
-                "maxItems": 200,
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Findings"
-          },
-          "limited_until": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Limited Until"
-          },
-          "models": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "maxItems": 50,
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Models"
-          },
-          "ok": {
-            "title": "Ok",
-            "type": "boolean"
-          },
-          "status_reason": {
-            "anyOf": [
-              {
-                "maxLength": 300,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Status Reason"
-          },
-          "text_md": {
-            "anyOf": [
-              {
-                "maxLength": 20000000,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Text Md"
-          },
-          "usage": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Usage"
-          }
-        },
-        "required": [
-          "ok"
-        ],
-        "title": "DoneIn",
         "type": "object"
       },
       "DraftBrief": {
@@ -19829,6 +19739,286 @@
           "data"
         ],
         "title": "HubHealth",
+        "type": "object"
+      },
+      "HubJob": {
+        "description": "§38.3 a hub job as the owner's app sees it.",
+        "properties": {
+          "blocking": {
+            "items": {
+              "$ref": "#/components/schemas/Blocking"
+            },
+            "title": "Blocking",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "decision_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Ref"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "op": {
+            "title": "Op",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "requested_by": {
+            "title": "Requested By",
+            "type": "string"
+          },
+          "result_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Fa"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "running",
+              "done",
+              "failed",
+              "refused",
+              "awaiting_seal"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "op",
+          "title_fa",
+          "state",
+          "result_fa",
+          "requested_by",
+          "created_at"
+        ],
+        "title": "HubJob",
+        "type": "object"
+      },
+      "HubMemory": {
+        "properties": {
+          "budget_mb": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Mb"
+          },
+          "caps_mb": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caps Mb"
+          },
+          "free_mb": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Free Mb"
+          },
+          "total_mb": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Mb"
+          }
+        },
+        "required": [
+          "total_mb",
+          "budget_mb",
+          "caps_mb",
+          "free_mb"
+        ],
+        "title": "HubMemory",
+        "type": "object"
+      },
+      "HubOpIn": {
+        "additionalProperties": false,
+        "properties": {
+          "args": {
+            "additionalProperties": true,
+            "title": "Args",
+            "type": "object"
+          },
+          "op": {
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Op",
+            "type": "string"
+          }
+        },
+        "required": [
+          "op"
+        ],
+        "title": "HubOpIn",
+        "type": "object"
+      },
+      "HubService": {
+        "properties": {
+          "can_toggle": {
+            "title": "Can Toggle",
+            "type": "boolean"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "mem_cap_mb": {
+            "title": "Mem Cap Mb",
+            "type": "number"
+          },
+          "mem_used_mb": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mem Used Mb"
+          },
+          "note_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Fa"
+          },
+          "optional": {
+            "title": "Optional",
+            "type": "boolean"
+          },
+          "state": {
+            "enum": [
+              "on",
+              "off",
+              "starting",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "what_fa": {
+            "title": "What Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title_fa",
+          "what_fa",
+          "state",
+          "optional",
+          "mem_cap_mb",
+          "mem_used_mb",
+          "can_toggle",
+          "note_fa"
+        ],
+        "title": "HubService",
+        "type": "object"
+      },
+      "HubServices": {
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "memory": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HubMemory"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/HubService"
+            },
+            "title": "Services",
+            "type": "array"
+          }
+        },
+        "required": [
+          "memory",
+          "services",
+          "at"
+        ],
+        "title": "HubServices",
         "type": "object"
       },
       "Impact": {
@@ -46388,6 +46578,53 @@
         "title": "Snapshot",
         "type": "object"
       },
+      "SnapshotIn": {
+        "description": "The dispatcher's look at the host (infra/hubops/snapshot.sh).",
+        "properties": {
+          "memory": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Memory"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile"
+          },
+          "services": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "maxItems": 200,
+            "title": "Services",
+            "type": "array"
+          },
+          "switches": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Switches",
+            "type": "object"
+          }
+        },
+        "title": "SnapshotIn",
+        "type": "object"
+      },
       "SpeechIn": {
         "additionalProperties": false,
         "properties": {
@@ -49242,6 +49479,28 @@
           "article"
         ],
         "title": "SupportTeachOut",
+        "type": "object"
+      },
+      "SwitchIn": {
+        "additionalProperties": false,
+        "properties": {
+          "on": {
+            "title": "On",
+            "type": "boolean"
+          },
+          "turn_off": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 7,
+            "title": "Turn Off",
+            "type": "array"
+          }
+        },
+        "required": [
+          "on"
+        ],
+        "title": "SwitchIn",
         "type": "object"
       },
       "TalkAudio": {
@@ -56405,6 +56664,40 @@
         "title": "Kpi",
         "type": "object"
       },
+      "hq_api__domain__hub_ops__DoneIn": {
+        "additionalProperties": false,
+        "properties": {
+          "exit_code": {
+            "maximum": 255.0,
+            "minimum": -1.0,
+            "title": "Exit Code",
+            "type": "integer"
+          },
+          "output": {
+            "default": "",
+            "maxLength": 131072,
+            "title": "Output",
+            "type": "string"
+          },
+          "refused": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z_]{1,40}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refused"
+          }
+        },
+        "required": [
+          "exit_code"
+        ],
+        "title": "DoneIn",
+        "type": "object"
+      },
       "hq_api__domain__inquiries__AnswerIn": {
         "additionalProperties": false,
         "properties": {
@@ -56680,6 +56973,120 @@
           "target"
         ],
         "title": "Fix",
+        "type": "object"
+      },
+      "hq_api__domain__substitutes__DoneIn": {
+        "additionalProperties": false,
+        "description": "The dispatcher's result of one CLI job (the interface file).",
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "enum": [
+                  "limited",
+                  "signed_out",
+                  "timeout",
+                  "failed",
+                  "no_access",
+                  "not_ready",
+                  "unavailable"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "findings": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "maxItems": 200,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Findings"
+          },
+          "limited_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limited Until"
+          },
+          "models": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Models"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "status_reason": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Reason"
+          },
+          "text_md": {
+            "anyOf": [
+              {
+                "maxLength": 20000000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text Md"
+          },
+          "usage": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usage"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "DoneIn",
         "type": "object"
       },
       "hq_api__domain__work__BudgetIn": {
@@ -81577,7 +81984,8 @@
                     "archive_schema",
                     "archive_disposal",
                     "server_destructive",
-                    "line_publish"
+                    "line_publish",
+                    "hub_op"
                   ],
                   "type": "string"
                 },
@@ -92606,6 +93014,624 @@
         "summary": "Get Hr Round",
         "tags": [
           "management"
+        ]
+      }
+    },
+    "/api/v1/hub/jobs/{ref}": {
+      "get": {
+        "description": "One hub job (the app polls it, or follows the stream's `hub.job`).",
+        "operationId": "hub_job",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "blocking": [
+                    {
+                      "key": "x",
+                      "mem_cap_mb": 1.0,
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "decision_ref": "x",
+                  "finished_at": "2026-10-17T05:42:00Z",
+                  "op": "x",
+                  "ref": "W-000789",
+                  "requested_by": "x",
+                  "result_fa": "x",
+                  "state": "queued",
+                  "title_fa": "گزارش هفتگی رشد"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/HubJob"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Hub Job",
+        "tags": [
+          "hub"
+        ]
+      }
+    },
+    "/api/v1/hub/services": {
+      "get": {
+        "description": "§38.3 the owner's «سرویس‌ها» page: each optional service with its switch and memory, the\ncore ones, and the hub's memory from the dispatcher's latest snapshot (`memory` null while the\ndispatcher has never reported: the hub part is not installed yet).",
+        "operationId": "hub_services",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "at": "2026-10-17T05:42:00Z",
+                  "memory": {
+                    "budget_mb": 1.0,
+                    "caps_mb": 1.0,
+                    "free_mb": 1.0,
+                    "total_mb": 1.0
+                  },
+                  "services": [
+                    {
+                      "can_toggle": false,
+                      "key": "x",
+                      "mem_cap_mb": 1.0,
+                      "mem_used_mb": 1.0,
+                      "note_fa": "x",
+                      "optional": false,
+                      "state": "on",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "what_fa": "x"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/HubServices"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Hub Services",
+        "tags": [
+          "hub"
+        ]
+      }
+    },
+    "/api/v1/hub/services/{key}": {
+      "post": {
+        "description": "Switch one optional service on or off (Idempotency-Key; no passkey: optional services\nonly). `turn_off` switches those off first, in the same job. Over the memory budget the job\nends `refused` with `blocking`: the optional services that are on, largest first.",
+        "operationId": "switch_hub_service",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "on": false,
+                "turn_off": [
+                  "x"
+                ]
+              },
+              "schema": {
+                "$ref": "#/components/schemas/SwitchIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "blocking": [
+                    {
+                      "key": "x",
+                      "mem_cap_mb": 1.0,
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "decision_ref": "x",
+                  "finished_at": "2026-10-17T05:42:00Z",
+                  "op": "x",
+                  "ref": "W-000789",
+                  "requested_by": "x",
+                  "result_fa": "x",
+                  "state": "queued",
+                  "title_fa": "گزارش هفتگی رشد"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/HubJob"
+                }
+              }
+            },
+            "description": "the switch's job"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Switch Hub Service",
+        "tags": [
+          "hub"
+        ]
+      }
+    },
+    "/api/v1/hubops": {
+      "get": {
+        "description": "The recent hub jobs (the agents' and the owner's), newest first, with plain Persian titles.",
+        "operationId": "recent_hub_jobs",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "blocking": [
+                      {
+                        "key": "x",
+                        "mem_cap_mb": 1.0,
+                        "title_fa": "گزارش هفتگی رشد"
+                      }
+                    ],
+                    "created_at": "2026-10-17T05:42:00Z",
+                    "decision_ref": "x",
+                    "finished_at": "2026-10-17T05:42:00Z",
+                    "op": "x",
+                    "ref": "W-000789",
+                    "requested_by": "x",
+                    "result_fa": "x",
+                    "state": "queued",
+                    "title_fa": "گزارش هفتگی رشد"
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HubJob"
+                  },
+                  "title": "Response Recent Hub Jobs",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Recent Hub Jobs",
+        "tags": [
+          "hub"
         ]
       }
     },
@@ -150798,6 +151824,709 @@
         ]
       }
     },
+    "/internal/v1/hubops": {
+      "post": {
+        "description": "hub.ops: one operation of the fixed catalogue, for the holding's technical roles. A0 and\nA2 are queued for the hub-ops dispatcher; an A3 one raises a 🔏 `hub_op` card and waits in\n`awaiting_seal`. A denied operation answers 403 policy_denied with the owner's step\n(`message_fa`). Every one is audited.",
+        "operationId": "hub_op",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "args": {},
+                "op": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/HubOpIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {},
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Hub Op",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Hub Op",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/hubops/claim": {
+      "post": {
+        "description": "The next hub job, one at a time; none while the holding's kill switch is engaged.",
+        "operationId": "hub_claim",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {},
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Hub Claim",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Hub Claim",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/hubops/snapshot": {
+      "post": {
+        "description": "The dispatcher's latest look at the host (memory, caps, use per container, switches).",
+        "operationId": "hub_snapshot",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "memory": {},
+                "profile": "x",
+                "services": [
+                  {}
+                ],
+                "switches": {}
+              },
+              "schema": {
+                "$ref": "#/components/schemas/SnapshotIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {},
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Hub Snapshot",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Hub Snapshot",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/hubops/{ref}": {
+      "get": {
+        "description": "The requester's own job, waiting up to `wait_s` for it to finish.",
+        "operationId": "hub_op_job",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "pattern": "^HJ-[0-9]{6,}$",
+              "title": "Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "wait_s",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 15,
+              "minimum": 0,
+              "title": "Wait S",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {},
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Hub Op Job",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Hub Op Job",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/hubops/{ref}/done": {
+      "post": {
+        "description": "A job's result (idempotent); the output is masked again and capped at 64 KB.",
+        "operationId": "hub_done",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "pattern": "^HJ-[0-9]{6,}$",
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "exit_code": -1,
+                "output": "x",
+                "refused": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/hq_api__domain__hub_ops__DoneIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {},
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Hub Done",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Hub Done",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
     "/internal/v1/inquiries": {
       "post": {
         "description": "A formal question with a due time. Requires `Idempotency-Key`.",
@@ -160935,7 +162664,7 @@
                 "usage": {}
               },
               "schema": {
-                "$ref": "#/components/schemas/DoneIn"
+                "$ref": "#/components/schemas/hq_api__domain__substitutes__DoneIn"
               }
             }
           },
