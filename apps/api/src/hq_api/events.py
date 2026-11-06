@@ -135,6 +135,8 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "money": ("payment.", "lead.", "usage.", "journey."),
     # ⟨1.17⟩ §35.7 topic `holding`: links.updated (a company link or a canvas node changed)
     "holding": ("links.",),
+    # ⟨1.20⟩ §38 topic `hub`: hub.job (a hub operation's state changed)
+    "hub": ("hub.",),
 }
 
 

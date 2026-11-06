@@ -1,0 +1,11 @@
+[Unit]
+Description=CoinePro HQ: the hub-ops queue every 10 seconds (a no-op without its token)
+
+[Timer]
+OnBootSec=120s
+OnUnitActiveSec=10s
+AccuracySec=2s
+Unit=coinepro-hq-hubops.service
+
+[Install]
+WantedBy=timers.target

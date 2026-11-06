@@ -6,6 +6,10 @@ SHELL := /usr/bin/env bash
 
 HQ       := infra/compose/hq.sh
 ENV_FILE := infra/compose/.env
+# ⟨1.20⟩ §38: the hub-ops dispatcher switches a profile as user Hub without sudo (HQ_NO_SUDO=1); the
+# units those targets enable were enabled once by `make hubops-install` (each does nothing while
+# its switch is off).
+SUDO     := $(if $(HQ_NO_SUDO),:,sudo)
 
 .PHONY: help env bootstrap profile up down ps logs backup restore-test check openbao-init unseal \
 	install-systemd llm-provision claude-token llm-smoke test-services lock owner-enroll openapi \
@@ -139,11 +143,11 @@ tts-on: ## Switch the Persian voice on (profile "tts", refused over the memory b
 	@infra/compose/set-env.sh HQ_TTS on
 	$(HQ) build tts
 	$(HQ) up -d --wait api worker
-	sudo systemctl enable --now coinepro-hq-tts.timer
+	$(SUDO) systemctl enable --now coinepro-hq-tts.timer
 
 tts-off: ## Switch the Persian voice off again (the default): briefings stay text, audio_state "off"
 	@infra/compose/set-env.sh HQ_TTS off
-	-sudo systemctl disable --now coinepro-hq-tts.timer
+	-$(SUDO) systemctl disable --now coinepro-hq-tts.timer
 	$(HQ) up -d --wait api worker
 
 tts-bench: ## The voice's acceptance numbers: 120 words -> Ogg, RTF < 0.5, peak RSS < 300 MB (no network)
@@ -185,11 +189,11 @@ media-on: ## Switch the render worker on (profile "media", refused over the memo
 	@infra/compose/set-env.sh HQ_MEDIA on
 	$(HQ) build media-courier
 	$(HQ) up -d --wait api worker
-	sudo systemctl enable --now coinepro-hq-media.timer
+	$(SUDO) systemctl enable --now coinepro-hq-media.timer
 
 media-off: ## Switch the render worker off again (the default): renders wait, items stay in their step
 	@infra/compose/set-env.sh HQ_MEDIA off
-	-sudo systemctl disable --now coinepro-hq-media.timer
+	-$(SUDO) systemctl disable --now coinepro-hq-media.timer
 	$(HQ) up -d --wait api worker
 
 MEDIA_SANDBOX_FLAGS = --network none --read-only --tmpfs /tmp:size=256m,mode=1777 --cap-drop ALL \
@@ -250,12 +254,12 @@ stt-on: ## Install speech to text ON DEMAND (prompt 18): fetch the model, HQ_STT
 	@infra/compose/set-env.sh HQ_STT on
 	HQ_STT_START=1 $(HQ) build stt
 	$(HQ) up -d --wait api worker
-	sudo systemd-tmpfiles --create /etc/tmpfiles.d/coinepro-hq-oneshot.conf
-	sudo systemctl enable --now coinepro-hq-stt.path
+	$(SUDO) systemd-tmpfiles --create /etc/tmpfiles.d/coinepro-hq-oneshot.conf
+	$(SUDO) systemctl enable --now coinepro-hq-stt.path
 
 stt-off: ## Switch speech to text off again: the app records only; nothing is started on demand
 	@infra/compose/set-env.sh HQ_STT off
-	-sudo systemctl disable --now coinepro-hq-stt.path
+	-$(SUDO) systemctl disable --now coinepro-hq-stt.path
 	-HQ_STT=off $(HQ) --profile stt stop stt
 	$(HQ) up -d --wait api worker
 
@@ -288,6 +292,24 @@ unseal: ## Unseal OpenBao with the stored key
 
 install-systemd: ## Install/refresh the backup and unseal timers (needs sudo)
 	@infra/systemd/install.sh
+
+# ⟨1.20⟩ contract §38: the hub run from the app. The dispatcher (a timer as user Hub, every 10 s)
+# runs only its own allow-list of fixed commands; it needs its own api token (hubops-token).
+.PHONY: hubops-install hubops-token hubops-test
+hubops-install: ## Install the hub-ops dispatcher's timer (needs sudo) and the opt-in timers it switches without sudo
+	@infra/systemd/install.sh
+	@# The one-shots a profile switch turns on: each does nothing while its switch is off, so the
+	@# dispatcher (no sudo) only flips the switch and starts the containers.
+	sudo systemctl enable --now coinepro-hq-tts.timer coinepro-hq-media.timer coinepro-hq-stt.path
+	sudo systemctl enable --now coinepro-hq-hubops.timer
+	systemctl list-timers 'coinepro-hq-hubops*' --no-pager
+
+hubops-token: ## The hub-ops dispatcher's own api token (made once, never shown), then the api reads it
+	@infra/openbao/provision.sh
+	$(HQ) up -d --wait api
+
+hubops-test: ## The hub-ops dispatcher's allow-list and masking, with a fake api (no docker, no network)
+	@infra/hubops/test-dispatch.sh
 
 llm-provision: ## OpenBao: KV, policies, AppRoles, service tokens (idempotent)
 	@infra/openbao/provision.sh

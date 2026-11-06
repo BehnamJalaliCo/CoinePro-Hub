@@ -59,6 +59,7 @@ TTS_TOKEN = "test-tts-token-" + "5" * 40  # the TTS one-shot (prompt 12 §4)
 # a token here so a test can prove OPA refuses it everything but its own rows.
 DCEO_TOKEN = "test-dceo-token-" + "6" * 40
 MEDIA_TOKEN = "test-media-token-" + "6" * 40  # the render one-shot (prompt 13 §2)
+HUBOPS_TOKEN = "test-hubops-token-" + "7" * 40  # ⟨1.20⟩ §38 the hub-ops dispatcher
 
 if "TEST_DB_HOST" not in os.environ:
     pytest.skip("needs services/scripts/test-env.sh (HQ_TEST_TARGET=api)", allow_module_level=True)
@@ -119,6 +120,7 @@ def make_secrets() -> Secrets:
             "tts": digest(TTS_TOKEN),
             "dceo": digest(DCEO_TOKEN),
             "media": digest(MEDIA_TOKEN),
+            "hubops": digest(HUBOPS_TOKEN),
         },
         llm_router_token=ROUTER_TOKEN,
         gateway_token=GATEWAY_TOKEN,
@@ -319,6 +321,11 @@ def worker_headers() -> dict[str, str]:
 def substitutes_headers() -> dict[str, str]:
     """The substitutes runner's host dispatcher (prompt 12 §9.1)."""
     return {"Authorization": f"Bearer {SUBSTITUTES_TOKEN}"}
+
+
+def hubops_headers() -> dict[str, str]:
+    """⟨1.20⟩ §38 the hub-ops dispatcher's own service token."""
+    return {"Authorization": f"Bearer {HUBOPS_TOKEN}"}
 
 
 def idem() -> dict[str, str]:

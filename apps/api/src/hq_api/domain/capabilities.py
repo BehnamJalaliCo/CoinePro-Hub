@@ -17,15 +17,21 @@ every talk persona's, so that nobody claims a capability does not exist or inven
                       IG-Hub of company IG, its servers by name, its lines and groups): nobody asks
                       «IG کدام شرکت است» again; the full profile and figures are `linked.read`
     voice             Google AI Studio's state for `speech.make` (the media roles)
-    how               hire, delegate, split, ask another company, ask the owner, report
+    technical         ⟨1.20⟩ §38.2 for this role: the server tools it holds and the servers it may use
+                      (names only), whether it holds `hub.ops` (the hub itself), and for a role with
+                      neither the one way: work.request to its company's CTO or the holding's AIOPS
+                      («nobody says دسترسی ندارم»)
+    how               hire, delegate, split, ask another company, ask the owner, report, the hub
 """
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from typing import Any
 from uuid import UUID
 
 from hq_api.db import Tx
+from hq_api.principal import Principal
 
 PLAYER_FA = {"gpt": "ChatGPT", "gemini": "Gemini", "deepseek": "DeepSeek"}
 LINES_MAX = 20  # the company's production lines named in the brief (the ones on first)
@@ -74,7 +80,16 @@ HOW = {
         "your company); the first answer is running with a job, call again with {job} until done"
     ),
     "owner": "order.ask only when you truly cannot go on; report steps with order.progress",
+    "hub": (
+        "the hub itself (services, logs, memory, a service on or off, n8n, backup): hub.ops {op, "
+        "args?} for the holding's AIOPS head, platform SRE and the holding's CTO; anyone else: "
+        "work.request to the holding's AIOPS saying exactly what to do. Never say an access is "
+        "missing: do it, or hand it to who has it and tell the owner who"
+    ),
 }
+SERVER_TOOLS = ("server.map", "server.read", "server.exec", "server.write", "server.claude")
+HOLDING_SERVER_ROLES = ("hub_platform_sre", "overseer")  # every paired server (contract §26.6)
+SERVERS_MAX = 30
 
 
 async def _players(tx: Tx) -> list[dict[str, Any]]:
@@ -192,7 +207,91 @@ async def _safe(tx: Tx, fn: Any, *args: Any) -> Any:
         return None
 
 
-async def brief(tx: Tx, company_id: UUID | None, *, n8n_up: bool) -> dict[str, Any]:
+async def _code_of(tx: Tx, company_id: UUID | None, role: str) -> str | None:
+    if company_id is None:
+        return None
+    code: str | None = await tx.scalar(
+        """SELECT code FROM core.employees WHERE company_id = :co AND role = :r AND status = 'active'
+           ORDER BY created_at LIMIT 1""",
+        co=company_id,
+        r=role,
+    )
+    return code
+
+
+async def _holding_row(tx: Tx) -> dict[str, Any] | None:
+    row = await tx.first(
+        "SELECT id, code FROM core.companies WHERE kind = 'holding' ORDER BY created_at LIMIT 1"
+    )
+    return dict(row) if row else None
+
+
+async def technical(
+    tx: Tx,
+    company_id: UUID | None,
+    *,
+    role: str | None,
+    tools: Collection[str],
+    scope: str = "company",
+) -> dict[str, Any]:
+    """⟨1.20⟩ §38.2 what this role may do on servers and on the hub, and whom to ask otherwise:
+    the same rule as server.map's «the servers the role may work on» (own company; every company
+    for the holding's platform SRE and the overseer) and as hub.ops (hub_ops.is_technical)."""
+    from hq_api.domain import hub_ops as HO
+
+    holding = await _holding_row(tx)
+    holding_id = holding["id"] if holding else None
+    held = [t for t in SERVER_TOOLS if t in tools]
+    servers: list[str] = []
+    if held:
+        wide = scope == "holding" and role in HOLDING_SERVER_ROLES
+        rows = await tx.all(
+            """SELECT c.code, s.name FROM infra.servers s JOIN core.companies c ON c.id = s.company_id
+               WHERE s.state IS NOT NULL AND s.state <> 'revoked'
+                 AND (CAST(:wide AS boolean) OR s.company_id = CAST(:co AS uuid))
+               ORDER BY c.code, s.name LIMIT :l""",
+            wide=wide,
+            co=str(company_id) if company_id else None,
+            l=SERVERS_MAX,
+        )
+        servers = [f"{r['code']} · {r['name']}" for r in rows]
+    who = Principal(kind="agent", code="-", role="employee", company_id=company_id,
+                    charter=role, scope=scope)  # fmt: skip
+    hub_ops = "hub.ops" in tools and HO.is_technical(who, holding_id=holding_id)
+    out: dict[str, Any] = {"server_tools": held, "servers": servers, "hub_ops": hub_ops}
+    if hub_ops:
+        out["hub"] = (
+            "hub.ops: the hub itself (status, logs, stats, restart, a profile, n8n, backup)"
+        )
+    if not held or not hub_ops:
+        cto = await _code_of(tx, company_id, "cto") if company_id != holding_id else None
+        aiops = await _code_of(tx, holding_id, "aiops_head")
+        cto_s = cto or "your company's CEO (no CTO yet)"
+        aiops_s = aiops or "the holding's AI operations (AIOPS)"
+        if not held and not hub_ops:
+            out["ask"] = (
+                f"work.request to {cto_s} (servers of your company) or {aiops_s} (the hub): "
+                "say exactly what to do"
+            )
+        elif not hub_ops:
+            out["ask"] = f"the hub itself: work.request to {aiops_s}, saying exactly what to do"
+        else:
+            out["ask"] = f"a company's servers: work.request to that company's CTO, or {aiops_s}"
+    return out
+
+
+async def brief(
+    tx: Tx,
+    company_id: UUID | None,
+    *,
+    n8n_up: bool,
+    employee_code: str | None = None,
+    role: str | None = None,
+    tools: Collection[str] | None = None,
+    scope: str | None = None,
+) -> dict[str, Any]:
+    """Every agent run and every talk persona. With the caller (`employee_code`, or its charter
+    `role`, `tools` and `scope`) the brief gains `technical` (§38.2)."""
     out: dict[str, Any] = {
         "outside_players": await _safe(tx, _players) or [],
         "automations": {"engine": "the hub's rule engine", "n8n": "up" if n8n_up else "not set up"},
@@ -210,4 +309,23 @@ async def brief(tx: Tx, company_id: UUID | None, *, n8n_up: bool) -> dict[str, A
         company = await _safe(tx, _company, company_id)
         if company is not None:
             out["your_company"] = company
+    if employee_code is not None and role is None:
+        row = await _safe(tx, _employee, employee_code)
+        if row is not None:
+            role, company_id = row["role"], row["company_id"]
+    if role is not None:
+        tech = await _safe(tx, _technical, company_id, role, tuple(tools or ()), scope or "company")
+        if tech is not None:
+            out["technical"] = tech
     return out
+
+
+async def _employee(tx: Tx, code: str) -> dict[str, Any] | None:
+    row = await tx.first("SELECT role, company_id FROM core.employees WHERE code = :c", c=code)
+    return dict(row) if row else None
+
+
+async def _technical(
+    tx: Tx, company_id: UUID | None, role: str, tools: tuple[str, ...], scope: str
+) -> dict[str, Any]:
+    return await technical(tx, company_id, role=role, tools=tools, scope=scope)

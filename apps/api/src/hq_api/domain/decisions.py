@@ -87,6 +87,8 @@ KINDS = (
     # ⟨1.19⟩ contract §37.3: an agent proposes erasing something for good (a
     # session, an archive record, an output); only the owner's seal runs it
     "erase",
+    # ⟨1.20⟩ §38.1 an A3 hub operation (n8n.create, a profile that turns another off)
+    "hub_op",
 )
 ACTION_CLASS = {
     "hire": "A2",
@@ -130,6 +132,7 @@ ACTION_CLASS = {
     "server_destructive": "A3",
     "line_publish": "A3",
     "erase": "A3",  # ⟨1.19⟩ for good: irreversible
+    "hub_op": "A3",
 }
 # Kinds whose approval needs the owner's step-up (🔏) besides every A3.
 # code_session: its seal is the grant (contract §17.3), so it is sealed like one.
@@ -174,6 +177,7 @@ SYSTEM_CARD_KINDS = (
     "server_destructive",  # ⟨1.8⟩ only the hub's classification raises it
     "line_publish",  # ⟨1.12⟩ only the line engine raises it (§30.3)
     "erase",  # ⟨1.19⟩ only erase.propose raises it, with the preview's counts (§37.3)
+    "hub_op",  # ⟨1.20⟩ only hub.ops raises it (§38.1)
 )
 # ⟨1.7⟩ applied in the deciding transaction, bound to what they show (§23.11)
 ARCHIVE_CARD_KINDS = ("archive_schema", "archive_disposal")
@@ -586,6 +590,18 @@ class ServerRef(Model):
     name: str = Field(min_length=1, max_length=63)
 
 
+class HubOpPayload(Model):
+    """⟨1.20⟩ §38.1 an A3 hub operation held for the owner's seal: the op, its arguments (masked;
+    a workflow by its nodes), the exact command and the digest the seal is bound to."""
+
+    job: str = Field(pattern=r"^HJ-[0-9]{6,}$")
+    op: str = Field(pattern=r"^[a-z][a-z0-9_.]{1,40}$")
+    args: dict[str, Any]
+    digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    argv: list[str] = Field(max_length=40)
+    actor: Actor
+
+
 class ServerDestructivePayload(Model):
     """⟨1.8⟩ A destructive command held for the owner's seal (contract §26.3):
     exactly what will run (secrets masked), where, the category and who
@@ -712,6 +728,7 @@ PAYLOADS: dict[str, type[Model]] = {
     "server_destructive": ServerDestructivePayload,
     "line_publish": LinePublishPayload,
     "erase": ErasePayload,
+    "hub_op": HubOpPayload,
 }
 
 
@@ -751,6 +768,7 @@ class DecisionIn(Model):
         "server_destructive",
         "line_publish",
         "erase",
+        "hub_op",
     ]
     title: str = Field(min_length=1, max_length=300)
     what: str = Field(default="", max_length=20000)
@@ -1569,6 +1587,7 @@ async def decide(
         "tool_enable",
         "email_send",
         "server_destructive",
+        "hub_op",
         *ARCHIVE_CARD_KINDS,
         *ERASE_CARD_KINDS,
     ) or (d["kind"] == "a3_action" and (d["payload"] or {}).get("action") == "mcp_call")
@@ -1701,6 +1720,10 @@ async def decide(
         from hq_api.domain import servers
 
         await servers.on_decided(tx, d, verdict)
+    if d["kind"] == "hub_op":  # ⟨1.20⟩ §38.1 the held hub job is queued, or refused
+        from hq_api.domain import hub_ops
+
+        await hub_ops.on_decided(tx, d, verdict)
     if d["kind"] == "line_publish":  # ⟨1.12⟩ §30.3 the run goes on, or it ends
         from hq_api.lines import engine as line_engine
 

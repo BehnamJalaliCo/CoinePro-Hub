@@ -87,6 +87,8 @@ ops := {
 	"speech.make",
 	# ⟨1.19⟩ prompt 26 (erase.rego): an agent proposes an erase for good (contract §37.3)
 	"erase.propose",
+	# ⟨1.20⟩ §38 (hubops.rego): hub operations and the hub-ops dispatcher's queue
+	"hubops.read", "hubops.run", "hubops.propose", "hubops.jobs",
 }
 
 # The oversight roles of the holding: the overseer, QC (the inspector) and

@@ -79,6 +79,7 @@ from hq_api.routes import erase as erase_routes  # prompt 26: §37.2-§37.3 eras
 from hq_api.routes import grok as grok_routes  # prompt 24: §33.7, §33.10
 from hq_api.routes import groups as group_routes  # prompt 21 part 3: §29.9, §29.11
 from hq_api.routes import home as home_routes  # prompt 21 part 3: §29.13
+from hq_api.routes import hubops as hubops_routes  # ⟨1.20⟩ §38 the hub run from the app
 from hq_api.routes import journey as journey_routes  # prompt 24: §33.8-§33.9
 from hq_api.routes import kits as kit_routes  # prompt 22: §31.2 company kits
 from hq_api.routes import legal as legal_routes  # prompt 13: the legal counsel
@@ -337,6 +338,9 @@ def create_app(
     app.include_router(linked_routes.internal_router, prefix="/internal/v1")
     # ⟨2026-11-06⟩ a voice from Google AI Studio for the media roles (speech.make, A1)
     app.include_router(speech_routes.internal_router, prefix="/internal/v1")
+    # ⟨1.20⟩ §38: hub operations (hub.ops, its dispatcher) and the owner's services page
+    app.include_router(hubops_routes.router, prefix="/api/v1")
+    app.include_router(hubops_routes.internal_router, prefix="/internal/v1")
     # ⟨1.17⟩ (contract §35.5): the owner's office (owner only)
     app.include_router(office_routes.router, prefix="/api/v1")
     # ⟨1.15⟩ prompt 24 (contract §33.1-§33.6): payments and the revenue board; usage reports, the

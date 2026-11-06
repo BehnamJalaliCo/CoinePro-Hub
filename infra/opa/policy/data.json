@@ -74,7 +74,9 @@
           "server.write",
           "server.claude",
           "server.run",
-          "card.decide"
+          "card.decide",
+          "hub.ops",
+          "hubops.run"
         ],
         "inspector": [
           "work.delegate",
@@ -121,7 +123,9 @@
           "server.exec",
           "server.write",
           "server.claude",
-          "server.run"
+          "server.run",
+          "hub.ops",
+          "hubops.run"
         ],
         "assistant": [
           "errand.step",

@@ -137,6 +137,7 @@ KIND_DOMAIN = {
 }
 DECISION_DOMAIN = {
     "server_destructive": "infra",
+    "hub_op": "infra",  # ⟨1.20⟩ §38 an A3 operation on the hub itself
     "server_plan": "infra",
     "deploy": "tech",
     "code_session": "tech",

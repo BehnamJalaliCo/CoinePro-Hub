@@ -578,6 +578,24 @@ if ((${#missing[@]})); then
 else
   pass "systemd: the substitutes unit is sandboxed (its own 0700 runtime dir)"
 fi
+# ⟨1.20⟩ contract §38: the hub-ops dispatcher (fake api, fake hq.sh, fake make): its own
+# allow-list, the masking, the profile switch over the memory budget, the snapshot.
+if out="$(bash "$REPO_DIR/infra/hubops/test-dispatch.sh" 2>&1)"; then
+  pass "hubops: the dispatcher ($(grep -c ': ok:' <<<"$out") cases)"
+else
+  fail "hubops: the dispatcher: $(grep FAIL <<<"$out" | head -3 | tr '\n' ' ')"
+fi
+unit="$REPO_DIR/infra/systemd/coinepro-hq-hubops.service"
+missing=()
+for want in User=Hub NoNewPrivileges=yes ProtectSystem=full CapabilityBoundingSet= \
+  RuntimeDirectory=coinepro-hq-hubops RuntimeDirectoryMode=0700; do
+  grep -qxF "$want" "$unit" || missing+=("$want")
+done
+if ((${#missing[@]})); then
+  fail "systemd: the hub-ops unit lacks ${missing[*]}"
+else
+  pass "systemd: the hub-ops unit is sandboxed (user Hub, its own 0700 runtime dir)"
+fi
 # ------------------------------------------ the render worker (prompt 13 §2.3) --
 # Off by default (not rendered, the api's HQ_MEDIA=off); on where it fits
 # (full: both one-shots, the api told HQ_MEDIA=on); where it does not fit

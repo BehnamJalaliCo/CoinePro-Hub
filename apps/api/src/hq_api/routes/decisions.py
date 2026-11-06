@@ -172,6 +172,7 @@ async def list_decisions(
         "archive_disposal",
         "server_destructive",
         "line_publish",
+        "hub_op",
     ]
     | None = None,
     risk: Literal["low", "medium", "high"] | None = None,

@@ -44,6 +44,8 @@ kinds := {
 	"line_publish",
 	# ⟨1.19⟩ contract §37.3: an agent's proposed erase for good; the owner's seal only
 	"erase",
+	# ⟨1.20⟩ §38.1 an A3 operation on the hub itself (hub.ops); the owner's seal only
+	"hub_op",
 }
 
 # Kinds a CEO may decide for its own company (each with its own condition below).

@@ -518,6 +518,9 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
 # no other company ever has a row there, so the check cannot fill them for B.
 HOLDING_ONLY = {
     "core.company_links",  # ⟨1.17⟩ §35.6 the owner's links belong to the holding
+    # ⟨1.20⟩ §38: the hub's own jobs and its host snapshot
+    "ops.hub_jobs",
+    "ops.hub_snapshot",
     "substitutes.players",
     "substitutes.seats",
     # prompt 13: the holding's mailbox cursor and its one voice registry

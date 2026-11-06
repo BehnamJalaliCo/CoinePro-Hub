@@ -14,7 +14,8 @@ UNITS=(coinepro-hq-backup.service coinepro-hq-backup.timer
   coinepro-hq-tts.service coinepro-hq-tts.timer
   coinepro-hq-media.service coinepro-hq-media.timer
   coinepro-hq-stt.service coinepro-hq-stt.path
-  coinepro-hq-disk-hygiene.service coinepro-hq-disk-hygiene.timer)
+  coinepro-hq-disk-hygiene.service coinepro-hq-disk-hygiene.timer
+  coinepro-hq-hubops.service coinepro-hq-hubops.timer)
 
 # node-exporter's textfile directory (container metrics without a Docker socket).
 sudo install -d -o Hub -g Hub -m 0755 /var/lib/coinepro-hq /var/lib/coinepro-hq/textfile
@@ -37,4 +38,5 @@ sudo systemctl enable --now coinepro-hq-mcp-index.timer coinepro-hq-mcp-index.pa
 # coinepro-hq-tts.timer is installed, not enabled: `make tts-on` enables it (opt-in).
 # coinepro-hq-media.timer likewise: `make media-on` enables it (prompt 13 §2.3, opt-in).
 # coinepro-hq-stt.path likewise: `make stt-on` enables it (prompt 18, on-demand stt).
+# ⟨1.20⟩ coinepro-hq-hubops.timer likewise: `make hubops-install` enables it (contract §38).
 systemctl list-timers 'coinepro-hq-*' --no-pager

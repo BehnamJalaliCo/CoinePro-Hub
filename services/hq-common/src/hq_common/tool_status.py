@@ -154,6 +154,7 @@ GATEWAY_TOOLS: frozenset[str] = frozenset(
         "linked.read",
         # ⟨2026-11-06⟩ a voice from Google AI Studio for the media roles
         "speech.make",
+        "hub.ops",  # ⟨1.20⟩ §38: the hub run from the app (the holding's technical roles)
     }
 )
 # Tools whose traffic leaves the hub through the egress service (contract §18.7).

@@ -29,6 +29,8 @@
 #   - prompt 12 §9.1: the substitute players' host dispatcher's api service
 #     token (its digest in kv/hq-api/config service_tokens.substitutes; the
 #     token only in $HQ_SECRETS_DIR/substitutes/api-auth, 600, Hub's own)
+#   - 1.20 §38: the hub-ops dispatcher's api service token (service_tokens.hubops;
+#     the token only in $HQ_SECRETS_DIR/hubops/api-auth, 600, Hub's own)
 #   - prompt 14 §3: the transit engine at transit/ and its one key,
 #     archive-secret (aes256-gcm96; not exportable, no plaintext backup, never
 #     deletable): the archive's `secret` files are encrypted with data keys
@@ -409,6 +411,25 @@ if [[ ! -s "$subs_auth" ]]; then
   mv "$subs_auth.tmp" "$subs_auth"
   unset subs_token
   log "substitutes: the dispatcher's api service token created (digest in hq-api/config; restart the api)"
+fi
+
+# ----------------------------------------------- the hub-ops dispatcher (1.20) --
+# Contract §38: the hub-ops dispatcher's own api service token ("hubops",
+# infra/hubops/dispatch.sh), made exactly like the substitutes dispatcher's: its
+# sha256 in the api's service_tokens, the token itself only in a header file of
+# Hub's own (600, no sudo), never printed. Made once (`make hubops-token` runs
+# this and restarts the api, which reads service tokens at start).
+hubops_auth="$SECRETS_DIR/hubops/api-auth"
+if [[ ! -s "$hubops_auth" ]]; then
+  hubops_token="$(newtoken)"
+  expect "$(api GET kv/data/hq-api/config </dev/null)" 200
+  HH="$(printf '%s' "$hubops_token" | sha256)" jq '{data: (.data.data | .service_tokens =
+      ((.service_tokens // {}) + {hubops: env.HH}))}' "$WORK/resp" | kv_put hq-api/config
+  install -d -m 0700 "$SECRETS_DIR/hubops"
+  (umask 077 && printf 'Authorization: Bearer %s\n' "$hubops_token" >"$hubops_auth.tmp")
+  mv "$hubops_auth.tmp" "$hubops_auth"
+  unset hubops_token
+  log "hubops: the dispatcher's api service token created (digest in hq-api/config; restart the api)"
 fi
 
 # ------------------------------------------------------------- backups (p07) --

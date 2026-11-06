@@ -406,8 +406,16 @@ async def messages(
     from hq_api.domain import automations as AU
     from hq_api.domain import capabilities as CAP
 
+    charter = hub.charters.get(p.role) if hub.charters is not None else None
     caps = await CAP.brief(
-        tx, p.company_id if p.is_manager else None, n8n_up=bool(AU.n8n_settings(hub))
+        tx,
+        p.company_id if p.is_manager else None,
+        n8n_up=bool(AU.n8n_settings(hub)),
+        # ⟨1.20⟩ §38.2 `technical` for the persona's own role (a player has none)
+        employee_code=(p.employee or {}).get("code"),
+        role=charter.role if charter is not None else None,
+        tools=charter.tools if charter is not None else None,
+        scope=charter.scope if charter is not None else None,
     )
     head.append(
         "## What the holding can do (live; offer it through a card, never say it is missing)\n"

@@ -376,6 +376,11 @@ OP_CLASS: dict[str, str] = {
     "linked.read": "A0",
     # ⟨2026-11-06⟩ (media.rego): a voice from Google AI Studio for the media roles (routes/speech.py)
     "speech.make": "A1",
+    # ⟨1.20⟩ §38 (hubops.rego): hub operations; the A3 ones only propose the owner's 🔏 card
+    "hubops.read": "A0",
+    "hubops.run": "A2",
+    "hubops.propose": "A1",
+    "hubops.jobs": "A0",  # the hub-ops dispatcher (service)
 }
 
 

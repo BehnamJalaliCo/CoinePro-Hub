@@ -1239,7 +1239,14 @@ class Runner:
 
         async with await self._tx() as all_tx:
             caps = await CAP.brief(
-                all_tx, run["company_id"], n8n_up=bool(AU.n8n_settings(self.hub))
+                all_tx,
+                run["company_id"],
+                n8n_up=bool(AU.n8n_settings(self.hub)),
+                # ⟨1.20⟩ §38.2 `technical`: its servers, hub.ops, or whom to ask
+                employee_code=emp["code"],
+                role=rc.charter.role,
+                tools=rc.charter.tools,
+                scope=rc.charter.scope,
             )
         # ⟨2026-11-06⟩ kept apart from the trim: appended last, it was the first part cut from a
         # long context, and the agent then said a helper or a company did not exist
