@@ -368,6 +368,7 @@ OP_CLASS: dict[str, str] = {
     "order.ack": "A1",
     "order.progress": "A1",
     "order.ask": "A1",  # ⟨1.16⟩ §34.3
+    "automation.propose": "A1",  # ⟨2026-11-06⟩ a CEO or manager proposes; the owner seals
     "work.budget": "A2",
     "card.decide": "A2",
 }

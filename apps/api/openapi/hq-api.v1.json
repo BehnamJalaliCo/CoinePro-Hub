@@ -35972,6 +35972,22 @@
         "title": "Proposal",
         "type": "object"
       },
+      "ProposeIn": {
+        "additionalProperties": false,
+        "properties": {
+          "sentence_fa": {
+            "maxLength": 1000,
+            "minLength": 3,
+            "title": "Sentence Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sentence_fa"
+        ],
+        "title": "ProposeIn",
+        "type": "object"
+      },
       "Protocol": {
         "properties": {
           "answerable": {
@@ -141742,6 +141758,112 @@
           }
         },
         "summary": "Tool Audit Recent",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/automations/propose": {
+      "post": {
+        "description": "⟨2026-11-06⟩ automation.propose (A1): a CEO or a manager turns one Persian sentence into a\n`proposed` automation of its own company (the holding's for a holding role): the same compile\n(one mid-model call) and code checks as the owner's; nothing runs before the owner's seal; the\nowner is told once. Requires `Idempotency-Key`.",
+        "operationId": "propose_automation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "sentence_fa": "xxx"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ProposeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "company": "TY",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "failures_in_row": 1,
+                  "last_error_fa": "x",
+                  "last_run_at": "2026-10-17T05:42:00Z",
+                  "n8n_workflow": "x",
+                  "off_reason": "owner",
+                  "preview_fa": "x",
+                  "ref": "W-000789",
+                  "rule": {},
+                  "runs": 1,
+                  "sealed_at": "2026-10-17T05:42:00Z",
+                  "sentence_fa": "x",
+                  "state": "proposed"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Automation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Propose Automation",
         "tags": [
           "internal"
         ]

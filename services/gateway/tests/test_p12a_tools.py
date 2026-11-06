@@ -114,10 +114,16 @@ async def test_substitute_call_asks_the_api_and_returns_its_labelled_answer(
     assert (limited["outcome"], limited["code"]) == ("denied", "rate_limited")
 
 
-async def test_substitute_call_is_not_every_roles(mock: respx.MockRouter, gw: Gateway) -> None:
-    Stub(mock, DEV)
-    out = await call(gw, "substitute.call", {"seat": "content_draft", "input_md": "x"})
-    assert (out["outcome"], out["code"]) == ("denied", "tool_not_in_charter"), out
+async def test_substitute_call_is_every_working_roles_and_the_policy_names_the_seats(
+    mock: respx.MockRouter, gw: Gateway
+) -> None:
+    """⟨2026-11-06⟩ every working role holds the tool (the owner: a hired writer consults ChatGPT, a
+    designer has ChatGPT make the cover); which seat it may ask is the policy's."""
+    stub = Stub(mock, DEV)
+    assert "substitute.call" in LIB.allowed(DEV["role"])
+    stub.opa_allow = False
+    out = await call(gw, "substitute.call", {"seat": "code_review", "input_md": "x"})
+    assert out["outcome"] == "denied" and out["code"] != "tool_not_in_charter", out
 
 
 def test_the_new_tools_are_on_the_build_list() -> None:

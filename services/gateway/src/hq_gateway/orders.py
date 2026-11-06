@@ -5,6 +5,9 @@
                          ⟨1.17⟩ `steps` become the session's tasks (the owner sees them ticked)
     order.progress (A1)  {ref, step_fa, done?: [n]}: one real step, in plain Persian; ⟨1.17⟩
                          `done` ticks those task numbers
+    automation.propose (A1)  ⟨2026-11-06⟩ {sentence_fa}: a CEO or a manager proposes one Persian
+                         sentence as an automation of its company (the hub checks it; the owner
+                         seals it; it may start an n8n workflow)
     order.ask (A1)       {ref, question_fa}: one short question to the owner (the owner's turn:
                          the order waits for the owner's word, which comes back to the same work);
                          ⟨1.17⟩ a second ask while the turn is open joins it
@@ -88,9 +91,30 @@ async def order_ask(api: T.Api, call: T.Call, a: AskIn) -> T.Result:
     return _view(T.from_response(resp, None), a.ref)
 
 
+class AutomationIn(T.In):
+    sentence_fa: str = Field(min_length=3, max_length=1000)
+
+
+async def automation_propose(api: T.Api, call: T.Call, a: AutomationIn) -> T.Result:
+    resp = await api.request(
+        "POST",
+        "/internal/v1/automations/propose",
+        call.token,
+        json={"sentence_fa": await T._text(a.sentence_fa)},
+        idem=call.idem("automation.propose"),
+    )
+    r = T.from_response(resp, None)
+    if r.outcome == "ok" and isinstance(r.data, dict):
+        r.ref = str(r.data.get("ref") or "")
+        r.data = {"automation": r.data.get("ref"), "state": r.data.get("state"),
+                  "preview_fa": r.data.get("preview_fa")}  # fmt: skip
+    return r
+
+
 TOOLS: dict[str, tuple[type[T.In], T.Handler]] = {
     "order.ack": (AckIn, order_ack),
     "order.progress": (StepIn, order_progress),
     "order.ask": (AskIn, order_ask),
+    "automation.propose": (AutomationIn, automation_propose),
 }
 T.TOOLS.update(TOOLS)

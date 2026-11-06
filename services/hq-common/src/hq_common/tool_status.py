@@ -33,6 +33,7 @@ GATEWAY_TOOLS: frozenset[str] = frozenset(
         "order.ack",
         "order.progress",
         "order.ask",
+        "automation.propose",  # ⟨2026-11-06⟩ a CEO's or manager's proposed automation
         "work.request",
         "activity.set",
         "notify",

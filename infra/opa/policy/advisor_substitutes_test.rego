@@ -34,18 +34,30 @@ test_substitute_seats_by_role if {
 	allowed(f.hq_pa, "substitute.call", seat("HQ", "creative", "assistant"))
 	allowed(f.ty_ceo, "substitute.call", seat("TY", "content_draft", "ceo"))
 	allowed(f.ty_ceo, "substitute.call", seat("TY", "creative", "ceo"))
+	allowed(f.ty_ceo, "substitute.call", seat("TY", "third_opinion", "ceo"))
 	not allowed(f.ty_ceo, "substitute.call", seat("FX", "content_draft", "ceo"))
 	not allowed(f.ty_ceo, "substitute.call", seat("TY", "overseer_cross_check", "ceo"))
 }
 
-test_a_cto_and_qc_ask_only_for_a_code_review if {
+# ⟨2026-11-06⟩ every manager and employee asks for drafts, errands, long reads, searches, third
+# opinions and creatives (a cover made by ChatGPT), never a cross-check, a second opinion or a review.
+test_managers_and_employees_ask_outside_players_for_their_work if {
+	allowed(f.ty_growth_mgr, "substitute.call", seat("TY", "content_draft", "growth_manager"))
+	allowed(f.ty_growth_01, "substitute.call", seat("TY", "creative", "visual_designer"))
+	allowed(f.ty_growth_01, "substitute.call", seat("TY", "third_opinion", "content_writer"))
+	not allowed(f.ty_growth_01, "substitute.call", seat("TY", "code_review", "content_writer"))
+	not allowed(f.ty_growth_mgr, "substitute.call", seat("TY", "overseer_cross_check", "growth_manager"))
+	not allowed(f.ty_growth_mgr, "substitute.call", seat("TY", "advisor_second_opinion", "growth_manager"))
+	not allowed(f.ty_growth_01, "substitute.call", seat("FX", "content_draft", "content_writer"))
+}
+
+test_a_cto_and_qc_ask_for_a_code_review if {
 	allowed(ty_cto, "substitute.call", seat("TY", "code_review", "cto"))
-	not allowed(ty_cto, "substitute.call", seat("TY", "content_draft", "cto"))
+	allowed(ty_cto, "substitute.call", seat("TY", "content_draft", "cto"))
 	not allowed(ty_cto, "substitute.call", seat("FX", "code_review", "cto"))
 	allowed(f.hq_ovs, "substitute.call", seat("HQ", "code_review", "inspector"))
 	not allowed(f.hq_ovs, "substitute.call", seat("HQ", "long_read", "inspector"))
 	not allowed(ty_dev, "substitute.call", seat("TY", "code_review", "sre"))
-	not allowed(f.ty_growth_01, "substitute.call", seat("TY", "content_draft", "growth"))
 	not allowed(f.owner, "substitute.call", seat("HQ", "quick_search", "advisor"))
 }
 

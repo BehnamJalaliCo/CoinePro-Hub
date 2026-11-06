@@ -313,6 +313,8 @@ def create_app(
     # ⟨1.13⟩ prompt 22 part 3 (contract §31.6, §31.7): ad budgets, automations from a sentence.
     for p22c in (ads_routes, automation_routes):
         app.include_router(p22c.router, prefix="/api/v1")
+    # ⟨2026-11-06⟩ a CEO's or manager's proposed automation (the owner seals it)
+    app.include_router(automation_routes.internal_router, prefix="/internal/v1")
     # ⟨1.12⟩ prompt 22 (contract §30.5, §31.1): production lines; n8n's signed callback
     app.include_router(line_routes.router, prefix="/api/v1")
     app.include_router(line_routes.internal_router, prefix="/internal/v1")

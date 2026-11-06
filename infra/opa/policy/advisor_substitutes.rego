@@ -10,8 +10,12 @@
 #                                  quick searches and a code review
 #                       assistant  errands, drafts, long reads, quick searches, creatives
 #                       a CEO      drafts, errands, long reads, quick searches,
-#                                  creatives and a code review
-#                       a CTO, QC  a code review only
+#                                  third opinions, creatives and a code review
+#                       ⟨2026-11-06⟩ every manager and employee: drafts, errands,
+#                                  long reads, quick searches, third opinions and
+#                                  creatives (covers, images; the owner: «باید از
+#                                  چت جی پی تی کاور رو بسازی»)
+#                       a CTO, QC  a code review too
 #   substitutes.jobs  the runner's host dispatcher (service `substitutes`) only
 package hq.internal
 
@@ -21,8 +25,14 @@ seats_of_kind := {
 	"advisor": {"advisor_second_opinion", "third_opinion", "long_read", "quick_search", "content_draft", "code_review"},
 	"overseer": {"overseer_cross_check", "third_opinion", "long_read", "quick_search", "code_review"},
 	"assistant": {"assistant_errand", "content_draft", "long_read", "quick_search", "creative"},
-	"ceo": {"content_draft", "assistant_errand", "long_read", "quick_search", "creative", "code_review"},
+	"ceo": {"content_draft", "assistant_errand", "long_read", "quick_search", "third_opinion", "creative", "code_review"},
+	"manager": worker_seats,
+	"employee": worker_seats,
 }
+
+# What a working role asks an outside player for: a draft, an errand, a long read, a quick search, a
+# third opinion, an image or a short video (the creative waits for review before anything is published).
+worker_seats := {"content_draft", "assistant_errand", "long_read", "quick_search", "third_opinion", "creative"}
 
 grant if {
 	op == "memo.write"

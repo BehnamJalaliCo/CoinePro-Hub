@@ -1224,6 +1224,20 @@ class Runner:
             parts.append(
                 "# Your memory (latest first)\n" + "\n".join(f"- {n['note'][:500]}" for n in notes)
             )
+        # ⟨2026-11-06⟩ what the holding gives every employee, live (outside players and their
+        # state, covers and images, automations and n8n, the company's connections, links, groups
+        # and lines, and how to use each): nobody claims a capability is missing or invents one
+        from hq_api.domain import automations as AU
+        from hq_api.domain import capabilities as CAP
+
+        async with await self._tx() as all_tx:
+            caps = await CAP.brief(
+                all_tx, run["company_id"], n8n_up=bool(AU.n8n_settings(self.hub))
+            )
+        parts.append(
+            "# What the holding gives you (live; use it, never say it is missing)\n"
+            + json.dumps(caps, ensure_ascii=False, default=str)
+        )
         # What a model reads never carries a secret or personal data (prompt 5.1
         # §2.1): cut first (bounded work), masked, then trimmed to size.
         raw = "\n\n".join(parts)

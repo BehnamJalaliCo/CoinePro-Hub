@@ -15,7 +15,7 @@ import respx
 from test_gateway import API, LIB, OPA, Stub, call, gate
 
 from hq_common import tool_status
-from hq_common.charters import EVERY_ROLE_TOOLS
+from hq_common.charters import EVERY_ROLE_TOOLS, SHARED_TOOLS
 from hq_gateway import orders as OT
 from hq_gateway import tools as T
 from hq_gateway.gateway import Gateway, Opa
@@ -35,14 +35,17 @@ def gw() -> Gateway:
 
 
 def test_every_role_holds_the_order_tools() -> None:
-    assert set(OT.TOOLS) == set(EVERY_ROLE_TOOLS) == {"order.ack", "order.progress", "order.ask"}
+    assert set(EVERY_ROLE_TOOLS) == {"order.ack", "order.progress", "order.ask"}
+    assert set(OT.TOOLS) == set(EVERY_ROLE_TOOLS) | {"automation.propose"}
     assert set(OT.TOOLS) <= set(T.TOOLS) and set(OT.TOOLS) <= tool_status.GATEWAY_TOOLS
     for tool in OT.TOOLS:
         assert LIB.tools[tool].cls == "A1", tool
     assert LIB.roles, "the charters load"
     for role, charter in LIB.roles.items():
-        held = set(EVERY_ROLE_TOOLS) & set(charter.tools)
-        assert held == (set() if charter.kind == "system" else set(EVERY_ROLE_TOOLS)), role
+        held = set(SHARED_TOOLS) & set(charter.tools)
+        assert held == (set() if charter.kind == "system" else set(SHARED_TOOLS)), role
+    # ⟨2026-11-06⟩ every working role asks the outside players (the policy names its seats)
+    assert "substitute.call" in SHARED_TOOLS
 
 
 async def test_each_tool_reaches_its_route_with_the_runs_token(

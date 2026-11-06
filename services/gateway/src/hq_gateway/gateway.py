@@ -38,7 +38,7 @@ from typing import Any
 
 import httpx
 
-from hq_common.charters import EVERY_ROLE_TOOLS, IMPLICIT_TOOLS, Library
+from hq_common.charters import IMPLICIT_TOOLS, SHARED_TOOLS, Library
 from hq_common.redact import fit_async, mask_secrets
 from hq_gateway import (
     archive,  # noqa: F401 - prompt 14: archive.search/read/file/link/hold
@@ -236,7 +236,7 @@ class Gateway:
         # §22.5); a file charter: agents/roles. Never both, never more.
         drafted = gate.get("tools")
         allowed = (
-            [str(t) for t in drafted] + list(EVERY_ROLE_TOOLS)
+            [str(t) for t in drafted] + list(SHARED_TOOLS)
             if isinstance(drafted, list) and self.lib.get(gate.get("role")) is None
             else self.lib.allowed(gate.get("role"))
         )

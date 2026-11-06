@@ -260,7 +260,7 @@ def charter_of(r: dict[str, Any]) -> C.Charter:
         model=str(r["model"]),
         effort=str(r["effort"]),
         priority="P3",
-        tools=tuple(dict.fromkeys([*(r["tools"] or ()), *C.EVERY_ROLE_TOOLS])),
+        tools=tuple(dict.fromkeys([*(r["tools"] or ()), *C.SHARED_TOOLS])),
         limits=C.Limits(
             steps_per_run=int(lim.get("steps_per_run", 1)),
             tokens_per_step=int(lim.get("tokens_per_step", 1000)),

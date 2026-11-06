@@ -391,6 +391,18 @@ async def messages(
             head.append(
                 "## The order you hold\n" + json.dumps(held, ensure_ascii=False, default=str)
             )
+    # ⟨2026-11-06⟩ what the holding can do (outside players, covers, automations, the company's
+    # connections and links): the persona never says it is not connected when it is
+    from hq_api.domain import automations as AU
+    from hq_api.domain import capabilities as CAP
+
+    caps = await CAP.brief(
+        tx, p.company_id if p.is_manager else None, n8n_up=bool(AU.n8n_settings(hub))
+    )
+    head.append(
+        "## What the holding can do (live; offer it through a card, never say it is missing)\n"
+        + json.dumps(caps, ensure_ascii=False, default=str)
+    )
     head.append("## Now\n" + json.dumps(pack, ensure_ascii=False, default=str))
     out: list[dict[str, Any]] = [{"role": "user", "content": "\n\n".join(head)}]
     for t in await store.last_turns(tx, conv["id"], LAST_TURNS, before_n=before_n):

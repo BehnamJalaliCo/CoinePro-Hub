@@ -61,5 +61,5 @@ personas:
     title_fa: مدیر
     effort: medium
     tools: charter_reads
-    cards: [order, hire, decision, ask]
+    cards: [order, hire, decision, ask, automation, rule]
     consult_only: false

@@ -22,6 +22,14 @@ grant if {
 	tv("assigned") == true
 }
 
+# ⟨2026-11-06⟩ a CEO or a manager proposes an automation of its own company (the owner seals it).
+grant if {
+	op == "automation.propose"
+	agent
+	p.role in {"ceo", "manager"}
+	same_company(tv("company"))
+}
+
 grant if {
 	op == "work.budget"
 	agent

@@ -7,8 +7,11 @@ POST /automations/{ref}/seal     🔏 automation.seal (target = ref): from now i
 POST /automations/{ref}/state    {state: on|off}
 GET  /automations                the list, newest first
 GET  /automations/{ref}          one, with its runs
+/internal/v1/automations/propose  ⟨2026-11-06⟩ automation.propose (A1): a CEO or a manager proposes
+                                 one sentence; the same compile and checks; `proposed`, the owner
+                                 seals it (the owner: «به مدیر میگم اتوماسیون طراحی کن، نمیدونه کجاست»)
 
-Owner only. Running is code (the worker's tick and the event consumer), never a
+Owner only, except the agents' proposal. Running is code (the worker's tick and the event consumer), never a
 model; an action outside the allow-list is refused here, at compile time."""
 
 from __future__ import annotations
@@ -20,7 +23,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from pydantic import Field
 
 from hq_api import idempotency
-from hq_api.context import Ctx, owner_ctx
+from hq_api.context import Ctx, internal_ctx, owner_ctx
 from hq_api.domain import automations as AU
 from hq_api.errors import ApiError, responses
 from hq_api.schemas import Model
@@ -28,6 +31,7 @@ from hq_api.security import stepup
 from hq_common.redact import scrub
 
 router = APIRouter(tags=["automations"])
+internal_router = APIRouter(tags=["internal"])
 E = responses(401, 403, 404, 409, 422)
 CODE = r"^[A-Z][A-Z0-9]{1,9}$"
 
@@ -216,3 +220,81 @@ async def get_automation(ref: str, ctx: Ctx = Depends(owner_ctx)) -> AU.Automati
     return AU.AutomationDetail(
         **AU.render(a, a["company_code"]).model_dump(), run_log=[AU.render_run(r) for r in runs]
     )
+
+
+class ProposeIn(Model):
+    sentence_fa: str = Field(min_length=3, max_length=1000)
+
+
+@internal_router.post(
+    "/automations/propose", response_model=AU.Automation, status_code=201, responses=E
+)
+async def propose_automation(
+    body: ProposeIn, request: Request, ctx: Ctx = Depends(internal_ctx)
+) -> Any:
+    """⟨2026-11-06⟩ automation.propose (A1): a CEO or a manager turns one Persian sentence into a
+    `proposed` automation of its own company (the holding's for a holding role): the same compile
+    (one mid-model call) and code checks as the owner's; nothing runs before the owner's seal; the
+    owner is told once. Requires `Idempotency-Key`."""
+    from hq_api.domain import notify
+    from hq_api.routes.internal import allow
+
+    who = ctx.who
+    if not who.is_agent or who.company_id is None:
+        raise ApiError(403, "policy_denied", "agents only")
+    await allow(ctx, "automation.propose", {"company": who.company})
+    holding = await ctx.hub.companies.holding()
+    company = None if who.company_id == holding.id else who.company
+    compiled = await AU.compile_sentence(ctx.hub, body.sentence_fa, company)
+    if compiled.rule is None:
+        why = compiled.refused_fa[0] if compiled.refused_fa else "این جمله به قاعده تبدیل نشد."
+        raise ApiError(422, "validation_failed", fields={"sentence_fa": why[:200]}, message_fa=why)
+    known = await _known(ctx)
+    rule, reasons = AU.validate_rule(compiled.rule, company, known)
+    if rule is None:
+        raise ApiError(
+            422, "validation_failed", fields={"rule": " ".join(reasons)}, message_fa=reasons[0]
+        )
+    sentence = scrub(" ".join(body.sentence_fa.split()))
+    async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
+        idem = await idempotency.claim(tx, request, ctx.who, required=True)
+        if idem and idem.replay:
+            return idem.replay
+        co = await ctx.hub.companies.by_code(company) if company else holding
+        row = await tx.one(
+            """INSERT INTO growth.automations (company_id, scope, sentence_fa, rule, n8n_workflow)
+               VALUES (:co, :sc, :s, CAST(:r AS jsonb), :n8n) RETURNING *""",
+            co=co.id,
+            sc="company" if company else "holding",
+            s=sentence,
+            r=json.dumps(rule, ensure_ascii=False),
+            n8n=AU.n8n_of(rule),
+        )
+        await ctx.audit(
+            tx,
+            company_id=co.id,
+            action="automation.propose",
+            action_class="A1",
+            target_kind="automation",
+            target_ref=row["ref"],
+            summary=f"proposed by {who.code}",
+        )
+        title = await tx.scalar("SELECT title_fa FROM core.employees WHERE code = :c", c=who.code)
+        await notify.raise_notification(
+            tx,
+            company_id=holding.id,
+            company_code=holding.code,
+            level="decision",
+            title_fa=f"خودکارسازی پیشنهادی از {title or 'یک مدیر'}"[:300],
+            body_fa=(compiled.preview_fa or sentence)[:4000],
+            link_kind="automation",
+            link_ref=row["ref"],
+            source_kind="agent",
+            source_code=who.code,
+            domain="business",
+            owner_action=True,
+        )
+        result = AU.render(row, company)
+        if idem:
+            await idem.store(tx, 201, result.model_dump(mode="json"))
+    return result

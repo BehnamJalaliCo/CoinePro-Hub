@@ -30,3 +30,11 @@ test_only_the_named_approver_decides_a_card if {
 	not r21(ty_cto, "card.decide", {"company": "TY", "approver": null, "kind": "server_destructive"})
 	not r21(ty_cto, "card.decide", {"company": "FX", "approver": "TY-TECH-MGR", "kind": "server_destructive"})
 }
+
+test_a_ceo_or_a_manager_proposes_an_automation if {
+	r21(f.ty_ceo, "automation.propose", {"company": "TY"})
+	r21(f.ty_growth_mgr, "automation.propose", {"company": "TY"})
+	not r21(f.ty_growth_01, "automation.propose", {"company": "TY"})
+	not r21(f.ty_ceo, "automation.propose", {"company": "FX"})
+	not r21(f.svc, "automation.propose", {"company": "TY"})
+}
