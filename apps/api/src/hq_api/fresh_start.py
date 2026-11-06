@@ -63,6 +63,8 @@ WIPE: tuple[str, ...] = (
     "infra.network_links", "infra.runner_pairings", "infra.server_job_events", "infra.server_jobs",
     # ⟨1.10⟩ prompt 19: catalogue runs, the apps' error reports, the watch's duties
     "infra.catalogues", "ops.client_errors", "ops.watch_runs",
+    # ⟨1.20⟩ §38: the hub operations that ran and the dispatcher's last snapshot (re-sent in 60 s)
+    "ops.hub_jobs", "ops.hub_snapshot",
     "growth.funnel_days", "growth.leaks", "growth.nps_responses", "growth.nps_waves",
     "growth.referral_checks", "growth.rescue_cases", "growth.rescue_steps", "growth.sends",
     "intake.events", "intake.nonces", "intake.rejections",
@@ -270,6 +272,7 @@ REF_RESET: tuple[str, ...] = (
     "media.item_ref_seq", "media.series_ref_seq",
     "meetings.meeting_ref_seq", "meetings.request_ref_seq",
     "oversight.challenge_ref_seq", "oversight.finding_ref_seq", "oversight.hold_ref_seq",
+    "ops.hub_job_ref_seq",  # ⟨1.20⟩ the hub operations go
     "oversight.inquiry_ref_seq", "oversight.order_ref_seq",
     "owner.errand_ref_seq", "owner.note_ref_seq", "owner.order_ref_seq", "owner.planner_ref_seq",
     "owner.review_ref_seq", "owner.story_ref_seq",
