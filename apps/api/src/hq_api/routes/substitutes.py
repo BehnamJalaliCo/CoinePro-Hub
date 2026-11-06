@@ -447,6 +447,20 @@ async def substitute_call(body: S.CallIn, ctx: Ctx = Depends(internal_ctx)) -> d
                 )
                 raise S.refusal(str(call["state_reason"]))
             return {"creative": row["ref"], "state": row["state"]}
+        if (
+            body.player is not None
+            and await S.holder(tx, body.seat, body.player) is None
+            and await S.holder(tx, body.seat, None) is not None
+        ):
+            # the named player does not sit at this seat (another does): the caller's choice, not
+            # a channel that is down
+            raise ApiError(
+                422,
+                "validation_failed",
+                "this player does not take this seat",
+                fields={"player": "not a holder of this seat"},
+                message_fa="این بازیکن این کار را انجام نمیدهد؛ بازیکن را خالی بگذار تا خودکار انتخاب شود.",
+            )
         call = await S.seat_call(
             tx,
             hub,

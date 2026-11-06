@@ -782,3 +782,20 @@ async def test_a_paid_player_behind_on_the_15th_gets_one_report_and_nothing_wide
             )
             == seats_before
         )
+
+
+async def test_a_player_that_does_not_take_the_seat_is_the_callers_mistake(
+    client: httpx.AsyncClient, hub: Hub, su: Any
+) -> None:
+    """A named player that does not sit at the seat (another does) is a 422 with a Persian
+    reason, never a 503 «channel not configured» (the nightly fuzz, 2026-11-06: long_read asked
+    of gpt; only gemini takes it)."""
+    pa = await agent_headers("HQ-PA")
+    async with bench(su, hub, cli=("gpt",)):
+        r = await client.post(
+            "/internal/v1/substitutes/call", headers=pa,
+            json={"seat": "assistant_errand", "player": "gemini", "input_md": "خلاصه کن."},
+        )  # fmt: skip
+        assert r.status_code == 422, r.text
+        assert r.json()["fields"] == {"player": "not a holder of this seat"}
+        assert r.json()["message_fa"]
