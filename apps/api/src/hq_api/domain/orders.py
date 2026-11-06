@@ -342,10 +342,15 @@ def due_days(text: str) -> int:
     return int(due.get("default_days", 3))
 
 
-def summary_of(text: str, routes: list[Route]) -> str:
+def summary_of(text: str, routes: list[Route], names: dict[str, str] | None = None) -> str:
+    """The order's one line for the owner: its words and where it went. ⟨1.17⟩ W6 i: `names`
+    gives each receiver's plain name (an employee's title and company, a workspace's title); a
+    code without a name is left out, never shown."""
     one = " ".join(text.split())
     head = one[:120] + ("…" if len(one) > 120 else "")
-    where = "، ".join(f"{r.to}" for r in routes)
+    names = names or {}
+    who = [names.get(r.to) or ("" if names else r.to) for r in routes if r.to]
+    where = "، ".join(dict.fromkeys(x for x in who if x))
     return f"{head} ← {where}" if where else head
 
 

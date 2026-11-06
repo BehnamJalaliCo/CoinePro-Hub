@@ -1117,6 +1117,8 @@ class Runner:
             return P.trim(await scrub_async(str(rc.meeting["text"])), CONTEXT_CHARS), []
         parts = [f"# Trigger\n{run['trigger']} ({run['reason']})"]
         scope = await self.read_scope(rc)
+        brief: dict[str, Any] | None = None
+        work_at = 0
         async with self.hub.db.tx(scope) as tx:
             lock = await tx.scalar("SELECT control.lock_state(:co)", co=run["company_id"])
             presence = await tx.one("SELECT khalvat FROM owner.presence WHERE id = 1")
@@ -1124,9 +1126,9 @@ class Runner:
                 f"Company {emp['company']}: lock={lock or 'none'}; owner in Khalvat: {presence['khalvat']}"
             )
             if run["work_id"] is not None:
-                parts.append(
-                    "# Work\n" + await masked_json(await self._work_brief(tx, run["work_id"]))
-                )
+                brief = await self._work_brief(tx, run["work_id"])
+                work_at = len(parts)
+                parts.append("")  # the work, filled once this transaction is over (see below)
             if run["thread_id"] is not None:
                 msgs = await tx.all(
                     """SELECT ref, author_kind, author_code, body, links, attachments, kind
@@ -1206,6 +1208,18 @@ class Runner:
                 "SELECT note FROM core.employee_memory WHERE employee_id = :e ORDER BY id DESC LIMIT 5",
                 e=emp["id"],
             )
+        if brief is not None:
+            # ⟨1.16⟩ §34 the owner's order this work serves: how the owner wants it carried out,
+            # the owner's words and the steps so far (newest last), the owner's open question if
+            # any. The order's report is the holding's row: read across companies, this order
+            # only, in a transaction of its own after the scoped one has ended (W6 g: never nested)
+            from hq_api.domain import order_turns as OT
+
+            async with await self._tx() as all_tx:
+                order = await OT.dialogue(all_tx, run["work_id"])
+            if order is not None:
+                brief["order"] = order
+            parts[work_at] = "# Work\n" + await masked_json(brief)
         if notes:
             parts.append(
                 "# Your memory (latest first)\n" + "\n".join(f"- {n['note'][:500]}" for n in notes)
@@ -1343,15 +1357,7 @@ class Runner:
 
         if (parts := await SP.merge_brief(tx, work_id)) is not None:
             w["parallel_parts"] = parts
-        # ⟨1.16⟩ §34 the owner's order this work serves: how the owner wants it carried out, the
-        # owner's words and the steps so far (newest last), the owner's open question if any
-        # (the order's report is the holding's row: read across companies, this order only)
-        from hq_api.domain import order_turns as OT
-
-        async with self.hub.db.tx(await self.hub.companies.ids()) as all_tx:
-            order = await OT.dialogue(all_tx, work_id)
-        if order is not None:
-            w["order"] = order
+        # the owner's order this work serves (`order`) is added by _context, in its own transaction
         return w
 
     async def _reply_thread(self, rc: RunCtx) -> str | None:

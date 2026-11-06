@@ -66,8 +66,24 @@ async def test_each_tool_reaches_its_route_with_the_runs_token(
     )
     assert (out["outcome"], out["class"], out["ref"]) == ("ok", "A1", "F-0153"), out
     assert seen["ack"]["assigned"] == ["PC-MEDIA-MGR"] and seen["ack"]["due_at"] is None
+    assert seen["ack"]["steps"] == []
+    # ⟨1.17⟩ the plan's steps become the session's tasks; a step ticks them by number
+    out = await call(
+        gw, "order.ack",
+        {"ref": "F-0153", "plan_fa": "سه مرحله", "steps": ["کارگروه", "سه ریلز", " "]},
+    )  # fmt: skip
+    assert out["outcome"] == "ok" and seen["ack"]["steps"] == ["کارگروه", "سه ریلز"]
     out = await call(gw, "order.progress", {"ref": "F-0153", "step_fa": "کارگروه ساخته شد"})
-    assert out["outcome"] == "ok" and seen["progress"] == {"step_fa": "کارگروه ساخته شد"}
+    assert out["outcome"] == "ok" and seen["progress"] == {
+        "step_fa": "کارگروه ساخته شد",
+        "done": [],
+    }
+    out = await call(
+        gw, "order.progress", {"ref": "F-0153", "step_fa": "ریلزها آماده شد", "done": [2, 2, 1]}
+    )
+    assert out["outcome"] == "ok" and seen["progress"]["done"] == [2, 1]
+    bad = await call(gw, "order.progress", {"ref": "F-0153", "step_fa": "x", "done": ["1"]})
+    assert bad["code"] == "invalid_args"
     out = await call(
         gw, "order.ask", {"ref": "F-0153", "question_fa": "به ali@example.com پیام بدهم؟"}
     )

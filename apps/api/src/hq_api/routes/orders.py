@@ -301,6 +301,57 @@ async def _question(ctx: Ctx, tx: Tx, r: O.Route, ref: str, text: str, routed_by
     r.refs["message_ref"] = m["ref"]
 
 
+async def _advisor_work(
+    ctx: Ctx, tx: Tx, r: O.Route, adv: dict[str, Any], ref: str, text: str, title: str
+) -> None:
+    """⟨1.17⟩ §35.1 a `question` single: the advisor's work is the order's root (its answer the
+    deliverable), so the order has a holder and a session from the first second."""
+    code = str(adv.get("code") or "")
+    company = str(adv.get("company") or "")
+    if not code or not company:
+        return
+    hr = O.Route(company, code, "work")
+    try:
+        w = await _work(ctx, tx, hr, ref, text, f"پرسش: {title}"[:300], assignee=code,
+                        player="auto", mode="single")  # fmt: skip
+    except ApiError:
+        return  # the thread A message still carries the question
+    r.refs["work_ref"] = w["ref"]
+
+
+async def _code_holder(
+    ctx: Ctx, tx: Tx, r: O.Route, s: Secretary, ref: str, text: str, title: str
+) -> None:
+    """⟨1.17⟩ §35.1 a `code` order: the company's technical manager (its CEO when there is none)
+    holds the order beside the workshop session: a root work that follows the session, reports
+    its steps and delivers when the session has."""
+    first = r.company
+    co = s.sc.directory["companies"][first]
+    tech = co["managers"].get("TECH")
+    code = tech or co["ceo"]
+    if not code:
+        return
+    where = (
+        f"سشن کارگاه کد {r.refs['session_ref']} کار کد را انجام میدهد"
+        if r.refs.get("session_ref")
+        else "سشن کارگاه کد پس از مُهر مدیر کل باز میشود"
+        if r.refs.get("decision_ref")
+        else "کارگاه کد هنوز باز نشده است"
+    )
+    hr = O.Route(first, code, "work", department="TECH" if tech else None)
+    note = (
+        f"{text}\n\nYou hold this order for the owner; the code itself is done in the Code "
+        f"Workshop ({where}). Follow it, report each real step with order.progress, ask the owner "
+        "only what the workshop cannot decide, and deliver when the workshop has delivered."
+    )
+    try:
+        w = await _work(ctx, tx, hr, ref, note, f"پیگیری کد: {title}"[:300], assignee=code,
+                        player="auto", mode="single")  # fmt: skip
+    except ApiError:
+        return
+    r.refs["work_ref"] = w["ref"]
+
+
 async def _code(
     ctx: Ctx,
     tx: Tx,
@@ -433,6 +484,7 @@ async def carry_out(
         adv = d.get("advisor") or {}
         r = O.Route(first, adv.get("code") or "", "question")
         await _question(ctx, tx, r, ref, text, s.routed_by)
+        await _advisor_work(ctx, tx, r, adv, ref, text, title)
         return [r]
     if rt.kind == "question":
         # §29.8 an outside question: the council v2, captained by the company's
@@ -451,14 +503,25 @@ async def carry_out(
         )
         r = O.Route(first, ws, "code", workspace=ws)
         await _code(ctx, tx, r, ref, text, title, later, s.routed_by)
+        await _code_holder(ctx, tx, r, s, ref, text, title)
         return [r]
     dept = rt.department if rt.kind != "meeting" else None
     if rt.kind == "code":  # no workspace: the company's technical manager
         dept = "TECH" if "TECH" in (s.sc.names.get(first) or {}) else None
     kind = "meeting" if rt.kind == "meeting" else "work"
     root = O.Route(first, co["ceo"] or "", kind, department=dept)
-    w = await _work(ctx, tx, root, ref, text, title, meeting=kind == "meeting",
-                    budget=rt.budget_tokens, player=rt.player, mode=rt.mode)  # fmt: skip
+    try:
+        w = await _work(ctx, tx, root, ref, text, title, meeting=kind == "meeting",
+                        budget=rt.budget_tokens, player=rt.player, mode=rt.mode)  # fmt: skip
+    except ApiError as exc:
+        if exc.status != 422 or co["ceo"]:
+            raise
+        # ⟨1.17⟩ §35.1 nobody in the company can take it: the order is still recorded, the
+        # secretary holds it and proposes the hire in its session (never ownerless)
+        root.note_fa = (
+            "این شرکت مدیری ندارد؛ منشی هلدینگ فرمان را نگه داشت و استخدام را پیشنهاد میکند"
+        )
+        return [root]
     out = [root]
     child_budget = D.base_budget(rt.output_kind)
     for c in dict.fromkeys([*rt.companies[1:], *rt.collaborators]):
@@ -554,7 +617,7 @@ async def record_order(
     routed_by = s.routed_by
     holding = await ctx.hub.companies.holding()
     out = [r.out() for r in routes]
-    summary = O.summary_of(text, routes)
+    summary = O.summary_of(text, routes, await _names(tx, routes))
     pace = O.pace_of(text)
     await tx.exec(
         """INSERT INTO owner.orders (ref, company_id, text, source, file_id, company_hint,
@@ -611,12 +674,11 @@ async def record_order(
         },
     )
     await _report(tx, ref)
-    talk_ref = None
-    if pace == "step" and any(x["kind"] in ("work", "meeting") for x in out):
-        # ⟨1.16⟩ §34.2 step by step: the live talk with the order's holder is open at once
-        from hq_api.domain import order_turns as OT
+    # ⟨1.17⟩ §35.1 every order is a session: its live talk with its holder (the secretary when
+    # nobody holds it) is open at once, whatever the pace and the kind
+    from hq_api.domain import order_turns as OT
 
-        talk_ref = await OT.open_talk(ctx, tx, ref)
+    talk_ref = await OT.open_talk(ctx, tx, ref)
     return OrderOut(
         ref=ref,
         summary_fa=summary,
@@ -634,6 +696,30 @@ async def _report(tx: Tx, ref: str) -> None:
     from hq_api.domain import order_report
 
     await order_report.on_order_routed(tx, ref)
+
+
+async def _names(tx: Tx, routes: list[O.Route]) -> dict[str, str]:
+    """⟨1.17⟩ W6 i: the owner reads plain names in `summary_fa`, never employee or workspace
+    codes: {route.to: its name}."""
+    codes = [r.to for r in routes if r.to]
+    if not codes:
+        return {}
+    out: dict[str, str] = {}
+    for e in await tx.all(
+        """SELECT e.code, e.title_fa, c.name_fa AS company_fa FROM core.employees e
+           JOIN core.companies c ON c.id = e.company_id WHERE e.code = ANY(:c)""",
+        c=codes,
+    ):
+        title = (e["title_fa"] or "").strip() or "کارمند"
+        out[e["code"]] = f"{title} {e['company_fa']}".strip() if e["company_fa"] else title
+    for w in await tx.all(
+        "SELECT code, title_fa FROM workshop.workspaces WHERE code = ANY(:c)", c=codes
+    ):
+        out.setdefault(w["code"], f"کارگاه کد {w['title_fa'] or w['code']}")
+    for r in routes:
+        if r.kind == "kit":
+            out.setdefault(r.to, "پیش‌نمایش شرکت تازه")
+    return out
 
 
 def _json(v: Any) -> str:

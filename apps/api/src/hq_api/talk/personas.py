@@ -22,16 +22,20 @@ from hq_api.talk import data
 from hq_api.voice.base import VoiceChoice
 
 KEY = re.compile(
-    r"^(?:(secretary|overseer|assistant|advisor)|([a-z][a-z0-9_]{1,40})@([A-Z][A-Z0-9]{1,9}))$"
+    r"^(?:(secretary|overseer|assistant|advisor)|([a-z][a-z0-9_]{1,40})@([A-Z][A-Z0-9]{1,9})"
+    r"|player:(gpt|gemini|deepseek))$"
 )
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
+FIXED = ("secretary", "overseer", "assistant", "advisor")
+# ⟨1.17⟩ §35.4 a player in a session: ChatGPT, Gemini or DeepSeek through its substitute seat
+PLAYER_FA = {"gpt": "ChatGPT", "gemini": "Gemini", "deepseek": "DeepSeek"}
 
 
 @dataclass(frozen=True)
 class Persona:
-    key: str  # "secretary" | "ceo@TY"
-    kind: str  # secretary | overseer | assistant | advisor | manager
-    role: str  # the charter
+    key: str  # "secretary" | "ceo@TY" | "player:gpt"
+    kind: str  # secretary | overseer | assistant | advisor | manager | player
+    role: str  # the charter (a player: "player")
     title_fa: str
     company: str  # the persona's company code (the holding's for the fixed four)
     company_id: UUID
@@ -49,6 +53,15 @@ class Persona:
         """The API's `company`: only a manager names one."""
         return self.company if self.is_manager else None
 
+    @property
+    def is_player(self) -> bool:
+        return self.kind == "player"
+
+    @property
+    def player(self) -> str | None:
+        """gpt | gemini | deepseek for a player persona."""
+        return self.key.split(":", 1)[1] if self.is_player else None
+
 
 def parse(key: str) -> tuple[str, str | None, str | None]:
     """(kind, role, company) of a persona key; 404 for anything else."""
@@ -57,6 +70,8 @@ def parse(key: str) -> tuple[str, str | None, str | None]:
         raise ApiError(404, "not_found", "unknown persona", message_fa="این نقش در گفتگو نیست.")
     if m.group(1):
         return m.group(1), None, None
+    if m.group(4):
+        return "player", m.group(4), None
     return "manager", m.group(2), m.group(3)
 
 
@@ -81,30 +96,71 @@ def default_voice(key: str, kind: str) -> VoiceChoice:
     return VoiceChoice(engine, str(pool[i]["voice"]), float(pool[i].get("rate") or 1.0))
 
 
-async def _employee(tx: Tx, role: str, company_id: UUID) -> dict[str, Any] | None:
+async def _employee(
+    tx: Tx, role: str, company_id: UUID, prefer: str | None = None
+) -> dict[str, Any] | None:
+    """The company's employee of that charter; `prefer` names the one meant (⟨1.17⟩ an order's
+    holder, so the persona never resolves to another employee of the same charter)."""
     return await tx.first(
         """SELECT e.id, e.code, e.company_id, e.kind, e.title_fa, e.status, d.code AS department
            FROM core.employees e LEFT JOIN core.departments d ON d.id = e.department_id
            WHERE e.company_id = :co AND e.role = :r AND e.status <> 'dismissed'
-           ORDER BY (e.status = 'active') DESC, e.hired_at LIMIT 1""",
+           ORDER BY (e.code = :pref) DESC, (e.status = 'active') DESC, e.hired_at LIMIT 1""",
         co=company_id,
         r=role,
+        pref=prefer or "",
     )
 
 
-async def resolve(tx: Tx, hub: Any, key: str, *, store_voice: bool = True) -> Persona:
+def _player(key: str, player: str, holding: Any, row: dict[str, Any] | None) -> Persona:
+    """⟨1.17⟩ §35.4 a player persona: no charter, no reads, no cards; it answers through its
+    substitute seat from the masked conversation (talk.player)."""
+    voice = default_voice(key, "assistant")
+    if row is not None:
+        voice = VoiceChoice(
+            row["engine"] or voice.engine,
+            row["voice"] or voice.voice,
+            float(row["rate"]) if row["rate"] is not None else voice.rate,
+        )
+    return Persona(
+        key=key,
+        kind="player",
+        role="player",
+        title_fa=PLAYER_FA[player],
+        company=holding.code,
+        company_id=holding.id,
+        is_manager=False,
+        employee=None,
+        voice=voice,
+        effort="medium",
+        tools=(),
+        cards=(),
+        consult_only=True,
+        face=None,
+    )
+
+
+async def resolve(
+    tx: Tx, hub: Any, key: str, *, store_voice: bool = True, employee_code: str | None = None
+) -> Persona:
     """The persona behind a key, with the owner's choices applied; a manager's
-    voice is stored the first time (it keeps it)."""
+    voice is stored the first time (it keeps it). `employee_code` names the one employee a
+    manager key means when the company has several of that charter (the order's holder)."""
     kind, role, code = parse(key)
-    spec = data.personas()[kind]
     holding = await hub.companies.holding()
+    if kind == "player":
+        assert role is not None
+        return _player(
+            key, role, holding, await tx.first("SELECT * FROM talk.personas WHERE key = :k", k=key)
+        )
+    spec = data.personas()[kind]
     if kind == "manager":
         assert role is not None
         assert code is not None
         co = await hub.companies.find(code)
         if co is None or co.kind == "holding":
             raise ApiError(404, "not_found", "unknown company", message_fa="این شرکت را نمیشناسم.")
-        emp = await _employee(tx, role, co.id)
+        emp = await _employee(tx, role, co.id, employee_code)
         if emp is None:
             raise ApiError(
                 404,
@@ -156,9 +212,23 @@ async def resolve(tx: Tx, hub: Any, key: str, *, store_voice: bool = True) -> Pe
     )
 
 
+async def resolve_in(
+    tx: Tx, hub: Any, key: str, conv: dict[str, Any] | None, *, store_voice: bool = True
+) -> Persona:
+    """The persona of a key inside a conversation: the holder's key of an order's talk resolves to
+    the holder employee itself (⟨1.17⟩ W6 f: never another employee of the same charter)."""
+    pref = None
+    if conv is not None and key == conv.get("holder") and conv.get("holder_code"):
+        pref = str(conv["holder_code"])
+    return await resolve(tx, hub, key, store_voice=store_voice, employee_code=pref)
+
+
 async def invite_key(tx: Tx, hub: Any, role_word: str, company: str) -> str:
     """role@CODE for a role named by the order rules (ceo, or a department code
-    whose manager is meant) or by its charter key."""
+    whose manager is meant) or by its charter key; ⟨1.17⟩ §35.4 a fixed persona of the holding
+    (advisor, overseer, assistant) by its own name, whatever company is given."""
+    if role_word in ("advisor", "overseer", "assistant"):
+        return role_word
     co = await hub.companies.find(company)
     if co is None or co.kind == "holding":
         raise ApiError(404, "not_found", "unknown company", message_fa="این شرکت را نمیشناسم.")

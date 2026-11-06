@@ -25,7 +25,13 @@ CARD_KINDS = (
     "automation",
     "minutes",
     "invite",
+    # ⟨1.17⟩ §35.4 the cards of a session (an order's talk)
+    "delegate",
+    "budget",
+    "group",
+    "line",
 )
+SESSION_CARDS = ("delegate", "budget", "group", "line")
 
 
 @dataclass(frozen=True)

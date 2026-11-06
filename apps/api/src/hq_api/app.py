@@ -92,6 +92,7 @@ from hq_api.routes import rules as rule_routes  # prompt 21: the owner's rules
 from hq_api.routes import sales as sales_routes  # prompt 24: §33.1, §33.4-§33.5
 from hq_api.routes import seo as seo_routes  # prompt 22 part 3: §31.4
 from hq_api.routes import servers as server_routes  # prompt 17: company server runners
+from hq_api.routes import sessions as session_routes  # prompt 25: §35.1-§35.3 every order a session
 from hq_api.routes import substitutes as substitute_routes  # prompt 12 part A
 from hq_api.routes import talk as talk_routes  # prompt 23: §32 the owner's talk
 from hq_api.routes import voice as voice_session_routes  # prompt 21: long voice
@@ -304,6 +305,9 @@ def create_app(
     # its fixes; order.ack, order.progress, work.budget, card.decide.
     app.include_router(order_report_routes.router, prefix="/api/v1")
     app.include_router(order_report_routes.internal_router, prefix="/internal/v1")
+    # ⟨1.17⟩ prompt 25 (contract §35.1-§35.3): every order a session: the list, participants,
+    # the plan, close / reopen / hide
+    app.include_router(session_routes.router, prefix="/api/v1")
     # ⟨1.13⟩ prompt 22 part 3 (contract §31.6, §31.7): ad budgets, automations from a sentence.
     for p22c in (ads_routes, automation_routes):
         app.include_router(p22c.router, prefix="/api/v1")

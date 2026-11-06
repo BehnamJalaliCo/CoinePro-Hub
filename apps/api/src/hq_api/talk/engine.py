@@ -173,7 +173,9 @@ class TurnRun:
                 self._before_n = int(owner["n"])
             else:
                 self._before_n = int(self.t["n"])
-            self.persona = await personas.resolve(tx, self.hub, str(self.t["persona"]))
+            self.persona = await personas.resolve_in(
+                tx, self.hub, str(self.t["persona"]), self.conv
+            )
         return True
 
     # ---------------------------------------------------------------- run --
@@ -213,18 +215,28 @@ class TurnRun:
             line = scrub.key_answer()
             await self.queue.put(line)
             return await self._finish("done", line, line, cards=[])
+        if p.is_player:
+            # ⟨1.17⟩ §35.4 a player answers through its substitute seat, from the masked
+            # conversation; nothing of the hub reaches it but the talk and the order it is in
+            from hq_api.talk import player
+
+            return await player.start(self)
         if self.router is None or not self.hub.secrets.llm_router_token:
             return await self._brain_unavailable(None)
         directive = self.t.get("directive")
         intent = read_intents(self.owner_text, None)
         # ⟨1.16⟩ §34.2 a talk bound to an order: the owner's every instruction may become the
-        # order's next word (an `order` card), whatever the persona and however often
+        # order's next word (an `order` card), whatever the persona and however often; ⟨1.17⟩
+        # §35.4 the session's cards too, and none of them counts as unsolicited (W6 e)
         bound = self.conv.get("order_ref")
-        unsolicited_ok = bool(bound) or (
-            intent.imperative and card_room(self.conv, int(self.t["n"]))
-        )
-        cards = tuple(dict.fromkeys(("order", *p.cards))) if bound else p.cards
-        allowed = tuple(k for k in cards if k != "minutes") if unsolicited_ok else ()
+        unsolicited = not bound and intent.imperative and card_room(self.conv, int(self.t["n"]))
+        if bound:
+            cards: tuple[str, ...] = tuple(
+                dict.fromkeys(("order", "ask", "hire", *data.SESSION_CARDS, *p.cards))
+            )
+        else:
+            cards = p.cards
+        allowed = tuple(k for k in cards if k != "minutes") if (bound or unsolicited) else ()
         async with self.tx() as tx:
             titles = await self._titles(tx)
             system = await C.system_prompt(
@@ -235,6 +247,8 @@ class TurnRun:
                 allowed,
                 directive == "minutes",
                 order_ref=bound,
+                sum_up=directive == "sum_up",
+                holder=not bound or p.key == (self.conv.get("holder") or self.conv["persona"]),
             )
             messages = await C.messages(
                 tx, self.hub, p, self.conv, self.owner_text, self._before_n, titles
@@ -285,7 +299,7 @@ class TurnRun:
                     {"role": "user", "content": untrusted(results)},
                 ]
                 continue
-            return await self._answer(ans, allowed, unsolicited_ok, directive == "minutes")
+            return await self._answer(ans, allowed, unsolicited, directive == "minutes")
 
     def _body(
         self,
@@ -326,7 +340,9 @@ class TurnRun:
         out = {}
         for key in {*(self.conv.get("present") or []), str(self.t["persona"])}:
             with contextlib.suppress(Exception):
-                out[key] = (await personas.resolve(tx, self.hub, key, store_voice=False)).title_fa
+                out[key] = (
+                    await personas.resolve_in(tx, self.hub, key, self.conv, store_voice=False)
+                ).title_fa
         return out
 
     # ------------------------------------------------------------- stream --
@@ -531,7 +547,7 @@ class TurnRun:
         for c in ans.cards[: 1 if unsolicited else A.CARDS_MAX]:
             if c["kind"] == "invite":
                 continue  # an invite is the turn's `invite`, joined by code
-            if c["kind"] == "order" and p.is_manager:
+            if c["kind"] == "order" and p.is_manager and not self.conv.get("order_ref"):
                 # §32.4 the dispatcher's route preset to the manager's company/department
                 c["payload"] = {
                     **c["payload"],
@@ -764,10 +780,14 @@ async def _join(
         p = await personas.resolve(tx, hub, key)
     except Exception:  # noqa: BLE001 - an invite the model made up is dropped
         return None
+    if p.key == conv.get("holder"):
+        return None  # the holder is here already
     return await join(tx, conv, p)
 
 
 async def join(tx: Tx, conv: dict[str, Any], p: Persona) -> dict[str, Any]:
+    """The newcomer joins `present` and answers next; ⟨1.17⟩ in a session the holder keeps
+    answering by default (service._answerers), the newcomer only when asked (`to`) or this once."""
     present = list(dict.fromkeys([*(conv.get("present") or []), p.key]))[-20:]
     await tx.exec(
         "UPDATE talk.conversations SET persona = :p, present = :pr, updated_at = now() WHERE id = :id",

@@ -27,6 +27,7 @@ class Intent:
     invite: tuple[str, str] | None = None  # (role word: ceo | advisor | a department code, company)
     remember: str | None = None  # the fact to keep
     imperative: bool = False
+    everyone: bool = False  # ⟨1.17⟩ §35.4 «نظر همه»: each participant answers once
 
     @property
     def wants_minutes(self) -> bool:
@@ -63,6 +64,7 @@ def read(text: str, directory: dict[str, Any] | None) -> Intent:
         fact = _strip_phrase(text, phrase)
         it.remember = fact or None
     it.imperative = _any(norm, "imperative") is not None
+    it.everyone = _any(norm, "everyone") is not None
     return it
 
 

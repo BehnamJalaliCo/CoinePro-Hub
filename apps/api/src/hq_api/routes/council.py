@@ -40,7 +40,9 @@ async def run_plan(
     """⟨1.11⟩ §29.8 «اجرا کن»: the captain's plan becomes an order (§29.4) of
     the council's company (its CEO splits it), single mode, the plan's
     budget. Once per council (409 when it already ran, or has no plan yet).
-    Requires `Idempotency-Key`."""
+    Requires `Idempotency-Key`. ⟨1.17⟩ §35.1 a council held inside a session (its work
+    belongs to an owner's open order) continues that same order: the plan is the owner's
+    word on it (a reply), never a new F-ref."""
     async with ctx.tx() as tx:
         c = await PL.council_of(tx, id)
         if c is None:
@@ -51,6 +53,9 @@ async def run_plan(
             raise ApiError(409, "validation_failed", "the council has no plan yet")
         w = await W.load(tx, id)
         sc = await D.context(tx, c["plan_md"])
+        same = await _same_order(ctx, tx, request, w, c)
+        if same is not None:
+            return same
     d = sc.directory
     company = w["company"]
     if d["companies"].get(company, {}).get("holding"):
@@ -88,6 +93,56 @@ async def run_plan(
         if fresh is not None:
             await PL._emit(tx, w["company"], fresh)
     return out
+
+
+async def _same_order(
+    ctx: Ctx, tx: Any, request: Request, w: dict[str, Any], c: dict[str, Any]
+) -> OrderOut | None:
+    """⟨1.17⟩ §35.1 the council's work belongs to an open order: «اجرا کن» is the owner's word
+    on it («اجرا کن: …» with the plan), the holder runs again at once; the council is linked to
+    that order. None when the work is in no open order (a new order is made as before)."""
+    from hq_api import idempotency
+    from hq_api.domain import order_report as OR
+    from hq_api.domain import order_turns as OT
+    from hq_api.routes.orders import _record
+
+    ref = await OR.order_of_work(tx, w["id"])
+    if ref is None:
+        return None
+    rep = await OR.ensure(tx, ref)
+    if rep is None or rep["ended_at"] is not None:
+        return None
+    idem = await idempotency.claim(tx, request, ctx.who, required=True)
+    if idem and idem.replay:
+        return idem.replay  # type: ignore[return-value]
+    text = f"اجرا کن: برنامه‌ی شورا را اجرا کن.\n\n{c['plan_md']}"[:2000]
+    try:
+        out = await OT.reply(tx, ref, text)
+    except ApiError:
+        return None  # no open work on the order: a new order as before
+    await OT.to_talk_owner(tx, rep, text)
+    await tx.exec(
+        """UPDATE work.councils SET order_ref = :r, updated_at = now()
+           WHERE work_id = :w AND order_ref IS NULL""",
+        r=ref,
+        w=w["id"],
+    )
+    woken = ", ".join(out["woken"]) or "nothing"
+    await ctx.audit(tx, company_id=rep["company_id"], action="order.reply", action_class="A1",
+                    target_kind="order", target_ref=ref,
+                    summary=f"the council's plan of {w['ref']}; woken: {woken}")  # fmt: skip
+    await OR.refresh(tx, ref)
+    fresh = await PL.council_of(tx, w["id"])
+    if fresh is not None:
+        await PL._emit(tx, w["company"], fresh)
+    row = await tx.one("SELECT * FROM owner.orders WHERE ref = :r", r=ref)
+    rec = _record({**dict(row), "routes": OR._j(row["routes"]), "route": OR._j(row["route"])})
+    shape = rec.model_dump(include=set(OrderOut.model_fields))
+    shape["talk_ref"] = rep.get("conversation_ref")
+    result = OrderOut(**shape)
+    if idem:
+        await idem.store(tx, 201, result.model_dump(mode="json"))
+    return result
 
 
 @router.get("/fact-packs/{ref}", response_model=FactPack, responses=E)

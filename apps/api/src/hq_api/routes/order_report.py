@@ -57,6 +57,7 @@ router = APIRouter(tags=["orders"])
 internal_router = APIRouter(tags=["internal"])
 E = responses(401, 403, 404, 409, 422, 423)
 REF = r"^F-[0-9]{4,}$"
+NOT_FOUND_FA = "این فرمان پیدا نشد."
 
 
 async def _all(ctx: Ctx) -> Any:
@@ -72,7 +73,7 @@ async def order_report(ref: str, ctx: Ctx = Depends(owner_ctx)) -> OR.OrderRepor
     async with ctx.tx() as tx:
         out = await OR.report(tx, ref)
     if out is None:
-        raise ApiError(404, "not_found", f"order {ref}")
+        raise ApiError(404, "not_found", f"order {ref}", message_fa=NOT_FOUND_FA)
     return out
 
 
@@ -100,14 +101,25 @@ async def reply_order(
             return idem.replay
         text = clean(body.text)[0]
         out = await OT.reply(tx, ref, text)
+        holding = await ctx.hub.companies.holding()
+        woken = ", ".join(out["woken"]) if out["woken"] else "nothing woken"
         await ctx.audit(
             tx,
-            company_id=(await ctx.hub.companies.holding()).id,
+            company_id=holding.id,
             action="order.reply",
             action_class="A1",
             target_kind="order",
             target_ref=ref,
-            summary=f"the owner's word; {out['work_ref']} runs again",
+            summary=f"the owner's word; {woken}",
+        )
+        await ctx.interaction(
+            tx,
+            company_id=holding.id,
+            kind="decision",
+            action="order.reply",
+            target_kind="order",
+            target_ref=ref,
+            data={"woken": out["woken"], "chars": len(text)},
         )
         rep = await OR.ensure(tx, ref)
         if rep is not None:
@@ -131,13 +143,13 @@ async def talk_order(ref: str, ctx: Ctx = Depends(owner_ctx)) -> TalkOut:
             raise ApiError(409, "validation_failed", "the order has no holder yet",
                            message_fa="هنوز کسی این فرمان را نگرفته است.")  # fmt: skip
         await OR.refresh(tx, ref)
-    return TalkOut(conversation_ref=conv)
+    return TalkOut(conversation_ref=str(conv))
 
 
 class FixIn(Model):
     action: Literal[
         "hire", "hiring.open", "lock.open", "series.seal", "budget.add", "player.auto",
-        "connection.guide",
+        "connection.guide", "kit.create",
     ]  # fmt: skip
     target: str | None = Field(default=None, max_length=120)
     tokens: int | None = Field(default=None, gt=0, le=10_000_000)
@@ -162,7 +174,7 @@ async def fix_order(
     async with ctx.tx() as tx:
         rep = await OR.ensure(tx, ref)
         if rep is None:
-            raise ApiError(404, "not_found", f"order {ref}")
+            raise ApiError(404, "not_found", f"order {ref}", message_fa=NOT_FOUND_FA)
         rep = await OR.refresh(tx, ref)
         assert rep is not None
         order = await OR.load_order(tx, ref)
@@ -171,7 +183,8 @@ async def fix_order(
         target = body.target or ((b or {}).get("fix") or {}).get("target")
         in_tree = {w["ref"]: w for w in works}
         if b is None and not (body.action == "budget.add" and target in in_tree):
-            raise ApiError(409, "validation_failed", "no blocker of this order has that fix now")
+            raise ApiError(409, "validation_failed", "no blocker of this order has that fix now",
+                           message_fa="این فرمان الان گیری با این رفع ندارد.")  # fmt: skip
         summary = await _apply_fix(ctx, tx, request, body, target, in_tree, later)
         await ctx.audit(
             tx,
@@ -238,19 +251,26 @@ async def _apply_fix(
         return f"series {target} sealed"
     if body.action == "budget.add":
         if not body.tokens:
-            raise ApiError(422, "validation_failed", fields={"tokens": "how many tokens to add"})
+            raise ApiError(422, "validation_failed", fields={"tokens": "how many tokens to add"},
+                           message_fa="چند واحد مصرف اضافه شود؟ عدد لازم است.")  # fmt: skip
         w = works.get(target or "")
         if w is None or w["status"] not in W.OPEN:
-            raise ApiError(409, "validation_failed", "an open work of this order")
+            raise ApiError(409, "validation_failed", "an open work of this order",
+                           message_fa="این کار باز نیست که بودجه بگیرد.")  # fmt: skip
         new = await W.add_budget(tx, w, body.tokens, ctx.who)
         return f"+{body.tokens} tokens on {w['ref']} (budget {new})"
     if body.action == "player.auto":
         w = works.get(target or "")
         if w is None:
-            raise ApiError(409, "validation_failed", "a work of this order")
+            raise ApiError(409, "validation_failed", "a work of this order",
+                           message_fa="این کار از این فرمان نیست.")  # fmt: skip
         await tx.exec("UPDATE work.work SET player = 'auto' WHERE id = :id", id=w["id"])
         await W.add_budget(tx, w, 0, ctx.who)  # goes on, with the hub's own player
         return f"{w['ref']} plays auto"
+    if body.action == "kit.create":
+        # ⟨1.17⟩ W6 j: the kit's fix is the owner's seal of the kit card (POST /kits/{kit}/create
+        # with the order): the app opens the card from the report; nothing is made here
+        return "kit card (the app seals it)"
     return "guide"  # connection.guide: the app opens /connections/guides/{kind}
 
 
@@ -300,10 +320,14 @@ class AckIn(Model):
     plan_fa: str = Field(min_length=1, max_length=2000)
     assigned: list[str] = Field(default_factory=list, max_length=20)
     due_at: datetime | None = None
+    # ⟨1.17⟩ §35.4 the plan's steps, each one a task of the session
+    steps: list[str] = Field(default_factory=list, max_length=20)
 
 
 class ProgressIn(Model):
     step_fa: str = Field(min_length=1, max_length=1000)
+    # ⟨1.17⟩ §35.4 the task numbers this step finished
+    done: list[int] = Field(default_factory=list, max_length=50)
 
 
 class AskIn(Model):
@@ -325,7 +349,7 @@ async def order_ack(ref: str, body: AckIn, ctx: Ctx = Depends(internal_ctx)) -> 
         await allow(ctx, "order.ack", {"company": ctx.who.company, "assigned": assigned})
         if not assigned:
             raise ApiError(403, "policy_denied", "not an order you work on")
-        await OR.acknowledge(
+        rep = await OR.acknowledge(
             tx,
             ctx.who,
             ref,
@@ -333,6 +357,17 @@ async def order_ack(ref: str, body: AckIn, ctx: Ctx = Depends(internal_ctx)) -> 
             assigned=[{"code": c} for c in body.assigned],
             due_at=body.due_at,
         )
+        added = 0
+        if body.steps:
+            from hq_api.domain import sessions as SE
+
+            emp = await tx.first(
+                """SELECT e.title_fa, c.name_fa AS company_fa FROM core.employees e
+                   JOIN core.companies c ON c.id = e.company_id WHERE e.code = :c""",
+                c=ctx.who.code,
+            )
+            who_fa = OR.who_fa(emp["title_fa"], emp["company_fa"]) if emp else "مسئول"
+            added = await SE.agent_tasks(tx, rep, ctx.who.code, who_fa, body.steps)
         await ctx.audit(
             tx,
             company_id=ctx.who.company_id,  # type: ignore[arg-type]
@@ -340,7 +375,7 @@ async def order_ack(ref: str, body: AckIn, ctx: Ctx = Depends(internal_ctx)) -> 
             action_class="A1",
             target_kind="order",
             target_ref=ref,
-            summary=f"plan by {ctx.who.code}, {len(body.assigned)} assigned",
+            summary=f"plan by {ctx.who.code}, {len(body.assigned)} assigned, {added} tasks",
         )
         out = await OR.report(tx, ref)
     assert out is not None
@@ -358,7 +393,11 @@ async def order_progress(
         await allow(ctx, "order.progress", {"company": ctx.who.company, "assigned": assigned})
         if not assigned:
             raise ApiError(403, "policy_denied", "not an order you work on")
-        await OR.progress(tx, ctx.who, ref, body.step_fa)
+        rep = await OR.progress(tx, ctx.who, ref, body.step_fa)
+        if body.done:
+            from hq_api.domain import sessions as SE
+
+            await SE.tick_tasks(tx, rep, body.done)
         await ctx.audit(
             tx,
             company_id=ctx.who.company_id,  # type: ignore[arg-type]

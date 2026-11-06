@@ -45,7 +45,10 @@ router = APIRouter(tags=["talk"])
 E = responses(401, 403, 404, 409, 422)
 HEARTBEAT_S = 15.0
 POLL_S = 0.2
-PERSONA_KEY = r"^(secretary|overseer|assistant|advisor|[a-z][a-z0-9_]{1,40}@[A-Z][A-Z0-9]{1,9})$"
+PERSONA_KEY = (
+    r"^(secretary|overseer|assistant|advisor|[a-z][a-z0-9_]{1,40}@[A-Z][A-Z0-9]{1,9}"
+    r"|player:(gpt|gemini|deepseek))$"
+)
 CODE = r"^[A-Z][A-Z0-9]{1,9}$"
 ROLE = r"^[a-z][a-z0-9_]{1,40}$"
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
@@ -283,6 +286,9 @@ class TalkTurnIn(Model):
     text: str = Field(min_length=1, max_length=10000)
     source: store.Source = "typed"
     client_id: str | None = Field(default=None, min_length=1, max_length=100)
+    # ⟨1.17⟩ §35.4 in a session: the participant who answers (a persona key), or "all" (each
+    # present participant once, then the holder sums up); default: the holder
+    to: str | None = Field(default=None, pattern=r"^(all|" + PERSONA_KEY[2:-2] + r")$")
 
 
 @router.post(
@@ -303,13 +309,19 @@ async def talk_add_turn(
     model), the rules act first (back to the secretary, a manager called in,
     the mode, «یادت باشه», «صورت‌جلسه کن»), and the answer streams on
     `events` (SSE). Requires `Idempotency-Key`; the same `client_id` again
-    answers the same turn. Never 5xx: without a brain, the plain line."""
+    answers the same turn. Never 5xx: without a brain, the plain line. ⟨1.17⟩ §35.4 in a
+    session `to` names who answers (a participant's key; a player answers through its seat), or
+    `all` («نظر همه»): every present participant once, then the holder sums up (`turns`); a
+    closed session answers 409."""
     await _policy(ctx, "turn.create", {"ref": ref})
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
             return idem.replay
-        answer, owner = await service.add_turn(ctx, tx, ref, body.text, body.source, body.client_id)
+        answers, owner = await service.add_turns(
+            ctx, tx, ref, body.text, body.source, body.client_id, to=body.to
+        )
+        answer = answers[0]
         started = await tx.scalar(
             "SELECT state = 'streaming' AND NOT EXISTS (SELECT 1 FROM talk.turn_events WHERE turn_id = :id) "
             "FROM talk.turns WHERE id = :id",
@@ -319,11 +331,12 @@ async def talk_add_turn(
             turn=await store.turn_out(tx, answer),
             owner_turn=await store.turn_out(tx, owner) if owner else None,
             events=service.EVENTS_PATH.format(id=answer),
+            turns=[await store.turn_out(tx, a) for a in answers],
         )
         if idem:
             await idem.store(tx, 202, out.model_dump(mode="json"))
     if started:
-        background.add_task(service.dispatch, ctx.hub, answer)
+        background.add_task(service.dispatch_all, ctx.hub, answers)
     return out
 
 
@@ -350,6 +363,7 @@ async def talk_make_minutes(
             turn=await store.turn_out(tx, answer),
             owner_turn=None,
             events=service.EVENTS_PATH.format(id=answer),
+            turns=[await store.turn_out(tx, answer)],
         )
         if idem:
             await idem.store(tx, 202, out.model_dump(mode="json"))
@@ -377,13 +391,20 @@ async def talk_invite(ref: str, body: TalkInviteIn, ctx: Ctx = Depends(owner_ctx
     """A manager joins (`role` is its charter, e.g. ceo or media_director, or a
     department code whose manager is meant): role@company becomes present and
     answers next, with its own charter, voice and its company's reads only;
-    code writes the one-line notice. Back to the secretary by her face or «منشی»."""
+    code writes the one-line notice. Back to the secretary by her face or «منشی».
+    ⟨1.17⟩ §35.4 `role` advisor | overseer | assistant: the holding's fixed persona joins."""
     await _policy(ctx, "invite", {"ref": ref, "company": body.company})
     async with ctx.tx() as tx:
         word = body.department if body.role == "manager" and body.department else body.role
         key = await personas.invite_key(tx, ctx.hub, word, body.company)
         p = await personas.resolve(tx, ctx.hub, key)
         conv = await store.conversation(tx, ref, lock=True)
+        if conv.get("closed_at") is not None:
+            raise ApiError(409, "validation_failed", "the session is closed",
+                           message_fa=service.CLOSED_FA)  # fmt: skip
+        if p.key == conv.get("holder"):
+            raise ApiError(409, "validation_failed", "the holder is here already",
+                           message_fa="مسئول فرمان خودش در جلسه است.")  # fmt: skip
         await K.join_with_notice(tx, ctx.hub, conv, p)
         holding = await ctx.hub.companies.holding()
         await ctx.audit(tx, company_id=holding.id, action="talk.invite", action_class="A0",

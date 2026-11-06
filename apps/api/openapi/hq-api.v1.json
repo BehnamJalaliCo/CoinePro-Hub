@@ -238,6 +238,14 @@
             "minLength": 1,
             "title": "Plan Fa",
             "type": "string"
+          },
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Steps",
+            "type": "array"
           }
         },
         "required": [
@@ -257,6 +265,18 @@
             ],
             "title": "Action",
             "type": "string"
+          },
+          "order_ref": {
+            "anyOf": [
+              {
+                "pattern": "^F-[0-9]{4,}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Ref"
           },
           "reason_fa": {
             "anyOf": [
@@ -3126,118 +3146,6 @@
         "title": "Ask",
         "type": "object"
       },
-      "Ask-Output": {
-        "properties": {
-          "answer_md": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Answer Md"
-          },
-          "citations": {
-            "items": {
-              "$ref": "#/components/schemas/hq_api__domain__ask__Citation"
-            },
-            "title": "Citations",
-            "type": "array"
-          },
-          "citations_dropped": {
-            "default": 0,
-            "title": "Citations Dropped",
-            "type": "integer"
-          },
-          "created_at": {
-            "title": "Created At"
-          },
-          "finished_at": {
-            "anyOf": [
-              {},
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Finished At"
-          },
-          "found": {
-            "title": "Found",
-            "type": "integer"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "not_indexed": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Not Indexed",
-            "type": "array"
-          },
-          "q": {
-            "title": "Q",
-            "type": "string"
-          },
-          "ref": {
-            "title": "Ref",
-            "type": "string"
-          },
-          "scope": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Scope"
-          },
-          "state": {
-            "enum": [
-              "queued",
-              "searching",
-              "answering",
-              "done",
-              "failed"
-            ],
-            "title": "State",
-            "type": "string"
-          },
-          "suggestions": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Suggestions",
-            "type": "array"
-          },
-          "usage": {
-            "$ref": "#/components/schemas/hq_api__domain__ask__Usage"
-          }
-        },
-        "required": [
-          "id",
-          "ref",
-          "q",
-          "scope",
-          "state",
-          "found",
-          "answer_md",
-          "citations",
-          "not_indexed",
-          "usage",
-          "created_at",
-          "finished_at"
-        ],
-        "title": "Ask",
-        "type": "object"
-      },
       "AskScope": {
         "additionalProperties": false,
         "properties": {
@@ -5222,6 +5130,29 @@
           "equiv_cost_usd"
         ],
         "title": "BreakdownRow",
+        "type": "object"
+      },
+      "Brief": {
+        "properties": {
+          "done_fa": {
+            "title": "Done Fa",
+            "type": "string"
+          },
+          "need_fa": {
+            "title": "Need Fa",
+            "type": "string"
+          },
+          "now_fa": {
+            "title": "Now Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "done_fa",
+          "now_fa",
+          "need_fa"
+        ],
+        "title": "Brief",
         "type": "object"
       },
       "Briefing": {
@@ -8789,25 +8720,6 @@
           "accepted"
         ],
         "title": "ClientErrorsOut",
-        "type": "object"
-      },
-      "CloseIn": {
-        "additionalProperties": false,
-        "properties": {
-          "note_fa": {
-            "anyOf": [
-              {
-                "maxLength": 2000,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note Fa"
-          }
-        },
-        "title": "CloseIn",
         "type": "object"
       },
       "CodeSession": {
@@ -17154,7 +17066,8 @@
               "series.seal",
               "budget.add",
               "player.auto",
-              "connection.guide"
+              "connection.guide",
+              "kit.create"
             ],
             "title": "Action",
             "type": "string"
@@ -18987,6 +18900,34 @@
           "ref"
         ],
         "title": "HoldTarget",
+        "type": "object"
+      },
+      "Holder": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "company_fa": {
+            "title": "Company Fa",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "title_fa",
+          "company",
+          "company_fa"
+        ],
+        "title": "Holder",
         "type": "object"
       },
       "HoldingState": {
@@ -30510,6 +30451,16 @@
             "title": "Blockers",
             "type": "array"
           },
+          "brief": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Brief"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "conversation_ref": {
             "anyOf": [
               {
@@ -30547,6 +30498,13 @@
             "title": "Pace",
             "type": "string"
           },
+          "participants": {
+            "items": {
+              "$ref": "#/components/schemas/Participant"
+            },
+            "title": "Participants",
+            "type": "array"
+          },
           "parts": {
             "items": {
               "$ref": "#/components/schemas/WorkSplit"
@@ -30560,6 +30518,16 @@
           },
           "route": {
             "$ref": "#/components/schemas/hq_api__domain__order_report__Route"
+          },
+          "session": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SessionState"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "state": {
             "enum": [
@@ -30591,6 +30559,13 @@
                 "type": "null"
               }
             ]
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/SessionTask"
+            },
+            "title": "Tasks",
+            "type": "array"
           },
           "text_fa": {
             "title": "Text Fa",
@@ -31584,6 +31559,24 @@
         "title": "OwnerSettingsIn",
         "type": "object"
       },
+      "PaceIn": {
+        "additionalProperties": false,
+        "properties": {
+          "pace": {
+            "enum": [
+              "auto",
+              "step"
+            ],
+            "title": "Pace",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pace"
+        ],
+        "title": "PaceIn",
+        "type": "object"
+      },
       "Page_AgentHealth_": {
         "properties": {
           "items": {
@@ -31642,7 +31635,7 @@
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/Ask-Output"
+              "$ref": "#/components/schemas/hq_api__domain__ask__Ask"
             },
             "title": "Items",
             "type": "array"
@@ -32934,6 +32927,33 @@
         "title": "Page[ServerCall]",
         "type": "object"
       },
+      "Page_SessionCard_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SessionCard"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[SessionCard]",
+        "type": "object"
+      },
       "Page_SessionEvent_": {
         "properties": {
           "items": {
@@ -33330,6 +33350,69 @@
           "share"
         ],
         "title": "PaletteShare",
+        "type": "object"
+      },
+      "Participant": {
+        "properties": {
+          "company": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "holder",
+              "person",
+              "player"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "kind",
+          "title_fa"
+        ],
+        "title": "Participant",
+        "type": "object"
+      },
+      "ParticipantIn": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "pattern": "^(secretary|overseer|assistant|advisor|[a-z][a-z0-9_]{1,40}@[A-Z][A-Z0-9]{1,9}|player:(gpt|gemini|deepseek)|gpt|gemini|deepseek)$",
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "person",
+              "player"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "key"
+        ],
+        "title": "ParticipantIn",
         "type": "object"
       },
       "PayPayment": {
@@ -35398,6 +35481,14 @@
       "ProgressIn": {
         "additionalProperties": false,
         "properties": {
+          "done": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 50,
+            "title": "Done",
+            "type": "array"
+          },
           "step_fa": {
             "maxLength": 1000,
             "minLength": 1,
@@ -43657,6 +43748,117 @@
         "title": "Session",
         "type": "object"
       },
+      "SessionCard": {
+        "properties": {
+          "badge": {
+            "enum": [
+              "your_turn",
+              "ready",
+              "stuck",
+              "moving",
+              "closed"
+            ],
+            "title": "Badge",
+            "type": "string"
+          },
+          "brief": {
+            "$ref": "#/components/schemas/Brief"
+          },
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "conversation_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Ref"
+          },
+          "hidden": {
+            "default": false,
+            "title": "Hidden",
+            "type": "boolean"
+          },
+          "holder": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Holder"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_at": {
+            "format": "date-time",
+            "title": "Last At",
+            "type": "string"
+          },
+          "opened_at": {
+            "format": "date-time",
+            "title": "Opened At",
+            "type": "string"
+          },
+          "pace": {
+            "enum": [
+              "auto",
+              "step"
+            ],
+            "title": "Pace",
+            "type": "string"
+          },
+          "participants": {
+            "items": {
+              "$ref": "#/components/schemas/Participant"
+            },
+            "title": "Participants",
+            "type": "array"
+          },
+          "reason_fa": {
+            "title": "Reason Fa",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "tasks": {
+            "$ref": "#/components/schemas/TaskCount"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "conversation_ref",
+          "title_fa",
+          "holder",
+          "badge",
+          "reason_fa",
+          "brief",
+          "pace",
+          "tasks",
+          "opened_at",
+          "last_at"
+        ],
+        "title": "SessionCard",
+        "type": "object"
+      },
       "SessionEvent": {
         "properties": {
           "actor": {
@@ -43797,6 +43999,123 @@
           "absolute_expires_at"
         ],
         "title": "SessionOut",
+        "type": "object"
+      },
+      "SessionState": {
+        "properties": {
+          "badge": {
+            "enum": [
+              "your_turn",
+              "ready",
+              "stuck",
+              "moving",
+              "closed"
+            ],
+            "title": "Badge",
+            "type": "string"
+          },
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "hidden": {
+            "default": false,
+            "title": "Hidden",
+            "type": "boolean"
+          },
+          "reason_fa": {
+            "title": "Reason Fa",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "open",
+              "closed"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "badge",
+          "reason_fa"
+        ],
+        "title": "SessionState",
+        "type": "object"
+      },
+      "SessionTask": {
+        "properties": {
+          "by": {
+            "enum": [
+              "owner",
+              "agent"
+            ],
+            "title": "By",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "todo",
+              "doing",
+              "done",
+              "dropped"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "who_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Who Fa"
+          },
+          "work_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Ref"
+          }
+        },
+        "required": [
+          "id",
+          "n",
+          "title_fa",
+          "state",
+          "by"
+        ],
+        "title": "SessionTask",
         "type": "object"
       },
       "ShadowDisagreement": {
@@ -47412,7 +47731,11 @@
               "rule",
               "automation",
               "minutes",
-              "invite"
+              "invite",
+              "delegate",
+              "budget",
+              "group",
+              "line"
             ],
             "title": "Kind",
             "type": "string"
@@ -47515,8 +47838,31 @@
       },
       "TalkConversation": {
         "properties": {
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
           "cost": {
             "$ref": "#/components/schemas/TalkCost"
+          },
+          "holder": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Holder"
           },
           "last_turn_at": {
             "anyOf": [
@@ -47611,8 +47957,31 @@
       },
       "TalkConversationDetail": {
         "properties": {
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
           "cost": {
             "$ref": "#/components/schemas/TalkCost"
+          },
+          "holder": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Holder"
           },
           "last_turn_at": {
             "anyOf": [
@@ -47905,7 +48274,11 @@
                 "rule",
                 "automation",
                 "minutes",
-                "invite"
+                "invite",
+                "delegate",
+                "budget",
+                "group",
+                "line"
               ],
               "type": "string"
             },
@@ -47948,7 +48321,8 @@
               "overseer",
               "assistant",
               "advisor",
-              "manager"
+              "manager",
+              "player"
             ],
             "title": "Kind",
             "type": "string"
@@ -48224,6 +48598,13 @@
           },
           "turn": {
             "$ref": "#/components/schemas/TalkTurn"
+          },
+          "turns": {
+            "items": {
+              "$ref": "#/components/schemas/TalkTurn"
+            },
+            "title": "Turns",
+            "type": "array"
           }
         },
         "required": [
@@ -48265,6 +48646,18 @@
             "minLength": 1,
             "title": "Text",
             "type": "string"
+          },
+          "to": {
+            "anyOf": [
+              {
+                "pattern": "^(all|secretary|overseer|assistant|advisor|[a-z][a-z0-9_]{1,40}@[A-Z][A-Z0-9]{1,9}|player:(gpt|gemini|deepseek))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To"
           }
         },
         "required": [
@@ -48409,6 +48802,90 @@
           "ref"
         ],
         "title": "Target",
+        "type": "object"
+      },
+      "TaskCount": {
+        "properties": {
+          "done": {
+            "title": "Done",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "done",
+          "total"
+        ],
+        "title": "TaskCount",
+        "type": "object"
+      },
+      "TaskIn": {
+        "additionalProperties": false,
+        "properties": {
+          "title_fa": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title_fa"
+        ],
+        "title": "TaskIn",
+        "type": "object"
+      },
+      "TaskPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "n": {
+            "anyOf": [
+              {
+                "maximum": 500.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "todo",
+                  "doing",
+                  "done",
+                  "dropped"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "title_fa": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title Fa"
+          }
+        },
+        "title": "TaskPatch",
         "type": "object"
       },
       "TeachIn": {
@@ -49722,8 +50199,15 @@
         "type": "object"
       },
       "Turn": {
-        "description": "⟨1.16⟩ §34.3 the holder's open question to the owner (`order.ask`).",
+        "description": "⟨1.16⟩ §34.3 the holder's open question to the owner (`order.ask`); `question_fa` holds\nevery open question, `asks` each one.",
         "properties": {
+          "asks": {
+            "items": {
+              "$ref": "#/components/schemas/hq_api__domain__order_report__Ask"
+            },
+            "title": "Asks",
+            "type": "array"
+          },
           "at": {
             "format": "date-time",
             "title": "At",
@@ -53462,6 +53946,118 @@
         "title": "AnswerIn",
         "type": "object"
       },
+      "hq_api__domain__ask__Ask": {
+        "properties": {
+          "answer_md": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer Md"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/hq_api__domain__ask__Citation"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "citations_dropped": {
+            "default": 0,
+            "title": "Citations Dropped",
+            "type": "integer"
+          },
+          "created_at": {
+            "title": "Created At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "found": {
+            "title": "Found",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "not_indexed": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Not Indexed",
+            "type": "array"
+          },
+          "q": {
+            "title": "Q",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "searching",
+              "answering",
+              "done",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "suggestions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Suggestions",
+            "type": "array"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/hq_api__domain__ask__Usage"
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "q",
+          "scope",
+          "state",
+          "found",
+          "answer_md",
+          "citations",
+          "not_indexed",
+          "usage",
+          "created_at",
+          "finished_at"
+        ],
+        "title": "Ask",
+        "type": "object"
+      },
       "hq_api__domain__ask__AskIn": {
         "additionalProperties": false,
         "properties": {
@@ -54221,6 +54817,35 @@
           "answer_md"
         ],
         "title": "AnswerIn",
+        "type": "object"
+      },
+      "hq_api__domain__order_report__Ask": {
+        "description": "⟨1.17⟩ §35.4 one question of the open turn (a second `order.ask` joins the same turn).",
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "$ref": "#/components/schemas/Actor"
+          },
+          "question_fa": {
+            "title": "Question Fa",
+            "type": "string"
+          },
+          "who_fa": {
+            "title": "Who Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question_fa",
+          "at",
+          "by",
+          "who_fa"
+        ],
+        "title": "Ask",
         "type": "object"
       },
       "hq_api__domain__order_report__Fix": {
@@ -55130,6 +55755,25 @@
         "title": "PlanIn",
         "type": "object"
       },
+      "hq_api__routes__legal__CloseIn": {
+        "additionalProperties": false,
+        "properties": {
+          "note_fa": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Fa"
+          }
+        },
+        "title": "CloseIn",
+        "type": "object"
+      },
       "hq_api__routes__media__StepIn": {
         "additionalProperties": false,
         "description": "media.item (agents/tools.md).",
@@ -55578,6 +56222,36 @@
           "actions"
         ],
         "title": "Step",
+        "type": "object"
+      },
+      "hq_api__routes__sessions__CloseIn": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "verdict": {
+            "enum": [
+              "ok",
+              "cancel"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "verdict"
+        ],
+        "title": "CloseIn",
         "type": "object"
       },
       "hq_api__routes__skills__ActivateIn": {
@@ -62000,7 +62674,7 @@
                   }
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/Ask-Output"
+                  "$ref": "#/components/schemas/hq_api__domain__ask__Ask"
                 }
               }
             },
@@ -62145,7 +62819,7 @@
                   }
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/Ask-Output"
+                  "$ref": "#/components/schemas/hq_api__domain__ask__Ask"
                 }
               }
             },
@@ -89294,6 +89968,7 @@
             "application/json": {
               "example": {
                 "action": "run",
+                "order_ref": "x",
                 "reason_fa": "x"
               },
               "schema": {
@@ -94160,7 +94835,7 @@
                 "note_fa": "x"
               },
               "schema": {
-                "$ref": "#/components/schemas/CloseIn"
+                "$ref": "#/components/schemas/hq_api__routes__legal__CloseIn"
               }
             }
           },
@@ -105226,6 +105901,329 @@
         ]
       }
     },
+    "/api/v1/orders/{ref}/close": {
+      "post": {
+        "description": "The owner's OK: `ok` — the order `delivered` (`cancelled` when it has no final output),\nits open works cancelled except the permanent structures it set up, the session closed and\narchived (its talk read-only); `cancel` — the same, `cancelled`. Requires `Idempotency-Key`.",
+        "operationId": "close_session",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "note": "یادداشت",
+                "verdict": "ok"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/hq_api__routes__sessions__CloseIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "ack": {
+                    "assigned": [
+                      {
+                        "code": "TY",
+                        "company": "TY",
+                        "title_fa": "گزارش هفتگی رشد"
+                      }
+                    ],
+                    "at": "2026-10-17T05:42:00Z",
+                    "by": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "due_at": "2026-10-17T05:42:00Z",
+                    "plan_fa": "x"
+                  },
+                  "at": "2026-10-17T05:42:00Z",
+                  "blockers": [
+                    {
+                      "detail_fa": "x",
+                      "fix": {
+                        "action": "decision.approve",
+                        "label_fa": "x",
+                        "target": "D-000123"
+                      },
+                      "kind": "no_employee",
+                      "since": "2026-10-17T05:42:00Z",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "brief": {
+                    "done_fa": "x",
+                    "need_fa": "x",
+                    "now_fa": "x"
+                  },
+                  "conversation_ref": "x",
+                  "kit": {
+                    "kit": "x",
+                    "name_fa": "تریدیار",
+                    "sealed": false,
+                    "summary": {
+                      "connections": [
+                        {
+                          "kind": "one_off",
+                          "label_fa": "x"
+                        }
+                      ],
+                      "groups": [
+                        {
+                          "key": "x",
+                          "title_fa": "گزارش هفتگی رشد"
+                        }
+                      ],
+                      "key": "x",
+                      "kpis": [
+                        {
+                          "card": "x",
+                          "key": "x",
+                          "manual": false,
+                          "name_fa": "تریدیار",
+                          "unit": "x"
+                        }
+                      ],
+                      "lines": [
+                        {
+                          "platform": "x",
+                          "ref": null,
+                          "template": "x",
+                          "title_fa": "گزارش هفتگی رشد",
+                          "why_fa": null
+                        }
+                      ],
+                      "purpose_fa": "x",
+                      "team": {
+                        "departments": [
+                          {
+                            "code": null,
+                            "name_fa": null
+                          }
+                        ],
+                        "positions": 1
+                      },
+                      "team_template": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "todo_fa": [
+                        "x"
+                      ]
+                    },
+                    "title_fa": "گزارش هفتگی رشد"
+                  },
+                  "outputs": [
+                    {
+                      "kind": "final",
+                      "ref": "W-000789",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "pace": "auto",
+                  "participants": [
+                    {
+                      "company": "TY",
+                      "key": "x",
+                      "kind": "holder",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "parts": [
+                    {
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "merge_queued_at": "2026-10-17T05:42:00Z",
+                      "parts": [
+                        {
+                          "assignee": "TY-GROWTH-01",
+                          "budget_tokens": 1,
+                          "failed_fa": "x",
+                          "n": 1,
+                          "output_ref": "x",
+                          "output_title_fa": "x",
+                          "progress_pct": 1,
+                          "ref": "W-000789",
+                          "role": "x",
+                          "state": "working",
+                          "status": "active",
+                          "title_fa": "گزارش هفتگی رشد",
+                          "tokens_used": 1,
+                          "who_fa": "x"
+                        }
+                      ],
+                      "proposed_by": "x",
+                      "state": "running",
+                      "work_ref": "x"
+                    }
+                  ],
+                  "ref": "W-000789",
+                  "route": {
+                    "budget_tokens": 1,
+                    "collaborators": [
+                      "x"
+                    ],
+                    "companies": [
+                      "x"
+                    ],
+                    "department": "GROWTH",
+                    "mode": "x",
+                    "output_kind": "x",
+                    "player": "x"
+                  },
+                  "session": {
+                    "badge": "your_turn",
+                    "closed_at": "2026-10-17T05:42:00Z",
+                    "hidden": false,
+                    "reason_fa": "x",
+                    "state": "open"
+                  },
+                  "state": "received",
+                  "steps": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "what_fa": "x",
+                      "who_fa": "x"
+                    }
+                  ],
+                  "summary": {
+                    "done_fa": "x",
+                    "left_fa": "x",
+                    "need_fa": "x"
+                  },
+                  "tasks": [
+                    {
+                      "by": "owner",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "n": 1,
+                      "state": "todo",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "who_fa": "x",
+                      "work_ref": "x"
+                    }
+                  ],
+                  "text_fa": "x",
+                  "turn": {
+                    "asks": [
+                      {
+                        "at": "2026-10-17T05:42:00Z",
+                        "by": {
+                          "code": "TY-CEO",
+                          "display_fa": null,
+                          "kind": "agent"
+                        },
+                        "question_fa": "x",
+                        "who_fa": "x"
+                      }
+                    ],
+                    "at": "2026-10-17T05:42:00Z",
+                    "by": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "question_fa": "x",
+                    "who_fa": "x"
+                  },
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "workspaces": [
+                    {
+                      "closed_at": "2026-10-17T05:42:00Z",
+                      "last_step_fa": "x",
+                      "note_fa": "x",
+                      "path": "x",
+                      "remove_after": "2026-10-17T05:42:00Z",
+                      "server": "x",
+                      "session_ref": "x",
+                      "state": "starting",
+                      "turns": 1,
+                      "updated_at": "2026-10-17T05:42:00Z",
+                      "where_fa": "x",
+                      "work_ref": "x"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/OrderReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Close Session",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
     "/api/v1/orders/{ref}/fix": {
       "post": {
         "description": "One tap on a blocker's fix (contract §29.2's table). The fix must be one\nof the report's blockers now (`budget.add` also on any open work of the\norder); each runs the owner's existing action, with its own step-up.",
@@ -105292,6 +106290,11 @@
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
+                  "brief": {
+                    "done_fa": "x",
+                    "need_fa": "x",
+                    "now_fa": "x"
+                  },
                   "conversation_ref": "x",
                   "kit": {
                     "kit": "x",
@@ -105355,6 +106358,14 @@
                     }
                   ],
                   "pace": "auto",
+                  "participants": [
+                    {
+                      "company": "TY",
+                      "key": "x",
+                      "kind": "holder",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
                   "parts": [
                     {
                       "created_at": "2026-10-17T05:42:00Z",
@@ -105396,6 +106407,13 @@
                     "output_kind": "x",
                     "player": "x"
                   },
+                  "session": {
+                    "badge": "your_turn",
+                    "closed_at": "2026-10-17T05:42:00Z",
+                    "hidden": false,
+                    "reason_fa": "x",
+                    "state": "open"
+                  },
                   "state": "received",
                   "steps": [
                     {
@@ -105409,8 +106427,31 @@
                     "left_fa": "x",
                     "need_fa": "x"
                   },
+                  "tasks": [
+                    {
+                      "by": "owner",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "n": 1,
+                      "state": "todo",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "who_fa": "x",
+                      "work_ref": "x"
+                    }
+                  ],
                   "text_fa": "x",
                   "turn": {
+                    "asks": [
+                      {
+                        "at": "2026-10-17T05:42:00Z",
+                        "by": {
+                          "code": "TY-CEO",
+                          "display_fa": null,
+                          "kind": "agent"
+                        },
+                        "question_fa": "x",
+                        "who_fa": "x"
+                      }
+                    ],
                     "at": "2026-10-17T05:42:00Z",
                     "by": {
                       "code": "TY-CEO",
@@ -105518,6 +106559,1587 @@
         ]
       }
     },
+    "/api/v1/orders/{ref}/hide": {
+      "post": {
+        "description": "Off every list (nothing is deleted); `GET /sessions?state=all` still shows it.",
+        "operationId": "hide_session",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "ack": {
+                    "assigned": [
+                      {
+                        "code": "TY",
+                        "company": "TY",
+                        "title_fa": "گزارش هفتگی رشد"
+                      }
+                    ],
+                    "at": "2026-10-17T05:42:00Z",
+                    "by": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "due_at": "2026-10-17T05:42:00Z",
+                    "plan_fa": "x"
+                  },
+                  "at": "2026-10-17T05:42:00Z",
+                  "blockers": [
+                    {
+                      "detail_fa": "x",
+                      "fix": {
+                        "action": "decision.approve",
+                        "label_fa": "x",
+                        "target": "D-000123"
+                      },
+                      "kind": "no_employee",
+                      "since": "2026-10-17T05:42:00Z",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "brief": {
+                    "done_fa": "x",
+                    "need_fa": "x",
+                    "now_fa": "x"
+                  },
+                  "conversation_ref": "x",
+                  "kit": {
+                    "kit": "x",
+                    "name_fa": "تریدیار",
+                    "sealed": false,
+                    "summary": {
+                      "connections": [
+                        {
+                          "kind": "one_off",
+                          "label_fa": "x"
+                        }
+                      ],
+                      "groups": [
+                        {
+                          "key": "x",
+                          "title_fa": "گزارش هفتگی رشد"
+                        }
+                      ],
+                      "key": "x",
+                      "kpis": [
+                        {
+                          "card": "x",
+                          "key": "x",
+                          "manual": false,
+                          "name_fa": "تریدیار",
+                          "unit": "x"
+                        }
+                      ],
+                      "lines": [
+                        {
+                          "platform": "x",
+                          "ref": null,
+                          "template": "x",
+                          "title_fa": "گزارش هفتگی رشد",
+                          "why_fa": null
+                        }
+                      ],
+                      "purpose_fa": "x",
+                      "team": {
+                        "departments": [
+                          {
+                            "code": null,
+                            "name_fa": null
+                          }
+                        ],
+                        "positions": 1
+                      },
+                      "team_template": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "todo_fa": [
+                        "x"
+                      ]
+                    },
+                    "title_fa": "گزارش هفتگی رشد"
+                  },
+                  "outputs": [
+                    {
+                      "kind": "final",
+                      "ref": "W-000789",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "pace": "auto",
+                  "participants": [
+                    {
+                      "company": "TY",
+                      "key": "x",
+                      "kind": "holder",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "parts": [
+                    {
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "merge_queued_at": "2026-10-17T05:42:00Z",
+                      "parts": [
+                        {
+                          "assignee": "TY-GROWTH-01",
+                          "budget_tokens": 1,
+                          "failed_fa": "x",
+                          "n": 1,
+                          "output_ref": "x",
+                          "output_title_fa": "x",
+                          "progress_pct": 1,
+                          "ref": "W-000789",
+                          "role": "x",
+                          "state": "working",
+                          "status": "active",
+                          "title_fa": "گزارش هفتگی رشد",
+                          "tokens_used": 1,
+                          "who_fa": "x"
+                        }
+                      ],
+                      "proposed_by": "x",
+                      "state": "running",
+                      "work_ref": "x"
+                    }
+                  ],
+                  "ref": "W-000789",
+                  "route": {
+                    "budget_tokens": 1,
+                    "collaborators": [
+                      "x"
+                    ],
+                    "companies": [
+                      "x"
+                    ],
+                    "department": "GROWTH",
+                    "mode": "x",
+                    "output_kind": "x",
+                    "player": "x"
+                  },
+                  "session": {
+                    "badge": "your_turn",
+                    "closed_at": "2026-10-17T05:42:00Z",
+                    "hidden": false,
+                    "reason_fa": "x",
+                    "state": "open"
+                  },
+                  "state": "received",
+                  "steps": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "what_fa": "x",
+                      "who_fa": "x"
+                    }
+                  ],
+                  "summary": {
+                    "done_fa": "x",
+                    "left_fa": "x",
+                    "need_fa": "x"
+                  },
+                  "tasks": [
+                    {
+                      "by": "owner",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "n": 1,
+                      "state": "todo",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "who_fa": "x",
+                      "work_ref": "x"
+                    }
+                  ],
+                  "text_fa": "x",
+                  "turn": {
+                    "asks": [
+                      {
+                        "at": "2026-10-17T05:42:00Z",
+                        "by": {
+                          "code": "TY-CEO",
+                          "display_fa": null,
+                          "kind": "agent"
+                        },
+                        "question_fa": "x",
+                        "who_fa": "x"
+                      }
+                    ],
+                    "at": "2026-10-17T05:42:00Z",
+                    "by": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "question_fa": "x",
+                    "who_fa": "x"
+                  },
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "workspaces": [
+                    {
+                      "closed_at": "2026-10-17T05:42:00Z",
+                      "last_step_fa": "x",
+                      "note_fa": "x",
+                      "path": "x",
+                      "remove_after": "2026-10-17T05:42:00Z",
+                      "server": "x",
+                      "session_ref": "x",
+                      "state": "starting",
+                      "turns": 1,
+                      "updated_at": "2026-10-17T05:42:00Z",
+                      "where_fa": "x",
+                      "work_ref": "x"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/OrderReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Hide Session",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/orders/{ref}/pace": {
+      "post": {
+        "description": "The owner switches how the order is carried out, at any time: `step` («با من»: one step,\nthen the holder asks) or `auto` («خودکار»: the holder plans and goes to the end). A step says\nso, the holder's brief is rewritten and the holder is woken so its next run reads the new pace.\nA closed session answers 409.",
+        "operationId": "set_pace",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "pace": "auto"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/PaceIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "ack": {
+                    "assigned": [
+                      {
+                        "code": "TY",
+                        "company": "TY",
+                        "title_fa": "گزارش هفتگی رشد"
+                      }
+                    ],
+                    "at": "2026-10-17T05:42:00Z",
+                    "by": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "due_at": "2026-10-17T05:42:00Z",
+                    "plan_fa": "x"
+                  },
+                  "at": "2026-10-17T05:42:00Z",
+                  "blockers": [
+                    {
+                      "detail_fa": "x",
+                      "fix": {
+                        "action": "decision.approve",
+                        "label_fa": "x",
+                        "target": "D-000123"
+                      },
+                      "kind": "no_employee",
+                      "since": "2026-10-17T05:42:00Z",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "brief": {
+                    "done_fa": "x",
+                    "need_fa": "x",
+                    "now_fa": "x"
+                  },
+                  "conversation_ref": "x",
+                  "kit": {
+                    "kit": "x",
+                    "name_fa": "تریدیار",
+                    "sealed": false,
+                    "summary": {
+                      "connections": [
+                        {
+                          "kind": "one_off",
+                          "label_fa": "x"
+                        }
+                      ],
+                      "groups": [
+                        {
+                          "key": "x",
+                          "title_fa": "گزارش هفتگی رشد"
+                        }
+                      ],
+                      "key": "x",
+                      "kpis": [
+                        {
+                          "card": "x",
+                          "key": "x",
+                          "manual": false,
+                          "name_fa": "تریدیار",
+                          "unit": "x"
+                        }
+                      ],
+                      "lines": [
+                        {
+                          "platform": "x",
+                          "ref": null,
+                          "template": "x",
+                          "title_fa": "گزارش هفتگی رشد",
+                          "why_fa": null
+                        }
+                      ],
+                      "purpose_fa": "x",
+                      "team": {
+                        "departments": [
+                          {
+                            "code": null,
+                            "name_fa": null
+                          }
+                        ],
+                        "positions": 1
+                      },
+                      "team_template": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "todo_fa": [
+                        "x"
+                      ]
+                    },
+                    "title_fa": "گزارش هفتگی رشد"
+                  },
+                  "outputs": [
+                    {
+                      "kind": "final",
+                      "ref": "W-000789",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "pace": "auto",
+                  "participants": [
+                    {
+                      "company": "TY",
+                      "key": "x",
+                      "kind": "holder",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "parts": [
+                    {
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "merge_queued_at": "2026-10-17T05:42:00Z",
+                      "parts": [
+                        {
+                          "assignee": "TY-GROWTH-01",
+                          "budget_tokens": 1,
+                          "failed_fa": "x",
+                          "n": 1,
+                          "output_ref": "x",
+                          "output_title_fa": "x",
+                          "progress_pct": 1,
+                          "ref": "W-000789",
+                          "role": "x",
+                          "state": "working",
+                          "status": "active",
+                          "title_fa": "گزارش هفتگی رشد",
+                          "tokens_used": 1,
+                          "who_fa": "x"
+                        }
+                      ],
+                      "proposed_by": "x",
+                      "state": "running",
+                      "work_ref": "x"
+                    }
+                  ],
+                  "ref": "W-000789",
+                  "route": {
+                    "budget_tokens": 1,
+                    "collaborators": [
+                      "x"
+                    ],
+                    "companies": [
+                      "x"
+                    ],
+                    "department": "GROWTH",
+                    "mode": "x",
+                    "output_kind": "x",
+                    "player": "x"
+                  },
+                  "session": {
+                    "badge": "your_turn",
+                    "closed_at": "2026-10-17T05:42:00Z",
+                    "hidden": false,
+                    "reason_fa": "x",
+                    "state": "open"
+                  },
+                  "state": "received",
+                  "steps": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "what_fa": "x",
+                      "who_fa": "x"
+                    }
+                  ],
+                  "summary": {
+                    "done_fa": "x",
+                    "left_fa": "x",
+                    "need_fa": "x"
+                  },
+                  "tasks": [
+                    {
+                      "by": "owner",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "n": 1,
+                      "state": "todo",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "who_fa": "x",
+                      "work_ref": "x"
+                    }
+                  ],
+                  "text_fa": "x",
+                  "turn": {
+                    "asks": [
+                      {
+                        "at": "2026-10-17T05:42:00Z",
+                        "by": {
+                          "code": "TY-CEO",
+                          "display_fa": null,
+                          "kind": "agent"
+                        },
+                        "question_fa": "x",
+                        "who_fa": "x"
+                      }
+                    ],
+                    "at": "2026-10-17T05:42:00Z",
+                    "by": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "question_fa": "x",
+                    "who_fa": "x"
+                  },
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "workspaces": [
+                    {
+                      "closed_at": "2026-10-17T05:42:00Z",
+                      "last_step_fa": "x",
+                      "note_fa": "x",
+                      "path": "x",
+                      "remove_after": "2026-10-17T05:42:00Z",
+                      "server": "x",
+                      "session_ref": "x",
+                      "state": "starting",
+                      "turns": 1,
+                      "updated_at": "2026-10-17T05:42:00Z",
+                      "where_fa": "x",
+                      "work_ref": "x"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/OrderReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Set Pace",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/orders/{ref}/participants": {
+      "post": {
+        "description": "A person (any persona key: a manager of any company as role@CODE, the advisor, the\noverseer, the assistant) or a player (`gpt`, `gemini`, `deepseek`; one signed out answers\n409) joins the session's talk and may be asked (`to`) or heard with «نظر همه».",
+        "operationId": "add_participant",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "key": "x",
+                "kind": "person"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ParticipantIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "ack": {
+                    "assigned": [
+                      {
+                        "code": "TY",
+                        "company": "TY",
+                        "title_fa": "گزارش هفتگی رشد"
+                      }
+                    ],
+                    "at": "2026-10-17T05:42:00Z",
+                    "by": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "due_at": "2026-10-17T05:42:00Z",
+                    "plan_fa": "x"
+                  },
+                  "at": "2026-10-17T05:42:00Z",
+                  "blockers": [
+                    {
+                      "detail_fa": "x",
+                      "fix": {
+                        "action": "decision.approve",
+                        "label_fa": "x",
+                        "target": "D-000123"
+                      },
+                      "kind": "no_employee",
+                      "since": "2026-10-17T05:42:00Z",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "brief": {
+                    "done_fa": "x",
+                    "need_fa": "x",
+                    "now_fa": "x"
+                  },
+                  "conversation_ref": "x",
+                  "kit": {
+                    "kit": "x",
+                    "name_fa": "تریدیار",
+                    "sealed": false,
+                    "summary": {
+                      "connections": [
+                        {
+                          "kind": "one_off",
+                          "label_fa": "x"
+                        }
+                      ],
+                      "groups": [
+                        {
+                          "key": "x",
+                          "title_fa": "گزارش هفتگی رشد"
+                        }
+                      ],
+                      "key": "x",
+                      "kpis": [
+                        {
+                          "card": "x",
+                          "key": "x",
+                          "manual": false,
+                          "name_fa": "تریدیار",
+                          "unit": "x"
+                        }
+                      ],
+                      "lines": [
+                        {
+                          "platform": "x",
+                          "ref": null,
+                          "template": "x",
+                          "title_fa": "گزارش هفتگی رشد",
+                          "why_fa": null
+                        }
+                      ],
+                      "purpose_fa": "x",
+                      "team": {
+                        "departments": [
+                          {
+                            "code": null,
+                            "name_fa": null
+                          }
+                        ],
+                        "positions": 1
+                      },
+                      "team_template": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "todo_fa": [
+                        "x"
+                      ]
+                    },
+                    "title_fa": "گزارش هفتگی رشد"
+                  },
+                  "outputs": [
+                    {
+                      "kind": "final",
+                      "ref": "W-000789",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "pace": "auto",
+                  "participants": [
+                    {
+                      "company": "TY",
+                      "key": "x",
+                      "kind": "holder",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "parts": [
+                    {
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "merge_queued_at": "2026-10-17T05:42:00Z",
+                      "parts": [
+                        {
+                          "assignee": "TY-GROWTH-01",
+                          "budget_tokens": 1,
+                          "failed_fa": "x",
+                          "n": 1,
+                          "output_ref": "x",
+                          "output_title_fa": "x",
+                          "progress_pct": 1,
+                          "ref": "W-000789",
+                          "role": "x",
+                          "state": "working",
+                          "status": "active",
+                          "title_fa": "گزارش هفتگی رشد",
+                          "tokens_used": 1,
+                          "who_fa": "x"
+                        }
+                      ],
+                      "proposed_by": "x",
+                      "state": "running",
+                      "work_ref": "x"
+                    }
+                  ],
+                  "ref": "W-000789",
+                  "route": {
+                    "budget_tokens": 1,
+                    "collaborators": [
+                      "x"
+                    ],
+                    "companies": [
+                      "x"
+                    ],
+                    "department": "GROWTH",
+                    "mode": "x",
+                    "output_kind": "x",
+                    "player": "x"
+                  },
+                  "session": {
+                    "badge": "your_turn",
+                    "closed_at": "2026-10-17T05:42:00Z",
+                    "hidden": false,
+                    "reason_fa": "x",
+                    "state": "open"
+                  },
+                  "state": "received",
+                  "steps": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "what_fa": "x",
+                      "who_fa": "x"
+                    }
+                  ],
+                  "summary": {
+                    "done_fa": "x",
+                    "left_fa": "x",
+                    "need_fa": "x"
+                  },
+                  "tasks": [
+                    {
+                      "by": "owner",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "n": 1,
+                      "state": "todo",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "who_fa": "x",
+                      "work_ref": "x"
+                    }
+                  ],
+                  "text_fa": "x",
+                  "turn": {
+                    "asks": [
+                      {
+                        "at": "2026-10-17T05:42:00Z",
+                        "by": {
+                          "code": "TY-CEO",
+                          "display_fa": null,
+                          "kind": "agent"
+                        },
+                        "question_fa": "x",
+                        "who_fa": "x"
+                      }
+                    ],
+                    "at": "2026-10-17T05:42:00Z",
+                    "by": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "question_fa": "x",
+                    "who_fa": "x"
+                  },
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "workspaces": [
+                    {
+                      "closed_at": "2026-10-17T05:42:00Z",
+                      "last_step_fa": "x",
+                      "note_fa": "x",
+                      "path": "x",
+                      "remove_after": "2026-10-17T05:42:00Z",
+                      "server": "x",
+                      "session_ref": "x",
+                      "state": "starting",
+                      "turns": 1,
+                      "updated_at": "2026-10-17T05:42:00Z",
+                      "where_fa": "x",
+                      "work_ref": "x"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/OrderReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Add Participant",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/orders/{ref}/participants/{key}": {
+      "delete": {
+        "description": "The participant leaves the session (never the holder: 409).",
+        "operationId": "remove_participant",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "ack": {
+                    "assigned": [
+                      {
+                        "code": "TY",
+                        "company": "TY",
+                        "title_fa": "گزارش هفتگی رشد"
+                      }
+                    ],
+                    "at": "2026-10-17T05:42:00Z",
+                    "by": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "due_at": "2026-10-17T05:42:00Z",
+                    "plan_fa": "x"
+                  },
+                  "at": "2026-10-17T05:42:00Z",
+                  "blockers": [
+                    {
+                      "detail_fa": "x",
+                      "fix": {
+                        "action": "decision.approve",
+                        "label_fa": "x",
+                        "target": "D-000123"
+                      },
+                      "kind": "no_employee",
+                      "since": "2026-10-17T05:42:00Z",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "brief": {
+                    "done_fa": "x",
+                    "need_fa": "x",
+                    "now_fa": "x"
+                  },
+                  "conversation_ref": "x",
+                  "kit": {
+                    "kit": "x",
+                    "name_fa": "تریدیار",
+                    "sealed": false,
+                    "summary": {
+                      "connections": [
+                        {
+                          "kind": "one_off",
+                          "label_fa": "x"
+                        }
+                      ],
+                      "groups": [
+                        {
+                          "key": "x",
+                          "title_fa": "گزارش هفتگی رشد"
+                        }
+                      ],
+                      "key": "x",
+                      "kpis": [
+                        {
+                          "card": "x",
+                          "key": "x",
+                          "manual": false,
+                          "name_fa": "تریدیار",
+                          "unit": "x"
+                        }
+                      ],
+                      "lines": [
+                        {
+                          "platform": "x",
+                          "ref": null,
+                          "template": "x",
+                          "title_fa": "گزارش هفتگی رشد",
+                          "why_fa": null
+                        }
+                      ],
+                      "purpose_fa": "x",
+                      "team": {
+                        "departments": [
+                          {
+                            "code": null,
+                            "name_fa": null
+                          }
+                        ],
+                        "positions": 1
+                      },
+                      "team_template": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "todo_fa": [
+                        "x"
+                      ]
+                    },
+                    "title_fa": "گزارش هفتگی رشد"
+                  },
+                  "outputs": [
+                    {
+                      "kind": "final",
+                      "ref": "W-000789",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "pace": "auto",
+                  "participants": [
+                    {
+                      "company": "TY",
+                      "key": "x",
+                      "kind": "holder",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "parts": [
+                    {
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "merge_queued_at": "2026-10-17T05:42:00Z",
+                      "parts": [
+                        {
+                          "assignee": "TY-GROWTH-01",
+                          "budget_tokens": 1,
+                          "failed_fa": "x",
+                          "n": 1,
+                          "output_ref": "x",
+                          "output_title_fa": "x",
+                          "progress_pct": 1,
+                          "ref": "W-000789",
+                          "role": "x",
+                          "state": "working",
+                          "status": "active",
+                          "title_fa": "گزارش هفتگی رشد",
+                          "tokens_used": 1,
+                          "who_fa": "x"
+                        }
+                      ],
+                      "proposed_by": "x",
+                      "state": "running",
+                      "work_ref": "x"
+                    }
+                  ],
+                  "ref": "W-000789",
+                  "route": {
+                    "budget_tokens": 1,
+                    "collaborators": [
+                      "x"
+                    ],
+                    "companies": [
+                      "x"
+                    ],
+                    "department": "GROWTH",
+                    "mode": "x",
+                    "output_kind": "x",
+                    "player": "x"
+                  },
+                  "session": {
+                    "badge": "your_turn",
+                    "closed_at": "2026-10-17T05:42:00Z",
+                    "hidden": false,
+                    "reason_fa": "x",
+                    "state": "open"
+                  },
+                  "state": "received",
+                  "steps": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "what_fa": "x",
+                      "who_fa": "x"
+                    }
+                  ],
+                  "summary": {
+                    "done_fa": "x",
+                    "left_fa": "x",
+                    "need_fa": "x"
+                  },
+                  "tasks": [
+                    {
+                      "by": "owner",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "n": 1,
+                      "state": "todo",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "who_fa": "x",
+                      "work_ref": "x"
+                    }
+                  ],
+                  "text_fa": "x",
+                  "turn": {
+                    "asks": [
+                      {
+                        "at": "2026-10-17T05:42:00Z",
+                        "by": {
+                          "code": "TY-CEO",
+                          "display_fa": null,
+                          "kind": "agent"
+                        },
+                        "question_fa": "x",
+                        "who_fa": "x"
+                      }
+                    ],
+                    "at": "2026-10-17T05:42:00Z",
+                    "by": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "question_fa": "x",
+                    "who_fa": "x"
+                  },
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "workspaces": [
+                    {
+                      "closed_at": "2026-10-17T05:42:00Z",
+                      "last_step_fa": "x",
+                      "note_fa": "x",
+                      "path": "x",
+                      "remove_after": "2026-10-17T05:42:00Z",
+                      "server": "x",
+                      "session_ref": "x",
+                      "state": "starting",
+                      "turns": 1,
+                      "updated_at": "2026-10-17T05:42:00Z",
+                      "where_fa": "x",
+                      "work_ref": "x"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/OrderReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Remove Participant",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/orders/{ref}/reopen": {
+      "post": {
+        "description": "`ended_at` cleared, the session open again, the holder woken.",
+        "operationId": "reopen_session",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "ack": {
+                    "assigned": [
+                      {
+                        "code": "TY",
+                        "company": "TY",
+                        "title_fa": "گزارش هفتگی رشد"
+                      }
+                    ],
+                    "at": "2026-10-17T05:42:00Z",
+                    "by": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "due_at": "2026-10-17T05:42:00Z",
+                    "plan_fa": "x"
+                  },
+                  "at": "2026-10-17T05:42:00Z",
+                  "blockers": [
+                    {
+                      "detail_fa": "x",
+                      "fix": {
+                        "action": "decision.approve",
+                        "label_fa": "x",
+                        "target": "D-000123"
+                      },
+                      "kind": "no_employee",
+                      "since": "2026-10-17T05:42:00Z",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "brief": {
+                    "done_fa": "x",
+                    "need_fa": "x",
+                    "now_fa": "x"
+                  },
+                  "conversation_ref": "x",
+                  "kit": {
+                    "kit": "x",
+                    "name_fa": "تریدیار",
+                    "sealed": false,
+                    "summary": {
+                      "connections": [
+                        {
+                          "kind": "one_off",
+                          "label_fa": "x"
+                        }
+                      ],
+                      "groups": [
+                        {
+                          "key": "x",
+                          "title_fa": "گزارش هفتگی رشد"
+                        }
+                      ],
+                      "key": "x",
+                      "kpis": [
+                        {
+                          "card": "x",
+                          "key": "x",
+                          "manual": false,
+                          "name_fa": "تریدیار",
+                          "unit": "x"
+                        }
+                      ],
+                      "lines": [
+                        {
+                          "platform": "x",
+                          "ref": null,
+                          "template": "x",
+                          "title_fa": "گزارش هفتگی رشد",
+                          "why_fa": null
+                        }
+                      ],
+                      "purpose_fa": "x",
+                      "team": {
+                        "departments": [
+                          {
+                            "code": null,
+                            "name_fa": null
+                          }
+                        ],
+                        "positions": 1
+                      },
+                      "team_template": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "todo_fa": [
+                        "x"
+                      ]
+                    },
+                    "title_fa": "گزارش هفتگی رشد"
+                  },
+                  "outputs": [
+                    {
+                      "kind": "final",
+                      "ref": "W-000789",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "pace": "auto",
+                  "participants": [
+                    {
+                      "company": "TY",
+                      "key": "x",
+                      "kind": "holder",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "parts": [
+                    {
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "merge_queued_at": "2026-10-17T05:42:00Z",
+                      "parts": [
+                        {
+                          "assignee": "TY-GROWTH-01",
+                          "budget_tokens": 1,
+                          "failed_fa": "x",
+                          "n": 1,
+                          "output_ref": "x",
+                          "output_title_fa": "x",
+                          "progress_pct": 1,
+                          "ref": "W-000789",
+                          "role": "x",
+                          "state": "working",
+                          "status": "active",
+                          "title_fa": "گزارش هفتگی رشد",
+                          "tokens_used": 1,
+                          "who_fa": "x"
+                        }
+                      ],
+                      "proposed_by": "x",
+                      "state": "running",
+                      "work_ref": "x"
+                    }
+                  ],
+                  "ref": "W-000789",
+                  "route": {
+                    "budget_tokens": 1,
+                    "collaborators": [
+                      "x"
+                    ],
+                    "companies": [
+                      "x"
+                    ],
+                    "department": "GROWTH",
+                    "mode": "x",
+                    "output_kind": "x",
+                    "player": "x"
+                  },
+                  "session": {
+                    "badge": "your_turn",
+                    "closed_at": "2026-10-17T05:42:00Z",
+                    "hidden": false,
+                    "reason_fa": "x",
+                    "state": "open"
+                  },
+                  "state": "received",
+                  "steps": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "what_fa": "x",
+                      "who_fa": "x"
+                    }
+                  ],
+                  "summary": {
+                    "done_fa": "x",
+                    "left_fa": "x",
+                    "need_fa": "x"
+                  },
+                  "tasks": [
+                    {
+                      "by": "owner",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "n": 1,
+                      "state": "todo",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "who_fa": "x",
+                      "work_ref": "x"
+                    }
+                  ],
+                  "text_fa": "x",
+                  "turn": {
+                    "asks": [
+                      {
+                        "at": "2026-10-17T05:42:00Z",
+                        "by": {
+                          "code": "TY-CEO",
+                          "display_fa": null,
+                          "kind": "agent"
+                        },
+                        "question_fa": "x",
+                        "who_fa": "x"
+                      }
+                    ],
+                    "at": "2026-10-17T05:42:00Z",
+                    "by": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "question_fa": "x",
+                    "who_fa": "x"
+                  },
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "workspaces": [
+                    {
+                      "closed_at": "2026-10-17T05:42:00Z",
+                      "last_step_fa": "x",
+                      "note_fa": "x",
+                      "path": "x",
+                      "remove_after": "2026-10-17T05:42:00Z",
+                      "server": "x",
+                      "session_ref": "x",
+                      "state": "starting",
+                      "turns": 1,
+                      "updated_at": "2026-10-17T05:42:00Z",
+                      "where_fa": "x",
+                      "work_ref": "x"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/OrderReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Reopen Session",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
     "/api/v1/orders/{ref}/reply": {
       "post": {
         "description": "⟨1.16⟩ §34.3 the owner answers the holder (or simply says the next step): a step\n«مدیر کل: …», the open turn cleared, and the asker's work (else the holder's) runs again at\nonce with the dialogue in its brief. An ended order answers 409. Requires `Idempotency-Key`.",
@@ -105582,6 +108204,11 @@
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
+                  "brief": {
+                    "done_fa": "x",
+                    "need_fa": "x",
+                    "now_fa": "x"
+                  },
                   "conversation_ref": "x",
                   "kit": {
                     "kit": "x",
@@ -105645,6 +108272,14 @@
                     }
                   ],
                   "pace": "auto",
+                  "participants": [
+                    {
+                      "company": "TY",
+                      "key": "x",
+                      "kind": "holder",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
                   "parts": [
                     {
                       "created_at": "2026-10-17T05:42:00Z",
@@ -105686,6 +108321,13 @@
                     "output_kind": "x",
                     "player": "x"
                   },
+                  "session": {
+                    "badge": "your_turn",
+                    "closed_at": "2026-10-17T05:42:00Z",
+                    "hidden": false,
+                    "reason_fa": "x",
+                    "state": "open"
+                  },
                   "state": "received",
                   "steps": [
                     {
@@ -105699,8 +108341,31 @@
                     "left_fa": "x",
                     "need_fa": "x"
                   },
+                  "tasks": [
+                    {
+                      "by": "owner",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "n": 1,
+                      "state": "todo",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "who_fa": "x",
+                      "work_ref": "x"
+                    }
+                  ],
                   "text_fa": "x",
                   "turn": {
+                    "asks": [
+                      {
+                        "at": "2026-10-17T05:42:00Z",
+                        "by": {
+                          "code": "TY-CEO",
+                          "display_fa": null,
+                          "kind": "agent"
+                        },
+                        "question_fa": "x",
+                        "who_fa": "x"
+                      }
+                    ],
                     "at": "2026-10-17T05:42:00Z",
                     "by": {
                       "code": "TY-CEO",
@@ -105859,6 +108524,11 @@
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
+                  "brief": {
+                    "done_fa": "x",
+                    "need_fa": "x",
+                    "now_fa": "x"
+                  },
                   "conversation_ref": "x",
                   "kit": {
                     "kit": "x",
@@ -105922,6 +108592,14 @@
                     }
                   ],
                   "pace": "auto",
+                  "participants": [
+                    {
+                      "company": "TY",
+                      "key": "x",
+                      "kind": "holder",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
                   "parts": [
                     {
                       "created_at": "2026-10-17T05:42:00Z",
@@ -105963,6 +108641,13 @@
                     "output_kind": "x",
                     "player": "x"
                   },
+                  "session": {
+                    "badge": "your_turn",
+                    "closed_at": "2026-10-17T05:42:00Z",
+                    "hidden": false,
+                    "reason_fa": "x",
+                    "state": "open"
+                  },
                   "state": "received",
                   "steps": [
                     {
@@ -105976,8 +108661,31 @@
                     "left_fa": "x",
                     "need_fa": "x"
                   },
+                  "tasks": [
+                    {
+                      "by": "owner",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "n": 1,
+                      "state": "todo",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "who_fa": "x",
+                      "work_ref": "x"
+                    }
+                  ],
                   "text_fa": "x",
                   "turn": {
+                    "asks": [
+                      {
+                        "at": "2026-10-17T05:42:00Z",
+                        "by": {
+                          "code": "TY-CEO",
+                          "display_fa": null,
+                          "kind": "agent"
+                        },
+                        "question_fa": "x",
+                        "who_fa": "x"
+                      }
+                    ],
                     "at": "2026-10-17T05:42:00Z",
                     "by": {
                       "code": "TY-CEO",
@@ -106182,6 +108890,547 @@
           }
         },
         "summary": "Talk Order",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/orders/{ref}/tasks": {
+      "post": {
+        "description": "A line of the session's plan, the owner's own (the holder's come from `order.ack`).",
+        "operationId": "add_task",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "title_fa": "گزارش هفتگی رشد"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/TaskIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "by": "owner",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "n": 1,
+                  "state": "todo",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "who_fa": "x",
+                  "work_ref": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/SessionTask"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Add Task",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/orders/{ref}/tasks/{id}": {
+      "patch": {
+        "description": "The owner edits, moves (`n`), ticks or drops a line of the plan.",
+        "operationId": "patch_task",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "n": 1,
+                "state": "todo",
+                "title_fa": "گزارش هفتگی رشد"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/TaskPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "by": "owner",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "n": 1,
+                  "state": "todo",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "who_fa": "x",
+                  "work_ref": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/SessionTask"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Patch Task",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/orders/{ref}/unhide": {
+      "post": {
+        "description": "Back on the lists.",
+        "operationId": "unhide_session",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "ack": {
+                    "assigned": [
+                      {
+                        "code": "TY",
+                        "company": "TY",
+                        "title_fa": "گزارش هفتگی رشد"
+                      }
+                    ],
+                    "at": "2026-10-17T05:42:00Z",
+                    "by": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "due_at": "2026-10-17T05:42:00Z",
+                    "plan_fa": "x"
+                  },
+                  "at": "2026-10-17T05:42:00Z",
+                  "blockers": [
+                    {
+                      "detail_fa": "x",
+                      "fix": {
+                        "action": "decision.approve",
+                        "label_fa": "x",
+                        "target": "D-000123"
+                      },
+                      "kind": "no_employee",
+                      "since": "2026-10-17T05:42:00Z",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "brief": {
+                    "done_fa": "x",
+                    "need_fa": "x",
+                    "now_fa": "x"
+                  },
+                  "conversation_ref": "x",
+                  "kit": {
+                    "kit": "x",
+                    "name_fa": "تریدیار",
+                    "sealed": false,
+                    "summary": {
+                      "connections": [
+                        {
+                          "kind": "one_off",
+                          "label_fa": "x"
+                        }
+                      ],
+                      "groups": [
+                        {
+                          "key": "x",
+                          "title_fa": "گزارش هفتگی رشد"
+                        }
+                      ],
+                      "key": "x",
+                      "kpis": [
+                        {
+                          "card": "x",
+                          "key": "x",
+                          "manual": false,
+                          "name_fa": "تریدیار",
+                          "unit": "x"
+                        }
+                      ],
+                      "lines": [
+                        {
+                          "platform": "x",
+                          "ref": null,
+                          "template": "x",
+                          "title_fa": "گزارش هفتگی رشد",
+                          "why_fa": null
+                        }
+                      ],
+                      "purpose_fa": "x",
+                      "team": {
+                        "departments": [
+                          {
+                            "code": null,
+                            "name_fa": null
+                          }
+                        ],
+                        "positions": 1
+                      },
+                      "team_template": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "todo_fa": [
+                        "x"
+                      ]
+                    },
+                    "title_fa": "گزارش هفتگی رشد"
+                  },
+                  "outputs": [
+                    {
+                      "kind": "final",
+                      "ref": "W-000789",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "pace": "auto",
+                  "participants": [
+                    {
+                      "company": "TY",
+                      "key": "x",
+                      "kind": "holder",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "parts": [
+                    {
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "merge_queued_at": "2026-10-17T05:42:00Z",
+                      "parts": [
+                        {
+                          "assignee": "TY-GROWTH-01",
+                          "budget_tokens": 1,
+                          "failed_fa": "x",
+                          "n": 1,
+                          "output_ref": "x",
+                          "output_title_fa": "x",
+                          "progress_pct": 1,
+                          "ref": "W-000789",
+                          "role": "x",
+                          "state": "working",
+                          "status": "active",
+                          "title_fa": "گزارش هفتگی رشد",
+                          "tokens_used": 1,
+                          "who_fa": "x"
+                        }
+                      ],
+                      "proposed_by": "x",
+                      "state": "running",
+                      "work_ref": "x"
+                    }
+                  ],
+                  "ref": "W-000789",
+                  "route": {
+                    "budget_tokens": 1,
+                    "collaborators": [
+                      "x"
+                    ],
+                    "companies": [
+                      "x"
+                    ],
+                    "department": "GROWTH",
+                    "mode": "x",
+                    "output_kind": "x",
+                    "player": "x"
+                  },
+                  "session": {
+                    "badge": "your_turn",
+                    "closed_at": "2026-10-17T05:42:00Z",
+                    "hidden": false,
+                    "reason_fa": "x",
+                    "state": "open"
+                  },
+                  "state": "received",
+                  "steps": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "what_fa": "x",
+                      "who_fa": "x"
+                    }
+                  ],
+                  "summary": {
+                    "done_fa": "x",
+                    "left_fa": "x",
+                    "need_fa": "x"
+                  },
+                  "tasks": [
+                    {
+                      "by": "owner",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "n": 1,
+                      "state": "todo",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "who_fa": "x",
+                      "work_ref": "x"
+                    }
+                  ],
+                  "text_fa": "x",
+                  "turn": {
+                    "asks": [
+                      {
+                        "at": "2026-10-17T05:42:00Z",
+                        "by": {
+                          "code": "TY-CEO",
+                          "display_fa": null,
+                          "kind": "agent"
+                        },
+                        "question_fa": "x",
+                        "who_fa": "x"
+                      }
+                    ],
+                    "at": "2026-10-17T05:42:00Z",
+                    "by": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "question_fa": "x",
+                    "who_fa": "x"
+                  },
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "workspaces": [
+                    {
+                      "closed_at": "2026-10-17T05:42:00Z",
+                      "last_step_fa": "x",
+                      "note_fa": "x",
+                      "path": "x",
+                      "remove_after": "2026-10-17T05:42:00Z",
+                      "server": "x",
+                      "session_ref": "x",
+                      "state": "starting",
+                      "turns": 1,
+                      "updated_at": "2026-10-17T05:42:00Z",
+                      "where_fa": "x",
+                      "work_ref": "x"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/OrderReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Unhide Session",
         "tags": [
           "orders"
         ]
@@ -118417,6 +121666,168 @@
         ]
       }
     },
+    "/api/v1/sessions": {
+      "get": {
+        "description": "The owner's sessions (contract §35.3): open ones by badge, `your_turn` first, each group\nnewest `last_at` first; `closed` the archive; hidden ones only with `all`.",
+        "operationId": "list_order_sessions",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "default": "open",
+              "enum": [
+                "open",
+                "closed",
+                "all"
+              ],
+              "title": "State",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "badge": "your_turn",
+                      "brief": {
+                        "done_fa": "x",
+                        "need_fa": "x",
+                        "now_fa": "x"
+                      },
+                      "closed_at": "2026-10-17T05:42:00Z",
+                      "conversation_ref": "x",
+                      "hidden": false,
+                      "holder": {
+                        "code": "TY",
+                        "company": "TY",
+                        "company_fa": "x",
+                        "title_fa": "گزارش هفتگی رشد"
+                      },
+                      "last_at": "2026-10-17T05:42:00Z",
+                      "opened_at": "2026-10-17T05:42:00Z",
+                      "pace": "auto",
+                      "participants": [
+                        {
+                          "company": "TY",
+                          "key": "x",
+                          "kind": "holder",
+                          "title_fa": "گزارش هفتگی رشد"
+                        }
+                      ],
+                      "reason_fa": "x",
+                      "ref": "W-000789",
+                      "tasks": {
+                        "done": 1,
+                        "total": 1
+                      },
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "next_cursor": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Page_SessionCard_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Order Sessions",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
     "/api/v1/skills": {
       "get": {
         "description": "The library, by ref; `role` keeps the skills whose scope includes it.",
@@ -124247,7 +127658,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "pattern": "^(secretary|overseer|assistant|advisor|[a-z][a-z0-9_]{1,40}@[A-Z][A-Z0-9]{1,9})$",
+                  "pattern": "^(secretary|overseer|assistant|advisor|[a-z][a-z0-9_]{1,40}@[A-Z][A-Z0-9]{1,9}|player:(gpt|gemini|deepseek))$",
                   "type": "string"
                 },
                 {
@@ -124311,11 +127722,13 @@
                 "example": {
                   "items": [
                     {
+                      "closed_at": "2026-10-17T05:42:00Z",
                       "cost": {
                         "tokens": 1,
                         "usd_equiv": "x",
                         "voice_usd": "2.410000"
                       },
+                      "holder": "x",
                       "last_turn_at": "2026-10-17T05:42:00Z",
                       "mode": "consult",
                       "open_cards": 1,
@@ -124426,11 +127839,13 @@
             "content": {
               "application/json": {
                 "example": {
+                  "closed_at": "2026-10-17T05:42:00Z",
                   "cost": {
                     "tokens": 1,
                     "usd_equiv": "x",
                     "voice_usd": "2.410000"
                   },
+                  "holder": "x",
                   "last_turn_at": "2026-10-17T05:42:00Z",
                   "mode": "consult",
                   "open_cards": 1,
@@ -124562,11 +127977,13 @@
             "content": {
               "application/json": {
                 "example": {
+                  "closed_at": "2026-10-17T05:42:00Z",
                   "cost": {
                     "tokens": 1,
                     "usd_equiv": "x",
                     "voice_usd": "2.410000"
                   },
+                  "holder": "x",
                   "last_turn_at": "2026-10-17T05:42:00Z",
                   "mode": "consult",
                   "open_cards": 1,
@@ -124759,11 +128176,13 @@
             "content": {
               "application/json": {
                 "example": {
+                  "closed_at": "2026-10-17T05:42:00Z",
                   "cost": {
                     "tokens": 1,
                     "usd_equiv": "x",
                     "voice_usd": "2.410000"
                   },
+                  "holder": "x",
                   "last_turn_at": "2026-10-17T05:42:00Z",
                   "mode": "consult",
                   "open_cards": 1,
@@ -124849,7 +128268,7 @@
     },
     "/api/v1/talk/conversations/{ref}/invite": {
       "post": {
-        "description": "A manager joins (`role` is its charter, e.g. ceo or media_director, or a\ndepartment code whose manager is meant): role@company becomes present and\nanswers next, with its own charter, voice and its company's reads only;\ncode writes the one-line notice. Back to the secretary by her face or «منشی».",
+        "description": "A manager joins (`role` is its charter, e.g. ceo or media_director, or a\ndepartment code whose manager is meant): role@company becomes present and\nanswers next, with its own charter, voice and its company's reads only;\ncode writes the one-line notice. Back to the secretary by her face or «منشی».\n⟨1.17⟩ §35.4 `role` advisor | overseer | assistant: the holding's fixed persona joins.",
         "operationId": "talk_invite",
         "parameters": [
           {
@@ -124882,11 +128301,13 @@
             "content": {
               "application/json": {
                 "example": {
+                  "closed_at": "2026-10-17T05:42:00Z",
                   "cost": {
                     "tokens": 1,
                     "usd_equiv": "x",
                     "voice_usd": "2.410000"
                   },
+                  "holder": "x",
                   "last_turn_at": "2026-10-17T05:42:00Z",
                   "mode": "consult",
                   "open_cards": 1,
@@ -125163,7 +128584,57 @@
                       "seconds": 1.0,
                       "usd": "2.410000"
                     }
-                  }
+                  },
+                  "turns": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "audio": [
+                        {
+                          "engine": "x",
+                          "file_id": "x",
+                          "seconds": 1.0,
+                          "seq": 1
+                        }
+                      ],
+                      "by": "x",
+                      "cards": [
+                        {
+                          "body_fa": "توضیح کوتاه",
+                          "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                          "kind": "order",
+                          "made": [
+                            "x"
+                          ],
+                          "payload": {},
+                          "reason_fa": "x",
+                          "state": "offered",
+                          "title_fa": "گزارش هفتگی رشد",
+                          "turn": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                        }
+                      ],
+                      "conversation": "x",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "n": 1,
+                      "reason_fa": "x",
+                      "say_fa": "x",
+                      "show_md": "x",
+                      "source": "typed",
+                      "state": "streaming",
+                      "text": "x",
+                      "tokens": {
+                        "cache_read": 1,
+                        "cache_write": 1,
+                        "input": 1,
+                        "output": 1
+                      },
+                      "voice": {
+                        "audio_tokens": 1,
+                        "engine": "x",
+                        "seconds": 1.0,
+                        "usd": "2.410000"
+                      }
+                    }
+                  ]
                 },
                 "schema": {
                   "$ref": "#/components/schemas/TalkTurnAccepted"
@@ -125236,7 +128707,7 @@
     },
     "/api/v1/talk/conversations/{ref}/turns": {
       "post": {
-        "description": "The owner says something. The words are stored at once (a key-shaped\nstring replaced by «[کلید حذف شد]»: it never reaches a log, the Audit or a\nmodel), the rules act first (back to the secretary, a manager called in,\nthe mode, «یادت باشه», «صورت‌جلسه کن»), and the answer streams on\n`events` (SSE). Requires `Idempotency-Key`; the same `client_id` again\nanswers the same turn. Never 5xx: without a brain, the plain line.",
+        "description": "The owner says something. The words are stored at once (a key-shaped\nstring replaced by «[کلید حذف شد]»: it never reaches a log, the Audit or a\nmodel), the rules act first (back to the secretary, a manager called in,\nthe mode, «یادت باشه», «صورت‌جلسه کن»), and the answer streams on\n`events` (SSE). Requires `Idempotency-Key`; the same `client_id` again\nanswers the same turn. Never 5xx: without a brain, the plain line. ⟨1.17⟩ §35.4 in a\nsession `to` names who answers (a participant's key; a player answers through its seat), or\n`all` («نظر همه»): every present participant once, then the holder sums up (`turns`); a\nclosed session answers 409.",
         "operationId": "talk_add_turn",
         "parameters": [
           {
@@ -125255,7 +128726,8 @@
               "example": {
                 "client_id": "x",
                 "source": "typed",
-                "text": "x"
+                "text": "x",
+                "to": "TY-GROWTH-MGR"
               },
               "schema": {
                 "$ref": "#/components/schemas/TalkTurnIn"
@@ -125365,7 +128837,57 @@
                       "seconds": 1.0,
                       "usd": "2.410000"
                     }
-                  }
+                  },
+                  "turns": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "audio": [
+                        {
+                          "engine": "x",
+                          "file_id": "x",
+                          "seconds": 1.0,
+                          "seq": 1
+                        }
+                      ],
+                      "by": "x",
+                      "cards": [
+                        {
+                          "body_fa": "توضیح کوتاه",
+                          "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                          "kind": "order",
+                          "made": [
+                            "x"
+                          ],
+                          "payload": {},
+                          "reason_fa": "x",
+                          "state": "offered",
+                          "title_fa": "گزارش هفتگی رشد",
+                          "turn": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                        }
+                      ],
+                      "conversation": "x",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "n": 1,
+                      "reason_fa": "x",
+                      "say_fa": "x",
+                      "show_md": "x",
+                      "source": "typed",
+                      "state": "streaming",
+                      "text": "x",
+                      "tokens": {
+                        "cache_read": 1,
+                        "cache_write": 1,
+                        "input": 1,
+                        "output": 1
+                      },
+                      "voice": {
+                        "audio_tokens": 1,
+                        "engine": "x",
+                        "seconds": 1.0,
+                        "usd": "2.410000"
+                      }
+                    }
+                  ]
                 },
                 "schema": {
                   "$ref": "#/components/schemas/TalkTurnAccepted"
@@ -132483,7 +136005,7 @@
     },
     "/api/v1/work/{id}/council/run": {
       "post": {
-        "description": "⟨1.11⟩ §29.8 «اجرا کن»: the captain's plan becomes an order (§29.4) of\nthe council's company (its CEO splits it), single mode, the plan's\nbudget. Once per council (409 when it already ran, or has no plan yet).\nRequires `Idempotency-Key`.",
+        "description": "⟨1.11⟩ §29.8 «اجرا کن»: the captain's plan becomes an order (§29.4) of\nthe council's company (its CEO splits it), single mode, the plan's\nbudget. Once per council (409 when it already ran, or has no plan yet).\nRequires `Idempotency-Key`. ⟨1.17⟩ §35.1 a council held inside a session (its work\nbelongs to an owner's open order) continues that same order: the plan is the owner's\nword on it (a reply), never a new F-ref.",
         "operationId": "run_plan",
         "parameters": [
           {
@@ -136910,7 +140432,7 @@
                   }
                 },
                 "schema": {
-                  "$ref": "#/components/schemas/Ask-Output"
+                  "$ref": "#/components/schemas/hq_api__domain__ask__Ask"
                 }
               }
             },
@@ -147632,7 +151154,10 @@
                   "x"
                 ],
                 "due_at": "2026-10-17T05:42:00Z",
-                "plan_fa": "x"
+                "plan_fa": "x",
+                "steps": [
+                  "x"
+                ]
               },
               "schema": {
                 "$ref": "#/components/schemas/AckIn"
@@ -147677,6 +151202,11 @@
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
+                  "brief": {
+                    "done_fa": "x",
+                    "need_fa": "x",
+                    "now_fa": "x"
+                  },
                   "conversation_ref": "x",
                   "kit": {
                     "kit": "x",
@@ -147740,6 +151270,14 @@
                     }
                   ],
                   "pace": "auto",
+                  "participants": [
+                    {
+                      "company": "TY",
+                      "key": "x",
+                      "kind": "holder",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
                   "parts": [
                     {
                       "created_at": "2026-10-17T05:42:00Z",
@@ -147781,6 +151319,13 @@
                     "output_kind": "x",
                     "player": "x"
                   },
+                  "session": {
+                    "badge": "your_turn",
+                    "closed_at": "2026-10-17T05:42:00Z",
+                    "hidden": false,
+                    "reason_fa": "x",
+                    "state": "open"
+                  },
                   "state": "received",
                   "steps": [
                     {
@@ -147794,8 +151339,31 @@
                     "left_fa": "x",
                     "need_fa": "x"
                   },
+                  "tasks": [
+                    {
+                      "by": "owner",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "n": 1,
+                      "state": "todo",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "who_fa": "x",
+                      "work_ref": "x"
+                    }
+                  ],
                   "text_fa": "x",
                   "turn": {
+                    "asks": [
+                      {
+                        "at": "2026-10-17T05:42:00Z",
+                        "by": {
+                          "code": "TY-CEO",
+                          "display_fa": null,
+                          "kind": "agent"
+                        },
+                        "question_fa": "x",
+                        "who_fa": "x"
+                      }
+                    ],
                     "at": "2026-10-17T05:42:00Z",
                     "by": {
                       "code": "TY-CEO",
@@ -147967,6 +151535,11 @@
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
+                  "brief": {
+                    "done_fa": "x",
+                    "need_fa": "x",
+                    "now_fa": "x"
+                  },
                   "conversation_ref": "x",
                   "kit": {
                     "kit": "x",
@@ -148030,6 +151603,14 @@
                     }
                   ],
                   "pace": "auto",
+                  "participants": [
+                    {
+                      "company": "TY",
+                      "key": "x",
+                      "kind": "holder",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
                   "parts": [
                     {
                       "created_at": "2026-10-17T05:42:00Z",
@@ -148071,6 +151652,13 @@
                     "output_kind": "x",
                     "player": "x"
                   },
+                  "session": {
+                    "badge": "your_turn",
+                    "closed_at": "2026-10-17T05:42:00Z",
+                    "hidden": false,
+                    "reason_fa": "x",
+                    "state": "open"
+                  },
                   "state": "received",
                   "steps": [
                     {
@@ -148084,8 +151672,31 @@
                     "left_fa": "x",
                     "need_fa": "x"
                   },
+                  "tasks": [
+                    {
+                      "by": "owner",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "n": 1,
+                      "state": "todo",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "who_fa": "x",
+                      "work_ref": "x"
+                    }
+                  ],
                   "text_fa": "x",
                   "turn": {
+                    "asks": [
+                      {
+                        "at": "2026-10-17T05:42:00Z",
+                        "by": {
+                          "code": "TY-CEO",
+                          "display_fa": null,
+                          "kind": "agent"
+                        },
+                        "question_fa": "x",
+                        "who_fa": "x"
+                      }
+                    ],
                     "at": "2026-10-17T05:42:00Z",
                     "by": {
                       "code": "TY-CEO",
@@ -148212,6 +151823,9 @@
           "content": {
             "application/json": {
               "example": {
+                "done": [
+                  1
+                ],
                 "step_fa": "x"
               },
               "schema": {
@@ -148257,6 +151871,11 @@
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
+                  "brief": {
+                    "done_fa": "x",
+                    "need_fa": "x",
+                    "now_fa": "x"
+                  },
                   "conversation_ref": "x",
                   "kit": {
                     "kit": "x",
@@ -148320,6 +151939,14 @@
                     }
                   ],
                   "pace": "auto",
+                  "participants": [
+                    {
+                      "company": "TY",
+                      "key": "x",
+                      "kind": "holder",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
                   "parts": [
                     {
                       "created_at": "2026-10-17T05:42:00Z",
@@ -148361,6 +151988,13 @@
                     "output_kind": "x",
                     "player": "x"
                   },
+                  "session": {
+                    "badge": "your_turn",
+                    "closed_at": "2026-10-17T05:42:00Z",
+                    "hidden": false,
+                    "reason_fa": "x",
+                    "state": "open"
+                  },
                   "state": "received",
                   "steps": [
                     {
@@ -148374,8 +152008,31 @@
                     "left_fa": "x",
                     "need_fa": "x"
                   },
+                  "tasks": [
+                    {
+                      "by": "owner",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "n": 1,
+                      "state": "todo",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "who_fa": "x",
+                      "work_ref": "x"
+                    }
+                  ],
                   "text_fa": "x",
                   "turn": {
+                    "asks": [
+                      {
+                        "at": "2026-10-17T05:42:00Z",
+                        "by": {
+                          "code": "TY-CEO",
+                          "display_fa": null,
+                          "kind": "agent"
+                        },
+                        "question_fa": "x",
+                        "who_fa": "x"
+                      }
+                    ],
                     "at": "2026-10-17T05:42:00Z",
                     "by": {
                       "code": "TY-CEO",

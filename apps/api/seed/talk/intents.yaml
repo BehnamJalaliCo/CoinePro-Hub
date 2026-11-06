@@ -14,6 +14,8 @@
 # imperative    the owner tells someone to do something: the only case where a
 #               persona may offer an unsolicited card (at most one per
 #               TALK_CARD_EVERY turns)
+# everyone      ⟨1.17⟩ §35.4 in a session: each present participant answers once
+#               (players too), then the holder sums up («نظر همه»)
 work_mode: [جلسه کاری, جلسه ی کاری, تسک بندی کن, تسکبندی کن, حالت کار]
 consult_mode: [حالت مشورت, فقط مشورت]
 minutes: [صورت جلسه کن, صورتجلسه کن, صورت جلسه بنویس, صورتجلسه بنویس]
@@ -24,3 +26,4 @@ remember: [یادت باشه, یادت باشد, به خاطر بسپار, یا�
 imperative: [بساز, بنویس, انجام بده, انجام بدهید, بفرست, بفرستید, راه بنداز, راه بیانداز, درست کن, تهیه کن,
              آماده کن, پیگیری کن, اجرا کن, منتشر کن, پیدا کن, بررسی کن, گزارش بده, تحلیل کن, برنامه ریزی کن,
              استخدام کن, قانون بگذار, یادآوری کن, یادم بنداز]
+everyone: [نظر همه, نظر همه را بگو, همه نظر بدهند, همه نظر بدن, هر کس نظرش را بگوید, نظر جمع]

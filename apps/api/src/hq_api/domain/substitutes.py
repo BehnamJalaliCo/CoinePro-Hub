@@ -1294,6 +1294,10 @@ async def _applied(tx: Tx, hub: Any, call: dict[str, Any]) -> None:
         from hq_api.domain import players
 
         await players.on_call(tx, hub, call)
+    elif call["purpose_kind"] == "talk":  # ⟨1.17⟩ §35.4 a player's turn in a session
+        from hq_api.talk import player
+
+        await player.on_call(tx, hub, call)
 
 
 REPLY_TOKENS = 20_000

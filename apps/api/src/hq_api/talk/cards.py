@@ -18,6 +18,16 @@ own checks, confirmations and step-ups; talk never makes work by itself:
     automation  §31.7: one compile, then a `proposed` automation (sealed later 🔏)
     invite      the manager joins the conversation (§32.4)
 
+⟨1.17⟩ §35.4 in a session (a talk bound to an order) the cards run the order's own routes and
+every result is a step of the order (its report refreshed, so it streams):
+    order       the owner's next word on THAT order (§34.3 reply), never a new order
+    hire        any persona, the company explicit: the seat filled by code (§29.10 auto hiring)
+    delegate    {to, text}: a child work of the order's root for that employee / department / role
+    budget      {tokens}: more tokens for the order's root work (§29.6)
+    group       {company, group}: the company joins the working group (§29.11)
+    line        {company, template}: a production line from a template (§30), its own seal
+A closed session runs no card (409).
+
 A card that fails stays visible as `failed` with its plain reason, and may be
 run again (with the owner's edits). Running a done card answers what it made.
 """
@@ -25,6 +35,7 @@ run again (with the owner's edits). Running a done card answers what it made.
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from datetime import datetime
 from typing import Any
@@ -41,12 +52,21 @@ from hq_api.domain import errands as ER
 from hq_api.domain import notify
 from hq_api.errors import CODES, ApiError
 from hq_api.principal import Principal
-from hq_api.talk import personas, store
+from hq_api.talk import data, personas, store
 from hq_api.talk.personas import Persona
 from hq_api.talk.scrub import clean
 
 TALK = Principal(kind="service", code="talk", role="service")
 DEPT = r"^[A-Z][A-Z0-9]{1,11}$"
+CODE = r"^[A-Z][A-Z0-9]{1,9}$"
+EMP = r"^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$"
+OWNER_FA = "مدیر کل"
+LABEL_FA = {
+    "order": "فرمان", "ask": "پرسش", "hire": "استخدام", "decision": "کارت تصمیم", "planner": "یادآوری",
+    "rule": "قاعده", "automation": "خودکارسازی", "minutes": "صورت‌جلسه", "invite": "دعوت",
+    "delegate": "سپردن کار", "budget": "بودجه", "group": "کارگروه", "line": "خط تولید",
+}  # fmt: skip
+CLOSED_FA = "این جلسه بسته شده است؛ برای ادامه آن را دوباره باز کنید."
 
 
 def _fail(why: str, field: str = "payload") -> ApiError:
@@ -73,9 +93,11 @@ def sub_request(request: Request, i: int, body: dict[str, Any]) -> Request:
     return Request({**request.scope, "headers": headers}, receive)
 
 
-async def persona_of_card(tx: Tx, hub: Any, card: dict[str, Any]) -> Persona:
+async def persona_of_card(
+    tx: Tx, hub: Any, card: dict[str, Any], conv: dict[str, Any] | None = None
+) -> Persona:
     key = await tx.scalar("SELECT persona FROM talk.turns WHERE id = :t", t=card["turn_id"])
-    return await personas.resolve(tx, hub, str(key or "secretary"), store_voice=False)
+    return await personas.resolve_in(tx, hub, str(key or "secretary"), conv, store_voice=False)
 
 
 def proposer(p: Persona) -> Principal:
@@ -160,10 +182,14 @@ async def run(
         if card["state"] == "dismissed":
             raise ApiError(409, "validation_failed", "the card was dismissed",
                            message_fa="این کارت کنار گذاشته شده است.")  # fmt: skip
-        conv = await tx.one(
-            "SELECT * FROM talk.conversations WHERE id = :c", c=card["conversation_id"]
+        conv = dict(
+            await tx.one(
+                "SELECT * FROM talk.conversations WHERE id = :c", c=card["conversation_id"]
+            )
         )
-        p = await persona_of_card(tx, ctx.hub, card)
+        if conv.get("closed_at") is not None:
+            raise ApiError(409, "validation_failed", "the session is closed", message_fa=CLOSED_FA)
+        p = await persona_of_card(tx, ctx.hub, card, conv)
     payload = {**(store._j(card["payload"]) or {}), **(edits or {})}
     payload = json.loads(clean(json.dumps(payload, ensure_ascii=False, default=str))[0])
     later: list[Any] = []
@@ -172,8 +198,10 @@ async def run(
     except ApiError as exc:
         why = exc.message_fa or CODES.get(exc.code, CODES["internal_error"])[2]
         await _mark(ctx, card, "failed", [], why, payload)
+        await _order_step(ctx, conv, card, payload, why)
         raise
     row = await _mark(ctx, card, "done", made, None, payload)
+    await _order_step(ctx, conv, card, payload, None)
     for job in later:
         if job[0] == "decision":
             background.add_task(workflows_client.decision_created, ctx.hub, job[1])
@@ -219,6 +247,28 @@ async def _mark(
         return dict(row)
 
 
+async def _order_step(
+    ctx: Ctx, conv: dict[str, Any], card: dict[str, Any], payload: dict[str, Any], why: str | None
+) -> None:
+    """⟨1.17⟩ §35.4 what a card made (or why it did not) is a step of the session's order, and
+    the report is refreshed so `order.report` streams. The bound `order` card is the reply itself
+    (its own step): only the refresh."""
+    ref = conv.get("order_ref")
+    if not ref:
+        return
+    from hq_api.domain import order_report as OR
+    from hq_api.domain import sessions as SE
+
+    async with ctx.tx() as tx:
+        if card["kind"] == "order":
+            await OR.refresh(tx, str(ref))
+            return
+        label = LABEL_FA.get(card["kind"], card["kind"])
+        title = str(payload.get("title_fa") or payload.get("text") or card["title_fa"])[:200]
+        what = f"{label} انجام شد: {title}" if why is None else f"{label} انجام نشد: {why}"
+        await SE.step(tx, str(ref), OWNER_FA, what)
+
+
 async def _carry_out(
     ctx: Ctx,
     request: Request,
@@ -234,11 +284,14 @@ async def _carry_out(
         from hq_api.domain import order_turns as OT
 
         async with ctx.tx() as tx:
-            await OT.reply(tx, str(conv["order_ref"]), text)
+            out = await OT.reply(tx, str(conv["order_ref"]), text)
+            woken = ", ".join(out["woken"]) or "nothing"
             await ctx.audit(tx, company_id=card["company_id"], action="order.reply",
                             action_class="A1", target_kind="order", target_ref=conv["order_ref"],
-                            summary=f"the owner's word from {ref}")  # fmt: skip
+                            summary=f"the owner's word from {ref}; woken: {woken}")  # fmt: skip
         return [str(conv["order_ref"])], []
+    if kind in data.SESSION_CARDS:
+        return await _session_card(ctx, request, card, conv, payload, text)
     if kind in ("order", "ask"):
         if p.consult_only and kind == "order":
             raise _fail("این نقش فقط مشورت میدهد و فرمان نمیسازد.", "kind")
@@ -310,13 +363,179 @@ def _ref_of(out: Any) -> str:
     return str(body.get("ref"))
 
 
+# ------------------------------------------------------------ the session --
+async def _root_work(ctx: Ctx, tx: Tx, conv: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    """The order a session is, and its holder's root work (open)."""
+    from hq_api.domain import order_turns as OT
+    from hq_api.domain import work as W
+
+    ref = conv.get("order_ref")
+    if not ref:
+        raise _fail("این کارت فقط در جلسه‌ی فرمان کار میکند.", "kind")
+    h = await OT.holder(tx, str(ref))
+    if h is None or h.get("work_id") is None:
+        raise _fail("این فرمان کار بازی ندارد که چیزی به آن اضافه شود.", "kind")
+    w = await W.load(tx, h["work_id"], lock=True)
+    if w["status"] not in W.OPEN:
+        raise _fail("کار اصلی این فرمان بسته شده است.", "kind")
+    return str(ref), w
+
+
+async def _delegate_target(tx: Tx, company_id: UUID, to: str) -> str:
+    """`to`: an employee code of the company, a department code (its manager) or a charter role."""
+    if re.fullmatch(EMP, to):
+        row = await tx.first(
+            """SELECT code FROM core.employees WHERE code = :c AND company_id = :co
+                 AND status = 'active' AND kind <> 'system'""",
+            c=to,
+            co=company_id,
+        )
+        if row is not None:
+            return str(row["code"])
+    if re.fullmatch(DEPT, to):
+        row = await tx.first(
+            """SELECT e.code FROM core.employees e JOIN core.departments d ON d.id = e.department_id
+               WHERE e.company_id = :co AND d.code = :d AND e.kind = 'manager' AND e.status = 'active'
+               ORDER BY e.hired_at LIMIT 1""",
+            co=company_id,
+            d=to,
+        )
+        if row is not None:
+            return str(row["code"])
+    row = await tx.first(
+        """SELECT code FROM core.employees WHERE company_id = :co AND role = :r AND status = 'active'
+             AND kind <> 'system' ORDER BY hired_at LIMIT 1""",
+        co=company_id,
+        r=to,
+    )
+    if row is None:
+        raise _fail("کسی با این نام یا نقش در این شرکت نیست.", "payload.to")
+    return str(row["code"])
+
+
+async def _session_card(
+    ctx: Ctx,
+    request: Request,
+    card: dict[str, Any],
+    conv: dict[str, Any],
+    payload: dict[str, Any],
+    text: str,
+) -> tuple[list[str], list[Any]]:
+    kind = card["kind"]
+    if kind == "delegate":
+        from hq_api.domain import sessions as SE
+        from hq_api.domain import work as W
+
+        to = str(payload.get("to") or "").strip()
+        what = clean(" ".join(str(payload.get("text") or text).split()))[0]
+        if not to or len(what) < 2:
+            raise _fail("به کی و چه کاری؟ هر دو لازم است.", "payload")
+        async with ctx.tx() as tx:
+            ref, parent = await _root_work(ctx, tx, conv)
+            code = await _delegate_target(tx, parent["company_id"], to)
+            child = await W.delegate(
+                tx,
+                ctx.who,
+                parent,
+                to_code=code,
+                title=what[:300],
+                brief=f"{what}\n\n(فرمان {ref} مدیر کل؛ از جلسه‌ی فرمان سپرده شد)",
+                priority=None,
+                due_at=None,
+                budget=None,
+            )
+            from hq_api.domain import order_report as OR
+
+            rep = await OR.ensure(tx, ref)
+            if rep is not None:
+                await SE.add_task(tx, rep, title_fa=what, by="owner", work_ref=str(child["ref"]))
+            await ctx.audit(tx, company_id=parent["company_id"], action="work.delegate",
+                            action_class="A2", target_kind="work", target_ref=child["ref"],
+                            summary=f"from session {conv['ref']} to {code}")  # fmt: skip
+        return [str(child["ref"])], []
+    if kind == "budget":
+        from hq_api.domain import work as W
+
+        try:
+            tokens = int(payload.get("tokens") or 0)
+        except (TypeError, ValueError) as exc:
+            raise _fail("چند واحد مصرف؟ یک عدد لازم است.", "payload.tokens") from exc
+        if tokens <= 0 or tokens > 10_000_000:
+            raise _fail("چند واحد مصرف؟ یک عدد لازم است.", "payload.tokens")
+        async with ctx.tx() as tx:
+            ref, w = await _root_work(ctx, tx, conv)
+            await W.add_budget(tx, w, tokens, ctx.who)
+            await ctx.audit(tx, company_id=w["company_id"], action="work.budget", action_class="A2",
+                            target_kind="work", target_ref=w["ref"],
+                            summary=f"+{tokens} tokens from session {conv['ref']}")  # fmt: skip
+        return [str(w["ref"])], []
+    if kind == "group":
+        from hq_api.domain import groups as GR
+
+        code = str(payload.get("company") or "")
+        key = str(payload.get("group") or "")
+        if not re.fullmatch(CODE, code) or not key:
+            raise _fail("شرکت و کارگروه هر دو لازم است.", "payload")
+        company = await ctx.hub.companies.by_code(code)
+        async with ctx.tx() as tx:
+            grow = await GR.row_of(tx, key, lock=True)
+            await tx.exec(
+                """INSERT INTO growth.memberships (company_id, group_id) VALUES (:co, :g)
+                   ON CONFLICT (group_id, company_id) DO NOTHING""",
+                co=company.id,
+                g=grow["id"],
+            )
+            await GR.set_member_state(tx, grow, company.id, "on")
+            await GR.reconcile_members(tx, grow, fill=False)
+            await ctx.audit(tx, company_id=company.id, action="group.member", action_class="A2",
+                            target_kind="group", target_ref=key,
+                            summary=f"membership on from session {conv['ref']}")  # fmt: skip
+            await ctx.emit(tx, code, "group.run", None, {"group": key, "membership": "on"})
+        return [key], []
+    if kind == "line":
+        from hq_api.routes.lines import LineIn, create_company_line
+
+        code = str(payload.get("company") or "")
+        template = str(payload.get("template") or "")
+        if not re.fullmatch(CODE, code) or not template:
+            raise _fail("شرکت و الگوی خط تولید هر دو لازم است.", "payload")
+        try:
+            body = LineIn(
+                template=template,
+                title_fa=str(payload.get("title_fa") or card["title_fa"])[:200],
+            )
+        except ValidationError as exc:
+            raise _fail("الگوی خط تولید شناخته نیست.", "payload.template") from exc
+        out = await create_company_line(
+            code, body, sub_request(request, 0, body.model_dump(mode="json")), ctx
+        )
+        return [_ref_of(out)], []
+    raise _fail("این نوع کارت شناخته نیست.", "kind")
+
+
 async def _decision(
     ctx: Ctx, card: dict[str, Any], p: Persona, payload: dict[str, Any], text: str
 ) -> tuple[list[str], list[Any]]:
     who = proposer(p)
+    if card["kind"] == "hire" and (not p.is_manager or who.kind != "agent"):
+        # ⟨1.17⟩ §35.4 any persona may propose a hire for a company named explicitly: the seat
+        # is filled by code (§29.10, automatic hiring with its own checks), as the order fix does
+        from hq_api.domain import hiring
+
+        code = str(payload.get("company") or "")
+        role = str(payload.get("role") or "ceo")
+        if not re.fullmatch(CODE, code):
+            raise _fail("شرکتِ این استخدام را روشن بگویید.", "payload.company")
+        company = await ctx.hub.companies.by_code(code)
+        async with ctx.tx() as tx:
+            out = await hiring.auto_fill(
+                tx, company.id, role, charters=ctx.hub.charters, reason=text[:2000]
+            )
+            await ctx.audit(tx, company_id=company.id, action="hire.auto", action_class="A2",
+                            target_kind="employee", target_ref=str(out["employee"]),
+                            summary=f"{role} for {code} from a talk card")  # fmt: skip
+        return [str(out["employee"])], []
     if card["kind"] == "hire":
-        if not p.is_manager or who.kind != "agent":
-            raise _fail("استخدام را فقط مدیر همان شرکت پیشنهاد میدهد.", "kind")
         lib = ctx.hub.charters
         role = str(payload.get("role") or "")
         charter = lib.get(role) if lib is not None else None

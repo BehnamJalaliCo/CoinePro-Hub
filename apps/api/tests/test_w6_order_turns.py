@@ -165,13 +165,15 @@ async def test_an_order_card_in_the_orders_talk_goes_onto_that_order(
     co = (await new_company())["code"]
     out = await post_order(client, owner, f"برای {co} گزارش فروش هفته را آماده کن {words()}")
     ref = out["ref"]
-    assert out["pace"] == "auto" and out["talk_ref"] is None
+    # ⟨1.17⟩ §35.1 every order is a session: its talk is open at once, whatever the pace
+    assert out["pace"] == "auto" and out["talk_ref"]
     [route] = out["routes"]
     brief = await su.fetchval("SELECT brief FROM work.work WHERE ref = $1", route["work_ref"])
     assert "to the END on your own" in brief
     r = await client.post(f"/api/v1/orders/{ref}/talk", headers=owner)
     assert r.status_code == 200, r.text
     conv = r.json()["conversation_ref"]
+    assert conv == out["talk_ref"]
     orders_before = await su.fetchval("SELECT count(*) FROM owner.orders")
     card = {"kind": "order", "title_fa": "ادامه", "body_fa": "",
             "payload": {"text": "فروش دو هفته را با هم مقایسه کن"}}  # fmt: skip
@@ -201,7 +203,8 @@ async def test_an_ended_order_takes_no_reply(
     co = (await new_company())["code"]
     out = await post_order(client, owner, f"برای {co} گزارش هزینه را آماده کن {words()}")
     await su.execute(
-        "UPDATE owner.order_reports SET ended_at = now(), state = 'cancelled' WHERE ref = $1",
+        """UPDATE owner.order_reports SET ended_at = now(), closed_at = now(), state = 'cancelled'
+           WHERE ref = $1""",
         out["ref"],
     )
     r = await client.post(

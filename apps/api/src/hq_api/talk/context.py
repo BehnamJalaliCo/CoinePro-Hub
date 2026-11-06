@@ -62,6 +62,28 @@ CARD_HELP = {
     "rule": 'rule: a standing rule of the owner (sealed later); payload {"text": the rule}',
     "automation": 'automation: a rule that runs by itself (sealed later); payload {"sentence_fa": one sentence}',
     "invite": 'invite: suggest calling a manager in; payload {"role", "company"}',
+    # ⟨1.17⟩ §35.4 the cards of a session (an order's talk)
+    "delegate": (
+        "delegate: a child work of this order's root for someone of the holder's company; payload "
+        '{"to": an employee code | a department code | a charter role, "text": what to do}'
+    ),
+    "budget": 'budget: more tokens for this order\'s work; payload {"tokens": a whole number}',
+    "group": 'group: the company joins a working group; payload {"company": code, "group": the group key}',
+    "line": (
+        'line: a production line from a template (its publish keeps its own seal); payload {"company": code, '
+        '"template": the template key, "title_fa"?}'
+    ),
+}
+# ⟨1.17⟩ W6 e: in an order's talk the `order` card has the bound meaning, and a hire names its company
+BOUND_HELP = {
+    "order": (
+        "order: the owner's next word ON THIS ORDER (never a new order); payload "
+        '{"text": the owner\'s instruction in their words}'
+    ),
+    "hire": (
+        'hire: a hire for a company named explicitly; payload {"company": code, "role": the charter, '
+        '"department"?, "title_fa"?, "why_fa"?}'
+    ),
 }
 
 
@@ -103,16 +125,36 @@ def persona_section(
     cards_allowed: tuple[str, ...],
     minutes: bool,
     order_ref: str | None = None,
+    *,
+    sum_up: bool = False,
+    holder: bool = True,
 ) -> str:
     out = [f"# You, here\nYou are «{p.title_fa}» ({p.key}). The conversation is in `{mode}` mode."]
-    if order_ref:
+    if order_ref and holder:
         out.append(
-            f"This talk is the live line of the owner's order {order_ref}, which you hold (its "
-            "state is under «## The order you hold»). Talk with the owner about it, step by step if "
-            "they want. When the owner tells you to do something on it (go, next step, change, "
-            "stop), offer one `order` card at once: its payload text is the owner's instruction in "
-            "their words. It goes onto THIS order as the owner's next word and your own work on it "
-            "runs at once; it is never a new order. Never say you did it before the card ran."
+            f"This talk is the session of the owner's order {order_ref}, which you hold (its "
+            "state, plan and steps are under «## The order you hold»). Talk with the owner about it, "
+            "step by step if they want. When the owner tells you to do something on it (go, next "
+            "step, change, stop), offer one `order` card at once: its payload text is the owner's "
+            "instruction in their words. It goes onto THIS order as the owner's next word and your "
+            "own work on it runs at once; it is never a new order. When the owner wants someone "
+            "hired, a task handed to someone, more budget, a working group joined or a production "
+            "line started, offer that card (hire, delegate, budget, group, line): the owner taps "
+            "it, the hub does it with its own checks, and it becomes a step of the order. Never say "
+            "you did it before the card ran."
+        )
+    elif order_ref:
+        out.append(
+            f"This talk is the session of the owner's order {order_ref}; another persona holds it "
+            "(see «## The order you hold»). You were brought in to help: answer the owner on it from "
+            "what you know; a card you offer becomes a step of that order when the owner taps it."
+        )
+    if sum_up:
+        out.append(
+            "The owner asked everyone present («نظر همه»). The others have answered before you in "
+            "this conversation (a player's answer may still be on its way: say so). Sum up: where "
+            "they agree, where they differ, and what you, the holder, propose to do next. Offer no "
+            "card unless the owner asked for one."
         )
     if mode == "consult":
         out.append(
@@ -124,7 +166,8 @@ def persona_section(
         )
     if cards_allowed:
         out.append("Cards you may offer now (at most one unless the owner asked for several):")
-        out += [f"- {CARD_HELP[k]}" for k in cards_allowed if k in CARD_HELP]
+        help_ = {**CARD_HELP, **BOUND_HELP} if order_ref else CARD_HELP
+        out += [f"- {help_[k]}" for k in cards_allowed if k in help_]
     else:
         out.append("Offer no card in this answer (`cards` = []).")
     if p.consult_only and not order_ref:
@@ -152,6 +195,8 @@ async def system_prompt(
     minutes: bool,
     *,
     order_ref: str | None = None,
+    sum_up: bool = False,
+    holder: bool = True,
 ) -> str:
     lib = hub.charters
     vals = await values(tx, hub, p)
@@ -162,7 +207,7 @@ async def system_prompt(
     parts += [
         TALK_RULES,
         tools_section(lib, p),
-        persona_section(p, mode, cards_allowed, minutes, order_ref),
+        persona_section(p, mode, cards_allowed, minutes, order_ref, sum_up=sum_up, holder=holder),
     ]
     return "\n\n".join(x for x in parts if x)
 

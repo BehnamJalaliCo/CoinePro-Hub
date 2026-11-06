@@ -23,8 +23,10 @@ Mode = Literal["consult", "work"]
 Source = Literal["typed", "hold", "handsfree"]
 TurnState = Literal["streaming", "done", "stopped", "failed"]
 CardKind = Literal[
-    "order", "ask", "hire", "decision", "planner", "rule", "automation", "minutes", "invite"
-]
+    "order", "ask", "hire", "decision", "planner", "rule", "automation", "minutes", "invite",
+    # ⟨1.17⟩ §35.4 the cards of a session
+    "delegate", "budget", "group", "line",
+]  # fmt: skip
 CardState = Literal["offered", "done", "dismissed", "failed"]
 EVENT_TYPES = ("text", "say", "audio", "card", "invite", "meter", "tool", "done", "error")
 FINAL = ("done", "stopped", "failed")
@@ -44,7 +46,8 @@ class TalkBrain(BaseModel):
 
 class TalkPersona(BaseModel):
     key: str
-    kind: Literal["secretary", "overseer", "assistant", "advisor", "manager"]
+    # ⟨1.17⟩ §35.4 `player`: ChatGPT, Gemini or DeepSeek in a session (player:gpt …)
+    kind: Literal["secretary", "overseer", "assistant", "advisor", "manager", "player"]
     role: str
     title_fa: str
     company: str | None
@@ -77,6 +80,10 @@ class TalkConversation(BaseModel):
     open_cards: int
     # ⟨1.16⟩ §34.2 the owner's order this talk is the live line of (F-…), or null
     order_ref: str | None = None
+    # ⟨1.17⟩ §35.1 the holder's persona (answers by default) and when the session was closed
+    # (the talk read-only)
+    holder: str | None = None
+    closed_at: datetime | None = None
 
 
 class TalkAudio(BaseModel):
@@ -146,6 +153,8 @@ class TalkTurnAccepted(BaseModel):
     # ⟨additive⟩ the owner's words as stored (a key already removed); null for /minutes
     owner_turn: TalkTurn | None
     events: str  # the SSE path of the answer
+    # ⟨1.17⟩ §35.4 «نظر همه»: every answer this turn makes (the first is `turn`), in order
+    turns: list[TalkTurn] = Field(default_factory=list)
 
 
 class TalkCardRun(BaseModel):
@@ -216,6 +225,8 @@ async def render_conversation(tx: Tx, r: dict[str, Any]) -> TalkConversation:
         ),
         open_cards=int(open_cards or 0),
         order_ref=r.get("order_ref"),
+        holder=r.get("holder"),
+        closed_at=r.get("closed_at"),
     )
 
 

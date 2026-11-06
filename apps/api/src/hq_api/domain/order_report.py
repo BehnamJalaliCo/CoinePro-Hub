@@ -23,6 +23,9 @@ What happens, by code (no model):
   without a (complete) output stop the order's open runs;
 - the end: «چه شد» · «چه ماند» · «از شما چه لازم است», and one report
   notification.
+- ⟨1.17⟩ §35.1 the order no longer ends by itself: when its root works are delivered the session
+  is `ready` (badge, one notification) and waits for the owner's close (domain.sessions), which
+  alone sets `ended_at`; the report keeps refreshing while open.
 Every text the owner reads passes humanize (§29.7).
 """
 
@@ -41,6 +44,7 @@ from hq_api.db import Tx
 from hq_api.domain import humanize as HZ
 from hq_api.domain import kits as KT
 from hq_api.domain import notify
+from hq_api.domain import session_shapes as SS
 from hq_api.domain import split as SP
 from hq_api.domain import work as W
 from hq_api.domain import workspace as WS
@@ -153,13 +157,24 @@ class Summary(BaseModel):
     need_fa: str
 
 
-class Turn(BaseModel):
-    """⟨1.16⟩ §34.3 the holder's open question to the owner (`order.ask`)."""
+class Ask(BaseModel):
+    """⟨1.17⟩ §35.4 one question of the open turn (a second `order.ask` joins the same turn)."""
 
     question_fa: str
     at: datetime
     by: Actor
     who_fa: str
+
+
+class Turn(BaseModel):
+    """⟨1.16⟩ §34.3 the holder's open question to the owner (`order.ask`); `question_fa` holds
+    every open question, `asks` each one."""
+
+    question_fa: str
+    at: datetime
+    by: Actor
+    who_fa: str
+    asks: list[Ask] = Field(default_factory=list)
 
 
 class OrderReport(BaseModel):
@@ -188,6 +203,12 @@ class OrderReport(BaseModel):
     pace: Literal["auto", "step"] = "auto"
     turn: Turn | None = None
     conversation_ref: str | None = None
+    # ⟨1.17⟩ §35.2 the session: its state and badge, the brief «چه شد · حالا چه · از تو چه», the
+    # plan and who is present (domain.sessions)
+    session: SS.SessionState | None = None
+    brief: SS.Brief | None = None
+    tasks: list[SS.SessionTask] = Field(default_factory=list)
+    participants: list[SS.Participant] = Field(default_factory=list)
 
 
 # ----------------------------------------------------------------- reading --
@@ -330,21 +351,26 @@ def kit_of(order: dict[str, Any]) -> dict[str, Any] | None:
 async def kit_order_open(tx: Tx, ref: str, kit: str) -> bool:
     """Whether `ref` is an open order whose kit draft is this kit."""
     order = await load_order(tx, ref)
-    rep = await tx.first("SELECT ended_at FROM owner.order_reports WHERE ref = :r", r=ref)
+    rep = await tx.first("SELECT ended_at, state FROM owner.order_reports WHERE ref = :r", r=ref)
     draft = kit_of(order or {})
-    return draft is not None and draft["kit"] == kit and (rep is None or rep["ended_at"] is None)
+    return (
+        draft is not None
+        and draft["kit"] == kit
+        and (rep is None or (rep["ended_at"] is None and rep["state"] != "delivered"))
+    )
 
 
 async def kit_sealed(tx: Tx, ref: str, code: str, name_fa: str) -> None:
-    """The owner sealed the kit card: the order is delivered (its company exists)."""
+    """The owner sealed the kit card: the order is delivered (its company exists). ⟨1.17⟩ §35.1
+    the session stays open (`ready`) until the owner closes it."""
     rep = await ensure(tx, ref)
-    if rep is None or rep["ended_at"] is not None:
+    if rep is None or rep["ended_at"] is not None or rep["state"] == "delivered":
         return
     done = HZ.humanize(f"شرکت {name_fa} ({code}) از روی پیش‌نمایش ساخته شد")
     await _append_steps(tx, rep["id"], [_step("سامانه", done)])
     await tx.exec(
         """UPDATE owner.order_reports
-           SET state = 'delivered', blockers = '[]'::jsonb, ended_at = now(), last_step_at = now(),
+           SET state = 'delivered', blockers = '[]'::jsonb, last_step_at = now(),
                summary = CAST(:sm AS jsonb), updated_at = now()
            WHERE id = :id""",
         id=rep["id"],
@@ -359,6 +385,7 @@ async def kit_sealed(tx: Tx, ref: str, code: str, name_fa: str) -> None:
     )
     holding = await _holding(tx)
     await events.emit(tx, holding["code"], "order.report", ref, {"state": "delivered"})
+    await refresh(tx, ref)  # the badge: ready
 
 
 def output_kind_of(text: str, route: dict[str, Any] | None = None) -> str:
@@ -548,7 +575,7 @@ async def detect(
             out.append(b)
 
     draft = kit_of(order)
-    if draft is not None:
+    if draft is not None and rep["state"] != "delivered":  # sealed: the company exists
         add(
             "kit_unsealed",
             "شرکت تازه منتظر مُهر شماست",
@@ -668,12 +695,17 @@ async def detect(
 
 # -------------------------------------------------------------------- state --
 def state_of(
-    rep: dict[str, Any], works: list[dict[str, Any]], blockers: list[dict[str, Any]]
+    rep: dict[str, Any],
+    works: list[dict[str, Any]],
+    blockers: list[dict[str, Any]],
+    order: dict[str, Any] | None = None,
 ) -> str:
     roots = [w for w in works if w["is_root"]]
     if not roots:
         if any(b["kind"] == "kit_unsealed" for b in blockers):
             return "waiting"
+        if rep["state"] == "delivered" and kit_of(order or {}) is not None:
+            return "delivered"  # a sealed kit (no work item ever)
         return "planned" if rep["ack"] else "received"
     statuses = [w["status"] for w in roots]
     if all(s not in OPEN for s in statuses):
@@ -745,7 +777,7 @@ async def _outputs(tx: Tx, works: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def _digest(rep: dict[str, Any]) -> str:
     keep = {k: rep.get(k) for k in ("state", "ack", "steps", "blockers", "outputs", "summary",
-                                    "turn", "conversation_ref")}  # fmt: skip
+                                    "turn", "conversation_ref", "badge", "closed_at", "hidden_at")}  # fmt: skip
     return hashlib.sha256(json.dumps(keep, sort_keys=True, default=str).encode()).hexdigest()
 
 
@@ -774,18 +806,18 @@ async def refresh(tx: Tx, ref: str) -> dict[str, Any] | None:
                 "title_fa"
             ]
             new_steps.append(_step("سامانه", what))
+    # ⟨1.17⟩ §35.1 the order ends only by the owner's close (ended_at is the close's): while the
+    # session is open the report keeps moving, delivered root works make it `ready`
     ended = rep["ended_at"] is not None
     blockers = [] if ended else await detect(tx, rep, order, works)
-    state = rep["state"] if ended else state_of(rep, works, blockers)
+    state = rep["state"] if ended else state_of(rep, works, blockers, order)
     summary = _j(rep["summary"])
-    end_now = not ended and state in ENDED
-    if end_now:
+    if not ended and state in ENDED and works:  # a sealed kit keeps its own summary
         summary = summary_of(state, works, outputs, blockers)
     await tx.exec(
         """UPDATE owner.order_reports
            SET state = :st, blockers = CAST(:b AS jsonb), outputs = CAST(:o AS jsonb),
                summary = CAST(:sm AS jsonb), work_refs = :refs, route = CAST(:route AS jsonb),
-               ended_at = CASE WHEN :end THEN now() ELSE ended_at END,
                last_step_at = CASE WHEN :moved THEN now() ELSE last_step_at END,
                updated_at = now()
            WHERE id = :id""",
@@ -795,27 +827,31 @@ async def refresh(tx: Tx, ref: str) -> dict[str, Any] | None:
         sm=json.dumps(summary, ensure_ascii=False) if summary else None,
         refs=[w["ref"] for w in works],
         route=json.dumps(_route(order, works), ensure_ascii=False),
-        end=end_now,
         moved=bool(new_steps),
         id=rep["id"],
     )
     await _append_steps(tx, rep["id"], new_steps)
     # ⟨1.14⟩ §32.2 an order made by a talk `ask` card: its answer goes back into
     # the conversation as a turn («جواب آمد»), once per deliverable
+    from hq_api.domain import sessions as SE
     from hq_api.talk import cards as talk_cards
 
     await talk_cards.on_outputs(tx, ref, [o for o in outputs if o["ref"] not in seen])
-    rep = await tx.one("SELECT * FROM owner.order_reports WHERE id = :id", id=rep["id"])
-    digest = _digest(dict(rep))
+    rep = dict(await tx.one("SELECT * FROM owner.order_reports WHERE id = :id", id=rep["id"]))
+    # ⟨1.17⟩ §35.2 the badge, by code; a change streams `session.updated`
+    pending = await SE.decisions_pending(tx, [w["id"] for w in works])
+    badge, _ = SE.badge_of(rep, state, works, blockers, decision_pending=pending)
+    if badge != rep["badge"]:
+        await SE.badge_changed(tx, rep, badge, order)
+        rep["badge"] = badge
+    digest = _digest(rep)
     if digest != rep["digest"]:
         await tx.exec(
             "UPDATE owner.order_reports SET digest = :d WHERE id = :id", d=digest, id=rep["id"]
         )
         holding = await _holding(tx)
         await events.emit(tx, holding["code"], "order.report", ref, {"state": state})
-    if end_now:
-        await _tell_end(tx, rep, order, state, summary or {})
-    return dict(rep)
+    return rep
 
 
 async def _tell_end(
@@ -852,12 +888,16 @@ async def report(tx: Tx, ref: str) -> OrderReport | None:
         return None
     order = await load_order(tx, ref)
     assert order is not None
-    ids = [w["id"] for w in await tree(tx, root_refs(order))]
+    works = await tree(tx, root_refs(order))
+    ids = [w["id"] for w in works]
+    from hq_api.domain import sessions as SE
+
     return render(
         rep,
         order,
         parts=await SP.views(tx, ids) if ids else [],
         workspaces=await WS.progress(tx, ids) if ids else [],
+        session=await SE.view(tx, rep, order, works=works),
     )
 
 
@@ -867,6 +907,7 @@ def render(
     *,
     parts: list[SP.WorkSplit] | None = None,
     workspaces: list[WS.WorkspaceProgress] | None = None,
+    session: Any = None,
 ) -> OrderReport:
     ack = _j(rep["ack"])
     if ack:
@@ -878,8 +919,14 @@ def render(
         }
     turn = _j(rep.get("turn"))
     if turn:
+        asks = [
+            {**a, "by": actor(a["by"]["kind"], a["by"]["code"]),
+             "question_fa": HZ.humanize(a.get("question_fa")) or "-"}
+            for a in turn.get("asks") or []
+            if isinstance(a, dict) and a.get("by")
+        ]  # fmt: skip
         turn = {**turn, "by": actor(turn["by"]["kind"], turn["by"]["code"]),
-                "question_fa": HZ.humanize(turn.get("question_fa")) or "-"}  # fmt: skip
+                "question_fa": HZ.humanize(turn.get("question_fa")) or "-", "asks": asks}  # fmt: skip
     return OrderReport(
         ref=rep["ref"],
         text_fa=order.get("text") or "",
@@ -892,12 +939,16 @@ def render(
         outputs=[Output.model_validate(o) for o in _j(rep["outputs"]) or []],
         summary=Summary.model_validate(_j(rep["summary"])) if rep["summary"] else None,
         updated_at=rep["updated_at"],
-        kit=kit_card(order, sealed=rep["ended_at"] is not None),
+        kit=kit_card(order, sealed=rep["ended_at"] is not None or rep["state"] == "delivered"),
         parts=parts or [],
         workspaces=workspaces or [],
         pace=order.get("pace") or "auto",
         turn=Turn.model_validate(turn) if turn else None,
         conversation_ref=rep.get("conversation_ref"),
+        session=session.session if session is not None else None,
+        brief=session.brief if session is not None else None,
+        tasks=session.tasks if session is not None else [],
+        participants=session.participants if session is not None else [],
     )
 
 
@@ -1001,9 +1052,24 @@ async def timers(tx: Tx, s: Any, ref: str) -> list[str]:
     fired: list[str] = []
     now = await tx.scalar("SELECT now()")
     created = order["created_at"]
+    turn = _j(rep.get("turn"))
+    roots = [w for w in works if w["is_root"]]
+    if roots and all(w["status"] not in OPEN for w in roots):
+        # ⟨1.17⟩ §35.1 the works are done: the session is `ready` and waits for the owner; no
+        # timer nudges anyone
+        return []
+    if (
+        turn
+        and not turn.get("reminded_at")
+        and (now - datetime.fromisoformat(str(turn["at"])) >= timedelta(hours=s.order_owner_hours))
+    ):
+        # ⟨1.17⟩ §35.4 an open turn reminds the owner once after order_owner_hours
+        await _remind_turn(tx, rep, order, turn, s.order_owner_hours)
+        fired.append("turn")
     if (
         rep["ack"] is None
         and rep["ack_nudged_at"] is None
+        and not turn  # ⟨1.17⟩ the holder asked and waits: no «where is your plan» nudge
         and now - created >= timedelta(minutes=s.order_ack_minutes)
     ):
         await _nudge(
@@ -1016,7 +1082,7 @@ async def timers(tx: Tx, s: Any, ref: str) -> list[str]:
         )
         fired.append("ack")
     last = max(x for x in (created, rep["acked_at"], rep["last_step_at"]) if x is not None)
-    if _j(rep.get("turn")):
+    if turn:
         # ⟨1.16⟩ §34.3 the holder asked and waits for the owner: no «no progress» nudge
         last = now
     if now - last >= timedelta(hours=s.order_progress_hours) and (
@@ -1075,6 +1141,37 @@ async def timers(tx: Tx, s: Any, ref: str) -> list[str]:
             await stop_talk(tx, rep, works, int(runs))
             fired.append("talk_loop")
     return fired
+
+
+async def _remind_turn(
+    tx: Tx, rep: dict[str, Any], order: dict[str, Any], turn: dict[str, Any], hours: int
+) -> None:
+    holding = await _holding(tx)
+    text = " ".join((order.get("text") or "").split())[:80]
+    await notify.raise_notification(
+        tx,
+        company_id=holding["id"],
+        company_code=holding["code"],
+        level="decision",
+        title_fa=f"هنوز منتظر جواب شماست: {text}"[:300],
+        body_fa=HZ.plain(
+            f"{turn.get('who_fa') or 'مسئول'} {hours} ساعت پیش پرسید: {turn.get('question_fa') or ''}",
+            "تا جواب ندهید این فرمان جلو نمیرود",
+            "در جلسه‌ی فرمان جواب بدهید",
+        )[:4000],
+        link_kind="conversation" if rep.get("conversation_ref") else "order",
+        link_ref=rep.get("conversation_ref") or rep["ref"],
+        source_kind="service",
+        source_code="orders",
+        domain="business",
+        owner_action=True,
+    )
+    await tx.exec(
+        """UPDATE owner.order_reports
+           SET turn = turn || jsonb_build_object('reminded_at', to_jsonb(now())), updated_at = now()
+           WHERE id = :id""",
+        id=rep["id"],
+    )
 
 
 async def tick(hub: Any) -> dict[str, Any]:

@@ -31,6 +31,9 @@ E = responses(401, 403, 404, 409, 422)
 class ActIn(Model):
     action: Literal["run", "later", "no"]
     reason_fa: str | None = Field(default=None, max_length=1000)
+    # ⟨1.17⟩ §35.1 «اجرا کن» from inside a session: the suggestion continues that order (the
+    # owner's word on it, a reply), never a new F-ref
+    order_ref: str | None = Field(default=None, pattern=r"^F-[0-9]{4,}$")
 
 
 @router.get("/home", response_model=HM.Home, responses=E)
@@ -58,6 +61,26 @@ async def _make_order(
     return ref
 
 
+async def _continue_order(ctx: Ctx, ref: str, s: dict[str, Any]) -> str:
+    """⟨1.17⟩ §35.1 «اجرا کن» inside a session: the suggestion is the owner's next word on that
+    open order (a reply); its holder runs again at once."""
+    from hq_api.domain import order_report as OR
+    from hq_api.domain import order_turns as OT
+
+    async with ctx.tx() as tx:
+        text = f"اجرا کن: {HM.order_text(s)}"[:2000]
+        out = await OT.reply(tx, ref, text)
+        rep = await OR.ensure(tx, ref)
+        if rep is not None:
+            await OT.to_talk_owner(tx, rep, text)
+        woken = ", ".join(out["woken"]) or "nothing"
+        await ctx.audit(tx, company_id=s["company_id"], action="order.reply", action_class="A1",
+                        target_kind="order", target_ref=ref,
+                        summary=f"a suggestion from the session; woken: {woken}")  # fmt: skip
+        await OR.refresh(tx, ref)
+    return ref
+
+
 @router.post("/home/suggestions/{id}", response_model=HM.Suggestion, responses=E)
 async def act_on_suggestion(
     id: UUID,
@@ -76,7 +99,11 @@ async def act_on_suggestion(
         s = await tx.one(HM.SUGGESTION_SQL + " WHERE s.id = :id", id=id)
     if s["state"] == "run" and s["order_ref"]:
         return HM.render_suggestion(s)
-    order_ref = await _make_order(ctx, request, background, s) if body.action == "run" else None
+    order_ref = None
+    if body.action == "run" and body.order_ref:
+        order_ref = await _continue_order(ctx, body.order_ref, s)
+    elif body.action == "run":
+        order_ref = await _make_order(ctx, request, background, s)
     now = datetime.now(UTC)
     reason = HM.clean(body.reason_fa, 1000) if body.reason_fa else None
     async with ctx.tx() as tx:

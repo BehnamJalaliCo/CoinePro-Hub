@@ -1,10 +1,13 @@
 """⟨1.16⟩ The owner's orders answered (contract §29.2, §34): the tools of whoever works on one.
 
-    order.ack (A1)       {ref, plan_fa, assigned?: [code], due_at?}: the plan of the order's holder
-                         («فهمیدم؛ برنامه: …»), within 10 minutes of the order
-    order.progress (A1)  {ref, step_fa}: one real step, in plain Persian
+    order.ack (A1)       {ref, plan_fa, assigned?: [code], due_at?, steps?: [str]}: the plan of
+                         the order's holder («فهمیدم؛ برنامه: …»), within 10 minutes of the order;
+                         ⟨1.17⟩ `steps` become the session's tasks (the owner sees them ticked)
+    order.progress (A1)  {ref, step_fa, done?: [n]}: one real step, in plain Persian; ⟨1.17⟩
+                         `done` ticks those task numbers
     order.ask (A1)       {ref, question_fa}: one short question to the owner (the owner's turn:
-                         the order waits for the owner's word, which comes back to the same work)
+                         the order waits for the owner's word, which comes back to the same work);
+                         ⟨1.17⟩ a second ask while the turn is open joins it
 
 Every role has them (hq_common.charters.EVERY_ROLE_TOOLS); the api and the policy let only someone
 who works on the order use them (`assigned`). Before prompt 25 the api and the policy had ack and
@@ -14,8 +17,9 @@ progress but no tool reached them: an order's holder could never answer it.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Annotated
 
-from pydantic import Field
+from pydantic import Field, StrictInt
 
 from hq_gateway import tools as T
 
@@ -27,11 +31,17 @@ class AckIn(T.In):
     plan_fa: str = Field(min_length=1, max_length=2000)
     assigned: list[str] = Field(default_factory=list, max_length=20)
     due_at: datetime | None = None
+    steps: list[Annotated[str, Field(min_length=1, max_length=300)]] = Field(
+        default_factory=list, max_length=20
+    )
 
 
 class StepIn(T.In):
     ref: str = Field(pattern=ORDER_REF)
     step_fa: str = Field(min_length=1, max_length=1000)
+    done: list[Annotated[StrictInt, Field(ge=1, le=500)]] = Field(
+        default_factory=list, max_length=50
+    )
 
 
 class AskIn(T.In):
@@ -52,6 +62,7 @@ async def order_ack(api: T.Api, call: T.Call, a: AckIn) -> T.Result:
         "plan_fa": await T._text(a.plan_fa),
         "assigned": [c for c in a.assigned if c],
         "due_at": a.due_at.isoformat() if a.due_at else None,
+        "steps": await T._text([s for s in a.steps if s.strip()]),
     }
     resp = await api.request("POST", f"/internal/v1/orders/{a.ref}/ack", call.token, json=body)
     return _view(T.from_response(resp, None), a.ref)
@@ -62,7 +73,7 @@ async def order_progress(api: T.Api, call: T.Call, a: StepIn) -> T.Result:
         "POST",
         f"/internal/v1/orders/{a.ref}/progress",
         call.token,
-        json={"step_fa": await T._text(a.step_fa)},
+        json={"step_fa": await T._text(a.step_fa), "done": list(dict.fromkeys(a.done))},
     )
     return _view(T.from_response(resp, None), a.ref)
 

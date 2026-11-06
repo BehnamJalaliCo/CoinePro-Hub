@@ -1,4 +1,4 @@
-"""The api's side of a turn (contract §32.2-§32.4, §32.8): store the owner's
+"""The api's side of a turn (contract §32.2-§32.4, §32.8; §35.4): store the owner's
 words (scrubbed), apply what the rules see in them, and hand the answer to the
 worker. Nothing here calls a model.
 
@@ -11,6 +11,10 @@ worker. Nothing here calls a model.
     answer turn  stored `streaming` for the persona present, then the worker's
                  workflow TalkTurn answers it; when the worker cannot be
                  reached the plain line of §32.2 answers at once (never 5xx)
+    a session    ⟨1.17⟩ §35.4 a talk bound to an order: the holder answers by default; `to`
+                 names a participant (a player answers through its seat); `to: all` or «نظر
+                 همه» makes every present participant answer once (at most 5), then the holder
+                 sums up (directive `sum_up`). A closed session takes no turn (409).
 """
 
 from __future__ import annotations
@@ -31,12 +35,20 @@ from hq_api.talk.scrub import clean
 
 log = logging.getLogger("hq_api.talk.service")
 EVENTS_PATH = "/api/v1/talk/turns/{id}/events"
+EVERYONE_MAX = 5
+CLOSED_FA = "این جلسه بسته شده است؛ برای ادامه آن را دوباره باز کنید."
 
 
 async def new_conversation(
-    ctx: Ctx, tx: Tx, key: str, mode: str, title_fa: str | None
+    ctx: Ctx,
+    tx: Tx,
+    key: str,
+    mode: str,
+    title_fa: str | None,
+    *,
+    employee_code: str | None = None,
 ) -> dict[str, Any]:
-    p = await personas.resolve(tx, ctx.hub, key)
+    p = await personas.resolve(tx, ctx.hub, key, employee_code=employee_code)
     holding = await ctx.hub.companies.holding()
     row = await tx.one(
         """INSERT INTO talk.conversations (company_id, title_fa, persona, present, mode)
@@ -59,7 +71,29 @@ async def new_conversation(
     return dict(row)
 
 
-async def add_turn(
+def _answerers(
+    conv: dict[str, Any], to: str | None, intent: Any, invited: str | None
+) -> list[tuple[str, str | None]]:
+    """Who answers this turn: [(persona key, directive)]."""
+    bound = bool(conv.get("order_ref"))
+    holder = str(conv.get("holder") or conv["persona"])
+    present = [str(k) for k in conv.get("present") or []]
+    if to and to != "all":
+        if to != holder and to not in present:
+            raise ApiError(404, "not_found", "not a participant",
+                           message_fa="این کس در این گفتگو نیست.")  # fmt: skip
+        return [(to, None)]
+    if bound and (to == "all" or (intent is not None and intent.everyone)):
+        others = [k for k in present if k != holder][:EVERYONE_MAX]
+        return [*((k, None) for k in others), (holder, "sum_up" if others else None)]
+    if invited is not None:
+        return [(invited, None)]
+    if intent is not None and intent.secretary:
+        return [("secretary", None)]
+    return [(holder if bound else str(conv["persona"]), None)]
+
+
+async def add_turns(
     ctx: Ctx,
     tx: Tx,
     ref: str,
@@ -68,26 +102,31 @@ async def add_turn(
     client_id: str | None,
     *,
     directive: str | None = None,
-) -> tuple[UUID, UUID | None]:
-    """(the answer turn, the owner's turn) in the caller's transaction."""
+    to: str | None = None,
+) -> tuple[list[UUID], UUID | None]:
+    """(the answer turns, in order; the owner's turn) in the caller's transaction."""
     conv = await store.conversation(tx, ref, lock=True)
+    if conv.get("closed_at") is not None:
+        raise ApiError(409, "validation_failed", "the session is closed", message_fa=CLOSED_FA)
     if client_id:
-        prev = await tx.first(
+        prev = await tx.all(
             """SELECT a.id AS answer, o.id AS owner FROM talk.turns o
                JOIN talk.turns a ON a.reply_to = o.id
-               WHERE o.conversation_id = :c AND o.client_id = :k""",
+               WHERE o.conversation_id = :c AND o.client_id = :k ORDER BY a.n""",
             c=conv["id"],
             k=client_id,
         )
-        if prev is not None:  # the same turn sent again: its answer, not a second one
-            return prev["answer"], prev["owner"]
+        if prev:  # the same turn sent again: its answers, not new ones
+            return [r["answer"] for r in prev], prev[0]["owner"]
     holding = await ctx.hub.companies.holding()
     clean_text, had_key = clean(text) if text else ("", False)
     owner_id: UUID | None = None
     n = int(conv["turns"])
+    intent = None
+    invited: str | None = None
     if directive is None:
         intent = read_intents(clean_text, await O.directory(tx))
-        if intent.secretary and conv["persona"] != "secretary":
+        if intent.secretary and conv["persona"] != "secretary" and not conv.get("order_ref"):
             await tx.exec(
                 "UPDATE talk.conversations SET persona = 'secretary', updated_at = now() WHERE id = :id",
                 id=conv["id"],
@@ -99,9 +138,10 @@ async def add_turn(
                 mp = await personas.resolve(tx, ctx.hub, key)
             except ApiError:
                 mp = None
-            if mp is not None and mp.key != conv["persona"]:
+            if mp is not None and mp.key != conv["persona"] and mp.key != conv.get("holder"):
                 joined = await K.join_with_notice(tx, ctx.hub, conv, mp)
                 n = int(conv["turns"])
+                invited = str(joined["persona"])
                 log.info("talk invite", extra={"ref": ref, "persona": joined["persona"]})
         mode = "work" if intent.work_mode else ("consult" if intent.consult_mode else conv["mode"])
         if mode != conv["mode"]:
@@ -127,19 +167,34 @@ async def add_turn(
         )
         if intent.remember and not had_key:
             await store.remember(tx, holding.id, clean(intent.remember)[0], owner_id)
-    p = await personas.resolve(tx, ctx.hub, conv["persona"])
-    n += 1
-    answer_id: UUID = await tx.scalar(
-        """INSERT INTO talk.turns (conversation_id, company_id, n, by_kind, persona, source, state,
-               reply_to, directive)
-           VALUES (:c, :co, :n, 'persona', :p, 'system', 'streaming', :r, :d) RETURNING id""",
-        c=conv["id"],
-        co=p.company_id,
-        n=n,
-        p=p.key,
-        r=owner_id,
-        d=directive,
+    who = (
+        [(str(conv["persona"]), directive)]
+        if directive == "minutes"
+        else _answerers(conv, to, intent, invited)
     )
+    answers: list[UUID] = []
+    for key, d in who:
+        p = await personas.resolve_in(tx, ctx.hub, key, conv)
+        n += 1
+        answer_id: UUID = await tx.scalar(
+            """INSERT INTO talk.turns (conversation_id, company_id, n, by_kind, persona, source, state,
+                   reply_to, directive)
+               VALUES (:c, :co, :n, 'persona', :p, 'system', 'streaming', :r, :d) RETURNING id""",
+            c=conv["id"],
+            co=p.company_id,
+            n=n,
+            p=p.key,
+            r=owner_id,
+            d=d,
+        )
+        answers.append(answer_id)
+    if who[-1][0] != conv["persona"]:
+        # the screen shows who speaks now (the last to answer)
+        await tx.exec(
+            "UPDATE talk.conversations SET persona = :p, updated_at = now() WHERE id = :id",
+            p=who[-1][0],
+            id=conv["id"],
+        )
     await tx.exec(
         """UPDATE talk.conversations SET turns = :n, last_turn_at = now(), updated_at = now()
            WHERE id = :id""",
@@ -153,9 +208,25 @@ async def add_turn(
         action_class="A0",
         target_kind="conversation",
         target_ref=ref,
-        summary=f"turn {n - 1} to {p.key}" + (" (a key was removed)" if had_key else ""),
+        summary=f"turn {n - len(answers)} to {', '.join(k for k, _ in who)}"
+        + (" (a key was removed)" if had_key else ""),
     )
-    return answer_id, owner_id
+    return answers, owner_id
+
+
+async def add_turn(
+    ctx: Ctx,
+    tx: Tx,
+    ref: str,
+    text: str,
+    source: str,
+    client_id: str | None,
+    *,
+    directive: str | None = None,
+) -> tuple[UUID, UUID | None]:
+    """(the answer turn, the owner's turn) in the caller's transaction."""
+    answers, owner_id = await add_turns(ctx, tx, ref, text, source, client_id, directive=directive)
+    return answers[0], owner_id
 
 
 async def dispatch(hub: Any, turn_id: UUID) -> None:
@@ -167,6 +238,13 @@ async def dispatch(hub: Any, turn_id: UUID) -> None:
         log.warning("could not start the talk turn", extra={"turn": str(turn_id)})
     if not started:
         await engine.unavailable(hub, str(turn_id))
+
+
+async def dispatch_all(hub: Any, turn_ids: list[UUID]) -> None:
+    """⟨1.17⟩ §35.4 «نظر همه»: the answers one after the other, so the holder's sum-up reads
+    every answer before it (a player's answer may still be on its way: the sum-up says so)."""
+    for tid in turn_ids:
+        await dispatch(hub, tid)
 
 
 async def stop(ctx: Ctx, turn_id: UUID) -> store.TalkTurn:

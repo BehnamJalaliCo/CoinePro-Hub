@@ -75,7 +75,11 @@ async def test_a_named_manager_is_reached_by_the_rules_alone(
     # The shortcut: straight to the manager, depth 1, a root work of the owner (depth 2 holds).
     assert w["assignee"] == "FX-TECH-MGR" and w["depth"] == 1 and w["parent_id"] is None
     assert w["created_by_kind"] == "owner" and out["ref"] in w["brief"]
-    assert out["ref"].startswith("F-") and "FX-TECH-MGR" in out["summary_fa"]
+    # ⟨1.17⟩ W6 i: the owner reads the manager's name in the summary, never its code
+    title = await su.fetchval("SELECT title_fa FROM core.employees WHERE code = 'FX-TECH-MGR'")
+    assert out["ref"].startswith("F-") and title in out["summary_fa"]
+    assert "FX-TECH-MGR" not in out["summary_fa"]
+    assert out["talk_ref"]  # ⟨1.17⟩ §35.1 every order is a session
 
 
 async def test_an_ambiguous_order_goes_to_the_advisor(
