@@ -12,6 +12,11 @@ every talk persona's, so that nobody claims a capability does not exist or inven
     the company       its connections (Instagram, Telegram, Search Console…: connected or not), its
                       links to other companies (what to ask whom), its working groups and its
                       production lines (ref, title, platform, state, mode: what line.run can name)
+    the holding       ⟨2026-11-06⟩ every active company in short (who it is, its departments, sites,
+                      channels and accounts with what they are read through, e.g. Instagram via
+                      IG-Hub of company IG, its servers by name, its lines and groups): nobody asks
+                      «IG کدام شرکت است» again; the full profile and figures are `linked.read`
+    voice             Google AI Studio's state for `speech.make` (the media roles)
     how               hire, delegate, split, ask another company, ask the owner, report
 """
 
@@ -58,6 +63,16 @@ HOW = {
     ),
     "hire": "propose {kind: hire} (a CEO decides inside its envelope; hiring rules in company.state)",
     "delegate": "work.delegate / work.split; another company: work.request to a linked company",
+    "other_companies": (
+        "the_holding names every company; before you say you do not know a company, its accounts "
+        "or its figures, read it: linked.read {company: CODE, what: profile | kpis | outputs | "
+        "catalogue | connections | links, ref?} (connections: Instagram accounts as IG-Hub reads "
+        "them); then ask it for work with work.request"
+    ),
+    "voice": (
+        "the media roles: speech.make {text_fa, voice?, style?}: a Google AI Studio voice (file of "
+        "your company); the first answer is running with a job, call again with {job} until done"
+    ),
     "owner": "order.ask only when you truly cannot go on; report steps with order.progress",
 }
 
@@ -119,6 +134,55 @@ async def _company(tx: Tx, company_id: UUID) -> dict[str, Any]:
     }
 
 
+MAP_LIST_MAX = 12  # departments, sites, servers or accounts named per company in the map
+
+
+def _few(items: list[Any]) -> list[Any]:
+    return items[:MAP_LIST_MAX]
+
+
+async def _holding_map(tx: Tx) -> list[dict[str, Any]]:
+    """Every active company in short, from linked.profile (masked, public handles only)."""
+    from hq_api.domain import linked as LK
+
+    rows = await tx.all(
+        """SELECT id FROM core.companies WHERE status = 'active'
+           ORDER BY (kind = 'holding') DESC, code"""
+    )
+    out = []
+    for r in rows:
+        p = await _safe(tx, LK.profile, r["id"])
+        if p is None:
+            continue
+        channels = []
+        for c in p.get("connections") or []:
+            ch: dict[str, Any] = {"kind": c.get("kind"), "state": c.get("state")}
+            ch.update({k: v for k, v in (c.get("handles") or {}).items() if v})
+            if c.get("accounts_seen"):
+                ch["accounts_seen"] = _few(list(c["accounts_seen"]))
+            channels.append(ch)
+        out.append(
+            {
+                "code": p.get("code"),
+                "name_fa": p.get("name_fa"),
+                "name_en": p.get("name_en"),
+                "kind": p.get("kind"),
+                "departments": _few(
+                    [
+                        f"{d.get('code')}: {d.get('name_fa') or d.get('name_en') or ''}".strip()
+                        for d in p.get("departments") or []
+                    ]
+                ),
+                "sites": _few(list(p.get("sites") or [])),
+                "channels": channels,
+                "servers": _few([s.get("name") for s in p.get("servers") or []]),
+                "lines_on": len(p.get("lines") or []),
+                "groups": [g.get("key") for g in p.get("groups") or []],
+            }
+        )
+    return out
+
+
 async def _safe(tx: Tx, fn: Any, *args: Any) -> Any:
     """One part that cannot be read (a table not there yet) never hides the others."""
     try:
@@ -134,6 +198,14 @@ async def brief(tx: Tx, company_id: UUID | None, *, n8n_up: bool) -> dict[str, A
         "automations": {"engine": "the hub's rule engine", "n8n": "up" if n8n_up else "not set up"},
         "how": HOW,
     }
+    holding = await _safe(tx, _holding_map)
+    if holding:
+        out["the_holding"] = holding
+    from hq_api.domain import speech_make as SM
+
+    voice = await _safe(tx, SM.speech_state)
+    if voice is not None:
+        out["voice"] = voice
     if company_id is not None:
         company = await _safe(tx, _company, company_id)
         if company is not None:

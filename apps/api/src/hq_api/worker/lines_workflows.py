@@ -7,6 +7,8 @@ LineRun(ref)        one per run (id line-run-<ref>): its steps one by one; at a
                     minutes by itself
 LinesTick()         every 5 minutes (hq-lines-tick)
 LineStepTest(...)   the owner's «آزمودن» of one step, awaited by the api
+SpeechMake(job)     ⟨2026-11-06⟩ a media role's `speech.make` (id speech-<company>-<job>): one
+                    try (a second would speak twice); the api reads its answer by the id
 """
 
 from __future__ import annotations
@@ -85,4 +87,20 @@ class LineStepTest:
         return out
 
 
-LINES_WORKFLOWS = [LineRun, LinesTick, LineStepTest]
+@workflow.defn(name="SpeechMake")
+class SpeechMake:
+    """One voice from AI Studio for an agent (domain/speech_make.py); its answer is the result."""
+
+    @workflow.run
+    async def run(self, job: dict[str, Any]) -> dict[str, Any]:
+        out: dict[str, Any] = await workflow.execute_activity(
+            "speech_make",
+            job,
+            # the recipe's 240 s, a busy profile tried again for up to 8 x 20 s, and a margin
+            start_to_close_timeout=timedelta(seconds=600),
+            retry_policy=RetryPolicy(maximum_attempts=1),
+        )
+        return out
+
+
+LINES_WORKFLOWS = [LineRun, LinesTick, LineStepTest, SpeechMake]

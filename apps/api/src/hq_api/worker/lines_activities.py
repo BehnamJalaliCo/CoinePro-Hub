@@ -7,6 +7,8 @@ lines_tick      every 5 minutes (hq-lines-tick): the schedules due, open runs
                 no workflow moves, the 24h / 7d reads; only with HQ_LINES=on
                 and nothing while the holding is locked
 line_step_test  the owner's «آزمودن» of one step (nothing kept)
+speech_make     ⟨2026-11-06⟩ a media role's `speech.make`: one voice from AI Studio through the
+                tts adapter's own call (domain/speech_make.py), outside any line
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ from typing import Any
 
 from temporalio import activity
 
+from hq_api.domain import speech_make as SM
 from hq_api.hub import Hub
 from hq_api.lines import engine
 
@@ -28,7 +31,7 @@ class LinesActivities:
         self._tx = tx
 
     def all(self) -> list[Any]:
-        return [self.line_advance, self.lines_tick, self.line_step_test]
+        return [self.line_advance, self.lines_tick, self.line_step_test, self.speech_make]
 
     @activity.defn(name="line_advance")
     async def line_advance(self, ref: str) -> dict[str, Any]:
@@ -50,3 +53,7 @@ class LinesActivities:
         self, line_ref: str, key: str, given: dict[str, Any] | None
     ) -> dict[str, Any]:
         return await engine.test_step(self.hub, line_ref, key, given)
+
+    @activity.defn(name="speech_make")
+    async def speech_make(self, job: dict[str, Any]) -> dict[str, Any]:
+        return await SM.make(self.hub, job)

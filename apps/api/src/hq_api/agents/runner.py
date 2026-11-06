@@ -122,6 +122,7 @@ def meeting_tools(lib: Any, charter: Charter, tool: str | None) -> tuple[str, ..
 
 FINAL = ("done", "failed", "refused")
 CONTEXT_CHARS = 24_000
+CAPS_CHARS = 12_000  # the capability brief and the holding map, never cut by the work's own context
 THREAD_MESSAGES = 12
 # The router's task class of a run comes from the charter's KIND (data in
 # agents/roles), never from a role name (contract hard rule 1).
@@ -1234,15 +1235,22 @@ class Runner:
             caps = await CAP.brief(
                 all_tx, run["company_id"], n8n_up=bool(AU.n8n_settings(self.hub))
             )
-        parts.append(
-            "# What the holding gives you (live; use it, never say it is missing)\n"
-            + json.dumps(caps, ensure_ascii=False, default=str)
+        # ⟨2026-11-06⟩ kept apart from the trim: appended last, it was the first part cut from a
+        # long context, and the agent then said a helper or a company did not exist
+        caps_block = P.trim(
+            await scrub_async(
+                (
+                    "# What the holding gives you (live; use it, never say it is missing)\n"
+                    + json.dumps(caps, ensure_ascii=False, default=str)
+                )[: CAPS_CHARS * 2]
+            ),
+            CAPS_CHARS,
         )
         # What a model reads never carries a secret or personal data (prompt 5.1
         # §2.1): cut first (bounded work), masked, then trimmed to size.
         raw = "\n\n".join(parts)
         text = P.trim(await scrub_async(raw[: CONTEXT_CHARS * 2]), CONTEXT_CHARS)
-        return text, list(dict.fromkeys(images))
+        return text + "\n\n" + caps_block, list(dict.fromkeys(images))
 
     async def _attachments(
         self, tx: Tx, msgs: list[dict[str, Any]]

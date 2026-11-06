@@ -4,6 +4,9 @@
     media.render    A2  queue a preview render in the sandboxed render worker
     media.review    A2  the media director's review (the `qc` check)
     series.propose  A1  a publishing series for the owner's seal (a card)
+    speech.make     A1  ⟨2026-11-06⟩ a voice from Google AI Studio (the owner's account), outside
+                        the production lines: {text_fa, voice?, style?} starts it, {job} asks for
+                        its answer (running | done with the audio's file id | failed, in Persian)
 
 (media.voice, the item's narration, is the voice registry's: legal.py.)
 
@@ -126,6 +129,13 @@ class SeriesProposeIn(T.In):
     why_fa: str = Field(default="", max_length=20000)
 
 
+class SpeechMakeIn(T.In):
+    text_fa: str | None = Field(default=None, min_length=1, max_length=5000)
+    voice: str | None = Field(default=None, pattern=r"^[A-Za-z]{2,30}$")
+    style: str | None = Field(default=None, max_length=500)
+    job: str | None = Field(default=None, pattern=T.UUID_RE)
+
+
 def _shape(r: T.Result) -> T.Result:
     if r.outcome == "ok" and isinstance(r.data, dict):
         r.ref = str(r.data.get("ref") or "")
@@ -176,10 +186,45 @@ async def series_propose(api: T.Api, call: T.Call, a: SeriesProposeIn) -> T.Resu
     return _shape(T.from_response(resp))
 
 
+async def speech_make(api: T.Api, call: T.Call, a: SpeechMakeIn) -> T.Result:
+    if (a.job is None) == (a.text_fa is None) or (a.job and (a.voice or a.style)):
+        return T.Result(
+            "error",
+            code="invalid_args",
+            fields={"text_fa": "text_fa (with voice, style) to start, or job alone to ask"},
+            hint_fa=(
+                "برای ساخت صدا text_fa (و اگر خواستی voice و style) بفرست؛ "
+                "برای پرسیدن نتیجه فقط job."
+            ),
+        )
+    if a.job is not None:
+        resp = await api.request("GET", f"/internal/v1/speech/make/{a.job}", call.token)
+    else:
+        body: dict[str, Any] = {"text_fa": await T._text(a.text_fa or "")}
+        if a.voice:
+            body["voice"] = a.voice
+        if a.style:
+            body["style"] = await T._text(a.style)
+        resp = await api.request(
+            "POST",
+            "/internal/v1/speech/make",
+            call.token,
+            json=body,
+            idem=call.idem("speech.make"),
+        )
+    r = T.from_response(resp, None)
+    if r.outcome == "ok" and isinstance(r.data, dict):
+        r.ref = str(r.data.get("file_id") or r.data.get("job") or "")
+        if r.data.get("hint_fa"):
+            r.hint_fa = str(r.data["hint_fa"])
+    return r
+
+
 TOOLS: dict[str, tuple[type[T.In], T.Handler]] = {
     "media.item": (MediaItemIn, media_item),
     "media.render": (MediaRefIn, media_render),
     "media.review": (MediaReviewIn, media_review),
     "series.propose": (SeriesProposeIn, series_propose),
+    "speech.make": (SpeechMakeIn, speech_make),
 }
 T.TOOLS.update(TOOLS)

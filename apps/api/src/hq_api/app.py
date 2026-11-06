@@ -82,6 +82,7 @@ from hq_api.routes import journey as journey_routes  # prompt 24: §33.8-§33.9
 from hq_api.routes import kits as kit_routes  # prompt 22: §31.2 company kits
 from hq_api.routes import legal as legal_routes  # prompt 13: the legal counsel
 from hq_api.routes import lines as line_routes  # prompt 22: production lines (§30, §31.1)
+from hq_api.routes import linked as linked_routes  # ⟨2026-11-06⟩ linked.read along a link
 from hq_api.routes import links as link_routes  # prompt 25: §35.6 company links, the canvas
 from hq_api.routes import media as media_routes  # prompt 13, the media half
 from hq_api.routes import money as money_routes  # prompt 24: §33.2-§33.3 payments, the board
@@ -95,6 +96,7 @@ from hq_api.routes import sales as sales_routes  # prompt 24: §33.1, §33.4-§3
 from hq_api.routes import seo as seo_routes  # prompt 22 part 3: §31.4
 from hq_api.routes import servers as server_routes  # prompt 17: company server runners
 from hq_api.routes import sessions as session_routes  # prompt 25: §35.1-§35.3 every order a session
+from hq_api.routes import speech as speech_routes  # ⟨2026-11-06⟩ speech.make: AI Studio's voices
 from hq_api.routes import substitutes as substitute_routes  # prompt 12 part A
 from hq_api.routes import talk as talk_routes  # prompt 23: §32 the owner's talk
 from hq_api.routes import voice as voice_session_routes  # prompt 21: long voice
@@ -326,6 +328,10 @@ def create_app(
     app.include_router(journey_routes.router, prefix="/api/v1")
     # ⟨1.17⟩ (contract §35.6): the links between companies and the owner's canvas (owner only)
     app.include_router(link_routes.router, prefix="/api/v1")
+    # ⟨2026-11-06⟩ a company's data along an `on` link (linked.read, A0): «عین رگ انسان»
+    app.include_router(linked_routes.internal_router, prefix="/internal/v1")
+    # ⟨2026-11-06⟩ a voice from Google AI Studio for the media roles (speech.make, A1)
+    app.include_router(speech_routes.internal_router, prefix="/internal/v1")
     # ⟨1.17⟩ (contract §35.5): the owner's office (owner only)
     app.include_router(office_routes.router, prefix="/api/v1")
     # ⟨1.15⟩ prompt 24 (contract §33.1-§33.6): payments and the revenue board; usage reports, the

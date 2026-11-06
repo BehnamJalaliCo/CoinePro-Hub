@@ -58,3 +58,30 @@ test_render_voice_and_review_are_a2_grants if {
 	not acts(ty_media_01, "media.review")
 	acts(f.ty_ceo, "role.decide")
 }
+
+# ⟨2026-11-06⟩ speech.make: a voice from AI Studio for the media roles, own company only (A1).
+test_speech_is_the_media_roles_in_their_own_company if {
+	every charter in {"voice_producer", "scriptwriter", "video_director", "motion_designer"} {
+		allowed(ty_media_01, "speech.make", {"company": "TY", "charter": charter})
+	}
+	allowed(ty_media_mgr, "speech.make", {"company": "TY", "charter": "media_director"})
+	not allowed(ty_media_01, "speech.make", {"company": "FX", "charter": "voice_producer"})
+	not allowed(ty_media_01, "speech.make", {"company": "TY", "charter": "publisher"})
+	not allowed(ty_media_01, "speech.make", {"company": "TY", "charter": "visual_designer"})
+	not allowed(f.ty_ceo, "speech.make", {"company": "TY", "charter": "ceo"})
+	not allowed(tts, "speech.make", {"company": "TY", "charter": "voice_producer"})
+	not allowed(f.owner, "speech.make", {"company": "TY", "charter": "voice_producer"})
+}
+
+test_speech_is_a1_and_stops_while_the_company_is_locked if {
+	actions.allow with input as {
+		"principal": ty_media_01,
+		"action": {"class": "A1", "name": "speech.make", "company": "TY"},
+		"context": {"escrow_classes": [], "company_locked": false},
+	}
+	not actions.allow with input as {
+		"principal": ty_media_01,
+		"action": {"class": "A1", "name": "speech.make", "company": "TY"},
+		"context": {"escrow_classes": [], "company_locked": true},
+	}
+}

@@ -48,8 +48,9 @@ from hq_gateway import (
     inquiries,  # noqa: F401 - inquiries, errands, planner, workshop.read
     knowledge,  # noqa: F401 - prompt 11: knowledge.propose/review/approve
     legal,  # noqa: F401 - prompt 13: case.open/note, email.draft, mail.read, media.voice
+    linked,  # noqa: F401 - ⟨2026-11-06⟩ linked.read: a company's data along an owner's link
     management,  # noqa: F401 - prompt 12 part A: memo.write, substitute.call
-    media,  # noqa: F401 - prompt 13: media.item, media.render, media.review, series.propose
+    media,  # noqa: F401 - prompt 13: media.item/render/review, series.propose; speech.make
     meetings,  # noqa: F401 - prompt 11: meeting.statement/challenge/whisper/item/minutes
     mgmt,  # noqa: F401 - prompt 12 part B: claim.verdict
     orders,  # noqa: F401 - prompt 25 (§34): order.ack, order.progress, order.ask

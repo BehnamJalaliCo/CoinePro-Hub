@@ -10,6 +10,8 @@
 #   media.review    the media director only (the `qc` check)
 #   series.propose  the media director: a series for the owner's seal
 #   media.jobs      the render one-shot (service `media`): claim, files, done
+#   speech.make     ⟨2026-11-06⟩ (A1) a voice from Google AI Studio, outside the production
+#                   lines: the media roles that make or shape a voice, own company only
 package hq.internal
 
 import rego.v1
@@ -17,6 +19,8 @@ import rego.v1
 media_writers := {"scriptwriter", "video_director", "motion_designer", "visual_designer", "ui_designer"}
 
 media_render_roles := {"motion_designer", "ui_designer"}
+
+speech_roles := {"media_director", "voice_producer", "video_director", "motion_designer", "scriptwriter"}
 
 grant if {
 	op == "media.item"
@@ -43,4 +47,11 @@ grant if {
 	op == "media.jobs"
 	service
 	p.code == "media"
+}
+
+grant if {
+	op == "speech.make"
+	agent
+	same_company(tv("company"))
+	tv("charter") in speech_roles
 }

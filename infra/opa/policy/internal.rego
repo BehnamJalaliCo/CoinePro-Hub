@@ -81,6 +81,10 @@ ops := {
 	"order.ack", "order.progress", "order.ask", "work.budget", "card.decide", "automation.propose",
 	# ⟨1.15⟩ prompt 24 (grok.rego): a work split into parallel parts (contract §33.7)
 	"work.split",
+	# ⟨2026-11-06⟩ (linked.rego): a company's data along an owner's `on` link (contract §35.6)
+	"linked.read",
+	# ⟨2026-11-06⟩ (media.rego): a voice from Google AI Studio for the media roles
+	"speech.make",
 }
 
 # The oversight roles of the holding: the overseer, QC (the inspector) and

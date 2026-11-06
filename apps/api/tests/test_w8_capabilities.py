@@ -285,3 +285,40 @@ async def test_an_automation_order_goes_to_the_ceo_never_by_a_stray_word(
     r = await preview(client, owner, f"برای {co} سه ریلز بساز که اتوماسیون شده منتشر بشه {words()}")
     assert (r["department"], r["output_kind"], r["count"]) == ("MEDIA", "reel", 3), r
     assert no_model == []  # the rules alone
+
+
+async def test_the_brief_maps_the_whole_holding_and_ig_hubs_accounts(
+    hub: Hub, su: Any, new_company: Callable[..., Any]
+) -> None:
+    """The owner, 2026-11-06: a media director did not know what company IG is or which Instagram
+    accounts IG-Hub holds. Every run's brief now names every active company and its channels."""
+    import json
+
+    a, b = await new_company(), await new_company()
+    await su.execute(
+        """INSERT INTO growth.connections (company_id, kind, label_fa, config, secret_set)
+           VALUES ($1, 'instagram', 'اینستاگرام', $2::jsonb, false)""",
+        b["id"],
+        json.dumps({"via": "ig_hub", "accounts": ["@pro.chart"],
+                    "server": {"company": "IG", "name": "IG-Hub"}}),
+    )  # fmt: skip
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        brief = await CAP.brief(tx, a["id"], n8n_up=True)
+    by_code = {c["code"]: c for c in brief["the_holding"]}
+    assert {a["code"], b["code"]} <= set(by_code)
+    ig = next(c for c in by_code[b["code"]]["channels"] if c["kind"] == "instagram")
+    assert ig["accounts"] == ["pro.chart"] and ig["via"] == {"server": "IG-Hub", "company": "IG"}
+    assert brief["voice"]["aistudio"] in {"signed_in", "signed_out", "unknown"}
+    assert "linked.read" in brief["how"]["other_companies"]
+    assert "speech.make" in brief["how"]["voice"]
+
+
+def test_the_brief_is_never_cut_by_a_long_context() -> None:
+    """Appended last, the brief was the first thing trimmed from a long run context."""
+    import inspect
+
+    from hq_api.agents import runner
+
+    src = inspect.getsource(runner)
+    assert "caps_block" in src and 'text + "\\n\\n" + caps_block' in src
+    assert runner.CAPS_CHARS >= 8_000

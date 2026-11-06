@@ -8,6 +8,9 @@ recipe, one profile, one lock) and is signed in once by the owner with `make ais
 
 Settings: `voice` (speaker name, default Kore), `style` (a style note in plain words, optional).
 The text to speak is the first input step's text (`settings.text_from` names another), else the prompt.
+
+`speak()` is the one egress call, shared with the media roles' `speech.make` outside the lines
+(domain/speech_make.py).
 """
 
 from __future__ import annotations
@@ -71,6 +74,37 @@ def known_voice(name: str) -> bool:
     return name.lower() in {v[0].lower() for v in DOCUMENTED}
 
 
+async def speak(
+    hub: Any, text: str, *, voice: str = DEFAULT_VOICE, style: str = "", timeout_s: int = 240
+) -> tuple[bytes, str]:
+    """The text spoken by AI Studio's `voice` (with the `style` note) in the hub's signed-in
+    profile: (audio bytes, mime). A plain Persian StepFailed otherwise (signed out: `expired`,
+    naming the owner's `make aistudio-web-login`; the browser off, a changed page, a timeout)."""
+    text = text.strip()
+    if not text:
+        raise StepFailed("متنی برای صداگذاری نیست.", code="empty_text")
+    if len(text) > MAX_CHARS:
+        raise StepFailed(
+            f"متن برای یک بار صداگذاری بلند است ({len(text)} نویسه؛ سقف {MAX_CHARS}).",
+            code="too_long",
+        )
+    if not known_voice(voice):
+        log.info("tts voice not in the documented list", extra={"voice": voice})
+    got = await C.web_job(
+        hub,
+        account=ACCOUNT,
+        task="tts",
+        prompt=text,
+        timeout_s=timeout_s,
+        voice=voice,
+        style=style.strip() or None,
+    )
+    data, _name, mime = C.decode_b64(got.get("file"))
+    if not mime.startswith("audio/"):
+        raise StepFailed("چیزی که از ای‌آی استودیو آمد صدا نبود.", code="not_audio", retry=True)
+    return data, mime
+
+
 class Tts:
     kind = "tts"
 
@@ -79,33 +113,15 @@ class Tts:
         style = str(C.setting(ctx, "style", "") or "").strip()
         src = C.first_input(ctx, C.setting(ctx, "text_from"))
         text = str((src.text if src is not None else None) or ctx.prompt or "").strip()
-        if not text:
-            raise StepFailed("متنی برای صداگذاری نیست.", code="empty_text")
-        if len(text) > MAX_CHARS:
-            raise StepFailed(
-                f"متن برای یک بار صداگذاری بلند است ({len(text)} نویسه؛ سقف {MAX_CHARS}).",
-                code="too_long",
-            )
-        if not known_voice(voice):
-            log.info("tts voice not in the documented list", extra={"voice": voice})
-        got = await C.web_job(
-            ctx.hub,
-            account=ACCOUNT,
-            task="tts",
-            prompt=text,
-            timeout_s=C.timeout_of(ctx, 240),
-            voice=voice,
-            style=style or None,
+        data, mime = await speak(
+            ctx.hub, text, voice=voice, style=style, timeout_s=C.timeout_of(ctx, 240)
         )
-        data, _name, mime = C.decode_b64(got.get("file"))
-        if not mime.startswith("audio/"):
-            raise StepFailed("چیزی که از ای‌آی استودیو آمد صدا نبود.", code="not_audio", retry=True)
         co = await C.company_of(ctx)
         fid = await C.store_file(
             ctx.hub,
             co.id,
             data,
-            name=f"{ctx.run_ref}-{ctx.step.get('key', 'voice')}.{_ext(mime)}",
+            name=f"{ctx.run_ref}-{ctx.step.get('key', 'voice')}.{ext(mime)}",
             mime=mime,
         )
         return StepOutput(
@@ -116,7 +132,7 @@ class Tts:
         )
 
 
-def _ext(mime: str) -> str:
+def ext(mime: str) -> str:
     return {"audio/wav": "wav", "audio/mpeg": "mp3", "audio/ogg": "ogg", "audio/flac": "flac"}.get(
         mime, "bin"
     )

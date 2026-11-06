@@ -149,6 +149,10 @@ GATEWAY_TOOLS: frozenset[str] = frozenset(
         "group.plan",
         "experiment.write",
         "connection.read",
+        # ⟨2026-11-06⟩ a company's data along an owner's `on` link (contract §35.6)
+        "linked.read",
+        # ⟨2026-11-06⟩ a voice from Google AI Studio for the media roles
+        "speech.make",
     }
 )
 # Tools whose traffic leaves the hub through the egress service (contract §18.7).

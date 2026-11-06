@@ -53,8 +53,9 @@ EVERY_ROLE_TOOLS = ("order.ack", "order.progress", "order.ask")
 # ⟨2026-11-06⟩ what every working role may ask of the holding's shared helpers: the outside players
 # (ChatGPT, Gemini, DeepSeek) for a draft, a long read, a search, a third opinion or a cover image
 # (the policy says which seats; the owner: «باید از چت جی پی تی کاور رو بسازی و تحویل بگیری»), and a
-# proposed automation (a CEO or a manager, by the policy; the owner seals it).
-SHARED_TOOLS = (*EVERY_ROLE_TOOLS, "substitute.call", "automation.propose")
+# proposed automation (a CEO or a manager, by the policy; the owner seals it). And the data of a
+# company the owner linked to one's own (`linked.read`, contract §35.6; the policy decides which).
+SHARED_TOOLS = (*EVERY_ROLE_TOOLS, "substitute.call", "automation.propose", "linked.read")
 
 
 @dataclass(frozen=True)

@@ -25324,6 +25324,629 @@
         "title": "LinkPatch",
         "type": "object"
       },
+      "LinkedCatalogue": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "deliverable": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deliverable"
+          },
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/LinkedSection"
+            },
+            "title": "Sections",
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "state",
+          "deliverable",
+          "sections"
+        ],
+        "title": "LinkedCatalogue",
+        "type": "object"
+      },
+      "LinkedConnection": {
+        "properties": {
+          "accounts": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accounts"
+          },
+          "daily": {
+            "items": {
+              "$ref": "#/components/schemas/LinkedDaily"
+            },
+            "title": "Daily",
+            "type": "array"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "label_fa": {
+            "title": "Label Fa",
+            "type": "string"
+          },
+          "last_read_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Read At"
+          },
+          "state": {
+            "enum": [
+              "not_connected",
+              "connected",
+              "error"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "label_fa",
+          "state",
+          "last_read_at",
+          "daily"
+        ],
+        "title": "LinkedConnection",
+        "type": "object"
+      },
+      "LinkedDaily": {
+        "properties": {
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "day",
+          "key",
+          "value",
+          "subject"
+        ],
+        "title": "LinkedDaily",
+        "type": "object"
+      },
+      "LinkedKpi": {
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "card": {
+            "title": "Card",
+            "type": "string"
+          },
+          "direction": {
+            "title": "Direction",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name_fa": {
+            "title": "Name Fa",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "ok",
+              "stale",
+              "no_source"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target"
+          },
+          "target_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Max"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "key",
+          "name_fa",
+          "card",
+          "unit",
+          "direction",
+          "value",
+          "at",
+          "target",
+          "target_max",
+          "state"
+        ],
+        "title": "LinkedKpi",
+        "type": "object"
+      },
+      "LinkedLink": {
+        "properties": {
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "name_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name Fa"
+          },
+          "outgoing": {
+            "title": "Outgoing",
+            "type": "boolean"
+          },
+          "purpose_fa": {
+            "title": "Purpose Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "company",
+          "name_fa",
+          "kind",
+          "purpose_fa",
+          "outgoing"
+        ],
+        "title": "LinkedLink",
+        "type": "object"
+      },
+      "LinkedOutput": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "producer": {
+            "title": "Producer",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "title",
+          "summary",
+          "producer",
+          "at"
+        ],
+        "title": "LinkedOutput",
+        "type": "object"
+      },
+      "LinkedOutputBody": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "producer": {
+            "title": "Producer",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ref",
+          "title",
+          "summary",
+          "producer",
+          "at",
+          "body",
+          "truncated"
+        ],
+        "title": "LinkedOutputBody",
+        "type": "object"
+      },
+      "LinkedProfile": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "connections": {
+            "items": {
+              "$ref": "#/components/schemas/ProfileConnection"
+            },
+            "title": "Connections",
+            "type": "array"
+          },
+          "departments": {
+            "items": {
+              "$ref": "#/components/schemas/ProfileDepartment"
+            },
+            "title": "Departments",
+            "type": "array"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/ProfileGroup"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/ProfileLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "name_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name En"
+          },
+          "name_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name Fa"
+          },
+          "servers": {
+            "items": {
+              "$ref": "#/components/schemas/ProfileServer"
+            },
+            "title": "Servers",
+            "type": "array"
+          },
+          "sites": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sites",
+            "type": "array"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name_fa",
+          "name_en",
+          "kind",
+          "status",
+          "departments",
+          "sites",
+          "connections",
+          "servers",
+          "lines",
+          "groups"
+        ],
+        "title": "LinkedProfile",
+        "type": "object"
+      },
+      "LinkedRead": {
+        "description": "One read along a link: the field named by `what` is filled (`output` for `outputs` with a\n`ref`); `via` says why it was allowed: the caller's own company, an `on` link, or a holding\nreader. `note_fa` says plainly when there is nothing yet.",
+        "properties": {
+          "catalogue": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LinkedCatalogue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "connections": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/LinkedConnection"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connections"
+          },
+          "kpis": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/LinkedKpi"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kpis"
+          },
+          "links": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/LinkedLink"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Links"
+          },
+          "name_fa": {
+            "title": "Name Fa",
+            "type": "string"
+          },
+          "note_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Fa"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LinkedOutputBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "outputs": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/LinkedOutput"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outputs"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LinkedProfile"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "via": {
+            "enum": [
+              "own",
+              "link",
+              "open",
+              "holding"
+            ],
+            "title": "Via",
+            "type": "string"
+          },
+          "what": {
+            "enum": [
+              "profile",
+              "kpis",
+              "outputs",
+              "catalogue",
+              "connections",
+              "links"
+            ],
+            "title": "What",
+            "type": "string"
+          }
+        },
+        "required": [
+          "company",
+          "name_fa",
+          "what",
+          "via"
+        ],
+        "title": "LinkedRead",
+        "type": "object"
+      },
+      "LinkedSection": {
+        "properties": {
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "summary_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Fa"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title_fa",
+          "summary_fa",
+          "count"
+        ],
+        "title": "LinkedSection",
+        "type": "object"
+      },
       "Links": {
         "additionalProperties": false,
         "properties": {
@@ -35965,6 +36588,158 @@
         "title": "ProducedWith",
         "type": "object"
       },
+      "ProfileConnection": {
+        "properties": {
+          "accounts_seen": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Accounts Seen",
+            "type": "array"
+          },
+          "handles": {
+            "additionalProperties": true,
+            "title": "Handles",
+            "type": "object"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "label_fa": {
+            "title": "Label Fa",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "not_connected",
+              "connected",
+              "error"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "label_fa",
+          "state",
+          "handles"
+        ],
+        "title": "ProfileConnection",
+        "type": "object"
+      },
+      "ProfileDepartment": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "manager": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manager"
+          },
+          "mandate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mandate"
+          },
+          "name_en": {
+            "title": "Name En",
+            "type": "string"
+          },
+          "name_fa": {
+            "title": "Name Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name_fa",
+          "name_en",
+          "mandate",
+          "manager"
+        ],
+        "title": "ProfileDepartment",
+        "type": "object"
+      },
+      "ProfileGroup": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "on",
+              "paused"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title_fa",
+          "state"
+        ],
+        "title": "ProfileGroup",
+        "type": "object"
+      },
+      "ProfileLine": {
+        "properties": {
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "title_fa",
+          "platform"
+        ],
+        "title": "ProfileLine",
+        "type": "object"
+      },
+      "ProfileServer": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ProfileServer",
+        "type": "object"
+      },
       "Progress-Input": {
         "additionalProperties": false,
         "properties": {
@@ -45540,6 +46315,34 @@
         "title": "Snapshot",
         "type": "object"
       },
+      "SpeechIn": {
+        "additionalProperties": false,
+        "properties": {
+          "style": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Style",
+            "type": "string"
+          },
+          "text_fa": {
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Text Fa",
+            "type": "string"
+          },
+          "voice": {
+            "default": "Kore",
+            "pattern": "^[A-Za-z]{2,30}$",
+            "title": "Voice",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text_fa"
+        ],
+        "title": "SpeechIn",
+        "type": "object"
+      },
       "SpeechJob": {
         "properties": {
           "engine": {
@@ -45588,6 +46391,113 @@
           "script"
         ],
         "title": "SpeechJob",
+        "type": "object"
+      },
+      "SpeechMakeAnswer": {
+        "description": "`running`: ask again with `job`; `done`: `file_id` is the audio (the company's file);\n`failed`: `code` (signed_out, channel_not_configured, company_locked, timeout, recipe_failed,\ninvalid_args, failed) and `hint_fa`.",
+        "properties": {
+          "bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bytes"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "engine": {
+            "const": "aistudio",
+            "default": "aistudio",
+            "title": "Engine",
+            "type": "string"
+          },
+          "file_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Id"
+          },
+          "hint_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hint Fa"
+          },
+          "job": {
+            "title": "Job",
+            "type": "string"
+          },
+          "mime": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime"
+          },
+          "state": {
+            "enum": [
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "style": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Style"
+          },
+          "voice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice"
+          }
+        },
+        "required": [
+          "job",
+          "state"
+        ],
+        "title": "SpeechMakeAnswer",
         "type": "object"
       },
       "SpeechMeta": {
@@ -150852,6 +151762,247 @@
         ]
       }
     },
+    "/internal/v1/linked/read": {
+      "get": {
+        "description": "linked.read: another company's profile (who it is, its departments, sites, connections and\ntheir public handles, servers by name, production lines, working groups), KPIs, latest outputs\n(or one output's body with `ref`), deep catalogue in short, connections' figures (Instagram:\nthe accounts IG-Hub reads) or links. Any active company while the owner does not enforce links,\nelse along an `on` link; its own company; any company for a holding reader. Never customer\ndata or a secret. Audited (A0).",
+        "operationId": "linked_read",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "company",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+              "title": "Company",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "what",
+            "required": true,
+            "schema": {
+              "enum": [
+                "profile",
+                "kpis",
+                "outputs",
+                "catalogue",
+                "connections",
+                "links"
+              ],
+              "title": "What",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ref",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^O-[0-9]{4,}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ref"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "catalogue": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "deliverable": "O-000456",
+                    "sections": [
+                      {
+                        "count": 1,
+                        "key": "x",
+                        "summary_fa": "x",
+                        "title_fa": "گزارش هفتگی رشد"
+                      }
+                    ],
+                    "state": "running"
+                  },
+                  "company": "TY",
+                  "connections": [
+                    {
+                      "accounts": [
+                        "x"
+                      ],
+                      "daily": [
+                        {
+                          "day": "2026-10-17",
+                          "key": "x",
+                          "subject": "x",
+                          "value": 1.0
+                        }
+                      ],
+                      "kind": "one_off",
+                      "label_fa": "x",
+                      "last_read_at": "2026-10-17T05:42:00Z",
+                      "state": "not_connected"
+                    }
+                  ],
+                  "kpis": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "card": "x",
+                      "direction": "x",
+                      "key": "x",
+                      "name_fa": "تریدیار",
+                      "state": "ok",
+                      "target": 1.0,
+                      "target_max": 1.0,
+                      "unit": "x",
+                      "value": 1.0
+                    }
+                  ],
+                  "links": [
+                    {
+                      "company": "TY",
+                      "kind": "one_off",
+                      "name_fa": "تریدیار",
+                      "outgoing": false,
+                      "purpose_fa": "x"
+                    }
+                  ],
+                  "name_fa": "تریدیار",
+                  "note_fa": "x",
+                  "output": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "body": "متن پیام",
+                    "producer": "TY-GROWTH-01",
+                    "ref": "W-000789",
+                    "summary": "خلاصه",
+                    "title": "گزارش هفتگی رشد",
+                    "truncated": false
+                  },
+                  "outputs": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "producer": "TY-GROWTH-01",
+                      "ref": "W-000789",
+                      "summary": "خلاصه",
+                      "title": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "profile": {
+                    "code": "TY",
+                    "connections": [
+                      {
+                        "accounts_seen": [
+                          "x"
+                        ],
+                        "handles": {},
+                        "kind": "one_off",
+                        "label_fa": "x",
+                        "state": "not_connected"
+                      }
+                    ],
+                    "departments": [
+                      {
+                        "code": "TY",
+                        "manager": "x",
+                        "mandate": "x",
+                        "name_en": "TradeYar",
+                        "name_fa": "تریدیار"
+                      }
+                    ],
+                    "groups": [
+                      {
+                        "key": "x",
+                        "state": "on",
+                        "title_fa": "گزارش هفتگی رشد"
+                      }
+                    ],
+                    "kind": "one_off",
+                    "lines": [
+                      {
+                        "platform": "x",
+                        "ref": "W-000789",
+                        "title_fa": "گزارش هفتگی رشد"
+                      }
+                    ],
+                    "name_en": "TradeYar",
+                    "name_fa": "تریدیار",
+                    "servers": [
+                      {
+                        "name": "report.pdf"
+                      }
+                    ],
+                    "sites": [
+                      "x"
+                    ],
+                    "status": "active"
+                  },
+                  "via": "own",
+                  "what": "profile"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/LinkedRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Linked Read",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
     "/internal/v1/media/item": {
       "post": {
         "description": "media.item (A1): the current step of an item, by the role that owns it.\nA composition is checked against the schema before it is stored (422\nnames the rule).",
@@ -157767,6 +158918,255 @@
           }
         },
         "summary": "Review Skill",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/speech/make": {
+      "post": {
+        "description": "speech.make: `text_fa` spoken by one of AI Studio's prebuilt voices (`voice`, default Kore)\nwith an optional `style` note, as an audio file of the agent's company. Answers `running` with\nthe job (ask again with GET .../{job}), or the final answer when no worker runs. Refusals: a\nvoice AI Studio does not have (422), personal or secret data (403), signed out (503\nchannel_not_configured, naming `make aistudio-web-login`). Requires `Idempotency-Key`.",
+        "operationId": "speech_make",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "style": "x",
+                "text_fa": "x",
+                "voice": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/SpeechIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "bytes": 1,
+                  "code": "TY",
+                  "engine": "aistudio",
+                  "file_id": "x",
+                  "hint_fa": "x",
+                  "job": "x",
+                  "mime": "application/pdf",
+                  "state": "running",
+                  "style": "x",
+                  "voice": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/SpeechMakeAnswer"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Speech Make",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/speech/make/{job}": {
+      "get": {
+        "description": "The job's answer: `running` (ask again later), `done` with the audio's file id, or `failed`\nwith a code and a plain Persian hint. Only a job of the agent's own company is found.",
+        "operationId": "speech_job",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "bytes": 1,
+                  "code": "TY",
+                  "engine": "aistudio",
+                  "file_id": "x",
+                  "hint_fa": "x",
+                  "job": "x",
+                  "mime": "application/pdf",
+                  "state": "running",
+                  "style": "x",
+                  "voice": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/SpeechMakeAnswer"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Speech Job",
         "tags": [
           "internal"
         ]

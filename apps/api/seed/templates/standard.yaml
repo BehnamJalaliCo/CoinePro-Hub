@@ -295,7 +295,7 @@ departments:
         - هر محتوای ترید هشدار ریسک دارد؛ هیچ وعده‌ی سود، هدف قیمت یا سیگنال قطعی نیست
         - هر عدد منبع دارد؛ فقط فایل خود شرکت، دارایی ساخته‌شده یا موسیقی با مجوز
         - تنها قلم IRANYekanX و پالت و نشان خود شرکت؛ هیچ چهره‌ی واقعی یا نشان برند دیگر
-    tool_ceiling: [*base_tools, web.browse, substitute.call, media.item, media.render, media.voice,
+    tool_ceiling: [*base_tools, web.browse, substitute.call, media.item, media.render, media.voice, speech.make,
                    knowledge.propose, kpi.record, server.map, server.read, server.exec]
     model_ceiling: claude-opus-5-5
     identity_md: |

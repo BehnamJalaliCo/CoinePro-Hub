@@ -371,6 +371,10 @@ OP_CLASS: dict[str, str] = {
     "automation.propose": "A1",  # ⟨2026-11-06⟩ a CEO or manager proposes; the owner seals
     "work.budget": "A2",
     "card.decide": "A2",
+    # ⟨2026-11-06⟩ (linked.rego): a company's data along an owner's `on` link (routes/linked.py)
+    "linked.read": "A0",
+    # ⟨2026-11-06⟩ (media.rego): a voice from Google AI Studio for the media roles (routes/speech.py)
+    "speech.make": "A1",
 }
 
 
