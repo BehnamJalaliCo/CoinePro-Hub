@@ -62,6 +62,14 @@ budget_ref() {
   if [[ "$ram" =~ ^[0-9]+$ ]] && ((ram > ref)); then ref="$ram"; fi
   printf '%s\n' "$ref"
 }
+# The share of budget_ref the memory limits may take: HQ_BUDGET_PERCENT of the
+# profile (80 when it is not set; full: 86 by the owner's order, 2026-11-06).
+budget_pct() {
+  local pct
+  pct="$(sed -n 's/^HQ_BUDGET_PERCENT=//p' "$COMPOSE_DIR/profiles/$profile.env" | tail -n1)"
+  [[ "$pct" =~ ^[0-9]+$ ]] && ((pct >= 50 && pct <= 90)) || pct=80
+  printf '%s\n' "$pct"
+}
 
 profile="$(detect_profile)"
 if [[ "${1:-}" == "--print-profile" ]]; then
@@ -159,13 +167,13 @@ if [[ "$provisioning" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
   ref="$(budget_ref)"
   sum="$(compose "${profile_args[@]}" --profile provisioning config --format json |
     jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
-  budget=$((ref * 80 / 100))
+  budget=$((ref * $(budget_pct) / 100))
   if ((sum <= budget)); then
     profile_args+=(--profile provisioning)
     export PROVISIONER_URL="http://provisioner:8110"
   else
     over="the $profile profile plus the provisioner needs $sum MiB of memory limits,"
-    over+=" $((sum - budget)) MiB over the budget of $budget MiB (80% of $ref MiB)"
+    over+=" $((sum - budget)) MiB over the budget of $budget MiB ($(budget_pct)% of $ref MiB)"
     case "$(subcommand "$@")" in
       up | run | create | start | restart)
         echo "error: HQ_PROVISIONING=on refused: $over." >&2
@@ -186,13 +194,13 @@ if [[ "$tracing" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
   ref="$(budget_ref)"
   sum="$(compose "${profile_args[@]}" --profile tracing config --format json |
     jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
-  budget=$((ref * 80 / 100))
+  budget=$((ref * $(budget_pct) / 100))
   if ((sum <= budget)); then
     profile_args+=(--profile tracing)
     export HQ_TRACING_SCRAPE=on
   else
     over="the $profile profile plus tracing needs $sum MiB of memory limits, $((sum - budget)) MiB"
-    over+=" over the budget of $budget MiB (80% of $ref MiB)"
+    over+=" over the budget of $budget MiB ($(budget_pct)% of $ref MiB)"
     case "$(subcommand "$@")" in
       up | run | create | start | restart)
         echo "error: HQ_TRACING=on refused: $over (make tracing-off)." >&2
@@ -213,13 +221,13 @@ if [[ "$mcp" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
   ref="$(budget_ref)"
   sum="$(compose "${profile_args[@]}" --profile mcp --profile backup-tools config --format json |
     jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
-  budget=$((ref * 80 / 100))
+  budget=$((ref * $(budget_pct) / 100))
   if ((sum <= budget)); then
     profile_args+=(--profile mcp)
     export MCP_CONTAINERS=on
   else
     over="the $profile profile plus mcp needs $sum MiB of memory limits, $((sum - budget)) MiB"
-    over+=" over the budget of $budget MiB (80% of $ref MiB)"
+    over+=" over the budget of $budget MiB ($(budget_pct)% of $ref MiB)"
     case "$(subcommand "$@")" in
       up | run | create | start | restart)
         echo "error: HQ_MCP=on refused: $over." >&2
@@ -245,13 +253,13 @@ for opt in substitutes substitutes-web; do
   ref="$(budget_ref)"
   sum="$(compose "${profile_args[@]}" --profile "$opt" --profile backup-tools config --format json |
     jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
-  budget=$((ref * 80 / 100))
+  budget=$((ref * $(budget_pct) / 100))
   if ((sum <= budget)); then
     profile_args+=(--profile "$opt")
     if [[ "$opt" == substitutes ]]; then export SUBSTITUTES_RUNNER=on; fi
   else
     over="the $profile profile plus $opt needs $sum MiB of memory limits, $((sum - budget)) MiB"
-    over+=" over the budget of $budget MiB (80% of $ref MiB)"
+    over+=" over the budget of $budget MiB ($(budget_pct)% of $ref MiB)"
     case "$(subcommand "$@")" in
       up | run | create | start | restart)
         echo "error: $var=on refused: $over." >&2
@@ -280,13 +288,13 @@ if [[ "$tts" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
   ref="$(budget_ref)"
   sum="$(compose "${profile_args[@]}" --profile tts --profile backup-tools config --format json |
     jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
-  budget=$((ref * 80 / 100))
+  budget=$((ref * $(budget_pct) / 100))
   if ((sum <= budget)); then
     profile_args+=(--profile tts)
     export HQ_TTS_ACTIVE=on
   else
     over="the $profile profile plus tts needs $sum MiB of memory limits, $((sum - budget)) MiB"
-    over+=" over the budget of $budget MiB (80% of $ref MiB)"
+    over+=" over the budget of $budget MiB ($(budget_pct)% of $ref MiB)"
     case "$(subcommand "$@")" in
       up | run | create | start | restart)
         echo "error: HQ_TTS=on refused: $over (make tts-off)." >&2
@@ -308,13 +316,13 @@ if [[ "$media" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
   ref="$(budget_ref)"
   sum="$(compose "${profile_args[@]}" --profile media --profile backup-tools config --format json |
     jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
-  budget=$((ref * 80 / 100))
+  budget=$((ref * $(budget_pct) / 100))
   if ((sum <= budget)); then
     profile_args+=(--profile media)
     export HQ_MEDIA_ACTIVE=on
   else
     over="the $profile profile plus media needs $sum MiB of memory limits, $((sum - budget)) MiB"
-    over+=" over the budget of $budget MiB (80% of $ref MiB)"
+    over+=" over the budget of $budget MiB ($(budget_pct)% of $ref MiB)"
     case "$(subcommand "$@")" in
       up | run | create | start | restart)
         echo "error: HQ_MEDIA=on refused: $over (make media-off)." >&2
@@ -339,13 +347,13 @@ if [[ "$ocr" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
   ref="$(budget_ref)"
   sum="$(compose "${profile_args[@]}" --profile ocr --profile backup-tools config --format json |
     jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
-  budget=$((ref * 80 / 100))
+  budget=$((ref * $(budget_pct) / 100))
   if ((sum <= budget)); then
     profile_args+=(--profile ocr)
     export HQ_OCR_URL="http://ocr:8088"
   else
     over="the $profile profile plus ocr needs $sum MiB of memory limits, $((sum - budget)) MiB"
-    over+=" over the budget of $budget MiB (80% of $ref MiB)"
+    over+=" over the budget of $budget MiB ($(budget_pct)% of $ref MiB)"
     case "$(subcommand "$@")" in
       up | run | create | start | restart)
         echo "error: HQ_OCR=on refused: $over (make ocr-off)." >&2
@@ -366,13 +374,13 @@ if [[ "$automations" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
   ref="$(budget_ref)"
   sum="$(compose "${profile_args[@]}" --profile automations --profile backup-tools config --format json |
     jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
-  budget=$((ref * 80 / 100))
+  budget=$((ref * $(budget_pct) / 100))
   if ((sum <= budget)); then
     profile_args+=(--profile automations)
     export HQ_N8N_URL="http://n8n:5678"
   else
     over="the $profile profile plus automations needs $sum MiB of memory limits, $((sum - budget)) MiB"
-    over+=" over the budget of $budget MiB (80% of $ref MiB)"
+    over+=" over the budget of $budget MiB ($(budget_pct)% of $ref MiB)"
     case "$(subcommand "$@")" in
       up | run | create | start | restart)
         echo "error: HQ_AUTOMATIONS=on refused: $over (make n8n-off)." >&2
@@ -398,13 +406,13 @@ if [[ "$newsletter" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
   ref="$(budget_ref)"
   sum="$(compose "${profile_args[@]}" --profile newsletter --profile backup-tools config --format json |
     jq '[.services[].deploy.resources.limits.memory | tonumber] | add / 1048576 | floor')"
-  budget=$((ref * 80 / 100))
+  budget=$((ref * $(budget_pct) / 100))
   if ((sum <= budget)); then
     profile_args+=(--profile newsletter)
     export HQ_NEWSLETTER_ACTIVE=on
   else
     over="the $profile profile plus newsletter needs $sum MiB of memory limits, $((sum - budget)) MiB"
-    over+=" over the budget of $budget MiB (80% of $ref MiB)"
+    over+=" over the budget of $budget MiB ($(budget_pct)% of $ref MiB)"
     case "$(subcommand "$@")" in
       up | run | create | start | restart)
         echo "error: HQ_NEWSLETTER=on refused: $over (make newsletter-off)." >&2
@@ -438,7 +446,7 @@ if [[ "$stt" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
   ref="$(budget_ref)"
   sum="$(compose "${profile_args[@]}" --profile stt --profile backup-tools config --format json |
     jq -f "$COMPOSE_DIR/stt-burst.jq")"
-  budget=$((ref * 80 / 100))
+  budget=$((ref * $(budget_pct) / 100))
   if ((sum <= budget)); then
     export STT_URL="http://stt:8000"
     if [[ "${HQ_STT_START:-0}" == "1" ]]; then
@@ -450,7 +458,7 @@ if [[ "$stt" == on && "${HQ_ALL_PROFILES:-0}" != "1" ]]; then
     fi
   else
     over="the $profile profile with stt running needs $sum MiB of memory limits, $((sum - budget)) MiB"
-    over+=" over the budget of $budget MiB (80% of $ref MiB)"
+    over+=" over the budget of $budget MiB ($(budget_pct)% of $ref MiB)"
     case "$(subcommand "$@")" in
       up | run | create | start | restart)
         echo "error: HQ_STT=on refused: $over." >&2
