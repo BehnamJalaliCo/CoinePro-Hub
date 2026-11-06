@@ -19,6 +19,8 @@
 >
 > **v1.19 (۲۰۲۶-۱۱-۰۶):** پاک کردن برای همیشه (§۳۷، پرامپت ۲۶): جلسه، سند بایگانی و خروجی با مُهر مالک؛ پیشنهاد پاک کردن از ایجنت‌ها؛ لغو فرمان و حرف تازه بعد از تحویل.
 >
+> **v1.20 (۲۰۲۶-۱۱-۰۶):** هاب از داخل اپ (§۳۸، پرامپت ۲۶): کاتالوگ ثابت عملیات هاب برای تیم فنی هلدینگ با مُهر مالک برای کارهای حساس، و هیچ‌کس نمیگوید «دسترسی ندارم».
+>
 > **v1.17 (۲۰۲۶-۱۱-۰۶):** هر فرمان یک جلسه (§۳۵، پرامپت ۲۵): جلسه‌ی همیشه‌صاحب‌دار با حاضران و بازیکن‌ها، فهرست کارها، کارها در همان‌جا، بستن و بایگانی و باز کردن دوباره؛ دفتر مدیر کل؛ پیوند شرکت‌ها و بوم.
 >
 > **v1.16 (۲۰۲۶-۱۱-۰۶):** فرمان با جواب زنده (§۳۴، پرامپت ۲۵): ابزار گزارش و پرسش برای مسئول هر فرمان، «نوبت شما» و پاسخ مالک روی همان کار، گفتگوی زنده‌ی هر فرمان با مسئولش، و هیچ موضوع فنی برای مالک.
@@ -3971,3 +3973,41 @@ for good. Every erase is the owner's alone and sealed (🔏): an agent only prop
   the holder's delivered root work goes back to `in_progress` with the word as its next step and the holder is woken — a revision,
   as in any working session. Only an ended session (closed) asks to be reopened first.
 - Data: migration `0056` (erase markers, the `erase` decision kind).
+
+## 38. The hub run from the app ⟨1.20⟩ (2026-11-06, prompt 26)
+The owner, 2026-11-06: «نمیشه که یبار توی آپ من بگم یبارم بیام به تو بگم یبار تو به سرور بگی … به داکر یا خیلی از چیزا api دسترسی
+نداشته باشه … امشب این آپ باید اون چیزی که من میخوام بشه». What the owner says in the app is done by the holding's own people: a company
+server through its runner (§26, as today), **the hub itself through a fixed catalogue of hub operations**, and nobody answers «دسترسی ندارم».
+
+### 38.1 Hub operations (`hub.ops`)
+- Agent tool `hub.ops {op, args?}` · `{job}`: one operation from a fixed catalogue, queued on the hub and run on the hub host by the
+  **hub-ops dispatcher** (`infra/hubops/dispatch.sh`, systemd timer every 10 s as user Hub, like the substitutes dispatcher: a token of
+  its own, the api reached on the internal network; no listening port; no shell from the hub — only the catalogue's fixed commands with
+  validated arguments). The first answer is `queued` with a `job`; call again with `{job}` until `done` (output, masked, ≤ 64 KB) or
+  `failed`. Every op is audited.
+- **Catalogue** (class; what it runs):
+  - A0 read: `status` (`hq.sh ps`, health of each service), `logs {service, lines ≤ 500, since?}` (masked), `stats` (memory and CPU per
+    container, the memory budget), `verify` (`make verify-live`), `inventory` (the §25.2 connection table: players, sign-ins, voice key
+    present yes/no, n8n, growth connections, runners, backups — names and states only), `n8n.list` (workflows, active or not),
+    `n8n.executions {workflow?, limit ≤ 50}` (state and time only).
+  - A2 operate: `restart {service}` (an application service of the stack; never `openbao`, `postgres`, `caddy`), `profile {name: media
+    | tts | ocr | newsletter | automations | mcp | tracing, on: bool}` (the memory budget still refuses what does not fit; the answer says
+    what to turn off), `n8n.import` (the repository's workflows), `n8n.activate {workflow, on: bool}`, `backup` (`make backup-hourly`),
+    `catalogue.refresh`.
+  - A3 with the owner's seal (a decision card `hub_op`, 🔏, bound to the op and its args): `n8n.create {name, workflow_json}` (a new n8n
+    workflow, imported inactive; activating it is `n8n.activate`), `profile` when it needs another profile off to fit, `deploy {ref}`
+    (pull and rebuild the named services of an approved branch — only when the owner seals it).
+  - Never in the catalogue: SSH, users, sudoers, firewall (ufw, iptables, DOCKER-USER), fail2ban, OpenBao (unseal, root token, policies),
+    any file under `~/.secrets` or `infra/compose/.env`, the `*-login`, `*-secret`, `gdrive-auth`, `owner-*` owner targets, reboot,
+    volume or database deletion. Asking for one answers `policy_denied` with the owner's step in plain Persian.
+- **Who:** the holding's technical people (the AI operations head, the platform SRE, the holding CTO when hired; `kind` from the
+  charters); every other role asks them (`work.request` to the holding's AIOPS, or its own company's CTO for its company's servers).
+- **Owner steps from the app:** an op that needs the owner (a sign-in, a key) answers with the exact step; the owner's sign-ins in the
+  hub browser stay his (noVNC through his tunnel) until a later prompt brings them into the app.
+
+### 38.2 Nobody says «دسترسی ندارم»
+- The capability brief (every run, every talk persona) gains `technical`: for this role, which servers it may work on (`server.*` through
+  the runner) and whether it holds `hub.ops`; for a role that holds neither, the one way: `work.request` to its company's CTO (or the
+  holding's AIOPS for the hub) with what to do. `_common.md`: «never say a capability is missing: do it, or hand it to who can, and tell
+  the owner who has it».
+- Data: migration `0056` (`ops.hub_jobs`, the `hub_op` decision kind).
