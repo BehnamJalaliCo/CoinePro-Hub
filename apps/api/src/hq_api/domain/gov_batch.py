@@ -8,6 +8,8 @@ eligible     all of: kind in the matrix's `batch.kinds` (at most proposal,
              token estimate and no dollar figure is not eligible: its cost is
              unknown); at most `batch.max_items` cards
 never        any A3, and every kind of the locked row `batch.never`
+⟨1.19⟩ erase  §37.3: `erase` cards (A3, irreversible) by their own rule: the owner's, pending,
+             unamended, not held; the batch's one passkey seals each of them
 the seal     one step-up (`decision.batch`) on the SHA-256 of the canonical
              JSON of [{ref, version}] sorted by ref; all or nothing: one card
              that changed or is no longer eligible refuses the whole call
@@ -39,6 +41,8 @@ NEVER = (
 )  # fmt: skip
 REASONS = ("changed", "not_pending", "kind", "action_class", "risk", "irreversible", "amended",
            "over_max_usd", "over_max_items", "held")  # fmt: skip
+# ⟨1.19⟩ §37.3 erase cards: sealed together by their own rule (the owner's «این سه خروجی را پاک کن»)
+ERASE = ("erase",)
 
 
 class BatchItem(BaseModel):
@@ -104,6 +108,8 @@ async def limits(tx: Tx, hub: Any) -> tuple[set[str], Decimal, int]:
 
 
 async def reasons(tx: Tx, d: dict[str, Any], kinds: set[str], max_usd: Decimal) -> list[str]:
+    if d["kind"] in ERASE:
+        return await _erase_reasons(tx, d)
     out = []
     if d["status"] != "pending":
         out.append("not_pending")
@@ -127,14 +133,32 @@ async def reasons(tx: Tx, d: dict[str, Any], kinds: set[str], max_usd: Decimal) 
     return out
 
 
+async def _erase_reasons(tx: Tx, d: dict[str, Any]) -> list[str]:
+    """⟨1.19⟩ §37.3 several erase cards may be sealed together: each is the owner's own, pending,
+    unamended and not held (an erase is A3 and irreversible by nature; the one passkey of the
+    batch is its seal)."""
+    out = []
+    if d["status"] != "pending":
+        out.append("not_pending")
+    if d.get("approver_code"):
+        out.append("kind")
+    if d["amendments"]:
+        out.append("amended")
+    if await oversight.held(tx, "decision", d["ref"]):
+        out.append("held")
+    return out
+
+
 async def batchable(tx: Tx, hub: Any, limit: int = 200) -> list[Batchable]:
     kinds, max_usd, _ = await limits(tx, hub)
     rows = await tx.all(
         """SELECT d.*, c.code AS company FROM cartable.decisions d JOIN core.companies c ON c.id = d.company_id
-           WHERE d.status = 'pending' AND d.kind = ANY(:k) AND d.action_class = 'A1' AND d.risk = 'low'
-             AND d.reversible AND d.approver_code IS NULL AND d.amendments IS NULL
+           WHERE d.status = 'pending' AND d.approver_code IS NULL AND d.amendments IS NULL
+             AND ((d.kind = ANY(:k) AND d.action_class = 'A1' AND d.risk = 'low' AND d.reversible)
+                  OR d.kind = ANY(:erase))
            ORDER BY d.created_at, d.id LIMIT :n""",
         k=sorted(kinds),
+        erase=list(ERASE),
         n=limit,
     )
     out = []

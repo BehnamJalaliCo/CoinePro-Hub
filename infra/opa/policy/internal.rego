@@ -85,6 +85,8 @@ ops := {
 	"linked.read",
 	# ⟨2026-11-06⟩ (media.rego): a voice from Google AI Studio for the media roles
 	"speech.make",
+	# ⟨1.19⟩ prompt 26 (erase.rego): an agent proposes an erase for good (contract §37.3)
+	"erase.propose",
 }
 
 # The oversight roles of the holding: the overseer, QC (the inspector) and

@@ -84,6 +84,9 @@ KINDS = (
     # ⟨1.12⟩ prompt 22 (contract §30.3): a production line's gated step (its
     # publish in draft mode, a seal step, a step with gate owner|ceo)
     "line_publish",
+    # ⟨1.19⟩ contract §37.3: an agent proposes erasing something for good (a
+    # session, an archive record, an output); only the owner's seal runs it
+    "erase",
 )
 ACTION_CLASS = {
     "hire": "A2",
@@ -126,6 +129,7 @@ ACTION_CLASS = {
     "archive_disposal": "A3",
     "server_destructive": "A3",
     "line_publish": "A3",
+    "erase": "A3",  # ⟨1.19⟩ for good: irreversible
 }
 # Kinds whose approval needs the owner's step-up (🔏) besides every A3.
 # code_session: its seal is the grant (contract §17.3), so it is sealed like one.
@@ -158,6 +162,7 @@ STEP_UP_KINDS = (
     # ⟨1.7⟩ both archive cards are sealed with step-up (contract §23.11)
     "archive_schema",
     "archive_disposal",
+    "erase",  # ⟨1.19⟩ §37.3 decision.approve on the card's ref
 )
 # ⟨1.6⟩ cards only code writes (series.propose, the media pipeline, a role
 # draft's gates); an agent's or the owner's `propose` of one is refused.
@@ -168,9 +173,12 @@ SYSTEM_CARD_KINDS = (
     "archive_disposal",
     "server_destructive",  # ⟨1.8⟩ only the hub's classification raises it
     "line_publish",  # ⟨1.12⟩ only the line engine raises it (§30.3)
+    "erase",  # ⟨1.19⟩ only erase.propose raises it, with the preview's counts (§37.3)
 )
 # ⟨1.7⟩ applied in the deciding transaction, bound to what they show (§23.11)
 ARCHIVE_CARD_KINDS = ("archive_schema", "archive_disposal")
+# ⟨1.19⟩ §37.3 applied in the deciding transaction: exactly the kind and ref the card names
+ERASE_CARD_KINDS = ("erase",)
 # ⟨1.5⟩ applied in the deciding transaction, bound to their payload (§19.9)
 SEALED_CARD_KINDS = ("message_template", "lifecycle_rule", "support_go_live")
 # ⟨1.5⟩ prompt 11 §2-§3: applied in the deciding transaction too (a card on a
@@ -554,6 +562,25 @@ class LinePublishPayload(Model):
     preview: dict[str, Any] = Field(default_factory=dict)
 
 
+class EraseCountsPayload(Model):
+    turns: int = Field(default=0, ge=0)
+    files: int = Field(default=0, ge=0)
+    outputs: int = Field(default=0, ge=0)
+    works: int = Field(default=0, ge=0)
+    notifications: int = Field(default=0, ge=0)
+
+
+class ErasePayload(Model):
+    """⟨1.19⟩ An agent's proposed erase (contract §37.3), with the preview's counts at the time:
+    the seal erases exactly this kind and ref. Raised by `erase.propose` only."""
+
+    kind: Literal["session", "archive_record", "output"]
+    ref: str = Field(pattern=r"^(F-[0-9]{4,}|AR-[0-9]{6,}|O-[0-9]{6,})$")
+    why_fa: str = Field(min_length=1, max_length=2000)
+    title_fa: str = Field(default="", max_length=300)
+    counts: EraseCountsPayload = Field(default_factory=EraseCountsPayload)
+
+
 class ServerRef(Model):
     id: str = Field(min_length=1, max_length=64)
     name: str = Field(min_length=1, max_length=63)
@@ -684,6 +711,7 @@ PAYLOADS: dict[str, type[Model]] = {
     "archive_disposal": ArchiveDisposalPayload,
     "server_destructive": ServerDestructivePayload,
     "line_publish": LinePublishPayload,
+    "erase": ErasePayload,
 }
 
 
@@ -722,6 +750,7 @@ class DecisionIn(Model):
         "archive_disposal",
         "server_destructive",
         "line_publish",
+        "erase",
     ]
     title: str = Field(min_length=1, max_length=300)
     what: str = Field(default="", max_length=20000)
@@ -1007,7 +1036,10 @@ async def propose(
     charters: Any = None,
     company_kind: str = "company",
     notify_owner: bool = True,
+    system: bool = False,
 ) -> dict[str, Any]:
+    """`system`: the card is code's even when an agent proposes it (⟨1.19⟩ `erase`, made by
+    erase.propose with its preview; a plain `propose` of such a kind is refused)."""
     await hiring.require_open(tx, who, body.kind)  # before any card exists (§18.11)
     payload = validate_payload(body.kind, body.payload)
     if body.kind == "hire":
@@ -1097,7 +1129,7 @@ async def propose(
         raise ApiError(
             422, "validation_failed", fields={"kind": "a server plan comes from server.plan"}
         )
-    if body.kind in SYSTEM_CARD_KINDS and who.kind != "service":
+    if body.kind in SYSTEM_CARD_KINDS and who.kind != "service" and not system:
         # ⟨1.6⟩ series.propose, the media pipeline and a role draft's gates make
         # these cards, each bound to what it shows (contract §22.6)
         raise ApiError(
@@ -1538,6 +1570,7 @@ async def decide(
         "email_send",
         "server_destructive",
         *ARCHIVE_CARD_KINDS,
+        *ERASE_CARD_KINDS,
     ) or (d["kind"] == "a3_action" and (d["payload"] or {}).get("action") == "mcp_call")
     if verdict == "approved" and amendments and sealed_as_is:
         # Bound to exactly what it shows (a listing; a call's arguments and their hash).
@@ -1555,6 +1588,12 @@ async def decide(
         from hq_api.archive import cards as AC
 
         archive_summary = await AC.apply(tx, d, who)
+        effect = "applied"
+    if verdict == "approved" and d["kind"] in ERASE_CARD_KINDS:
+        # ⟨1.19⟩ §37.3 the erase the card names, now (a thing gone voids it: 409)
+        from hq_api.domain import erase as ER
+
+        archive_summary = await ER.apply_card(tx, d, who, step_up=step_up_id is not None)
         effect = "applied"
     if verdict == "approved" and d["kind"] in SEALED_CARD_KINDS:
         if amendments:

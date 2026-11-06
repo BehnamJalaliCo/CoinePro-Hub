@@ -13,6 +13,10 @@
     POST   /orders/{ref}/hide · /unhide                 off every list; nothing is deleted
     POST   /orders/{ref}/pace {pace}                   «با من / خودکار» at any time: the holder's
                                                         next run reads the new pace
+    GET    /orders/{ref}/erase/preview                 ⟨1.19⟩ §37.1 what an erase would remove and
+                                                        what stays (nothing changes)
+    POST   /orders/{ref}/erase                         ⟨1.19⟩ 🔏 session.erase (target = ref): the
+                                                        session gone for good (Idempotency-Key)
 
 Owner only (owner_ctx), as the order report's routes are. Every write is audited (A1/A2).
 """
@@ -27,10 +31,12 @@ from pydantic import Field
 
 from hq_api import idempotency, pagination
 from hq_api.context import Ctx, owner_ctx
+from hq_api.domain import erase as ER
 from hq_api.domain import order_report as OR
 from hq_api.domain import sessions as SE
 from hq_api.errors import ApiError, responses
 from hq_api.schemas import Model, Page
+from hq_api.security import stepup
 
 router = APIRouter(tags=["orders"])
 E = responses(401, 403, 404, 409, 422)
@@ -220,3 +226,35 @@ async def _hide(ref: str, hidden: bool, ctx: Ctx) -> OR.OrderReport:
         await ctx.audit(tx, company_id=rep["company_id"], action="session.hide", action_class="A1",
                         target_kind="order", target_ref=ref, summary="hidden" if hidden else "shown")  # fmt: skip
         return await _report(tx, ref)
+
+
+# ------------------------------------------------------------- erase (§37.1) --
+@router.get("/orders/{ref}/erase/preview", response_model=ER.ErasePreview, responses=E)
+async def erase_session_preview(ref: str, ctx: Ctx = Depends(owner_ctx)) -> ER.ErasePreview:
+    """⟨1.19⟩ What erasing this session would remove (turns, files, outputs, works,
+    notifications) and, in plain Persian, what stays (a working group or production line it set
+    up, one audit line, the token and money figures). Nothing changes: the erase itself runs and
+    is rolled back, so the counts are exactly the erase's."""
+    async with ctx.tx() as tx:
+        return await ER.session_preview(tx, ref)
+
+
+@router.post("/orders/{ref}/erase", response_model=ER.Erased, responses=E)
+async def erase_session(ref: str, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
+    """⟨1.19⟩ 🔏 `session.erase` (target = the ref), open or closed, hidden or not. In one
+    transaction: its open works cancelled, then gone for good the session (report, steps, tasks,
+    participants), its talk (turns, their voice and files), the order's files, its outputs and
+    their files, its pending cards (withdrawn), the notifications that point at it, its runs'
+    transcripts. A guarded ledger row keeps no word of the order and leaves every list; a stored
+    file is destroyed only when nothing that stays uses it. One audit line `session.erase` (A3)
+    with the counts. Afterwards the order and its session answer 404. Requires `Idempotency-Key`."""
+    async with ctx.tx() as tx:
+        idem = await idempotency.claim(tx, request, ctx.who, required=True)
+        if idem and idem.replay:
+            return idem.replay
+        await stepup.consume(tx, request, ctx.who, "session.erase", ref)
+        out = await ER.erase(tx, ctx.who, "session", ref, step_up=True, request_id=ctx.request_id)
+        if idem:
+            await idem.store(tx, 200, out.model_dump(mode="json"))
+    await ER.destroy_after(ctx.hub)
+    return out

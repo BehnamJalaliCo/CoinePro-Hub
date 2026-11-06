@@ -3972,7 +3972,7 @@ for good. Every erase is the owner's alone and sealed (🔏): an agent only prop
 - The owner's word in a session whose works are all delivered (`ready`) is not refused any more (`409 no open work on the order`):
   the holder's delivered root work goes back to `in_progress` with the word as its next step and the holder is woken — a revision,
   as in any working session. Only an ended session (closed) asks to be reopened first.
-- Data: migration `0056` (erase markers, the `erase` decision kind).
+- Data: migration `0055` (erase markers, the `erase` decision kind).
 
 ## 38. The hub run from the app ⟨1.20⟩ (2026-11-06, prompt 26)
 The owner, 2026-11-06: «نمیشه که یبار توی آپ من بگم یبارم بیام به تو بگم یبار تو به سرور بگی … به داکر یا خیلی از چیزا api دسترسی

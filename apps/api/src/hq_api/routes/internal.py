@@ -369,6 +369,7 @@ OP_CLASS: dict[str, str] = {
     "order.progress": "A1",
     "order.ask": "A1",  # ⟨1.16⟩ §34.3
     "automation.propose": "A1",  # ⟨2026-11-06⟩ a CEO or manager proposes; the owner seals
+    "erase.propose": "A1",  # ⟨1.19⟩ §37.3 an agent proposes an erase; only the owner's seal runs it
     "work.budget": "A2",
     "card.decide": "A2",
     # ⟨2026-11-06⟩ (linked.rego): a company's data along an owner's `on` link (routes/linked.py)

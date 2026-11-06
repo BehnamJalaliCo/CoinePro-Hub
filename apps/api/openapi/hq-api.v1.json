@@ -12226,7 +12226,8 @@
               "archive_schema",
               "archive_disposal",
               "server_destructive",
-              "line_publish"
+              "line_publish",
+              "erase"
             ],
             "title": "Kind",
             "type": "string"
@@ -15228,6 +15229,94 @@
           "hires_month"
         ],
         "title": "Envelope",
+        "type": "object"
+      },
+      "EraseCounts": {
+        "properties": {
+          "files": {
+            "default": 0,
+            "title": "Files",
+            "type": "integer"
+          },
+          "notifications": {
+            "default": 0,
+            "title": "Notifications",
+            "type": "integer"
+          },
+          "outputs": {
+            "default": 0,
+            "title": "Outputs",
+            "type": "integer"
+          },
+          "turns": {
+            "default": 0,
+            "title": "Turns",
+            "type": "integer"
+          },
+          "works": {
+            "default": 0,
+            "title": "Works",
+            "type": "integer"
+          }
+        },
+        "title": "EraseCounts",
+        "type": "object"
+      },
+      "ErasePreview": {
+        "description": "What an erase would remove, and in plain Persian what stays (nothing changes).",
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/EraseCounts"
+          },
+          "keeps_fa": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Keeps Fa",
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "session",
+              "archive_record",
+              "output"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "kind",
+          "title_fa",
+          "counts"
+        ],
+        "title": "ErasePreview",
+        "type": "object"
+      },
+      "Erased": {
+        "properties": {
+          "erased": {
+            "$ref": "#/components/schemas/EraseCounts"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "erased"
+        ],
+        "title": "Erased",
         "type": "object"
       },
       "Errand": {
@@ -36908,22 +36997,6 @@
         "title": "Proposal",
         "type": "object"
       },
-      "ProposeIn": {
-        "additionalProperties": false,
-        "properties": {
-          "sentence_fa": {
-            "maxLength": 1000,
-            "minLength": 3,
-            "title": "Sentence Fa",
-            "type": "string"
-          }
-        },
-        "required": [
-          "sentence_fa"
-        ],
-        "title": "ProposeIn",
-        "type": "object"
-      },
       "Protocol": {
         "properties": {
           "answerable": {
@@ -56828,6 +56901,22 @@
         "title": "Device",
         "type": "object"
       },
+      "hq_api__routes__automations__ProposeIn": {
+        "additionalProperties": false,
+        "properties": {
+          "sentence_fa": {
+            "maxLength": 1000,
+            "minLength": 3,
+            "title": "Sentence Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sentence_fa"
+        ],
+        "title": "ProposeIn",
+        "type": "object"
+      },
       "hq_api__routes__backups__Check": {
         "properties": {
           "last_at": {
@@ -56983,6 +57072,38 @@
           "class"
         ],
         "title": "ReserveIn",
+        "type": "object"
+      },
+      "hq_api__routes__erase__ProposeIn": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "session",
+              "archive_record",
+              "output"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "ref": {
+            "pattern": "^(F-[0-9]{4,}|AR-[0-9]{6,}|O-[0-9]{6,})$",
+            "title": "Ref",
+            "type": "string"
+          },
+          "why_fa": {
+            "maxLength": 2000,
+            "minLength": 2,
+            "title": "Why Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "ref",
+          "why_fa"
+        ],
+        "title": "ProposeIn",
         "type": "object"
       },
       "hq_api__routes__founding__ActivateIn": {
@@ -62170,6 +62291,229 @@
         "summary": "Archive Access Log",
         "tags": [
           "archive"
+        ]
+      }
+    },
+    "/api/v1/archive/records/{ref}/erase": {
+      "post": {
+        "description": "🔏 `archive.erase` (target = the ref): the archive's own disposal (§23.5) run now instead of\non its schedule: the record's files destroyed and the record removed (disposed); its\ntombstone keeps only the ref, the date and «به دستور مدیر کل». A record under a legal hold\nanswers 409 with `message_fa` naming the hold. Requires `Idempotency-Key`.",
+        "operationId": "erase_record",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "erased": {
+                    "files": 1,
+                    "notifications": 1,
+                    "outputs": 1,
+                    "turns": 1,
+                    "works": 1
+                  },
+                  "ref": "W-000789"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Erased"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Erase Record",
+        "tags": [
+          "erase"
+        ]
+      }
+    },
+    "/api/v1/archive/records/{ref}/erase/preview": {
+      "get": {
+        "description": "What erasing this record removes (its files) and what stays (a tombstone with only the\nref, the date and «به دستور مدیر کل»; one audit line). A held record says so first.",
+        "operationId": "erase_record_preview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "counts": {
+                    "files": 1,
+                    "notifications": 1,
+                    "outputs": 1,
+                    "turns": 1,
+                    "works": 1
+                  },
+                  "keeps_fa": [
+                    "x"
+                  ],
+                  "kind": "session",
+                  "ref": "W-000789",
+                  "title_fa": "گزارش هفتگی رشد"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErasePreview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Erase Record Preview",
+        "tags": [
+          "erase"
         ]
       }
     },
@@ -83827,6 +84171,229 @@
         "summary": "Get Deliverable",
         "tags": [
           "deliverables"
+        ]
+      }
+    },
+    "/api/v1/deliverables/{ref}/erase": {
+      "post": {
+        "description": "🔏 `output.erase` (target = the ref): one output and its files, the notifications that\npoint at it, its pending cards withdrawn; the work it belongs to stays and its order's story\nsays «خروجی پاک شد». Requires `Idempotency-Key`.",
+        "operationId": "erase_output",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "erased": {
+                    "files": 1,
+                    "notifications": 1,
+                    "outputs": 1,
+                    "turns": 1,
+                    "works": 1
+                  },
+                  "ref": "W-000789"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Erased"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Erase Output",
+        "tags": [
+          "erase"
+        ]
+      }
+    },
+    "/api/v1/deliverables/{ref}/erase/preview": {
+      "get": {
+        "description": "What erasing this output removes (it and the files only it carried) and what stays (the\nwork it belongs to; an archive record filed from it; one audit line).",
+        "operationId": "erase_output_preview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "counts": {
+                    "files": 1,
+                    "notifications": 1,
+                    "outputs": 1,
+                    "turns": 1,
+                    "works": 1
+                  },
+                  "keeps_fa": [
+                    "x"
+                  ],
+                  "kind": "session",
+                  "ref": "W-000789",
+                  "title_fa": "گزارش هفتگی رشد"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErasePreview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Erase Output Preview",
+        "tags": [
+          "erase"
         ]
       }
     },
@@ -108597,6 +109164,207 @@
           }
         },
         "summary": "Close Session",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/orders/{ref}/erase": {
+      "post": {
+        "description": "⟨1.19⟩ 🔏 `session.erase` (target = the ref), open or closed, hidden or not. In one\ntransaction: its open works cancelled, then gone for good the session (report, steps, tasks,\nparticipants), its talk (turns, their voice and files), the order's files, its outputs and\ntheir files, its pending cards (withdrawn), the notifications that point at it, its runs'\ntranscripts. A guarded ledger row keeps no word of the order and leaves every list; a stored\nfile is destroyed only when nothing that stays uses it. One audit line `session.erase` (A3)\nwith the counts. Afterwards the order and its session answer 404. Requires `Idempotency-Key`.",
+        "operationId": "erase_session",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "erased": {
+                    "files": 1,
+                    "notifications": 1,
+                    "outputs": 1,
+                    "turns": 1,
+                    "works": 1
+                  },
+                  "ref": "W-000789"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Erased"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Erase Session",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/orders/{ref}/erase/preview": {
+      "get": {
+        "description": "⟨1.19⟩ What erasing this session would remove (turns, files, outputs, works,\nnotifications) and, in plain Persian, what stays (a working group or production line it set\nup, one audit line, the token and money figures). Nothing changes: the erase itself runs and\nis rolled back, so the counts are exactly the erase's.",
+        "operationId": "erase_session_preview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "counts": {
+                    "files": 1,
+                    "notifications": 1,
+                    "outputs": 1,
+                    "turns": 1,
+                    "works": 1
+                  },
+                  "keeps_fa": [
+                    "x"
+                  ],
+                  "kind": "session",
+                  "ref": "W-000789",
+                  "title_fa": "گزارش هفتگی رشد"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErasePreview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Erase Session Preview",
         "tags": [
           "orders"
         ]
@@ -143569,7 +144337,7 @@
                 "sentence_fa": "xxx"
               },
               "schema": {
-                "$ref": "#/components/schemas/ProposeIn"
+                "$ref": "#/components/schemas/hq_api__routes__automations__ProposeIn"
               }
             }
           },
@@ -146704,6 +147472,182 @@
           }
         },
         "summary": "Reserve",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/erase/propose": {
+      "post": {
+        "description": "erase.propose (A1, every working role): an agent proposes erasing a session, an archive\nrecord or an output for good: a decision card `erase` to the owner with the preview's counts.\nThe policy lets a role propose only what it can read (an order it works on, an output of its\ncompany or of an order it works on, a record within its clearance; a holding-scope role reads\nevery company). An agent never erases anything itself. Requires `Idempotency-Key`.",
+        "operationId": "erase_propose",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "kind": "session",
+                "ref": "W-000789",
+                "why_fa": "xx"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/hq_api__routes__erase__ProposeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "action_class": "x",
+                  "amendments": {},
+                  "approver": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
+                  "company": "TY",
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "critical_reason": "data_leak",
+                  "decided_at": "2026-10-17T05:42:00Z",
+                  "decided_by": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
+                  "digital_ceo_prediction": {},
+                  "domain": "business",
+                  "effect_status": "x",
+                  "expected": {},
+                  "expires_at": "2026-10-17T05:42:00Z",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "impact": {
+                    "basis_fa": "x",
+                    "cost_usd": 1.0,
+                    "horizon_days": 1,
+                    "kind": "measured",
+                    "revenue_usdt": 1.0
+                  },
+                  "kind": "hire",
+                  "memos": [
+                    {}
+                  ],
+                  "note": "یادداشت",
+                  "owner_visible": false,
+                  "payload": {},
+                  "proposer": {
+                    "code": "TY-CEO",
+                    "display_fa": "x",
+                    "kind": "agent"
+                  },
+                  "quota_estimate": {
+                    "tokens": 1,
+                    "usd": "2.410000"
+                  },
+                  "reason_code": "x",
+                  "ref": "D-000123",
+                  "reminders": [
+                    {}
+                  ],
+                  "resolution": "M-0001",
+                  "reversible": false,
+                  "risk": "low",
+                  "risk_note": "x",
+                  "routed_to": "x",
+                  "seal": {
+                    "method": "x",
+                    "sealed_at": "2026-10-17T05:42:00Z",
+                    "step_up_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  },
+                  "status": "pending",
+                  "thread": "TY-CEO",
+                  "title": "گزارش هفتگی رشد",
+                  "version": 1,
+                  "waiting_h": 1.0,
+                  "warnings": [
+                    "x"
+                  ],
+                  "what": "x",
+                  "why": "x",
+                  "work_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Decision"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Erase Propose",
         "tags": [
           "internal"
         ]

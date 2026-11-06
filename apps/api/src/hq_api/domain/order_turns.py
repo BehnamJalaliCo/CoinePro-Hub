@@ -13,7 +13,9 @@
                     second ask while the turn is open joins it (both questions)
     reply           (the owner) the answer: a step «مدیر کل: …», the turn cleared, and the askers'
                     works (else the holder's) run again at once with the dialogue in their brief;
-                    a reply after a talk-loop stop restarts the order deliberately
+                    a reply after a talk-loop stop restarts the order deliberately; ⟨1.19⟩ §37.4 a
+                    word after delivery (the session `ready`, not closed) is a revision: the
+                    holder's delivered root work goes back to `in_progress` and the holder is woken
     the live talk   one conversation per order with the holder's persona (opened on routing for
                     every order, §35.1); the holder's steps and questions come into it as its
                     turns, and what the owner tells the holder there becomes a card that goes
@@ -33,6 +35,7 @@ from hq_api.domain import files as F
 from hq_api.domain import humanize as HZ
 from hq_api.domain import notify
 from hq_api.domain import order_report as OR
+from hq_api.domain import work as W
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
 from hq_api.talk.scrub import clean
@@ -41,6 +44,9 @@ OWNER_FA = "مدیر کل"
 DIALOGUE_STEPS = 12
 FIXED_PERSONAS = ("advisor", "overseer", "assistant")
 RESTARTED_FA = "فرمان با پاسخ مدیر کل دوباره راه افتاد"
+REVISION_FA = "کار تحویل‌شده با حرف تازه‌ی مدیر کل دوباره باز شد"
+DELIVERED = ("delivered", "done")
+OWNER = Principal(kind="owner", code="owner", role="owner")
 
 
 # ------------------------------------------------------------------ helpers --
@@ -264,10 +270,39 @@ async def _why_not_woken(tx: Tx, w: dict[str, Any]) -> str:
     return "کار راه نیفتاد؛ دوباره تلاش میشود"
 
 
+async def _reopen_delivered(tx: Tx, ref: str, works: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """⟨1.19⟩ §37.4 the root work a word after delivery goes back to: the holder's delivered root
+    (its assignee is the holder), else any delivered root (a `delivered` one before an accepted
+    `done` one, the newest first), back to `in_progress` (work.reopen). None when the order has
+    no delivered root."""
+    roots = [w for w in works if w["is_root"] and w["status"] in DELIVERED]
+    if not roots:
+        return None
+    h = await holder(tx, ref)
+    code = h["code"] if h else None
+    roots.sort(
+        key=lambda w: (
+            w["a_code"] != code,
+            w["status"] != "delivered",
+            -w["updated_at"].timestamp(),
+        )
+    )
+    for w in roots:
+        if await tx.scalar("SELECT work.reopen(:w)", w=w["id"]):
+            await W.event(
+                tx, w, "reopened", OWNER, {"order": ref, "why": "owner_word_after_delivery"}
+            )
+            return {**w, "status": "in_progress"}
+    return None
+
+
 async def reply(tx: Tx, ref: str, text: str) -> dict[str, Any]:
     """The owner's word on the order: a step, the turn cleared, and the askers' works (else the
     holder's) run again at once. Answers {work_ref, run_id, woken: [work refs], why_fa}; a reply
-    that wakes nothing says why in a step (never a silent «runs again»)."""
+    that wakes nothing says why in a step (never a silent «runs again»). ⟨1.19⟩ §37.4 with nothing
+    open but the session not closed (`ready`), the word is a revision: the holder's delivered root
+    work goes back to `in_progress` with the word as its next step and the holder is woken; only an
+    order with nothing delivered or open left answers 409."""
     rep = await OR.ensure(tx, ref)
     if rep is None:
         raise ApiError(404, "not_found", "unknown order", message_fa="این فرمان پیدا نشد.")
@@ -291,10 +326,17 @@ async def reply(tx: Tx, ref: str, text: str) -> dict[str, Any]:
         root = next((w for w in works if w["is_root"] and w["status"] in OR.OPEN), None)
         if root is not None:
             targets.append(root)
+    revised = None
+    if not targets:
+        revised = await _reopen_delivered(tx, ref, works)
+        if revised is not None:
+            targets.append(revised)
     if not targets:
         raise ApiError(409, "validation_failed", "no open work on the order",
                        message_fa="کار بازی روی این فرمان نمانده است؛ فرمان تازه بدهید.")  # fmt: skip
     steps = [OR._step(OWNER_FA, words)]
+    if revised is not None:
+        steps.append(OR._step("سامانه", REVISION_FA))
     if rep["talk_stopped_at"] is not None:
         # ⟨1.17⟩ W6 a: a reply after a talk-loop stop restarts the order deliberately
         await tx.exec(

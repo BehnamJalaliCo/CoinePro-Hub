@@ -469,6 +469,11 @@ async def batch_approve(body: B.BatchIn, request: Request, ctx: Ctx = Depends(ow
             await idem.store(tx, 200, result.model_dump(mode="json"))
     for s in sealed:
         await workflows_client.decision_decided(ctx.hub, s.ref)
+    if any(d["kind"] in B.ERASE for d in cards):
+        # ⟨1.19⟩ §37.3 sealed erases committed: the stored objects they freed go now
+        from hq_api.domain import erase as ER
+
+        await ER.destroy_after(ctx.hub)
     return result
 
 

@@ -535,70 +535,7 @@ async def apply_disposal(tx: Tx, d: dict[str, Any]) -> dict[str, Any]:
         if not r["disposable"] or r["due_at"] is None or r["due_at"] > today:
             skipped.append({"ref": r["ref"], "why": "no longer due"})
             continue
-        files = await tx.all(
-            """SELECT id, name, sha256, storage_key FROM archive.record_files WHERE record_id = :r
-               ORDER BY version_n, name""",
-            r=r["id"],
-        )
-        for f in files:
-            if f["storage_key"]:
-                await tx.exec(
-                    """INSERT INTO archive.destroy_queue (company_id, storage_key, why, ref)
-                       VALUES (:co, :k, 'disposal', :ref)""",
-                    co=r["company_id"],
-                    k=f["storage_key"],
-                    ref=r["ref"],
-                )
-        await tx.exec(
-            """UPDATE archive.record_files SET destroyed_at = now(), storage_key = NULL, wrapped_dek = NULL,
-                   text = NULL, ocr_wanted = false WHERE record_id = :r AND destroyed_at IS NULL""",
-            r=r["id"],
-        )
-        await tx.exec(
-            """INSERT INTO archive.tombstones (company_id, record_id, ref, class_key, title_fa, level_rank, dates,
-                   hashes, decision_ref)
-               VALUES (:co, :r, :ref, :c, :t, :lr, CAST(:dt AS jsonb), CAST(:h AS jsonb), :d)""",
-            co=r["company_id"],
-            r=r["id"],
-            ref=r["ref"],
-            c=r["class_key"],
-            t=r["title_fa"],
-            lr=r["level_rank"],
-            dt=dumps(
-                {
-                    "created_at": r["created_at"],
-                    "filed_at": r["filed_at"],
-                    "sealed_at": r["sealed_at"],
-                    "trigger_at": r["trigger_at"],
-                    "due_at": r["due_at"],
-                    "disposed_at": datetime.now(UTC),
-                }
-            ),
-            h=dumps([{"name": f["name"], "sha256": f["sha256"]} for f in files]),
-            d=d["ref"],
-        )
-        await tx.exec(
-            """UPDATE archive.records SET state = 'disposed', disposed_at = now(), sealed_at = NULL,
-                   metadata = '{}', parties = '[]', party_refs = '{}', watch_dates = '{}', suggestion = NULL,
-                   meta_tsv = NULL, sens_tsv = NULL, text_tsv = NULL, disposal_ref = :d
-               WHERE id = :id""",
-            id=r["id"],
-            d=d["ref"],
-        )
-        await tx.exec(
-            """UPDATE archive.reminders SET state = 'done', done_at = now(), done_by = 'disposal'
-               WHERE record_id = :r AND state <> 'done'""",
-            r=r["id"],
-        )
-        await tx.exec(
-            "UPDATE archive.intake SET text = NULL, updated_at = now() WHERE file_id = ANY(:f)",
-            f=[
-                x["id"]
-                for x in await tx.all(
-                    "SELECT file_id AS id FROM archive.record_files WHERE record_id = :r", r=r["id"]
-                )
-            ],
-        )
+        files = await _dispose(tx, r, card_ref=d["ref"], erase=False)
         await audit.record(
             tx,
             OWNER,
@@ -607,11 +544,8 @@ async def apply_disposal(tx: Tx, d: dict[str, Any]) -> dict[str, Any]:
             action_class="A2",
             target_kind="archive_record",
             target_ref=r["ref"],
-            summary=f"{d['ref']}: {len(files)} file(s)",
+            summary=f"{d['ref']}: {files} file(s)",
             step_up=True,
-        )
-        await events.emit(
-            tx, r["scope"], "record.updated", r["ref"], {"state": "disposed", "change": "disposed"}
         )
         disposed.append(r["ref"])
     # Records left on the card but not disposed may come on a later card.
@@ -620,6 +554,117 @@ async def apply_disposal(tx: Tx, d: dict[str, Any]) -> dict[str, Any]:
         d=d["ref"],
     )
     return {"disposed": disposed, "skipped": skipped}
+
+
+ERASED_FA = "پاک‌شده"
+BY_OWNER_FA = "به دستور مدیر کل"
+
+
+async def _dispose(tx: Tx, r: dict[str, Any], *, card_ref: str | None, erase: bool) -> int:
+    """One record disposed (its row locked by the caller): its files' rows marked destroyed (an
+    encrypted file's wrapped key goes with them), their stored objects queued (removed once the
+    transaction has committed), a tombstone, the record emptied. A disposal's tombstone keeps
+    ref, class, title, dates and every file's hash; ⟨1.19⟩ an erase's (§37.2) keeps only the ref,
+    the date and «به دستور مدیر کل», and the record keeps no title. -> the number of files."""
+    files = await tx.all(
+        """SELECT id, name, sha256, storage_key FROM archive.record_files WHERE record_id = :r
+           ORDER BY version_n, name""",
+        r=r["id"],
+    )
+    for f in files:
+        if f["storage_key"]:
+            await tx.exec(
+                """INSERT INTO archive.destroy_queue (company_id, storage_key, why, ref)
+                   VALUES (:co, :k, :why, :ref)""",
+                co=r["company_id"],
+                k=f["storage_key"],
+                why="erase" if erase else "disposal",
+                ref=r["ref"],
+            )
+    await tx.exec(
+        """UPDATE archive.record_files SET destroyed_at = now(), storage_key = NULL, wrapped_dek = NULL,
+               text = NULL, ocr_wanted = false WHERE record_id = :r AND destroyed_at IS NULL""",
+        r=r["id"],
+    )
+    now = datetime.now(UTC)
+    dates = (
+        {"erased_at": now}
+        if erase
+        else {
+            "created_at": r["created_at"],
+            "filed_at": r["filed_at"],
+            "sealed_at": r["sealed_at"],
+            "trigger_at": r["trigger_at"],
+            "due_at": r["due_at"],
+            "disposed_at": now,
+        }
+    )
+    await tx.exec(
+        """INSERT INTO archive.tombstones (company_id, record_id, ref, class_key, title_fa, level_rank, dates,
+               hashes, decision_ref)
+           VALUES (:co, :r, :ref, :c, :t, :lr, CAST(:dt AS jsonb), CAST(:h AS jsonb), :d)""",
+        co=r["company_id"],
+        r=r["id"],
+        ref=r["ref"],
+        c=None if erase else r["class_key"],
+        t=BY_OWNER_FA if erase else r["title_fa"],
+        lr=r["level_rank"],
+        dt=dumps(dates),
+        h=dumps([] if erase else [{"name": f["name"], "sha256": f["sha256"]} for f in files]),
+        d=card_ref or "owner",
+    )
+    await tx.exec(
+        """UPDATE archive.records SET state = 'disposed', disposed_at = now(), sealed_at = NULL,
+               metadata = '{}', parties = '[]', party_refs = '{}', watch_dates = '{}', suggestion = NULL,
+               meta_tsv = NULL, sens_tsv = NULL, text_tsv = NULL, disposal_ref = :d,
+               title_fa = CASE WHEN :erase THEN :blank ELSE title_fa END
+           WHERE id = :id""",
+        id=r["id"],
+        d=card_ref,
+        erase=erase,
+        blank=ERASED_FA,
+    )
+    await tx.exec(
+        """UPDATE archive.reminders SET state = 'done', done_at = now(), done_by = 'disposal'
+           WHERE record_id = :r AND state <> 'done'""",
+        r=r["id"],
+    )
+    await tx.exec(
+        "UPDATE archive.intake SET text = NULL, updated_at = now() WHERE file_id = ANY(:f)",
+        f=[
+            x["id"]
+            for x in await tx.all(
+                "SELECT file_id AS id FROM archive.record_files WHERE record_id = :r", r=r["id"]
+            )
+        ],
+    )
+    await events.emit(
+        tx,
+        r["scope"],
+        "record.updated",
+        r["ref"],
+        {"state": "disposed", "change": "erased" if erase else "disposed"},
+    )
+    return len(files)
+
+
+async def erase_record(tx: Tx, ref: str, *, card_ref: str | None = None) -> int:
+    """⟨1.19⟩ §37.2 the owner erases a record now (or seals an agent's `erase` card): the disposal
+    above without its schedule or its card. The caller checked the hold (409) and audits it.
+    -> the number of files destroyed."""
+    from hq_api.archive import clearance as CL
+
+    await CL.full(tx)
+    r = await tx.first(
+        """SELECT r.*, co.code AS scope FROM archive.records r JOIN core.companies co ON co.id = r.company_id
+           WHERE r.ref = :r FOR UPDATE OF r""",
+        r=ref,
+    )
+    if r is None or r["state"] == "disposed":
+        raise ApiError(404, "not_found", f"no record {ref}")
+    if await tx.scalar("SELECT cardinality(archive.held_by(:r)) > 0", r=r["id"]):
+        raise ApiError(423, "held", f"{ref} is under a legal hold")
+    return await _dispose(tx, dict(r), card_ref=card_ref, erase=True)
 
 
 async def card_declined(tx: Tx, d: dict[str, Any], verdict: str) -> None:

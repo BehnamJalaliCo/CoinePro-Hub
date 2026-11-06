@@ -373,6 +373,11 @@ async def _decide(
         from hq_api.archive.common import wide_txf
 
         await RT.destroy_queued(ctx.hub, wide_txf(ctx.hub))
+    if verdict == "approved" and result.kind == "erase":
+        # ⟨1.19⟩ §37.3 the sealed erase committed: the stored objects it freed go now
+        from hq_api.domain import erase as ER
+
+        await ER.destroy_after(ctx.hub)
     return result
 
 

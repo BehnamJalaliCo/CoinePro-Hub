@@ -42,6 +42,8 @@ kinds := {
 	# ⟨1.12⟩ prompt 22 (contract §30.3): a production line's gated step; the
 	# owner's, or the company's CEO's (card.decide) for a step with `gate: ceo`
 	"line_publish",
+	# ⟨1.19⟩ contract §37.3: an agent's proposed erase for good; the owner's seal only
+	"erase",
 }
 
 # Kinds a CEO may decide for its own company (each with its own condition below).

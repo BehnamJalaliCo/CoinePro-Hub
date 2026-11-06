@@ -321,10 +321,18 @@ async def test_the_session_waits_for_the_owner_and_ends_only_by_the_owners_hand(
     async with hub.db.tx(await hub.companies.ids()) as tx:
         assert await OR.timers(tx, s, ref) == []  # a ready session nudges nobody
     assert (await cards(client, owner))[ref]["badge"] == "ready"
+    # ⟨1.19⟩ §37.4 a word after delivery is a revision: the holder's root goes back to work and
+    # the holder is woken (no more `409 no open work`); delivered again, ready again
+    await refuse_queued(su, work_ref)
     r = await client.post(
         f"/api/v1/orders/{ref}/reply", headers={**owner, **idem()}, json={"text": "ادامه"}
     )
-    assert r.status_code == 409 and r.json()["message_fa"]
+    assert r.status_code == 200, r.text
+    assert r.json()["session"]["badge"] == "moving"
+    assert await su.fetchval("SELECT status FROM work.work WHERE id = $1", wid) == "in_progress"
+    assert (await woken(su, ref))[-1] == work_ref
+    assert (await deliver(client, holder, wid, "گزارش فروش هفته")).status_code == 200
+    assert (await report(client, owner, ref))["session"]["badge"] == "ready"
     # the owner's OK: the only end
     r = await client.post(f"/api/v1/orders/{ref}/close", headers=owner, json={"verdict": "ok"})
     assert r.status_code == 422  # Idempotency-Key

@@ -34,6 +34,7 @@ GATEWAY_TOOLS: frozenset[str] = frozenset(
         "order.progress",
         "order.ask",
         "automation.propose",  # ⟨2026-11-06⟩ a CEO's or manager's proposed automation
+        "erase.propose",  # ⟨1.19⟩ §37.3 an agent's proposed erase; only the owner's seal runs it
         "work.request",
         "activity.set",
         "notify",

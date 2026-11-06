@@ -719,11 +719,9 @@ async def reopen(tx: Tx, ref: str) -> dict[str, Any]:
             )
             if reason != CLOSE_REASON:
                 continue
-            await tx.exec(
-                """UPDATE work.work SET status = 'in_progress', close_reason = NULL, closed_at = NULL
-                   WHERE id = :id""",
-                id=w["id"],
-            )
+            # ⟨1.19⟩ a closed work's status is guarded (work.before_update): work.reopen alone
+            # brings it back (migration 0055)
+            await tx.scalar("SELECT work.reopen(:id)", id=w["id"])
             rid = await tx.scalar(
                 "SELECT work.wake_assignee(:w, :r)", w=w["id"], r=f"session_reopened:{ref}"
             )

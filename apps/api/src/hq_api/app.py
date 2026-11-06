@@ -75,6 +75,7 @@ from hq_api.routes import campaigns as campaign_routes  # prompt 22 part 3: §31
 from hq_api.routes import connections as connection_routes  # prompt 21 part 3: §29.12
 from hq_api.routes import council as council_routes  # prompt 21: the council v2
 from hq_api.routes import dceo as dceo_routes
+from hq_api.routes import erase as erase_routes  # prompt 26: §37.2-§37.3 erasing for good
 from hq_api.routes import grok as grok_routes  # prompt 24: §33.7, §33.10
 from hq_api.routes import groups as group_routes  # prompt 21 part 3: §29.9, §29.11
 from hq_api.routes import home as home_routes  # prompt 21 part 3: §29.13
@@ -312,6 +313,10 @@ def create_app(
     # ⟨1.17⟩ prompt 25 (contract §35.1-§35.3): every order a session: the list, participants,
     # the plan, close / reopen / hide
     app.include_router(session_routes.router, prefix="/api/v1")
+    # ⟨1.19⟩ prompt 26 (contract §37.2-§37.3): an archive record or an output erased for good, an
+    # agent's proposed erase (the session's own erase is in session_routes)
+    app.include_router(erase_routes.router, prefix="/api/v1")
+    app.include_router(erase_routes.internal_router, prefix="/internal/v1")
     # ⟨1.13⟩ prompt 22 part 3 (contract §31.6, §31.7): ad budgets, automations from a sentence.
     for p22c in (ads_routes, automation_routes):
         app.include_router(p22c.router, prefix="/api/v1")
