@@ -75,6 +75,8 @@ async def test_owner_settings_validation_and_versions(
         "digital_ceo",
         # ⟨1.14⟩ prompt 23 (contract §32.6): the voice cap and chain
         "voice",
+        # ⟨1.17⟩ prompt 25 (contract §35.6): links honoured by the agents
+        "links_enforced",
     }
     v = {"If-Match": str(s["version"])}
     assert (await client.put(f"{API}/owner/settings", json={}, headers=owner)).status_code == 428
