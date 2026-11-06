@@ -17,8 +17,15 @@
                                            budget.add       none ({tokens})
                                            player.auto      none
                                            connection.guide none (the app opens the guide)
+    POST /orders/{ref}/reply             ⟨1.16⟩ §34.3 the owner's word on the order: a
+                                         step, the open turn cleared, the asker's work
+                                         runs again at once {text} -> OrderReport
+    POST /orders/{ref}/talk              ⟨1.16⟩ §34.2 the live talk with the order's
+                                         holder (opened once) -> {conversation_ref}
     /internal/v1/orders/{ref}/ack        order.ack (A1): the assignee's plan
     /internal/v1/orders/{ref}/progress   order.progress (A1): one step
+    /internal/v1/orders/{ref}/ask        ⟨1.16⟩ order.ask (A1): one question to the owner
+                                         (the owner's turn, told at once)
     /internal/v1/work/{ref}/budget       work.budget (A2): a CEO, its company's
                                          work, inside the month envelope
     /internal/v1/cards/{ref}/decide      card.decide (A2): the agent approver of
@@ -67,6 +74,64 @@ async def order_report(ref: str, ctx: Ctx = Depends(owner_ctx)) -> OR.OrderRepor
     if out is None:
         raise ApiError(404, "not_found", f"order {ref}")
     return out
+
+
+class ReplyIn(Model):
+    text: str = Field(min_length=1, max_length=2000)
+
+
+class TalkOut(BaseModel):
+    conversation_ref: str
+
+
+@router.post("/orders/{ref}/reply", response_model=OR.OrderReport, responses=E)
+async def reply_order(
+    ref: str, body: ReplyIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+) -> Any:
+    """⟨1.16⟩ §34.3 the owner answers the holder (or simply says the next step): a step
+    «مدیر کل: …», the open turn cleared, and the asker's work (else the holder's) runs again at
+    once with the dialogue in its brief. An ended order answers 409. Requires `Idempotency-Key`."""
+    from hq_api.domain import order_turns as OT
+    from hq_api.talk.scrub import clean
+
+    async with ctx.tx() as tx:
+        idem = await idempotency.claim(tx, request, ctx.who, required=True)
+        if idem and idem.replay:
+            return idem.replay
+        text = clean(body.text)[0]
+        out = await OT.reply(tx, ref, text)
+        await ctx.audit(
+            tx,
+            company_id=(await ctx.hub.companies.holding()).id,
+            action="order.reply",
+            action_class="A1",
+            target_kind="order",
+            target_ref=ref,
+            summary=f"the owner's word; {out['work_ref']} runs again",
+        )
+        rep = await OR.ensure(tx, ref)
+        if rep is not None:
+            await OT.to_talk_owner(tx, rep, text)
+        result = await OR.report(tx, ref)
+        assert result is not None
+        if idem:
+            await idem.store(tx, 200, result.model_dump(mode="json"))
+    return result
+
+
+@router.post("/orders/{ref}/talk", response_model=TalkOut, responses=E)
+async def talk_order(ref: str, ctx: Ctx = Depends(owner_ctx)) -> TalkOut:
+    """⟨1.16⟩ §34.2 the live talk with the order's holder: the order's conversation (made once,
+    work mode, the holder's persona; the same answer every time after)."""
+    from hq_api.domain import order_turns as OT
+
+    async with ctx.tx() as tx:
+        conv = await OT.open_talk(ctx, tx, ref)
+        if conv is None:
+            raise ApiError(409, "validation_failed", "the order has no holder yet",
+                           message_fa="هنوز کسی این فرمان را نگرفته است.")  # fmt: skip
+        await OR.refresh(tx, ref)
+    return TalkOut(conversation_ref=conv)
 
 
 class FixIn(Model):
@@ -241,6 +306,10 @@ class ProgressIn(Model):
     step_fa: str = Field(min_length=1, max_length=1000)
 
 
+class AskIn(Model):
+    question_fa: str = Field(min_length=2, max_length=1000)
+
+
 def _agent(ctx: Ctx) -> None:
     if not ctx.who.is_agent or ctx.who.company_id is None:
         raise ApiError(403, "policy_denied", "agents only")
@@ -298,6 +367,33 @@ async def order_progress(
             target_kind="order",
             target_ref=ref,
             summary=body.step_fa[:200],
+        )
+        out = await OR.report(tx, ref)
+    assert out is not None
+    return out
+
+
+@internal_router.post("/orders/{ref}/ask", response_model=OR.OrderReport, responses=E)
+async def order_ask(ref: str, body: AskIn, ctx: Ctx = Depends(internal_ctx)) -> OR.OrderReport:
+    """⟨1.16⟩ order.ask (A1): one short question of someone working on the order to the owner:
+    the owner's turn (the order `waiting`), a step, one notification at once, the live talk."""
+    from hq_api.domain import order_turns as OT
+
+    _agent(ctx)
+    async with await _all(ctx) as tx:
+        assigned = await OR.may_speak(tx, ref, ctx.who)
+        await allow(ctx, "order.ask", {"company": ctx.who.company, "assigned": assigned})
+        if not assigned:
+            raise ApiError(403, "policy_denied", "not an order you work on")
+        await OT.ask(tx, ctx.who, ref, body.question_fa)
+        await ctx.audit(
+            tx,
+            company_id=ctx.who.company_id,  # type: ignore[arg-type]
+            action="order.ask",
+            action_class="A1",
+            target_kind="order",
+            target_ref=ref,
+            summary=body.question_fa[:200],
         )
         out = await OR.report(tx, ref)
     assert out is not None

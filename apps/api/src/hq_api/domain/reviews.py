@@ -9,9 +9,13 @@ Settings: owner_settings.weekly_review {enabled, day: "sa", at: "10:00"}.
     open critical and high findings, budgets above 70%, revenue drops
     (§19.1), decisions whose 30/60/90-day outcome review is due (§20.6), the
     owner's open quick notes (§21.8).
-  - The advisor writes a one-page brief in thread A (`meta.review: WR-…`): a
+  - The advisor writes a short brief in thread A (`meta.review: WR-…`): a
     work item for HQ-ADV of task class advisor_review, owner_zone "auto",
-    capped at 100K tokens. It reads the open notes only here.
+    capped at REVIEW_TOKENS. It reads the open notes only here.
+  - Nothing technical (the owner, 2026-11-06: «موارد فنی رو به من ارجاع
+    ندید»): a card or finding of a technical domain is on the agenda only when
+    it is critical (§29.1), a risk only of a business category; the brief is
+    plain Persian, a few lines, with no technical matter at all.
   - The owner goes item by item (done, deferred, a note; If-Match); what the
     owner does meanwhile (a seal, a rejection, an order) makes its own
     ordinary records. `finish` writes the minutes as a deliverable O-… by
@@ -37,7 +41,7 @@ from pydantic import BaseModel, Field
 
 from hq_api import audit, events
 from hq_api.db import Tx
-from hq_api.domain import gate
+from hq_api.domain import gate, routing
 from hq_api.domain import work as W
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
@@ -45,10 +49,13 @@ from hq_api.schemas import Model
 from hq_common import owner_zone
 
 SERVICE = Principal(kind="service", code="weekly-review", role="service")
-REVIEW_TOKENS = 100_000
+REVIEW_TOKENS = 30_000  # was 100K: one brief cost the owner 265K on the top model (2026-11-05)
+BRIEF_LINES = 8
 MAX_ITEMS = 12
 BUILD_BEFORE = timedelta(minutes=30)
 HIGH_RISK = 15
+# A risk the owner sees on the agenda (the rest are the technical team's: §29.1).
+BUSINESS_RISKS = ("product", "money", "people", "reputation")
 BUDGET_SHARE = 0.7
 OKR_PACE = 0.7
 OKR_MIN_ELAPSED = 0.25
@@ -156,8 +163,10 @@ async def _decisions(tx: Tx, now: datetime) -> list[dict[str, Any]]:
         """SELECT d.ref, c.code, d.title, d.risk, d.created_at FROM cartable.decisions d
            JOIN core.companies c ON c.id = d.company_id
            WHERE d.status = 'pending' AND d.approver_code IS NULL
+             AND (d.domain = ANY(CAST(:biz AS text[])) OR d.critical_reason IS NOT NULL)
            ORDER BY d.created_at, d.ref LIMIT :n""",
         n=MAX_ITEMS,
+        biz=list(routing.BUSINESS),
     )
     return [
         _item("decision", r["ref"], r["code"], r["title"],
@@ -171,9 +180,11 @@ async def _risks(tx: Tx) -> list[dict[str, Any]]:
         """SELECT r.ref, c.code, r.title_fa, r.score FROM governance.risks r
            JOIN core.companies c ON c.id = r.company_id
            WHERE r.status IN ('open', 'mitigating') AND r.score >= :s
+             AND r.category = ANY(CAST(:cats AS text[]))
            ORDER BY r.score DESC, r.ref LIMIT :n""",
         s=HIGH_RISK,
         n=MAX_ITEMS,
+        cats=list(BUSINESS_RISKS),
     )
     return [
         _item("risk", r["ref"], r["code"], r["title_fa"], f"امتیاز ریسک {r['score']} از ۲۵")
@@ -223,8 +234,10 @@ async def _findings(tx: Tx) -> list[dict[str, Any]]:
         """SELECT f.ref, c.code, f.title_fa, f.severity, f.opened_at FROM oversight.findings f
            JOIN core.companies c ON c.id = f.company_id
            WHERE f.severity IN ('critical', 'high') AND f.status NOT IN ('fixed', 'verified', 'closed')
+             AND (f.domain = ANY(CAST(:biz AS text[])) OR f.critical_reason IS NOT NULL)
            ORDER BY f.severity = 'critical' DESC, f.opened_at, f.ref LIMIT :n""",
         n=MAX_ITEMS,
+        biz=list(routing.BUSINESS),
     )
     return [
         _item("finding", r["ref"], r["code"], r["title_fa"], f"یافته‌ی {r['severity']} باز")
@@ -375,9 +388,13 @@ async def brief(tx: Tx, hub: Any, review: dict[str, Any]) -> str | None:
         brief=(
             f"The weekly review {review['ref']} (week of {review['week'].isoformat()}) starts at "
             f"{review['scheduled_at'].isoformat()}. Write ONE message in your thread with the owner "
-            '(message.thread, thread "A"): a one-page brief of what matters this week and your '
-            "recommendation for each agenda item, every claim cited. The agenda is code; do not "
-            "reorder it. Then finish (done).\n\nAgenda (JSON):\n"
+            f'(message.thread, thread "A"): at most {BRIEF_LINES} short lines of plain Persian, as '
+            "a person tells a busy owner: what matters for the business this week and one "
+            "recommendation per agenda item. No refs or codes, no English, no tool, table or "
+            "service names. Nothing technical (servers, backups, memory, databases, deploys, "
+            "security plumbing): that is the technical team's, never the owner's; do not mention "
+            "it. Use what is below; do not open inquiries or search for this brief. The agenda is "
+            "code; do not reorder it. Then finish (done).\n\nAgenda (JSON):\n"
             + json.dumps(review["agenda"], ensure_ascii=False, default=str)[:20000]
             + "\n\nThe owner's open quick notes (masked; read them only for this review):\n"
             + json.dumps(notes, ensure_ascii=False)[:20000]

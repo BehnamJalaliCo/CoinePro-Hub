@@ -97,8 +97,23 @@ def tools_section(lib: Any, p: Persona) -> str:
     return "\n".join(lines)
 
 
-def persona_section(p: Persona, mode: str, cards_allowed: tuple[str, ...], minutes: bool) -> str:
+def persona_section(
+    p: Persona,
+    mode: str,
+    cards_allowed: tuple[str, ...],
+    minutes: bool,
+    order_ref: str | None = None,
+) -> str:
     out = [f"# You, here\nYou are «{p.title_fa}» ({p.key}). The conversation is in `{mode}` mode."]
+    if order_ref:
+        out.append(
+            f"This talk is the live line of the owner's order {order_ref}, which you hold (its "
+            "state is under «## The order you hold»). Talk with the owner about it, step by step if "
+            "they want. When the owner tells you to do something on it (go, next step, change, "
+            "stop), offer one `order` card at once: its payload text is the owner's instruction in "
+            "their words. It goes onto THIS order as the owner's next word and your own work on it "
+            "runs at once; it is never a new order. Never say you did it before the card ran."
+        )
     if mode == "consult":
         out.append(
             "Consult: advice stays advice. Offer no card unless the owner tells someone to do something."
@@ -112,7 +127,7 @@ def persona_section(p: Persona, mode: str, cards_allowed: tuple[str, ...], minut
         out += [f"- {CARD_HELP[k]}" for k in cards_allowed if k in CARD_HELP]
     else:
         out.append("Offer no card in this answer (`cards` = []).")
-    if p.consult_only:
+    if p.consult_only and not order_ref:
         out.append("You are consult-only: you never offer an order card.")
     if p.is_manager:
         out.append(
@@ -129,7 +144,14 @@ def persona_section(p: Persona, mode: str, cards_allowed: tuple[str, ...], minut
 
 
 async def system_prompt(
-    tx: Tx, hub: Any, p: Persona, mode: str, cards_allowed: tuple[str, ...], minutes: bool
+    tx: Tx,
+    hub: Any,
+    p: Persona,
+    mode: str,
+    cards_allowed: tuple[str, ...],
+    minutes: bool,
+    *,
+    order_ref: str | None = None,
 ) -> str:
     lib = hub.charters
     vals = await values(tx, hub, p)
@@ -137,7 +159,11 @@ async def system_prompt(
     parts = [fill(lib.common, vals) if lib is not None else ""]
     if charter is not None:
         parts.append(fill(charter.body, vals))
-    parts += [TALK_RULES, tools_section(lib, p), persona_section(p, mode, cards_allowed, minutes)]
+    parts += [
+        TALK_RULES,
+        tools_section(lib, p),
+        persona_section(p, mode, cards_allowed, minutes, order_ref),
+    ]
     return "\n\n".join(x for x in parts if x)
 
 
@@ -312,6 +338,14 @@ async def messages(
     head.append(
         f"## Present: {', '.join(titles.get(k, k) for k in conv.get('present') or [])}; mode: {conv['mode']}"
     )
+    if conv.get("order_ref"):  # ⟨1.16⟩ §34.2 the order this talk is the live line of
+        from hq_api.domain import order_turns as OT
+
+        held = await OT.talk_brief(tx, str(conv["order_ref"]))
+        if held is not None:
+            head.append(
+                "## The order you hold\n" + json.dumps(held, ensure_ascii=False, default=str)
+            )
     head.append("## Now\n" + json.dumps(pack, ensure_ascii=False, default=str))
     out: list[dict[str, Any]] = [{"role": "user", "content": "\n\n".join(head)}]
     for t in await store.last_turns(tx, conv["id"], LAST_TURNS, before_n=before_n):

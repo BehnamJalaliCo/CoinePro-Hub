@@ -15,6 +15,8 @@
 >
 > **v1.14 (۲۰۲۶-۱۱-۰۴):** «گفتگو» (§۳۲، پرامپت ۲۳): گفتگوی صوتی و متنی مالک با منشی هلدینگ، ناظر کل، دستیار شخصی و هر مدیر هر شرکت؛ هر کدام با صدای خودش، حالت مشورت یا جلسه‌ی کاری، کارت به‌جای کار خودسر، کلید صدا در خود چت با چراغ وضعیت، و کنتور زنده‌ی هزینه با سقف مالک.
 >
+> **v1.16 (۲۰۲۶-۱۱-۰۶):** فرمان با جواب زنده (§۳۴، پرامپت ۲۵): ابزار گزارش و پرسش برای مسئول هر فرمان، «نوبت شما» و پاسخ مالک روی همان کار، گفتگوی زنده‌ی هر فرمان با مسئولش، و هیچ موضوع فنی برای مالک.
+>
 > **v1.15 (۲۰۲۶-۱۱-۰۵):** پول و شیوه‌ی کار Grok (§۳۳، پرامپت ۲۴): گزارش مصرف به زبان مشاور، خواندن و تطبیق پرداخت‌های کریپتویی شرکت‌ها (دفتر خود شرکت از راه runner و زنجیره‌ی عمومی)، تحلیل درآمد، CRM کوچک، پیگیری افیلیت، اثر پولی تصمیم‌ها، ایجنت‌های موازی، سفر شرکت، پرسونا و تست پیام، و محیط کاری روی سرور هر شرکت.
 >
 > **v1.11 (۲۰۲۶-۱۱-۰۲):** مالک فقط کسب‌وکار میبیند (§۲۹، پرامپت ۲۱): مسیر بر پایه‌ی حوزه، ضمانت جواب هر فرمان با «گزارش فرمان»، قانون‌گذاری مالک از اپ، منشی هلدینگ، صدای بلند، بودجه‌ی ارجاع، زبان فارسی و بازنویسی برای مدیر کل، شورای v2، آمادگی، استخدام خودکار، کارگروه‌ها، اتصال‌ها، خانه‌ی سه‌کارتی، وضعیت کارمند و مرز تأیید.
@@ -3754,3 +3756,45 @@ PersonaTest { text, results: [{persona, score: 0..100, would_act: bool, objectio
   `sales_followup`, `decision_impact`, `journey_next`, `persona_test`.
 - Runner **0.3.0**: job kinds `ledger` (§33.2) and the `claude` job's `workspace` (§33.10). A company server on 0.2.x keeps working; the two
   features wait for 0.3.0.
+
+## 34. The order answered live, and nothing technical to the owner ⟨1.16⟩ (2026-11-06, prompt 25)
+The owner, 2026-11-06: «به محض فرمان باید اون مسئول … با من حرف بزنه و مرحله به مرحله با من پیش بره یا یه فرمان کلی بدم خودش بره همه
+کارهارو بکنه» and «موارد فنی رو به من ارجاع ندید». Order W-000153 («مرحله به مرحله با فرمان من») sat «در انتظار فرمان مرحله اول» with
+nowhere to answer: `order.ack` and `order.progress` existed in the api and the policy, but no gateway tool reached them, and no route let
+the owner reply. This section is the base of §35 (every order a session).
+
+### 34.1 The pace
+- `owner.orders.pace`: `"step"` when the order says so (rules, data `orders.STEP_WORDS`: «مرحله به مرحله»، «قدم به قدم»، «گام به گام»،
+  «با فرمان من»، «با من جلو» …), else `"auto"`. `OrderOut.pace`, `OrderRecord.pace`, `OrderReport.pace` (additive).
+- The holder's work brief says how: **step** — record the steps (`order.ack`), do the next one, report it (`order.progress`), ask the owner
+  (`order.ask`) and finish the run; **auto** — record the plan, split or delegate, report real steps, deliver; never wait for the owner
+  (only an outside commitment is a `propose`).
+
+### 34.2 The order's live talk
+- `POST /orders/{ref}/talk` (owner) → `{conversation_ref}`: the order's conversation (§32), made once: work mode, the persona of the order's
+  holder (`role@CODE` in an operating company; the holding's fixed persona of its role; else the secretary), its first turn the holder's
+  hello. A step order opens it at once: `OrderOut.talk_ref`. `OrderReport.conversation_ref`, `TalkConversation.order_ref` (additive).
+- In that conversation the persona sees «## The order you hold» (the order, its pace, the owner's open turn, the last 12 steps, blockers,
+  outputs). An `order` card there is the owner's next word **on that order** (§34.3 reply), never a new order; any persona may offer it,
+  on any instruction, without the unsolicited-card spacing.
+- What the holder reports (`order.progress`) and asks (`order.ask`) comes into the conversation as the persona's turns; what the owner
+  answers on the order's page comes in as the owner's turn.
+
+### 34.3 The owner's turn
+- **Agent tools (A1, every role but a system one; only someone working on the order):** `order.ack {ref, plan_fa, assigned?, due_at?}`,
+  `order.progress {ref, step_fa}`, `order.ask {ref, question_fa}` → `/internal/v1/orders/{ref}/ack|progress|ask`.
+- `order.ask`: `OrderReport.turn = {question_fa, at, by: Actor, who_fa}`, the order `waiting`, a step «سؤال از شما: …», one `decision`
+  notification to the owner at once (link: the order's talk when it has one), the talk's turn. No «no progress» nudge while it is open.
+- `POST /orders/{ref}/reply {text}` (owner, `Idempotency-Key`) → `OrderReport`: a step «مدیر کل: …», the turn cleared, and the asker's open
+  work (else the holder's) runs again at once (`work.wake_assignee`, one queued run per work) with the dialogue in its brief
+  (`order`: the order, its pace, the owner's open turn, the last 12 steps). An ended order: 409; an unknown one: 404.
+
+### 34.4 Nothing technical to the owner
+- The weekly review's agenda: a card or a finding of a technical domain only when critical (§29.1); a risk only of category `product`,
+  `money`, `people` or `reputation`. Its brief: at most 8 plain lines, no refs, no technical matter, no inquiries; capped at 30 000 tokens;
+  task class `advisor_review` on the mid model (router assignment by task class).
+- The weekly technical summary (§29.1) goes to the technical team (its handler), not the owner.
+- The advisor's charter (v8): plain for the owner (citations in `links`), nothing technical to the owner (to the AI operations head or the
+  company's CTO by `inquiry.ask`), unless critical by §29.1.
+- Data: migration `0051` (`owner.orders.pace`, `owner.order_reports.turn` and `conversation_ref`, `talk.conversations.order_ref`,
+  `work.wake_assignee`). OPA: `order.ask` beside `order.ack`/`order.progress` (`routing.rego`).

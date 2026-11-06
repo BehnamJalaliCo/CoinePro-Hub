@@ -7,9 +7,10 @@ per company:
     their downtime, the sites' uptime, the week's spend by domain (§28.7),
     and the hires made (§29.10)
 
-and one `report` notification. Nothing else technical is pushed to the owner;
-the findings it names are their handlers' to answer (the CTO and SRE of each
-company, the hub's platform SRE for the holding). Once a week: an
+and one `report` notification for the technical team (the holding's technical
+handler, §29.1), not the owner: the owner, 2026-11-06, «موارد فنی رو به من
+ارجاع ندید». The findings it names are their handlers' to answer (the CTO and
+SRE of each company, the hub's platform SRE for the holding). Once a week: an
 ops.watch_runs row per week (a second run that week changes nothing).
 """
 
@@ -196,7 +197,7 @@ async def run(tx: Tx, now: datetime | None = None) -> dict[str, Any]:
     await events.emit(
         tx, holding["code"], "deliverable.created", dl["ref"], {"work": w["ref"], "producer": sys}
     )
-    # the owner's by §29.1 (the one technical report pushed to the owner)
+    # the technical team's (§29.1): it reaches the owner only as a critical item would
     n = await notify.raise_notification(
         tx,
         company_id=holding["id"],
@@ -209,7 +210,6 @@ async def run(tx: Tx, now: datetime | None = None) -> dict[str, Any]:
         source_kind="service",
         source_code="tech-summary",
         domain="tech",
-        owner_action=True,
     )
     await audit.record(
         tx,

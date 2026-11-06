@@ -38,7 +38,7 @@ from typing import Any
 
 import httpx
 
-from hq_common.charters import IMPLICIT_TOOLS, Library
+from hq_common.charters import EVERY_ROLE_TOOLS, IMPLICIT_TOOLS, Library
 from hq_common.redact import fit_async, mask_secrets
 from hq_gateway import (
     archive,  # noqa: F401 - prompt 14: archive.search/read/file/link/hold
@@ -52,6 +52,7 @@ from hq_gateway import (
     media,  # noqa: F401 - prompt 13: media.item, media.render, media.review, series.propose
     meetings,  # noqa: F401 - prompt 11: meeting.statement/challenge/whisper/item/minutes
     mgmt,  # noqa: F401 - prompt 12 part B: claim.verdict
+    orders,  # noqa: F401 - prompt 25 (§34): order.ack, order.progress, order.ask
     oversight,  # noqa: F401 - registers the overseer's tools (prompt 08)
     owner_tools,  # noqa: F401 - prompt 12 §2: ask.answer
     people,  # noqa: F401 - registers stars, lessons, stories, hire.decide
@@ -235,7 +236,7 @@ class Gateway:
         # §22.5); a file charter: agents/roles. Never both, never more.
         drafted = gate.get("tools")
         allowed = (
-            [str(t) for t in drafted]
+            [str(t) for t in drafted] + list(EVERY_ROLE_TOOLS)
             if isinstance(drafted, list) and self.lib.get(gate.get("role")) is None
             else self.lib.allowed(gate.get("role"))
         )

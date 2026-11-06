@@ -356,6 +356,7 @@ OP_CLASS: dict[str, str] = {
     # delegation budget, the destructive cards a CTO decides
     "order.ack": "A1",
     "order.progress": "A1",
+    "order.ask": "A1",  # ⟨1.16⟩ §34.3
     "work.budget": "A2",
     "card.decide": "A2",
 }

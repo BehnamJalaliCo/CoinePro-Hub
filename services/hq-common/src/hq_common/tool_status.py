@@ -29,6 +29,10 @@ GATEWAY_TOOLS: frozenset[str] = frozenset(
         "work.fail",
         "work.delegate",
         "work.split",  # ⟨1.15⟩ prompt 24 (contract §33.7): parallel parts
+        # ⟨1.16⟩ prompt 25 (contract §34): an owner's order answered by whoever works on it
+        "order.ack",
+        "order.progress",
+        "order.ask",
         "work.request",
         "activity.set",
         "notify",

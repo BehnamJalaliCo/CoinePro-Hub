@@ -1056,7 +1056,8 @@ async def test_the_weekly_technical_summary_once(
             clean(line)
     clean(dl["summary"])
     n = await su.fetchrow(
-        "SELECT level, owner_visible FROM notify.notifications WHERE link_ref = $1",
+        "SELECT level, owner_visible, routed_to FROM notify.notifications WHERE link_ref = $1",
         out["deliverable"],
     )
-    assert n["level"] == "report" and n["owner_visible"]
+    # the technical team's, not the owner's (the owner, 2026-11-06)
+    assert n["level"] == "report" and not n["owner_visible"] and n["routed_to"]

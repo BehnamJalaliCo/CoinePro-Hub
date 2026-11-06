@@ -78,7 +78,7 @@ ops := {
 	"group.plan", "experiment.write", "connection.read",
 	# ⟨1.11⟩ prompt 21 part 1 (routing.rego): every order answered, the delegation
 	# budget, the destructive cards a CTO decides
-	"order.ack", "order.progress", "work.budget", "card.decide",
+	"order.ack", "order.progress", "order.ask", "work.budget", "card.decide",
 	# ⟨1.15⟩ prompt 24 (grok.rego): a work split into parallel parts (contract §33.7)
 	"work.split",
 }

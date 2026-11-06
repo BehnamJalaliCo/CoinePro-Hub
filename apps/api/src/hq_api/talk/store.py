@@ -75,6 +75,8 @@ class TalkConversation(BaseModel):
     summary_fa: str | None
     cost: TalkCost
     open_cards: int
+    # ⟨1.16⟩ §34.2 the owner's order this talk is the live line of (F-…), or null
+    order_ref: str | None = None
 
 
 class TalkAudio(BaseModel):
@@ -213,6 +215,7 @@ async def render_conversation(tx: Tx, r: dict[str, Any]) -> TalkConversation:
             voice_usd=Decimal(r["voice_usd"]),
         ),
         open_cards=int(open_cards or 0),
+        order_ref=r.get("order_ref"),
     )
 
 

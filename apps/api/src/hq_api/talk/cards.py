@@ -229,6 +229,16 @@ async def _carry_out(
 ) -> tuple[list[str], list[Any]]:
     kind, ref = card["kind"], conv["ref"]
     text = str(payload.get("text") or card["body_fa"] or card["title_fa"])
+    if kind == "order" and conv.get("order_ref"):
+        # ⟨1.16⟩ §34.2 a talk bound to an order: the owner's word goes onto that same order
+        from hq_api.domain import order_turns as OT
+
+        async with ctx.tx() as tx:
+            await OT.reply(tx, str(conv["order_ref"]), text)
+            await ctx.audit(tx, company_id=card["company_id"], action="order.reply",
+                            action_class="A1", target_kind="order", target_ref=conv["order_ref"],
+                            summary=f"the owner's word from {ref}")  # fmt: skip
+        return [str(conv["order_ref"])], []
     if kind in ("order", "ask"):
         if p.consult_only and kind == "order":
             raise _fail("این نقش فقط مشورت میدهد و فرمان نمیسازد.", "kind")

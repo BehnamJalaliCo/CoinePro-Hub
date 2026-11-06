@@ -112,7 +112,23 @@ async def test_the_agenda_is_built_by_code_and_the_advisor_writes_the_brief(
     risk = await su.fetchval(
         """INSERT INTO governance.risks (company_id, title_fa, category, likelihood, impact, owner_kind, owner_code,
                review_at, origin, created_by_kind, created_by_code)
-           VALUES ($1, 'ریسک بزرگ', 'ops', 5, 5, 'agent', $2, now() + interval '7 days', 'agent', 'agent', $2)
+           VALUES ($1, 'ریسک بزرگ', 'money', 5, 5, 'agent', $2, now() + interval '7 days', 'agent', 'agent', $2)
+           RETURNING ref""",
+        co["id"],
+        f"{co['code']}-CEO",
+    )
+    # nothing technical on the owner's agenda (the owner, 2026-11-06)
+    tech_risk = await su.fetchval(
+        """INSERT INTO governance.risks (company_id, title_fa, category, likelihood, impact, owner_kind, owner_code,
+               review_at, origin, created_by_kind, created_by_code)
+           VALUES ($1, 'پشتیبان ساعتی', 'ops', 5, 5, 'agent', $2, now() + interval '7 days', 'agent', 'agent', $2)
+           RETURNING ref""",
+        co["id"],
+        f"{co['code']}-CEO",
+    )
+    tech_card = await su.fetchval(
+        """INSERT INTO cartable.decisions (company_id, kind, action_class, title, proposer_kind, proposer_code,
+               domain, owner_visible) VALUES ($1, 'proposal', 'A1', 'کارت فنی', 'agent', $2, 'infra', true)
            RETURNING ref""",
         co["id"],
         f"{co['code']}-CEO",
@@ -133,6 +149,8 @@ async def test_the_agenda_is_built_by_code_and_the_advisor_writes_the_brief(
     assert kinds == sorted(kinds, key=RV.KINDS.index)  # the order of §21.3
     risks = [i["ref"] for i in agenda if i["kind"] == "risk"]
     assert kinds[2] == "risk" and (risk in risks or len(risks) >= 10)
+    refs = {i["ref"] for i in agenda}
+    assert tech_risk not in refs and tech_card not in refs
     # The advisor's work: advisor_review, the owner zone's automatic share, 100K.
     meta = await su.fetchval("SELECT run_meta FROM work.work WHERE id = $1", row["brief_work_id"])
     meta = json.loads(meta) if isinstance(meta, str) else meta

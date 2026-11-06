@@ -3238,32 +3238,6 @@
         "title": "Ask",
         "type": "object"
       },
-      "AskIn": {
-        "additionalProperties": false,
-        "properties": {
-          "q": {
-            "maxLength": 500,
-            "minLength": 2,
-            "title": "Q",
-            "type": "string"
-          },
-          "scope": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/AskScope"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "q"
-        ],
-        "title": "AskIn",
-        "type": "object"
-      },
       "AskScope": {
         "additionalProperties": false,
         "properties": {
@@ -30349,6 +30323,15 @@
       },
       "OrderOut": {
         "properties": {
+          "pace": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "step"
+            ],
+            "title": "Pace",
+            "type": "string"
+          },
           "ref": {
             "title": "Ref",
             "type": "string"
@@ -30382,6 +30365,17 @@
           "summary_fa": {
             "title": "Summary Fa",
             "type": "string"
+          },
+          "talk_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Talk Ref"
           }
         },
         "required": [
@@ -30411,6 +30405,15 @@
               }
             ],
             "title": "File Id"
+          },
+          "pace": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "step"
+            ],
+            "title": "Pace",
+            "type": "string"
           },
           "ref": {
             "title": "Ref",
@@ -30454,6 +30457,17 @@
             "title": "Summary Fa",
             "type": "string"
           },
+          "talk_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Talk Ref"
+          },
           "text": {
             "title": "Text",
             "type": "string"
@@ -30496,6 +30510,17 @@
             "title": "Blockers",
             "type": "array"
           },
+          "conversation_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Ref"
+          },
           "kit": {
             "anyOf": [
               {
@@ -30512,6 +30537,15 @@
             },
             "title": "Outputs",
             "type": "array"
+          },
+          "pace": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "step"
+            ],
+            "title": "Pace",
+            "type": "string"
           },
           "parts": {
             "items": {
@@ -30561,6 +30595,16 @@
           "text_fa": {
             "title": "Text Fa",
             "type": "string"
+          },
+          "turn": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Turn"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "updated_at": {
             "format": "date-time",
@@ -37145,6 +37189,22 @@
           "run_id"
         ],
         "title": "Reply",
+        "type": "object"
+      },
+      "ReplyIn": {
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "ReplyIn",
         "type": "object"
       },
       "RerunIn": {
@@ -47482,6 +47542,17 @@
             "title": "Open Cards",
             "type": "integer"
           },
+          "order_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Ref"
+          },
           "persona": {
             "title": "Persona",
             "type": "string"
@@ -47566,6 +47637,17 @@
           "open_cards": {
             "title": "Open Cards",
             "type": "integer"
+          },
+          "order_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Ref"
           },
           "persona": {
             "title": "Persona",
@@ -47792,6 +47874,19 @@
           "company"
         ],
         "title": "TalkInviteIn",
+        "type": "object"
+      },
+      "TalkOut": {
+        "properties": {
+          "conversation_ref": {
+            "title": "Conversation Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "conversation_ref"
+        ],
+        "title": "TalkOut",
         "type": "object"
       },
       "TalkPersona": {
@@ -49624,6 +49719,35 @@
           "title_fa"
         ],
         "title": "TtsVoice",
+        "type": "object"
+      },
+      "Turn": {
+        "description": "⟨1.16⟩ §34.3 the holder's open question to the owner (`order.ask`).",
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "$ref": "#/components/schemas/Actor"
+          },
+          "question_fa": {
+            "title": "Question Fa",
+            "type": "string"
+          },
+          "who_fa": {
+            "title": "Who Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question_fa",
+          "at",
+          "by",
+          "who_fa"
+        ],
+        "title": "Turn",
         "type": "object"
       },
       "UsageAnomaly": {
@@ -53338,6 +53462,32 @@
         "title": "AnswerIn",
         "type": "object"
       },
+      "hq_api__domain__ask__AskIn": {
+        "additionalProperties": false,
+        "properties": {
+          "q": {
+            "maxLength": 500,
+            "minLength": 2,
+            "title": "Q",
+            "type": "string"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AskScope"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "q"
+        ],
+        "title": "AskIn",
+        "type": "object"
+      },
       "hq_api__domain__ask__Citation": {
         "properties": {
           "commit": {
@@ -55136,6 +55286,22 @@
           "revoked_at"
         ],
         "title": "Device",
+        "type": "object"
+      },
+      "hq_api__routes__order_report__AskIn": {
+        "additionalProperties": false,
+        "properties": {
+          "question_fa": {
+            "maxLength": 1000,
+            "minLength": 2,
+            "title": "Question Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question_fa"
+        ],
+        "title": "AskIn",
         "type": "object"
       },
       "hq_api__routes__order_report__BudgetIn": {
@@ -61788,7 +61954,7 @@
                 }
               },
               "schema": {
-                "$ref": "#/components/schemas/AskIn"
+                "$ref": "#/components/schemas/hq_api__domain__ask__AskIn"
               }
             }
           },
@@ -104686,6 +104852,7 @@
                     {
                       "created_at": "2026-10-17T05:42:00Z",
                       "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "pace": "auto",
                       "ref": "W-000789",
                       "route": {
                         "budget_tokens": 10000,
@@ -104722,6 +104889,7 @@
                       ],
                       "source": "voice",
                       "summary_fa": "x",
+                      "talk_ref": "x",
                       "text": "x"
                     }
                   ],
@@ -104839,6 +105007,7 @@
             "content": {
               "application/json": {
                 "example": {
+                  "pace": "auto",
                   "ref": "W-000789",
                   "route": {
                     "budget_tokens": 10000,
@@ -104873,7 +105042,8 @@
                       "work_ref": "x"
                     }
                   ],
-                  "summary_fa": "x"
+                  "summary_fa": "x",
+                  "talk_ref": "x"
                 },
                 "schema": {
                   "$ref": "#/components/schemas/OrderOut"
@@ -105122,6 +105292,7 @@
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
+                  "conversation_ref": "x",
                   "kit": {
                     "kit": "x",
                     "name_fa": "تریدیار",
@@ -105183,6 +105354,7 @@
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
+                  "pace": "auto",
                   "parts": [
                     {
                       "created_at": "2026-10-17T05:42:00Z",
@@ -105238,6 +105410,16 @@
                     "need_fa": "x"
                   },
                   "text_fa": "x",
+                  "turn": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "by": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "question_fa": "x",
+                    "who_fa": "x"
+                  },
                   "updated_at": "2026-10-17T05:42:00Z",
                   "workspaces": [
                     {
@@ -105336,10 +105518,10 @@
         ]
       }
     },
-    "/api/v1/orders/{ref}/report": {
-      "get": {
-        "description": "The order's report, brought up to date now (contract §29.2).",
-        "operationId": "order_report",
+    "/api/v1/orders/{ref}/reply": {
+      "post": {
+        "description": "⟨1.16⟩ §34.3 the owner answers the holder (or simply says the next step): a step\n«مدیر کل: …», the open turn cleared, and the asker's work (else the holder's) runs again at\nonce with the dialogue in its brief. An ended order answers 409. Requires `Idempotency-Key`.",
+        "operationId": "reply_order",
         "parameters": [
           {
             "in": "path",
@@ -105351,6 +105533,19 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "text": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ReplyIn"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
@@ -105387,6 +105582,7 @@
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
+                  "conversation_ref": "x",
                   "kit": {
                     "kit": "x",
                     "name_fa": "تریدیار",
@@ -105448,6 +105644,7 @@
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
+                  "pace": "auto",
                   "parts": [
                     {
                       "created_at": "2026-10-17T05:42:00Z",
@@ -105503,6 +105700,293 @@
                     "need_fa": "x"
                   },
                   "text_fa": "x",
+                  "turn": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "by": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "question_fa": "x",
+                    "who_fa": "x"
+                  },
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "workspaces": [
+                    {
+                      "closed_at": "2026-10-17T05:42:00Z",
+                      "last_step_fa": "x",
+                      "note_fa": "x",
+                      "path": "x",
+                      "remove_after": "2026-10-17T05:42:00Z",
+                      "server": "x",
+                      "session_ref": "x",
+                      "state": "starting",
+                      "turns": 1,
+                      "updated_at": "2026-10-17T05:42:00Z",
+                      "where_fa": "x",
+                      "work_ref": "x"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/OrderReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Reply Order",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/orders/{ref}/report": {
+      "get": {
+        "description": "The order's report, brought up to date now (contract §29.2).",
+        "operationId": "order_report",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "ack": {
+                    "assigned": [
+                      {
+                        "code": "TY",
+                        "company": "TY",
+                        "title_fa": "گزارش هفتگی رشد"
+                      }
+                    ],
+                    "at": "2026-10-17T05:42:00Z",
+                    "by": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "due_at": "2026-10-17T05:42:00Z",
+                    "plan_fa": "x"
+                  },
+                  "at": "2026-10-17T05:42:00Z",
+                  "blockers": [
+                    {
+                      "detail_fa": "x",
+                      "fix": {
+                        "action": "decision.approve",
+                        "label_fa": "x",
+                        "target": "D-000123"
+                      },
+                      "kind": "no_employee",
+                      "since": "2026-10-17T05:42:00Z",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "conversation_ref": "x",
+                  "kit": {
+                    "kit": "x",
+                    "name_fa": "تریدیار",
+                    "sealed": false,
+                    "summary": {
+                      "connections": [
+                        {
+                          "kind": "one_off",
+                          "label_fa": "x"
+                        }
+                      ],
+                      "groups": [
+                        {
+                          "key": "x",
+                          "title_fa": "گزارش هفتگی رشد"
+                        }
+                      ],
+                      "key": "x",
+                      "kpis": [
+                        {
+                          "card": "x",
+                          "key": "x",
+                          "manual": false,
+                          "name_fa": "تریدیار",
+                          "unit": "x"
+                        }
+                      ],
+                      "lines": [
+                        {
+                          "platform": "x",
+                          "ref": null,
+                          "template": "x",
+                          "title_fa": "گزارش هفتگی رشد",
+                          "why_fa": null
+                        }
+                      ],
+                      "purpose_fa": "x",
+                      "team": {
+                        "departments": [
+                          {
+                            "code": null,
+                            "name_fa": null
+                          }
+                        ],
+                        "positions": 1
+                      },
+                      "team_template": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "todo_fa": [
+                        "x"
+                      ]
+                    },
+                    "title_fa": "گزارش هفتگی رشد"
+                  },
+                  "outputs": [
+                    {
+                      "kind": "final",
+                      "ref": "W-000789",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "pace": "auto",
+                  "parts": [
+                    {
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "merge_queued_at": "2026-10-17T05:42:00Z",
+                      "parts": [
+                        {
+                          "assignee": "TY-GROWTH-01",
+                          "budget_tokens": 1,
+                          "failed_fa": "x",
+                          "n": 1,
+                          "output_ref": "x",
+                          "output_title_fa": "x",
+                          "progress_pct": 1,
+                          "ref": "W-000789",
+                          "role": "x",
+                          "state": "working",
+                          "status": "active",
+                          "title_fa": "گزارش هفتگی رشد",
+                          "tokens_used": 1,
+                          "who_fa": "x"
+                        }
+                      ],
+                      "proposed_by": "x",
+                      "state": "running",
+                      "work_ref": "x"
+                    }
+                  ],
+                  "ref": "W-000789",
+                  "route": {
+                    "budget_tokens": 1,
+                    "collaborators": [
+                      "x"
+                    ],
+                    "companies": [
+                      "x"
+                    ],
+                    "department": "GROWTH",
+                    "mode": "x",
+                    "output_kind": "x",
+                    "player": "x"
+                  },
+                  "state": "received",
+                  "steps": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "what_fa": "x",
+                      "who_fa": "x"
+                    }
+                  ],
+                  "summary": {
+                    "done_fa": "x",
+                    "left_fa": "x",
+                    "need_fa": "x"
+                  },
+                  "text_fa": "x",
+                  "turn": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "by": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "question_fa": "x",
+                    "who_fa": "x"
+                  },
                   "updated_at": "2026-10-17T05:42:00Z",
                   "workspaces": [
                     {
@@ -105596,6 +106080,108 @@
           }
         },
         "summary": "Order Report",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/orders/{ref}/talk": {
+      "post": {
+        "description": "⟨1.16⟩ §34.2 the live talk with the order's holder: the order's conversation (made once,\nwork mode, the holder's persona; the same answer every time after).",
+        "operationId": "talk_order",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "conversation_ref": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TalkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Talk Order",
         "tags": [
           "orders"
         ]
@@ -123733,6 +124319,7 @@
                       "last_turn_at": "2026-10-17T05:42:00Z",
                       "mode": "consult",
                       "open_cards": 1,
+                      "order_ref": "x",
                       "persona": "x",
                       "present": [
                         "x"
@@ -123847,6 +124434,7 @@
                   "last_turn_at": "2026-10-17T05:42:00Z",
                   "mode": "consult",
                   "open_cards": 1,
+                  "order_ref": "x",
                   "persona": "x",
                   "present": [
                     "x"
@@ -123982,6 +124570,7 @@
                   "last_turn_at": "2026-10-17T05:42:00Z",
                   "mode": "consult",
                   "open_cards": 1,
+                  "order_ref": "x",
                   "persona": "x",
                   "personas": [
                     {
@@ -124178,6 +124767,7 @@
                   "last_turn_at": "2026-10-17T05:42:00Z",
                   "mode": "consult",
                   "open_cards": 1,
+                  "order_ref": "x",
                   "persona": "x",
                   "present": [
                     "x"
@@ -124300,6 +124890,7 @@
                   "last_turn_at": "2026-10-17T05:42:00Z",
                   "mode": "consult",
                   "open_cards": 1,
+                  "order_ref": "x",
                   "persona": "x",
                   "personas": [
                     {
@@ -131911,6 +132502,7 @@
             "content": {
               "application/json": {
                 "example": {
+                  "pace": "auto",
                   "ref": "W-000789",
                   "route": {
                     "budget_tokens": 10000,
@@ -131945,7 +132537,8 @@
                       "work_ref": "x"
                     }
                   ],
-                  "summary_fa": "x"
+                  "summary_fa": "x",
+                  "talk_ref": "x"
                 },
                 "schema": {
                   "$ref": "#/components/schemas/OrderOut"
@@ -147084,6 +147677,7 @@
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
+                  "conversation_ref": "x",
                   "kit": {
                     "kit": "x",
                     "name_fa": "تریدیار",
@@ -147145,6 +147739,7 @@
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
+                  "pace": "auto",
                   "parts": [
                     {
                       "created_at": "2026-10-17T05:42:00Z",
@@ -147200,6 +147795,16 @@
                     "need_fa": "x"
                   },
                   "text_fa": "x",
+                  "turn": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "by": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "question_fa": "x",
+                    "who_fa": "x"
+                  },
                   "updated_at": "2026-10-17T05:42:00Z",
                   "workspaces": [
                     {
@@ -147298,6 +147903,296 @@
         ]
       }
     },
+    "/internal/v1/orders/{ref}/ask": {
+      "post": {
+        "description": "⟨1.16⟩ order.ask (A1): one short question of someone working on the order to the owner:\nthe owner's turn (the order `waiting`), a step, one notification at once, the live talk.",
+        "operationId": "order_ask",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "question_fa": "xx"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/hq_api__routes__order_report__AskIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "ack": {
+                    "assigned": [
+                      {
+                        "code": "TY",
+                        "company": "TY",
+                        "title_fa": "گزارش هفتگی رشد"
+                      }
+                    ],
+                    "at": "2026-10-17T05:42:00Z",
+                    "by": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "due_at": "2026-10-17T05:42:00Z",
+                    "plan_fa": "x"
+                  },
+                  "at": "2026-10-17T05:42:00Z",
+                  "blockers": [
+                    {
+                      "detail_fa": "x",
+                      "fix": {
+                        "action": "decision.approve",
+                        "label_fa": "x",
+                        "target": "D-000123"
+                      },
+                      "kind": "no_employee",
+                      "since": "2026-10-17T05:42:00Z",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "conversation_ref": "x",
+                  "kit": {
+                    "kit": "x",
+                    "name_fa": "تریدیار",
+                    "sealed": false,
+                    "summary": {
+                      "connections": [
+                        {
+                          "kind": "one_off",
+                          "label_fa": "x"
+                        }
+                      ],
+                      "groups": [
+                        {
+                          "key": "x",
+                          "title_fa": "گزارش هفتگی رشد"
+                        }
+                      ],
+                      "key": "x",
+                      "kpis": [
+                        {
+                          "card": "x",
+                          "key": "x",
+                          "manual": false,
+                          "name_fa": "تریدیار",
+                          "unit": "x"
+                        }
+                      ],
+                      "lines": [
+                        {
+                          "platform": "x",
+                          "ref": null,
+                          "template": "x",
+                          "title_fa": "گزارش هفتگی رشد",
+                          "why_fa": null
+                        }
+                      ],
+                      "purpose_fa": "x",
+                      "team": {
+                        "departments": [
+                          {
+                            "code": null,
+                            "name_fa": null
+                          }
+                        ],
+                        "positions": 1
+                      },
+                      "team_template": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "todo_fa": [
+                        "x"
+                      ]
+                    },
+                    "title_fa": "گزارش هفتگی رشد"
+                  },
+                  "outputs": [
+                    {
+                      "kind": "final",
+                      "ref": "W-000789",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "pace": "auto",
+                  "parts": [
+                    {
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "merge_queued_at": "2026-10-17T05:42:00Z",
+                      "parts": [
+                        {
+                          "assignee": "TY-GROWTH-01",
+                          "budget_tokens": 1,
+                          "failed_fa": "x",
+                          "n": 1,
+                          "output_ref": "x",
+                          "output_title_fa": "x",
+                          "progress_pct": 1,
+                          "ref": "W-000789",
+                          "role": "x",
+                          "state": "working",
+                          "status": "active",
+                          "title_fa": "گزارش هفتگی رشد",
+                          "tokens_used": 1,
+                          "who_fa": "x"
+                        }
+                      ],
+                      "proposed_by": "x",
+                      "state": "running",
+                      "work_ref": "x"
+                    }
+                  ],
+                  "ref": "W-000789",
+                  "route": {
+                    "budget_tokens": 1,
+                    "collaborators": [
+                      "x"
+                    ],
+                    "companies": [
+                      "x"
+                    ],
+                    "department": "GROWTH",
+                    "mode": "x",
+                    "output_kind": "x",
+                    "player": "x"
+                  },
+                  "state": "received",
+                  "steps": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "what_fa": "x",
+                      "who_fa": "x"
+                    }
+                  ],
+                  "summary": {
+                    "done_fa": "x",
+                    "left_fa": "x",
+                    "need_fa": "x"
+                  },
+                  "text_fa": "x",
+                  "turn": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "by": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "question_fa": "x",
+                    "who_fa": "x"
+                  },
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "workspaces": [
+                    {
+                      "closed_at": "2026-10-17T05:42:00Z",
+                      "last_step_fa": "x",
+                      "note_fa": "x",
+                      "path": "x",
+                      "remove_after": "2026-10-17T05:42:00Z",
+                      "server": "x",
+                      "session_ref": "x",
+                      "state": "starting",
+                      "turns": 1,
+                      "updated_at": "2026-10-17T05:42:00Z",
+                      "where_fa": "x",
+                      "work_ref": "x"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/OrderReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Order Ask",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
     "/internal/v1/orders/{ref}/progress": {
       "post": {
         "description": "order.progress (A1): one step of the order, in plain Persian.",
@@ -147362,6 +148257,7 @@
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
+                  "conversation_ref": "x",
                   "kit": {
                     "kit": "x",
                     "name_fa": "تریدیار",
@@ -147423,6 +148319,7 @@
                       "title_fa": "گزارش هفتگی رشد"
                     }
                   ],
+                  "pace": "auto",
                   "parts": [
                     {
                       "created_at": "2026-10-17T05:42:00Z",
@@ -147478,6 +148375,16 @@
                     "need_fa": "x"
                   },
                   "text_fa": "x",
+                  "turn": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "by": {
+                      "code": "TY-CEO",
+                      "display_fa": "x",
+                      "kind": "agent"
+                    },
+                    "question_fa": "x",
+                    "who_fa": "x"
+                  },
                   "updated_at": "2026-10-17T05:42:00Z",
                   "workspaces": [
                     {

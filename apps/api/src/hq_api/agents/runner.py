@@ -1343,6 +1343,15 @@ class Runner:
 
         if (parts := await SP.merge_brief(tx, work_id)) is not None:
             w["parallel_parts"] = parts
+        # ⟨1.16⟩ §34 the owner's order this work serves: how the owner wants it carried out, the
+        # owner's words and the steps so far (newest last), the owner's open question if any
+        # (the order's report is the holding's row: read across companies, this order only)
+        from hq_api.domain import order_turns as OT
+
+        async with self.hub.db.tx(await self.hub.companies.ids()) as all_tx:
+            order = await OT.dialogue(all_tx, work_id)
+        if order is not None:
+            w["order"] = order
         return w
 
     async def _reply_thread(self, rc: RunCtx) -> str | None:

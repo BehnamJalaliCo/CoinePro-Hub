@@ -112,6 +112,10 @@ class OrderOut(BaseModel):
     routed_by: Literal["rules", "model", "advisor"]
     # ⟨1.11⟩ §29.4 the route it followed (the secretary's, or the owner's edit)
     route: D.Route | None = None
+    # ⟨1.16⟩ §34.1 step by step with its holder, or carried to the end on its own
+    pace: Literal["auto", "step"] = "auto"
+    # ⟨1.16⟩ §34.2 a step order's live talk with its holder (CV-…), open at once
+    talk_ref: str | None = None
 
 
 class OrderRecord(OrderOut):
@@ -129,6 +133,7 @@ def _record(r: dict[str, Any]) -> OrderRecord:
         routes=[OrderRoute(**x) for x in r["routes"]],
         routed_by=r["routed_by"],
         route=D.Route.model_validate(route) if isinstance(route, dict) else None,
+        pace=r.get("pace") or "auto",
         text=r["text"],
         source=r["source"],
         file_id=r["file_id"],
@@ -235,7 +240,8 @@ async def _work(
     requested_by: UUID | None = None,
 ) -> dict[str, Any]:
     co = await ctx.hub.companies.by_code(r.company)
-    brief = f"{text}\n\n(فرمان {ref} مدیر کل)"
+    # ⟨1.16⟩ §34.1 the holder is told how the owner wants it carried out (step by step or to the end)
+    brief = f"{text}\n\n(فرمان {ref} مدیر کل)\n\n{O.pace_brief(ref, O.pace_of(text))}"
     due = await due_at(tx, text)
     if player is None and mode is None:
         # ⟨1.9⟩ §27.1: «با جی‌پی‌تی / با جمنای / با دیپ‌سیک / شورا» in the order
@@ -549,11 +555,13 @@ async def record_order(
     holding = await ctx.hub.companies.holding()
     out = [r.out() for r in routes]
     summary = O.summary_of(text, routes)
+    pace = O.pace_of(text)
     await tx.exec(
         """INSERT INTO owner.orders (ref, company_id, text, source, file_id, company_hint,
-               routes, routed_by, summary_fa, route)
+               routes, routed_by, summary_fa, route, pace)
            VALUES (:ref, :co, :text, :src, :fid, :hint, CAST(:routes AS jsonb), :by, :sum,
-                   CAST(:route AS jsonb))""",
+                   CAST(:route AS jsonb), :pace)""",
+        pace=pace,
         ref=ref,
         co=holding.id,
         text=text,
@@ -603,12 +611,20 @@ async def record_order(
         },
     )
     await _report(tx, ref)
+    talk_ref = None
+    if pace == "step" and any(x["kind"] in ("work", "meeting") for x in out):
+        # ⟨1.16⟩ §34.2 step by step: the live talk with the order's holder is open at once
+        from hq_api.domain import order_turns as OT
+
+        talk_ref = await OT.open_talk(ctx, tx, ref)
     return OrderOut(
         ref=ref,
         summary_fa=summary,
         routes=[OrderRoute(**x) for x in out],
         routed_by=routed_by,
         route=s.route,
+        pace=pace,
+        talk_ref=talk_ref,
     )
 
 

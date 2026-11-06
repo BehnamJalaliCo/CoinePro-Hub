@@ -347,3 +347,38 @@ def summary_of(text: str, routes: list[Route]) -> str:
     head = one[:120] + ("…" if len(one) > 120 else "")
     where = "، ".join(f"{r.to}" for r in routes)
     return f"{head} ← {where}" if where else head
+
+
+# --------------------------------------------------------------- the pace --
+# ⟨1.16⟩ §34.1 how the owner wants the order carried out (the owner, 2026-11-06): step by step with
+# its holder, or a general order its holder plans and carries to the end.
+STEP_WORDS = (
+    "مرحله به مرحله", "قدم به قدم", "گام به گام", "پله پله", "با فرمان من", "با دستور من",
+    "با هماهنگی من", "با من جلو", "با من پیش", "step by step",
+)  # fmt: skip
+
+
+def pace_of(text: str) -> str:
+    """`step` when the order says so, else `auto` (rules, no model)."""
+    n = normalise(text)
+    return "step" if any(has(n, w) for w in STEP_WORDS) else "auto"
+
+
+def pace_brief(ref: str, pace: str) -> str:
+    """What the holder of an order is told about carrying it out (its work's brief)."""
+    if pace == "step":
+        return (
+            "How the owner wants this order: STEP BY STEP, together. Record the steps you see with "
+            f"`order.ack` (ref {ref}). Do only the next step, report what it produced with "
+            "`order.progress`, then ask the owner one short question in plain Persian with "
+            "`order.ask` (what to do next, or which option) and finish the run. The owner's answer "
+            "comes back to this same work as a new run (it is in `order.steps`): continue from it."
+        )
+    return (
+        f"How the owner wants this order: carry it out to the END on your own. Record your plan "
+        f"with `order.ack` (ref {ref}) at once, then do it: split or delegate what others should "
+        "do (`work.split`, `work.delegate`), report each real step with `order.progress`, and "
+        "deliver. Do not wait for the owner: only a step that commits the holding outside goes to "
+        "the owner, as a `propose`. Use `order.ask` only when you truly cannot go on without the "
+        "owner's answer."
+    )

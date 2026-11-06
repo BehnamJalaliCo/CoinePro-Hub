@@ -217,12 +217,24 @@ class TurnRun:
             return await self._brain_unavailable(None)
         directive = self.t.get("directive")
         intent = read_intents(self.owner_text, None)
-        unsolicited_ok = intent.imperative and card_room(self.conv, int(self.t["n"]))
-        allowed = tuple(k for k in p.cards if k != "minutes") if unsolicited_ok else ()
+        # ⟨1.16⟩ §34.2 a talk bound to an order: the owner's every instruction may become the
+        # order's next word (an `order` card), whatever the persona and however often
+        bound = self.conv.get("order_ref")
+        unsolicited_ok = bool(bound) or (
+            intent.imperative and card_room(self.conv, int(self.t["n"]))
+        )
+        cards = tuple(dict.fromkeys(("order", *p.cards))) if bound else p.cards
+        allowed = tuple(k for k in cards if k != "minutes") if unsolicited_ok else ()
         async with self.tx() as tx:
             titles = await self._titles(tx)
             system = await C.system_prompt(
-                tx, self.hub, p, self.conv["mode"], allowed, directive == "minutes"
+                tx,
+                self.hub,
+                p,
+                self.conv["mode"],
+                allowed,
+                directive == "minutes",
+                order_ref=bound,
             )
             messages = await C.messages(
                 tx, self.hub, p, self.conv, self.owner_text, self._before_n, titles

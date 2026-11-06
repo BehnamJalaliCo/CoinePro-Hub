@@ -11,6 +11,8 @@ r21(p, op, t) if internal.allow with input as {"principal": p, "op": op, "target
 test_the_assignee_acks_and_reports_its_order if {
 	r21(f.ty_ceo, "order.ack", {"company": "TY", "assigned": true})
 	r21(f.ty_growth_mgr, "order.progress", {"company": "TY", "assigned": true})
+	r21(f.ty_ceo, "order.ask", {"company": "TY", "assigned": true})
+	not r21(f.ty_ceo, "order.ask", {"company": "TY", "assigned": false})
 	not r21(f.ty_ceo, "order.ack", {"company": "TY", "assigned": false})
 	not r21(f.ty_ceo, "order.ack", {"company": "FX", "assigned": true})
 	not r21(f.svc, "order.progress", {"company": "TY", "assigned": true})

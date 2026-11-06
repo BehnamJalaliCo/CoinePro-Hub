@@ -153,6 +153,15 @@ class Summary(BaseModel):
     need_fa: str
 
 
+class Turn(BaseModel):
+    """⟨1.16⟩ §34.3 the holder's open question to the owner (`order.ask`)."""
+
+    question_fa: str
+    at: datetime
+    by: Actor
+    who_fa: str
+
+
 class OrderReport(BaseModel):
     ref: str
     text_fa: str
@@ -174,6 +183,11 @@ class OrderReport(BaseModel):
     parts: list[SP.WorkSplit] = Field(default_factory=list)
     # ⟨additive⟩ §33.10 the order's works done on a company's own server: each workspace's progress
     workspaces: list[WS.WorkspaceProgress] = Field(default_factory=list)
+    # ⟨1.16⟩ §34 step by step with its holder or to the end on its own; the holder's open question
+    # (the owner's turn: the order is `waiting` on the owner); the live talk with the holder
+    pace: Literal["auto", "step"] = "auto"
+    turn: Turn | None = None
+    conversation_ref: str | None = None
 
 
 # ----------------------------------------------------------------- reading --
@@ -473,6 +487,9 @@ async def progress(tx: Tx, who: Principal, ref: str, step_fa: str) -> dict[str, 
     )
     await _append_steps(tx, rep["id"], [_step(who_fa(emp["title_fa"], emp["company_fa"]), step_fa)])
     await _close_nudges(tx, ref, "گزارش پیشرفت با order.progress ثبت شد")
+    from hq_api.domain import order_turns as OT
+
+    await OT.to_talk(tx, rep, who.code, step_fa)  # ⟨1.16⟩ §34.2 the live talk hears it too
     return rep
 
 
@@ -665,6 +682,8 @@ def state_of(
         if all(s == "cancelled" for s in statuses):
             return "cancelled"
         return "failed"
+    if _j(rep.get("turn")):  # ⟨1.16⟩ §34.3 the owner's turn: the holder asked and waits
+        return "waiting"
     if blockers:
         return "blocked"
     if any(w["status"] == "waiting" for w in works if w["status"] in OPEN):
@@ -725,7 +744,8 @@ async def _outputs(tx: Tx, works: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _digest(rep: dict[str, Any]) -> str:
-    keep = {k: rep.get(k) for k in ("state", "ack", "steps", "blockers", "outputs", "summary")}
+    keep = {k: rep.get(k) for k in ("state", "ack", "steps", "blockers", "outputs", "summary",
+                                    "turn", "conversation_ref")}  # fmt: skip
     return hashlib.sha256(json.dumps(keep, sort_keys=True, default=str).encode()).hexdigest()
 
 
@@ -856,6 +876,10 @@ def render(
             "by": by,
             "plan_fa": HZ.humanize(ack.get("plan_fa")) or "-",
         }
+    turn = _j(rep.get("turn"))
+    if turn:
+        turn = {**turn, "by": actor(turn["by"]["kind"], turn["by"]["code"]),
+                "question_fa": HZ.humanize(turn.get("question_fa")) or "-"}  # fmt: skip
     return OrderReport(
         ref=rep["ref"],
         text_fa=order.get("text") or "",
@@ -871,6 +895,9 @@ def render(
         kit=kit_card(order, sealed=rep["ended_at"] is not None),
         parts=parts or [],
         workspaces=workspaces or [],
+        pace=order.get("pace") or "auto",
+        turn=Turn.model_validate(turn) if turn else None,
+        conversation_ref=rep.get("conversation_ref"),
     )
 
 
@@ -989,6 +1016,9 @@ async def timers(tx: Tx, s: Any, ref: str) -> list[str]:
         )
         fired.append("ack")
     last = max(x for x in (created, rep["acked_at"], rep["last_step_at"]) if x is not None)
+    if _j(rep.get("turn")):
+        # ⟨1.16⟩ §34.3 the holder asked and waits for the owner: no «no progress» nudge
+        last = now
     if now - last >= timedelta(hours=s.order_progress_hours) and (
         rep["progress_nudged_at"] is None or rep["progress_nudged_at"] < last
     ):

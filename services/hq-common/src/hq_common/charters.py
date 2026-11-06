@@ -47,6 +47,9 @@ VARIABLES = (
 )
 # The runtime ends a run with `done`; it is not a gateway tool.
 IMPLICIT_TOOLS = ("done",)
+# ⟨1.16⟩ §34 the tools of whoever works on an owner's order: every role but a system one has them
+# (the api and the policy let only someone working on that order use them).
+EVERY_ROLE_TOOLS = ("order.ack", "order.progress", "order.ask")
 
 
 @dataclass(frozen=True)
@@ -204,6 +207,8 @@ def _charter(
             problems.append(f"{role}: tool {name!r} is {catalog[name].cls} (never granted)")
             continue
         tools.append(name)
+    if kind != "system":
+        tools += [t for t in EVERY_ROLE_TOOLS if t in catalog and t not in tools]
     lim = meta.get("limits") or {}
     limits = Limits(
         steps_per_run=int(lim["steps_per_run"]),
