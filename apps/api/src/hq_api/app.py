@@ -82,6 +82,7 @@ from hq_api.routes import journey as journey_routes  # prompt 24: §33.8-§33.9
 from hq_api.routes import kits as kit_routes  # prompt 22: §31.2 company kits
 from hq_api.routes import legal as legal_routes  # prompt 13: the legal counsel
 from hq_api.routes import lines as line_routes  # prompt 22: production lines (§30, §31.1)
+from hq_api.routes import links as link_routes  # prompt 25: §35.6 company links, the canvas
 from hq_api.routes import media as media_routes  # prompt 13, the media half
 from hq_api.routes import money as money_routes  # prompt 24: §33.2-§33.3 payments, the board
 from hq_api.routes import newsletter as newsletter_routes  # prompt 22 part 3: §31.3
@@ -320,6 +321,8 @@ def create_app(
     app.include_router(talk_routes.router, prefix="/api/v1")
     # ⟨1.15⟩ prompt 24 (contract §33.8-§33.9): the company journey, personas and the message test
     app.include_router(journey_routes.router, prefix="/api/v1")
+    # ⟨1.17⟩ (contract §35.6): the links between companies and the owner's canvas (owner only)
+    app.include_router(link_routes.router, prefix="/api/v1")
     # ⟨1.15⟩ prompt 24 (contract §33.1-§33.6): payments and the revenue board; usage reports, the
     # CRM and affiliate follow-up (OPA hq.money); the agents' read of them
     app.include_router(money_routes.router, prefix="/api/v1")

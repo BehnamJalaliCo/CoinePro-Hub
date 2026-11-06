@@ -623,6 +623,18 @@ work_create_ok if {
 	tv("to_role") == "ceo"
 }
 
+# ⟨1.17⟩ §35.6 ... or along an `on` link between the two companies, while the owner has turned
+# `links_enforced` on (the api sends `linked: true` only then): a CEO or a manager asks the other
+# company's CEO, or the manager of a department there. Never a named person, never an employee.
+work_create_ok if {
+	p.role in {"ceo", "manager"}
+	p.company != null
+	tv("company") != null
+	tv("company") != p.company
+	tv("linked") == true
+	tv("to_role") in {"ceo", "manager"}
+}
+
 propose_ok if {
 	config_loaded
 	kind := tv("kind")

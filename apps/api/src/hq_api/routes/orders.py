@@ -24,9 +24,10 @@ from hq_api.context import Ctx, owner_ctx
 from hq_api.db import Tx
 from hq_api.domain import decisions as Dec
 from hq_api.domain import dispatch as D
+from hq_api.domain import humanize, recurrence
+from hq_api.domain import links as LK
 from hq_api.domain import orders as O
 from hq_api.domain import players as PL
-from hq_api.domain import recurrence
 from hq_api.domain import work as W
 from hq_api.errors import ApiError, responses
 from hq_api.principal import Principal
@@ -212,7 +213,30 @@ async def preview_order(body: PreviewIn, ctx: Ctx = Depends(owner_ctx)) -> D.Rou
     the player and one plain line (`preview_fa`) with how sure it is and why.
     Nothing is stored; send it back (edited or not) as `route` of POST
     /orders and it is followed exactly."""
-    return (await secretary(ctx, scrub(body.text), body.company)).route
+    s = await secretary(ctx, scrub(body.text), body.company)
+    return await _along_links(ctx, s)
+
+
+LINKED_WHY_FA = "شرکت‌های وصل‌شده به آن را کنارش پیشنهاد دادم"
+
+
+async def _along_links(ctx: Ctx, s: Secretary) -> D.Route:
+    """⟨1.17⟩ §35.6 the preview suggests collaborators along the `on` links of the order's company
+    that fit its output (publishing -> `publishes`, a report -> `feeds`, sales, support, else
+    `serves`). Only a suggestion: the route the owner sends back is followed exactly, and an order
+    sent without a route is never widened."""
+    r = s.route
+    if r.kind != "work" or r.collaborators or len(r.companies) != 1:
+        return r
+    async with ctx.tx() as tx:
+        codes = await LK.suggest(tx, r.companies[0], r.output_kind, r.department)
+    if not codes:
+        return r
+    r = r.model_copy(deep=True)
+    r.collaborators = codes
+    r.preview_fa = D.preview_line(r, s.sc.directory, s.sc.names)
+    r.why_fa = humanize.humanize("؛ ".join(x for x in (r.why_fa, LINKED_WHY_FA) if x))[:1000]
+    return r
 
 
 async def due_at(tx: Tx, text: str) -> datetime:

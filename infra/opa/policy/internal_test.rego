@@ -131,6 +131,30 @@ test_cross_company_only_ceo_to_ceo if {
 	not allowed(f.svc, "work.create", {"company": "TY", "to_role": "manager", "to_department": "TECH"})
 }
 
+test_cross_company_along_an_enforced_link if {
+	allowed(f.ty_ceo, "work.create", {"company": "FX", "to_role": "ceo", "linked": true})
+	allowed(f.ty_ceo, "work.create", {"company": "FX", "to_role": "manager", "to_department": "TECH", "linked": true})
+	allowed(f.ty_growth_mgr, "work.create", {"company": "FX", "to_role": "ceo", "linked": true})
+	allowed(f.ty_growth_mgr, "work.create", {"company": "FX", "to_role": "manager", "to_department": "TECH", "linked": true})
+}
+
+test_cross_company_without_a_link_stays_as_it_was if {
+	not allowed(f.ty_growth_mgr, "work.create", {"company": "FX", "to_role": "ceo", "linked": false})
+	not allowed(f.ty_growth_mgr, "work.create", {"company": "FX", "to_role": "ceo"})
+	not allowed(f.ty_ceo, "work.create", {"company": "FX", "to_role": "manager", "to_department": "TECH", "linked": false})
+	allowed(f.ty_ceo, "work.create", {"company": "FX", "to_role": "ceo", "linked": false})
+	reasons(f.ty_growth_mgr, "work.create", {"company": "FX", "to_role": "ceo", "linked": false}) == {"work.create_not_permitted"}
+}
+
+test_a_link_opens_no_more_than_ceo_or_manager if {
+	not allowed(f.ty_growth_01, "work.create", {"company": "FX", "to_role": "ceo", "linked": true})
+	not allowed(f.ty_ceo, "work.create", {"company": "FX", "to_role": "employee", "to_department": "TECH", "linked": true})
+	not allowed(f.ty_ceo, "work.create", {"company": null, "to_role": "ceo", "linked": true})
+	not allowed(object.union(f.ty_ceo, {"company": null}), "work.create", {"company": "FX", "to_role": "ceo", "linked": true})
+	not allowed(f.svc, "work.create", {"company": "FX", "to_role": "ceo", "linked": true})
+	not allowed(f.ty_growth_mgr, "work.create", {"company": "TY", "to_role": "manager", "to_department": "GROWTH", "linked": true})
+}
+
 # ------------------------------------------------------- decision.propose --
 
 test_propose_kinds_by_role if {

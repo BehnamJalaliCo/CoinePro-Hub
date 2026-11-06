@@ -133,6 +133,8 @@ TOPICS: dict[str, tuple[str, ...]] = {
     # ⟨1.15⟩ prompt 24 (contract §33.11): topic `money`: payment.read, payment.alert,
     # lead.updated, usage.report, journey.stage
     "money": ("payment.", "lead.", "usage.", "journey."),
+    # ⟨1.17⟩ §35.7 topic `holding`: links.updated (a company link or a canvas node changed)
+    "holding": ("links.",),
 }
 
 

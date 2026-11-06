@@ -517,6 +517,7 @@ async def _fill_agents(su: Any, co: dict[str, Any]) -> None:
 # (one row per player and seat, the holding's company_id under forced RLS):
 # no other company ever has a row there, so the check cannot fill them for B.
 HOLDING_ONLY = {
+    "core.company_links",  # ⟨1.17⟩ §35.6 the owner's links belong to the holding
     "substitutes.players",
     "substitutes.seats",
     # prompt 13: the holding's mailbox cursor and its one voice registry
@@ -1409,6 +1410,9 @@ async def _fill_p24(su: Any, co: dict[str, Any]) -> None:
         sp,
         c,
         child,
+    )
+    await su.execute(  # ⟨1.17⟩ §35.6 where the owner put the company on his canvas
+        "INSERT INTO owner.canvas_nodes (company_id, x, y) VALUES ($1, 0.5, 0.5)", c
     )
     server = await su.fetchval(
         """INSERT INTO infra.servers (company_id, origin, name, state)

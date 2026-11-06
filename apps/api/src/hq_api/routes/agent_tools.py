@@ -34,6 +34,7 @@ from hq_api.domain import departments as DM
 from hq_api.domain import files as F
 from hq_api.domain import spend as SPEND
 from hq_api.domain import work as W
+from hq_api.domain.links import links_of
 from hq_api.errors import ApiError, responses
 from hq_api.routes.backups import BackupStatus
 from hq_api.routes.internal import allow, escrow_of
@@ -216,6 +217,8 @@ class CompanyState(BaseModel):
     # ⟨1.4.2⟩ hiring starts with the owner (§18.11): while closed, record a team gap
     # in an output instead of proposing a hire
     hiring: Literal["closed", "open"] = "closed"
+    # ⟨1.17⟩ §35.6 the company's `on` links: [{company, name_fa, kind, purpose_fa, outgoing}]
+    links: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class HoldingState(BaseModel):
@@ -281,6 +284,7 @@ async def _company_state(
         decisions_pending=int(pending or 0),
         budgets=budgets,
         hiring=await hiring.state(tx),
+        links=await links_of(tx, co.id),
     )
 
 

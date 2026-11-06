@@ -155,6 +155,7 @@ KEEP: tuple[str, ...] = (
     "org.company_brands",
     "oversight.protocols",
     "owner.presence", "owner.settings",
+    "core.company_links", "owner.canvas_nodes",  # ⟨1.17⟩ §35.6 the owner's links and canvas stay
     "owner.dispatch_memory",  # ⟨1.11⟩ §29.4 the owner's corrections and «نه» reasons: his preferences
     # ⟨1.11⟩ prompt 21: what the hub is made of (the groups as data, their members,
     # the companies' connections and their non-secret config) stays

@@ -27,6 +27,7 @@ from hq_api.db import Tx
 from hq_api.domain import control, errands, founding, gov_authority, hiring, inquiries, notify, org
 from hq_api.domain import decisions as D
 from hq_api.domain import files as F
+from hq_api.domain import links as LK
 from hq_api.domain import split as SP
 from hq_api.domain import work as W
 from hq_api.errors import ApiError, responses
@@ -832,11 +833,21 @@ async def request_work(
         to_legal = cross and company_code == holding_code and body.department == "LEGAL"
         # The policy decides BEFORE anything outside the agent's company is
         # looked up, so a refusal never tells whether a code exists elsewhere.
+        # ⟨1.17⟩ §35.6: with `owner.settings.links_enforced` on, a request along an `on` link
+        # between the two companies goes to the policy as `linked` (looked up here without
+        # telling the caller anything: a missing company is simply not linked).
+        linked = False
+        if cross and not to_legal and await LK.enforced(tx):
+            other = await ctx.hub.companies.find(company_code)
+            linked = other is not None and await LK.linked(tx, ctx.who.company_id, other.id)
         if cross:
-            if body.to or (body.department and not to_legal):  # CEO to CEO only
+            # CEO to CEO only; along a link also a named department's manager (never a named person)
+            if body.to or (body.department and not to_legal and not linked):
                 raise ApiError(403, "policy_denied", "work.create_not_permitted")
             to_role: str | None = "employee" if to_legal else "ceo"
             to_dept: str | None = "LEGAL" if to_legal else None
+            if linked and body.department:
+                to_role, to_dept = "manager", body.department
         else:
             to_role, to_dept = "ceo", body.department
             if body.to:
@@ -857,6 +868,7 @@ async def request_work(
                 "to_role": to_role,
                 "to_department": to_dept,
                 "to_holding": company_code == holding_code,
+                "linked": linked,
             },
         )
         # Looked up only now: a missing and a forbidden company both answer 403.
@@ -929,7 +941,12 @@ async def request_work(
             action_class="A2",
             target_kind="work",
             target_ref=w["ref"],
-            summary=f"{body.kind} for {w['a_code']}" + (" (cross-company)" if cross else ""),
+            summary=f"{body.kind} for {w['a_code']}"
+            + (
+                (" (cross-company, along a link)" if linked else " (cross-company)")
+                if cross
+                else ""
+            ),
         )
         result = WorkCreated(work=W.render(w), decision=decision_ref)
         if idem:

@@ -6847,6 +6847,89 @@
         "title": "CampaignPut",
         "type": "object"
       },
+      "Canvas": {
+        "properties": {
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/CompanyLink"
+            },
+            "title": "Links",
+            "type": "array"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasNode"
+            },
+            "title": "Nodes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "nodes",
+          "links"
+        ],
+        "title": "Canvas",
+        "type": "object"
+      },
+      "CanvasNode": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "holding",
+              "company"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "line_fa": {
+            "title": "Line Fa",
+            "type": "string"
+          },
+          "name_fa": {
+            "title": "Name Fa",
+            "type": "string"
+          },
+          "open_sessions": {
+            "title": "Open Sessions",
+            "type": "integer"
+          },
+          "x": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "X"
+          },
+          "y": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y"
+          }
+        },
+        "required": [
+          "code",
+          "name_fa",
+          "kind",
+          "line_fa",
+          "open_sessions"
+        ],
+        "title": "CanvasNode",
+        "type": "object"
+      },
       "Caps": {
         "properties": {
           "opus_per_day": {
@@ -9394,6 +9477,67 @@
         "title": "CompanyKpis",
         "type": "object"
       },
+      "CompanyLink": {
+        "properties": {
+          "from": {
+            "title": "From",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "serves",
+              "publishes",
+              "feeds",
+              "sells",
+              "supports"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "open_works": {
+            "title": "Open Works",
+            "type": "integer"
+          },
+          "purpose_fa": {
+            "title": "Purpose Fa",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "on",
+              "off"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "to": {
+            "title": "To",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "from",
+          "to",
+          "kind",
+          "purpose_fa",
+          "state",
+          "open_works",
+          "updated_at"
+        ],
+        "title": "CompanyLink",
+        "type": "object"
+      },
       "CompanyPatch": {
         "additionalProperties": false,
         "properties": {
@@ -9632,6 +9776,14 @@
           "kind": {
             "title": "Kind",
             "type": "string"
+          },
+          "links": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Links",
+            "type": "array"
           },
           "name_en": {
             "anyOf": [
@@ -24933,6 +25085,97 @@
         "title": "Link",
         "type": "object"
       },
+      "LinkIn": {
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+            "title": "From",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "serves",
+              "publishes",
+              "feeds",
+              "sells",
+              "supports"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "purpose_fa": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Purpose Fa",
+            "type": "string"
+          },
+          "to": {
+            "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "kind"
+        ],
+        "title": "LinkIn",
+        "type": "object"
+      },
+      "LinkPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "serves",
+                  "publishes",
+                  "feeds",
+                  "sells",
+                  "supports"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "purpose_fa": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purpose Fa"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "on",
+                  "off"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          }
+        },
+        "title": "LinkPatch",
+        "type": "object"
+      },
       "Links": {
         "additionalProperties": false,
         "properties": {
@@ -29236,6 +29479,29 @@
         "title": "NewsletterScheduleIn",
         "type": "object"
       },
+      "NodePlace": {
+        "additionalProperties": false,
+        "properties": {
+          "x": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y"
+        ],
+        "title": "NodePlace",
+        "type": "object"
+      },
       "NoteIn": {
         "additionalProperties": false,
         "properties": {
@@ -31266,6 +31532,11 @@
             "title": "Learning Daily Cap",
             "type": "integer"
           },
+          "links_enforced": {
+            "default": false,
+            "title": "Links Enforced",
+            "type": "boolean"
+          },
           "morning_report_at": {
             "title": "Morning Report At",
             "type": "string"
@@ -31463,6 +31734,17 @@
               }
             ],
             "title": "Learning Daily Cap"
+          },
+          "links_enforced": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Links Enforced"
           },
           "morning_report_at": {
             "anyOf": [
@@ -34214,6 +34496,30 @@
           "would_act"
         ],
         "title": "PersonaTestResult",
+        "type": "object"
+      },
+      "Placed": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "x": {
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "code",
+          "x",
+          "y"
+        ],
+        "title": "Placed",
         "type": "object"
       },
       "PlanItem": {
@@ -67675,6 +67981,102 @@
         ]
       }
     },
+    "/api/v1/canvas/nodes/{code}": {
+      "put": {
+        "description": "Where the owner put a company on his canvas (x, y in 0..1).",
+        "operationId": "place_node",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "schema": {
+                "$ref": "#/components/schemas/NodePlace"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "TY",
+                  "x": 1.0,
+                  "y": 1.0
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Placed"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Place Node",
+        "tags": [
+          "links"
+        ]
+      }
+    },
     "/api/v1/cards": {
       "get": {
         "description": "The three cards (stability, growth, safety_cost) of a company, or of the\nholding (its own KPIs plus every company's, aggregated). Every value has\nits time and source; an old one is `stale`; no source is `no_source`, never zero.",
@@ -98119,6 +98521,290 @@
         ]
       }
     },
+    "/api/v1/links": {
+      "get": {
+        "description": "The canvas: every active company and the holding as a node (where the owner put it, one\nplain line of what it is doing, the owner's orders open in it) and every link between\ncompanies, `on` and `off`, with the works open along it.",
+        "operationId": "get_links",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "links": [
+                    {
+                      "from": "x",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "kind": "serves",
+                      "open_works": 1,
+                      "purpose_fa": "x",
+                      "state": "on",
+                      "to": "TY-GROWTH-MGR",
+                      "updated_at": "2026-10-17T05:42:00Z"
+                    }
+                  ],
+                  "nodes": [
+                    {
+                      "code": "TY",
+                      "kind": "holding",
+                      "line_fa": "x",
+                      "name_fa": "تریدیار",
+                      "open_sessions": 1,
+                      "x": 1.0,
+                      "y": 1.0
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Canvas"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Links",
+        "tags": [
+          "links"
+        ]
+      },
+      "post": {
+        "description": "A link `from` -> `to` of a kind (`serves`, `publishes`, `feeds`, `sells`, `supports`) with\nthe owner's purpose in one line. The hub is linked to every company already. 409 when the\nsame link exists (turn it on again with PATCH).",
+        "operationId": "add_link",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "from": "x",
+                "kind": "serves",
+                "purpose_fa": "x",
+                "to": "TY-GROWTH-MGR"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/LinkIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "from": "x",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "serves",
+                  "open_works": 1,
+                  "purpose_fa": "x",
+                  "state": "on",
+                  "to": "TY-GROWTH-MGR",
+                  "updated_at": "2026-10-17T05:42:00Z"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyLink"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Add Link",
+        "tags": [
+          "links"
+        ]
+      }
+    },
+    "/api/v1/links/{link_id}": {
+      "patch": {
+        "description": "Changes a link's kind, purpose or state (`off` stops it; nothing is deleted).",
+        "operationId": "change_link",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Link Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "kind": "serves",
+                "purpose_fa": "x",
+                "state": "on"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/LinkPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "from": "x",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "serves",
+                  "open_works": 1,
+                  "purpose_fa": "x",
+                  "state": "on",
+                  "to": "TY-GROWTH-MGR",
+                  "updated_at": "2026-10-17T05:42:00Z"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyLink"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Change Link",
+        "tags": [
+          "links"
+        ]
+      }
+    },
     "/api/v1/media/items": {
       "get": {
         "description": "Newest first.",
@@ -113142,6 +113828,7 @@
                   "digest_minutes": 1,
                   "digital_ceo": {},
                   "learning_daily_cap": 1,
+                  "links_enforced": false,
                   "morning_report_at": "08:00:00",
                   "provision_ssh_sources": [
                     "x"
@@ -113224,6 +113911,7 @@
                   "reveal": "after"
                 },
                 "learning_daily_cap": 0,
+                "links_enforced": false,
                 "morning_report_at": "08:00:00",
                 "provision_ssh_sources": [
                   "x"
@@ -113285,6 +113973,7 @@
                   "digest_minutes": 1,
                   "digital_ceo": {},
                   "learning_daily_cap": 1,
+                  "links_enforced": false,
                   "morning_report_at": "08:00:00",
                   "provision_ssh_sources": [
                     "x"
@@ -141706,6 +142395,9 @@
                   "hiring": "closed",
                   "kill_switch": "x",
                   "kind": "one_off",
+                  "links": [
+                    {}
+                  ],
                   "name_en": "TradeYar",
                   "work_open": {}
                 },

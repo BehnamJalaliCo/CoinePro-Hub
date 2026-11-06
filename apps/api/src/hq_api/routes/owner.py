@@ -224,6 +224,8 @@ class OwnerSettings(BaseModel):
     council_roles: dict[str, str] = Field(default_factory=dict)
     # ⟨1.14⟩ §32.6 the voice cap and chain (additive)
     voice: VoiceSettings = Field(default_factory=VoiceSettings)
+    # ⟨1.17⟩ §35.6 on: a cross-company request along an `on` link is accepted (default off)
+    links_enforced: bool = False
 
 
 class WeeklyReviewIn(BaseModel):
@@ -295,6 +297,7 @@ class OwnerSettingsIn(BaseModel):
     ) = Field(default=None, min_length=1)
     # ⟨1.14⟩ §32.6 the cap, the warning point and the chain (the fields sent are merged)
     voice: VoiceSettingsIn | None = None
+    links_enforced: bool | None = None
 
     @field_validator("provision_ssh_sources")
     @classmethod
@@ -464,6 +467,7 @@ def _settings_out(row: dict[str, Any]) -> OwnerSettings:
         digital_ceo=row.get("digital_ceo"),
         council_roles=dict(row.get("council_roles") or {}),
         voice=VoiceSettings.model_validate(voice_store.settings_of(row.get("voice"))),
+        links_enforced=bool(row.get("links_enforced")),
     )
 
 
@@ -471,7 +475,7 @@ SETTINGS_COLS = (
     "timezone, morning_report_at, digest_minutes, ceo_daily_attention, learning_daily_cap, "
     "calendars, watch_after_hours, provision_ssh_sources, advisor, substitutes, version"
     ", audio_briefings, ceo_weekly_letter, reminders, weekly_review, digital_ceo"
-    ", council_roles, voice"
+    ", council_roles, voice, links_enforced"
 )
 
 
@@ -535,7 +539,8 @@ async def put_owner_settings(
                    weekly_review = weekly_review || COALESCE(CAST(:wr AS jsonb), '{{}}'),
                    digital_ceo = digital_ceo || COALESCE(CAST(:dc AS jsonb), '{{}}'),
                    council_roles = COALESCE(CAST(:cr AS jsonb), council_roles),
-                   voice = COALESCE(CAST(:vo AS jsonb), voice)
+                   voice = COALESCE(CAST(:vo AS jsonb), voice),
+                   links_enforced = COALESCE(:le, links_enforced)
                WHERE id = 1 AND version = :v RETURNING {SETTINGS_COLS}""",  # noqa: S608 - constant column list, values are bound
             adv=_merged(blocks["advisor"], body.advisor),
             subs=_merged(blocks["substitutes"], body.substitutes),
@@ -554,6 +559,7 @@ async def put_owner_settings(
             dc=_block(body.digital_ceo),
             cr=json.dumps(body.council_roles) if body.council_roles else None,
             vo=_voice_merged(blocks["voice"], body.voice),
+            le=body.links_enforced,
             v=version,
         )
         if row is None:
