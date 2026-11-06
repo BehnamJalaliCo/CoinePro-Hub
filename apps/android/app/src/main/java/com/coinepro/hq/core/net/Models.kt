@@ -170,12 +170,13 @@ data class Posted(val thread: String, val messageRef: String)
 // ---------------------------------------------------------- deliverables --
 @Serializable
 data class FileRef(
-    val id: String,
-    val name: String,
-    val mime: String,
-    val size: Long,
+    // ⟨1.18⟩ every field has its usual value: one odd file of a turn never hides the whole conversation.
+    val id: String = "",
+    val name: String = "",
+    val mime: String = "application/octet-stream",
+    val size: Long = 0,
     val sha256: String = "",
-    // ⟨1.3⟩ §17.1
+    // ⟨1.3⟩ §17.1; ⟨1.18⟩ §36.1 also `font`. A kind the app does not know yet is shown as a plain file, never dropped.
     val kind: String = "document",
     val status: String = "ready",
     val width: Int? = null,
@@ -185,9 +186,15 @@ data class FileRef(
     val transcript: String? = null,
     /** ⟨1.9⟩ §27.3: the hub's own transcript of an audio file (faster-whisper on the hub); `file.transcribed` announces it. */
     val transcriptFa: String? = null,
+    /** ⟨1.18⟩ §36.1 what the hub read in the file: a font's `family` (read in the untrusted child process). */
+    val meta: JsonObject? = null,
 ) {
     /** The hub's words for this audio, the ⟨1.9⟩ field first. */
     val hubText: String? get() = (transcriptFa ?: transcript)?.takeIf { it.isNotBlank() }
+
+    /** ⟨1.18⟩ a font's family name, when the hub read it. */
+    val family: String?
+        get() = (meta?.get("family") as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content?.trim()?.takeIf { it.isNotEmpty() }
 }
 
 @Serializable

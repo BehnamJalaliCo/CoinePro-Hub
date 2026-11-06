@@ -67,7 +67,7 @@ fun InquiriesSheet(onClose: () -> Unit) {
                         LabelPill(INQUIRY_STATUS[x.status], x.status)
                     }
                     RichText(x.questionMd, style = Divan.type.body, color = c.textPrimary)
-                    x.answerMd?.let { Md(it, Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.card).padding(10.dp)) }
+                    x.answerMd?.let { com.coinepro.hq.ui.Selectable { Md(it, Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.card).padding(10.dp)) } }
                 }
             }
         }

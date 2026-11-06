@@ -118,7 +118,7 @@ private fun ErrandSheet(e: Errand, onClose: () -> Unit) {
             Text(ago(e.createdAt), style = Divan.type.caption, color = c.textMuted, modifier = Modifier.weight(1f))
             Fig(usd(e.usage.usd), style = Divan.type.figureSmall, color = c.textSecondary)
         }
-        Md(e.briefMd, style = Divan.type.body, color = c.textPrimary)
+        com.coinepro.hq.ui.Selectable { Md(e.briefMd, style = Divan.type.body, color = c.textPrimary) }
         if (e.attachments.isNotEmpty()) MessageMedia(e.attachments)
         Text("مسیر کار", style = Divan.type.caption.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = c.textSecondary)
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -135,7 +135,7 @@ private fun ErrandSheet(e: Errand, onClose: () -> Unit) {
         e.resultMd?.let {
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.card).padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("نتیجه", style = Divan.type.caption.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = c.textSecondary)
-                Md(it, color = c.textPrimary)
+                com.coinepro.hq.ui.Selectable { Md(it, color = c.textPrimary) }
             }
         }
         e.decisionRef?.let { ref ->

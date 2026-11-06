@@ -141,11 +141,20 @@ fun TalkComposerView(
     onHoldEnd: () -> Unit,
     modifier: Modifier = Modifier,
     placeholder: String = "بنویس، یا میکروفون را نگه دار…",
+    // ⟨1.18⟩ §36.2 files in a session: the paperclip beside the mic ([onAttach], its menu drawn by [attachMenu]), the files on their
+    // way above the words ([files]); a turn may go with files and no words ([hasFiles]), once none is still uploading ([filesBusy]).
+    onAttach: (() -> Unit)? = null,
+    attachMenu: @Composable () -> Unit = {},
+    files: (@Composable () -> Unit)? = null,
+    hasFiles: Boolean = false,
+    filesBusy: Boolean = false,
 ) {
     val c = Divan.colors
-    val canSend = text.isNotBlank() && !sending && !hold.active && !hold.transcribing
+    val ready = text.isNotBlank() || hasFiles
+    val canSend = ready && !sending && !hold.active && !hold.transcribing && !filesBusy
     val hf = handsFree != HandsFree.OFF
     Column(modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.card).border(1.dp, if (hf) c.lapis.copy(alpha = 0.6f) else c.lineStrong, RoundedCornerShape(18.dp)).padding(6.dp)) {
+        files?.invoke()
         // Held: the loudness and the words so far. Hands-free: what it is doing now.
         if (hold.active || hold.transcribing) Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(Modifier.height(36.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -185,8 +194,12 @@ fun TalkComposerView(
                     .semantics { contentDescription = "دست‌آزاد" },
                 contentAlignment = Alignment.Center,
             ) { WaveGlyph(22.dp, if (hf) c.lapis else c.textSecondary) }
+            if (onAttach != null) Box {
+                IconBtn(DivanIcon.ATTACH, "پیوست فایل: عکس، فیلم، صدا، PDF، فونت، متن یا ZIP", onAttach, tint = c.textSecondary)
+                attachMenu()
+            }
             HoldMic(hold, onHoldStart, onHoldEnd)
-            if (text.isNotBlank()) com.coinepro.hq.ui.media.RoundAction(DivanIcon.SEND, "بفرست", canSend, onSend, busy = sending)
+            if (ready) com.coinepro.hq.ui.media.RoundAction(DivanIcon.SEND, if (filesBusy) "صبر کن تا فایل‌ها برسند" else "بفرست", canSend, onSend, busy = sending)
         }
     }
 }
@@ -222,9 +235,18 @@ private fun HoldMic(hold: HoldUi, onStart: () -> Unit, onEnd: () -> Unit) {
     }
 }
 
-/** The composer wired to a [session]: typed, held and hands-free turns, and the key kept out of all three. */
+/** The composer wired to a [session]: typed, held and hands-free turns, and the key kept out of all three. ⟨1.18⟩ With [files] (a
+ *  session's, §36.2) the paperclip picks through [pick], the files upload at once, and a typed or held turn takes the ones that arrived. */
 @Composable
-fun TalkComposer(session: TalkSession, hf: HandsFreeTalk, onKey: (String) -> Unit, modifier: Modifier = Modifier) {
+fun TalkComposer(
+    session: TalkSession,
+    hf: HandsFreeTalk,
+    onKey: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    files: com.coinepro.hq.ui.media.Attachments? = null,
+    pick: ((String) -> Unit)? = null,
+    onFilesSent: () -> Unit = {},
+) {
     val toasts = LocalToasts.current
     val scope = rememberCoroutineScope()
     val engines = rememberQuery("voice-engines", "voice", maxAgeMs = 30_000) { voiceEngines() }
@@ -232,6 +254,7 @@ fun TalkComposer(session: TalkSession, hf: HandsFreeTalk, onKey: (String) -> Uni
     // The draft is saved with the screen; a key never is (it is taken out of the text before it is stored).
     var text by rememberSaveable(session.conv?.ref) { mutableStateOf("") }
     var sending by remember { mutableStateOf(false) }
+    var menu by remember { mutableStateOf(false) }
     val mic = rememberMicPermission { toasts.info("حالا دکمه‌ی میکروفون را نگه دار و حرف بزن.") }
     var pressedAt by remember { mutableStateOf(0L) }
 
@@ -243,18 +266,21 @@ fun TalkComposer(session: TalkSession, hf: HandsFreeTalk, onKey: (String) -> Uni
     val vh = rememberLongVoice("talk") { r ->
         val said = r.text.trim()
         val k = extractKey(said, patterns)
-        if (k != null) onKey(k) else scope.launch { session.send(said, SOURCE_HOLD) }
+        // A held turn takes the files that have arrived; one still on its way waits for the next turn.
+        val ready = files?.refs.orEmpty()
+        if (k != null) onKey(k) else scope.launch { session.send(said, SOURCE_HOLD, ready) { files?.drop(ready); onFilesSent() } }
     }
     val v = vh.v
 
     fun send() {
         val body = text.trim()
-        if (body.isEmpty() || sending) return
+        val ready = files?.refs.orEmpty()
+        if ((body.isEmpty() && ready.isEmpty()) || sending || files?.uploading == true) return
         val k = extractKey(body, patterns)
         if (k != null) { text = withoutKey(body, k); onKey(k); return }
         sending = true
         scope.launch {
-            val ok = try { session.send(body, SOURCE_TYPED) } finally { sending = false }
+            val ok = try { session.send(body, SOURCE_TYPED, ready) { files?.drop(ready); onFilesSent() } } finally { sending = false }
             if (ok) text = ""
         }
     }
@@ -280,5 +306,10 @@ fun TalkComposer(session: TalkSession, hf: HandsFreeTalk, onKey: (String) -> Uni
             }
         },
         modifier,
+        onAttach = if (files != null && pick != null) ({ menu = true }) else null,
+        attachMenu = { if (pick != null) com.coinepro.hq.ui.media.AttachMenu(menu, { menu = false }, pick, com.coinepro.hq.ui.media.SESSION_ATTACH) },
+        files = files?.takeIf { it.items.isNotEmpty() }?.let { a -> { PendingFiles(a.items.toList(), onRemove = a::remove, onRetry = a::retry) } },
+        hasFiles = files?.refs.orEmpty().isNotEmpty(),
+        filesBusy = files?.uploading == true,
     )
 }

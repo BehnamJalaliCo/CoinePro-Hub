@@ -89,6 +89,24 @@ internal class OutputsDemo(private val store: MutableMap<String, Pair<Int, JsonE
             for (r in refs) { store.remove("/deliverables/$r"); seen.remove(r); filed.remove(r) }
             return 200 to buildJsonObject { put("deleted", before.size - kept.size) }
         }
+        // ⟨1.19⟩ §37.2 one output erased for good: its preview first (nothing changes), then the sealed erase; its work stays.
+        Regex("^/deliverables/(O-\\d+)/erase(/preview)?$").find(path)?.let { m ->
+            val ref = m.groupValues[1]
+            val d = list().firstOrNull { it.str("ref") == ref }?.jsonObject ?: return 404 to buildJsonObject {
+                put("code", "not_found"); put("message_fa", "این خروجی پیدا نشد."); put("status", 404); put("title", "Not found"); put("type", "about:blank")
+            }
+            val files = (d["files"] as? JsonArray)?.size ?: 0
+            val counts = buildJsonObject { put("files", files); put("outputs", 1); put("decisions", 0) }
+            if (m.groupValues[2].isNotEmpty()) return if (method == "GET") 200 to buildJsonObject {
+                put("ref", ref); put("kind", "output"); put("title_fa", d.str("title").orEmpty()); put("counts", counts)
+                put("keeps_fa", JsonArray(listOf(JsonPrimitive("کاری که این خروجی از آن آمده میماند؛ قدمش میگوید «خروجی پاک شد»."), JsonPrimitive("یک خط در دفتر حسابرسی، بی متن خروجی."))))
+            } else null
+            if (method != "POST") return null
+            if (stepUp == null) return 403 to buildJsonObject { put("code", "step_up_required"); put("message_fa", "این کار تأیید با گذرکلید لازم دارد."); put("status", 403); put("title", "Forbidden"); put("type", "about:blank") }
+            store["/deliverables"] = 200 to page(list().filter { it.str("ref") != ref })
+            store.remove("/deliverables/$ref"); seen.remove(ref); filed.remove(ref)
+            return 200 to buildJsonObject { put("ref", ref); put("erased", counts) }
+        }
         Regex("^/deliverables/(O-\\d+)/file$").find(path)?.let { m ->
             if (method != "POST") return null
             val ref = m.groupValues[1]

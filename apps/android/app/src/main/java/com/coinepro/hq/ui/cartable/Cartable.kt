@@ -124,6 +124,8 @@ private val STEP_UP_KINDS = setOf(
     "archive_schema", "archive_disposal",
     // ⟨1.8⟩ §26.3: a destructive command on a company's server, 🔏 `server.destructive` on `<CODE>:<server>` ([sealAction]).
     "server_destructive",
+    // ⟨1.19⟩ §37.3: an agent's erase proposal, target = the card's ref (bound to its preview).
+    "erase",
 )
 /** Kinds sealed on their own page, never by the cartable's approve: a server plan's seal is bound to its digest (§18.8).
  *  The card carries {plan, company}; the plan page sends a founding's plan on to its founding (§18.16). */
@@ -314,6 +316,10 @@ private fun Payload(d: Decision) {
         "deploy" -> DeployPayloadBlock(d)
         // ⟨1.8⟩ §26.3: the exact command, the server and what would be lost.
         "server_destructive" -> com.coinepro.hq.ui.servers.SealPayload(d)
+        // ⟨1.19⟩ §37.3: what the seal erases for good (the preview's counts) and what stays, and why the agent proposes it.
+        "erase" -> com.coinepro.hq.core.net.eraseCardOf(d).let { e ->
+            Section("با این مُهر") { com.coinepro.hq.ui.session.ErasePreviewBlock(e.preview, e.kind ?: com.coinepro.hq.core.net.EraseKind.SESSION, e.whyFa) }
+        }
         // ⟨1.5⟩ §21.5: the monthly HR round's evaluation, payload v2.
         "evaluation" -> EvaluationBlock(d)
         "tool_enable" -> Section("ابزارهای این سرور عوض شده‌اند") {
@@ -456,6 +462,8 @@ private fun DecisionDetail(d: Decision, onChanged: (Decision) -> Unit) {
             "role_new" -> env.cache.invalidate("roles", "stories", "companies")
             // ⟨1.7⟩ §23.11: a sealed schema change or disposal batch changes the schema or the records.
             "archive_schema", "archive_disposal" -> env.cache.invalidate("archive")
+            // ⟨1.19⟩ §37.3: a sealed erase card erased its session, record or output.
+            "erase" -> env.cache.invalidate(*com.coinepro.hq.ui.session.erasedTags(com.coinepro.hq.core.net.eraseCardOf(d).kind ?: com.coinepro.hq.core.net.EraseKind.SESSION))
         }
         // ⟨1.5⟩ §21.1, §21.10: a decided card's memos go stale and its sealed prediction is revealed.
         env.cache.invalidate("memos", "dceo", "reviews")

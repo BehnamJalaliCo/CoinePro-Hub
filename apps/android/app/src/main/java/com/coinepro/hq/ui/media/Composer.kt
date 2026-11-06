@@ -61,13 +61,13 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import coil3.compose.AsyncImage
 import com.coinepro.hq.core.Env
+import com.coinepro.hq.core.media.FilePolicy
 import com.coinepro.hq.core.media.Limits
 import com.coinepro.hq.core.media.PhoneSpeech
 import com.coinepro.hq.core.media.LocalFile
 import com.coinepro.hq.core.media.VoiceRecorder
 import com.coinepro.hq.core.media.clock
 import com.coinepro.hq.core.media.describe
-import com.coinepro.hq.core.media.kindOf
 import com.coinepro.hq.core.media.videoSeconds
 import com.coinepro.hq.core.net.ApiException
 import com.coinepro.hq.core.net.FileRef
@@ -100,20 +100,30 @@ class Pending(val key: String, val file: LocalFile, val kind: String, val second
     internal var job: Job? = null
 }
 
-/** Files the owner is attaching: checked against the contract, uploaded at once with progress, cancellable, retryable. */
+/** Files the owner is attaching: checked against the contract ([policy]), uploaded at once with progress, cancellable, retryable. */
 @Stable
-class Attachments(private val env: Env, private val context: Context, private val scope: CoroutineScope, private val toasts: Toasts, private val max: Int = 10) {
+class Attachments(
+    private val env: Env,
+    private val context: Context,
+    private val scope: CoroutineScope,
+    private val toasts: Toasts,
+    private val max: Int = 10,
+    private val policy: FilePolicy = FilePolicy.MESSAGE,
+) {
     val items = mutableStateListOf<Pending>()
     val ids: List<String> get() = items.mapNotNull { it.ref?.id }
+    /** ⟨1.18⟩ The uploaded files themselves, in the order they were picked (a turn shows them at once). */
+    val refs: List<FileRef> get() = items.mapNotNull { it.ref }
     val uploading: Boolean get() = items.any { it.state == "uploading" }
 
     fun add(uris: List<Uri>) {
         scope.launch {
             for (uri in uris) {
                 if (items.size >= max) { toasts.error("حداکثر $max پیوست در هر پیام."); return@launch }
-                val f = withContext(Dispatchers.IO) { context.contentResolver.describe(uri) }
-                Limits.reject(f)?.let { toasts.error(it); continue }
-                val kind = kindOf(f.mime)
+                val f0 = withContext(Dispatchers.IO) { context.contentResolver.describe(uri) }
+                policy.reject(f0)?.let { toasts.error(it); continue }
+                val f = policy.normalize(f0)
+                val kind = policy.kind(f)
                 val seconds = if (kind == "video") withContext(Dispatchers.IO) { videoSeconds(context, uri) } else null
                 if (seconds != null && seconds > Limits.VIDEO_SECONDS) { toasts.error("«${f.name}»: فیلم حداکثر ۱۰ دقیقه است."); continue }
                 val p = Pending(UUID.randomUUID().toString(), f, kind, seconds)
@@ -150,15 +160,20 @@ class Attachments(private val env: Env, private val context: Context, private va
     fun retry(p: Pending) { p.state = "uploading"; p.progress = 0f; p.error = null; upload(p) }
     fun remove(p: Pending) { p.job?.cancel(); items.remove(p) }
     fun clear() { items.forEach { it.job?.cancel() }; items.clear() }
+    /** ⟨1.18⟩ The files that went with a turn ([sent]) leave the composer; one still on its way, or failed, stays. */
+    fun drop(sent: List<FileRef>) { val ids = sent.map { it.id }.toSet(); items.removeAll { it.ref?.id in ids } }
 }
 
 @Composable
-fun rememberAttachments(max: Int = 10): Attachments {
+fun rememberAttachments(max: Int = 10, policy: FilePolicy = FilePolicy.MESSAGE, key: Any? = null): Attachments {
     val env = LocalEnv.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val toasts = LocalToasts.current
-    return remember(env) { Attachments(env, context, scope, toasts, max) }
+    val a = remember(env, key) { Attachments(env, context, scope, toasts, max, policy) }
+    // Leaving the screen (or the conversation) ends the uploads still running.
+    DisposableEffect(a) { onDispose { a.clear() } }
+    return a
 }
 
 /** The composer's row of files on their way. */
@@ -450,15 +465,29 @@ fun rememberPickers(a: Attachments): (String) -> Unit {
             "photo" -> photo.launch(target("jpg"))
             "film" -> film.launch(target("mp4"))
             "pdf" -> pdf.launch(arrayOf("application/pdf"))
+            // ⟨1.18⟩ §36.1 a session also takes fonts, voice notes, text and ZIP: the system picker, every type it may call them.
+            "files" -> pdf.launch(com.coinepro.hq.core.media.SESSION_PICKER_TYPES)
         }
     }
 }
 
+/** The messages' choices (§17.1). */
+val MESSAGE_ATTACH: List<Triple<String, String, DivanIcon>> = listOf(
+    Triple("gallery", "عکس و فیلم از گالری", DivanIcon.IMAGE), Triple("photo", "عکس با دوربین", DivanIcon.IMAGE),
+    Triple("film", "فیلم با دوربین", DivanIcon.VIDEO), Triple("pdf", "PDF", DivanIcon.REPORT),
+)
+
+/** ⟨1.18⟩ §36.1 a session's choices: pictures and films, the camera, and any file it takes (PDF, font, voice, text, ZIP). */
+val SESSION_ATTACH: List<Triple<String, String, DivanIcon>> = listOf(
+    Triple("gallery", "عکس و فیلم از گالری", DivanIcon.IMAGE), Triple("photo", "عکس با دوربین", DivanIcon.IMAGE),
+    Triple("film", "فیلم با دوربین", DivanIcon.VIDEO), Triple("files", "فایل: PDF، فونت، صدا، متن یا ZIP", DivanIcon.ATTACH),
+)
+
 @Composable
-fun AttachMenu(open: Boolean, onDismiss: () -> Unit, pick: (String) -> Unit) {
+fun AttachMenu(open: Boolean, onDismiss: () -> Unit, pick: (String) -> Unit, items: List<Triple<String, String, DivanIcon>> = MESSAGE_ATTACH) {
     val c = Divan.colors
     DropdownMenu(open, onDismiss, containerColor = c.overlay) {
-        for ((key, label, icon) in listOf(Triple("gallery", "عکس و فیلم از گالری", DivanIcon.IMAGE), Triple("photo", "عکس با دوربین", DivanIcon.IMAGE), Triple("film", "فیلم با دوربین", DivanIcon.VIDEO), Triple("pdf", "PDF", DivanIcon.REPORT))) {
+        for ((key, label, icon) in items) {
             DropdownMenuItem(
                 text = { Text(label, style = Divan.type.body, color = c.textPrimary) },
                 leadingIcon = { DIcon(icon, size = 20.dp, tint = c.textSecondary) },

@@ -99,7 +99,7 @@ private fun ReportHead(o: OrderReport) {
             Text("فرمان تو", style = Divan.type.caption, color = c.textMuted, modifier = Modifier.weight(1f))
             OrderStatePill(o.state)
         }
-        Para(o.textFa, style = Divan.type.body, color = c.textPrimary)
+        com.coinepro.hq.ui.Selectable { Para(o.textFa, style = Divan.type.body, color = c.textPrimary) }
         Text(
             plain("داده شد ${jDateTime(o.at)}" + (o.updatedAt.takeIf { it.isNotBlank() }?.let { "؛ آخرین تغییر ${ago(it)}" } ?: "")),
             style = Divan.type.micro, color = c.textMuted,
@@ -160,7 +160,7 @@ private fun Part(title: String, body: String, icon: DivanIcon, tint: androidx.co
             Box(Modifier.size(22.dp).clip(CircleShape).background(tint.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) { DIcon(icon, size = 13.dp, tint = tint) }
             Text(title, style = Divan.type.small.copy(fontWeight = FontWeight.Bold), color = c.textPrimary)
         }
-        Para(body)
+        com.coinepro.hq.ui.Selectable { Para(body) }
     }
 }
 
@@ -178,7 +178,7 @@ private fun PlanCard(o: OrderReport) {
             val a = o.ack
             if (a == null) Text("دریافت شد و سپرده شد؛ کسی که آن را گرفته باید تا ده دقیقه برنامه‌اش را بنویسد.", style = Divan.type.caption.copy(textAlign = TextAlign.Justify), color = c.textSecondary)
             else {
-                if (a.planFa.isNotBlank()) Para(a.planFa)
+                if (a.planFa.isNotBlank()) com.coinepro.hq.ui.Selectable { Para(a.planFa) }
                 for (x in a.assigned) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     CoName(x.company)
                     Text(plain(x.titleFa), style = Divan.type.caption, color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
@@ -195,7 +195,8 @@ internal fun StepsCard(o: OrderReport) {
     val c = Divan.colors
     HqCard(Modifier.fillMaxWidth()) {
         SectionTitle("قدم‌ها", note = if (o.steps.isEmpty()) "هنوز قدمی برداشته نشده" else "${o.steps.size} قدم، آخری پایین", icon = DivanIcon.TASK)
-        Column(Modifier.padding(top = 10.dp)) {
+        // The steps are selectable as one text (a long press, then the phone's handles and «کپی»).
+        com.coinepro.hq.ui.Selectable { Column(Modifier.padding(top = 10.dp)) {
             o.steps.forEachIndexed { i, s ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -208,7 +209,7 @@ internal fun StepsCard(o: OrderReport) {
                     }
                 }
             }
-        }
+        } }
     }
 }
 

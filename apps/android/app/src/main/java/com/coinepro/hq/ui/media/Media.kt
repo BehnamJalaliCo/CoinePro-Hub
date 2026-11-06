@@ -5,6 +5,7 @@ import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -49,6 +51,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -60,8 +63,11 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import coil3.compose.AsyncImage
+import com.coinepro.hq.core.media.FileKind
 import com.coinepro.hq.core.media.MediaKit
 import com.coinepro.hq.core.media.clock
+import com.coinepro.hq.core.media.fileKindFa
+import com.coinepro.hq.core.media.fileKindOf
 import com.coinepro.hq.core.media.fileSize
 import com.coinepro.hq.core.net.FileRef
 import com.coinepro.hq.designsystem.DIcon
@@ -77,16 +83,41 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.Request
 
-/** Everything attached to one message, grouped: pictures first, then films, voice notes and documents (§17.1). */
+/** Everything attached to one message, grouped: pictures first, then films, voice notes and documents (§17.1). ⟨1.18⟩ A font, and a
+ *  kind the app does not know yet, is a document row too, never dropped; [labelled] names each one's kind under its name (a session's
+ *  files: «فونت Vazir»، «PDF»، «ZIP»). */
 @Composable
-fun MessageMedia(items: List<FileRef>, transcriptInBody: Boolean = false, modifier: Modifier = Modifier) {
-    if (items.isEmpty()) return
+fun MessageMedia(items: List<FileRef>, transcriptInBody: Boolean = false, modifier: Modifier = Modifier, labelled: Boolean = false) {
+    val shown = items.filter { it.id.isNotBlank() }
+    if (shown.isEmpty()) return
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        val images = items.filter { it.kind == "image" }
+        val images = shown.filter { it.kind == "image" }
         if (images.isNotEmpty()) Images(images)
-        items.filter { it.kind == "video" }.forEach { VideoTile(it) }
-        items.filter { it.kind == "audio" }.forEach { AudioNote(it, showTranscript = !transcriptInBody) }
-        items.filter { it.kind == "document" }.forEach { DocRow(it) }
+        shown.filter { it.kind == "video" }.forEach { VideoTile(it) }
+        shown.filter { it.kind == "audio" }.forEach { AudioNote(it, showTranscript = !transcriptInBody) }
+        shown.filter { it.kind !in MEDIA_KINDS }.forEach { DocRow(it, label = if (labelled) fileKindFa(it) else null) }
+    }
+}
+
+private val MEDIA_KINDS = setOf("image", "video", "audio")
+
+/** ⟨1.18⟩ The mark of a file's kind: «Aa» for a font (in the app's own face), a box for a ZIP, a page for the rest. */
+@Composable
+fun FileGlyph(kind: FileKind?, size: Dp = 22.dp, tint: Color = Divan.colors.textSecondary) {
+    when (kind) {
+        FileKind.FONT -> Box(Modifier.size(size), contentAlignment = Alignment.Center) {
+            Text("Aa", style = Divan.type.bodyStrong.copy(fontFamily = com.coinepro.hq.designsystem.FigureFace, fontSize = (size.value * 0.62f).sp, textDirection = androidx.compose.ui.text.style.TextDirection.Ltr), color = tint, maxLines = 1)
+        }
+        else -> DIcon(
+            when (kind) {
+                FileKind.IMAGE -> DivanIcon.IMAGE
+                FileKind.VIDEO -> DivanIcon.VIDEO
+                FileKind.AUDIO -> DivanIcon.MIC
+                FileKind.ZIP -> DivanIcon.DELIVERABLE
+                else -> DivanIcon.REPORT
+            },
+            size = size, tint = tint,
+        )
     }
 }
 
@@ -122,6 +153,27 @@ private fun Images(images: List<FileRef>) {
                     }
                     if (pair.size == 1) Box(Modifier.weight(1f))
                 }
+            }
+        }
+    }
+    open?.let { start -> ImageViewer(images, start, media) { open = null } }
+}
+
+/** ⟨1.18⟩ Pictures as a row of small squares (a session's «فایل‌ها»): each over the mark of a picture, a tap opens them full screen. */
+@Composable
+fun FileThumbs(images: List<FileRef>, modifier: Modifier = Modifier) {
+    if (images.isEmpty()) return
+    val media = LocalEnv.current.media
+    val c = Divan.colors
+    var open by remember { mutableStateOf<Int?>(null) }
+    Row(modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        images.forEachIndexed { i, m ->
+            Box(
+                Modifier.size(72.dp).clip(RoundedCornerShape(12.dp)).background(c.tile).clickable(role = Role.Image, onClickLabel = "نمایش ${m.name}") { open = i },
+                contentAlignment = Alignment.Center,
+            ) {
+                DIcon(DivanIcon.IMAGE, size = 22.dp, tint = c.textMuted)
+                AsyncImage(media.imageModel(m.variants.thumb ?: m.id, if (m.variants.thumb != null) null else "thumb"), m.name, media.images, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             }
         }
     }
@@ -277,31 +329,24 @@ fun AudioNote(a: FileRef, showTranscript: Boolean = true) {
     }
 }
 
-/** A PDF: downloaded through the API, then handed to the phone's viewer. */
+/** A PDF (⟨1.18⟩ a font, a text, a ZIP, any file): downloaded through the API, then handed to the phone's viewer; when nothing on the
+ *  phone opens its kind (a font, a ZIP), to the share sheet, to keep it in Files or send it on. [label] names its kind beside its size. */
 @Composable
-private fun DocRow(d: FileRef) {
+private fun DocRow(d: FileRef, label: String? = null) {
     val env = LocalEnv.current
     val toasts = LocalToasts.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val c = Divan.colors
     var busy by remember { mutableStateOf(false) }
+    val kind = fileKindOf(d)
     Row(
         Modifier.widthIn(max = 300.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile)
             .clickable(enabled = !busy, role = Role.Button, onClickLabel = "باز کردن") {
                 busy = true
                 scope.launch {
                     try {
-                        val f = withContext(Dispatchers.IO) {
-                            val out = File(env.media.scratch("shared"), d.name.replace(Regex("[^\\p{L}\\p{N}._-]"), "_"))
-                            env.api.client.newCall(Request.Builder().url(env.media.url(d.id)).build()).execute().use { r ->
-                                check(r.isSuccessful)
-                                out.outputStream().use { r.body.byteStream().copyTo(it) }
-                            }
-                            out
-                        }
-                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", f)
-                        context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, d.mime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK))
+                        openFile(env, context, d)
                     } catch (_: Exception) {
                         toasts.error("فایل باز نشد.")
                     } finally {
@@ -313,11 +358,40 @@ private fun DocRow(d: FileRef) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        DIcon(DivanIcon.REPORT, tint = c.textSecondary)
+        if (label == null && kind != FileKind.FONT && kind != FileKind.ZIP) DIcon(DivanIcon.REPORT, tint = c.textSecondary) else FileGlyph(kind)
         Column(Modifier.weight(1f)) {
-            Text(d.name, style = Divan.type.small, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Fig(fileSize(d.size), style = Divan.type.figureSmall, color = c.textMuted)
+            val name = d.name.ifBlank { "فایل" }
+            // ⟨1.18⟩ a session's file keeps the Latin letters and digits of its name as a figure; the messages' rows are as they were.
+            if (label == null) Text(name, style = Divan.type.small, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            else Text(com.coinepro.hq.designsystem.timesFig(name), style = Divan.type.small, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (label == null) Fig(fileSize(d.size), style = Divan.type.figureSmall, color = c.textMuted)
+            else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(label, style = Divan.type.micro, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                if (d.size > 0) Fig(fileSize(d.size), style = Divan.type.figureSmall, color = c.textMuted)
+            }
         }
         if (busy) CircularProgressIndicator(Modifier.size(18.dp), color = c.goldInk, strokeWidth = 2.dp) else DIcon(DivanIcon.DOWNLOAD, size = 18.dp, tint = c.textSecondary)
+    }
+}
+
+/** Downloads [d] through the API (the session rides along) into the app's shared scratch, then opens it with the phone's viewer of its
+ *  type; a type nothing opens goes to the share sheet. Throws when the download fails. */
+suspend fun openFile(env: com.coinepro.hq.core.Env, context: android.content.Context, d: FileRef) {
+    val f = withContext(Dispatchers.IO) {
+        val safe = d.name.ifBlank { d.id.takeLast(12) }.replace(Regex("[^\\p{L}\\p{N}._-]"), "_")
+        val out = File(env.media.scratch("shared"), safe)
+        env.api.client.newCall(Request.Builder().url(env.media.url(d.id)).build()).execute().use { r ->
+            check(r.isSuccessful)
+            out.outputStream().use { r.body.byteStream().copyTo(it) }
+        }
+        out
+    }
+    val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", f)
+    val view = Intent(Intent.ACTION_VIEW).setDataAndType(uri, d.mime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+    try {
+        context.startActivity(view)
+    } catch (_: android.content.ActivityNotFoundException) {
+        val send = Intent(Intent.ACTION_SEND).setType(d.mime).putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        context.startActivity(Intent.createChooser(send, d.name.ifBlank { "فایل" }).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 }

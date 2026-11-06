@@ -5,11 +5,13 @@ import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import com.coinepro.hq.core.AppGraph
 import com.coinepro.hq.designsystem.Divan
@@ -33,7 +35,8 @@ import org.robolectric.annotation.GraphicsMode
 /**
  * ⟨1.16, 1.17⟩ Contract §34–§35, night and day, with the demo holding, drawn tall (1600dp): one order's session in each of its states,
  * from the header (the words, the badge, «نوبت تو», the brief) through the people and models, the pace, the plan, the blockers and the
- * results to the live conversation with its cards and the close.
+ * results to the live conversation with its cards and the close. ⟨1.18⟩ §36 the files: the owner's turn with the covers' font, a sample
+ * cover and a brief, the session's «فایل‌ها», and the composer with files on their way (going, there, failed) and a turn of files only.
  */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -41,7 +44,8 @@ import org.robolectric.annotation.GraphicsMode
 class SessionScreensTest(private val name: String, private val night: Boolean) {
     companion object {
         private val SCREENS: Map<String, @Composable (AppGraph) -> Unit> = linkedMapOf(
-            // The owner's turn: a step order, the CEO asks; a media manager and GPT in the room; a plan of four, one of them his.
+            // The owner's turn: a step order, the CEO asks; a media manager and GPT in the room; a plan of four, one of them his; the
+            // files he sent with his second turn (a font, a sample cover, a brief), in the bubble and in «فایل‌ها».
             "order-session-your-turn" to { _ -> com.coinepro.hq.ui.session.OrderSessionScreen("F-0101") },
             // Ready for his OK: the advisor's report in the results, «تأیید و بستن» in gold.
             "order-session-ready" to { _ -> com.coinepro.hq.ui.session.OrderSessionScreen("F-0102") },
@@ -49,7 +53,92 @@ class SessionScreensTest(private val name: String, private val night: Boolean) {
             "order-session-stuck" to { _ -> com.coinepro.hq.ui.session.OrderSessionScreen("F-0103") },
             // Closed, in the archive: read-only, «باز کردن دوباره».
             "order-session-closed" to { _ -> com.coinepro.hq.ui.session.OrderSessionScreen("F-0099") },
+            // ⟨1.18⟩ the paperclip and the chips: a film going (42%), the font and the brief there, a picture that failed; then files
+            // with no words (send open); then a turn of files only and the holder's answer.
+            "order-session-attach" to { _ -> Attaching() },
+            // ⟨1.19⟩ §37 «پاک کردن برای همیشه»: a session's preview (what goes, in Persian digits; what stays) and its two choices, then
+            // an archive record's under a hold the hub named, and a hub before ⟨1.19⟩.
+            "order-session-erase" to { _ -> Erasing() },
         )
+
+        @Composable
+        private fun Erasing() {
+            val c = com.coinepro.hq.designsystem.Divan.colors
+            val counts = kotlinx.serialization.json.buildJsonObject {
+                put("turns", kotlinx.serialization.json.JsonPrimitive(12)); put("files", kotlinx.serialization.json.JsonPrimitive(3))
+                put("outputs", kotlinx.serialization.json.JsonPrimitive(1)); put("works", kotlinx.serialization.json.JsonPrimitive(4))
+                put("notifications", kotlinx.serialization.json.JsonPrimitive(2))
+            }
+            val p = com.coinepro.hq.core.net.ErasePreview(
+                "F-0101", "session", "برای تریدیار هفته‌ی آموزش طلا را راه بینداز؛ مرحله به مرحله با من جلو برو.", counts,
+                listOf("خط تولید یا کارگروهی که این جلسه راه انداخت میماند؛ آن را در صفحه‌ی خودش پاک کن.", "یک خط در دفتر حسابرسی، بی متن فرمان.", "عددهای توکن و پول، که خزانه هنوز باید جمعشان را داشته باشد."),
+            )
+            androidx.compose.foundation.layout.Column(
+                Modifier.fillMaxSize().background(c.overlay).padding(16.dp),
+                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(14.dp),
+            ) {
+                androidx.compose.material3.Text("پاک کردن برای همیشه", style = com.coinepro.hq.designsystem.Divan.type.h3)
+                androidx.compose.material3.Text(com.coinepro.hq.ui.session.ERASE_SUB, style = com.coinepro.hq.designsystem.Divan.type.caption, color = c.textMuted)
+                com.coinepro.hq.ui.session.EraseBody(com.coinepro.hq.core.net.EraseKind.SESSION, p, false, null, false, {}, {})
+                androidx.compose.material3.HorizontalDivider(color = c.lineDivider)
+                com.coinepro.hq.ui.session.EraseBody(com.coinepro.hq.core.net.EraseKind.RECORD, null, false, "این سند زیر توقیف LH-0003 است؛ تا توقیف برداشته نشود پاک نمیشود.", false, {}, {})
+                androidx.compose.material3.HorizontalDivider(color = c.lineDivider)
+                com.coinepro.hq.ui.session.EraseBody(com.coinepro.hq.core.net.EraseKind.OUTPUT, null, true, null, false, {}, {})
+            }
+        }
+
+        private fun pending(name: String, mime: String, size: Long, kind: String, state: String, progress: Float = 1f, error: String? = null) =
+            com.coinepro.hq.ui.media.Pending(name, com.coinepro.hq.core.media.LocalFile(android.net.Uri.parse("content://demo/$name"), name, mime, size), kind, null).apply {
+                this.state = state; this.progress = progress; this.error = error
+                if (state == "ready") ref = com.coinepro.hq.core.net.FileRef(id = "f-$name", name = name, mime = mime, size = size, kind = kind)
+            }
+
+        @Composable
+        private fun Attaching() {
+            val going = listOf(
+                pending("reels-gold.mp4", "video/mp4", 48_200_000, "video", "uploading", progress = 0.42f),
+                pending("titr-cover.ttf", "font/ttf", 186_420, "font", "ready"),
+                pending("بریف ریلزها.pdf", "application/pdf", 248_310, "pdf", "ready"),
+                pending("کاور.heic", "image/heic", 3_400_000, "image", "failed", error = "بارگذاری نشد؛ اینترنت را ببین."),
+            )
+            val c = com.coinepro.hq.designsystem.Divan.colors
+            androidx.compose.foundation.layout.Column(
+                Modifier.fillMaxSize().background(c.page).padding(16.dp),
+                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp),
+            ) {
+                Composer("تیتر کاورها با این فونت باشد", going, filesBusy = true)
+                Composer("", going.subList(1, 3), filesBusy = false)
+                val files = listOf(
+                    com.coinepro.hq.core.net.FileRef(id = "/demo/pc-landing-redesign.webp", name = "صفحه‌ی فرود.webp", mime = "image/webp", size = 19_810, kind = "image", width = 960, height = 600),
+                    com.coinepro.hq.core.net.FileRef(
+                        id = "/demo/fonts/titr-cover.ttf", name = "titr-cover.ttf", mime = "font/ttf", size = 186_420, kind = "font",
+                        meta = kotlinx.serialization.json.buildJsonObject { put("family", kotlinx.serialization.json.JsonPrimitive("Titr Cover")) },
+                    ),
+                    com.coinepro.hq.core.net.FileRef(id = "/demo/docs/pages.zip", name = "صفحه‌ها.zip", mime = "application/zip", size = 2_840_000, kind = "document"),
+                    // A kind this app does not know yet: a plain file row, never dropped.
+                    com.coinepro.hq.core.net.FileRef(id = "/demo/docs/plan.xlsx", name = "برنامه.xlsx", mime = "application/vnd.ms-excel", size = 41_000, kind = "sheet"),
+                )
+                val at = "2026-11-06T08:20:00Z"
+                com.coinepro.hq.ui.v32.TalkBubble(
+                    com.coinepro.hq.core.net.TalkTurn(by = "owner", text = com.coinepro.hq.core.media.FILES_ONLY_TEXT, at = at, files = files),
+                    null, emptyList(), false, null, { _, _ -> }, { },
+                )
+                com.coinepro.hq.ui.v32.TalkBubble(
+                    com.coinepro.hq.core.net.TalkTurn(by = "ceo@TY", showMd = "فونت «Titr Cover» را گرفتم؛ تیتر کاورها با همین نوشته میشود.", at = at),
+                    com.coinepro.hq.core.net.TalkPersona(key = "manager", role = "ceo", company = "TY", titleFa = "مدیرعامل تریدیار"), emptyList(), true, null, { _, _ -> }, { },
+                )
+            }
+        }
+
+        /** The session's composer with [files] above the words, the paperclip beside the mic. */
+        @Composable
+        private fun Composer(text: String, files: List<com.coinepro.hq.ui.media.Pending>, filesBusy: Boolean) {
+            com.coinepro.hq.ui.v32.TalkComposerView(
+                text, {}, com.coinepro.hq.ui.v32.HoldUi(), com.coinepro.hq.core.data.HandsFree.OFF, "", emptyList(), false, {}, {}, {}, {}, {},
+                onAttach = {}, files = { com.coinepro.hq.ui.v32.PendingFiles(files, {}, {}) },
+                hasFiles = files.any { it.ref != null }, filesBusy = filesBusy,
+            )
+        }
 
         @JvmStatic
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0}-{1}")

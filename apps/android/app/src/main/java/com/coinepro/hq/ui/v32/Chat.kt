@@ -38,6 +38,7 @@ import com.coinepro.hq.core.data.madeRoute
 import com.coinepro.hq.core.data.payloadFields
 import com.coinepro.hq.core.data.personaIdTitle
 import com.coinepro.hq.core.format.jTime
+import com.coinepro.hq.core.media.FILES_ONLY_TEXT
 import com.coinepro.hq.core.net.TalkCard
 import com.coinepro.hq.core.net.TalkPersona
 import com.coinepro.hq.core.net.TalkTurn
@@ -83,11 +84,20 @@ fun TalkBubble(
         Column(Modifier.widthIn(max = 330.dp), horizontalAlignment = if (mine) Alignment.Start else Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (!mine && showName) Text(personaIdTitle(t.by, personas), style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.textMuted, modifier = Modifier.padding(horizontal = 4.dp))
             val shape = if (mine) RoundedCornerShape(6.dp, 16.dp, 16.dp, 16.dp) else RoundedCornerShape(16.dp, 6.dp, 16.dp, 16.dp)
-            if (t.shown.isNotBlank()) {
-                Box(Modifier.clip(shape).background(if (mine) c.raised else c.card).padding(horizontal = 14.dp, vertical = 10.dp)) {
-                    if (mine) Text(plain(t.text), style = Divan.type.body, color = c.textPrimary) else Md(t.shown, color = c.textPrimary)
+            // ⟨1.18⟩ files sent with no words carry the hub's short line only; the files speak for themselves.
+            val filesOnly = mine && t.files.isNotEmpty() && t.text.trim() == FILES_ONLY_TEXT
+            val words = t.shown.isNotBlank() && !filesOnly
+            if (words) {
+                // A long press selects (the phone's handles and «کپی»); nothing above the bubble takes the press.
+                com.coinepro.hq.ui.Selectable {
+                    Box(Modifier.clip(shape).background(if (mine) c.raised else c.card).padding(horizontal = 14.dp, vertical = 10.dp)) {
+                        if (mine) Text(plain(t.text), style = Divan.type.body, color = c.textPrimary) else Md(t.shown, color = c.textPrimary)
+                    }
                 }
             }
+            // ⟨1.18⟩ §36.2 the files of the turn: pictures as thumbnails (a tap opens them), films and voice in place, every other file a
+            // row with its kind and size that opens (or saves) it.
+            if (t.files.isNotEmpty()) com.coinepro.hq.ui.media.MessageMedia(t.files, labelled = true)
             if (t.state == "failed" || t.state == "stopped") {
                 val failed = t.state == "failed"
                 Text(
@@ -99,6 +109,8 @@ fun TalkBubble(
             Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (mine && t.source != "typed") DIcon(DivanIcon.MIC, size = 12.dp, tint = c.textMuted)
                 if (t.at.isNotBlank()) Text(timesFig(jTime(t.at)), style = Divan.type.micro, color = c.textMuted)
+                // The whole turn in one tap, as plain words.
+                if (words) com.coinepro.hq.ui.CopyAction(turnPlain(t))
                 if (!mine && onReplay != null && t.audio.isNotEmpty()) {
                     Row(
                         Modifier.clip(CircleShape).clickable(role = Role.Button, onClickLabel = "دوباره بشنو", onClick = onReplay).padding(horizontal = 6.dp, vertical = 2.dp),
@@ -113,6 +125,9 @@ fun TalkBubble(
         if (!mine && persona != null) Box(Modifier.padding(start = 8.dp, top = 2.dp)) { PersonaFace(persona, size = 30.dp) }
     }
 }
+
+/** What «کپی» puts on the clipboard for a turn: the owner's words as he wrote them, a persona's answer without its markdown marks. */
+fun turnPlain(t: TalkTurn): String = if (t.owner) t.text.trim() else com.coinepro.hq.core.format.plainOfMd(t.shown)
 
 /** The answer while it is written: three quiet dots first, then the text as it comes; a failure in one plain line. */
 @Composable

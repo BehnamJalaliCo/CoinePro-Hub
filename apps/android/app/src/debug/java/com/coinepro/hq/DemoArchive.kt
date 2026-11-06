@@ -555,6 +555,8 @@ internal class ArchiveDemo(private val context: Context, private val store: Muta
         val m = req.method
         Regex("^/decisions/(D-\\d+)/approve$").find(path)?.let { mm -> return approveCheck(req, mm.groupValues[1])?.let { respond(req, it) } }
         if (!path.startsWith("/archive/")) return null
+        // ⟨1.19⟩ §37.2 the disposal run now: the preview (nothing changes), then the sealed erase; a held record is refused by name.
+        Regex("^/archive/records/(AR-\\d+)/erase(/preview)?$").find(path)?.let { mm -> return respond(req, erase(req, mm.groupValues[1], mm.groupValues[2].isNotEmpty())) }
         if (m == "GET") {
             Regex("^/archive/records/(AR-\\d+)/files/([^/]+)$").find(path)?.let { mm -> return file(req, mm.groupValues[1], mm.groupValues[2]) }
             return respond(req, read(path, q))
@@ -968,6 +970,28 @@ internal class ArchiveDemo(private val context: Context, private val store: Muta
             validatePart(part, key, p.obj("body"), cur).takeIf { it.isNotEmpty() }?.let { return invalid(it) }
         }
         return null
+    }
+
+    /** ⟨1.19⟩ §37.2 a record erased at the owner's word: its files destroyed, a tombstone «به دستور مدیر کل»; a hold refuses it. */
+    private fun erase(req: Request, ref: String, preview: Boolean): Pair<Int, JsonElement> {
+        val r = recordOf(ref)?.takeIf { it.s("state") != "disposed" } ?: return 404 to problem(404, "not_found", "این سند پیدا نشد.")
+        val fs = r.arr("versions").flatMap { it.arr("files") }
+        val counts = jo("files" to fs.size, "versions" to r.arr("versions").size)
+        if (preview) {
+            if (req.method != "GET") return 405 to problem(405, "not_found", "Not Found")
+            return 200 to jo(
+                "ref" to ref, "kind" to "archive_record", "title_fa" to r.s("title_fa"), "counts" to counts,
+                "keeps_fa" to ja(listOf(JsonPrimitive("سنگ‌نشان سند: شماره، تاریخ و «به دستور مدیر کل»."))),
+            )
+        }
+        if (req.method != "POST") return 405 to problem(405, "not_found", "Not Found")
+        if (req.header("X-Step-Up") == null) return 403 to problem(403, "step_up_required", "این کار تأیید با گذرکلید لازم دارد.")
+        val held = holdsOf(r)
+        if (held.isNotEmpty()) return 409 to problem(409, "legal_hold", "این سند زیر توقیف ${held.joinToString("، ")} است؛ تا توقیف برداشته نشود پاک نمیشود.")
+        destroyed += fs.mapNotNull { it.s("file_id") }
+        saveRecord(r.with("state" to "disposed", "version" to r.int("version") + 1,
+            "tombstone" to jo("decision" to null, "by_fa" to "به دستور مدیر کل", "at" to stamp(), "hashes" to ja(fs.map { jo("name" to it.s("name"), "sha256" to it.s("sha256")) }))))
+        return 200 to jo("ref" to ref, "erased" to counts)
     }
 
     /** What deciding a §23 card does (the web's decided20): a schema change applied, or the batch disposed with tombstones (held skipped). */

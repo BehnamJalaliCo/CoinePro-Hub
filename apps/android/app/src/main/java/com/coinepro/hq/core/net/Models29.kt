@@ -106,6 +106,8 @@ data class OrderReport(
     val brief: SessionBrief? = null,
     val tasks: List<SessionTask> = emptyList(),
     val participants: List<SessionParticipant> = emptyList(),
+    /** ⟨1.18⟩ §36.3 every file of the owner's turns in the session, newest first: they belong to the order. */
+    val files: List<FileRef> = emptyList(),
 )
 
 // ------------------------------------------------------------- §29.3 rules --

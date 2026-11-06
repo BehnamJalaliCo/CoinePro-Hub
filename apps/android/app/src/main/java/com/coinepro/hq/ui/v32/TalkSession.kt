@@ -17,14 +17,18 @@ import com.coinepro.hq.core.data.SOURCE_TYPED
 import com.coinepro.hq.core.data.TalkEvent
 import com.coinepro.hq.core.data.latestOf
 import com.coinepro.hq.core.data.parseTalkEvent
+import com.coinepro.hq.core.media.FILES_ONLY_TEXT
 import com.coinepro.hq.core.net.Api
 import com.coinepro.hq.core.net.ApiException
+import com.coinepro.hq.core.net.FileRef
+import com.coinepro.hq.core.net.HubFeature
 import com.coinepro.hq.core.net.TalkAudio
 import com.coinepro.hq.core.net.TalkCard
 import com.coinepro.hq.core.net.TalkConversation
 import com.coinepro.hq.core.net.TalkPersona
 import com.coinepro.hq.core.net.TalkTurn
 import com.coinepro.hq.core.net.VoiceMeter
+import com.coinepro.hq.core.net.turnFilesUnknown
 import com.coinepro.hq.ui.Toasts
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
@@ -181,24 +185,47 @@ class TalkSession(private val env: Env, private val scope: CoroutineScope, priva
     /** ⟨1.16⟩ §34.3 an order's session with the owner's turn open (or no talk yet): his words go to the order's reply instead. */
     var interceptor: (suspend (text: String, source: String) -> Boolean)? = null
 
-    /** Sends a turn of the owner and follows the answer; false when it could not go (the draft stays with the caller). */
-    suspend fun send(text: String, source: String = SOURCE_TYPED): Boolean {
+    /** Sends a turn of the owner and follows the answer; false when it could not go (the draft stays with the caller).
+     *
+     *  ⟨1.18⟩ §36.2 [files]: the owner's uploads go with the turn (`file_ids`); the words may then be empty, and the hub still gets a
+     *  short line ([FILES_ONLY_TEXT]). While the owner's turn of the order is open (§34.3, [interceptor]) the files go in a turn of their
+     *  own (in a session they belong to the order, §36.3) and his words to the order's reply. [onFilesSent] is told once the files went,
+     *  even when the words after them did not. */
+    suspend fun send(text: String, source: String = SOURCE_TYPED, files: List<FileRef> = emptyList(), onFilesSent: () -> Unit = {}): Boolean {
         val body = text.trim()
-        if (body.isEmpty()) return false
-        interceptor?.let { return it(body, source) }
+        val sent = files.filter { it.id.isNotBlank() }
+        if (body.isEmpty() && sent.isEmpty()) return false
+        val reply = interceptor
+        if (sent.isEmpty()) reply?.let { return it(body, source) }
+        if (sent.isNotEmpty() && reply != null) {
+            if (conv == null) { toasts.error("گفتگوی این جلسه هنوز باز نشده؛ فایل را کمی بعد بفرست."); return false }
+            if (!turn(FILES_ONLY_TEXT, source, sent)) return false
+            onFilesSent()
+            return body.isEmpty() || reply(body, source)
+        }
+        val ok = turn(body.ifEmpty { FILES_ONLY_TEXT }, source, sent)
+        if (ok && sent.isNotEmpty()) onFilesSent()
+        return ok
+    }
+
+    private suspend fun turn(body: String, source: String, files: List<FileRef>): Boolean {
         if (busy) bargeIn()
         val c = conv ?: run {
             startNew("secretary")
             conv ?: return false
         }
         val clientId = UUID.randomUUID().toString()
-        val mine = TalkTurn(id = JsonPrimitive("local-$clientId"), conversation = c.ref, n = (turns.maxOfOrNull { it.n } ?: 0) + 1, by = "owner", source = source, text = body, at = com.coinepro.hq.core.format.HqClock.now().toString())
+        val mine = TalkTurn(
+            id = JsonPrimitive("local-$clientId"), conversation = c.ref, n = (turns.maxOfOrNull { it.n } ?: 0) + 1, by = "owner", source = source, text = body,
+            at = com.coinepro.hq.core.format.HqClock.now().toString(), files = files,
+        )
         turns.add(mine)
         beginAnswer()
         return try {
-            val out = env.api.sendTalkTurn(c.ref, body, source, clientId, addressee)
+            val out = env.api.sendTalkTurn(c.ref, body, source, clientId, addressee, files.map { it.id })
             val i = turns.indexOf(mine)
-            if (out.turn.owner && i >= 0) turns[i] = out.turn
+            // A hub that does not write the files back on the turn: the ones the owner sent stay on his bubble.
+            if (out.turn.owner && i >= 0) turns[i] = if (out.turn.files.isEmpty() && files.isNotEmpty()) out.turn.copy(files = files) else out.turn
             val id = out.turn.idText.ifBlank { null }
             if (id == null) { endAnswer(); reload(); true } else {
                 answerId = id
@@ -208,7 +235,12 @@ class TalkSession(private val env: Env, private val scope: CoroutineScope, priva
         } catch (e: ApiException) {
             turns.remove(mine)
             endAnswer()
-            toasts.error(e.messageFa)
+            if (files.isNotEmpty() && e.turnFilesUnknown) {
+                // A hub before ⟨1.18⟩: no file in a conversation yet; the paperclip goes until the next app start.
+                e.logged?.let { env.api.failures?.forget(it) }
+                env.api.gaps.mark(HubFeature.TALK_FILES)
+                toasts.error("هاب هنوز فایل را در گفتگو نمیگیرد؛ با به‌روزرسانی بعدی هاب میاید. حرفت را بدون فایل بفرست.")
+            } else toasts.error(e.messageFa)
             false
         }
     }

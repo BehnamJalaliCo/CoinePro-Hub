@@ -329,8 +329,11 @@ private fun Bubble(m: Message, agentKind: String, onResolve: (Message) -> Unit) 
             val body = if (hub && hubText != null) hubText else m.body
             val shape = if (mine) RoundedCornerShape(16.dp, 6.dp, 16.dp, 16.dp) else RoundedCornerShape(6.dp, 16.dp, 16.dp, 16.dp)
             if (body.isNotBlank()) {
-                Box(Modifier.clip(shape).background(if (mine) c.raised else c.card).padding(horizontal = 14.dp, vertical = 10.dp)) {
-                    Md(body, color = c.textPrimary)
+                // A long press selects (the phone's handles and «کپی»); «کپی» below takes the whole message.
+                com.coinepro.hq.ui.Selectable {
+                    Box(Modifier.clip(shape).background(if (mine) c.raised else c.card).padding(horizontal = 14.dp, vertical = 10.dp)) {
+                        Md(body, color = c.textPrimary)
+                    }
                 }
             }
             if (audio != null) com.coinepro.hq.ui.media.HubTextToggle(hubText, hub, { hub = !hub }, writing = com.coinepro.hq.ui.media.hubStillWriting(m.createdAt))
@@ -356,6 +359,7 @@ private fun Bubble(m: Message, agentKind: String, onResolve: (Message) -> Unit) 
                         "finding" -> "یافته"; "session" -> "کارگاه"; "case" -> "پرونده"; "media_item" -> "رسانه"; "series" -> "برنامه‌ی انتشار"; else -> "ببین"
                     }, Modifier.clip(CircleShape).background(c.tile).clickable(enabled = route != null) { route?.let(nav::go) }.padding(horizontal = 8.dp, vertical = 2.dp), style = Divan.type.micro, color = c.goldInk)
                 }
+                if (body.isNotBlank()) com.coinepro.hq.ui.CopyAction(com.coinepro.hq.core.format.plainOfMd(body), color = c.textSecondary)
                 if (m.body.isNotBlank()) Text("مصوبه", style = Divan.type.micro, color = c.textSecondary, modifier = Modifier.clip(CircleShape).clickable(onClickLabel = "این پیام را به‌عنوان مصوبه ثبت کن") { onResolve(m) }.padding(horizontal = 8.dp, vertical = 2.dp))
             }
         }

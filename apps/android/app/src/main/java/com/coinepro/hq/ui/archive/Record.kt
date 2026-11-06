@@ -117,6 +117,15 @@ fun RecordScreen(ref: String) {
     val q = rememberQuery("archive:record:$ref", "archive") { record(ref) }
     val arch = rememberArchive()
     val r = refresher(q, arch.q)
+    val nav = com.coinepro.hq.ui.LocalNav.current
+    val eraseOn = com.coinepro.hq.ui.v29.served(com.coinepro.hq.core.net.HubFeature.ERASE)
+    var erasing by remember { mutableStateOf(false) }
+    // ⟨1.19⟩ §37.2 the archive's own disposal run now: the record's files destroyed, a tombstone with the ref, the date and «به دستور
+    // مدیر کل»; a record under a legal hold answers with the hold's name.
+    if (erasing) com.coinepro.hq.ui.session.EraseSheet(com.coinepro.hq.core.net.EraseKind.RECORD, ref, onDismiss = { erasing = false }) {
+        erasing = false
+        nav.back()
+    }
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
         val x = q.data
         val e = q.error
@@ -141,6 +150,16 @@ fun RecordScreen(ref: String) {
                 if (x.holds.isNotEmpty()) item { HoldsPanel(x) }
                 if (x.state != "draft") item { RetentionPanel(x, m) }
                 item { AccessPanel(x, m) }
+                if (eraseOn) item(key = "erase") {
+                    val c = Divan.colors
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(role = androidx.compose.ui.semantics.Role.Button) { erasing = true }.padding(vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        DIcon(DivanIcon.REJECT, size = 18.dp, tint = c.negative)
+                        Text("پاک کردن برای همیشه", style = Divan.type.small, color = c.negative)
+                    }
+                }
             }
         }
     }

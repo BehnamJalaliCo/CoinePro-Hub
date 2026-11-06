@@ -136,6 +136,8 @@ data class TalkTurn(
     val state: String = "done",
     val reasonFa: String? = null,
     val at: String = "",
+    /** ⟨1.18⟩ §36.2 the files that went with the owner's turn (its `file_ids`, as the hub keeps them). */
+    val files: List<FileRef> = emptyList(),
 ) {
     val owner: Boolean get() = by == "owner"
     /** What shows in the chat: the full answer of a persona, the words of the owner. */

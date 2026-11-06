@@ -1668,8 +1668,13 @@ class Api(
         send("PATCH", "/talk/conversations/${seg(ref)}", json.encodeToString(JsonElement.serializer(), buildJsonObject { if (mode != null) put("mode", mode); if (titleFa != null) put("title_fa", titleFa) }))
     /** A turn of the owner (`Idempotency-Key` = [clientId], kept across a retry of one press); the answer streams on [TalkTurnOut.events]. */
     /** ⟨1.17⟩ §35.4 [to]: in a session, the participant who answers (a key), or `all` (each present one once, then the holder sums up). */
-    suspend fun sendTalkTurn(ref: String, text: String, source: String, clientId: String, to: String? = null): TalkTurnOut =
-        call(write("POST", "/talk/conversations/${seg(ref)}/turns", buildJsonObject { put("text", text); put("source", source); put("client_id", clientId); if (to != null) put("to", to) }, null, key = clientId), serializer())
+    /** ⟨1.18⟩ §36.2 [fileIds]: the owner's own uploads that go with the turn (at most [MAX_TURN_FILES]); written only when there are
+     *  some, so a hub before ⟨1.18⟩ takes every turn without files as before. */
+    suspend fun sendTalkTurn(ref: String, text: String, source: String, clientId: String, to: String? = null, fileIds: List<String> = emptyList()): TalkTurnOut =
+        call(write("POST", "/talk/conversations/${seg(ref)}/turns", buildJsonObject {
+            put("text", text); put("source", source); put("client_id", clientId); if (to != null) put("to", to)
+            if (fileIds.isNotEmpty()) put("file_ids", JsonArray(fileIds.distinct().take(MAX_TURN_FILES).map(::JsonPrimitive)))
+        }, null, key = clientId), serializer())
     suspend fun inviteToTalk(ref: String, role: String, company: String, department: String? = null): JsonObject? =
         writeLoose("POST", "/talk/conversations/${seg(ref)}/invite", buildJsonObject { put("role", role); put("company", company); if (department != null) put("department", department) })
     /** «صورت‌جلسه کن»: one `minutes` card from the conversation so far. */
@@ -1818,6 +1823,42 @@ class Api(
     /** Nothing is deleted: a hidden session leaves every list (only `state=all` shows it). */
     suspend fun hideSession(ref: String): OrderReport = post("/orders/${seg(ref)}/hide", JsonObject(emptyMap()))
     suspend fun unhideSession(ref: String): OrderReport = post("/orders/${seg(ref)}/unhide", JsonObject(emptyMap()))
+
+    // ------------------------------------------------------- ⟨1.19⟩ §37 erase --
+    // Each erase is shown first (`…/erase/preview`: nothing changes), then sealed with a fresh passkey on the ref (🔏 `session.erase`,
+    // `archive.erase`, `output.erase`) and sent with the press's own Idempotency-Key ([key], a UUID kept across a retry of one press).
+    suspend fun sessionErasePreview(ref: String): ErasePreview = get("/orders/${seg(ref)}/erase/preview")
+    suspend fun eraseSession(ref: String, key: String, stepUp: StepUp): EraseOut =
+        call(write("POST", "/orders/${seg(ref)}/erase", JsonObject(emptyMap()), stepUp(EraseKind.SESSION.action, ref), key), serializer())
+    suspend fun recordErasePreview(ref: String): ErasePreview = get("/archive/records/${seg(ref)}/erase/preview")
+    suspend fun eraseRecord(ref: String, key: String, stepUp: StepUp): EraseOut =
+        call(write("POST", "/archive/records/${seg(ref)}/erase", JsonObject(emptyMap()), stepUp(EraseKind.RECORD.action, ref), key), serializer())
+    suspend fun outputErasePreview(ref: String): ErasePreview = get("/deliverables/${seg(ref)}/erase/preview")
+    suspend fun eraseOutput(ref: String, key: String, stepUp: StepUp): EraseOut =
+        call(write("POST", "/deliverables/${seg(ref)}/erase", JsonObject(emptyMap()), stepUp(EraseKind.OUTPUT.action, ref), key), serializer())
+
+    // ---------------------------------------------------- ⟨1.20⟩ §38.3 services --
+    /** The hub's services, on or off, and the free memory (the dispatcher's latest snapshot; `memory` null until it has reported). */
+    suspend fun hubServices(): HubServices = get("/hub/services")
+    /** One optional service on or off ([turnOff] first, in the same job); [key] is the press's own UUID. → 202 [HubJob]. */
+    suspend fun setHubService(service: String, on: Boolean, key: String, turnOff: List<String> = emptyList()): HubJob =
+        call(write("POST", "/hub/services/${seg(service)}", buildJsonObject {
+            put("on", on)
+            if (turnOff.isNotEmpty()) put("turn_off", JsonArray(turnOff.map(::JsonPrimitive)))
+        }, null, key), serializer())
+    suspend fun hubJob(ref: String): HubJob = get("/hub/jobs/${seg(ref)}")
+
+    suspend fun erasePreview(kind: EraseKind, ref: String): ErasePreview = when (kind) {
+        EraseKind.SESSION -> sessionErasePreview(ref)
+        EraseKind.RECORD -> recordErasePreview(ref)
+        EraseKind.OUTPUT -> outputErasePreview(ref)
+    }
+
+    suspend fun erase(kind: EraseKind, ref: String, key: String, stepUp: StepUp): EraseOut = when (kind) {
+        EraseKind.SESSION -> eraseSession(ref, key, stepUp)
+        EraseKind.RECORD -> eraseRecord(ref, key, stepUp)
+        EraseKind.OUTPUT -> eraseOutput(ref, key, stepUp)
+    }
 
     /** §35.6 the canvas: the hub and the companies, and the links between them. */
     suspend fun links(): Canvas = get("/links")
@@ -1995,6 +2036,9 @@ class Api(
 
         /** Every status `GET /decisions` takes. */
         val DECISION_STATUSES = listOf("pending", "approved", "rejected", "returned", "expired", "withdrawn")
+
+        /** ⟨1.18⟩ §36.2 the files one talk turn takes. */
+        const val MAX_TURN_FILES = 10
 
         fun sha256(text: String): String = MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
 

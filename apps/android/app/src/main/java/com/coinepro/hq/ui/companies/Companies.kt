@@ -430,7 +430,7 @@ fun WorkScreen(id: String) {
                             w.progressNote?.let { Text(it, style = Divan.type.caption, color = c.textSecondary) }
                         }
                     }
-                    if (w.brief.isNotBlank()) HqCard(Modifier.fillMaxWidth()) { SectionTitle("شرح کار"); Md(w.brief, Modifier.padding(top = 6.dp)) }
+                    if (w.brief.isNotBlank()) HqCard(Modifier.fillMaxWidth()) { SectionTitle("شرح کار"); com.coinepro.hq.ui.Selectable { Md(w.brief, Modifier.padding(top = 6.dp)) } }
                     // ⟨1.17⟩ §34.4 the money it cost, in dollars (money is meant); no tokens, no depth, no runs.
                     HqCard(Modifier.fillMaxWidth()) {
                         SectionTitle("خرج این کار")

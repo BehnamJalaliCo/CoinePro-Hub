@@ -46,6 +46,13 @@ enum class HubFeature {
     /** ⟨1.17⟩ §35: `/sessions`, `/office`, the session routes of an order, `/links` and the canvas; without them the office is built from
      *  the older home and an order's report is its session. */
     SESSIONS,
+    /** ⟨1.18⟩ §36.2 `file_ids` on a talk turn: a hub before it refuses the field (`422`, `fields.file_ids`); then the session's
+     *  paperclip is hidden for this app start and the files stay in the composer. */
+    TALK_FILES,
+    /** ⟨1.19⟩ §37 `…/erase/preview` and `…/erase`; without them «پاک کردن برای همیشه» is hidden (an output keeps §28.1's delete). */
+    ERASE,
+    /** ⟨1.20⟩ §38.3 `/hub/services` and `/hub/jobs/{ref}`; without them the «سرویس‌ها» page says it comes with the next hub update. */
+    HUB_SERVICES,
 }
 
 /**
@@ -65,6 +72,12 @@ class HubGaps {
 /** A route this hub has not got: `405`, or a bare `404` (the framework's "Not Found", or no Problem at all). */
 val ApiException.routeMissing: Boolean
     get() = status == 405 || (status == 404 && (detail == null || detail.trim().equals("Not Found", ignoreCase = true)))
+
+/** ⟨1.18⟩ A hub before §36.2 refuses a turn's `file_ids` as an unknown field: `422 validation_failed` with `fields.file_ids` saying
+ *  "Extra inputs are not permitted". A hub of ⟨1.18⟩ refusing one file (not the owner's, unknown) says something else: that is its
+ *  own plain answer, not a missing feature. */
+val ApiException.turnFilesUnknown: Boolean
+    get() = status == 422 && fields["file_ids"]?.contains("extra", ignoreCase = true) == true
 
 /**
  * Runs a §28 call unless this hub is known not to serve [f]; a missing route marks it (once per app start), takes its entry back out of

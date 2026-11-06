@@ -111,6 +111,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             val b = if (!isJson) null else req.body?.let { rb -> Buffer().also { rb.writeTo(it) }.readUtf8() }?.takeIf { it.isNotBlank() }
                 ?.let { runCatching { Api.json.parseToJsonElement(it) as? JsonObject }.getOrNull() }
             val q = req.url.queryParameterNames.associateWith { req.url.queryParameter(it) }
+            // ⟨1.20⟩ §38.3 the hub's services and their jobs.
+            v38.handle(req.method, path, b)?.let { Thread.sleep(60); return respond(req, it) }
             // ⟨1.17⟩ §35 first: the sessions (F-01xx), their talk (CV-05xx), the office and the canvas.
             v35.handle(req.method, path, q, b)?.let { Thread.sleep(60); return respond(req, it) }
             // ⟨1.15⟩ §33 first: its order report (F-0045) and the stop of a workspace answer before §29's reports and the orders' /work.
@@ -303,7 +305,9 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     private val v32 = V32Demo()
     private val v33 = V33Demo()
     /** ⟨1.17⟩ §35: every order a session, the office and the canvas of the companies' links. */
-    private val v35 = V35Demo(store)
+    private val v35 = V35Demo(store, files)
+    /** ⟨1.20⟩ §38.3 the owner's «سرویس‌ها». */
+    private val v38 = V38Demo()
     /** ⟨1.8⟩ before [scripts]: wakes on the first look at a server, so other screens see the holding as before. */
     private val servers = ServersDemo(store)
 
@@ -322,7 +326,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
         val name = req.header("X-File-Name")?.let { java.net.URLDecoder.decode(it, "UTF-8") } ?: "voice.m4a"
         val f = File(context.cacheDir, "demo-files/${System.nanoTime()}-${name.replace(Regex("[^\\p{L}\\p{N}._-]"), "_")}").apply { parentFile?.mkdirs(); writeBytes(bytes) }
         val id = Uri.fromFile(f).toString()
-        val kind = kindOf(mime)
+        // ⟨1.18⟩ §36.1 fonts are their own kind; text and ZIP are documents, like a PDF.
+        val kind = com.coinepro.hq.core.media.sessionFileKind(name, mime)?.first?.hub ?: kindOf(mime)
         val seconds = if (kind == "audio" || kind == "video") runCatching {
             MediaMetadataRetriever().run { try { setDataSource(f.absolutePath); extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toDouble()?.div(1000) } finally { release() } }
         }.getOrNull() else null
@@ -334,6 +339,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             seconds?.let { put("duration_s", it) }
             bounds?.takeIf { it.outWidth > 0 }?.let { put("width", it.outWidth); put("height", it.outHeight) }
             transcript?.let { put("transcript", it) }
+            // The hub reads a font's family in its child process; the demo takes it from the name («titr-cover.ttf» → «Titr Cover»).
+            if (kind == "font") putJsonObject("meta") { put("family", V35Demo.familyOf(name)) }
         }
         files[id] = ref
         // ⟨1.9⟩ §27.3: an uploaded voice is transcribed on the hub a few seconds later; `file.transcribed` refreshes what shows it.

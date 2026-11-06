@@ -702,8 +702,14 @@ fun OutputScreen(ref: String) {
     val q = rememberQuery("deliverable:$ref", "deliverables") { deliverable(ref) }
     val r = refresher(q)
     var deleting by remember { mutableStateOf<Deliverable?>(null) }
+    var erasing by remember { mutableStateOf(false) }
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
-        item { Loadable(q, skeleton = { Skeleton(Modifier.fillMaxWidth().height(300.dp), radius = 16.dp) }) { d -> OutputDetail(d, onDelete = { deleting = d }) { q.set(it) } } }
+        item { Loadable(q, skeleton = { Skeleton(Modifier.fillMaxWidth().height(300.dp), radius = 16.dp) }) { d -> OutputDetail(d, onDelete = { deleting = d }, onErase = { erasing = true }) { q.set(it) } } }
+    }
+    // ⟨1.19⟩ §37.2 one output and its files, after the preview and the passkey; the work it belongs to stays.
+    if (erasing) com.coinepro.hq.ui.session.EraseSheet(com.coinepro.hq.core.net.EraseKind.OUTPUT, ref, onDismiss = { erasing = false }) {
+        erasing = false
+        nav.back()
     }
     deleting?.let { d ->
         HqSheet({ deleting = null }, "حذف ${d.ref} برای همیشه", sub = "فقط تو میتوانی؛ با اثر انگشت یا چهره") {
@@ -727,7 +733,7 @@ private fun usageOf(d: Deliverable): Pair<Long?, String?> {
 }
 
 @Composable
-private fun OutputDetail(d: Deliverable, onDelete: () -> Unit = {}, onChanged: (Deliverable) -> Unit) {
+private fun OutputDetail(d: Deliverable, onDelete: () -> Unit = {}, onErase: () -> Unit = {}, onChanged: (Deliverable) -> Unit) {
     val env = LocalEnv.current
     val nav = LocalNav.current
     val toasts = LocalToasts.current
@@ -767,7 +773,12 @@ private fun OutputDetail(d: Deliverable, onDelete: () -> Unit = {}, onChanged: (
                             menu = false
                             action.run { markSeen(env, toasts, listOf(d.ref), seenAt == null) }
                         }, leadingIcon = { DIcon(if (seenAt == null) DivanIcon.SEAL else DivanIcon.REFRESH, size = 18.dp) })
-                        if (com.coinepro.hq.core.net.HubFeature.DELETE_OUTPUTS !in gaps) androidx.compose.material3.DropdownMenuItem({ Text("حذف برای همیشه", style = Divan.type.small, color = c.negative) }, {
+                        // ⟨1.19⟩ §37.2 «پاک کردن برای همیشه» shows what goes first; a hub before it keeps §28.1's delete.
+                        if (com.coinepro.hq.core.net.HubFeature.ERASE !in gaps) androidx.compose.material3.DropdownMenuItem({ Text("پاک کردن برای همیشه", style = Divan.type.small, color = c.negative) }, {
+                            menu = false
+                            onErase()
+                        }, leadingIcon = { DIcon(DivanIcon.REJECT, size = 18.dp, tint = c.negative) })
+                        else if (com.coinepro.hq.core.net.HubFeature.DELETE_OUTPUTS !in gaps) androidx.compose.material3.DropdownMenuItem({ Text("حذف برای همیشه", style = Divan.type.small, color = c.negative) }, {
                             menu = false
                             onDelete()
                         }, leadingIcon = { DIcon(DivanIcon.DISMISS, size = 18.dp, tint = c.negative) })
@@ -815,9 +826,9 @@ private fun OutputDetail(d: Deliverable, onDelete: () -> Unit = {}, onChanged: (
         }
         HqCard(Modifier.fillMaxWidth(), color = c.softGold) {
             Text("خلاصه", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
-            Md(d.summary, Modifier.padding(top = 4.dp), color = c.textPrimary)
+            com.coinepro.hq.ui.Selectable { Md(d.summary, Modifier.padding(top = 4.dp), color = c.textPrimary) }
         }
-        if (!d.body.isNullOrBlank()) Md(d.body)
+        if (!d.body.isNullOrBlank()) com.coinepro.hq.ui.Selectable { Md(d.body) }
         val model = (d.producedWith["label_fa"] as? JsonPrimitive)?.contentOrNull ?: (d.producedWith["model"] as? JsonPrimitive)?.contentOrNull
         val (used, cost) = usageOf(d)
         if (model != null || used != null) {

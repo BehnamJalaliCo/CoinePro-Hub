@@ -46,6 +46,8 @@ val DECISION_KIND = mapOf(
     "archive_disposal" to Kind("امحای سندهای بایگانی", DivanIcon.REPORT),
     // ⟨1.8⟩ §26.3: a destructive command on a company's server, held for the owner's seal.
     "server_destructive" to Kind("کار ویرانگر روی سرور", DivanIcon.URGENT),
+    // ⟨1.19⟩ §37.3: an agent proposes erasing a session, an archive record or an output; the owner's seal erases it for good.
+    "erase" to Kind("پاک کردن", DivanIcon.REJECT),
 )
 
 fun decisionKind(k: String) = DECISION_KIND[k] ?: Kind(k, DivanIcon.DECISION)

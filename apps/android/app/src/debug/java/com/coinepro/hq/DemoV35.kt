@@ -19,8 +19,11 @@ import kotlinx.serialization.json.contentOrNull
  *   one present and then the holder's sum-up; while a turn is open the owner's words are the order's reply.
  * - **The office:** the open sessions, the first pending cards of the cartable, the month's money, two suggestions on any subject, and
  *   the canvas: the hub, TradeYar, CoinePro FX (placed by the owner) and Pro-Chart, with two links on and one off.
+ * - ⟨1.18⟩ §36 **files in a session:** F-0101's second turn of the owner came with the covers' title font, a sample cover and the reels'
+ *   brief (its «فایل‌ها»); a turn with `file_ids` takes the owner's uploads ([uploads]), the holder says he has them, and they join the
+ *   order's files, newest first.
  */
-internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonElement>>) {
+internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonElement>>, private val uploads: Map<String, JsonObject> = emptyMap()) {
     private val now = HqClock.now()
     private fun at(minAgo: Long): String = now.minus(minAgo, ChronoUnit.MINUTES).toString()
 
@@ -30,6 +33,8 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         var turn: JsonObject?, val brief: Triple<String, String, String>, val opened: Long, var last: Long,
         var closedAt: String? = null, var hidden: Boolean = false, val blockers: List<JsonObject> = emptyList(), val outputs: List<JsonObject> = emptyList(),
         var steps: MutableList<JsonObject> = mutableListOf(),
+        /** ⟨1.18⟩ the owner's files in the session, newest first. */
+        val files: MutableList<JsonObject> = mutableListOf(),
     ) {
         val cv: String get() = "CV-05" + ref.takeLast(2)
     }
@@ -38,6 +43,17 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
     private fun task(id: String, n: Int, title: String, state: String, by: String = "agent", who: String? = null) =
         jo("id" to id, "n" to n, "title_fa" to title, "state" to state, "by" to by, "who_fa" to who, "work_ref" to null)
     private fun step(min: Long, who: String, what: String) = jo("at" to at(min), "who_fa" to who, "what_fa" to what)
+
+    // ⟨1.18⟩ §36 the files of F-0101: the covers' title font (its family read by the hub), a sample cover, the reels' brief.
+    private fun file(id: String, name: String, mime: String, size: Long, kind: String, w: Int? = null, h: Int? = null, family: String? = null) = jo(
+        "id" to id, "name" to name, "mime" to mime, "size" to size, "sha256" to "demo", "kind" to kind, "status" to "ready", "variants" to jo(),
+        "width" to w, "height" to h, "meta" to family?.let { jo("family" to it) },
+    )
+    private val tyFiles = listOf(
+        file("/demo/fonts/titr-cover.ttf", "titr-cover.ttf", "font/ttf", 186_420, "font", family = "Titr Cover"),
+        file("/demo/ty-story-stoploss-poster.webp", "نمونه‌ی کاور.webp", "image/webp", 11_962, "image", 360, 640),
+        file("/demo/docs/reels-brief.pdf", "بریف ریلزها.pdf", "application/pdf", 248_310, "document"),
+    )
 
     private val sessions = mutableListOf(
         S(
@@ -58,7 +74,12 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
             jo("question_fa" to "سه ریلز و دو پست آماده است؛ اول ریلزها منتشر شود یا پست‌ها؟", "at" to at(6), "by" to jo("code" to "TY-CEO", "kind" to "employee", "display_fa" to "مدیرعامل تریدیار"), "who_fa" to "مدیرعامل تریدیار"),
             Triple("برنامه نوشته شد و سه ریلز ساخته شد.", "دو پست کانال در حال نوشتن است.", "بگو اول ریلزها منتشر شود یا پست‌ها."),
             opened = 190, last = 6,
-            steps = mutableListOf(step(188, "مدیرعامل تریدیار", "فرمان را گرفت و برنامه‌ی هفته را نوشت."), step(95, "مدیر رسانه", "سه ریلز آموزشی ساخته شد."), step(6, "مدیرعامل تریدیار", "سؤال از شما: اول ریلزها یا پست‌ها؟")),
+            steps = mutableListOf(
+                step(188, "مدیرعامل تریدیار", "فرمان را گرفت و برنامه‌ی هفته را نوشت."),
+                *tyFiles.map { step(120, "مدیر کل", "فایل از مدیر کل: ${it.str("name")}") }.toTypedArray(),
+                step(95, "مدیر رسانه", "سه ریلز آموزشی ساخته شد."), step(6, "مدیرعامل تریدیار", "سؤال از شما: اول ریلزها یا پست‌ها؟"),
+            ),
+            files = tyFiles.toMutableList(),
         ),
         S(
             "F-0102", "یک گزارش مالی سه‌ماهه برای همه‌ی شرکت‌ها آماده کن.", "ready", "گزارش آماده است و منتظر تأیید توست.", "auto",
@@ -107,10 +128,10 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
     )
 
     // ------------------------------------------------------------- the talk --
-    private fun turn(cv: String, n: Int, by: String, text: String, min: Long, cards: List<JsonObject> = emptyList()) = jo(
+    private fun turn(cv: String, n: Int, by: String, text: String, min: Long, cards: List<JsonObject> = emptyList(), files: List<JsonObject> = emptyList()) = jo(
         "id" to "T-${cv.removePrefix("CV-")}-$n", "conversation" to cv, "n" to n, "by" to by, "source" to "typed",
         "text" to (if (by == "owner") text else ""), "show_md" to (if (by == "owner") null else text), "say_fa" to null,
-        "cards" to JsonArray(cards), "audio" to JsonArray(emptyList()), "state" to "done", "at" to at(min),
+        "cards" to JsonArray(cards), "audio" to JsonArray(emptyList()), "state" to "done", "at" to at(min), "files" to JsonArray(files),
     )
 
     private val hireCard = jo(
@@ -125,9 +146,9 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
     private val turnsBy: MutableMap<String, MutableList<JsonObject>> = mutableMapOf(
         "CV-0501" to mutableListOf(
             turn("CV-0501", 1, "ceo@TY", "سلام. فرمان هفته‌ی آموزش طلا را گرفتم. **برنامه:** سه ریلز، دو پست و یک مقاله. چون گفتی مرحله به مرحله، هر قدم را با تو جلو میبرم.", 188),
-            turn("CV-0501", 2, "owner", "خوب است. ریلزها را بساز و نظر جی‌پی‌تی را هم درباره‌ی متن‌ها بپرس.", 120),
+            turn("CV-0501", 2, "owner", "خوب است. ریلزها را بساز و نظر جی‌پی‌تی را هم درباره‌ی متن‌ها بپرس. تیتر کاورها با این فونت باشد؛ نمونه‌ی کاور و بریف هم پیوست است.", 120, files = tyFiles),
             turn("CV-0501", 3, "player:gpt", "متن ریلزها روشن است؛ پیشنهاد میکنم در ریلز دوم یک مثال عددی از پیوت هفته‌ی قبل بیاید.", 110, listOf(lineCard)),
-            turn("CV-0501", 4, "ceo@TY", "سه ریلز آماده شد و دو پست را به مدیر رسانه سپردم. **سؤال:** اول ریلزها منتشر شود یا پست‌ها؟", 6),
+            turn("CV-0501", 4, "ceo@TY", "سه ریلز آماده شد و تیتر کاورها با فونتی که دادی نوشته شد؛ دو پست را به مدیر رسانه سپردم. **سؤال:** اول ریلزها منتشر شود یا پست‌ها؟", 6),
         ),
         "CV-0502" to mutableListOf(
             turn("CV-0502", 1, "advisor", "سلام. گزارش مالی سه‌ماهه را مینویسم؛ عددها از دفتر هر شرکت میآید.", 1490),
@@ -173,8 +194,24 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         "steps" to JsonArray(s.steps), "blockers" to JsonArray(s.blockers), "outputs" to JsonArray(s.outputs), "summary" to null, "updated_at" to at(s.last),
         "pace" to s.pace, "conversation_ref" to s.cv, "turn" to s.turn,
         "session" to jo("state" to (if (s.closedAt != null) "closed" else "open"), "badge" to s.badge, "reason_fa" to s.reason, "closed_at" to s.closedAt, "hidden" to s.hidden),
-        "brief" to brief(s), "tasks" to JsonArray(s.tasks), "participants" to JsonArray(s.participants),
+        "brief" to brief(s), "tasks" to JsonArray(s.tasks), "participants" to JsonArray(s.participants), "files" to JsonArray(s.files),
     )
+
+    /** ⟨1.19⟩ the sessions erased for good. */
+    private val erased = mutableSetOf<String>()
+
+    private fun eraseCounts(s: S) = jo(
+        "turns" to (turnsBy[s.cv]?.size ?: 0), "files" to s.files.size, "outputs" to s.outputs.size,
+        "works" to maxOf(1, s.tasks.size), "notifications" to s.steps.size.coerceAtMost(3),
+    )
+
+    /** The holder's word on the owner's files: a font is named by its family. */
+    private fun filesHeard(sent: List<JsonObject>): String {
+        val family = sent.firstOrNull { it.str("kind") == "font" }?.let { (it["meta"] as? JsonObject)?.str("family") }
+        val n = sent.size.toString().map { if (it in '0'..'9') '۰' + (it - '0') else it }.joinToString("")
+        return if (family != null) "فونت «$family» را گرفتم؛ تیتر کاورها با همین نوشته میشود. فایل‌ها کنار این فرمان ماند و هر کار آن را میبیند."
+        else "$n فایل را گرفتم و کنار این فرمان گذاشتم؛ هر کار این فرمان آن‌ها را میبیند."
+    }
 
     private fun conv(s: S) = jo(
         "ref" to s.cv, "title_fa" to s.text.take(60), "persona" to s.holder.first, "present" to JsonArray(s.participants.map { JsonPrimitive(it.str("key")) }),
@@ -240,7 +277,14 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
             if (m.groupValues[2].isEmpty()) return if (method == "GET") 200 to JsonObject(conv(s) + ("turns_page" to jo("items" to JsonArray(ts), "next_cursor" to null))) else null
             if (method != "POST") return null
             val text = body?.str("text").orEmpty().trim()
-            ts.add(turn(s.cv, ts.size + 1, "owner", text, 0))
+            // ⟨1.18⟩ §36.2 the owner's own uploads (at most 10); an id the demo never took is a 422, as on the hub.
+            val ids = (body?.get("file_ids") as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
+            if (ids.size > 10) return 422 to problem(422, "validation_failed", "در هر پیام حداکثر ۱۰ فایل میرود.")
+            val sent = ids.map { id -> uploads[id] ?: return 422 to problem(422, "validation_failed", "این فایل پیدا نشد؛ دوباره بفرستش.") }
+            ts.add(turn(s.cv, ts.size + 1, "owner", text, 0, files = sent))
+            // §36.3 the files belong to the order: a step each, and the newest first among its files.
+            for (f in sent) s.steps.add(step(0, "مدیر کل", "فایل از مدیر کل: ${f.str("name")}"))
+            s.files.addAll(0, sent.reversed())
             val to = body?.str("to")
             val speakers = when (to) {
                 null -> listOf(s.holder.first)
@@ -250,13 +294,20 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
             var last: JsonObject? = null
             for (who in speakers) {
                 val sum = to == "all" && who == s.holder.first
-                last = turn(s.cv, ts.size + 1, who, if (sum) "جمع‌بندی: همه موافق‌اند که اول ریلزها منتشر شود و پست‌ها فردا." else "شنیدم؛ در نسخه‌ی نمایشی جواب واقعی ساخته نمیشود.", 0)
+                val said = when {
+                    sum -> "جمع‌بندی: همه موافق‌اند که اول ریلزها منتشر شود و پست‌ها فردا."
+                    sent.isNotEmpty() -> filesHeard(sent)
+                    else -> "شنیدم؛ در نسخه‌ی نمایشی جواب واقعی ساخته نمیشود."
+                }
+                last = turn(s.cv, ts.size + 1, who, said, 0)
                 ts.add(last)
             }
             s.last = 0
             return 202 to jo("turn" to (last ?: ts.last()), "events" to null)
         }
         val m = Regex("^/orders/(F-0\\d{3})(/[a-z]+)?(/[^/]+)?$").find(path) ?: return null
+        // ⟨1.19⟩ §37.1 an erased session answers 404 everywhere, as on the hub.
+        if (m.groupValues[1] in erased) return 404 to problem(404, "not_found", "این جلسه پاک شده است.")
         val s = sessions.firstOrNull { it.ref == m.groupValues[1] } ?: return null
         val action = m.groupValues[2].removePrefix("/")
         val sub = m.groupValues[3].removePrefix("/").ifBlank { null }
@@ -307,6 +358,20 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
                 return 200 to report(s)
             }
             action == "reopen" && method == "POST" -> { s.closedAt = null; s.badge = "moving"; s.reason = "دوباره باز شد؛ ${s.holder.second} خبر دارد."; return 200 to report(s) }
+            // ⟨1.19⟩ §37.1 what erasing takes and what stays (nothing changes), then the erase itself.
+            action == "erase" && sub == "preview" && method == "GET" -> return 200 to jo(
+                "ref" to s.ref, "kind" to "session", "title_fa" to s.text.take(80), "counts" to eraseCounts(s),
+                "keeps_fa" to JsonArray(listOf(
+                    JsonPrimitive("خط تولید یا کارگروهی که این جلسه راه انداخت میماند؛ آن را در صفحه‌ی خودش پاک کن."),
+                    JsonPrimitive("یک خط در دفتر حسابرسی، بی متن فرمان."),
+                    JsonPrimitive("عددهای توکن و پول، که خزانه هنوز باید جمعشان را داشته باشد."),
+                )),
+            )
+            action == "erase" && sub == null && method == "POST" -> {
+                val counts = eraseCounts(s)
+                sessions.remove(s); turnsBy.remove(s.cv); erased += s.ref
+                return 200 to jo("ref" to s.ref, "erased" to counts)
+            }
             action == "hide" && method == "POST" -> { s.hidden = true; return 200 to report(s) }
             action == "unhide" && method == "POST" -> { s.hidden = false; return 200 to report(s) }
         }
@@ -314,6 +379,12 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
     }
 
     // ------------------------------------------------------------- helpers --
+    companion object {
+        /** A font's family as the demo reads it: its file name without the extension, words capitalised («titr-cover.ttf» → «Titr Cover»). */
+        fun familyOf(name: String): String =
+            name.substringBeforeLast('.').split('-', '_', ' ').filter { it.isNotBlank() }.joinToString(" ") { w -> w.replaceFirstChar { it.uppercase() } }.ifBlank { name }
+    }
+
     private fun JsonObject.str(k: String): String? = (this[k] as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull
     private fun jo(vararg kv: Pair<String, Any?>): JsonObject = JsonObject(kv.associate { (k, v) ->
         k to when (v) {

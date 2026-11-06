@@ -64,6 +64,7 @@ fun SettingsScreen(graph: AppGraph) {
     val act = activity()
     val ctx = LocalContext.current
     val c = Divan.colors
+    val servicesOn = com.coinepro.hq.ui.v29.served(com.coinepro.hq.core.net.HubFeature.HUB_SERVICES)
     val devices = rememberQuery("devices", "devices") { devices() }
     val presence = rememberQuery("presence", "presence") { presence() }
     val owner = rememberQuery("owner-settings", "settings") { ownerSettings() }
@@ -145,6 +146,19 @@ fun SettingsScreen(graph: AppGraph) {
         }
         // The background link: alerts with the app closed (no push service), its state, the permission and the battery.
         item { BackgroundLinkCard(graph) }
+        // ⟨1.20⟩ §38.3 the hub's services: each optional one on or off, and the free memory.
+        if (servicesOn) item {
+            HqCard(Modifier.fillMaxWidth(), onClick = { nav.go("services") }, onClickLabel = "سرویس‌ها") {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    DIcon(DivanIcon.SERVER, size = 22.dp, tint = c.goldInk)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("سرویس‌های هاب", style = Divan.type.bodyStrong)
+                        Text("ساخت ویدیو، صدا، خبرنامه، خودکارسازی و بقیه؛ روشن و خاموش، با حافظه‌ی آزاد سرور", style = Divan.type.caption, color = c.textSecondary)
+                    }
+                    DIcon(DivanIcon.NEXT, size = 16.dp, tint = c.textMuted)
+                }
+            }
+        }
         item {
             HqCard(Modifier.fillMaxWidth()) {
                 SectionTitle("تنظیمات کار", note = "از سرور")

@@ -489,6 +489,8 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     composable("runs") { com.coinepro.hq.ui.owner.RunsScreen() }
                     composable("sites") { com.coinepro.hq.ui.owner.SitesScreen() }
                     composable("settings") { SettingsScreen(graph) }
+                    // ⟨1.20⟩ §38.3 the hub's services, on or off, and the free memory.
+                    composable("services") { com.coinepro.hq.ui.services.ServicesScreen() }
                     // ⟨1.8⟩ §26 the companies' servers
                     composable("servers") { com.coinepro.hq.ui.servers.ServersScreen() }
                     composable("servers/{id}") { com.coinepro.hq.ui.servers.ServerScreen(it.arguments?.getString("id").orEmpty()) }

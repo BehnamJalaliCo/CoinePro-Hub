@@ -61,7 +61,10 @@ import com.coinepro.hq.core.data.taskProgress
 import com.coinepro.hq.core.data.tickedState
 import com.coinepro.hq.core.format.ago
 import com.coinepro.hq.core.format.jDateTime
+import com.coinepro.hq.core.media.FilePolicy
+import com.coinepro.hq.core.net.Api
 import com.coinepro.hq.core.net.ApiException
+import com.coinepro.hq.core.net.FileRef
 import com.coinepro.hq.core.net.HubFeature
 import com.coinepro.hq.core.net.OrderReport
 import com.coinepro.hq.core.net.SessionParticipant
@@ -88,6 +91,10 @@ import com.coinepro.hq.ui.LocalEnv
 import com.coinepro.hq.ui.LocalNav
 import com.coinepro.hq.ui.LocalToasts
 import com.coinepro.hq.ui.activity
+import com.coinepro.hq.ui.media.FileThumbs
+import com.coinepro.hq.ui.media.MessageMedia
+import com.coinepro.hq.ui.media.rememberAttachments
+import com.coinepro.hq.ui.media.rememberPickers
 import com.coinepro.hq.ui.rememberAction
 import com.coinepro.hq.ui.v29.BlockerRow
 import com.coinepro.hq.ui.v29.OutputsCard
@@ -100,6 +107,7 @@ import com.coinepro.hq.ui.v32.Phase
 import com.coinepro.hq.ui.v32.TalkBubble
 import com.coinepro.hq.ui.v32.TalkComposer
 import com.coinepro.hq.ui.v32.TalkSession
+import com.coinepro.hq.ui.v32.faCount
 import com.coinepro.hq.ui.v32.rememberHandsFree
 import java.util.UUID
 import kotlinx.coroutines.launch
@@ -111,7 +119,7 @@ import kotlinx.serialization.json.JsonObject
 // place inline. «تأیید و بستن» closes and archives it, after offering a working group or a production line that keeps going; from the
 // archive it opens again. Nothing technical and no ref is shown: the ref is the key only.
 
-private enum class SessionSheet { NONE, PERSON, MODEL, CLOSE, LINE, KEY, PARTICIPANT }
+private enum class SessionSheet { NONE, PERSON, MODEL, CLOSE, LINE, KEY, PARTICIPANT, ERASE }
 
 @Composable
 fun OrderSessionScreen(ref: String) {
@@ -127,6 +135,10 @@ fun OrderSessionScreen(ref: String) {
     val sessionsOn = served(HubFeature.SESSIONS)
     val talk = remember(env, ref) { TalkSession(env, scope, toasts) }
     DisposableEffect(talk) { onDispose { talk.release() } }
+    // ⟨1.18⟩ §36 files in the session: picked by the paperclip, uploaded at once, sent with the owner's next turn.
+    val filesOn = served(HubFeature.TALK_FILES)
+    val attach = rememberAttachments(max = Api.MAX_TURN_FILES, policy = FilePolicy.SESSION, key = ref)
+    val pick = rememberPickers(attach)
 
     // The order's talk (§34.2): the report names it; a hub of ⟨1.16⟩ makes it once on POST /orders/{ref}/talk.
     var cv by rememberSaveable(ref) { mutableStateOf<String?>(null) }
@@ -221,7 +233,7 @@ fun OrderSessionScreen(ref: String) {
                                 if (o.session?.hidden != true) nav.back() else q.refresh()
                             } catch (e: ApiException) { toasts.error(e.messageFa) }
                         }
-                    }) }
+                    }, onErase = { sheet = SessionSheet.ERASE }) }
                     item(key = "people") {
                         PeopleBar(participants, open = !closed && sessionsOn, addressee = talk.addressee,
                             onPick = { p -> if (p.kind == "holder") talk.addressee = null else { picked = p; sheet = SessionSheet.PARTICIPANT } },
@@ -245,6 +257,7 @@ fun OrderSessionScreen(ref: String) {
                     }
                     if (o.tasks.isNotEmpty() || (sessionsOn && !closed)) item(key = "tasks") { TasksCard(ref, o.tasks, editable = sessionsOn && !closed) { q.refresh() } }
                     if (o.outputs.isNotEmpty()) item(key = "outputs") { OutputsCard(o) }
+                    if (o.files.any { it.id.isNotBlank() }) item(key = "files") { FilesCard(o.files.filter { it.id.isNotBlank() }) }
                     item(key = "talk-title") {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
                             DIcon(DivanIcon.MESSAGES, size = 16.dp, tint = c.textMuted)
@@ -282,7 +295,12 @@ fun OrderSessionScreen(ref: String) {
             HorizontalDivider(color = c.lineDivider)
             if (turnOpen) Text(plain("جوابت به «${o.turn?.whoFa?.ifBlank { null } ?: addresseeFa(null, participants)}» میرود"), style = Divan.type.micro, color = c.goldInk, modifier = Modifier.padding(horizontal = 4.dp))
             else if (cv != null && participants.size > 1) AddresseeRow(participants, talk.addressee) { talk.addressee = it }
-            TalkComposer(talk, hf, onKey = { k -> caught = k; sheet = SessionSheet.KEY })
+            // The paperclip once the session's talk is open (files go with a turn of it) and the hub takes them.
+            TalkComposer(
+                talk, hf, onKey = { k -> caught = k; sheet = SessionSheet.KEY },
+                files = attach.takeIf { cv != null && filesOn }, pick = pick,
+                onFilesSent = { scope.launch { q.refresh(); env.cache.invalidate("sessions", "office") } },
+            )
         }
     }
 
@@ -332,6 +350,11 @@ fun OrderSessionScreen(ref: String) {
                 com.coinepro.hq.ui.v30.TemplateGallery(co) { sheet = SessionSheet.NONE; toasts.ok("خط تولید ساخته شد؛ حالا میتوانی جلسه را ببندی."); env.cache.invalidate("lines") }
             }
         }
+        // ⟨1.19⟩ §37.1 erased for good: the session, its talk, files, outputs and works; then back to where he came from.
+        SessionSheet.ERASE -> EraseSheet(com.coinepro.hq.core.net.EraseKind.SESSION, ref, onDismiss = { sheet = SessionSheet.NONE }) {
+            sheet = SessionSheet.NONE
+            nav.back()
+        }
         SessionSheet.KEY -> com.coinepro.hq.ui.v32.TalkSheet(onDismiss = { sheet = SessionSheet.NONE; caught = "" }) {
             com.coinepro.hq.ui.v32.KeyBody({ sheet = SessionSheet.NONE; caught = "" }, initial = caught)
         }
@@ -363,11 +386,12 @@ internal fun sessionFaces(known: List<TalkPersona>, participants: List<SessionPa
 
 // ------------------------------------------------------------------ head --
 @Composable
-private fun SessionHead(o: OrderReport, closed: Boolean, sessionsOn: Boolean, onHide: () -> Unit) {
+private fun SessionHead(o: OrderReport, closed: Boolean, sessionsOn: Boolean, onHide: () -> Unit, onErase: () -> Unit) {
     val c = Divan.colors
     val badge = sessionBadge(o)
     val brief = briefOf(o)
     var menu by remember { mutableStateOf(false) }
+    val eraseOn = served(HubFeature.ERASE)
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("جلسه‌ی فرمان", style = Divan.type.caption, color = c.textMuted, modifier = Modifier.weight(1f))
@@ -380,10 +404,16 @@ private fun SessionHead(o: OrderReport, closed: Boolean, sessionsOn: Boolean, on
                         leadingIcon = { DIcon(DivanIcon.FILTER, size = 20.dp, tint = c.textSecondary) },
                         onClick = { menu = false; onHide() },
                     )
+                    // ⟨1.19⟩ §37.1 open or closed, hidden or not: for good, after the preview and the passkey.
+                    if (eraseOn) DropdownMenuItem(
+                        text = { Text("پاک کردن برای همیشه", style = Divan.type.body, color = c.negative) },
+                        leadingIcon = { DIcon(DivanIcon.REJECT, size = 20.dp, tint = c.negative) },
+                        onClick = { menu = false; onErase() },
+                    )
                 }
             }
         }
-        Para(o.textFa, style = Divan.type.h3, color = c.textPrimary, maxLines = 6)
+        com.coinepro.hq.ui.Selectable { Para(o.textFa, style = Divan.type.h3, color = c.textPrimary, maxLines = 6) }
         val reason = o.session?.reasonFa.orEmpty()
         if (reason.isNotBlank() && o.turn == null) Text(plain(reason), style = Divan.type.small, color = if (badge == "stuck") c.negative else c.textSecondary)
         Text(
@@ -401,15 +431,17 @@ private fun SessionHead(o: OrderReport, closed: Boolean, sessionsOn: Boolean, on
                     Text("نوبت تو", style = Divan.type.bodyStrong, color = c.goldInk, modifier = Modifier.weight(1f))
                     if (t.at.isNotBlank()) Text(ago(t.at), style = Divan.type.micro, color = c.textMuted)
                 }
-                Text(plain(t.questionFa), style = Divan.type.body, color = c.textPrimary)
+                com.coinepro.hq.ui.Selectable { Text(plain(t.questionFa), style = Divan.type.body, color = c.textPrimary) }
                 Text(plain("${t.whoFa.ifBlank { "مسئول" }} میپرسد؛ پایین جواب بده، بنویس یا بگو."), style = Divan.type.micro, color = c.textSecondary)
             }
         }
         HqCard(Modifier.fillMaxWidth(), padding = PaddingValues(14.dp)) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                BriefLine("چه شد", brief.doneFa.ifBlank { "هنوز قدمی برداشته نشده." }, c.positive)
-                BriefLine("حالا چه", brief.nowFa.ifBlank { "مسئول برنامه را مینویسد." }, c.lapis)
-                BriefLine("از تو چه", brief.needFa.ifBlank { "فعلاً چیزی لازم نیست." }, c.goldInk)
+            com.coinepro.hq.ui.Selectable {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    BriefLine("چه شد", brief.doneFa.ifBlank { "هنوز قدمی برداشته نشده." }, c.positive)
+                    BriefLine("حالا چه", brief.nowFa.ifBlank { "مسئول برنامه را مینویسد." }, c.lapis)
+                    BriefLine("از تو چه", brief.needFa.ifBlank { "فعلاً چیزی لازم نیست." }, c.goldInk)
+                }
             }
         }
     }
@@ -577,6 +609,21 @@ private fun TasksCard(ref: String, tasks: List<SessionTask>, editable: Boolean, 
     }
 }
 
+// ----------------------------------------------------------------- files --
+/** ⟨1.18⟩ §36.3 the files the owner sent in this session, newest first: they belong to the order, and every work of it sees them.
+ *  Pictures as thumbnails (a tap opens them), every other file a row with its kind and size that opens or saves it. */
+@Composable
+private fun FilesCard(files: List<FileRef>) {
+    HqCard(Modifier.fillMaxWidth()) {
+        SectionTitle("فایل‌ها", note = "${faCount(files.size)} فایل از تو؛ هر کار این فرمان آن‌ها را میبیند", icon = DivanIcon.ATTACH)
+        val (images, rest) = files.partition { it.kind == "image" }
+        Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            FileThumbs(images)
+            MessageMedia(rest, labelled = true)
+        }
+    }
+}
+
 // ------------------------------------------------------------------- end --
 @Composable
 private fun EndBlock(o: OrderReport, closed: Boolean, sessionsOn: Boolean, onClose: () -> Unit, onReopen: () -> Unit) {
@@ -606,8 +653,10 @@ private fun CloseSheet(o: OrderReport, company: String?, onDismiss: () -> Unit, 
     val ok = rememberAction()
     val cancel = rememberAction()
     var note by rememberSaveable { mutableStateOf("") }
-    // One key per press, kept across a retry of the same press.
+    // One key per press, kept across a retry of the same press. The hub takes only a UUID as an Idempotency-Key (0.15.0: a key made from
+    // the close's, «…-cancel», was a 422), so «لغو» has its own.
     val key = remember { UUID.randomUUID().toString() }
+    val cancelKey = remember { UUID.randomUUID().toString() }
     com.coinepro.hq.ui.v14.HqSheet(onDismiss, "تأیید و بستن", sub = "جلسه بسته و بایگانی میشود؛ هر وقت خواستی از بایگانی دوباره بازش میکنی.") {
         Text("پیش از بستن، چیزی بماند؟", style = Divan.type.bodyStrong, color = c.textPrimary)
         Text("کارگروه یا خط تولید بعد از بستن هم کار را ادامه میدهد؛ بقیه‌ی کارهای باز این جلسه بسته میشوند.", style = Divan.type.caption, color = c.textMuted)
@@ -626,7 +675,7 @@ private fun CloseSheet(o: OrderReport, company: String?, onDismiss: () -> Unit, 
         }, Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.SEAL, loading = ok.busy)
         HqButton("لغو این فرمان", {
             cancel.run {
-                val out = env.api.closeSession(o.ref, "cancel", note.trim(), "$key-cancel")
+                val out = env.api.closeSession(o.ref, "cancel", note.trim(), cancelKey)
                 toasts.info("لغو و بایگانی شد.")
                 onClosed(out)
             }
