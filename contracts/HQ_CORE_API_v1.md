@@ -3853,6 +3853,8 @@ SessionTask { id, n, title_fa, state: "todo"|"doing"|"done"|"dropped", by: "owne
   automations, rules); the session closed and archived (its talk read-only). `cancel` — the same, `cancelled`.
 - `POST /orders/{ref}/reopen` → `OrderReport`: `ended_at` cleared, the session open, the holder woken.
 - `POST /orders/{ref}/hide` · `POST /orders/{ref}/unhide` → `OrderReport` (nothing is deleted; a hidden session leaves every list).
+- `POST /orders/{ref}/pace {pace: "auto"|"step"}` → `OrderReport`: the owner switches «با من / خودکار» at any time; a step
+  «از این به بعد …» and the holder woken with the new instruction.
 - Existing: `GET /orders/{ref}/report`, `POST /orders/{ref}/reply`, `POST /orders/{ref}/talk`, `POST /orders/{ref}/fix`.
 
 ### 35.4 Talking in a session
