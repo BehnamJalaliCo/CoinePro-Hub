@@ -12,6 +12,7 @@ import { Icon } from '@/components/icon';
 import { AttachmentTray, MessageMedia, RICH_ACCEPT, useAttachments } from '@/components/media/attachments';
 import { Waveform } from '@/components/media/composer';
 import { Button, IconButton } from '@/components/ui/button';
+import { CopyButton } from '@/components/ui/copy-button';
 import { Md } from '@/components/ui/md';
 import { Card, Empty, Pill, Skeleton, Switch } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
@@ -63,19 +64,23 @@ export function Bubble({ children, own }: { children: React.ReactNode; own?: boo
 export const FILE_WORD = 'فایل';
 export function OwnerBubble({ text, files }: { text: string; files?: MediaRef[] }) {
   const has = !!files?.length;
+  const body = useRef<HTMLSpanElement | null>(null);
+  const showText = !(has && text === FILE_WORD);
   return (
-    <div className="flex justify-start" data-by="owner">
+    <div className="flex flex-col items-start gap-0.5" data-by="owner">
       <Bubble own>
         <div className="flex flex-col gap-2">
           {has ? <div aria-label="فایل‌های فرستاده‌شده"><MessageMedia items={files!} /></div> : null}
-          {has && text === FILE_WORD ? null : <span dir="auto" className="whitespace-pre-wrap"><FaText text={text} /></span>}
+          {showText ? <span ref={body} dir="auto" className="whitespace-pre-wrap"><FaText text={text} /></span> : null}
         </div>
       </Bubble>
+      {showText ? <CopyButton target={body} /> : null}
     </div>
   );
 }
 
 export function TurnView({ t, persona, title }: { t: Turn; persona: Persona | null; title?: string }) {
+  const bodyRef = useRef<HTMLDivElement | null>(null);
   if (t.by === 'owner') return <OwnerBubble text={t.text} files={t.files} />;
   const body = t.show_md ?? t.say_fa ?? t.text;
   return (
@@ -83,7 +88,7 @@ export function TurnView({ t, persona, title }: { t: Turn; persona: Persona | nu
       <Face k={t.by.includes('@') && !t.by.startsWith('player:') ? 'manager' : t.by} size={32} />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <span className="text-[11px] font-semibold text-muted">{title ?? persona?.title_fa ?? (t.by.startsWith('player:') ? playerName(t.by) : personaFa(t.by))}</span>
-        {body ? <Bubble><Md text={body} /></Bubble> : null}
+        {body ? <><Bubble><div ref={bodyRef}><Md text={body} /></div></Bubble><CopyButton target={bodyRef} /></> : null}
         {t.state === 'stopped' ? <span className="text-[12px] text-muted">قطع شد.</span> : null}
         {t.state === 'failed' ? <p className="rounded-[10px] bg-warn-soft px-3 py-2 text-[13px] leading-6"><FaText text={t.reason_fa ?? 'جواب کامل نشد؛ دوباره بپرس.'} /></p> : null}
         {t.cards.map((cd) => <TalkCardView key={cd.id} card={cd} />)}

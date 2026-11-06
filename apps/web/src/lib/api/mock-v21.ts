@@ -27,6 +27,7 @@ import { handle31 } from './mock-v31';
 import { handle32 } from './mock-v32';
 import { handle33 } from './mock-v33';
 import { handle34 } from './mock-v34';
+import { handle38 } from './mock-v38';
 
 const json = (body: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const problem = (status: number, code: string, message_fa: string) => json({ code, message_fa, status, title: code, type: 'about:blank' }, status);
@@ -522,6 +523,8 @@ export async function handle(req: Request): Promise<Response> {
       return v33 ?? handleBelow(r);
     };
     // ⟨1.17⟩ §34–§35 the order as a session, the owner's office and the canvas (./mock-v34); it reads the rest through [below].
+    const v38 = await handle38(req, path);
+    if (v38) return v38;
     const v34 = await handle34(req, path, u.searchParams, below);
     if (v34) return v34;
     return below(req);
@@ -680,6 +683,21 @@ async function handle21(req: Request): Promise<Response> {
       (!producer || d.producer.code === producer) && (!work || d.work_ref === work || d.work_id === work) &&
       (!from || dayOf(d.created_at) >= from) && (!to || dayOf(d.created_at) <= to) &&
       (!text || d.ref === text || d.title.includes(text) || d.summary.includes(text)))));
+  }
+  // ⟨1.19⟩ §37.2 one output erased for good (sealed); the work it belongs to stays.
+  const er = /^\/deliverables\/(O-\d+)\/erase(\/preview)?$/.exec(p);
+  if (er) {
+    const r = er[1]!;
+    const d = deleted.has(r) ? null : (await allOutputs(req)).find((x) => x.ref === r) ?? (orderOutputs.has(r) ? outView(orderOutputs.get(r)) : null);
+    if (!d) return problem(404, 'not_found', 'این خروجی پیدا نشد.');
+    const counts = { files: d.attachments?.length ?? 0 };
+    if (er[2] && m === 'GET') return json({ ref: r, kind: 'output', title_fa: d.title, counts, keeps_fa: ['کاری که این خروجی از آن آمده می‌ماند؛ گامش می‌گوید «خروجی پاک شد».'] });
+    if (!er[2] && m === 'POST') {
+      if (!stepUp) return problem(403, 'step_up_required', 'پاک کردن برای همیشه تأیید با اثر انگشت یا چهره میخواهد.');
+      deleted.add(r); delete seen[r];
+      row(d.company, 'output.erase', 'deliverable', r, OWNER, nowIso(), `erased: ${r}`, true);
+      return json({ ref: r, erased: counts });
+    }
   }
   if (p === '/deliverables/seen' && m === 'POST') {
     const b = await body<{ refs: string[]; seen: boolean }>();

@@ -88,7 +88,7 @@ export function useSessionActions(ref: string) {
       },
       onSettled: settle,
     }),
-    close: useMutation({ mutationFn: (v: { verdict: 'ok' | 'cancel'; note?: string }) => call<SessionReport>('POST', `/orders/${enc(ref)}/close`, v.note ? v : { verdict: v.verdict }), onSettled: settle }),
+    close: useMutation({ mutationFn: (v: { verdict: 'ok' | 'cancel'; note?: string }) => call<SessionReport>('POST', `/orders/${enc(ref)}/close`, v.note ? v : { verdict: v.verdict }, { 'Idempotency-Key': crypto.randomUUID() }), onSettled: settle }),
     reopen: useMutation({ mutationFn: () => call<SessionReport>('POST', `/orders/${enc(ref)}/reopen`, {}), onSettled: settle }),
     hide: useMutation({ mutationFn: () => call<SessionReport>('POST', `/orders/${enc(ref)}/hide`, {}), onSettled: settle }),
     unhide: useMutation({ mutationFn: () => call<SessionReport>('POST', `/orders/${enc(ref)}/unhide`, {}), onSettled: settle }),

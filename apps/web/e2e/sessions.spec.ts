@@ -294,6 +294,56 @@ test('files in a session: a font and a picture are attached, sent, seen in the t
   });
 });
 
+// ⟨1.19⟩ Contract §37: erasing for good — a preview first, then the passkey and the erase; the session is gone from every list.
+test('erase a closed session from the archive: preview, passkey, gone', async ({ page }) => {
+  await clean(page, async () => {
+    await page.goto('/s');
+    await page.getByRole('button', { name: /^بایگانی/ }).click();
+    await expect(page.getByText('گزارش هزینه‌ی تبلیغات اکتبر')).toBeVisible();
+    await page.getByRole('button', { name: 'پاک کردن' }).first().click();
+    const dlg = page.getByRole('dialog', { name: 'پاک کردن برای همیشه' });
+    await expect(dlg.getByLabel('پیش‌نمایش پاک کردن')).toContainText('گزارش هزینه‌ی تبلیغات اکتبر');
+    await expect(dlg.getByText('آنچه میماند')).toBeVisible();
+    await dlg.getByRole('button', { name: /پاکش کن/ }).click();
+    await expect(page.getByText('پاک شد.')).toBeVisible();
+    await expect(page.getByText('گزارش هزینه‌ی تبلیغات اکتبر')).toHaveCount(0);
+  });
+});
+
+test('erase an open session from its page, and an output from its detail', async ({ page }) => {
+  await clean(page, async () => {
+    await page.goto('/s/F-0006');
+    await page.getByRole('button', { name: 'پاک کردن برای همیشه' }).click();
+    await page.getByRole('dialog', { name: 'پاک کردن برای همیشه' }).getByRole('button', { name: /پاکش کن/ }).click();
+    await expect(page).toHaveURL(/\/s$/);
+    await expect(page.getByText('یک مقاله‌ی سئو برای FX')).toHaveCount(0);
+    await page.goto('/outputs?ref=O-000040&tab=all');
+    await page.getByRole('button', { name: 'پاک کردن برای همیشه' }).click();
+    const dlg = page.getByRole('dialog', { name: 'پاک کردن برای همیشه' });
+    await expect(dlg.getByLabel('پیش‌نمایش پاک کردن')).toBeVisible();
+    await dlg.getByRole('button', { name: /پاکش کن/ }).click();
+    await expect(page.getByText('پاک شد.')).toBeVisible();
+  });
+});
+
+test('every turn has a «کپی» that copies its text; cancelling an order works with its own UUID idempotency key', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await clean(page, async () => {
+    await page.goto('/s/F-0006');
+    const talk = page.getByLabel('گفتگو', { exact: true });
+    const turn = talk.locator('[data-by]').filter({ hasText: 'مقاله نوشته و در وبلاگ منتشر شد' }).first();
+    await turn.getByRole('button', { name: 'کپی متن' }).click();
+    await expect(turn.getByText('کپی شد')).toBeVisible();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('مقاله نوشته و در وبلاگ منتشر شد');
+    await page.getByRole('button', { name: 'تأیید و بستن' }).click();
+    const dlg = page.getByRole('dialog', { name: 'تأیید و بستن جلسه' });
+    await dlg.getByRole('button', { name: 'لغو فرمان' }).click();
+    await dlg.getByRole('button', { name: 'بله، لغو کن' }).click();
+    // The demo hub refuses a close whose Idempotency-Key is not a UUID (422), as the real one does.
+    await expect(page.getByText('این جلسه بسته شده و فقط خواندنی است')).toBeVisible();
+  });
+});
+
 test('@phone the office and a session fit a phone', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/');

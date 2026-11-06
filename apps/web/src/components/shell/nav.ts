@@ -95,6 +95,7 @@ export const NAV_TECH: NavItem[] = [
   { href: '/servers', label: 'همه‌ی سرورها', icon: 'server' },
   { href: '/network', label: 'شبکه‌ی هلدینگ', icon: 'globe' },
   { href: '/server-policy', label: 'قوانین سرورها', icon: 'seal' },
+  { href: '/services', label: 'سرویس‌ها', icon: 'server' },
   { href: '/control', label: 'کنترل', icon: 'lock' },
   { href: '/audit', label: 'دفتر Audit', icon: 'report' },
   { href: '/notifications', label: 'اعلان‌ها', icon: 'bell' },

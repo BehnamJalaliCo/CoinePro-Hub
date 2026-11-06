@@ -35,6 +35,8 @@ export const DECISION_KIND: Record<string, { fa: string; icon: IconName }> = {
   // ⟨1.7⟩ §23.11
   archive_schema: { fa: 'تغییر طرح بایگانی', icon: 'settings' },
   archive_disposal: { fa: 'امحای سندهای بایگانی', icon: 'report' },
+  // ⟨1.19⟩ §37.3 an agent proposes; the owner seals
+  erase: { fa: 'پاک کردن برای همیشه', icon: 'reject' },
   // ⟨1.8⟩ §26.3
   server_destructive: { fa: 'کار ویرانگر روی سرور', icon: 'urgent' },
 };

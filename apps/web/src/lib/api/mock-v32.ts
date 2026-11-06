@@ -315,3 +315,12 @@ export const conversationSay = (ref: string, by: string, md: string) => { const 
 
 /** ⟨1.18⟩ Every file of the owner's turns in a conversation, newest first (§36.3). */
 export const conversationFiles = (ref: string): unknown[] => [...(turnsOf[ref] ?? [])].reverse().filter((t) => t.by === 'owner').flatMap((t) => [...(t.files ?? [])].reverse());
+
+/** ⟨1.19⟩ §37.1 What an erased talk takes with it, and the erasing itself (the turns, their files; the conversation leaves every list). */
+export const conversationCounts = (ref: string) => ({ turns: (turnsOf[ref] ?? []).length, files: conversationFiles(ref).length });
+export function conversationDrop(ref: string) {
+  const i = convs.findIndex((x) => x.ref === ref);
+  if (i >= 0) convs.splice(i, 1);
+  for (const t of turnsOf[ref] ?? []) turnById.delete(t.id);
+  delete turnsOf[ref];
+}

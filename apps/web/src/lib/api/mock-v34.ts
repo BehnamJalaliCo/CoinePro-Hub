@@ -5,7 +5,7 @@
 // the owner's words, never at random, so the end-to-end checks can follow them. Kept in memory. Never bundled in production (reached only
 // through ./mock-v21 when NEXT_PUBLIC_HQ_MOCK=1).
 
-import { conversationFiles, conversationClosed, conversationSay, presentAdd, presentDrop, sessionConversation } from './mock-v32';
+import { conversationCounts, conversationDrop, conversationFiles, conversationClosed, conversationSay, presentAdd, presentDrop, sessionConversation } from './mock-v32';
 
 const json = (body: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const problem = (status: number, code: string, message_fa: string) => json({ code, message_fa, status, title: code, type: 'about:blank' }, status);
@@ -20,6 +20,8 @@ type S = {
   holder: { code: string; title_fa: string; company: string; company_fa: string } | null; persona: string; text_fa: string; last_at: string; state?: string;
 };
 const sessions = new Map<string, S>();
+/** ⟨1.19⟩ Orders erased for good: they answer 404 and never come back from the fixtures. */
+const erased = new Set<string>();
 let taskSeq = 0;
 
 const holderP = (title_fa: string, company: string | null, key: string): Participant => ({ key, kind: 'holder', title_fa, company });
@@ -274,6 +276,7 @@ export async function handle34(req: Request, p: string, q: URLSearchParams, next
   if (!o) return null;
   const s = sessions.get(o[1]!);
   const act = o[2];
+  if (erased.has(o[1]!)) return problem(404, 'not_found', 'این فرمان پیدا نشد.');
   if (!s) {
     // An order of §29's fixtures that has no session yet gets one when it is first read (every order is a session).
     if (act === 'report' && m === 'GET') {
@@ -349,6 +352,8 @@ export async function handle34(req: Request, p: string, q: URLSearchParams, next
   if (act === 'close' && m === 'POST') {
     const b = await body<any>();
     if (b.verdict !== 'ok' && b.verdict !== 'cancel') return problem(422, 'validation_failed', 'یا تأیید کن یا لغو.');
+    // ⟨1.19⟩ §37.4 a close carries its own Idempotency-Key, a UUID (the Android 0.15.0 cancel sent another shape and got 422).
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(req.headers.get('Idempotency-Key') ?? '')) return problem(422, 'validation_failed', 'کلید یکتا باید UUID باشد.');
     s.closed_at = NOW(); s.verdict = b.verdict; s.turn = null; touch();
     conversationClosed(s.conv, s.closed_at);
     return json(await sync(s));
@@ -362,6 +367,25 @@ export async function handle34(req: Request, p: string, q: URLSearchParams, next
     if (b.pace !== 'auto' && b.pace !== 'step') return problem(422, 'validation_failed', 'روش کار یا «با من» است یا «خودکار».');
     s.pace = b.pace; touch();
     return json(await sync(s));
+  }
+  // ⟨1.19⟩ §37.1 erasing for good: the preview changes nothing; the erase is sealed (step-up), open or closed, and the session answers 404 after.
+  if (act === 'erase') {
+    const c = conversationCounts(s.conv);
+    const counts = { turns: c.turns, files: c.files, outputs: 0, works: s.tasks.length ? 1 : 0, notifications: 0 };
+    if (o[3] === 'preview' && m === 'GET') {
+      return json({
+        ref: s.ref, kind: 'session', title_fa: s.text_fa, counts,
+        keeps_fa: ['یک خط در دفتر ممیزی می‌ماند.', 'عددهای توکن و پول می‌مانند تا حساب خزانه بخواند.'],
+      });
+    }
+    if (!o[3] && m === 'POST') {
+      if (!req.headers.get('X-Step-Up')) return problem(403, 'step_up_required', 'پاک کردن برای همیشه تأیید با اثر انگشت یا چهره میخواهد.');
+      if (!req.headers.get('Idempotency-Key')) return problem(422, 'validation_failed', 'کلید یکتا لازم است.');
+      conversationDrop(s.conv);
+      sessions.delete(s.ref);
+      erased.add(s.ref);
+      return json({ ref: s.ref, erased: counts });
+    }
   }
   if ((act === 'hide' || act === 'unhide') && m === 'POST') {
     s.hidden = act === 'hide'; touch();

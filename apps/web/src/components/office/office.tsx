@@ -169,7 +169,7 @@ export function MoneyLine({ money }: { money: OfficeMoney }) {
   const pct = money.budget_month_usd ? Math.min(100, Math.round((money.spend_month_usd / money.budget_month_usd) * 100)) : null;
   return (
     <Card as="section" className="flex flex-col gap-2 p-4" aria-label="پول">
-      <SectionTitle title="پول" action={<Link href="/revenue" className="text-[12px] font-semibold text-gold-ink hover:underline">درآمد</Link>} />
+      <SectionTitle title="پول" action={<span className="flex items-center gap-3"><Link href="/services" className="text-[12px] font-semibold text-gold-ink hover:underline">سرویس‌های هاب</Link><Link href="/revenue" className="text-[12px] font-semibold text-gold-ink hover:underline">درآمد</Link></span>} />
       <p className="text-[14px] leading-7"><PlainText text={money.line_fa} /></p>
       {pct != null ? <div className="h-1.5 overflow-hidden rounded-full bg-tile" role="img" aria-label={`${pct}٪ از سقف ماه`}><div className={cx('h-full rounded-full', pct >= 90 ? 'bg-neg' : pct >= 70 ? 'bg-warn' : 'bg-pos')} style={{ width: `${pct}%` }} /></div> : null}
     </Card>

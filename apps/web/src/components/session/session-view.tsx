@@ -14,6 +14,7 @@ import { Sheet } from '@/components/ui/overlay';
 import { Card, Empty, ErrorState, FilterChip, PageHeader, Pill, SectionTitle, Segmented, Skeleton } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
 import { BlockerRow, KitCard, OrderReportView, RouteLine, Steps } from '@/components/v29/report';
+import { EraseButton } from '@/components/erase/erase-button';
 import { MessageMedia } from '@/components/media/attachments';
 import { CompanyMark } from '@/components/brand/marks';
 import { SplitParts, WorkspaceCard } from '@/components/v33/parallel';
@@ -88,12 +89,14 @@ function Session({ refId, r }: { refId: string; r: Full }) {
         actions={closed ? (
           <>
             <Button variant="primary" icon="refresh" loading={act.reopen.isPending} onClick={() => act.reopen.mutate(undefined, { onError: (e) => failed(e, 'باز نشد.') })}>دوباره باز کن</Button>
+            <EraseButton kind="session" refId={refId} variant="ghost" size="md" onGone={() => router.push('/s')} />
             <Button variant="text" onClick={() => (r.session.hidden ? act.unhide : act.hide).mutate(undefined, { onError: (e) => failed(e, 'انجام نشد.') })}>{r.session.hidden ? 'برگردان به فهرست' : 'از فهرست بردار'}</Button>
           </>
         ) : (
           <>
             <Button variant="primary" icon="seal" onClick={() => setClosing(true)}>تأیید و بستن</Button>
             <IconButton icon="dismiss" label="از فهرست بردار" onClick={hide} />
+            <EraseButton kind="session" refId={refId} variant="ghost" size="md" onGone={() => router.push('/s')} />
           </>
         )}
       >

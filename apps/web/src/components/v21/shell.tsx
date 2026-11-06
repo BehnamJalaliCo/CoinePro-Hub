@@ -148,6 +148,7 @@ export const GROUPS: Group[] = [
   { key: 'system', title: 'فنی', note: 'سرورها، دیده‌بان، کلیدهای توقف و ردّ هر اقدام', tools: [
     { href: '/runs', label: 'اجرای ایجنت‌ها', icon: 'agent', hint: 'هر ایجنت الان چه میکند، قدم‌به‌قدم' },
     { href: '/tools', label: 'ابزارها و اینترنت', icon: 'globe', hint: 'ایجنت‌ها به کجا وصل میشوند و چه میفرستند' },
+    { href: '/services', label: 'سرویس‌ها', icon: 'server', hint: 'خاموش و روشن کردن سرویس‌های هاب، با حافظه‌ی آزاد' },
     { href: '/control', label: 'کنترل', icon: 'lock', hint: 'توقف و ادامه‌ی شرکت‌ها و انتشارها' },
     // ⟨1.11⟩ technical: each company's own part lives under «شرکت ← فنی»; these are the holding-wide views.
     { href: '/watch', label: 'دیده‌بان', icon: 'scope', hint: 'امنیت، سلامت اپ، کد، رشد و پیشنهاد هلدینگ، با اصلاح پیشنهادی' },

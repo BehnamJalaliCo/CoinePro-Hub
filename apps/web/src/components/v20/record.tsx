@@ -2,9 +2,11 @@
 
 import { safeHref } from '@/lib/format';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
 import { Icon } from '@/components/icon';
 import { Seal } from '@/components/brand/seal';
+import { EraseButton } from '@/components/erase/erase-button';
 import { SealButton } from '@/components/cartable/seal-button';
 import { Button } from '@/components/ui/button';
 import { Md } from '@/components/ui/md';
@@ -528,6 +530,7 @@ function AccessPanel({ r }: { r: ArchiveRecord }) {
 
 // ------------------------------------------------------------------ the page --
 export function RecordView({ refId }: { refId: string }) {
+  const router = useRouter();
   const q = useRecord(refId);
   const m = useArchive();
   const r = q.data;
@@ -549,7 +552,7 @@ export function RecordView({ refId }: { refId: string }) {
       <PageHeader
         eyebrow={<span className="flex flex-wrap items-center gap-x-2 gap-y-1"><span className="fig">{r.ref}</span><ClassTag cls={r.class} /><ScopeTag scope={r.scope} /></span>}
         title={r.title_fa}
-        actions={<Link href="/archive" className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-strong px-4 text-[13px] font-semibold text-ink hover:bg-hover"><Icon name="back" size={18} mirror />بایگانی</Link>}>
+        actions={<><EraseButton kind="archive" refId={r.ref} variant="ghost" size="md" onGone={() => router.push('/archive')} /><Link href="/archive" className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-strong px-4 text-[13px] font-semibold text-ink hover:bg-hover"><Icon name="back" size={18} mirror />بایگانی</Link></>}>
         <div className="flex flex-wrap items-center gap-2">
           <StatePill state={r.state} />
           <LevelPill level={r.level} />

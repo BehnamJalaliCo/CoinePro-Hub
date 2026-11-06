@@ -13,6 +13,7 @@ import { Card, Empty, ErrorState, FilterChip, PageHeader, Pill, Rating, Segmente
 import { useToast } from '@/components/ui/toast';
 import { RefChip, ScopeChips } from '@/components/v17/bits';
 import { RANGES, UndoBar, dayFa, inputCls, ownerDay, span, type Undo } from '@/components/v21/bits';
+import { EraseButton } from '@/components/erase/erase-button';
 import { DeleteDialog, DeleteOne, RowCheck, SelectAll, SelectionBar, useCleanup, useSelection } from '@/components/v28/outputs';
 import { ApiError } from '@/lib/api/client';
 import { handled } from '@/lib/api/observe';
@@ -118,6 +119,7 @@ function Detail({ refId, onSeen, onGone }: { refId: string; onSeen: (refs: strin
         {d.filed_as ? <RefChip r={d.filed_as} note="در بایگانی" /> : <Button variant="secondary" size="sm" icon="deliverable" loading={act.file.isPending} onClick={file}>بایگانی کن</Button>}
         <span className="flex-1" />
         <DeleteOne refId={d.ref} filed={!!d.filed_as} onGone={onGone} />
+        <EraseButton kind="output" refId={d.ref} variant="ghost" onGone={onGone} />
       </div>
       <div className="flex items-center gap-3 rounded-[14px] bg-tile/60 p-3">
         <Link href={`/employees/${d.producer.code}`} className="flex min-w-0 flex-1 items-center gap-3 rounded-[10px] hover:text-gold-ink">

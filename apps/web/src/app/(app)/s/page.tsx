@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useVoiceOrder } from '@/components/work/voice-order';
+import { EraseButton } from '@/components/erase/erase-button';
 import { SessionRow } from '@/components/session/session-row';
 import { Button } from '@/components/ui/button';
 import { Card, Empty, ErrorState, FilterChip, PageHeader, Skeleton } from '@/components/ui/primitives';
@@ -28,7 +29,12 @@ export default function SessionsPage() {
         : q.error ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         : q.data === null ? <><Card><Empty icon="messages" title="جلسه‌ها بعد از به‌روزرسانی ستاد میآیند" body="تا آن موقع فرمان‌هایت همین‌جا با جواب‌شان دیده میشود." /></Card><OrderReportsCard /></>
         : !list.length ? <Card><Empty icon="messages" title={tab === 'open' ? 'جلسه‌ی بازی نیست' : tab === 'closed' ? 'هنوز جلسه‌ای بایگانی نشده' : 'جلسه‌ای از فهرست برداشته نشده'} body={tab === 'open' ? 'یک فرمان بده تا جلسه‌اش باز شود.' : undefined} action={tab === 'open' ? <Button icon="command" onClick={() => voice()}>فرمان تازه</Button> : undefined} /></Card>
-        : <Card className="flex flex-col p-2"><ul className="flex flex-col divide-y divide-[var(--hq-divider,transparent)]">{list.map((s) => <li key={s.ref}><SessionRow s={s} /></li>)}</ul></Card>}
+        : <Card className="flex flex-col p-2"><ul className="flex flex-col divide-y divide-[var(--hq-divider,transparent)]">{list.map((s) => (
+          <li key={s.ref} className="flex items-center gap-2">
+            <SessionRow s={s} className="min-w-0 flex-1" />
+            {s.closed_at ? <EraseButton kind="session" refId={s.ref} variant="ghost" label="پاک کردن" onGone={() => void q.refetch()} /> : null}
+          </li>
+        ))}</ul></Card>}
     </>
   );
 }

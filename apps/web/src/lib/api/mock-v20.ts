@@ -898,6 +898,23 @@ export async function handle20(req: Request, p: string, u: URL): Promise<Respons
     if (fs instanceof Response) return fs;
     return json({ files: fs.map(fileOut), suggestion: suggest(fs) });
   }
+  // ⟨1.19⟩ §37.2 the archive's own disposal run now: preview, then a sealed erase that leaves only a tombstone; a hold answers 409.
+  const er = /^\/archive\/records\/([^/]+)\/erase(\/preview)?$/.exec(p);
+  if (er) {
+    const r = recordOf(decodeURIComponent(er[1]!));
+    if (!r || r.state === 'disposed') return problem(404, 'not_found', 'این سند پیدا نشد.');
+    const files = r.versions.reduce((n: number, v: any) => n + v.files.length, 0);
+    if (er[2] && m === 'GET') return json({ ref: r.ref, kind: 'archive_record', title_fa: r.title_fa, counts: { files, versions: r.versions.length }, keeps_fa: ['یک سنگ‌نشان با شناسه و تاریخ می‌ماند: «به دستور مدیر کل».'] });
+    if (!er[2] && m === 'POST') {
+      if (holdsOf(r).length) return problem(409, 'conflict', 'این سند توقیف است و تا رفع توقیف پاک نمیشود.');
+      const deny = needsStepUp(req);
+      if (deny) return deny;
+      if (!req.headers.get('Idempotency-Key')) return problem(400, 'validation_failed', 'Idempotency-Key لازم است.');
+      for (const v of r.versions) for (const id of v.files) { const f = store.get(id); if (f) f.destroyed = true; }
+      Object.assign(r, { state: 'disposed', version: r.version + 1, tombstone: { decision: null, at: stamp(), hashes: [] } });
+      return json({ ref: r.ref, erased: { files, versions: r.versions.length } });
+    }
+  }
   if (p === '/archive/records' && m === 'POST') {
     const k = req.headers.get('Idempotency-Key');
     if (!k) return problem(400, 'validation_failed', 'Idempotency-Key لازم است.');

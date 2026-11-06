@@ -65,7 +65,7 @@ export function localFix(f: Fix, company?: string | null): LocalFix | null {
 /** A fix that the hub may want sealed: tried as it is, then once more behind the passkey when the hub answers `step_up_required`. */
 /** The hub's own step-up name and target for a fix that is sealed (the fix's action is not always the seal's). */
 const STEP_UP_OF: Record<string, [string, string]> = { 'hiring.open': ['hiring.start', 'holding'] };
-async function withStepUp<T>(action: string, target: string, run: (headers?: Record<string, string>) => Promise<T>): Promise<T> {
+export async function withStepUp<T>(action: string, target: string, run: (headers?: Record<string, string>) => Promise<T>): Promise<T> {
   try { return await run(); } catch (e) {
     if (!(e instanceof ApiError && e.status === 403 && e.code === 'step_up_required')) throw e;
     handled(e);
