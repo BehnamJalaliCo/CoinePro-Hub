@@ -15,6 +15,8 @@
 >
 > **v1.14 (۲۰۲۶-۱۱-۰۴):** «گفتگو» (§۳۲، پرامپت ۲۳): گفتگوی صوتی و متنی مالک با منشی هلدینگ، ناظر کل، دستیار شخصی و هر مدیر هر شرکت؛ هر کدام با صدای خودش، حالت مشورت یا جلسه‌ی کاری، کارت به‌جای کار خودسر، کلید صدا در خود چت با چراغ وضعیت، و کنتور زنده‌ی هزینه با سقف مالک.
 >
+> **v1.18 (۲۰۲۶-۱۱-۰۶):** فایل در جلسه (§۳۶، پرامپت ۲۶): فونت و سند در بارگذاری، فایل در هر نوبت گفتگو، و فایل‌های جلسه برای همه‌ی کارهای همان فرمان.
+>
 > **v1.17 (۲۰۲۶-۱۱-۰۶):** هر فرمان یک جلسه (§۳۵، پرامپت ۲۵): جلسه‌ی همیشه‌صاحب‌دار با حاضران و بازیکن‌ها، فهرست کارها، کارها در همان‌جا، بستن و بایگانی و باز کردن دوباره؛ دفتر مدیر کل؛ پیوند شرکت‌ها و بوم.
 >
 > **v1.16 (۲۰۲۶-۱۱-۰۶):** فرمان با جواب زنده (§۳۴، پرامپت ۲۵): ابزار گزارش و پرسش برای مسئول هر فرمان، «نوبت شما» و پاسخ مالک روی همان کار، گفتگوی زنده‌ی هر فرمان با مسئولش، و هیچ موضوع فنی برای مالک.
@@ -3903,3 +3905,24 @@ CompanyLink { id, from, to, kind: "serves"|"publishes"|"feeds"|"sells"|"supports
   `player:…`, card kinds `delegate|budget|group|line`, `talk.conversations.closed_at`, `work.wake_assignee` honours the locks),
   `0053` (`core.company_links`, `owner.canvas_nodes`, `owner.settings.links_enforced`).
 - OPA: `sessions.rego` (owner routes), `links` in `internal.rego` (`work_create_ok` with `linked`), tests 100%.
+
+## 36. Files in a session ⟨1.18⟩ (2026-11-06, prompt 26)
+The owner, 2026-11-06: «میخوام اینجا فایل بفرستم برای سشن نمیتونم» — e.g. a font for the title of Pro-Chart's covers («تایتل بذاره
+با فونتی که ما میدیم»).
+
+### 36.1 Upload
+- `POST /files` (§17.1) also accepts **fonts** (TrueType, OpenType, WOFF, WOFF2, by their first bytes → `kind: "font"`, ≤ 20 MB) and
+  plain text / Markdown and ZIP archives (`kind: "document"`, ≤ 50 MB; a ZIP is stored, never unpacked by the hub). `FileRef.kind`
+  gains `font` and `document`; a font's `FileRef.meta.family` is its family name (read in the untrusted child process).
+
+### 36.2 A turn with files
+- `POST /talk/conversations/{ref}/turns` adds `file_ids?: [uuid]` (≤ 10; the owner's own uploads). `TalkTurn.files: [FileRef]` on the
+  owner's turn. The persona's model sees each file: an image as an image (when the brain takes images; else its description), a PDF's
+  or a text's first pages as text, a font's family, a video's poster and transcript, an audio's transcript.
+
+### 36.3 Files go with the order
+- In a session (a talk bound to an order): every file of the owner's turns belongs to the order: a step «فایل از مدیر کل: <name>»,
+  `OrderReport.files: [FileRef]` (newest first), and every run of the order's works sees them (`order.files` in its brief) and may read
+  them with `files.read` (whatever its company). A font of the order is used by the creative overlay and the media studio when the work
+  names it (`overlay.font_file_id`, `media.item` style `font_file_id`); IRANYekanX stays the default.
+- Data: migration `0054` (`talk.turns.files`, the order's files, the file kinds).
