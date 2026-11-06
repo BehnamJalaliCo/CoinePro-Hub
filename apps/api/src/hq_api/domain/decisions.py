@@ -191,6 +191,8 @@ EFFECT_KINDS = (
     "email_send",  # ⟨1.6⟩ its one send, by the worker (legal.deliver), after the locks
 )
 FOLLOW_UP_KINDS = ("deploy", "a3_action", "proposal", "errand_action", "meeting_resolution")
+# who makes the work item of a technical card's handler (HANDLER_CARD_KINDS)
+CARDS = Principal(kind="service", code="cards", role="service")
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
 EMP = r"^[A-Z][A-Z0-9]{1,9}-[A-Z0-9]+(-[A-Z0-9]+)?$"
 
@@ -803,8 +805,8 @@ class Decision(BaseModel):
 
 
 # ⟨21⟩ §29.1 / §29.15: the card kinds an agent approver decides with `card.decide`
-# (a hire card keeps its own `hire.decide`).
-AGENT_CARD_KINDS = ("server_destructive", "line_publish")
+# (a hire card keeps its own `hire.decide`); ⟨2026-11-06⟩ a deploy card too.
+AGENT_CARD_KINDS = ("server_destructive", "line_publish", *routing.HANDLER_CARD_KINDS)
 
 
 DECISION_SQL = """
@@ -1195,6 +1197,10 @@ async def propose(
                  AND status = 'active' ORDER BY hired_at LIMIT 1""",
             co=company_id,
         )
+    if approver is None and who.is_agent:
+        # ⟨2026-11-06⟩ the owner's rule «موارد فنی را به من ارجاع ندهید»: a
+        # technical card is its company's technical handler's (never its proposer's)
+        approver = await routing.card_approver(tx, company_id, body.kind, who.code)
     # ⟨21⟩ §29.1: the card's domain; the owner sees it when the owner decides it
     domain = routing.decision_domain(body.kind)
     row = await tx.one(
@@ -1291,6 +1297,25 @@ async def propose(
             ),
             kind="one_off",
             priority="P1",
+            assignee_code=approver,
+        )
+        await oversight.hold_if_watching(tx, d)
+        return d
+    if approver and body.kind in routing.HANDLER_CARD_KINDS:
+        await W.create(
+            tx,
+            CARDS,
+            company_id=company_id,
+            company_code=company_code,
+            title=f"تصمیم درباره‌ی {d['ref']}: {d['title']}"[:300],
+            brief=(
+                f"کارت {d['ref']} ({body.kind}، پیشنهاد {who.code}) با تو است، نه با مدیر کل. "
+                "شرح، Diff و نتیجه‌ی آزمون‌ها در کارت است. با card.decide (approve / reject / "
+                "return) و یک یادداشت تصمیم بگیر: آیا آزموده شده، راه برگشت دارد و زمانش درست "
+                "است؟ تا تصمیم تو، کاری انجام نمیشود."
+            ),
+            kind="one_off",
+            priority="P2",
             assignee_code=approver,
         )
         await oversight.hold_if_watching(tx, d)
@@ -1501,7 +1526,7 @@ async def decide(
         await tx.exec(
             """UPDATE work.work SET status = 'cancelled', close_reason = :r, closed_at = now()
                WHERE starts_with(title, :t) AND created_by_kind = 'service'
-                 AND created_by_code IN ('servers', 'lines')
+                 AND created_by_code IN ('servers', 'lines', 'cards')
                  AND status IN ('queued', 'in_progress', 'waiting')""",
             t=f"تصمیم درباره‌ی {d['ref']}:",
             r=f"{d['ref']}: مالک خودش تصمیم گرفت",

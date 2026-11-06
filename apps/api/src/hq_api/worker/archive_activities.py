@@ -145,11 +145,12 @@ async def ocr_queue(hub: Any, txf: Any) -> dict[str, Any]:
                     company_code=h["code"],
                     level="report",
                     title_fa=f"بایگانی {f['ref']}: در متن یک فایل الگوی رمز پیدا شد",
-                    body_fa="این فایل دیگر نمایش داده و جستجو نمیشود؛ امحای آن با تصمیم مدیر کل است.",
+                    body_fa="این فایل دیگر نمایش داده و جستجو نمیشود؛ امحای آن در کارت امحای هفتگی است.",
                     link_kind="archive_record",
                     link_ref=f["ref"],
                     source_kind="service",
                     source_code="archive",
+                    domain="security",  # kept out of sight already: not critical (2026-11-06)
                 )
                 out["quarantined"] += 1
             else:

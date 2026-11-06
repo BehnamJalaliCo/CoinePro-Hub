@@ -12,10 +12,14 @@ Numbers by code, words by a model:
   the answer: plain Persian, and every figure of the text is one of the pack's
   (a text with a made-up figure is never kept). When the model cannot answer, a
   short text is written by code (`words: "code"`), so a report always exists.
-- A report is stored as UR-0001 ...; the daily one is made at 07:55 (Tehran) and
-  its first three lines reach the morning summary; the weekly one (Saturday 09:00)
-  is posted in the advisor's thread `A` with the pack under «جزئیات». The talk
-  reads the latest stored text aloud: no new model call.
+- A report is stored as UR-0001 ...; the daily one is made at 07:55 (Tehran), the
+  weekly one (Saturday 09:00) goes to the holding's head of AI operations as a
+  notice with the pack under «جزئیات». The talk reads the latest stored text
+  aloud: no new model call.
+- The owner's rule of 2026-11-06: a scheduled report (daily, weekly) makes no
+  model call (its words are code's, `fallback_text`); only the owner's own
+  request does. The owner's morning gets none of it but, when a company is over
+  its money budget this month, one plain line in dollars (`morning_lines`).
 """
 
 from __future__ import annotations
@@ -52,7 +56,7 @@ PERIODS = ("day", "week")
 SPAN_DAYS = {"day": 1, "week": 7}
 TOP_RUNS = 5
 LINES_MIN, LINES_MAX = 3, 8
-MORNING_LINES = 3
+MORNING_LINES = 1  # the owner's morning: a company over its money budget, at most
 # a domain that is the largest share must never be the technical ones (prompt 20 finding 6)
 TECH_DOMAINS = ("catalogue", "oversight", "server")
 SPIKE_RATIO = 2.0  # tokens at least this many times the period before
@@ -508,8 +512,9 @@ async def make(
     ask: Ask | None = None,
     who: Principal = SERVICE,
 ) -> dict[str, Any]:
-    """The pack by code, the words by one model call, the report stored. A scheduled
-    report exists once per period (a second tick finds it)."""
+    """The pack by code, the words by one model call (the owner's request only: a
+    scheduled report's words are code's), the report stored. A scheduled report
+    exists once per period (a second tick finds it)."""
     now = now or datetime.now(UTC)
     holding = await hub.companies.holding()
     async with hub.db.tx(await hub.companies.ids()) as tx:
@@ -525,7 +530,10 @@ async def make(
                 found: dict[str, Any] = have
                 return found
         pack = await build_pack(tx, period, tz, now)
-    text, words = await write_words(hub, holding.code, pack, ask)  # the slow part, outside a tx
+    if made_by == "schedule":  # a report nobody asked for: no model call
+        text, words = fallback_text(pack), "code"
+    else:
+        text, words = await write_words(hub, holding.code, pack, ask)  # slow: outside a tx
     async with hub.db.tx(await hub.companies.ids()) as tx:
         row = await tx.first(
             """INSERT INTO sales.usage_reports (company_id, period, from_at, to_at, pack, text, words,
@@ -559,12 +567,12 @@ async def make(
             summary=f"{period} report, words by {words}",
         )
         if made_by == "schedule" and period == "week":
-            ref = await post_weekly(tx, row)
-            if ref is not None:
+            sent = await post_weekly(tx, row, holding)
+            if sent is not None:
                 row = await tx.one(
                     """UPDATE sales.usage_reports SET delivered = delivered || CAST(:d AS jsonb)
                        WHERE id = :id RETURNING *""",
-                    d=json.dumps({"thread": ref}),
+                    d=json.dumps(sent),
                     id=row["id"],
                 )
         await events.emit(tx, holding.code, "usage.report", row["ref"], {"period": period})
@@ -605,34 +613,51 @@ def message_md(text: UsageText, pack: UsagePack, ref: str) -> str:
     return "\n".join(body) + "\n" + details_md(pack) + f"\n\n({ref})"
 
 
-async def post_weekly(tx: Tx, row: dict[str, Any]) -> str | None:
-    """The weekly report as a message of the advisor's thread `A`; None without
-    that thread."""
-    from hq_api.domain import decisions as D
+async def post_weekly(tx: Tx, row: dict[str, Any], holding: Any) -> dict[str, str] | None:
+    """The weekly report as a notice for the holding's head of AI operations
+    (infra: never the owner's thread, the owner's rule of 2026-11-06); None
+    without a text. Returns what `delivered` records."""
+    from hq_api.domain import notify, routing
 
     rep = render(row)
     if rep.text is None:
         return None
-    return await D.post_system_message(
-        tx, "A", message_md(rep.text, rep.pack, row["ref"]), {"usage_report": row["ref"]}
+    to = await routing.aiops_head(tx)
+    n = await notify.raise_notification(
+        tx,
+        company_id=holding.id,
+        company_code=holding.code,
+        level="report",
+        title_fa="گزارش مصرف هفته",
+        body_fa=message_md(rep.text, rep.pack, row["ref"])[:4000],
+        link_kind="usage_report",
+        link_ref=row["ref"],
+        source_kind="service",
+        source_code=SERVICE.code,
+        domain="infra",
+        routed_to=to,
     )
+    return {"notice": str(n["id"]), "to": to or ""}
 
 
 async def morning_lines(tx: Tx, tz: str, today: date) -> list[str]:
-    """The first three lines of yesterday's daily report, for the morning summary
-    (none when there is none yet)."""
-    z = zone(tz)
-    end = datetime.combine(today, time(0), z).astimezone(UTC)
-    row = await tx.first(
-        """SELECT * FROM sales.usage_reports WHERE period = 'day' AND to_at = :e
-           ORDER BY at DESC LIMIT 1""",
-        e=end,
+    """The owner's morning (2026-11-06): nothing of the usage report but, when a
+    company is over its money budget this month, one plain line in dollars."""
+    rows = await tx.all(
+        """SELECT COALESCE(c.name_fa, c.code) AS name, u.usd, b.usd_limit
+           FROM llm.budgets b
+           JOIN core.companies c ON c.id = b.company_id
+           JOIN llm.usage u ON u.scope_type = b.scope_type AND u.scope_ref = b.scope_ref
+                           AND u.period = 'month'
+                           AND u.period_start = date_trunc('month', now() AT TIME ZONE 'UTC')::date
+           WHERE b.enabled AND b.period = 'month' AND b.scope_type = 'company'
+             AND b.usd_limit IS NOT NULL AND b.usd_limit > 0 AND u.usd > b.usd_limit
+           ORDER BY u.usd - b.usd_limit DESC, c.code LIMIT 3"""
     )
-    if row is None or not row["text"]:
+    if not rows:
         return []
-    text = row["text"] if isinstance(row["text"], dict) else json.loads(row["text"])
-    out = [_plain(x) for x in text.get("lines_fa", [])[:MORNING_LINES]]
-    return [x for x in out if x]
+    over = "، ".join(f"{r['name']} {r['usd']:.0f} از {r['usd_limit']:.0f} دلار" for r in rows)
+    return [f"از سقف پول این ماه گذشته: {over}."]
 
 
 def spoken(row: dict[str, Any]) -> tuple[str, str]:

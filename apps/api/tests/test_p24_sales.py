@@ -150,32 +150,64 @@ async def test_a_made_up_figure_is_never_kept(hub: Hub, router: Router) -> None:
     assert rep.words == "code" and 3 <= len(rep.text.lines_fa if rep.text else []) <= 8
 
 
-async def test_the_scheduled_reports_reach_the_morning_and_the_advisor(
-    hub: Hub, router: Router, su: Any
+async def test_the_scheduled_reports_are_codes_and_go_to_the_technical_team(
+    hub: Hub, router: Router, su: Any, new_company: Callable[..., Any]
 ) -> None:
+    """The owner's rule of 2026-11-06: a scheduled report makes no model call, the weekly
+    one goes to the head of AI operations, and the owner's morning gets only a company
+    over its money budget, in one plain line in dollars."""
     # a schedule makes one report per period (a second tick finds it)
     now = datetime.now(UTC)
     await su.execute("DELETE FROM sales.usage_reports WHERE made_by = 'schedule'")
     day = await U.make(hub, "day", made_by="schedule", ask=router.ask, now=now)
     again = await U.make(hub, "day", made_by="schedule", ask=router.ask, now=now)
-    assert again["ref"] == day["ref"] and len(router.of("usage_report")) == 1
-    async with hub.db.tx(await hub.companies.ids()) as tx:
-        from hq_api.domain.gov_common import owner_tz
+    assert again["ref"] == day["ref"] and day["words"] == "code"
+    assert router.of("usage_report") == []
+    co = await new_company()
+    name = await su.fetchval("SELECT COALESCE(name_fa, code) FROM core.companies WHERE id = $1",
+                             co["id"])  # fmt: skip
+    await su.execute(
+        """INSERT INTO llm.budgets (company_id, scope_type, scope_ref, period, usd_limit)
+           VALUES ($1, 'company', $2, 'month', 10)
+           ON CONFLICT (scope_type, scope_ref, period) DO UPDATE SET usd_limit = 10, enabled = true""",
+        co["id"], co["code"],
+    )  # fmt: skip
+    await su.execute(
+        """INSERT INTO llm.usage (company_id, scope_type, scope_ref, period, period_start, usd)
+           VALUES ($1, 'company', $2, 'month', date_trunc('month', now() AT TIME ZONE 'UTC')::date, 12.5)
+           ON CONFLICT (scope_type, scope_ref, period, period_start) DO UPDATE SET usd = 12.5""",
+        co["id"], co["code"],
+    )  # fmt: skip
+    try:
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            from hq_api.domain.gov_common import owner_tz
 
-        tz = await owner_tz(tx)
-        today = HM.owner_today(tz, now)
-        lines = await HM.morning_lines(tx, tz, today)
-    assert lines[-3:] == LINES and len(lines) <= 5
+            tz = await owner_tz(tx)
+            today = HM.owner_today(tz, now)
+            money = await U.morning_lines(tx, tz, today)
+            lines = await HM.morning_lines(tx, tz, today)
+        assert len(money) == 1 and name in money[0] and "12 از 10 دلار" in money[0]
+        assert any("12 از 10 دلار" in x for x in lines) and len(lines) <= 5
+        assert not any("توکن" in x for x in lines)
+    finally:
+        await su.execute(
+            "DELETE FROM llm.usage WHERE scope_type = 'company' AND scope_ref = $1", co["code"]
+        )
+        await su.execute(
+            "DELETE FROM llm.budgets WHERE scope_type = 'company' AND scope_ref = $1", co["code"]
+        )
     week = await U.make(hub, "week", made_by="schedule", ask=router.ask, now=now)
-    assert week["delivered"].get("thread")
-    msg = await su.fetchrow(
-        """SELECT m.body FROM msg.messages m JOIN msg.threads t ON t.id = m.thread_id
-           WHERE t.code = 'A' AND m.ref = $1""",
-        week["delivered"]["thread"],
+    sent = week["delivered"]
+    assert sent.get("notice") and not sent.get("thread") and week["words"] == "code"
+    n = await su.fetchrow(
+        "SELECT body_fa, domain, owner_visible, routed_to FROM notify.notifications WHERE id = $1",
+        uuid.UUID(sent["notice"]),
     )
-    assert msg is not None and "جزئیات" in msg["body"] and week["ref"] in msg["body"]
+    assert (n["domain"], n["owner_visible"]) == ("infra", False)
+    assert n["routed_to"] == (sent["to"] or None) and "جزئیات" in n["body_fa"]
+    assert router.of("usage_report") == []
     say, show = U.spoken(week)
-    assert LINES[0] in say and SAVING in say and show
+    assert say and show
 
 
 async def test_usage_reports_are_the_owner_s(client: httpx.AsyncClient, new_company: Any) -> None:

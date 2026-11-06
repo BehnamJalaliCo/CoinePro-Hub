@@ -33,6 +33,9 @@ Principles (dceo.principles, DP-001, versioned, append-only rows): each
 Saturday 11:00 a model run (dceo_principles, Sonnet 5.5, <= 120 000 tokens)
 over the week's owner interactions (masked) and the missed predictions
 proposes at most 5; the owner adds, edits, accepts or retires them.
+Paused (owner_settings.digital_ceo.paused, default true since 2026-11-06:
+nobody acts on what they make): the sweep and the weekly principles do
+nothing; a new card's baseline (code, with the card) still is made.
 """
 
 from __future__ import annotations
@@ -77,6 +80,9 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "reveal": "after",
     "model_predictions": True,
     "max_model_per_day": 20,
+    # 2026-11-06: the jobs (the sweep's predictions, the weekly principles) wait,
+    # nobody acts on what they make; the owner turns them on with paused: false
+    "paused": True,
 }
 PR121 = "PR-121"
 Verdict = Literal["approve", "reject", "return"]
@@ -137,6 +143,8 @@ class DceoSettings(BaseModel):
     reveal: Literal["after", "before"] = "after"
     model_predictions: bool = True
     max_model_per_day: int = 20
+    # the jobs wait (the sweep every 5 minutes, the weekly principles); default paused
+    paused: bool = True
 
 
 class DigitalCeo(BaseModel):
@@ -453,7 +461,8 @@ async def _owner_day_count(tx: Tx, method: str) -> int:
 async def sweep(hub: Any, router: Any, tx_factory: Any) -> dict[str, Any]:
     """Every few minutes (worker): a baseline for a pending owner card that
     has none, then model predictions of medium- and high-risk cards inside
-    the day's cap. Nothing at all while the holding is locked."""
+    the day's cap. Nothing at all while the holding is locked or the jobs
+    are paused (`paused`, the default since 2026-11-06)."""
     from hq_api.domain import advisor
     from hq_api.domain import decisions as D
 
@@ -464,6 +473,8 @@ async def sweep(hub: Any, router: Any, tx_factory: Any) -> dict[str, Any]:
         s = await settings(tx)
         if not s.get("enabled", True):
             return {"skipped": True, "reason": "off"}
+        if s.get("paused", True):
+            return {"skipped": True, "reason": "paused"}
         missing = await tx.all(
             D.DECISION_SQL  # noqa: S608 - constant SQL, every value bound
             + """ WHERE d.status = 'pending' AND d.approver_code IS NULL
@@ -763,6 +774,8 @@ async def propose_principles(
         s = await settings(tx)
         if not s.get("enabled", True) or not s.get("model_predictions", True):
             return {"skipped": True, "reason": "off"}
+        if s.get("paused", True):
+            return {"skipped": True, "reason": "paused"}
         if await advisor.zone_spent(tx, hub):
             return {"skipped": True, "reason": "owner_zone_share"}
         body = await principles_input(tx, now)

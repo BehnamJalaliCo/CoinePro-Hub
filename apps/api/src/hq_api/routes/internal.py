@@ -24,7 +24,17 @@ from pydantic import BaseModel, Field
 from hq_api import idempotency, workflows_client
 from hq_api.context import Ctx, internal_ctx
 from hq_api.db import Tx
-from hq_api.domain import control, errands, founding, gov_authority, hiring, inquiries, notify, org
+from hq_api.domain import (
+    control,
+    errands,
+    founding,
+    gov_authority,
+    hiring,
+    inquiries,
+    notify,
+    org,
+    routing,
+)
 from hq_api.domain import decisions as D
 from hq_api.domain import files as F
 from hq_api.domain import links as LK
@@ -767,6 +777,10 @@ async def deliver_work(
                 link_ref=dl["ref"],
                 source_kind="agent",
                 source_code=ctx.who.code,
+                # its producer's domain: a CTO's or an SRE's output stays off the owner (§29.1)
+                domain=await routing.producer_domain(
+                    tx, employee_id=ctx.who.employee_id, work_id=w["id"]
+                ),
             )
         result = DeliverOut(
             work=W.render(await W.load(tx, id)), deliverable=dl["ref"], closed_children=closed

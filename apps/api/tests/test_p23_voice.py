@@ -752,10 +752,13 @@ async def test_the_warning_comes_once_at_the_owners_point(
     await S.speak(hub, req(seq=1))
     await S.speak(hub, req(seq=2))
     rows = await su.fetch(
-        "SELECT title_fa, body_fa, level FROM notify.notifications WHERE link_kind = 'voice_cap'"
+        """SELECT title_fa, body_fa, level, domain, owner_visible, critical_reason
+           FROM notify.notifications WHERE link_kind = 'voice_cap'"""
     )
     assert len(rows) == 1 and "۵۰ درصد" in rows[0]["title_fa"].replace("50", "۵۰")
     assert "دلار" in rows[0]["body_fa"]
+    # the warning is the head of AI operations' (2026-11-06), not the owner's
+    assert (rows[0]["domain"], rows[0]["owner_visible"]) == ("infra", False)
     # a new cap is a new warning
     await set_voice_settings(client, owner, {"month_cap_usd": 0.9})
     await S.speak(hub, req(seq=3))
@@ -763,6 +766,15 @@ async def test_the_warning_comes_once_at_the_owners_point(
         await su.fetchval("SELECT count(*) FROM notify.notifications WHERE link_kind = 'voice_cap'")
         == 2
     )
+    # the cap itself is the owner's, as money, once
+    await set_voice_settings(client, owner, {"month_cap_usd": 0.5})
+    await S.speak(hub, req(seq=4))
+    await S.speak(hub, req(seq=5))
+    cap = await su.fetch(
+        """SELECT owner_visible, critical_reason FROM notify.notifications
+           WHERE link_kind = 'voice_cap' AND link_ref LIKE '%:cap'"""
+    )
+    assert [tuple(r) for r in cap] == [(True, "money")]
 
 
 # ------------------------------------------------- settings, price, sample --

@@ -31,7 +31,7 @@ from zoneinfo import ZoneInfo
 
 from hq_api import audit, events
 from hq_api.db import Tx
-from hq_api.domain import gate, hiring, notify, oversight
+from hq_api.domain import gate, notify, oversight
 from hq_api.domain import work as W
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
@@ -352,7 +352,9 @@ def unsourced(letter: str, figures: set[str]) -> list[str]:
 async def facts(
     tx: Tx, company: dict[str, Any], start_day: date, end_day: date, zone: ZoneInfo
 ) -> dict[str, Any]:
-    """The facts pack of one company's week [start_day, end_day), by code."""
+    """The facts pack of one company's week [start_day, end_day), by code: the
+    business only (the owner's rule of 2026-11-06: no tokens or spend, no
+    incidents, findings or challenges; those are the technical team's)."""
     s = datetime.combine(start_day, time.min, tzinfo=zone).astimezone(UTC)
     e = datetime.combine(end_day, time.min, tzinfo=zone).astimezone(UTC)
     co = company["id"]
@@ -368,16 +370,6 @@ async def facts(
         ),
         None,
     )
-    spend = await tx.one(
-        """SELECT COALESCE(sum(COALESCE(k.input_tokens, 0) + COALESCE(k.output_tokens, 0)
-                               + COALESCE(k.cache_read_tokens, 0) + COALESCE(k.cache_write_tokens, 0)), 0) AS tokens,
-                  COALESCE(sum(COALESCE(k.cost_usd, 0) + COALESCE(k.equiv_cost_usd, 0)), 0) AS usd
-           FROM llm.calls k WHERE k.company_id = :co AND k.started_at >= :s AND k.started_at < :e""",
-        co=co,
-        s=s,
-        e=e,
-    )
-    env = next((x for x in await hiring.envelopes(tx) if x.company == company["code"]), None)
     dl = await tx.one(
         """SELECT count(*) AS n, count(rt.score) AS rated, avg(rt.score) AS avg_rating
            FROM cartable.deliverables d
@@ -387,25 +379,6 @@ async def facts(
         co=co,
         s=s,
         e=e,
-    )
-    incidents = await tx.one(
-        """SELECT count(*) AS opened, count(*) FILTER (WHERE severity = 'sev1') AS sev1,
-                  count(*) FILTER (WHERE closed_at IS NULL) AS still_open
-           FROM ops.incidents WHERE company_id = :co AND opened_at >= :s AND opened_at < :e""",
-        co=co,
-        s=s,
-        e=e,
-    )
-    findings = await tx.all(
-        """SELECT severity, count(*) AS n FROM oversight.findings
-           WHERE company_id = :co AND status NOT IN ('verified', 'closed') GROUP BY severity ORDER BY severity""",
-        co=co,
-    )
-    challenge = await tx.first(
-        """SELECT ref, title_fa, status, score FROM oversight.challenges
-           WHERE company_id = :co AND period = 'week' AND period_key = :k ORDER BY created_at DESC LIMIT 1""",
-        co=co,
-        k=start_day,
     )
     revenue = await tx.first(
         """SELECT count(*) AS days, COALESCE(sum(commission_usdt), 0) AS commission,
@@ -428,12 +401,6 @@ async def facts(
         "week": {"from": start_day.isoformat(), "to": (end_day - timedelta(days=1)).isoformat()},
         "kpis": None,  # no KPI store is connected: «وصل نیست», never an estimate
         "stars": {k: standing.get(k) for k in ("stars", "score", "rank")} if standing else None,
-        "spend": {
-            "tokens_week": int(spend["tokens"]),
-            "usd_week": str(Decimal(spend["usd"]).quantize(Decimal("0.01"))),
-            "tokens_month": env.used_month if env else None,
-            "envelope_month": env.tokens_month if env else None,
-        },
         "deliverables": {
             "count": int(dl["n"]),
             "rated": int(dl["rated"]),
@@ -441,16 +408,6 @@ async def facts(
             if dl["avg_rating"] is not None
             else None,
         },
-        "incidents": {k: int(incidents[k]) for k in ("opened", "sev1", "still_open")},
-        "findings_open": {r["severity"]: int(r["n"]) for r in findings},
-        "challenge": {
-            "ref": challenge["ref"],
-            "title_fa": challenge["title_fa"],
-            "status": challenge["status"],
-            "score": challenge["score"],
-        }
-        if challenge
-        else None,
         "revenue": {
             "commission_usdt": str(Decimal(revenue["commission"]).quantize(Decimal("0.01"))),
             "days": int(revenue["days"]),
@@ -642,13 +599,17 @@ async def on_delivered(
     )
     holding = await tx.first("SELECT id, code FROM core.companies WHERE kind = 'holding' LIMIT 1")
     if holding is not None:
+        name = await tx.scalar(
+            "SELECT COALESCE(name_fa, code) FROM core.companies WHERE id = :id", id=w["company_id"]
+        )
         await notify.raise_notification(
             tx,
             company_id=w["company_id"],
             company_code=w["company"],
             level="report",
-            title_fa=f"نامه‌ی هفتگی {w['company']}" + (f" ({UNSOURCED})" if mark else ""),
-            body_fa=dl["ref"],
+            title_fa=f"نامه‌ی هفتگی {name}" + (f" ({UNSOURCED})" if mark else ""),
+            body_fa=f"مدیرعامل {name} نامه‌ی این هفته‌اش را برای شما نوشت.",
             link_kind="deliverable",
             link_ref=dl["ref"],
+            domain="business",
         )

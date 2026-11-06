@@ -40,7 +40,7 @@ from pydantic import BaseModel, Field
 
 from hq_api import events
 from hq_api.db import Tx
-from hq_api.domain import humanize, notify
+from hq_api.domain import humanize, notify, routing
 from hq_api.domain import substitutes as S
 from hq_api.principal import Principal
 
@@ -309,6 +309,8 @@ async def fall_back(tx: Tx, w: dict[str, Any], why: str) -> None:
         link_ref=w["ref"],
         source_kind="system",
         source_code="players",
+        domain="infra",  # the players' seats are the head of AI operations' (2026-11-06)
+        routed_to=await routing.aiops_head(tx),
     )
     if w.get("assignee_id"):
         await tx.exec(
@@ -399,6 +401,10 @@ async def deliver(
             link_ref=dl["ref"],
             source_kind="system",
             source_code="players",
+            # its producer's domain: a CTO's or an SRE's output stays off the owner (§29.1)
+            domain=await routing.producer_domain(
+                tx, employee_id=w.get("assignee_id"), work_id=w["id"]
+            ),
         )
     return dict(dl)
 

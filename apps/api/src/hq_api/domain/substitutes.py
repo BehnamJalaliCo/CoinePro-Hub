@@ -50,7 +50,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from hq_api import audit, events
 from hq_api.db import Tx
-from hq_api.domain import gate, humanize, notify
+from hq_api.domain import gate, humanize, notify, routing
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
 from hq_api.schemas import Model
@@ -1962,6 +1962,8 @@ async def behind_check(tx: Tx, hub: Any, now: datetime | None = None) -> int:
             )[:500],
             link_kind="substitute",
             link_ref=key,
+            domain="infra",  # the head of AI operations' (2026-11-06)
+            routed_to=await routing.aiops_head(tx),
         )
         sent += 1
     return sent
@@ -2193,7 +2195,7 @@ async def apply_web(hub: Any, c: dict[str, Any], account: str, answer: dict[str,
 
 async def web_expired(tx: Tx, hub: Any, p: dict[str, Any]) -> None:
     """A signed-out or expired profile: its seats are skipped from now on and
-    the owner gets ONE `report` notification to sign in again (never an
+    the head of AI operations gets ONE `report` notice to sign in again (never an
     automatic sign-in)."""
     if p["web_state"] == "expired":
         return
@@ -2208,9 +2210,11 @@ async def web_expired(tx: Tx, hub: Any, p: dict[str, Any]) -> None:
         company_code=holding.code,
         level="report",
         title_fa=f"ورود مرورگر {p['web_account']} منقضی شده",
-        body_fa=f"جایگاه‌های وب این بازیکن رد میشوند تا مالک دوباره وارد شود: make {p['web_account']}-login",
+        body_fa="جایگاه‌های وب این بازیکن رد میشوند تا ورود دوباره انجام شود.",
         link_kind="substitute",
         link_ref=p["player"],
+        domain="infra",  # the head of AI operations' (2026-11-06)
+        routed_to=await routing.aiops_head(tx),
     )
 
 

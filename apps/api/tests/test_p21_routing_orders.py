@@ -173,7 +173,7 @@ def test_the_rules_name_a_domain_for_every_kind() -> None:
         == "security"
     )
     assert RT.finding_domain(protocol="PR-091", area="product", answerable="cto") == "tech"
-    assert RT.finding_domain(protocol="PR-001", area="truth", answerable="manager") == "business"
+    assert RT.finding_domain(protocol="PR-115", area="truth", answerable="ceo") == "business"
     assert RT.finding_domain(kind="app_health") == "product"
     assert RT.finding_domain(kind="growth") == "business"
     assert RT.decision_domain("server_destructive") == "infra"
@@ -189,16 +189,36 @@ def test_the_rules_name_a_domain_for_every_kind() -> None:
     assert not RT.owner_visible("tech", None)
     assert RT.owner_visible("tech", "data_leak") and RT.owner_visible("media", None)
     assert RT.owner_visible("infra", None, owner_action=True)
+    # 2026-11-06: an unnamed link kind the system raises is infra, what the owner reads is
+    # named; a person's or an agent's stays business, and so does a row of no source kind
+    assert RT.notification_domain("voice_cap", "voice", source_kind="service") == "infra"
+    assert RT.notification_domain("academy", source_kind="system") == "infra"
+    assert RT.notification_domain("voice_cap", "voice") == "business"  # migration 0037's rows
+    assert RT.notification_domain("x_kind", source_kind="agent") == "business"
+    for link in ("order", "conversation", "deliverable", "decision", "employee", "rule"):
+        assert RT.notification_domain(link, source_kind="system") == "business", link
+    assert RT.notification_domain(None, source_kind="system") == "business"
+    assert RT.notification_domain("backup", source_kind="system") == "infra"
+    assert RT.notification_domain("hold", source_kind="agent") == "tech"
+    # the holding's own process is its answerers', never the owner's page
+    for ref in ("PR-001", "PR-051", "PR-053", "PR-080"):
+        assert RT.finding_domain(protocol=ref, area="delivery", answerable="ceo") == "tech"
+    assert RT.finding_domain(protocol="PR-006", area="truth", answerable="ceo") == "business"
+    assert RT.HANDLER_CARD_KINDS == ("deploy",)
 
 
 async def test_the_sql_rules_of_the_data_move_match_the_code(su: Any) -> None:
-    """Migration 0037's rules (SQL) and hq_api.domain.routing say the same."""
+    """Migration 0037's rules (SQL) and hq_api.domain.routing say the same (the rules
+    added after it, for new rows only, aside: the process protocols, the later links)."""
     from hq_common import charters
 
     protocols = O.protocol_file(charters.load().root)
     async with su.transaction():
         await su.execute(MIGRATION.RULES)
         for p in protocols:
+            if p["ref"] in RT.PROCESS_PROTOCOLS:
+                assert RT.finding_domain(protocol=p["ref"], area=p["area"]) == "tech"
+                continue
             for kind in (None, "security", "code"):
                 sql = await su.fetchval(
                     "SELECT pg_temp.finding_domain($1, $2, $3, $4)",
@@ -211,8 +231,9 @@ async def test_the_sql_rules_of_the_data_move_match_the_code(su: Any) -> None:
         for kind in ("security", "app_health", "code", "growth", "holding", None):
             sql = await su.fetchval("SELECT pg_temp.finding_domain(NULL, NULL, NULL, $1)", kind)
             assert sql == RT.finding_domain(kind=kind), kind
-        links = [*RT.LINK_DOMAIN, "media_item", "decision", "work", "deliverable", "server_x",
-                 "deploy", "incident", "egress", "funnel", None]  # fmt: skip
+        links = [*(k for k in RT.LINK_DOMAIN if k not in RT.LATER_LINKS), "media_item",
+                 "decision", "work", "deliverable", "server_x", "deploy", "incident", "egress",
+                 "funnel", None]  # fmt: skip
         for link in links:
             for source in ("system", "backup", "llm-router", "archive-fixity"):
                 sql = await su.fetchval("SELECT pg_temp.notification_domain($1, $2)", link, source)
@@ -460,6 +481,111 @@ async def test_a_destructive_card_is_the_ctos_unless_the_owner_keeps_it(
     await su.execute(
         "UPDATE owner.settings SET destructive_owner_categories = ARRAY['server_delete', 'db_drop']"
     )
+
+
+# ================================== the owner's rule of 2026-11-06 ==
+def _deploy(title: str) -> D.DecisionIn:
+    return D.DecisionIn(
+        kind="deploy", title=title, risk="medium",
+        payload={"repo": "coinepro/app", "pr_url": "https://github.com/coinepro/app/pull/9",
+                 "head_sha": "ab" * 20},
+    )  # fmt: skip
+
+
+def _agent(co: dict[str, Any], suffix: str, role: str) -> Principal:
+    return Principal(kind="agent", code=f"{co['code']}-{suffix}", role=role,
+                     company=co["code"], company_id=co["id"])  # fmt: skip
+
+
+async def test_a_deploy_card_is_its_ctos_never_its_proposers(
+    client: httpx.AsyncClient, hub: Hub, su: Any, owner: dict[str, str],
+    new_company: Callable[..., Any],
+) -> None:  # fmt: skip
+    company = await new_company()
+    co = company["code"]
+    async with await all_tx(hub) as tx:
+        by_ceo = await D.propose(tx, _agent(company, "CEO", "ceo"), company_id=company["id"],
+                                 company_code=co, body=_deploy("انتشار نسخه‌ی تازه"),
+                                 thread_code=None)  # fmt: skip
+        by_cto = await D.propose(tx, _agent(company, "TECH-MGR", "manager"),
+                                 company_id=company["id"], company_code=co,
+                                 body=_deploy("انتشار نسخه‌ی دیگر"), thread_code=None)  # fmt: skip
+    assert (by_ceo["approver_code"], by_ceo["owner_visible"], by_ceo["domain"]) == (
+        f"{co}-TECH-MGR", False, "tech",
+    )  # fmt: skip
+    # the CTO proposed the second: the next of the chain decides it (its SRE, else its CEO)
+    sre = await su.fetchval(
+        """SELECT code FROM core.employees WHERE company_id = $1 AND role = 'sre'
+             AND status = 'active' ORDER BY hired_at LIMIT 1""",
+        company["id"],
+    )
+    assert by_cto["approver_code"] == (sre or f"{co}-CEO") and not by_cto["owner_visible"]
+    item = await su.fetchval(
+        """SELECT e.code FROM work.work w JOIN core.employees e ON e.id = w.assignee_id
+           WHERE w.title LIKE $1 AND w.created_by_code = 'cards'""",
+        f"%{by_ceo['ref']}%",
+    )
+    assert item == f"{co}-TECH-MGR"
+    mine = await client.get(f"/api/v1/decisions?company={co}", headers=owner)
+    assert {by_ceo["ref"], by_cto["ref"]}.isdisjoint({d["ref"] for d in mine.json()["items"]})
+    summary = (await client.get("/api/v1/inbox/summary", headers=owner)).json()
+    assert summary["decisions_pending"] == await su.fetchval(
+        """SELECT count(*) FROM cartable.decisions
+           WHERE status = 'pending' AND approver_code IS NULL AND owner_visible"""
+    )
+    # card.decide: the CEO may not decide the CTO's card; the CTO may
+    r = await client.post(
+        f"/internal/v1/cards/{by_ceo['ref']}/decide",
+        headers={**await agent_headers(f"{co}-CEO"), **idem()},
+        json={"verdict": "approve"},
+    )
+    assert r.status_code == 403, r.text
+    r = await client.post(
+        f"/internal/v1/cards/{by_ceo['ref']}/decide",
+        headers={**await agent_headers(f"{co}-TECH-MGR"), **idem()},
+        json={"verdict": "reject", "note": "آزمون‌ها هنوز سبز نیست"},
+    )
+    assert r.status_code == 200 and r.json()["status"] == "rejected", r.text
+    for code in (f"{co}-CEO", f"{co}-TECH-MGR"):
+        await end_runs(su, code)
+    async with await all_tx(hub) as tx:
+        await D.decide(tx, OWNER, await D.load(tx, by_cto["ref"], lock=True), "rejected",
+                       note="cleanup")  # fmt: skip
+
+
+async def test_system_notices_outputs_and_process_findings_stay_with_their_team(
+    hub: Hub, su: Any, new_company: Callable[..., Any]
+) -> None:
+    company = await new_company()
+    co = company["code"]
+    tech_mgr = await su.fetchrow("SELECT id FROM core.employees WHERE code = $1", f"{co}-TECH-MGR")
+    ceo = await su.fetchrow("SELECT id FROM core.employees WHERE code = $1", f"{co}-CEO")
+    async with await all_tx(hub) as tx:
+        odd = await notify.raise_notification(
+            tx, company_id=company["id"], company_code=co, level="report",
+            title_fa="یک پیام سیستمی", link_kind="mystery_kind", link_ref="x",
+            source_kind="system", source_code="anything",
+        )  # fmt: skip
+        said = await notify.raise_notification(
+            tx, company_id=company["id"], company_code=co, level="report",
+            title_fa="پیام مدیرعامل", link_kind="mystery_kind", link_ref="y",
+            source_kind="agent", source_code=f"{co}-CEO",
+        )  # fmt: skip
+        tech_out = await RT.producer_domain(tx, employee_id=tech_mgr["id"])
+        ceo_out = await RT.producer_domain(tx, employee_id=ceo["id"])
+        late, _ = await O.raise_finding(
+            tx, company_id=company["id"], company_code=co, severity="high",
+            title_fa="گزارش روزانه دیر رسید",
+            protocol={"id": None, "ref": "PR-053", "area": "delivery", "answerable": "ceo",
+                      "status": "active"},
+        )  # fmt: skip
+    assert (odd["domain"], odd["owner_visible"]) == ("infra", False)
+    assert (said["domain"], said["owner_visible"]) == ("business", True)
+    assert (tech_out, ceo_out) == ("tech", "business")
+    assert (late["domain"], late["owner_visible"], late["routed_to"]) == (
+        "tech", False, f"{co}-CEO",
+    )  # fmt: skip
+    assert late["answerable_code"] == f"{co}-CEO"
 
 
 # ===================================================== §29.2 the report ==

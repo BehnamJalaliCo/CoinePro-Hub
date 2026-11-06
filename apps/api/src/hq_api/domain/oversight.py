@@ -878,6 +878,9 @@ async def raise_finding(
         ),
         critical_reason or routing.critical_of(protocol=pref, severity=severity),
     )
+    if not r["owner_visible"] and ak == "agent" and pref in routing.PROCESS_PROTOCOLS:
+        # an internal process (2026-11-06): its own answerer handles it, not the CTO
+        r["routed_to"] = ac
     if not r["owner_visible"] and r["routed_to"] and ak == "owner":
         ak, ac = "agent", r["routed_to"]
     row = await tx.one(
@@ -1387,6 +1390,7 @@ async def place_hold(
         link_ref=row["ref"],
         source_kind="agent" if by_kind == "agent" else "system",
         source_code=by_code,
+        owner_action=True,  # only the owner releases a hold (decide_hold), whatever its domain
     )
     h = dict(await tx.one(HOLD_SQL + " WHERE h.ref = :r", r=row["ref"]))
     h["session"] = session

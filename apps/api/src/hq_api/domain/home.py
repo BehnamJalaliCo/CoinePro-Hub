@@ -626,7 +626,7 @@ async def morning_lines(tx: Tx, tz: str, today: date) -> list[str]:
     decisions = int(
         await tx.scalar(
             """SELECT count(*) FROM cartable.decisions
-               WHERE status = 'pending' AND approver_kind IS NULL"""
+               WHERE status = 'pending' AND approver_kind IS NULL AND owner_visible"""
         )
         or 0
     )
@@ -659,7 +659,8 @@ async def morning_lines(tx: Tx, tz: str, today: date) -> list[str]:
     if open_orders:
         lines.append(f"فرمان‌های در جریان شما: {open_orders}.")
     base = [x for x in (clean(line, 300) for line in lines) if x and shown(x)][:5]
-    # ⟨1.15⟩ §33.1: yesterday's usage report, 3 lines in the advisor's words, inside the 5
+    # ⟨1.15⟩ §33.1 (2026-11-06): of the usage, only a company over its money budget,
+    # one plain line in dollars, inside the 5
     from hq_api.domain import usage
 
     spent = [

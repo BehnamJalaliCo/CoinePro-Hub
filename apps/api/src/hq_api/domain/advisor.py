@@ -6,8 +6,8 @@ writes the prose.
 Decision memo (advisor.memos, DM-0001)
   - On the owner's request: POST /decisions/{ref}/memo {mode} -> 202, the
     same (card, mode, card version) again is the same memo.
-  - Automatic: a card for the owner with risk `high` or kind deploy,
-    company_found or server_plan gets one (owner_settings.advisor.auto_memo,
+  - Automatic: a card for the owner with risk `high` or kind company_found
+    gets one (owner_settings.advisor.auto_memo,
     default on, at most 3 a day in the owner's time zone). The cap is not
     carried over: the 4th card of the day gets only the request button.
   - The memo is bound to the card's version: a changed card makes it `stale`
@@ -29,7 +29,10 @@ key is unique per day; the advisor is woken once per key with the facts
 gathered beforehand (task class advisor_proactive, 50K tokens) and writes one
 short message in A (`meta.proactive: {kind, key}`) with a `report`-level
 notification, never `urgent`. At most owner_settings.advisor.proactive_per_day
-(default 3) a day; the rest are `capped`.
+(default 3) a day; the rest are `capped`. The technical kinds (a token budget,
+a subscription's quota, compliance, an incident, a critical finding) never wake
+the advisor (the owner's rule of 2026-11-06): each is one plain notice a day
+for its technical handler, by code, no model (TECH_TRIGGERS).
 
 The launch gate (docs/OWNER_REQUESTS_2026-10-17.md round 8 #8): nothing here
 wakes a model while the holding's kill switch is engaged. Automatic memos are
@@ -66,7 +69,7 @@ from hq_common.redact import redact, scrub
 
 log = logging.getLogger("hq_api.domain.advisor")
 
-AUTO_KINDS = ("deploy", "company_found", "server_plan")
+AUTO_KINDS = ("company_found",)  # a deploy is its CTO's card, a server plan is checked by code
 MEMO_TOKENS = 80_000
 PROACTIVE_TOKENS = 50_000
 SERVICE = Principal(kind="service", code="advisor-rules", role="service")
@@ -83,6 +86,14 @@ TRIGGER_KINDS = (
     "finding",
     "okr",
 )
+# ⟨2026-11-06⟩ the technical kinds: a notice for their handler (this domain), no model
+TECH_TRIGGERS = {
+    "budget": "infra",
+    "quota": "infra",
+    "compliance": "tech",
+    "incident": "infra",
+    "finding": "tech",
+}
 DEFAULT_SETTINGS: dict[str, Any] = {
     "auto_memo": {"enabled": True, "max_per_day": 3},
     "proactive_per_day": 3,
@@ -744,7 +755,7 @@ async def after_reply(
         company_code=str(holding_code),
         level="report",
         title_fa=f"یادداشت مشاور: {KIND_FA.get(t['kind'], t['kind'])}",
-        body_fa=f"{message['ref']} در رشته‌ی مشاور",
+        body_fa="یک یادداشت کوتاه در گفت‌وگوی شما با مشاور.",
         link_kind="message",
         link_ref=message["ref"],
         source_kind="agent",
@@ -761,15 +772,10 @@ async def after_reply(
         await _close_work(tx, t["work_id"], message["ref"], who, "proactive note written")
 
 
-KIND_FA = {
-    "budget": "بودجه",
-    "quota": "سهمیه‌ی اشتراک",
-    "compliance": "افت انطباق",
-    "incident": "حادثه‌ی sev1",
+KIND_FA = {  # the kinds a note is written for (the technical ones go to their handler)
     "revenue": "افت کمیسیون",
     "waiting_decisions": "کارت‌های منتظر",
-    "finding": "یافته‌ی critical",
-    "okr": "OKR عقب",
+    "okr": "هدف فصل عقب مانده",
 }
 
 
@@ -887,7 +893,8 @@ async def detect(tx: Tx, today: date) -> list[dict[str, Any]]:
     waiting = await tx.first(
         """SELECT count(*) AS n, (array_agg(ref ORDER BY created_at))[1:10] AS refs
            FROM cartable.decisions
-           WHERE status = 'pending' AND approver_code IS NULL AND created_at < now() - interval '72 hours'"""
+           WHERE status = 'pending' AND approver_code IS NULL AND owner_visible
+             AND created_at < now() - interval '72 hours'"""
     )
     if waiting and int(waiting["n"]) >= 3:
         out.append(
@@ -900,7 +907,7 @@ async def detect(tx: Tx, today: date) -> list[dict[str, Any]]:
         )
     # A critical finding open for more than 24 hours.
     for r in await tx.all(
-        """SELECT f.ref, f.company_id, c.code, f.opened_at FROM oversight.findings f
+        """SELECT f.ref, f.company_id, c.code, f.opened_at, f.domain FROM oversight.findings f
            JOIN core.companies c ON c.id = f.company_id
            WHERE f.severity = 'critical' AND f.status NOT IN ('fixed', 'verified', 'closed')
              AND f.opened_at < now() - interval '24 hours'"""
@@ -914,6 +921,7 @@ async def detect(tx: Tx, today: date) -> list[dict[str, Any]]:
                     "finding": r["ref"],
                     "company": r["code"],
                     "opened_at": _iso(r["opened_at"]),
+                    "domain": r["domain"],
                 },
             }
         )
@@ -998,11 +1006,14 @@ async def fire_triggers(tx: Tx, hub: Any, now: datetime | None = None) -> dict[s
     s, tz = await settings(tx)
     today = owner_day(tz, now)
     holding = await hub.companies.holding()
-    counts = {"sent": 0, "deferred": 0, "capped": 0, "seen": 0}
+    counts = {"sent": 0, "deferred": 0, "capped": 0, "seen": 0, "routed": 0}
     lock = await gate.automation_lock(tx)
     spent = lock is None and await zone_spent(tx, hub)
     advisor = await _advisor_code(tx)
     for t in await detect(tx, today):
+        if t["kind"] in TECH_TRIGGERS:  # its handler's, by code: never the advisor's model
+            counts["routed" if await to_handler(tx, holding, t) else "seen"] += 1
+            continue
         row = await tx.first(
             """INSERT INTO advisor.triggers (company_id, key, kind, subject_company_id, day, facts, state)
                VALUES (:co, :key, :kind, :sub, :day, CAST(:facts AS jsonb), 'deferred')
@@ -1078,6 +1089,61 @@ async def fire_triggers(tx: Tx, hub: Any, now: datetime | None = None) -> dict[s
             tx, holding.code, "advisor.trigger", t["key"][:200], {"kind": t["kind"], "state": state}
         )
     return counts
+
+
+def tech_title(t: dict[str, Any]) -> tuple[str, str, str]:
+    """(title, link kind, link ref) of a technical trigger's notice."""
+    f = t["facts"]
+    if t["kind"] == "budget":
+        return f"مصرف این ماه {f['scope']} به {f['percent']}٪ سقف رسید", "treasury", f["scope"]
+    if t["kind"] == "quota":
+        title = f"سهمیه‌ی اشتراک {f['connection']} بیش از دو ساعت محدود است"
+        return title, "treasury", f["connection"]
+    if t["kind"] == "compliance":
+        title = f"امتیاز انطباق {f['company']} در یک روز از {f['yesterday']} به {f['today']} افتاد"
+        return title, "compliance", f["company"]
+    if t["kind"] == "incident":
+        return f"حادثه‌ی sev1 {f['incident']} بیش از نیم ساعت باز است", "incident", f["incident"]
+    return f"یافته‌ی بحرانی {f['finding']} بیش از یک روز باز است", "finding", f["finding"]
+
+
+async def to_handler(tx: Tx, holding: Any, t: dict[str, Any]) -> bool:
+    """A technical trigger (TECH_TRIGGERS): one plain notice a day for its
+    handler (a token budget and a quota: the head of AI operations; the rest:
+    the company's CTO, the hub's SRE), never the owner, never a model. False
+    when the day's notice is there already."""
+    from hq_api.domain import routing
+
+    title, link_kind, link_ref = tech_title(t)
+    company_id = t["company_id"] or holding.id
+    if await tx.scalar(
+        """SELECT 1 FROM notify.notifications WHERE source_code = :sc AND company_id = :co
+             AND link_kind = :lk AND link_ref = :lr AND created_at > now() - interval '20 hours'""",
+        sc=SERVICE.code,
+        co=company_id,
+        lk=link_kind,
+        lr=link_ref[:200],
+    ):
+        return False
+    code = await tx.scalar("SELECT code FROM core.companies WHERE id = :id", id=company_id)
+    domain = TECH_TRIGGERS[t["kind"]]
+    if t["kind"] == "finding" and t["facts"].get("domain") in routing.TECHNICAL:
+        domain = str(t["facts"]["domain"])
+    aiops = t["kind"] in ("budget", "quota")
+    await notify.raise_notification(
+        tx,
+        company_id=company_id,
+        company_code=str(code),
+        level="report",
+        title_fa=title[:300],
+        link_kind=link_kind,
+        link_ref=link_ref[:200],
+        source_kind="service",
+        source_code=SERVICE.code,
+        domain=domain,
+        routed_to=await routing.aiops_head(tx) if aiops else None,
+    )
+    return True
 
 
 # ------------------------------------------------------------ the sweep --

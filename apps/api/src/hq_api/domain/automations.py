@@ -773,6 +773,7 @@ async def _notify_owner(tx: Tx, auto: dict[str, Any], args: dict[str, Any]) -> s
         link_ref=auto["ref"],
         source_kind="system",
         source_code="automations",
+        domain="business",  # the owner's own rule asked to be told
         owner_action=True,
     )
     return "خبر برای مدیر کل فرستاده شد."
@@ -1000,21 +1001,26 @@ async def fire(
             holding = await tx.one(
                 "SELECT id, code FROM core.companies WHERE kind = 'holding' LIMIT 1"
             )
+            # Technical (2026-11-06): the error stays on the row and in the log, never in
+            # the text. It is still the owner's: only the owner proposes and seals an
+            # automation, and only he turns it on again.
+            log.warning("automation %s turned itself off", auto["ref"], extra={"error": error})
             await notify.raise_notification(
                 tx,
                 company_id=holding["id"],
                 company_code=holding["code"],
                 level="report",
-                title_fa=f"خودکارسازی {auto['ref']} خودش خاموش شد",
+                title_fa=f"خودکارسازی «{str(auto['sentence_fa'])[:80]}» خاموش شد",
                 body_fa=humanize.plain(
-                    f"این خودکارسازی {FAILURES_OFF} بار پشت سر هم انجام نشد و خاموش شد.",
-                    f"آخرین دلیل: {error or 'نامشخص'}",
-                    "اگر مشکل را برطرف کردید، در اپ دوباره روشنش کنید.",
+                    "چند بار پشت سر هم انجام نشد و خودش خاموش شد.",
+                    None,
+                    "اگر هنوز لازمش دارید، در اپ دوباره روشنش کنید.",
                 ),
                 link_kind="automation",
                 link_ref=auto["ref"],
                 source_kind="system",
                 source_code="automations",
+                domain="tech",
                 owner_action=True,
             )
     if kicks := auto.get("_kicks"):  # the lines it queued start now (the lines tick would anyway)

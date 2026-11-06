@@ -544,9 +544,16 @@ async def test_a_failing_automation_turns_itself_off_and_tells_the_owner(
     assert detail["state"] == "off" and detail["off_reason"] == "failures"
     assert detail["failures_in_row"] == AU.FAILURES_OFF and detail["runs"] == AU.FAILURES_OFF
     assert detail["last_error_fa"] and H.is_persian_answer(detail["last_error_fa"])
-    note = await su.fetchrow("SELECT title_fa, level FROM notify.notifications WHERE link_ref = $1",
-                             a["ref"])  # fmt: skip
+    note = await su.fetchrow(
+        """SELECT title_fa, body_fa, level, domain, owner_visible FROM notify.notifications
+           WHERE link_ref = $1""",
+        a["ref"],
+    )
     assert note and "خاموش" in note["title_fa"]
+    # technical, still the owner's (only he turns it on); no ref or raw error in the text
+    assert (note["domain"], note["owner_visible"]) == ("tech", True)
+    assert a["ref"] not in note["title_fa"] + note["body_fa"]
+    assert detail["last_error_fa"] not in note["body_fa"]
     # switched on again by the owner, the count starts over
     on = await client.post(f"/api/v1/automations/{a['ref']}/state", headers=h, json={"state": "on"})
     assert on.json()["state"] == "on" and on.json()["failures_in_row"] == 0

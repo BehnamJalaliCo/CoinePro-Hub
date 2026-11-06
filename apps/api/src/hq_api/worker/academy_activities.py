@@ -33,7 +33,7 @@ from temporalio import activity
 
 from hq_api.agents.clients import Router
 from hq_api.domain import academy as A
-from hq_api.domain import notify
+from hq_api.domain import notify, routing
 from hq_api.domain import role_drafts as RD
 from hq_api.domain import skills as S
 from hq_api.hub import Hub
@@ -497,11 +497,13 @@ class AcademyActivities:
             company_code=holding.code,
             level="report",
             title_fa=f"آکادمی: {b.used_tokens:,} از سقف ماهانه‌ی {b.cap_tokens:,} توکن مصرف شد",
-            body_fa="آزمون‌های تازه پس از رسیدن به سقف رد میشوند (academy_budget).",
+            body_fa="آزمون‌های تازه پس از رسیدن به سقف رد میشوند.",
             link_kind="academy",
             link_ref=link_ref,
             source_kind="service",
             source_code="academy",
+            domain="infra",  # the academy is the head of AI operations', never the owner's
+            routed_to=await routing.aiops_head(tx),
         )
         log.info("academy budget warning", extra={"used": b.used_tokens, "cap": b.cap_tokens})
 

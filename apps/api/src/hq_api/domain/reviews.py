@@ -6,7 +6,7 @@ Settings: owner_settings.weekly_review {enabled, day: "sa", at: "10:00"}.
   - The agenda is code, built 30 minutes before the review's time, at most 12
     items in this order: the owner's waiting cards (oldest first), open risks
     with a high score (>= 15, §20.8), key results behind their pace (§20.5),
-    open critical and high findings, budgets above 70%, revenue drops
+    open critical and high findings, a company over its dollar budget, revenue drops
     (§19.1), decisions whose 30/60/90-day outcome review is due (§20.6), the
     owner's open quick notes (§21.8).
   - The advisor writes a short brief in thread A (`meta.review: WR-…`): a
@@ -56,7 +56,7 @@ BUILD_BEFORE = timedelta(minutes=30)
 HIGH_RISK = 15
 # A risk the owner sees on the agenda (the rest are the technical team's: §29.1).
 BUSINESS_RISKS = ("product", "money", "people", "reputation")
-BUDGET_SHARE = 0.7
+BUDGET_SHARE = 1.0  # a company's dollar budget used up (no token budget: 2026-11-06)
 OKR_PACE = 0.7
 OKR_MIN_ELAPSED = 0.25
 DAYS = {"mo": 0, "tu": 1, "we": 2, "th": 3, "fr": 4, "sa": 5, "su": 6}
@@ -246,33 +246,28 @@ async def _findings(tx: Tx) -> list[dict[str, Any]]:
 
 
 async def _budgets(tx: Tx) -> list[dict[str, Any]]:
+    """Money only (2026-11-06): a company's month past its dollar budget; a token
+    budget is the head of AI operations', never the owner's agenda."""
     rows = await tx.all(
-        """SELECT b.scope_type, b.scope_ref, c.code, b.token_limit, b.usd_limit, u.tokens, u.usd
+        """SELECT b.scope_type, b.scope_ref, c.code, COALESCE(c.name_fa, c.code) AS name,
+                  b.usd_limit, u.usd
            FROM llm.budgets b
            JOIN core.companies c ON c.id = b.company_id
            JOIN llm.usage u ON u.scope_type = b.scope_type AND u.scope_ref = b.scope_ref
                            AND u.period = b.period
-                           AND u.period_start = CASE WHEN b.period = 'month'
-                                   THEN date_trunc('month', now() AT TIME ZONE 'UTC')::date
-                                   ELSE (now() AT TIME ZONE 'UTC')::date END
-           WHERE b.enabled AND b.period = 'month'
-             AND ((b.token_limit IS NOT NULL AND b.token_limit > 0 AND u.tokens >= :s * b.token_limit)
-                  OR (b.usd_limit IS NOT NULL AND b.usd_limit > 0 AND u.usd >= :s * b.usd_limit))
+                           AND u.period_start = date_trunc('month', now() AT TIME ZONE 'UTC')::date
+           WHERE b.enabled AND b.period = 'month' AND b.scope_type = 'company'
+             AND b.usd_limit IS NOT NULL AND b.usd_limit > 0 AND u.usd >= :s * b.usd_limit
            ORDER BY c.code, b.scope_type, b.scope_ref LIMIT :n""",
         s=BUDGET_SHARE,
         n=MAX_ITEMS,
     )
-    out = []
-    for r in rows:
-        pct = max(
-            (r["tokens"] / r["token_limit"]) if r["token_limit"] else 0,
-            float(r["usd"] / r["usd_limit"]) if r["usd_limit"] else 0,
-        )
-        out.append(
-            _item("budget", f"{r['scope_type']}:{r['scope_ref']}"[:40], r["code"],
-                  f"بودجه‌ی ماه {r['scope_type']} {r['scope_ref']}", f"{round(pct * 100)}٪ مصرف شده")
-        )  # fmt: skip
-    return out
+    return [
+        _item("budget", f"{r['scope_type']}:{r['scope_ref']}"[:40], r["code"],
+              f"سقف پول این ماه {r['name']} پر شد",
+              f"{float(r['usd']):.0f} از {float(r['usd_limit']):.0f} دلار خرج شده")
+        for r in rows
+    ]  # fmt: skip
 
 
 async def _revenue(tx: Tx) -> list[dict[str, Any]]:

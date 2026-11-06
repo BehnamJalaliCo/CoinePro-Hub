@@ -38,15 +38,16 @@ class InboxSummary(BaseModel):
 
 SUMMARY_SQL = """
 SELECT
-  -- ⟨1.4.3⟩ the owner's own cards only (approver null): a CEO's are its to decide (§18.11)
-  (SELECT count(*) FROM cartable.decisions WHERE status = 'pending' AND approver_code IS NULL)
+  -- ⟨1.4.3⟩ the owner's own cards only (approver null): a CEO's are its to decide (§18.11);
+  -- ⟨21⟩ §29.1 and only what reaches the owner (owner_visible)
+  (SELECT count(*) FROM cartable.decisions WHERE status = 'pending' AND approver_code IS NULL AND owner_visible)
     AS decisions_pending,
   (SELECT count(*) FROM cartable.decisions
-    WHERE status = 'pending' AND approver_code IS NULL AND risk = 'low') AS risk_low,
+    WHERE status = 'pending' AND approver_code IS NULL AND owner_visible AND risk = 'low') AS risk_low,
   (SELECT count(*) FROM cartable.decisions
-    WHERE status = 'pending' AND approver_code IS NULL AND risk = 'medium') AS risk_medium,
+    WHERE status = 'pending' AND approver_code IS NULL AND owner_visible AND risk = 'medium') AS risk_medium,
   (SELECT count(*) FROM cartable.decisions
-    WHERE status = 'pending' AND approver_code IS NULL AND risk = 'high') AS risk_high,
+    WHERE status = 'pending' AND approver_code IS NULL AND owner_visible AND risk = 'high') AS risk_high,
   (SELECT count(*) FROM cartable.deliverables d
     WHERE NOT EXISTS (SELECT 1 FROM cartable.ratings r WHERE r.deliverable_id = d.id))
     AS deliverables_unrated,

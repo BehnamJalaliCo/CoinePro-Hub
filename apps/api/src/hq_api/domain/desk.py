@@ -489,7 +489,8 @@ async def handoff(
 ) -> dict[str, Any]:
     """The conversation waits for the owner; the customer gets the sealed
     holding reply (on a live channel, once per handoff); the owner's digest
-    gets one batched line (a security handoff is urgent, within the limit)."""
+    gets one batched line (a security handoff is also one notice for the
+    company's security handler, urgent within the limit)."""
     if reason not in S.HANDOFF_REASONS:
         raise ApiError(422, "validation_failed", fields={"reason": "unknown handoff reason"})
     company = await hub.companies.code_of(conv["company_id"])
@@ -524,20 +525,21 @@ async def _urgent(tx: Tx, conv: dict[str, Any], company: str) -> None:
         co=conv["company_id"],
     )
     level = "urgent" if int(sent or 0) < URGENT_PER_DAY else "report"
+    # 2026-11-06: the security report is the company's security handler's (its CTO, the
+    # holding's security analyst), not the owner's page; the conversation that waits is
+    # still told to the owner in the digest's plain line (owner_notified_at stays empty)
     await notify.raise_notification(
         tx,
         company_id=conv["company_id"],
         company_code=company,
         level=level,
         title_fa=f"گزارش امنیتی در پشتیبانی {company} ({conv['ref']})",
-        body_fa="مشتری از جعل هویت، کلاهبرداری یا دستکاری خبر داده؛ گفت‌وگو منتظر توست.",
+        body_fa="مشتری از جعل هویت، کلاهبرداری یا دستکاری خبر داده؛ گفت‌وگو منتظر پاسخ است.",
         link_kind="support_conversation",
         link_ref=conv["ref"],
         source_kind="system",
         source_code="support",
-    )
-    await tx.exec(
-        "UPDATE support.conversations SET owner_notified_at = now() WHERE id = :id", id=conv["id"]
+        domain="security",
     )
 
 

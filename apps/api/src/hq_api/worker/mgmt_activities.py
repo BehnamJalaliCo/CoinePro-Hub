@@ -1,7 +1,8 @@
 """Temporal activities of prompt 12 part B (contract §21.4-§21.8).
 
-waste_daily        07:45 owner zone: yesterday's waste (code), a `report`
-                   notification above a 15% share
+waste_daily        07:45 owner zone: yesterday's waste (code); on Saturday a
+                   `report` notification for the technical handler of each
+                   company whose week was above a 15% share
 cartable_reminders every 15 min: the owner's waiting cards, each threshold once
 deploy_recheck     every 15 min: a pending deploy card whose PR branch moved
                    is set aside (git ls-remote with the hub's existing access)
@@ -68,27 +69,31 @@ class MgmtActivities:
             d = date.fromisoformat(day) if day else datetime.now(zone).date() - timedelta(days=1)
             rows = await WASTE.store(tx, d)
             pushed = []
-            holding = await self.hub.companies.holding()
-            for r in rows:
-                if float(r["share"]) <= WASTE.ALERT_SHARE or int(r["total_tokens"]) == 0:
-                    continue
-                code = await tx.scalar(
-                    "SELECT code FROM core.companies WHERE id = :id", id=r["company_id"]
-                )
-                pct = round(float(r["share"]) * 100, 1)
-                pushed.append(
-                    await notify.raise_notification(
-                        tx,
-                        company_id=r["company_id"],
-                        company_code=str(code),
-                        level="report",
-                        title_fa=f"هدررفت {d.isoformat()}: {pct}% {'هلدینگ' if r['scope'] == 'holding' else code}",
-                        body_fa=f"{r['waste_tokens']} از {r['total_tokens']} توکن روز",
-                        link_kind="treasury",
-                        link_ref=f"waste:{d.isoformat()}",
+            # The alert once a week (2026-11-06: no daily system notice), on the day
+            # that ends the owner's week (Friday's figures, read on Saturday):
+            # each company's share of the week, for its technical handler.
+            if d.weekday() == 4:
+                start = d - timedelta(days=6)
+                shares = await WASTE.shares_between(tx, start, d + timedelta(days=1))
+                for co, share in shares.items():
+                    if share is None or share <= WASTE.ALERT_SHARE:
+                        continue
+                    code = await tx.scalar("SELECT code FROM core.companies WHERE id = :id", id=co)
+                    pushed.append(
+                        await notify.raise_notification(
+                            tx,
+                            company_id=co,
+                            company_code=str(code),
+                            level="report",
+                            title_fa=f"هدررفت هفته‌ی {code}: {round(share * 100, 1)}%",
+                            body_fa=f"از {start.isoformat()} تا {d.isoformat()}",
+                            link_kind="treasury",
+                            link_ref=f"waste:{d.isoformat()}",
+                            source_kind="system",
+                            source_code="waste",
+                            domain="infra",
+                        )
                     )
-                )
-            del holding
         await self._push(pushed)
         return {"day": d.isoformat(), "rows": len(rows), "alerts": len(pushed)}
 
@@ -162,13 +167,6 @@ class MgmtActivities:
             now = datetime.fromisoformat(at) if at else datetime.now(UTC)
             return await briefings.letters(tx, now)
 
-    # ------------------------------------------- the morning report's voice --
-    async def morning_briefing(self, deliverable: dict[str, Any], text_md: str) -> str | None:
-        """Called by morning_report after the written report (not an activity)."""
-        async with self._tx() as tx:
-            holding = await self.hub.companies.holding()
-            zone = await self._zone(tx)
-            row = await briefings.morning(
-                tx, self.hub.settings, holding, deliverable, text_md, datetime.now(zone).date()
-            )
-        return row["ref"] if row else None
+    # The morning report has no voice for the owner any more (the owner's rule of
+    # 2026-11-06): it is the head of AI operations' report; briefings.morning stays
+    # for a spoken text of the owner's own.

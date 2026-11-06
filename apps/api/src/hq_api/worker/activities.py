@@ -22,7 +22,16 @@ from hq_api.agents import checks
 from hq_api.agents.clients import Gateway, LivePush, Router
 from hq_api.agents.runner import Runner
 from hq_api.db import Tx
-from hq_api.domain import backups, inquiries, notify, oversight, recurrence, recurring, scoring
+from hq_api.domain import (
+    backups,
+    inquiries,
+    notify,
+    oversight,
+    recurrence,
+    recurring,
+    routing,
+    scoring,
+)
 from hq_api.domain import decisions as D
 from hq_api.domain import work as W
 from hq_api.errors import ApiError
@@ -309,13 +318,16 @@ class Activities:
         async with self._tx() as tx:
             await D.mark_effect_failed(tx, ref, error)
             d = await D.load(tx, ref)
+            # 2026-11-06: a plain report on the card's own routing (its domain and
+            # handler); the error goes to the card, the Audit row and the log only
+            log.warning("decision effect failed", extra={"ref": ref, "error": error[:300]})
             row = await notify.raise_notification(
                 tx,
                 company_id=d["company_id"],
                 company_code=d["company"],
-                level="urgent",
-                title_fa=f"اجرای تصمیم {ref} شکست خورد",
-                body_fa=error[:500],
+                level="report",
+                title_fa=f"تصمیم «{str(d['title'])[:120]}» تأیید شد ولی انجام نشد",
+                body_fa="علتش ثبت شده و تیم مسئول پیگیری میکند.",
                 link_kind="decision",
                 link_ref=ref,
             )
@@ -681,9 +693,13 @@ class Activities:
     @activity.defn(name="morning_report")
     async def morning_report(self) -> dict[str, Any]:
         """Once per owner-local day (a second run that day is a no-op). The
-        rule-based report first; then (prompt 05 §6) a short Sonnet 5.5 pass
-        rewrites it as fluent Persian - with no new number (every figure must
-        come from the rule-based text, else the rewrite is dropped)."""
+        rule-based report first; then, only with HQ_MORNING_REPORT_LLM=on
+        (prompt 05 §6), a short pass of the mid model rewrites it as fluent
+        Persian - with no new number (every figure must come from the
+        rule-based text, else the rewrite is dropped). The owner's rule of
+        2026-11-06: it is the holding's head of AI operations' report (infra,
+        seen), never the owner's, and no voice of it; the owner's morning is
+        the home's five lines (home.morning_lines)."""
         now = datetime.now(UTC)
         async with self._tx() as tx:
             tz = (
@@ -715,8 +731,9 @@ class Activities:
             )
             dl = await tx.one(
                 """INSERT INTO cartable.deliverables (company_id, work_id, producer_id, title, summary, body,
-                       produced_with)
-                   VALUES (:co, :w, :p, :title, :summary, :body, CAST(:pw AS jsonb)) RETURNING id, ref""",
+                       produced_with, seen_at)
+                   VALUES (:co, :w, :p, :title, :summary, :body, CAST(:pw AS jsonb), now())
+                   RETURNING id, ref""",
                 co=holding.id,
                 w=w["id"],
                 p=sys_id,
@@ -757,8 +774,9 @@ class Activities:
                 text, call = polished
                 pdl = await tx.one(
                     """INSERT INTO cartable.deliverables (company_id, work_id, producer_id, title, summary, body,
-                           produced_with, usage)
-                       VALUES (:co, :w, :p, :title, :summary, :body, CAST(:pw AS jsonb), CAST(:u AS jsonb))
+                           produced_with, usage, seen_at)
+                       VALUES (:co, :w, :p, :title, :summary, :body, CAST(:pw AS jsonb), CAST(:u AS jsonb),
+                               now())
                        RETURNING id, ref""",
                     co=holding.id,
                     w=w["id"],
@@ -813,21 +831,20 @@ class Activities:
                     body_fa=summary,
                     link_kind="deliverable",
                     link_ref=link,
+                    source_kind="system",
+                    source_code="morning-report",
+                    domain="infra",
+                    routed_to=await routing.aiops_head(tx),
                 )
             )
+        # the owner's own reports wait for this rhythm (notify.flush_rhythm)
         rhythm = await notify.flush_rhythm(self.hub)
-        # ⟨1.5⟩ prompt 12 §4: its voice (BR-…), same text; nothing while the holding is locked
-        voiced = {"id": pdl["id"], "ref": pdl["ref"]} if polished is not None else dl
-        briefing = await self.mgmt.morning_briefing(
-            voiced, polished[0] if polished is not None else body
-        )
         return {
             "created": True,
             "deliverable": dl["ref"],
             "rewritten": link if link != dl["ref"] else None,
             "work": w["ref"],
             "rhythm": _plain(rhythm),
-            "briefing": briefing,
         }
 
     async def _polish_report(self, holding_code: str, body: str) -> tuple[str, Any] | None:

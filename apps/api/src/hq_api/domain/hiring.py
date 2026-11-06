@@ -278,20 +278,25 @@ async def after_hire(
         n=PROBATION_DAYS,
         c=employee_code,
     )
+    name = await tx.scalar(
+        "SELECT COALESCE(name_fa, code) FROM core.companies WHERE id = :id", id=d["company_id"]
+    )
+    # plain for the owner (2026-11-06): no model, effort or tokens (they stay on the card)
     await notify.raise_notification(
         tx,
         company_id=d["company_id"],
         company_code=d["company"],
         level="report",
-        title_fa=f"{ceo} استخدام کرد: {employee_code} ({payload['title_fa']})"[:300],
+        title_fa=f"مدیرعامل {name} یک نفر استخدام کرد"[:300],
         body_fa=(
-            f"{payload['model']} / {payload['effort']} · برآورد ماهانه {stories.short(estimate)} توکن"
-            " · دوره‌ی آزمایشی ۷ روز. برگرداندن: صفحه‌ی کارمند یا استوری."
+            f"{payload['title_fa']} · دوره‌ی آزمایشی ۷ روز. اگر نمیخواهید، از صفحه‌ی همین"
+            " کارمند برش گردانید."
         ),
         link_kind="employee",
         link_ref=employee_code,
         source_kind="service",
         source_code="hiring",
+        domain="business",
     )
     holding = await tx.first(
         """SELECT c.id, c.code, (SELECT e.code FROM core.employees e

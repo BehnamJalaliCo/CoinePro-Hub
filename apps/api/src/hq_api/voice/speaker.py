@@ -20,7 +20,7 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import Any
 
-from hq_api.domain import notify
+from hq_api.domain import notify, routing
 from hq_api.voice import audio, catalog, store
 from hq_api.voice.base import (
     EngineAudio,
@@ -161,8 +161,10 @@ async def speak_one(
 
 
 async def _maybe_warn(tx: Any, holding: Any, clk: store.Clock) -> dict[str, Any] | None:
-    """One notification when the month reaches `warn_at` of the owner's cap (once per month and
-    cap value: raising the cap makes a new warning possible)."""
+    """One notification when the month reaches `warn_at` of the owner's cap, for the holding's
+    head of AI operations (infra), and one for the owner when it reaches the cap itself (money,
+    the owner's rule of 2026-11-06); each once per month and cap value (raising the cap makes a
+    new one possible)."""
     cfg = await store.voice_settings(tx)
     cap = cfg["month_cap_usd"]
     if not cap:
@@ -170,11 +172,30 @@ async def _maybe_warn(tx: Any, holding: Any, clk: store.Clock) -> dict[str, Any]
     month = await store.month_usd(tx, clk.month_start)
     if month < Decimal(str(cap)) * Decimal(str(cfg["warn_at"])):
         return None
-    ref = f"{clk.day:%Y-%m}:{cap:g}"
+    at_cap = month >= Decimal(str(cap))
+    ref = f"{clk.day:%Y-%m}:{cap:g}" + (":cap" if at_cap else "")
     if await tx.scalar(
         "SELECT 1 FROM notify.notifications WHERE link_kind = 'voice_cap' AND link_ref = :r", r=ref
     ):
         return None
+    if at_cap:
+        return await notify.raise_notification(
+            tx,
+            company_id=holding.id,
+            company_code=holding.code,
+            level="report",
+            title_fa="هزینه‌ی صدا به سقف ماه رسید",
+            body_fa=(
+                f"این ماه {month:.2f} دلار برای صدا خرج شد (سقف {cap:g} دلار). از حالا صدا با "
+                "گویای ساده ادامه میدهد؛ اگر سقف بیشتری میخواهید، در تنظیمات عوضش کنید."
+            ),
+            link_kind="voice_cap",
+            link_ref=ref,
+            source_kind="service",
+            source_code="voice",
+            domain="infra",
+            critical_reason="money",
+        )
     left = max(Decimal(0), Decimal(str(cap)) - month)
     return await notify.raise_notification(
         tx,
@@ -190,7 +211,8 @@ async def _maybe_warn(tx: Any, holding: Any, clk: store.Clock) -> dict[str, Any]
         link_ref=ref,
         source_kind="service",
         source_code="voice",
-        owner_action=True,
+        domain="infra",
+        routed_to=await routing.aiops_head(tx),
     )
 
 

@@ -59,6 +59,8 @@ SLOT_TOOL = {
     "minutes": "meeting.minutes",
 }
 EFFORTS = ("low", "medium")  # a meeting turn's effort is at most medium
+# The minutes of an incident's meetings are the technical team's (2026-11-06).
+MINUTES_DOMAIN = {"war_room": "infra", "postmortem": "infra"}
 # Claim sources the code can check (contract §16.3): the ref must exist and
 # the speaker must be able to read it (its own RLS scope).
 SOURCE_SQL = {
@@ -351,6 +353,7 @@ async def start(tx: Tx, m: dict[str, Any], s: Any) -> dict[str, Any]:
                 link_ref=m["ref"],
                 source_kind="system",
                 source_code="meetings",
+                domain="infra",  # a daily cap: the technical team's (2026-11-06)
             )
         return await close(tx, m, reason=why or "written")
     for it in items:
@@ -1223,6 +1226,7 @@ async def finalize(tx: Tx, m: dict[str, Any]) -> dict[str, Any]:
             title_fa=f"صورت‌جلسه‌ی {m['ref']}: {m['title_fa']}"[:300],
             body_fa=f"{len(drafts)} پیش‌نویس مصوبه در کارتابل؛ فقط با مُهر تو مصوبه میشوند.",
             link_kind="deliverable", link_ref=minutes_ref, source_kind="system", source_code="meetings",
+            domain=MINUTES_DOMAIN.get(m["type"], "business"),
         )  # fmt: skip
     return m
 
@@ -1296,6 +1300,7 @@ async def war_rooms(tx: Tx, now: datetime, s: Any) -> dict[str, int]:
                 title_fa=f"اتاق جنگ {m['ref']}: سقف روزانه‌ی ایجنت‌ها تمام شد"[:300],
                 body_fa="برای ادامه‌ی مهار، سقف روزانه (AGENT_DAILY_TOKEN_CAP) را بالا ببر؛ ناظر این کار را نمیکند.",
                 link_kind="meeting", link_ref=m["ref"], source_kind="system", source_code="meetings",
+                domain="infra",  # the technical team's (2026-11-06)
             )  # fmt: skip
             await _save_settings(tx, m["id"], {**dict(m["settings"] or {}), "cap_alerted": True})
     return out

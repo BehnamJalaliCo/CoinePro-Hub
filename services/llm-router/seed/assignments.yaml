@@ -11,3 +11,9 @@ assignments:
   # thinking stays on Opus.
   - {scope_type: task_class, scope_ref: advisor_review, model: claude-sonnet-5-5, effort: medium,
      note: Weekly review brief (owner 2026-11-06)}
+  # A proactive note and a decision memo: a short text for the owner on facts
+  # gathered by code (the technical triggers no longer reach the model).
+  - {scope_type: task_class, scope_ref: advisor_proactive, model: claude-sonnet-5-5, effort: medium,
+     note: Proactive note (owner 2026-11-06)}
+  - {scope_type: task_class, scope_ref: advisor_memo, model: claude-sonnet-5-5, effort: medium,
+     note: Decision memo (owner 2026-11-06)}

@@ -267,11 +267,19 @@ async def test_the_daily_model_cap_holds_and_the_rest_keep_the_baseline(
         """SELECT count(*) FROM dceo.predictions p, owner.settings s WHERE s.id = 1 AND p.method = 'model'
              AND (p.made_at AT TIME ZONE s.timezone)::date = (now() AT TIME ZONE s.timezone)::date"""
     )
+    router = FakeRouter(ANSWER)
+    # paused by default (2026-11-06): nothing at all, the owner turns the jobs on
+    async with holding_switch(su, "released"):
+        assert await DC.sweep(hub, router, txf(hub)) == {"skipped": True, "reason": "paused"}
+        assert await DC.propose_principles(hub, router, txf(hub)) == {
+            "skipped": True,
+            "reason": "paused",
+        }
+    assert router.bodies == []
     await su.execute(
-        "UPDATE owner.settings SET digital_ceo = digital_ceo || jsonb_build_object('max_model_per_day', $1::int) WHERE id = 1",
+        "UPDATE owner.settings SET digital_ceo = digital_ceo || jsonb_build_object('max_model_per_day', $1::int, 'paused', false) WHERE id = 1",
         int(made) + 2,
     )
-    router = FakeRouter(ANSWER)
     async with holding_switch(su, "released"):
         out = await DC.sweep(hub, router, txf(hub))
     assert out["model"] == 2 and len(router.bodies) == 2, out

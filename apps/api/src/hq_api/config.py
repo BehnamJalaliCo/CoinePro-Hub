@@ -239,9 +239,10 @@ class Settings:
     ceo_daily_reports: bool = field(
         default_factory=lambda: _env("HQ_CEO_DAILY_REPORTS", "off") == "on"
     )
-    # The morning report rewritten by a model (prompt 05 §6); off = rule-based only.
+    # The morning report rewritten by a model (prompt 05 §6); off = rule-based only
+    # (the default since 2026-11-06: the report is the technical team's, not the owner's).
     morning_report_llm: bool = field(
-        default_factory=lambda: _env("HQ_MORNING_REPORT_LLM", "on") == "on"
+        default_factory=lambda: _env("HQ_MORNING_REPORT_LLM", "off") == "on"
     )
     # The Code Workshop's runtime (contract §17.3): "" until the owner chooses
     # (managed | self_hosted); the model and effort a session gets by default.

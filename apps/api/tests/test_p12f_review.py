@@ -228,6 +228,43 @@ async def test_items_need_if_match_and_finish_writes_the_minutes(
     assert pw["review"] == ref and pw["duration_s"] == done["duration_s"]
 
 
+async def test_the_agenda_has_a_company_over_its_dollar_budget_and_no_token_budget(
+    hub: Hub, su: Any, new_company: Callable[..., Any]
+) -> None:
+    """2026-11-06: a token budget is the head of AI operations', never the owner's agenda."""
+    money, tokens = await new_company(), await new_company()
+    month = "date_trunc('month', now() AT TIME ZONE 'UTC')::date"
+    for co, limit, used in ((money, "usd_limit", 12.5), (tokens, "token_limit", 95)):
+        await su.execute(
+            f"""INSERT INTO llm.budgets (company_id, scope_type, scope_ref, period, {limit})
+                VALUES ($1, 'company', $2, 'month', $3)
+                ON CONFLICT (scope_type, scope_ref, period) DO UPDATE SET {limit} = $3""",
+            co["id"], co["code"], 10 if limit == "usd_limit" else 100,
+        )  # fmt: skip
+        await su.execute(
+            f"""INSERT INTO llm.usage (company_id, scope_type, scope_ref, period, period_start,
+                    usd, tokens)
+                VALUES ($1, 'company', $2, 'month', {month}, $3, $4)
+                ON CONFLICT (scope_type, scope_ref, period, period_start)
+                DO UPDATE SET usd = $3, tokens = $4""",
+            co["id"], co["code"], used if limit == "usd_limit" else 0, 0 if limit == "usd_limit" else used,
+        )  # fmt: skip
+    try:
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            items = await RV._budgets(tx)
+        codes = {i["company"] for i in items}
+        assert money["code"] in codes and tokens["code"] not in codes
+        mine = next(i for i in items if i["company"] == money["code"])
+        assert "دلار" in mine["why_fa"] and "توکن" not in mine["title_fa"] + mine["why_fa"]
+    finally:
+        for co in (money, tokens):
+            for table in ("llm.usage", "llm.budgets"):
+                await su.execute(
+                    f"DELETE FROM {table} WHERE scope_type = 'company' AND scope_ref = $1",
+                    co["code"],
+                )
+
+
 async def test_last_weeks_review_is_skipped_with_one_morning_line(hub: Hub, su: Any) -> None:
     week = a_week()
     ref = await review_row(su, week, [item(1, "note", "NT-0001")])

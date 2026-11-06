@@ -19,7 +19,11 @@ is the owner's whatever its domain. Everything else technical goes to its
 handler's queue (`routed_to`), and once a week into the technical summary.
 
 The same rules are written once in SQL in migration 0037 for the data
-already there; the tests keep both in step.
+already there; the tests keep both in step. The owner's rule of 2026-11-06
+(«موارد فنی را به من ارجاع ندهید») added, for new rows only: the process
+protocols are technical, a system notice of a link kind no rule names is
+infra, an output takes its producer's domain, a deploy card is decided by the
+company's technical handler.
 """
 
 from __future__ import annotations
@@ -74,10 +78,41 @@ ROLE_DOMAIN = {
     "security_analyst": "security",
     "ai_safety": "security",
 }
+# The owner's rule of 2026-11-06 («موارد فنی را به من ارجاع ندهید»): the
+# protocols of the holding's own process (the truth, delivery, quality and
+# people of its governance) are their answerers' work, never the owner's page.
+# Added after migration 0037 (its one data move used the rules without them).
+PROCESS_PROTOCOLS = (
+    "PR-001",  # every figure of an output has a source
+    "PR-002",  # the morning report reads with the raw data
+    "PR-003",  # a resolution's text is its sealed card's
+    "PR-004",  # the cards' evidence is real
+    "PR-005",  # what the companies say of one subject agrees
+    "PR-100",  # the stories are true and leak nothing
+    "PR-111",  # knowledge with a source, and fresh
+    "PR-114",  # meetings held by their rule
+    "PR-121",  # the digital CEO's predictions sealed before the decision
+    "PR-040",  # the weekly random sample
+    "PR-041",  # the blind test
+    "PR-042",  # a low score of the owner's looked into
+    "PR-050",  # the overdue steps run
+    "PR-051",  # formal inquiries answered in time
+    "PR-052",  # findings closed by their date
+    "PR-053",  # the CEO's daily and weekly report
+    "PR-054",  # challenges taken and delivered
+    "PR-116",  # the OKRs' check-ins in time
+    "PR-080",  # stars with a reason and evidence
+    "PR-081",  # the star rules applied alike
+    "PR-082",  # the monthly evaluation with evidence
+    "PR-083",  # knowledge handed over after a move
+)
 # The few seeded protocols whose area and role both mislead.
 PROTOCOL_DOMAIN = {
+    **dict.fromkeys(PROCESS_PROTOCOLS, "tech"),
     "PR-060": "infra",  # the sites' health
     "PR-062": "infra",  # the hub's health
+    # token budgets and the models' fit (2026-11-06: no token jargon for the owner)
+    **dict.fromkeys(("PR-020", "PR-021", "PR-022", "PR-023", "PR-099"), "infra"),
     "PR-013": "tech",  # tools within each role's list
     "PR-034": "tech",  # skills and charters reviewed
     "PR-142": "tech",  # the monthly code review
@@ -111,8 +146,20 @@ DECISION_DOMAIN = {
     "lifecycle_rule": "product",
     "support_go_live": "product",
 }
+# The technical kinds a technical handler decides instead of the owner
+# (2026-11-06); the owner keeps a server plan (a purchase), the destructive
+# categories of his own list (destructive_approver), a code session (its seal
+# is his workshop grant, with its dollar cap) and a tool's enabling (his seal
+# by his standing rule of 2026-10-17).
+HANDLER_CARD_KINDS = ("deploy",)
+# Link kinds added after migration 0037 (its data move used the rules without them).
+LATER_LINKS = {
+    # only the owner releases a hold (oversight.decide_hold): it stays his, as tech
+    "hold": "tech",
+}
 # A notification's link kind (or, failing that, its source).
 LINK_DOMAIN = {
+    **LATER_LINKS,
     # founding a company is the owner's own business (its server plan's seal)
     "server_plan": "business",
     "founding": "business",
@@ -133,6 +180,22 @@ SOURCE_DOMAIN = {
     "site-checks": "infra",
     "archive-fixity": "security",
 }
+# ⟨2026-11-06⟩ A link kind no rule names, raised by the system itself, is
+# infra: what reaches the owner is named here (or passes its own domain).
+SYSTEM_SOURCES = ("system", "service")
+BUSINESS_LINKS = frozenset(
+    {
+        "order", "conversation", "thread", "group", "message",  # his orders and his talk
+        "deliverable",  # an output (a technical producer's passes its own domain)
+        "decision", "finding",  # their own routing, when the row is there
+        "meeting", "employee", "work", "rule", "automation",
+        "archive_record", "line_run", "provision_run",
+    }
+)  # fmt: skip
+# An output's domain by its producer's role, else by its department (§29.1):
+# a CTO's, an SRE's, the AI operations' or the overseer's output is technical.
+PRODUCER_DOMAIN = {**ROLE_DOMAIN, "aiops_head": "infra", "overseer": "tech"}
+DEPARTMENT_DOMAIN = {"TECH": "tech", "AIOPS": "infra", "OVS": "tech"}
 # An agent's incident category (notify) or a code word (§29.1's list).
 CATEGORY_DOMAIN = {
     "service_down": "infra",
@@ -190,8 +253,16 @@ def decision_domain(kind: str) -> str:
 
 
 def notification_domain(
-    link_kind: str | None, source_code: str | None = None, category: str | None = None
+    link_kind: str | None,
+    source_code: str | None = None,
+    category: str | None = None,
+    *,
+    source_kind: str | None = None,
 ) -> str:
+    """A notification's domain by rule. A link kind no rule names is business
+    when a person or an agent raised it, infra when the system did
+    (`source_kind` system or service) and it is not one of BUSINESS_LINKS.
+    Without `source_kind` (migration 0037's rows) the old default stands."""
     if category in CATEGORY_DOMAIN:
         return CATEGORY_DOMAIN[category]
     if link_kind in LINK_DOMAIN:
@@ -200,7 +271,12 @@ def notification_domain(
         return "media"
     if source_code in SOURCE_DOMAIN:
         return SOURCE_DOMAIN[source_code]
-    return domain_of_word(link_kind) or "business"
+    word = domain_of_word(link_kind)
+    if word:
+        return word
+    if link_kind and source_kind in SYSTEM_SOURCES and link_kind not in BUSINESS_LINKS:
+        return "infra"
+    return "business"
 
 
 def critical_of(
@@ -228,17 +304,22 @@ def owner_visible(domain: str, critical_reason: str | None, owner_action: bool =
     return domain in BUSINESS or critical_reason in CRITICAL_REASONS or owner_action
 
 
-async def _by_role(tx: Tx, company_id: UUID, roles: tuple[str, ...]) -> str | None:
-    """The first active employee of these roles (in that order) in a company.
-    A SECURITY-DEFINER-free read: under a company-scoped transaction another
-    company's employees are not visible, and then nobody is named."""
+async def _by_role(
+    tx: Tx, company_id: UUID, roles: tuple[str, ...], exclude: str | None = None
+) -> str | None:
+    """The first active employee of these roles (in that order) in a company
+    (never `exclude`). A SECURITY-DEFINER-free read: under a company-scoped
+    transaction another company's employees are not visible, and then nobody
+    is named."""
     code: str | None = await tx.scalar(
         """SELECT code FROM core.employees
            WHERE company_id = :co AND status = 'active' AND (role = ANY(:roles) OR kind = ANY(:roles))
+             AND code IS DISTINCT FROM CAST(:ex AS text)
            ORDER BY array_position(CAST(:roles AS text[]), COALESCE(role, kind)), hired_at
            LIMIT 1""",
         co=company_id,
         roles=list(roles),
+        ex=exclude,
     )
     return code
 
@@ -276,6 +357,54 @@ async def route(tx: Tx, company_id: UUID, domain: str) -> str | None:
     if domain == "media":
         return await _by_role(tx, company_id, ("media_director", "ceo"))
     return await _by_role(tx, company_id, ("ceo",))
+
+
+async def aiops_head(tx: Tx) -> str | None:
+    """The holding's head of AI operations (the hub's token use, its reports
+    and the agents' cost), else the hub's technical handler."""
+    hid = await _holding(tx)
+    if hid is None:
+        return None
+    return await _by_role(tx, hid, ("aiops_head",)) or await route(tx, hid, "infra")
+
+
+async def card_approver(tx: Tx, company_id: UUID, kind: str, proposer: str) -> str | None:
+    """⟨2026-11-06⟩ Who decides a technical card (HANDLER_CARD_KINDS) instead
+    of the owner: the company's CTO, else its SRE, else its CEO; the hub's
+    platform SRE, else the head of AI operations, for the holding. Never the
+    card's own proposer (the next one decides); None keeps it the owner's."""
+    if kind not in HANDLER_CARD_KINDS:
+        return None
+    holding = await tx.scalar(
+        "SELECT kind = 'holding' FROM core.companies WHERE id = :co", co=company_id
+    )
+    roles = ("hub_platform_sre", "aiops_head") if holding else ("cto", "sre", "ceo")
+    return await _by_role(tx, company_id, roles, exclude=proposer)
+
+
+async def producer_domain(
+    tx: Tx, *, employee_id: UUID | None = None, work_id: UUID | None = None
+) -> str:
+    """An output's domain (§29.1): its producer's role (PRODUCER_DOMAIN), else
+    the producer's department, else its work's department; business otherwise."""
+    row = await tx.first(
+        """SELECT e.role, de.code AS dept, dw.code AS work_dept
+           FROM (SELECT 1) one
+           LEFT JOIN core.employees e ON e.id = CAST(:e AS uuid)
+           LEFT JOIN core.departments de ON de.id = e.department_id
+           LEFT JOIN work.work w ON w.id = CAST(:w AS uuid)
+           LEFT JOIN core.departments dw ON dw.id = w.department_id""",
+        e=employee_id,
+        w=work_id,
+    )
+    if row is None:
+        return "business"
+    return (
+        PRODUCER_DOMAIN.get(row["role"] or "")
+        or DEPARTMENT_DOMAIN.get(row["dept"] or "")
+        or DEPARTMENT_DOMAIN.get(row["work_dept"] or "")
+        or "business"
+    )
 
 
 async def classify(

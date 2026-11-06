@@ -5,8 +5,9 @@ An inquiry is a row of the asked one's company plus a work item for it at P1
 (above normal work), so the runtime wakes it with the question in its brief;
 the answer is posted in the asker's thread (A-…, N-…, or a CEO's own thread)
 with `links.inquiry`, and the work item closes with the inquiry as its
-evidence. An inquiry past its due time is `late`: the owner is told once and
-it counts against the asked company's compliance (protocol PR-051). An
+evidence. An inquiry past its due time is `late`: its asker is told once (not
+the owner, 2026-11-06) and it counts against the asked company's compliance
+(protocol PR-051). An
 inquiry from rank 2 (the overseer, the advisor) must be answered: its work
 item cannot be declined or failed away.
 """
@@ -248,9 +249,9 @@ async def must_be_answered(tx: Tx, work_id: UUID) -> str | None:
 
 
 async def mark_late(tx: Tx) -> list[dict[str, Any]]:
-    """Open inquiries past their due time: `late` (once), the owner told
-    (🟡 decision level, in the asked company), `inquiry.late` on the stream.
-    Returns the notifications to push."""
+    """Open inquiries past their due time: `late` (once), its asker told (a
+    notice of the asked company, never the owner's), `inquiry.late` on the
+    stream. Returns the notifications to push."""
     rows = await tx.all(
         """UPDATE oversight.inquiries q SET status = 'late', late_at = now(), updated_at = now()
            FROM core.companies c
@@ -269,6 +270,9 @@ async def mark_late(tx: Tx) -> list[dict[str, Any]]:
                 body_fa=f"پرسنده: {r['from_code']} · مهلت گذشت",
                 link_kind="inquiry",
                 link_ref=r["ref"],
+                # an internal process (2026-11-06): its asker follows it up, not the owner
+                domain="tech",
+                routed_to=r["from_code"],
             )
         )
         await events.emit(

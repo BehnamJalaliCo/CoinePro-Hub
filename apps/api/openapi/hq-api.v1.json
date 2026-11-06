@@ -11583,6 +11583,11 @@
             "title": "Model Predictions",
             "type": "boolean"
           },
+          "paused": {
+            "default": true,
+            "title": "Paused",
+            "type": "boolean"
+          },
           "reveal": {
             "default": "after",
             "enum": [
@@ -13601,6 +13606,17 @@
               }
             ],
             "title": "Model Predictions"
+          },
+          "paused": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paused"
           },
           "reveal": {
             "anyOf": [
@@ -82995,6 +83011,7 @@
                     "enabled": false,
                     "max_model_per_day": 1,
                     "model_predictions": false,
+                    "paused": false,
                     "reveal": "after"
                   },
                   "stats": [
@@ -113908,6 +113925,7 @@
                   "enabled": false,
                   "max_model_per_day": 0,
                   "model_predictions": false,
+                  "paused": false,
                   "reveal": "after"
                 },
                 "learning_daily_cap": 0,

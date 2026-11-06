@@ -242,6 +242,7 @@ async def raise_notification(
     critical_reason: str | None = None,
     category: str | None = None,
     owner_action: bool = False,
+    routed_to: str | None = None,
 ) -> dict[str, Any]:
     """Store a notification and decide how it is delivered (in the caller's tx).
 
@@ -249,7 +250,9 @@ async def raise_notification(
     `push_now`: when true, call `deliver_pending(hub, [id])` after commit.
     ⟨21⟩ `domain` (else by rule from the link, the source or an incident
     `category`), `critical_reason` and `owner_action` (only the owner can act
-    on it) decide whether the owner sees it (contract §29.1).
+    on it) decide whether the owner sees it (contract §29.1). `routed_to`
+    names its handler where the rule's would be the wrong one (an inquiry's
+    asker, the holding's head of AI operations).
     """
     if level not in LEVELS:
         raise ValueError(f"unknown level {level}")
@@ -259,11 +262,14 @@ async def raise_notification(
         link_kind=link_kind,
         link_ref=link_ref,
         source_code=source_code,
+        source_kind=source_kind,
         domain=domain,
         critical_reason=critical_reason,
         category=category,
         owner_action=owner_action,
     )
+    if routed_to:
+        r = {**r, "routed_to": routed_to}
     if r["owner_visible"]:  # written for the owner (§29.7)
         title_fa = HZ.humanize(title_fa) or UNTITLED_FA
         body_fa = HZ.humanize(body_fa)
@@ -326,6 +332,7 @@ async def routing_of(
     link_kind: str | None,
     link_ref: str | None,
     source_code: str | None,
+    source_kind: str | None = None,
     domain: str | None = None,
     critical_reason: str | None = None,
     category: str | None = None,
@@ -348,7 +355,9 @@ async def routing_of(
                 or routing.clean_critical(critical_reason) is not None,
             }
     if domain is None:
-        domain = routing.notification_domain(link_kind, source_code, category)
+        domain = routing.notification_domain(
+            link_kind, source_code, category, source_kind=source_kind
+        )
     critical = critical_reason or routing.critical_of(category=category)
     return await routing.classify(tx, company_id, domain, critical, owner_action=owner_action)
 

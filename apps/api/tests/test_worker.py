@@ -273,7 +273,7 @@ async def test_effect_waits_while_the_holding_is_locked(
 
 
 @pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
-async def test_rejected_effect_is_marked_failed_with_an_urgent_notification(
+async def test_rejected_effect_is_marked_failed_with_a_plain_report(
     hub: Hub, wk: dict[str, Any], new_company: Callable[..., Any], owner_db: Database
 ) -> None:
     co = await new_company()
@@ -293,13 +293,14 @@ async def test_rejected_effect_is_marked_failed_with_an_urgent_notification(
     async with hub.db.tx(await _all(hub)) as tx:
         d = await D.load(tx, ref)
         assert d["effect_status"] == "failed" and "not_found" in d["effect_error"]
-        assert (
-            await tx.scalar(
-                "SELECT count(*) FROM notify.notifications WHERE level = 'urgent' AND link_ref = :r",
-                r=ref,
-            )
-            == 1
+        # a plain report on the card's own routing; the error stays on the card (2026-11-06)
+        notes = await tx.all(
+            "SELECT level, title_fa, body_fa FROM notify.notifications WHERE link_ref = :r"
+            " AND link_kind = 'decision' AND title_fa LIKE '%انجام نشد%'",
+            r=ref,
         )
+        assert [n["level"] for n in notes] == ["report"]
+        assert "not_found" not in notes[0]["title_fa"] + notes[0]["body_fa"]
 
 
 @pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)

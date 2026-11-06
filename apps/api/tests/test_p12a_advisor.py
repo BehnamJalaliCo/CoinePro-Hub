@@ -447,6 +447,48 @@ async def test_a_trigger_fires_once_a_day_and_its_note_is_a_report_never_urgent(
     )
 
 
+async def test_a_technical_trigger_is_its_handlers_notice_and_never_the_advisors(
+    hub: Hub, su: Any, new_company: Callable[..., Any]
+) -> None:
+    """The owner's rule of 2026-11-06: a critical finding (like a budget, a quota,
+    compliance or an incident) is one plain notice a day for its handler, by code."""
+    assert A.AUTO_KINDS == ("company_found",)
+    co = (await new_company())["code"]
+    cid = await su.fetchval("SELECT id FROM core.companies WHERE code = $1", co)
+    ref = await su.fetchval(
+        """INSERT INTO oversight.findings (company_id, severity, title_fa, answerable_kind,
+               answerable_code, raised_by_kind, raised_by_code, due_at, kind, opened_at, domain,
+               owner_visible, routed_to)
+           VALUES ($1, 'critical', 'پورت باز', 'agent', $2, 'system', 'oversight', now(),
+                   'security', now() - interval '2 days', 'security', false, $2)
+           RETURNING ref""",
+        cid, f"{co}-TECH-MGR",
+    )  # fmt: skip
+    now = datetime(2032, 1, 1, 9, tzinfo=UTC) + timedelta(days=random.randint(0, 3000))
+    try:
+        async with holding_switch(su, "released"):
+            first = await A.fire_triggers_tx(hub, now)
+            await A.fire_triggers_tx(hub, now)
+        assert first["routed"] >= 1
+        day = A.owner_day("Asia/Tehran", now).isoformat()
+        assert not await su.fetchval(
+            "SELECT count(*) FROM advisor.triggers WHERE key = $1", f"finding:{ref}:{day}"
+        )
+        notes = await su.fetch(
+            """SELECT domain, owner_visible, routed_to FROM notify.notifications
+               WHERE source_code = 'advisor-rules' AND link_kind = 'finding' AND link_ref = $1
+                 AND company_id = $2""",
+            ref,
+            cid,
+        )
+        assert [tuple(n) for n in notes] == [("security", False, f"{co}-TECH-MGR")]  # once a day
+    finally:
+        await su.execute(
+            "UPDATE oversight.findings SET status = 'closed', closed_at = now() WHERE ref = $1",
+            ref,
+        )
+
+
 async def test_nothing_wakes_the_advisor_or_a_substitute_while_the_holding_is_locked(
     client: httpx.AsyncClient,
     hub: Hub,

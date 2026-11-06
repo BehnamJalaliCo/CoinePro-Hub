@@ -420,9 +420,14 @@ async def test_a_ceo_hires_inside_the_envelope(
     assert story["kind"] == "hire" and json.loads(story["links"])["employee"] == emp
     assert [f["label_fa"] for f in json.loads(story["figures"])] == ["نقش", "مدل", "برآورد ماهانه"]
     note = await su.fetchrow(
-        "SELECT level FROM notify.notifications WHERE link_kind = 'employee' AND link_ref = $1", emp
+        """SELECT level, title_fa, body_fa, owner_visible FROM notify.notifications
+           WHERE link_kind = 'employee' AND link_ref = $1""",
+        emp,
     )
     assert note["level"] == "report"  # the digest, never an urgent push
+    # plain (2026-11-06): no model, effort or tokens in the owner's text
+    assert note["owner_visible"] and "یک نفر استخدام کرد" in note["title_fa"]
+    assert "توکن" not in note["body_fa"] and "claude" not in note["body_fa"].lower()
     review = await su.fetchrow(
         """SELECT e.code, w.due_at - now() AS due FROM work.work w
            JOIN core.employees e ON e.id = w.assignee_id WHERE w.title LIKE $1""",

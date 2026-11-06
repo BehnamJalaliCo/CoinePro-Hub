@@ -797,29 +797,61 @@ async def test_morning_report_rewrite_keeps_the_numbers(
         "UPDATE work.work SET title = title || ' (old)' WHERE company_id = $1 AND title LIKE 'Morning report %'",
         holding.id,
     )
-    agents.fake.enqueue(f"{holding.code}-SYS", "گزارش خوش‌خوان امروز: همه چیز آرام است.")
+    # By default (2026-11-06) no model: the technical team's report, never the owner's.
+    assert wk["hub"].settings.morning_report_llm is False
     out = await acts.morning_report()
-    assert out["created"] is True and out["rewritten"]
-    pdl = await su.fetchrow(
-        "SELECT title, produced_with FROM cartable.deliverables WHERE ref = $1", out["rewritten"]
+    assert out["created"] is True and out["rewritten"] is None and "briefing" not in out
+    noti = await su.fetchrow(
+        """SELECT domain, owner_visible, routed_to FROM notify.notifications
+           WHERE link_kind = 'deliverable' AND link_ref = $1""",
+        out["deliverable"],
     )
-    assert (
-        pdl["title"].endswith("(متن خوش‌خوان)")
-        and json.loads(pdl["produced_with"])["model"] == "claude-sonnet-5-5"
-    )
-    await su.execute(
-        "UPDATE work.work SET title = title || ' (old)' WHERE company_id = $1 AND title LIKE 'Morning report %' AND title NOT LIKE '%(old)'",
+    aiops = await su.fetchval(
+        """SELECT code FROM core.employees WHERE company_id = $1 AND role = 'aiops_head'
+             AND status = 'active' ORDER BY hired_at LIMIT 1""",
         holding.id,
     )
-    agents.fake.enqueue(
-        f"{holding.code}-SYS", "امروز 999999 کار تازه داریم."
-    )  # a number the report never had
-    out = await acts.morning_report()
-    assert out["created"] is True and out["rewritten"] is None
-    noti = await su.fetchval(
-        "SELECT link_ref FROM notify.notifications WHERE link_ref = $1", out["deliverable"]
+    assert noti["domain"] == "infra" and not noti["owner_visible"]
+    assert aiops is None or noti["routed_to"] == aiops
+    assert await su.fetchval(
+        "SELECT seen_at IS NOT NULL FROM cartable.deliverables WHERE ref = $1", out["deliverable"]
     )
-    assert noti == out["deliverable"]
+    # With the rewrite turned on, it keeps the numbers.
+    from dataclasses import replace
+
+    real = wk["hub"].settings
+    wk["hub"].settings = replace(real, morning_report_llm=True)
+    try:
+        await su.execute(
+            "UPDATE work.work SET title = title || ' (old)' WHERE company_id = $1 AND title LIKE 'Morning report %' AND title NOT LIKE '%(old)'",
+            holding.id,
+        )
+        agents.fake.enqueue(f"{holding.code}-SYS", "گزارش خوش‌خوان امروز: همه چیز آرام است.")
+        out = await acts.morning_report()
+        assert out["created"] is True and out["rewritten"]
+        pdl = await su.fetchrow(
+            "SELECT title, produced_with FROM cartable.deliverables WHERE ref = $1",
+            out["rewritten"],
+        )
+        assert (
+            pdl["title"].endswith("(متن خوش‌خوان)")
+            and json.loads(pdl["produced_with"])["model"] == "claude-sonnet-5-5"
+        )
+        await su.execute(
+            "UPDATE work.work SET title = title || ' (old)' WHERE company_id = $1 AND title LIKE 'Morning report %' AND title NOT LIKE '%(old)'",
+            holding.id,
+        )
+        agents.fake.enqueue(
+            f"{holding.code}-SYS", "امروز 999999 کار تازه داریم."
+        )  # a number the report never had
+        out = await acts.morning_report()
+        assert out["created"] is True and out["rewritten"] is None
+        noti = await su.fetchval(
+            "SELECT link_ref FROM notify.notifications WHERE link_ref = $1", out["deliverable"]
+        )
+        assert noti == out["deliverable"]
+    finally:
+        wk["hub"].settings = real
 
 
 # ----------------------------------------------------------- through Temporal --

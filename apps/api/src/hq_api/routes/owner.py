@@ -239,6 +239,7 @@ class DigitalCeoIn(BaseModel):
     reveal: Literal["after", "before"] | None = None
     model_predictions: bool | None = None
     max_model_per_day: int | None = Field(default=None, ge=0, le=100)
+    paused: bool | None = None  # its jobs wait (default: paused)
 
 
 class AudioBriefingsIn(BaseModel):

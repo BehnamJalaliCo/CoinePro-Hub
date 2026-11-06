@@ -234,6 +234,20 @@ async def test_an_instruction_inside_a_customer_message_gets_no_link_out(
     assert (out.result, out.reason) == ("handoff", "security")
     assert len(tg.calls) == 1 and tg.calls[0]["text"].startswith(basics["holding_reply"][:20])
     assert "http" not in tg.calls[0]["text"] and "lbank" not in tg.calls[0]["text"].lower()
+    # the security report is its security handler's (2026-11-06); the waiting conversation
+    # still reaches the owner's digest line
+    conv = await su.fetchrow(
+        "SELECT ref, owner_notified_at FROM support.conversations WHERE id = $1",
+        msg["conversation"]["id"],
+    )
+    n = await su.fetchrow(
+        """SELECT domain, owner_visible FROM notify.notifications
+           WHERE link_kind = 'support_conversation' AND link_ref = $1 AND company_id = $2""",
+        conv["ref"],
+        co["id"],
+    )
+    assert (n["domain"], n["owner_visible"]) == ("security", False)
+    assert conv["owner_notified_at"] is None
 
 
 async def test_once_the_draft_tokens_of_the_day_are_spent_the_next_message_is_handed_off(

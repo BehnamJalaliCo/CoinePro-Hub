@@ -4,6 +4,7 @@ holding is locked."""
 
 from __future__ import annotations
 
+import json
 import re
 import secrets
 from collections.abc import Callable
@@ -301,8 +302,13 @@ async def test_a_sourced_letter_is_published_as_it_is(
             co["id"],
             date(2031, 5, 3),
         )
+        # the business only (2026-11-06): no tokens, spend, incidents, findings or challenges
+        facts = (
+            letter["facts"] if isinstance(letter["facts"], dict) else json.loads(letter["facts"])
+        )
+        assert not {"spend", "incidents", "findings_open", "challenge"} & set(facts)
         ceo = await agent_headers(f"{co['code']}-CEO")
-        good = {"title": "نامه‌ی هفتگی", "body": "این هفته 0 حادثه داشتیم و همه‌چیز آرام بود."}
+        good = {"title": "نامه‌ی هفتگی", "body": "این هفته 0 خروجی داشتیم و همه‌چیز آرام بود."}
         r = await client.post(
             f"/internal/v1/work/{letter['work_id']}/deliver", headers={**ceo, **idem()}, json=good
         )
@@ -312,3 +318,11 @@ async def test_a_sourced_letter_is_published_as_it_is(
             letter["id"],
         )
         assert row["state"] == "published" and row["finding_ref"] is None and row["attempts"] == 1
+        # the owner's notice is a plain sentence, not a ref
+        n = await su.fetchrow(
+            """SELECT body_fa, owner_visible FROM notify.notifications
+               WHERE link_kind = 'deliverable' AND link_ref = $1 AND source_kind = 'system'""",
+            r.json()["deliverable"],
+        )
+        assert n["owner_visible"] and "نامه" in n["body_fa"]
+        assert r.json()["deliverable"] not in n["body_fa"]

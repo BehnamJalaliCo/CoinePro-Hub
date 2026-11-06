@@ -742,7 +742,7 @@ services:
       MEETINGS_DAILY_SHARE: ${MEETINGS_DAILY_SHARE:-0.15}
       OWNER_ZONE_DAILY_SHARE: ${OWNER_ZONE_DAILY_SHARE:-0.25}
       HQ_CEO_DAILY_REPORTS: ${HQ_CEO_DAILY_REPORTS:-off}
-      HQ_MORNING_REPORT_LLM: ${HQ_MORNING_REPORT_LLM:-on}
+      HQ_MORNING_REPORT_LLM: ${HQ_MORNING_REPORT_LLM:-off}
       # Owner media (prompt 6 §2-§3): the file store (posters, key frames, sound
       # tracks); the speech recogniser: hq.sh sets STT_URL while HQ_STT=on, else empty.
       HQ_FILES_ROOT: /data/files

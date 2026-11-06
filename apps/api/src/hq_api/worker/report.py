@@ -34,7 +34,8 @@ async def gather(tx: Tx, now: datetime, tz: str) -> dict[str, Any]:
     risks = {
         r["risk"]: r["n"]
         for r in await tx.all(
-            "SELECT risk, count(*) AS n FROM cartable.decisions WHERE status = 'pending' GROUP BY risk"
+            """SELECT risk, count(*) AS n FROM cartable.decisions
+               WHERE status = 'pending' AND approver_code IS NULL AND owner_visible GROUP BY risk"""
         )
     }
     deliverables = await tx.one(

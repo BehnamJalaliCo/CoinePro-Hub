@@ -181,10 +181,13 @@ async def test_who_may_ask_and_answer_and_a_late_inquiry(
     )
     assert row["status"] == "late" and row["late_at"] is not None
     n = await su.fetchrow(
-        "SELECT level, title_fa FROM notify.notifications WHERE link_kind = 'inquiry' AND link_ref = $1",
+        """SELECT level, title_fa, domain, owner_visible, routed_to FROM notify.notifications
+           WHERE link_kind = 'inquiry' AND link_ref = $1""",
         q["ref"],
     )
     assert n["level"] == "decision" and q["ref"] in n["title_fa"]
+    # its asker follows it up, never the owner (2026-11-06)
+    assert (n["domain"], n["owner_visible"], n["routed_to"]) == ("tech", False, "HQ-OVR")
     # A late one can still be answered, into the overseer's thread N.
     ok = await client.post(
         f"/internal/v1/inquiries/{q['ref']}/answer",
