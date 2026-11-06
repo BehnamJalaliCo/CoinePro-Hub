@@ -39,7 +39,7 @@ function Part({ p }: { p: SplitPart }) {
       {p.state === 'working' && p.progress_pct != null ? <Bar pct={p.progress_pct} tone="gold" label={`پیشرفت ${p.title_fa}`} /> : null}
       {p.state === 'failed' ? <p className="rounded-[10px] bg-neg-soft px-3 py-2 text-[13px] leading-6" role="alert"><FaText text={p.failed_fa ?? 'این بخش تمام نشد.'} /></p> : null}
       {p.output_ref ? <Link href={`/outputs?ref=${p.output_ref}&tab=all`} className="flex items-center gap-1.5 text-[12px] text-gold-ink hover:underline"><Icon name="deliverable" size={13} /><FaText text={p.output_title_fa ?? p.output_ref} /></Link> : null}
-      {used || p.budget_tokens ? <span className="fig text-[11px] text-muted">{tokens(used)}{p.budget_tokens ? ` از ${tokens(p.budget_tokens)}` : ''} توکن</span> : null}
+      {used || p.budget_tokens ? <span className="fig text-[11px] text-muted">{tokens(used)}{p.budget_tokens ? ` از ${tokens(p.budget_tokens)}` : ''} واحد</span> : null}
     </li>
   );
 }

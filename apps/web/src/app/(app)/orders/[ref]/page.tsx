@@ -1,10 +1,13 @@
 'use client';
 
-import { use } from 'react';
-import { OrderReportView } from '@/components/v29/report';
+import { useRouter } from 'next/navigation';
+import { use, useEffect } from 'react';
+import { Skeleton } from '@/components/ui/primitives';
 
-/** ⟨1.11⟩ §29.2: one order's report, live. */
+/** ⟨1.17⟩ §35: an order's page is its session now; the old address leads there. */
 export default function OrderReportPage({ params }: { params: Promise<{ ref: string }> }) {
   const { ref } = use(params);
-  return <OrderReportView refId={decodeURIComponent(ref)} />;
+  const router = useRouter();
+  useEffect(() => { router.replace(`/s/${ref}`); }, [ref, router]);
+  return <Skeleton className="h-20" />;
 }

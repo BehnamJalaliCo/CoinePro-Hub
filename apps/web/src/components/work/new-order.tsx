@@ -56,7 +56,7 @@ export function NewOrder({ open, onOpenChange, company: initial }: { open: boole
       const out = await create.mutateAsync(body as Parameters<typeof create.mutateAsync>[0]);
       const o = out as { ref?: string; id?: string };
       // 0.4.0: the order is followed from here on («فرمان‌های من»).
-      toast({ tone: 'ok', text: <>فرمان ثبت شد: <span className="fig">{o.ref ?? ''}</span>. {dept ? 'مدیر دپارتمان' : 'مدیرعامل'} بیدار شد.</>, action: o.id ? { label: 'پیگیری', run: () => router.push(`/work/${o.id}`) } : undefined });
+      toast({ tone: 'ok', text: <>فرمان ثبت شد. {dept ? 'مدیر دپارتمان' : 'مدیرعامل'} بیدار شد.</>, action: o.id ? { label: 'پیگیری', run: () => router.push(`/work/${o.id}`) } : undefined });
       void qc.invalidateQueries({ queryKey: ['work', 'orders'] });
       onOpenChange(false);
       setTitle(''); setBrief(''); setDept(null); setPlayer(optionOf('auto')); setMedia(null); setDue('');

@@ -2,13 +2,13 @@ import { expect, test } from '@playwright/test';
 import { clean } from './support';
 
 // ⟨1.11⟩ Contract §29 end to end over the demo holding (NEXT_PUBLIC_HQ_MOCK=1, lib/api/mock-v29.ts, fixed dates and figures; animations off):
-// the owner's new home (three cards, «نه» with a reason, «اجرا کن» making an order, nothing technical), the order report and its one-tap
+// the owner's office (⟨1.17⟩: sessions, suggestions with «نه» and a reason, «اجرا کن» opening a session, nothing technical), the order's session and its one-tap
 // fixes, the secretary's one line before an order goes, the owner's rule sealed in one tap and retired, the council v2's plan, readiness,
 // the working group, the connections with the write-only secret, each employee's state, and «شرکت ← فنی».
 
 test.use({ reducedMotion: 'reduce' });
 
-const PAGES = ['/', '/orders/F-0007', '/orders/F-0006', '/rules', '/groups', '/groups/content', '/connections', '/companies/TY?tab=readiness',
+const PAGES = ['/', '/s/F-0007', '/s/F-0006', '/rules', '/groups', '/groups/content', '/connections', '/companies/TY?tab=readiness',
   '/companies/FX?tab=connections', '/companies/PC?tab=tech', '/companies/FX?tab=people', '/work/W-000199'];
 
 for (const path of PAGES) {
@@ -23,25 +23,21 @@ for (const path of PAGES) {
   });
 }
 
-test('the home shows the business: three cards, the morning, the group KPIs, the orders, only the critical item', async ({ page }) => {
+test('the office shows the business: suggestions, the sessions, only the critical item; no per-group block', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/');
     await expect(page.getByRole('article', { name: /^پیشنهاد مؤثر: هر روز یک ریلز آموزشی/ })).toBeVisible();
     await expect(page.getByRole('article', { name: /^پیشنهاد خوب: صفحه‌ی «آموزش فارکس/ })).toBeVisible();
-    const progress = page.getByRole('article', { name: 'پیشرفت واقعی' });
-    await expect(progress.getByText('18,915')).toBeVisible();
-    await expect(progress.getByText('منبع: اینستاگرام')).toBeVisible();
-    await expect(page.getByLabel('خلاصه‌ی صبح').getByRole('listitem')).toHaveCount(5);
-    await expect(page.getByLabel('شاخص‌های تولید محتوا و انتشار')).toBeVisible();
-    await expect(page.getByLabel('فرمان‌های من').getByText('برای تریدیار کلیپ بساز و منظم منتشر کن')).toBeVisible();
+    await expect(page.getByLabel('جلسه‌ها', { exact: true }).getByText('برای تریدیار کلیپ بساز و منظم منتشر کن')).toBeVisible();
     await expect(page.getByLabel('بحرانی').getByText('محصول از دسترس خارج شد')).toBeVisible();
+    await expect(page.getByLabel(/^شاخص‌های /)).toHaveCount(0);
     // Nothing technical: no watch, no live orbit on the home.
     await expect(page.getByText('استریم زنده‌ی هلدینگ')).toHaveCount(0);
     await expect(page.getByText('ناظر کل', { exact: true }).locator('xpath=ancestor::main')).toHaveCount(0);
   });
 });
 
-test('«نه» asks a short reason; «اجرا کن» makes an order with a live report', async ({ page }) => {
+test('«نه» asks a short reason; «اجرا کن» opens the order\'s session', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/');
     const good = page.getByRole('article', { name: /^پیشنهاد خوب/ });
@@ -52,16 +48,14 @@ test('«نه» asks a short reason; «اجرا کن» makes an order with a live
     await expect(page.getByRole('article', { name: /^پیشنهاد خوب: استوری نظرسنجی هفتگی/ })).toBeVisible();
     const eff = page.getByRole('article', { name: /^پیشنهاد مؤثر/ });
     await eff.getByRole('button', { name: 'اجرا کن' }).click();
-    await expect(eff.getByText('فرمانش ساخته شد')).toBeVisible();
-    await eff.getByRole('link', { name: 'گزارش فرمان' }).click();
-    await expect(page).toHaveURL(/\/orders\/F-\d+$/);
+    await expect(page).toHaveURL(/\/s\/F-\d+$/);
     await expect(page.getByLabel('رسید و برنامه')).toBeVisible();
   });
 });
 
 test('an order report: receipt, route, steps, outputs, and each blocker fixed in one tap', async ({ page }) => {
   await clean(page, async () => {
-    await page.goto('/orders/F-0005');
+    await page.goto('/s/F-0005');
     await expect(page.getByRole('heading', { level: 1 })).toContainText('سه پست معرفی ابزار تحلیل تکنیکال');
     await expect(page.getByLabel('رسید و برنامه').getByText(/خروجی:/)).toBeVisible();
     const blockers = page.getByLabel('گیرها');
@@ -69,10 +63,10 @@ test('an order report: receipt, route, steps, outputs, and each blocker fixed in
     await blockers.getByRole('button', { name: '+200 هزار واحد بده' }).click();
     await expect(page.getByText('انجام شد.')).toBeVisible();
     await expect(page.getByLabel('گیرها')).toHaveCount(0);
-    await expect(page.getByText('واحد به بودجه اضافه شد؛ کار ادامه دارد.')).toBeVisible();
+    await expect(page.getByLabel('خلاصه‌ی جلسه').getByText('واحد به بودجه اضافه شد؛ کار ادامه دارد.')).toBeVisible();
 
     // The clip order: the series is sealed behind the passkey, the publisher hired.
-    await page.goto('/orders/F-0007');
+    await page.goto('/s/F-0007');
     await page.getByLabel('گیرها').getByRole('button', { name: 'مُهر سری انتشار' }).click();
     await expect(page.getByText('سری انتشار مُهر شد؛ انتشار از فردا صبح شروع میشود.')).toBeVisible();
     await page.getByLabel('گیرها').getByRole('button', { name: 'استخدام مسئول انتشار' }).click();
@@ -81,13 +75,14 @@ test('an order report: receipt, route, steps, outputs, and each blocker fixed in
   });
 });
 
-test('a delivered order ends with «چه شد / چه ماند / از شما چه لازم است», and its fix opens the guide', async ({ page }) => {
+test('a delivered order is ready for his OK with «چه شد / حالا چه / از تو چه», and its fix opens the guide', async ({ page }) => {
   await clean(page, async () => {
-    await page.goto('/orders/F-0006');
-    const end = page.getByLabel('جمع‌بندی پایان فرمان');
+    await page.goto('/s/F-0006');
+    const end = page.getByLabel('خلاصه‌ی جلسه');
     await expect(end.getByText('چه شد')).toBeVisible();
-    await expect(end.getByText('چه ماند')).toBeVisible();
-    await end.getByRole('button', { name: 'وصل کردن جست‌وجوی گوگل' }).click();
+    await expect(end.getByText('حالا چه')).toBeVisible();
+    await expect(end.getByText('از تو چه')).toBeVisible();
+    await page.getByLabel('گیرها').getByRole('button', { name: 'وصل کردن جست‌وجوی گوگل' }).click();
     await expect(page.getByRole('dialog', { name: 'وصل کردن جست‌وجوی گوگل (سئو)' })).toBeVisible();
   });
 });
@@ -106,8 +101,8 @@ test('the secretary says where an order goes in one line; the owner changes the 
     await line.getByRole('button', { name: 'استوری', exact: true }).click();
     await expect(line.getByText(/خروجی:\s*3\s*استوری/)).toBeVisible();
     await sheet.getByRole('button', { name: 'بفرست' }).click();
-    await expect(sheet.getByText('فرمان رسید')).toBeVisible();
-    await sheet.getByRole('link', { name: 'گزارش فرمان' }).click();
+    // ⟨1.17⟩ The order is a session at once and the owner lands in it.
+    await expect(page).toHaveURL(/\/s\/F-\d+$/);
     await expect(page.getByLabel('رسید و برنامه').getByText(/استوری/)).toBeVisible();
   });
 });

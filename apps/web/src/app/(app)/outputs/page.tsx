@@ -20,6 +20,7 @@ import { useCompanies, useInbox, useRate } from '@/lib/api/hooks';
 import { activeFilters, categoryOf, useLocalSeen, useOutput, useOutputActions, useOutputs, type Category, type Inbox21, type Output, type OutputQuery } from '@/lib/api/v21';
 import { useScope } from '@/lib/scope';
 import { cx, jDateTime, jTime, modelLabel, tokens, usd } from '@/lib/format';
+import { leaks, plain } from '@/lib/plain';
 
 // Outputs (0.3.0, contract §5.2 ⟨1.7.3⟩): what the agents and the hub's own reporting delivered. The owner reads one and marks it seen (the
 // button on the row or on its page, or all at once): it leaves «تازه» for «خوانده‌شده» and stays, so agents and the digital chief keep
@@ -101,9 +102,8 @@ function Detail({ refId, onSeen, onGone }: { refId: string; onSeen: (refs: strin
           <Pill tone={cat === 'report' ? 'lapis' : 'silver'}>{CATEGORY_FA[cat]}</Pill>
           <span className="text-sec"><CompanyMark code={d.company} height={13} mono /></span>
           <span>{companies?.find((c) => c.code === d.company)?.name_fa ?? d.company}</span>
-          <span className="fig">{d.ref}</span>
         </div>
-        <h2 className="text-h2 font-semibold leading-9">{d.title}</h2>
+        <h2 className="text-h2 font-semibold leading-9">{plain(d.title)}</h2>
       </header>
       {/* Seen, and filed in the archive (⟨1.7.3⟩): the two things done with an output once read. */}
       <div className="flex flex-wrap items-center gap-2">
@@ -149,7 +149,7 @@ function Detail({ refId, onSeen, onGone }: { refId: string; onSeen: (refs: strin
       {Array.isArray(d.evidence) && d.evidence.length ? (
         <section className="flex flex-col gap-2">
           <h3 className="text-[12px] font-semibold text-gold-ink">شاهد</h3>
-          <ul className="flex flex-col gap-1">{(d.evidence as Array<Record<string, string>>).map((e, i) => <li key={i} className="flex items-center gap-2 text-[13px] text-sec"><Icon name="seal" size={14} /><span className="fig">{e.kind}</span><span className="fig text-muted">{e.ref}</span>{e.note ? <span className={/[A-Za-z]/.test(e.note) ? 'fig' : undefined}>{e.note}</span> : null}</li>)}</ul>
+          <ul className="flex flex-col gap-1">{(d.evidence as Array<Record<string, string>>).map((e, i) => <li key={i} className="flex items-center gap-2 text-[13px] text-sec"><Icon name="seal" size={14} /><span className="fig">{e.kind}</span>{leaks(e.ref) ? null : <span className="fig text-muted">{e.ref}</span>}{e.note ? <span className={/[A-Za-z]/.test(e.note) ? 'fig' : undefined}>{e.note}</span> : null}</li>)}</ul>
         </section>
       ) : null}
       <RatePanel key={`${d.ref}-${d.rating?.rated_at ?? ''}`} d={d} />
@@ -164,7 +164,7 @@ function Row({ d, seen, selected, checked, companyFa, onOpen, onMark, onCheck }:
   const cat = categoryOf(d);
   return (
     <div className={cx('group relative flex gap-2 rounded-[14px] p-3 transition-colors', selected ? 'tahrir bg-gold-soft' : checked ? 'bg-gold-soft/60' : 'hover:bg-hover')}>
-      <RowCheck on={checked} label={`انتخاب ${d.ref}: ${d.title}`} onToggle={onCheck} />
+      <RowCheck on={checked} label={`انتخاب ${d.ref}: ${plain(d.title)}`} onToggle={onCheck} />
       <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 flex-col gap-1.5 text-start" aria-current={selected || undefined}>
         <span className="flex items-center gap-2">
           {!seen ? <span className="size-2 flex-none rounded-full bg-gold" aria-label="تازه" /> : null}
@@ -173,11 +173,11 @@ function Row({ d, seen, selected, checked, companyFa, onOpen, onMark, onCheck }:
           <span className="min-w-0 flex-1 truncate text-[11px] text-muted">{companyFa}</span>
           {d.rating ? <Pill tone="silver" className="h-5 px-2 text-[11px]">{d.rating.score} از ۱۰</Pill> : <Pill tone="gold" dot className="h-5 px-2 text-[11px]">بی‌امتیاز</Pill>}
         </span>
-        <span className={cx('line-clamp-2 text-[14px] font-semibold leading-6', seen ? 'text-sec' : 'text-ink')}>{d.title}</span>
-        <span className={cx('line-clamp-2 text-[12px] leading-5', seen ? 'text-muted' : 'text-sec')}>{d.summary}</span>
+        <span className={cx('line-clamp-2 text-[14px] font-semibold leading-6', seen ? 'text-sec' : 'text-ink')}>{plain(d.title)}</span>
+        <span className={cx('line-clamp-2 text-[12px] leading-5', seen ? 'text-muted' : 'text-sec')}>{plain(d.summary)}</span>
         <span className="flex items-center gap-1.5 text-[11px] text-muted">
-          <span className="min-w-0 truncate">{d.producer.title_fa}، {jTime(d.created_at)}، <span className="fig">{d.ref}</span></span>
-          {d.filed_as ? <span className="ms-auto inline-flex flex-none items-center gap-1"><Icon name="deliverable" size={12} /><span className="fig">{d.filed_as}</span></span> : null}
+          <span className="min-w-0 truncate">{d.producer.title_fa}، {jTime(d.created_at)}</span>
+          {d.filed_as ? <span className="ms-auto inline-flex flex-none items-center gap-1"><Icon name="deliverable" size={12} />در بایگانی</span> : null}
         </span>
       </button>
       <IconButton icon={seen ? 'refresh' : 'seal'} label={seen ? 'دوباره تازه' : 'خوانده شد'} size={34} onClick={onMark} className={cx('self-start', !seen && 'text-pos', 'opacity-70 group-hover:opacity-100 focus-visible:opacity-100')} />

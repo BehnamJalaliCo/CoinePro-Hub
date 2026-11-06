@@ -38,7 +38,7 @@ function ThreadRow({ t, selected, onOpen }: { t: Thread; selected: boolean; onOp
       {t.kind === 'advisor' ? <Orb size={36} /> : <Avatar kind={agentKind(t.kind)} size={36} />}
       <div className="flex min-w-0 flex-1 flex-col">
         <span className={cx('truncate text-[14px]', t.unread ? 'font-bold text-ink' : 'font-semibold text-sec')}>{t.title_fa}</span>
-        <span className="flex items-center gap-2 text-[11px] text-muted"><span className="fig">{t.last_ref}</span>{t.last_message_at ? <span>{ago(t.last_message_at)}</span> : null}</span>
+        <span className="flex items-center gap-2 text-[11px] text-muted">{t.last_message_at ? <span>{ago(t.last_message_at)}</span> : null}</span>
       </div>
       {t.unread ? <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-gold px-1.5 text-[11px] font-bold text-on-gold">{fa(t.unread)}</span> : null}
     </button>
@@ -110,7 +110,7 @@ function MessagesInner() {
               : hits.data.items.map((h) => (
                 <button key={h.id} type="button" onClick={() => openThread(h.thread)} className={cx('flex flex-col gap-1 rounded-[12px] p-3 text-right transition-colors', sel === h.thread ? 'bg-gold-soft' : 'hover:bg-hover')}>
                   <span className="line-clamp-2 text-[13px] leading-6 text-ink">{h.body.replace(/[*_`#>]/g, '')}</span>
-                  <span className="flex items-center gap-2 text-[11px] text-muted"><span>{ACTOR_FA(h.author)}</span><span className="fig">{h.ref}</span><span>{jDate(h.created_at)}</span></span>
+                  <span className="flex items-center gap-2 text-[11px] text-muted"><span>{ACTOR_FA(h.author)}</span><span>{jDate(h.created_at)}</span></span>
                 </button>
               ))
           ) : q.isLoading ? Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="m-1 h-14" />)
@@ -124,7 +124,7 @@ function MessagesInner() {
               <div className="flex items-center gap-3 border-b border-div pb-3">
                 <IconButton icon="back" label="برگشت" className="lg:hidden" mirror onClick={() => router.replace('/messages')} />
                 {current.kind === 'advisor' ? <Orb size={36} /> : <Avatar kind={agentKind(current.kind)} size={36} />}
-                <div className="flex flex-col"><span className="text-[15px] font-semibold">{current.title_fa}</span><span className="fig text-[11px] text-muted">{current.code}</span></div>
+                <div className="flex flex-col"><span className="text-[15px] font-semibold">{current.title_fa}</span></div>
               </div>
               <Chat code={current.code} agentKind={agentKind(current.kind)} placeholder="پیام…" />
             </>

@@ -7,9 +7,10 @@ import { Icon } from '@/components/icon';
 import { Avatar } from '@/components/brand/avatar';
 import { CompanyMark, Monogram, Wordmark } from '@/components/brand/marks';
 import { useCompanies, useInbox, usePresence, useSetKhalvat } from '@/lib/api/hooks';
+import { useSessions } from '@/lib/api/v34';
 import { useScope } from '@/lib/scope';
 import { cx } from '@/lib/format';
-import { NAV_ARCHIVE, NAV_GOVERNANCE, NAV_MAIN, NAV_MANAGEMENT, NAV_MEDIA, NAV_TOOLS, isActive, type NavItem } from './nav';
+import { NAV_ARCHIVE, NAV_BUSINESS, NAV_GOVERNANCE, NAV_MAIN, NAV_MANAGEMENT, NAV_MEDIA, NAV_TECH, isActive, type NavItem } from './nav';
 
 function Badge({ n }: { n: number }) {
   if (!n) return null;
@@ -33,6 +34,21 @@ function Item({ item, counts }: { item: NavItem; counts: Record<string, number> 
       <span>{item.label}</span>
       {item.badge ? <Badge n={counts[item.badge] ?? 0} /> : null}
     </Link>
+  );
+}
+
+/** A folded group of the sidebar; it opens by itself when the page the owner is on belongs to it. */
+function Fold({ label, items, counts }: { label: string; items: NavItem[]; counts: Record<string, number> }) {
+  const pathname = usePathname();
+  const inside = items.some((i) => isActive(pathname, i.href, i.exact));
+  return (
+    <details open={inside || undefined} className="group/fold flex flex-col gap-0.5">
+      <summary className="flex h-9 cursor-pointer list-none items-center gap-2 rounded-[10px] px-3 text-[12px] text-muted hover:bg-hover hover:text-ink [&::-webkit-details-marker]:hidden">
+        <Icon name="chevron" size={14} className="transition-transform group-open/fold:rotate-90" />
+        <span className="flex-1">{label}</span>
+      </summary>
+      <nav aria-label={label} className="flex flex-col gap-0.5">{items.map((i) => <Item key={i.href} item={i} counts={counts} />)}</nav>
+    </details>
   );
 }
 
@@ -71,7 +87,8 @@ export function Sidebar() {
   const { data: inbox } = useInbox();
   const { data: presence } = usePresence();
   const khalvat = useSetKhalvat();
-  const counts = { decisions: inbox?.decisions_pending ?? 0, deliverables: inbox?.deliverables_unrated ?? 0, messages: inbox?.messages_unread ?? 0 };
+  const turn = useSessions('open').data?.filter((s) => s.badge === 'your_turn').length ?? 0;
+  const counts = { decisions: inbox?.decisions_pending ?? 0, deliverables: inbox?.deliverables_unrated ?? 0, messages: inbox?.messages_unread ?? 0, sessions: turn };
   const on = presence?.khalvat ?? false;
   return (
     <aside className="sticky top-0 hidden h-dvh w-[260px] flex-none flex-col gap-3.5 border-l border-hair bg-card px-3 pb-3.5 pt-[18px] lg:flex">
@@ -87,27 +104,12 @@ export function Sidebar() {
       <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-1">
         <nav aria-label="ناوبری اصلی" className="flex flex-col gap-0.5">{NAV_MAIN.map((i) => <Item key={i.href} item={i} counts={counts} />)}</nav>
         <div aria-hidden className="mx-1.5 h-px flex-none bg-div" />
-        <nav aria-label="ابزار مدیریت" className="flex flex-col gap-0.5">
-          <span className="px-3 pb-1 text-[11px] text-muted">ابزار مدیریت</span>
-          {NAV_MANAGEMENT.map((i) => <Item key={i.href} item={i} counts={counts} />)}
-        </nav>
-        <div aria-hidden className="mx-1.5 h-px flex-none bg-div" />
-        <nav aria-label="رسانه و حقوقی" className="flex flex-col gap-0.5">
-          <span className="px-3 pb-1 text-[11px] text-muted">رسانه و حقوقی</span>
-          {NAV_MEDIA.map((i) => <Item key={i.href} item={i} counts={counts} />)}
-        </nav>
-        <div aria-hidden className="mx-1.5 h-px flex-none bg-div" />
-        <nav aria-label="بایگانی" className="flex flex-col gap-0.5">
-          <span className="px-3 pb-1 text-[11px] text-muted">بایگانی</span>
-          {NAV_ARCHIVE.map((i) => <Item key={i.href} item={i} counts={counts} />)}
-        </nav>
-        <div aria-hidden className="mx-1.5 h-px flex-none bg-div" />
-        <nav aria-label="حاکمیت" className="flex flex-col gap-0.5">
-          <span className="px-3 pb-1 text-[11px] text-muted">حاکمیت</span>
-          {NAV_GOVERNANCE.map((i) => <Item key={i.href} item={i} counts={counts} />)}
-        </nav>
-        <div aria-hidden className="mx-1.5 h-px flex-none bg-div" />
-        <nav aria-label="ابزارها" className="flex flex-col gap-0.5">{NAV_TOOLS.map((i) => <Item key={i.href} item={i} counts={counts} />)}</nav>
+        <Fold label="کسب‌وکار" items={NAV_BUSINESS} counts={counts} />
+        <Fold label="ابزار مدیریت" items={NAV_MANAGEMENT} counts={counts} />
+        <Fold label="رسانه و حقوقی" items={NAV_MEDIA} counts={counts} />
+        <Fold label="بایگانی" items={NAV_ARCHIVE} counts={counts} />
+        <Fold label="حاکمیت" items={NAV_GOVERNANCE} counts={counts} />
+        <Fold label="فنی" items={NAV_TECH} counts={counts} />
       </div>
       <div className="flex items-center gap-2.5 rounded-[12px] bg-tile p-2.5">
         <Avatar kind="owner" size={32} />

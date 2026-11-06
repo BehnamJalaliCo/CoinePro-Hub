@@ -18,7 +18,7 @@ const ROUTES: Record<string, string> = {
   // the workshop, founding (§17, §18.8)
   S: '/workshop/$', G: '/workshop', AP: '/workshop', C: '/founding/$', PV: '/founding',
   // ⟨1.11⟩ §29: an order's report, the owner's rules, a suggestion on the home
-  F: '/orders/$', SG: '/',
+  F: '/s/$', SG: '/',
   // ⟨1.12⟩ §30: a production line (a run `LR-` keeps the growth page's prefix; its page is reached from the line)
   LN: '/lines/$', RN: '/line-runs/$', AT: '/automations',
   // the overseer, inquiries, errands, incidents, teachings (§18)
@@ -35,6 +35,13 @@ const ROUTES: Record<string, string> = {
   AR: '/archive/$', LH: '/archive/holds?ref=$', PT: '/archive?party=$', FP: '/archive?folder=$',
   RR: '/archive/settings?tab=retention&ref=$', RM: '/archive/settings?tab=reminders&ref=$', AU: '/archive/settings?tab=automations&ref=$',
 };
+
+/** What a ref is called in words: the owner never reads «W-000153», he reads «کار» (⟨1.17⟩). */
+const WORDS: Record<string, string> = {
+  W: 'کار', D: 'کارت', O: 'خروجی', F: 'جلسه', MT: 'جلسه‌ی مدیران', LC: 'پرونده', AR: 'سند', SR: 'برنامه‌ی انتشار', MI: 'کار رسانه', S: 'جلسه‌ی کد', C: 'تأسیس',
+  K: 'دانش', KB: 'دانش', RK: 'ریسک', NT: 'یادداشت', BR: 'گزارش', LN: 'خط تولید', RN: 'اجرا', LR: 'اجرا', SC: 'پرونده‌ی پشتیبانی', M: 'مصوبه', CV: 'گفتگو', L: 'نامه',
+};
+export const refWord = (ref: string): string => WORDS[refPrefix(ref) ?? ''] ?? 'مورد';
 
 export const isUuid = (s: string | null | undefined): s is string => !!s && UUID.test(s);
 export const isWorkRef = (s: string | null | undefined): s is string => !!s && WORK_REF.test(s);
@@ -88,7 +95,7 @@ export function linkRoute(kind: string | null | undefined, ref: string | null | 
     case 'audit': return '/audit';
     case 'device': return '/settings';
     // ⟨1.11⟩ §29: an order's report, a rule, a working group, a connection, a suggestion.
-    case 'order': return p === 'F' ? `/orders/${r}` : '/orders';
+    case 'order': return p === 'F' ? `/s/${r}` : '/s';
     case 'standing_order': case 'rule': return '/rules';
     case 'group': return r ? `/groups/${encodeURIComponent(r)}` : '/groups';
     case 'connection': return '/connections';

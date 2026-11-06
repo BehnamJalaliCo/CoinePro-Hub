@@ -1,5 +1,6 @@
 'use client';
 
+import { refWord } from '@/lib/refs';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { Icon } from '@/components/icon';
@@ -43,7 +44,7 @@ function PublishBlock({ d }: { d: Decision }) {
         {p.render ? <RenderPreview file={p.render} aspect={p.render.width && p.render.height ? `${p.render.width}:${p.render.height}` : '9:16'} label={`رندر ${p.item ?? ''}`} className="mx-auto w-full max-w-[160px]" /> : null}
         <div className="flex min-w-0 flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2 text-[12px] text-sec">
-            {p.item ? <Link href={`/media?item=${p.item}`} className="fig rounded-full bg-gold-soft px-2 py-0.5 text-gold-ink hover:underline">{p.item}</Link> : null}
+            {p.item ? <Link href={`/media?item=${p.item}`} className="rounded-full bg-gold-soft px-2 py-0.5 text-gold-ink hover:underline">{refWord(String(p.item))}</Link> : null}
             {p.series ? <RefChip r={p.series} note="برنامه" /> : <span>یک‌باره</span>}
             {p.kind ? <span>{KIND_FA[p.kind]?.fa ?? p.kind}</span> : null}
           </div>

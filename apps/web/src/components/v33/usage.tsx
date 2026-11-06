@@ -10,7 +10,7 @@ import { HBars } from '@/components/charts/charts';
 import { Button } from '@/components/ui/button';
 import { Card, Empty, ErrorState, Pill, SectionTitle, Segmented } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
-import { FaPara, FaText, fig } from '@/components/v29/text';
+import { FaPara, FaText, PlainPara, PlainText, fig } from '@/components/v29/text';
 import { errText, notYet } from '@/components/v31/kit';
 import { useCompanies } from '@/lib/api/hooks';
 import { ROLE_FA } from '@/lib/labels';
@@ -35,7 +35,7 @@ function Pack({ pack }: { pack: UsagePack }) {
         {([
           ['در برابر دوره‌ی قبل', <>{delta(pack.vs_prev.usd_pct) ?? '—'} هزینه</>],
           ['صدا', dollars(pack.voice_usd)], ['تبلیغات', dollars(pack.ads_spend_usd, 0)],
-          ['خط تولید', <><span className="fig">{fig(pack.lines.runs)}</span> اجرا، <span className="fig">{tokens(pack.lines.tokens)}</span> توکن</>],
+          ['خط تولید', <><span className="fig">{fig(pack.lines.runs)}</span> اجرا، <span className="fig">{tokens(pack.lines.tokens)}</span> واحد</>],
         ] as const).map(([k, v]) => <div key={k} className="rounded-[12px] bg-tile p-3"><dt className="text-[11px] text-muted">{k}</dt><dd className="fig pt-1 text-[14px] font-semibold">{v}</dd></div>)}
       </dl>
       <div className="grid gap-4 lg:grid-cols-2">
@@ -46,7 +46,7 @@ function Pack({ pack }: { pack: UsagePack }) {
       </div>
       {pack.top_runs.length ? (
         <section className="flex flex-col gap-1.5"><h3 className="text-[13px] font-semibold text-sec">گران‌ترین اجراها</h3>
-          <ul className="flex flex-col">{pack.top_runs.map((r) => <li key={r.ref} className="flex items-center justify-between gap-3 border-t border-div py-1.5 text-[13px] first:border-0"><span><span className="fig">{r.ref}</span>{r.role ? <span className="text-muted"> · {ROLE_FA[r.role] ?? r.role}</span> : null}</span><span className="fig">{tokens(r.tokens)} توکن</span></li>)}</ul></section>
+          <ul className="flex flex-col">{pack.top_runs.map((r) => <li key={r.ref} className="flex items-center justify-between gap-3 border-t border-div py-1.5 text-[13px] first:border-0"><span>{r.role ? ROLE_FA[r.role] ?? r.role : "کار"}</span><span className="fig">{tokens(r.tokens)} واحد</span></li>)}</ul></section>
       ) : null}
       {pack.anomalies.length ? (
         <section className="flex flex-col gap-1.5"><h3 className="text-[13px] font-semibold text-warn">چیزهای غیرعادی</h3>
@@ -64,11 +64,11 @@ function ReportCard({ r, head }: { r: UsageReport; head?: boolean }) {
       {r.text ? (
         <>
           <ol className="flex flex-col gap-1.5" aria-label="خلاصه‌ی مشاور">
-            {r.text.lines_fa.map((l, i) => <li key={i} className="flex items-start gap-2.5 text-[14px] leading-7"><span className="fig mt-1.5 flex size-5 flex-none items-center justify-center rounded-full bg-tile text-[11px] text-sec">{i + 1}</span><span className="min-w-0 flex-1"><FaPara text={l} /></span></li>)}
+            {r.text.lines_fa.map((l, i) => <li key={i} className="flex items-start gap-2.5 text-[14px] leading-7"><span className="fig mt-1.5 flex size-5 flex-none items-center justify-center rounded-full bg-tile text-[11px] text-sec">{i + 1}</span><span className="min-w-0 flex-1"><PlainPara text={l} /></span></li>)}
           </ol>
           <div className="rounded-[12px] bg-gold-soft p-3" aria-label="یک پیشنهاد برای صرفه‌جویی">
             <h3 className="text-[12px] font-semibold text-gold-ink">یک صرفه‌جویی</h3>
-            <FaPara text={r.text.saving_fa} className="pt-1 text-[14px] leading-7" />
+            <PlainPara text={r.text.saving_fa} className="pt-1 text-[14px] leading-7" />
           </div>
           {r.words === 'code' ? <p className="text-[11px] text-muted">این بار مشاور متنی نداد؛ این خط‌ها را خود سامانه از روی عددها نوشته است.</p> : null}
         </>
@@ -110,7 +110,7 @@ export function UsageView() {
                   <li key={r.ref} className="border-t border-div first:border-0">
                     <button type="button" onClick={() => { setPick(r.ref); window.scrollTo({ top: 0 }); }} className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 py-2.5 text-start hover:bg-hover/40">
                       <span className="fig w-20 text-[12px] text-muted">{r.ref}</span>
-                      <span className="min-w-0 flex-[1_1_14rem] text-[13px]">{r.text?.lines_fa[0] ? <FaText text={r.text.lines_fa[0]} /> : <span className="text-muted">بدون متن</span>}</span>
+                      <span className="min-w-0 flex-[1_1_14rem] text-[13px]">{r.text?.lines_fa[0] ? <PlainText text={r.text.lines_fa[0]} /> : <span className="text-muted">بدون متن</span>}</span>
                       <span className="text-[11px] text-muted">{jDate(r.to)}</span>
                     </button>
                   </li>
@@ -131,7 +131,7 @@ export function UsageHomeCard() {
   return (
     <Card className="flex flex-col gap-2 p-4" aria-label="مصرف دیروز">
       <SectionTitle title="مصرف دیروز" note="به زبان مشاور" action={<Link href="/usage" className="text-[12px] font-semibold text-gold-ink hover:underline">گزارش کامل</Link>} />
-      <ol className="flex flex-col gap-1.5">{r.text.lines_fa.slice(0, 3).map((l, i) => <li key={i} className="text-[13px] leading-6"><FaText text={l} /></li>)}</ol>
+      <ol className="flex flex-col gap-1.5">{r.text.lines_fa.slice(0, 3).map((l, i) => <li key={i} className="text-[13px] leading-6"><PlainText text={l} /></li>)}</ol>
       <Pill tone="gold" icon="chart" className="self-start">{r.text.saving_fa.length > 60 ? `${r.text.saving_fa.slice(0, 58)}…` : r.text.saving_fa}</Pill>
     </Card>
   );

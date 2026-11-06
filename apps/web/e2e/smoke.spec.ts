@@ -69,7 +69,7 @@ test('searches messages from the messages page', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/messages');
     await page.getByLabel('جستجو در پیام‌ها').fill('ثبت‌نام');
-    await expect(page.getByText('FX-CEO-0008')).toBeVisible();
+    await expect(page.getByRole('button', { name: /ثبت‌نام/ }).first()).toBeVisible();
   });
 });
 

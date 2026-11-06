@@ -392,7 +392,7 @@ export function useSuggestionAction() {
   return useMutation({
     mutationFn: (v: { id: string; action: 'run' | 'later' | 'no'; reason_fa?: string | null }) =>
       call<Suggestion>('POST', `/home/suggestions/${enc(v.id)}`, { action: v.action, ...(v.reason_fa ? { reason_fa: v.reason_fa } : {}) }),
-    onSettled: () => Promise.all(['home', 'orders'].map((k) => qc.invalidateQueries({ queryKey: [k] }))),
+    onSettled: () => Promise.all(['home', 'orders', 'office'].map((k) => qc.invalidateQueries({ queryKey: [k] }))),
   });
 }
 

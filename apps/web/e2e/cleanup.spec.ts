@@ -136,7 +136,7 @@ test('a fix that is only words becomes a work item for the company', async ({ pa
     await card.getByRole('button', { name: 'تأیید اصلاح' }).click();
     await expect(page.getByText(/اصلاح به W-\d+ سپرده شد/)).toBeVisible();
     await expect(page).toHaveURL(/\/work\/W-\d+/);
-    await expect(page.getByRole('heading', { name: /اصلاح FI-\d+: گواهی TLS/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /اصلاح.*گواهی TLS/ })).toBeVisible();
   });
 });
 

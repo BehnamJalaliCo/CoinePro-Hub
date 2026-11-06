@@ -23,7 +23,7 @@ import { ownerDay } from '@/components/v21/bits';
 import { KitFlow } from '@/components/v31/kit';
 import { SplitParts, WorkspaceCard } from '@/components/v33/parallel';
 import type { OrderParallel } from '@/lib/api/v33';
-import { FaPara, FaText, FixButton, OrderStatePill } from './bits';
+import { FixButton, OrderStatePill, PlainPara as FaPara, PlainText as FaText } from './bits';
 
 function useNames() {
   const { data } = useCompanies();
@@ -49,7 +49,7 @@ export function RouteLine({ r, count }: { r: OrderRouteFields; count?: number | 
   );
 }
 
-function BlockerRow({ b, company, run }: { b: Blocker; company: string | null; run: (f: NonNullable<Blocker['fix']>) => Promise<unknown> }) {
+export function BlockerRow({ b, company, run }: { b: Blocker; company: string | null; run: (f: NonNullable<Blocker['fix']>) => Promise<unknown> }) {
   const now = useNow();
   return (
     <li className="flex flex-wrap items-start gap-3 rounded-[12px] bg-neg-soft p-3">
@@ -64,7 +64,7 @@ function BlockerRow({ b, company, run }: { b: Blocker; company: string | null; r
   );
 }
 
-function Steps({ r }: { r: OrderReport }) {
+export function Steps({ r }: { r: OrderReport }) {
   if (!r.steps.length) return null;
   return (
     <Card className="flex flex-col gap-2 p-5">
@@ -105,7 +105,7 @@ export function OrderReportsCard() {
           const line = orderSummaryFa(o);
           return (
             <li key={o.ref} className="border-t border-div first:border-0">
-              <Link href={`/orders/${o.ref}`} className="flex flex-wrap items-start gap-x-3 gap-y-1 py-2.5 hover:bg-hover/40">
+              <Link href={`/s/${o.ref}`} className="flex flex-wrap items-start gap-x-3 gap-y-1 py-2.5 hover:bg-hover/40">
                 <span className="mt-1 text-muted"><Icon name={o.source === 'voice' ? 'mic' : 'edit'} size={14} /></span>
                 <span className="flex min-w-0 flex-[1_1_16rem] flex-col gap-0.5">
                   <span className="line-clamp-2 text-[13px] font-semibold leading-6"><FaText text={o.text_fa ?? o.text} /></span>
@@ -123,7 +123,7 @@ export function OrderReportsCard() {
 }
 
 /** ⟨1.13⟩ §31.2: a «new company» order — the kit's form, preview and seal. The result stays on screen after the report refreshes as sealed. */
-function KitCard({ refId, kit }: { refId: string; kit: NonNullable<OrderReport['kit']> }) {
+export function KitCard({ refId, kit }: { refId: string; kit: NonNullable<OrderReport['kit']> }) {
   const [made, setMade] = useState(false);
   return (
     <section id="kit-card" className="flex scroll-mt-24 flex-col gap-3" aria-label="شرکت آماده">

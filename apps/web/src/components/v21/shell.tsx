@@ -93,10 +93,9 @@ export const GROUPS: Group[] = [
     { href: '/rules', label: 'قانون‌های من', icon: 'seal', hint: 'آنچه دیگر نباید تکرار شود؛ ناظر هر روز میپاید' },
   ] },
   { key: 'work', title: 'فرمان و کار', note: 'آنچه دادی و آنچه تحویل گرفتی', tools: [
-    { href: '/orders', label: 'فرمان‌های من', icon: 'command', hint: 'هر فرمانی که دادی، از ثبت تا تحویل' },
+    { href: '/s', label: 'جلسه‌ها', icon: 'messages', hint: 'هر فرمان یک جلسه است؛ باز و بایگانی‌شده' },
     { href: '/outputs', label: 'خروجی‌ها', icon: 'deliverable', hint: 'گزارش‌ها و کارهای تحویل‌شده؛ بخوان، امتیاز بده، بایگانی یا پاک کن', badge: 'outputs' },
     { href: '/planner', label: 'پلنر', icon: 'planner', hint: 'کارهای امروز و این هفته در یک تقویم' },
-    { href: '/runs', label: 'اجرای ایجنت‌ها', icon: 'agent', hint: 'هر ایجنت الان چه میکند، قدم‌به‌قدم' },
     { href: '/notifications', label: 'اعلان‌ها', icon: 'bell', hint: 'هشدارها، گزارش‌ها و پرسش‌های یک‌ضربه‌ای' },
     { href: '/resolutions', label: 'دفتر مصوبات', icon: 'seal', hint: 'تصمیم‌های ثبت‌شده، با جست‌وجو و خروجی اکسل' },
   ] },
@@ -108,7 +107,6 @@ export const GROUPS: Group[] = [
     { href: '/founding', label: 'تأسیس شرکت', icon: 'found', hint: 'شرکت تازه قدم‌به‌قدم: از ایده، ریپو یا فقط با نام' },
     { href: '/skills', label: 'مهارت‌ها', icon: 'skill', hint: 'مهارت تازه به ایجنت‌ها یاد بده و فعالش کن' },
     { href: '/academy', label: 'آکادمی', icon: 'academy', hint: 'آموزش، آزمون و پیشرفت هر نقش' },
-    { href: '/tools', label: 'ابزارها و اینترنت', icon: 'globe', hint: 'ایجنت‌ها به کجا وصل میشوند و چه میفرستند' },
   ] },
   { key: 'money', title: 'پول و مشتری', note: 'خرج مدل‌ها، درآمد شرکت‌ها و حرف مشتری‌ها', tools: [
     { href: '/treasury', label: 'خزانه‌ی توکن', icon: 'treasury', hint: 'مصرف مدل‌ها، بودجه‌ها و سهمیه‌ی اشتراک' },
@@ -147,7 +145,9 @@ export const GROUPS: Group[] = [
     { href: '/archive/retention', label: 'پایان نگهداری', icon: 'memory', hint: 'سندهایی که زمان امحایشان رسیده' },
     { href: '/archive/settings', label: 'طرح بایگانی', icon: 'settings', hint: 'دسته‌ها، پوشه‌ها و قاعده‌های بایگانی' },
   ] },
-  { key: 'system', title: 'سیستم و ایمنی', note: 'کلیدهای توقف، سلامت و ردّ هر اقدام', tools: [
+  { key: 'system', title: 'فنی', note: 'سرورها، دیده‌بان، کلیدهای توقف و ردّ هر اقدام', tools: [
+    { href: '/runs', label: 'اجرای ایجنت‌ها', icon: 'agent', hint: 'هر ایجنت الان چه میکند، قدم‌به‌قدم' },
+    { href: '/tools', label: 'ابزارها و اینترنت', icon: 'globe', hint: 'ایجنت‌ها به کجا وصل میشوند و چه میفرستند' },
     { href: '/control', label: 'کنترل', icon: 'lock', hint: 'توقف و ادامه‌ی شرکت‌ها و انتشارها' },
     // ⟨1.11⟩ technical: each company's own part lives under «شرکت ← فنی»; these are the holding-wide views.
     { href: '/watch', label: 'دیده‌بان', icon: 'scope', hint: 'امنیت، سلامت اپ، کد، رشد و پیشنهاد هلدینگ، با اصلاح پیشنهادی' },

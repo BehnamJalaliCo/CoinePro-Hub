@@ -3,44 +3,22 @@
 import { useRouter } from 'next/navigation';
 import { useVoiceOrder } from '@/components/work/voice-order';
 import { DecisionRow } from '@/components/cartable/decision-row';
+import { CommandBar, OfficeBody, OfficeHeader, OfficeSkeleton } from '@/components/office/office';
 import { Button } from '@/components/ui/button';
-import { Card, Empty, ErrorState, Pill, SectionTitle, Skeleton } from '@/components/ui/primitives';
+import { Card, Empty, ErrorState, SectionTitle, Skeleton } from '@/components/ui/primitives';
 import { StoriesBar } from '@/components/v14/stories';
 import { HomeOrdersCard } from '@/components/v21/orders';
-import { CriticalCard, GroupKpiCard, HomeNotServed, HomeOrders, HomeSkeleton, MorningCard, ProgressCard, SuggestionCard } from '@/components/v29/home';
-import { useDecisions, usePresence } from '@/lib/api/hooks';
+import { CriticalCard, HomeNotServed, HomeOrders, HomeSkeleton, MorningCard, ProgressCard, SuggestionCard } from '@/components/v29/home';
+import { useDecisions } from '@/lib/api/hooks';
 import { useHome } from '@/lib/api/v29';
+import { useOffice } from '@/lib/api/v34';
 import { UsageHomeCard } from '@/components/v33/usage';
 import { useScope } from '@/lib/scope';
-import { jWeekday } from '@/lib/format';
 
-// ⟨1.11⟩ Contract §29.13, the owner's home: the business, not the servers (the owner, 2026-11-02: «کل اپ شده مسائل فنی سرورها … میخوام به
-// سئو، محصولات، پیشرفت و درآمد فکر کنم»). Three cards on top, the morning's five lines, each working group's KPI per company, the orders
-// with their state, the cards waiting for the seal, and only critical items. Servers, the watch, the workshop, the live orbit and the
-// technical findings moved to «شرکت ← فنی» and their own pages; nothing technical is re-added here.
-
-function Greeting() {
-  const { data: presence } = usePresence();
-  const voice = useVoiceOrder();
-  const today = new Date();
-  const g = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(today);
-  const h = Number(new Intl.DateTimeFormat('en-US', { hour: 'numeric', hourCycle: 'h23', timeZone: 'Asia/Tehran' }).format(today));
-  const hello = h < 12 ? 'صبح بخیر' : h < 17 ? 'روز بخیر' : 'عصر بخیر';
-  return (
-    <header className="flex flex-wrap items-end gap-x-4 gap-y-2">
-      <div className="flex min-w-0 flex-1 flex-col">
-        <span className="text-caption text-muted">{jWeekday(today.toISOString())} · <span className="fig">{g}</span></span>
-        <h1 className="text-display font-semibold">{hello}، مدیر کل</h1>
-      </div>
-      {presence?.khalvat ? <Pill tone="learn" icon="khalvat">خلوت روشن؛ فقط فوری میرسد</Pill> : null}
-      {/* The golden button and, beside it, a new rule for the holding (§29.3), by voice or in words. */}
-      <div className="flex flex-wrap gap-2 max-sm:w-full">
-        <Button variant="primary" icon="mic" onClick={() => voice()} className="max-sm:flex-1">فرمان صوتی</Button>
-        <Button variant="secondary" icon="seal" onClick={() => voice({ mode: 'rule' })} className="max-sm:flex-1">قانون تازه برای هلدینگ</Button>
-      </div>
-    </header>
-  );
-}
+// ⟨1.17⟩ Contract §35.5, the owner's office: the command bar, the sessions (his turn first), the canvas of the companies and their links, the
+// cards waiting for his seal, the money in one line, what is critical and suggestions on any subject. It is not a dashboard of one subject: the
+// per-group KPI block is gone. A hub from before §35 answers `/office` with 404 and the page shows the older home (§29.13) instead.
+// Servers, the watch, the workshop and the technical findings live under «فنی»; nothing technical is added here.
 
 /** The cards that wait for the owner's seal (the hub lists only what is the owner's, §29.1). */
 function Cartable() {
@@ -58,13 +36,14 @@ function Cartable() {
   );
 }
 
-export default function OwnerHome() {
+/** The home of a hub that has no office yet (§29.13): what it had, without the per-group KPI block. */
+function OlderHome() {
   const voice = useVoiceOrder();
   const home = useHome();
   const h = home.data;
   return (
     <>
-      <Greeting />
+      <CommandBar />
       {home.isLoading ? <HomeSkeleton /> : home.error ? <ErrorState error={home.error} onRetry={() => home.refetch()} /> : !h ? (
         <>
           <HomeNotServed />
@@ -83,7 +62,6 @@ export default function OwnerHome() {
             <div className="flex min-w-0 flex-col gap-4">
               <MorningCard lines={h.morning} />
               <UsageHomeCard />
-              {h.groups.map((g) => <GroupKpiCard key={g.key} g={g} />)}
             </div>
             <div className="flex min-w-0 flex-col gap-4">
               <HomeOrders orders={h.orders} onNewOrder={() => voice()} />
@@ -92,6 +70,16 @@ export default function OwnerHome() {
           </div>
         </>
       )}
+    </>
+  );
+}
+
+export default function OwnerOffice() {
+  const office = useOffice();
+  return (
+    <>
+      <OfficeHeader />
+      {office.isLoading ? <OfficeSkeleton /> : office.error ? <ErrorState error={office.error} onRetry={() => office.refetch()} /> : office.data ? <OfficeBody o={office.data} /> : <OlderHome />}
     </>
   );
 }

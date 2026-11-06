@@ -21,6 +21,7 @@ import { PulsesProvider } from '@/lib/pulses';
 import { HubBanner, ShellExtras, ToolsSheet } from '@/components/v21/shell';
 import { CommandPalette } from './command-palette';
 import { NotificationsSheet } from './notifications';
+import { useSessions } from '@/lib/api/v34';
 import { NAV_MOBILE, isActive } from './nav';
 import { ScopeSwitcher, Sidebar } from './sidebar';
 
@@ -121,9 +122,11 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (session.error instanceof ApiError && session.error.status === 401) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
   }, [session.error, router, pathname]);
 
+  const turn = useSessions('open').data?.filter((x) => x.badge === 'your_turn').length ?? 0;
+
   if (session.isLoading || (session.error instanceof ApiError && session.error.status === 401)) return <Splash />;
 
-  const counts = { decisions: inbox?.decisions_pending ?? 0, deliverables: inbox?.deliverables_unrated ?? 0, messages: inbox?.messages_unread ?? 0 };
+  const counts = { decisions: inbox?.decisions_pending ?? 0, deliverables: inbox?.deliverables_unrated ?? 0, messages: inbox?.messages_unread ?? 0, sessions: turn };
   const levels = inbox?.notifications as Record<string, number> | undefined;
   const urgent = (levels?.urgent ?? 0) + (levels?.decision ?? 0);
 

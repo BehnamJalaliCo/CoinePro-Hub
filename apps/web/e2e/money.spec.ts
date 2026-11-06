@@ -10,7 +10,7 @@ import { clean } from './support';
 
 test.use({ reducedMotion: 'reduce' });
 
-const PAGES = ['/companies/TY/money', '/companies/TY/sales', '/companies/TY/journey', '/companies/TY/personas', '/usage', '/journeys', '/revenue/affiliate-gaps', '/revenue', '/orders/F-0096', '/orders/F-0097'];
+const PAGES = ['/companies/TY/money', '/companies/TY/sales', '/companies/TY/journey', '/companies/TY/personas', '/usage', '/journeys', '/revenue/affiliate-gaps', '/revenue', '/s/F-0096', '/s/F-0097'];
 for (const path of PAGES) {
   test(`renders ${path} and fits a phone @phone`, async ({ page }) => {
     await clean(page, async () => {
@@ -208,7 +208,7 @@ test('a decision shows its money impact: measured, or an estimate; the hub sorts
     await expect(page.getByLabel(/اثر پولی تخمینی: .*900 USDT/).first()).toBeVisible();
     await expect(page.getByLabel('اثر پولی', { exact: true }).getByText(/حدس است/)).toBeVisible();
     await page.getByLabel('ترتیب').selectOption('impact');
-    const rows = page.locator('button[aria-pressed]').filter({ hasText: /D-\d{6}/ });
+    const rows = page.locator('button[aria-pressed]').filter({ has: page.locator('[aria-label^="اثر پولی"]') });
     await expect(rows.first()).toContainText('استوری کانال تلگرام تریدیار');
     await expect(rows.first().getByLabel(/اثر پولی اندازه‌گیری‌شده/)).toBeVisible();
     await expect(rows.nth(1).getByLabel(/اثر پولی تخمینی: .*900 USDT/)).toBeVisible();
@@ -219,7 +219,7 @@ test('a decision shows its money impact: measured, or an estimate; the hub sorts
 
 test('an order report shows the parts side by side, the merge, and a failed part as failed', async ({ page }) => {
   await clean(page, async () => {
-    await page.goto('/orders/F-0097');
+    await page.goto('/s/F-0097');
     const par = page.getByLabel('بخش‌های موازی');
     await expect(par.getByRole('listitem').filter({ has: page.getByRole('heading') })).toHaveCount(3);
     await expect(par.getByLabel('بخش ریلز آموزشی').getByRole('alert')).toContainText('کلید نداشت');
@@ -232,7 +232,7 @@ test('an order report shows the parts side by side, the merge, and a failed part
 
 test('an order done on the company\'s server shows its progress, and the owner stops it', async ({ page }) => {
   await clean(page, async () => {
-    await page.goto('/orders/F-0096');
+    await page.goto('/s/F-0096');
     const w = page.getByLabel('محیط کاری روی سرور');
     await expect(w.getByText('روی سرور شرکت', { exact: true })).toBeVisible();
     await expect(w.getByText('در حال کار')).toBeVisible();

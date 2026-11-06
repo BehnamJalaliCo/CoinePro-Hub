@@ -1,5 +1,6 @@
 'use client';
 
+import { REF_PATTERN, plain } from '@/lib/plain';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
@@ -126,12 +127,11 @@ export function OrderCard({ w }: { w: Work }) {
   const co = companies?.find((c) => c.code === w.company);
   return (
     <Card className="hq-rise flex flex-col gap-3 p-4">
-      <button type="button" onClick={() => router.push(`/work/${w.id}`)} className="flex flex-col gap-1.5 text-start" aria-label={`باز کردن فرمان ${w.ref}`}>
+      <button type="button" onClick={() => router.push(`/work/${w.id}`)} className="flex flex-col gap-1.5 text-start" aria-label={`باز کردن فرمان: ${plain(w.title)}`}>
         <span className="flex items-center gap-1.5 text-[12px] text-sec">
           <CompanyMark code={w.company} height={13} mono />
           <span className="truncate">{co?.kind === 'holding' ? 'هلدینگ' : co?.name_fa ?? w.company}</span>
-          <span className="text-muted">·</span><span className="fig text-muted">{w.ref}</span>
-          <span className="flex-1" />
+                    <span className="flex-1" />
           {/* ⟨1.9⟩ who plays it, when the owner named a player or called the council. */}
           <PlayerTag player={(w as { player?: string | null }).player} mode={(w as { mode?: string | null }).mode} />
           <PriorityTag code={w.priority} compact />
@@ -174,7 +174,7 @@ const MOMENT: Record<string, { icon: IconName; tint: string }> = {
   failed: { icon: 'urgent', tint: 'text-neg bg-neg-soft' }, declined: { icon: 'urgent', tint: 'text-neg bg-neg-soft' }, cancelled: { icon: 'close', tint: 'text-muted bg-tile' },
   'run.step': { icon: 'task', tint: 'text-silver-ink bg-[var(--hq-silver-soft)]' },
 };
-const partsOf = (parts: Part[]) => parts.map((p, i) => (p.fig ? <span key={i} className="fig whitespace-nowrap">{p.text}</span> : <span key={i}>{p.text}</span>));
+const partsOf = (parts: Part[]) => parts.filter((p) => !REF_PATTERN.test(p.text)).map((p, i) => (p.fig ? <span key={i} className="fig whitespace-nowrap">{p.text}</span> : <span key={i}>{p.text}</span>));
 
 /** The order's life, newest first: its events, its children's, and the agents' run steps. Live from the stream (the tree refetches). */
 export function TimelineCard({ t }: { t: OrderTrack }) {

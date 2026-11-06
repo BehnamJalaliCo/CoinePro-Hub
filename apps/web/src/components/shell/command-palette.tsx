@@ -10,7 +10,7 @@ import { useCompanies, useDecisions, useEmployees } from '@/lib/api/hooks';
 import { useMessageSearch } from '@/lib/api/v15';
 import { jDate } from '@/lib/format';
 import { useTheme } from '@/lib/theme';
-import { NAV_ARCHIVE, NAV_GOVERNANCE, NAV_MAIN, NAV_MANAGEMENT, NAV_MEDIA, NAV_TOOLS } from './nav';
+import { NAV_ARCHIVE, NAV_BUSINESS, NAV_GOVERNANCE, NAV_MAIN, NAV_MANAGEMENT, NAV_MEDIA, NAV_TECH } from './nav';
 
 const itemCls = 'flex h-11 cursor-pointer items-center gap-3 rounded-[10px] px-3 text-[14px] text-ink outline-none data-[selected=true]:bg-hover';
 const groupCls = '[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:text-muted';
@@ -59,7 +59,7 @@ export function CommandPalette({ open, onOpenChange, onVoice }: { open: boolean;
                 </Command.Group>
               ) : null}
               <Command.Group heading="صفحه‌ها" className={groupCls}>
-                {[...NAV_MAIN, ...NAV_MANAGEMENT, ...NAV_MEDIA, ...NAV_ARCHIVE, ...NAV_GOVERNANCE, ...NAV_TOOLS].map((n) => (
+                {[...NAV_MAIN, ...NAV_BUSINESS, ...NAV_MANAGEMENT, ...NAV_MEDIA, ...NAV_ARCHIVE, ...NAV_GOVERNANCE, ...NAV_TECH].map((n) => (
                   <Command.Item key={n.href} value={`page ${n.label}`} onSelect={() => go(n.href)} className={itemCls}>
                     <span className="text-sec"><Icon name={n.icon} size={18} /></span>{n.label}
                   </Command.Item>
@@ -69,7 +69,7 @@ export function CommandPalette({ open, onOpenChange, onVoice }: { open: boolean;
                 <Command.Group heading="منتظر مُهر" className={groupCls}>
                   {decisions.items.map((d) => (
                     <Command.Item key={d.ref} value={`${d.ref} ${d.title}`} onSelect={() => go(`/cartable?ref=${d.ref}`)} className={itemCls}>
-                      <span className="text-warn"><Icon name="level-decision" size={18} /></span><span className="flex-1 truncate">{d.title}</span><span className="fig text-[12px] text-muted">{d.ref}</span>
+                      <span className="text-warn"><Icon name="level-decision" size={18} /></span><span className="flex-1 truncate">{d.title}</span>
                     </Command.Item>
                   ))}
                 </Command.Group>

@@ -15,6 +15,7 @@ import { ApiError, type Schemas } from '@/lib/api/client';
 import { useAskAboutDecision, useCompanies, useDecide, useReviewWithAdvisor } from '@/lib/api/hooks';
 import { stepUp } from '@/lib/auth';
 import { useNow } from '@/lib/store';
+import { plain } from '@/lib/plain';
 import { companyOf } from '@/lib/company';
 import type { LifecycleRule, ShadowReport, Template } from '@/lib/api/v16';
 import { AUTO_SEND, CHANNEL_FA, PURPOSE_FA, triggerFa } from '@/components/v16/bits';
@@ -176,7 +177,7 @@ function Payload({ d }: { d: Decision }) {
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <Fact label="دامنه" mono>{JSON.stringify(p.scope ?? '—').replace(/["{}]/g, '')}</Fact>
           <Fact label="دوره">{String(p.period ?? '—')}</Fact>
-          <Fact label="سقف توکن" mono>{p.token_limit ? tokens(Number(p.token_limit)) : '—'}</Fact>
+          <Fact label="سقف واحد مصرف" mono>{p.token_limit ? tokens(Number(p.token_limit)) : '—'}</Fact>
           <Fact label="سقف دلار" mono>{p.usd_limit ? usd(String(p.usd_limit)) : '—'}</Fact>
         </div>
       </Section>
@@ -234,13 +235,12 @@ export function DecisionDetail({ d, onDone }: { d: Decision; onDone?: () => void
         <span className="flex size-12 flex-none items-center justify-center rounded-[14px] bg-tile text-gold-ink"><Icon name={k.icon} size={24} /></span>
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2 text-[12px] text-muted">
-            <span>{k.fa}</span><span className="fig">{d.ref}</span><span>،</span><span>{co.nameFa}</span>
+            <span>{k.fa}</span><span>،</span><span>{co.nameFa}</span>
           </div>
-          <h2 className="text-h2 font-semibold text-ink">{d.title}</h2>
+          <h2 className="text-h2 font-semibold text-ink">{plain(d.title)}</h2>
           <div className="flex flex-wrap items-center gap-2 pt-1">
             <Pill tone={r.tone} dot>{r.fa}</Pill>
             <Pill tone={d.reversible ? 'silver' : 'warn'} icon={d.reversible ? 'refresh' : 'urgent'}>{d.reversible ? 'برگشت‌پذیر' : 'برگشت‌ناپذیر'}</Pill>
-            <Pill tone="neutral"><span className="fig">{d.action_class}</span></Pill>
             {!pending ? <Pill tone={d.status === 'approved' ? 'gold' : 'neutral'}>{DECISION_STATUS[d.status] ?? d.status}</Pill> : null}
           </div>
         </div>
@@ -268,7 +268,7 @@ export function DecisionDetail({ d, onDone }: { d: Decision; onDone?: () => void
       <MemoBlock d={d as unknown as Decision18} />
       <Section title="مصرف و ریسک">
         <div className="grid grid-cols-2 gap-2">
-          <Fact label="برآورد توکن" mono>{tokens(d.quota_estimate.tokens)}</Fact>
+          <Fact label="برآورد واحد مصرف" mono>{tokens(d.quota_estimate.tokens)}</Fact>
           <Fact label="هزینه‌ی معادل" mono>{usd(d.quota_estimate.usd)}</Fact>
         </div>
         {d.risk_note ? <p className="flex items-start gap-2 rounded-[12px] bg-warn-soft p-3 text-[13px] leading-6 text-ink"><span className="text-warn"><Icon name="urgent" size={18} /></span>{d.risk_note}</p> : null}

@@ -18,6 +18,7 @@ import { isOwnerOrder } from '@/lib/api/v21';
 import { ACTOR_FA, WORK_KIND, WORK_STATUS } from '@/lib/labels';
 import { isWorkRef, refPrefix, refRoute } from '@/lib/refs';
 import { ago, cx, jDateTime, tokens, usd } from '@/lib/format';
+import { plain } from '@/lib/plain';
 
 /**
  * One work item and its delegation path (D2·2): owner → CEO → manager → employee, depth ≤ 2. ⟨0.4.0⟩ An order the owner gave opens with
@@ -40,7 +41,7 @@ export default function WorkPage({ params }: { params: Promise<{ id: string }> }
   const order = isOwnerOrder(w);
   return (
     <>
-      <PageHeader eyebrow={<span className="inline-flex items-center gap-2"><CompanyMark code={w.company} height={12} mono /><span className="fig">{w.ref}</span>، {order ? 'فرمان تو' : WORK_KIND[w.kind] ?? w.kind}</span>} title={w.title} actions={<WorkActions key={w.version} w={w} />} />
+      <PageHeader eyebrow={<span className="inline-flex items-center gap-2"><CompanyMark code={w.company} height={12} mono />{order ? 'فرمان تو' : WORK_KIND[w.kind] ?? w.kind}</span>} title={plain(w.title)} actions={<WorkActions key={w.version} w={w} />} />
       <div className="flex flex-wrap gap-2">
         <Pill tone={w.status === 'done' ? 'pos' : w.status === 'failed' ? 'neg' : 'neutral'} dot>{WORK_STATUS[w.status] ?? w.status}</Pill>
         <PriorityTag code={w.priority} />
@@ -66,10 +67,10 @@ export default function WorkPage({ params }: { params: Promise<{ id: string }> }
                 <li key={s.id} className="relative flex items-center gap-3">
                   <Avatar kind={s.assignee?.kind ?? 'employee'} dept={s.assignee?.department} size={40} state={s.status === 'in_progress' ? 'working' : 'idle'} />
                   <div className="flex min-w-0 flex-1 flex-col">
-                    <span className="text-[13px] font-semibold">{s.assignee?.title_fa ?? '—'} <span className="fig text-[11px] font-normal text-muted">{s.assignee?.code}</span></span>
-                    <span className="text-[11px] text-muted">عمق {s.depth}، {WORK_STATUS[s.status] ?? s.status}، {ago(s.created_at)}</span>
+                    <span className="text-[13px] font-semibold">{s.assignee?.title_fa ?? '—'}</span>
+                    <span className="text-[11px] text-muted">{WORK_STATUS[s.status] ?? s.status}، {ago(s.created_at)}</span>
                   </div>
-                  <span className="fig text-[12px] text-sec">{tokens(s.tokens_used)} · {usd(s.usd_used)}</span>
+                  <span className="fig text-[12px] text-sec">{usd(s.usd_used)}</span>
                 </li>
               ))}
             </ol>
@@ -78,34 +79,35 @@ export default function WorkPage({ params }: { params: Promise<{ id: string }> }
                 <span className="text-[12px] font-semibold text-sec">کارهای زیرمجموعه</span>
                 {w.children.flatMap((k) => [k, ...(k.children ?? [])]).map((k) => (
                   <Link key={k.id} href={`/work/${k.id}`} className={cx('flex items-center gap-2 rounded-[8px] px-1 py-1.5 text-[13px] hover:bg-hover', k.depth > w.depth + 1 && 'ps-6')}>
-                    <span className="fig text-[12px] text-gold-ink">{k.ref}</span>
-                    <span className="min-w-0 flex-1 truncate">{k.title ?? k.ref}</span>
+                    <span className="min-w-0 flex-1 truncate">{plain(k.title ?? '')}</span>
                     <span className="text-[11px] text-muted">{k.assignee?.title_fa}، {WORK_STATUS[k.status] ?? k.status}{k.progress != null ? `، ${Math.round(k.progress * 100)}٪` : ''}</span>
                   </Link>
                 ))}
               </div>
             ) : null}
-            <p className="text-[12px] text-muted">ارجاع رکورد دیتابیس است، نه صحبت ایجنت با ایجنت؛ عمق بیشتر از ۲ رد میشود.</p>
           </Card>
-          <Card className="flex flex-col gap-3 p-5">
-            <SectionTitle title="اجرای ایجنت‌ها روی این کار" note="هر اجرا با قدم‌ها و ابزارهایش؛ اجرای در جریان خودش تازه میشود" />
-            {runs.isLoading ? <Skeleton className="h-24" /> : runs.error ? <ErrorState error={runs.error} onRetry={() => runs.refetch()} />
-              : <RunList runs={runs.data ?? []} details={runs.data} empty="هنوز ایجنتی روی این کار اجرا نشده." />}
-          </Card>
+          {/* ⟨1.17⟩ Nothing technical to the owner: the runs are folded away, for the engineer who asks. */}
+          <details className="rounded-[16px] bg-card p-5">
+            <summary className="cursor-pointer text-[13px] font-semibold text-sec">جزئیات فنی اجراها</summary>
+            <div className="flex flex-col gap-3 pt-3">
+              {runs.isLoading ? <Skeleton className="h-24" /> : runs.error ? <ErrorState error={runs.error} onRetry={() => runs.refetch()} />
+                : <RunList runs={runs.data ?? []} details={runs.data} empty="هنوز ایجنتی روی این کار اجرا نشده." />}
+            </div>
+          </details>
         </div>
         <div className="flex flex-col gap-4">
           <Card className="flex flex-col gap-2 p-5">
             <h2 className="text-[14px] font-semibold">بودجه</h2>
-            <div className="flex items-center text-[12px] text-sec"><span className="flex-1">توکن</span><span className="fig">{tokens(w.budget.tokens_used)} / {tokens(w.budget.tokens)}</span></div>
+            <div className="flex items-center text-[12px] text-sec"><span className="flex-1">واحد مصرف</span><span className="fig">{tokens(w.budget.tokens_used)} / {tokens(w.budget.tokens)}</span></div>
             {pct != null ? <Bar pct={pct} tone={budgetTone(pct)} /> : null}
             <div className="flex items-center text-[12px] text-sec"><span className="flex-1">هزینه‌ی معادل</span><span className="fig">{usd(w.budget.usd_used)}{w.budget.usd ? ` / ${usd(w.budget.usd)}` : ''}</span></div>
           </Card>
           <Card className="flex flex-col gap-2 p-5">
             <h2 className="text-[14px] font-semibold">شرح</h2>
-            <p className="whitespace-pre-wrap text-[14px] leading-7 text-sec">{w.brief || '—'}</p>
+            <p className="whitespace-pre-wrap text-[14px] leading-7 text-sec">{plain(w.brief) || '—'}</p>
             {w.progress_note ? <p className="rounded-[10px] bg-tile p-3 text-[13px]">{w.progress_note}{w.progress_pct != null ? ` (${w.progress_pct}٪)` : ''}</p> : null}
             {(w.deliverable_refs ?? []).length ? (
-              <div className="flex flex-wrap gap-2">{w.deliverable_refs!.map((r) => <Link key={r} href={`/outputs?ref=${r}`} className="fig rounded-full bg-gold-soft px-2.5 py-0.5 text-[12px] text-gold-ink hover:underline">{r}</Link>)}</div>
+              <div className="flex flex-wrap gap-2">{w.deliverable_refs!.map((r, i) => <Link key={r} href={`/outputs?ref=${r}`} className="rounded-full bg-gold-soft px-2.5 py-0.5 text-[12px] text-gold-ink hover:underline">خروجی <span className="fig">{i + 1}</span></Link>)}</div>
             ) : w.deliverable_ids.length ? <Link href="/outputs" className="text-[13px] text-gold-ink">{w.deliverable_ids.length} خروجی</Link> : null}
           </Card>
         </div>

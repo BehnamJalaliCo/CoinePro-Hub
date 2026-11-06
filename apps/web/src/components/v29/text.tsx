@@ -5,6 +5,7 @@
 import { Fragment } from 'react';
 import { bidiParts, LatinRun } from '@/components/ui/bidi';
 import { cx } from '@/lib/format';
+import { plain } from '@/lib/plain';
 
 // A figure keeps its sign, separators, a decimal point and a percent sign together: "1,200", "3.4", "38%", "+200", a time "05:40" or a
 // date "2026/11/03". A space is part of it only before a percent sign, so the words around it keep their own spaces.
@@ -32,3 +33,11 @@ export function FaPara({ text, className }: { text: string | null | undefined; c
 export const fig = (n: number | string | null | undefined, digits = 0) =>
   n == null || n === '' ? '—' : typeof n === 'number' ? n.toLocaleString('en-US', { maximumFractionDigits: digits }) : String(n);
 
+
+/** [FaText] after [plain]: for a place that may print a ref or a code the owner must not read. */
+export function PlainText({ text }: { text: string | null | undefined }) {
+  return <FaText text={plain(text)} />;
+}
+export function PlainPara({ text, className }: { text: string | null | undefined; className?: string }) {
+  return <FaPara text={plain(text)} className={className} />;
+}

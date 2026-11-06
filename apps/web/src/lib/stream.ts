@@ -32,7 +32,10 @@ const INVALIDATE: Array<[string, Array<string | readonly string[]>]> = [
   // ⟨1.9⟩ `file.transcribed`: the hub's transcript of a voice message (§27.3).
   ['file.', ['messages', 'files']],
   ['workshop.', ['workshop']],
-  ['order.', ['orders', 'planner', 'work', 'home']],
+  ['order.', ['orders', 'planner', 'work', 'home', 'office']],
+  // ⟨1.17⟩ §35.7 topic `orders`: `session.updated {ref, badge}`; topic `holding`: `links.updated`.
+  ['session.', ['orders', 'office', 'home']],
+  ['links.', ['office', 'links']],
   // ⟨1.11⟩ §29.16
   ['home.', ['home']],
   ['suggestion.', ['home']],

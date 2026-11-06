@@ -1,5 +1,6 @@
 'use client';
 
+import { refWord } from '@/lib/refs';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -54,9 +55,8 @@ function Bubble({ m, agentKind, onResolve }: { m: Msg; agentKind: string; onReso
           {meta.review ? <span className="rounded-full bg-gold-soft px-2 py-0.5 font-semibold text-gold-ink">مرور هفتگی <span className="fig">{meta.review}</span></span> : null}
           {voice ? <span className="flex items-center gap-1" title="از ویس، به متن دقیق"><Icon name="mic" size={12} />ویس</span> : null}
           <span title={jDateTime(m.created_at)}>{jTime(m.created_at)}</span>
-          <span className="fig">{m.ref}</span>
           {links.map(([k, v]) => (
-            <Link key={k} href={linkHref(k, v!)} className="fig rounded-full bg-tile px-2 py-0.5 text-gold-ink hover:bg-hover">{v}</Link>
+            <Link key={k} href={linkHref(k, v!)} className="rounded-full bg-tile px-2 py-0.5 text-gold-ink hover:bg-hover">{refWord(String(v))}</Link>
           ))}
           {m.body.trim() ? <button type="button" onClick={() => onResolve(m)} className="rounded-full px-2 py-0.5 text-sec hover:bg-hover hover:text-ink" title="این پیام را به‌عنوان مصوبه ثبت کن">مصوبه</button> : null}
         </div>

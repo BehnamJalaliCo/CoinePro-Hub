@@ -109,7 +109,7 @@ test('follows the owner\'s orders: stages, the estimate, who holds it, the live 
     await expect(page.getByText('پیگیری فرمان')).toBeVisible();
     await expect(page.getByText(/الان دست مدیرعامل ← مدیر رشد ← /)).toBeVisible();
     await expect(page.getByText('روند کار')).toBeVisible();
-    await expect(page.getByRole('link', { name: /دیدن خروجی O-000046/ })).toBeVisible();
+    await expect(page.getByRole('link', { name: /^دیدن خروجی/ })).toBeVisible();
   });
 });
 
@@ -122,7 +122,7 @@ test('gives an order with a priority in words', async ({ page }) => {
     await expect(page.getByText('چیزی که کاربران محصول مستقیم میبینند؛ جلوتر از کارهای دیگر در صف.')).toBeVisible();
     await page.getByPlaceholder('مثلاً: علت کندی ثبت‌نام را پیدا کن و راه‌حل بده').fill('بررسی خطای ورود با گوگل');
     await page.getByRole('button', { name: 'بفرست' }).click();
-    await expect(page.getByText(/فرمان ثبت شد: W-\d+/)).toBeVisible();
+    await expect(page.getByText(/فرمان ثبت شد\./)).toBeVisible();
   });
 });
 
@@ -149,7 +149,7 @@ test('shows one calm line while the hub restarts and keeps one entry in «خطا
   await expect(page.getByRole('heading', { name: 'خطاخوان' })).toBeVisible();
   await page.getByRole('button', { name: 'نمایش', exact: true }).click();
   // Within the same page load: the demo's restart lives in the page's own fixtures.
-  await page.getByRole('link', { name: 'فرمان‌های من' }).first().click();
+  await page.getByRole('link', { name: /^جلسه‌ها/ }).first().click();
   await expect(page.getByText('هاب در حال راه‌اندازی دوباره است؛ خودکار وصل میشوم.')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText('هاب در حال راه‌اندازی دوباره است؛ خودکار وصل میشوم.')).toBeHidden({ timeout: 40_000 });
   await page.getByRole('button', { name: 'همه‌ی بخش‌ها' }).click();
@@ -161,8 +161,8 @@ test('opens every place from «همه‌ی بخش‌ها», grouped, each with i
   await clean(page, async () => {
     await page.goto('/');
     await page.getByRole('button', { name: 'همه‌ی بخش‌ها' }).click();
-    await expect(page.getByRole('region', { name: 'سیستم و ایمنی' })).toBeVisible();
-    await page.getByRole('link', { name: /^فرمان‌های من:/ }).click();
-    await expect(page).toHaveURL(/\/orders/);
+    await expect(page.getByRole('region', { name: 'فنی' })).toBeVisible();
+    await page.getByRole('link', { name: /^جلسه‌ها:/ }).click();
+    await expect(page).toHaveURL(/\/s$/);
   });
 });

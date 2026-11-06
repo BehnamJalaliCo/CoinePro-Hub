@@ -8,7 +8,7 @@ import { Icon } from '@/components/icon';
 import { Button } from '@/components/ui/button';
 import { Pill } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
-import { RefLink } from '@/components/ui/ref-link';
+import Link from 'next/link';
 import { FaPara, FaText } from '@/components/v29/text';
 import { errText, field } from '@/components/v31/kit';
 import { ApiError } from '@/lib/api/client';
@@ -18,7 +18,8 @@ import { cx } from '@/lib/format';
 
 type Task = { title_fa: string; company?: string; department?: string; due?: string };
 const STATE_FA = { offered: '', done: 'انجام شد', dismissed: 'کنار گذاشته شد', failed: 'نشد' } as const;
-const hrefOf = (ref: string) => (/^F-/.test(ref) ? `/orders/${ref}` : /^D-/.test(ref) ? `/cartable?ref=${ref}` : /^W-/.test(ref) ? `/work/${ref}` : null);
+// ⟨1.17⟩ The owner never reads a ref: what a card made is a link in words (an order is its session, a decision its card in the cartable).
+const linkOf = (ref: string): { href: string; fa: string } | null => (/^F-/.test(ref) ? { href: `/s/${ref}`, fa: 'جلسه‌اش را باز کن' } : /^D-/.test(ref) ? { href: `/cartable?ref=${ref}`, fa: 'کارتش در کارتابل' } : null);
 
 /** One card under an answer. [onChanged] lets the page refresh the conversation after a run. */
 export function TalkCardView({ card }: { card: TalkCard }) {
@@ -91,8 +92,8 @@ export function TalkCardView({ card }: { card: TalkCard }) {
       ) : null}
 
       {made.length ? (
-        <p className="flex flex-wrap items-center gap-1.5 text-[13px] text-sec" aria-label="ساخته شد">ساخته شد:
-          {made.map((r) => { const h = hrefOf(r); return h ? <RefLink key={r} refId={r} href={h} /> : <span key={r} className="fig">{r}</span>; })}
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-sec" aria-label="ساخته شد">ساخته شد.
+          {made.map((r) => linkOf(r)).filter((l): l is { href: string; fa: string } => !!l).map((l) => <Link key={l.href} href={l.href} className="font-semibold text-gold-ink hover:underline">{l.fa}</Link>)}
         </p>
       ) : null}
 

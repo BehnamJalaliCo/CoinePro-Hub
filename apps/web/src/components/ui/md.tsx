@@ -2,7 +2,7 @@ import { Fragment, type ReactNode } from 'react';
 import { RefLink } from './ref-link';
 import { bidi } from './bidi';
 import { cx } from '@/lib/format';
-import { refRoute } from '@/lib/refs';
+import { refRoute, refWord } from '@/lib/refs';
 
 /** A small, safe Markdown subset for agent-written text: paragraphs, ### headings, - lists, ⟨0.3.0⟩ GFM tables and > quotes,
  *  **bold**, `code` and refs (D-…, M-…, O-…, W-…, A-…; ⟨1.3⟩ F-…, S-…, G-…, AP-…; ⟨1.4⟩ FI-…, PR-…, CH-…, SO-…, H-…, Q-…, E-…,
@@ -34,7 +34,7 @@ function refs(text: string, key: string, links = true): ReactNode[] {
   const parts = text.split(new RegExp(REF.source, 'g'));
   return parts.flatMap((p, i) =>
     i % 2 === 1
-      ? [links ? refLink(p, `${key}${i}`) : <span key={`${key}${i}`} className="fig whitespace-nowrap text-gold-ink">{p}</span>]
+      ? [links ? refLink(p, `${key}${i}`) : <span key={`${key}${i}`} className="whitespace-nowrap text-gold-ink">{refWord(p)}</span>]
       // ⟨1.10.1⟩ Latin runs (model names and versions, paths, URLs, money) keep Latin digits and are isolated from the Persian around them.
       : bidi(p, `${key}${i}l`),
   );
@@ -45,7 +45,7 @@ function refLink(ref: string, key: string): ReactNode {
   const href = refRoute(ref);
   return href
     ? <RefLink key={key} refId={ref} href={href} />
-    : <span key={key} className="fig whitespace-nowrap text-gold-ink">{ref}</span>;
+    : <span key={key} className="whitespace-nowrap text-gold-ink">{refWord(ref)}</span>;
 }
 
 /** One GFM table row: its cells, without the outer pipes; `\|` stays a pipe inside a cell. */

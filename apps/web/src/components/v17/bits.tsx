@@ -9,7 +9,7 @@ import type { IconName } from '@/generated/icons';
 import { useCompanies } from '@/lib/api/hooks';
 import type { Actor } from '@/lib/api/v13';
 import { cx, percentOf, tokens, usd } from '@/lib/format';
-import { refRoute } from '@/lib/refs';
+import { refRoute, refWord } from '@/lib/refs';
 
 type Tone = ComponentProps<typeof Pill>['tone'];
 type Label = { fa: string; tone: Tone };
@@ -97,7 +97,7 @@ export function refHref(ref: string): string | null {
 export function RefChip({ r, note, tone = 'gold', className }: { r: string; note?: string | null; tone?: 'gold' | 'neutral' | 'neg'; className?: string }) {
   const href = refHref(r);
   const cls = cx('inline-flex min-w-0 max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-[11px]', tone === 'gold' ? 'bg-gold-soft text-gold-ink' : tone === 'neg' ? 'bg-neg-soft text-neg' : 'bg-tile text-sec', href && 'hover:underline', className);
-  const body = <><span className="fig">{r}</span>{note ? <span className="truncate text-muted">· {note}</span> : null}</>;
+  const body = <><span>{refWord(r)}</span>{note ? <span className="truncate text-muted">· {note}</span> : null}</>;
   return href ? <Link href={href} className={cls} title={note ?? undefined}>{body}</Link> : <span className={cls} title={note ?? undefined}>{body}</span>;
 }
 

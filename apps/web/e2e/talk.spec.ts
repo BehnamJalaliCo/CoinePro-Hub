@@ -81,7 +81,7 @@ test('a typed question streams an answer, and an imperative becomes a card that 
     await card.getByRole('button', { name: 'ویرایش' }).click();
     await card.getByLabel('متن فرمان').fill('چهار ریلز آموزشی برای تریدیار بساز');
     await card.getByRole('button', { name: 'اجرا کن' }).click();
-    await expect(card.getByLabel('ساخته شد')).toContainText('F-130');
+    await expect(card.getByLabel('ساخته شد')).toContainText('جلسه‌اش را باز کن');
     await expect(card).toHaveAttribute('data-state', 'done');
   });
 });
@@ -176,7 +176,7 @@ test('a working session ends in one minutes card with editable tasks; «صورت
     await card.getByLabel('سررسید کار 2').fill('2026-11-09');
     await card.getByRole('button', { name: 'حذف' }).last().click();
     await card.getByRole('button', { name: 'اجرا کن' }).click();
-    await expect(card.getByLabel('ساخته شد')).toContainText('F-130');
+    await expect(card.getByLabel('ساخته شد')).toContainText('جلسه‌اش را باز کن');
     await expect(card.getByLabel('ساخته شد')).not.toContainText('F-131'); // one task left, one order
     await page.getByRole('radio', { name: 'مشورت' }).click();
     await page.getByRole('button', { name: 'صورت‌جلسه کن' }).click();
@@ -204,12 +204,12 @@ test('conversations are listed and searchable; a stored one opens with its turns
   await clean(page, async () => {
     await page.goto('/talk');
     const list = page.getByRole('complementary', { name: 'گفتگوها' });
-    await expect(list.getByRole('button', { name: /برنامه‌ی هفته‌ی تریدیار/ })).toBeVisible();
+    await expect(list.getByRole('button', { name: /^برنامه‌ی هفته‌ی تریدیار/ })).toBeVisible();
     await list.getByRole('searchbox', { name: 'جست‌وجو در گفتگوها' }).fill('هزینه');
     await expect(list.getByRole('button', { name: /مرور هزینه‌ی ماه/ })).toBeVisible();
-    await expect(list.getByRole('button', { name: /برنامه‌ی هفته‌ی تریدیار/ })).toHaveCount(0);
+    await expect(list.getByRole('button', { name: /^برنامه‌ی هفته‌ی تریدیار/ })).toHaveCount(0);
     await list.getByRole('searchbox').fill('');
-    await list.getByRole('button', { name: /برنامه‌ی هفته‌ی تریدیار/ }).click();
+    await list.getByRole('button', { name: /^برنامه‌ی هفته‌ی تریدیار/ }).click();
     await expect(page.getByLabel('گفتگو', { exact: true }).getByText('سه ریلز آموزشی')).toBeVisible();
   });
 });

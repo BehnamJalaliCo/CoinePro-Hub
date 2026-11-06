@@ -26,6 +26,7 @@ import { handle30 } from './mock-v30';
 import { handle31 } from './mock-v31';
 import { handle32 } from './mock-v32';
 import { handle33 } from './mock-v33';
+import { handle34 } from './mock-v34';
 
 const json = (body: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const problem = (status: number, code: string, message_fa: string) => json({ code, message_fa, status, title: code, type: 'about:blank' }, status);
@@ -514,9 +515,16 @@ export function tick21(): Ev[] {
 export async function handle(req: Request): Promise<Response> {
   const u = new URL(req.url);
   if (Date.now() >= restartUntil) {
-    // ⟨1.15⟩ §33 money and the Grok-like working style (./mock-v33); what is not its own (or what it decorates) goes on below.
-    const v33 = await handle33(req, u.pathname.replace(/^\/api\/v1/, ''), u.searchParams, () => handleBelow(req));
-    if (v33) return v33;
+    const path = u.pathname.replace(/^\/api\/v1/, '');
+    const below = async (r: Request): Promise<Response> => {
+      // ⟨1.15⟩ §33 money and the Grok-like working style (./mock-v33); what is not its own (or what it decorates) goes on below.
+      const v33 = await handle33(r, new URL(r.url).pathname.replace(/^\/api\/v1/, ''), new URL(r.url).searchParams, () => handleBelow(r));
+      return v33 ?? handleBelow(r);
+    };
+    // ⟨1.17⟩ §34–§35 the order as a session, the owner's office and the canvas (./mock-v34); it reads the rest through [below].
+    const v34 = await handle34(req, path, u.searchParams, below);
+    if (v34) return v34;
+    return below(req);
   }
   return handleBelow(req);
 }

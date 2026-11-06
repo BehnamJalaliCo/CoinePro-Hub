@@ -142,7 +142,7 @@ function Row({ g, unreadTab, expanded, onToggle, onOpen, onRead, onAnswer, check
                     <span className="fig w-11 text-[12px] text-sec">{jTime(x.created_at)}</span>
                     <span className="min-w-0 flex-1 truncate text-[11px] text-muted">{ago(x.created_at)}</span>
                     {!x.read_at ? <span className="size-1.5 rounded-full bg-gold" /> : null}
-                    {x.link?.ref ? <span className={cx('fig text-[12px]', r ? 'text-gold-ink' : 'text-muted')}>{x.link.ref}</span> : null}
+                    {r ? <span className="text-[12px] text-gold-ink">باز کن</span> : null}
                     {r ? <span className="text-muted"><Icon name="next" size={14} mirror /></span> : null}
                   </button>
                 </li>

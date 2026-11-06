@@ -77,11 +77,11 @@ export function Consequences({ lines, tone }: { lines: Array<[IconName, ReactNod
 }
 
 /** A gold-ink action that names a ref in Latin figures. */
-export function RefButton({ label, refId, icon, href, className }: { label: string; refId: string; icon: IconName; href: string; className?: string }) {
+export function RefButton({ label, icon, href, className }: { label: string; refId?: string; icon: IconName; href: string; className?: string }) {
   return (
     <Link href={href} className={cx('flex min-h-10 items-center gap-2 rounded-[10px] bg-gold-soft px-3 text-[13px] font-semibold text-gold-ink transition-colors hover:bg-[var(--hq-gold-hover-soft)]', className)}>
       <Icon name={icon} size={18} />
-      <span>{label} <span className="fig font-bold">{refId}</span></span>
+      <span>{label}</span>
       <span className="flex-1" />
       <Icon name="next" size={14} mirror />
     </Link>

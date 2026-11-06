@@ -34,11 +34,11 @@ export type Persona = {
   voice: { engine: string; voice: string; rate: number }; brain: { task_class: string; effort: string }; tools: string[]; face?: string | null; consult_only: boolean;
 };
 export type Mode = 'consult' | 'work';
-export type CardKind = 'order' | 'ask' | 'hire' | 'decision' | 'planner' | 'rule' | 'automation' | 'minutes' | 'invite';
+export type CardKind = 'order' | 'ask' | 'hire' | 'decision' | 'planner' | 'rule' | 'automation' | 'minutes' | 'invite' | 'delegate' | 'budget' | 'group' | 'line';
 export type CardState = 'offered' | 'done' | 'dismissed' | 'failed';
 export type TalkCard = { id: string; turn: string; kind: CardKind; title_fa: string; body_fa: string; payload: Record<string, unknown>; state: CardState; made: string[]; reason_fa: string | null };
 export type Conversation = {
-  ref: string; title_fa: string; persona: string; present: string[]; mode: Mode; started_at: string; last_turn_at: string | null; turns: number; summary_fa: string | null;
+  ref: string; order_ref?: string | null; closed_at?: string | null; title_fa: string; persona: string; present: string[]; mode: Mode; started_at: string; last_turn_at: string | null; turns: number; summary_fa: string | null;
   cost: { tokens: number; usd_equiv: number; voice_usd: number }; open_cards: number;
 };
 export type TurnSource = 'typed' | 'hold' | 'handsfree';
@@ -51,7 +51,7 @@ export type Turn = {
 /** The page of a conversation: the conversation itself and its turns (assumed flat, like the list rows, with the turns beside). */
 export type ConversationPage = Conversation & { turns_page?: Turn[]; items?: Turn[]; next?: string | null };
 export const MODE_FA: Record<Mode, string> = { consult: 'مشورت', work: 'جلسه‌ی کاری' };
-export const CARD_FA: Record<CardKind, { fa: string; icon: 'task' | 'advisor' | 'hire' | 'decision' | 'planner' | 'seal' | 'refresh' | 'report' | 'agent'; run: string }> = {
+export const CARD_FA: Record<CardKind, { fa: string; icon: 'task' | 'advisor' | 'hire' | 'decision' | 'planner' | 'seal' | 'refresh' | 'report' | 'agent' | 'delegate' | 'treasury' | 'companies'; run: string }> = {
   order: { fa: 'فرمان', icon: 'task', run: 'فرمان را بفرست' },
   ask: { fa: 'پرسش عمیق', icon: 'advisor', run: 'بپرس' },
   hire: { fa: 'استخدام', icon: 'hire', run: 'پیشنهاد را بفرست' },
@@ -61,6 +61,11 @@ export const CARD_FA: Record<CardKind, { fa: string; icon: 'task' | 'advisor' | 
   automation: { fa: 'اتوماسیون', icon: 'refresh', run: 'بساز' },
   minutes: { fa: 'صورت‌جلسه', icon: 'report', run: 'اجرا کن' },
   invite: { fa: 'دعوت', icon: 'agent', run: 'بیاورش' },
+  // ⟨1.17⟩ §35.4 cards in a session
+  delegate: { fa: 'سپردن کار', icon: 'delegate', run: 'بسپار' },
+  budget: { fa: 'بودجه', icon: 'treasury', run: 'بودجه بده' },
+  group: { fa: 'کارگروه', icon: 'companies', run: 'به کارگروه ببر' },
+  line: { fa: 'خط تولید', icon: 'task', run: 'راه بینداز' },
 };
 
 export const usePersonas = () => useQuery({ queryKey: ['talk', 'personas'], staleTime: 60_000, queryFn: list<Persona>('/talk/personas') });
@@ -94,7 +99,7 @@ export function useTalkActions() {
     dismiss: useMutation({ mutationFn: (id: string) => call<TalkCard>('POST', `/talk/cards/${enc(id)}/dismiss`, {}), onSettled: settle }),
   };
 }
-export const postTurn = (ref: string, b: { text: string; source: TurnSource; client_id: string }) =>
+export const postTurn = (ref: string, b: { text: string; source: TurnSource; client_id: string; to?: string }) =>
   call<{ turn: Turn; events: string }>('POST', `/talk/conversations/${enc(ref)}/turns`, b, { 'Idempotency-Key': b.client_id });
 export const stopTurn = (id: string) => call<void>('POST', `/talk/turns/${enc(id)}/stop`, {});
 

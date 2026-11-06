@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { Icon } from '@/components/icon';
@@ -52,7 +53,6 @@ function Route({ r, onGo }: { r: OrderRoute; onGo?: () => void }) {
   const { data: employees } = useEmployees({});
   const who = employees?.items.find((e) => e.code === r.to)?.title_fa ?? r.to;
   const href = routeHref(r);
-  const ref = r.session_ref ?? r.decision_ref ?? r.work_ref;
   const body = (
     <>
       <span className="text-sec"><CompanyMark code={r.company} height={13} mono /></span>
@@ -60,7 +60,6 @@ function Route({ r, onGo }: { r: OrderRoute; onGo?: () => void }) {
       <span className="text-ink">{KIND[r.kind].fa}</span>
       <span className="text-muted">←</span>
       <span className="truncate text-ink">{who}</span>
-      {ref ? <span className="fig text-muted">{ref}</span> : null}
     </>
   );
   const cls = 'inline-flex h-8 max-w-full items-center gap-1.5 rounded-full bg-tile px-3 text-[12px]';
@@ -161,6 +160,7 @@ function SecretaryLine({ preview, loading, edits, onEdits, option }: { preview: 
  */
 export function VoiceOrder({ open, onOpenChange, initial }: { open: boolean; onOpenChange: (v: boolean) => void; initial?: VoiceOpen | null }) {
   const qc = useQueryClient();
+  const router = useRouter();
   const toast = useToast();
   const orders = useOrders();
   const rules = useRules();
@@ -207,9 +207,11 @@ export function VoiceOrder({ open, onOpenChange, initial }: { open: boolean; onO
         const changed = await applyPlayer(o as OrderOut, option);
         if (changed) toast({ tone: 'info', text: `بازیکن ${changed.toLocaleString('fa-IR')} کار به «${option.fa}» تغییر کرد.` });
       }
-      setOut(o);
-      setPhase('sent');
-      for (const k of ['orders', 'work', 'planner', 'workshop', 'decisions', 'inbox', 'home']) void qc.invalidateQueries({ queryKey: [k] });
+      for (const k of ['orders', 'work', 'planner', 'workshop', 'decisions', 'inbox', 'home', 'office']) void qc.invalidateQueries({ queryKey: [k] });
+      // ⟨1.17⟩ §35.1: the order is a session at once; the owner lands in it.
+      toast({ tone: 'ok', text: 'فرمان رسید؛ جلسه‌اش باز شد.' });
+      close(false);
+      router.push(`/s/${encodeURIComponent(o.ref)}`);
     } catch (e) {
       toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : 'فرمان نرسید.' });
     } finally {
@@ -320,7 +322,7 @@ export function VoiceOrder({ open, onOpenChange, initial }: { open: boolean; onO
             <div className="flex items-center gap-2">
               <span className="text-gold-ink"><Icon name="seal" size={20} active /></span>
               <span className="flex-1 text-[14px] font-semibold">فرمان رسید</span>
-              <Link href={`/orders/${out.ref}`} onClick={() => close(false)} className="text-[12px] font-semibold text-gold-ink hover:underline">گزارش فرمان</Link>
+              <Link href={`/s/${out.ref}`} onClick={() => close(false)} className="text-[12px] font-semibold text-gold-ink hover:underline">برو به جلسه</Link>
             </div>
             <p className="text-[13px] leading-6 text-sec"><MdInline text={out.summary_fa} /></p>
             <div className="flex flex-col items-start gap-1.5">{out.routes.map((r, i) => <Route key={i} r={r} onGo={() => close(false)} />)}</div>
@@ -343,7 +345,7 @@ export function VoiceOrder({ open, onOpenChange, initial }: { open: boolean; onO
                   <li key={o.ref} className="flex flex-col gap-1.5">
                     <div className="flex items-start gap-2">
                       <span className="mt-0.5 text-muted"><Icon name={o.source === 'voice' ? 'mic' : 'edit'} size={14} /></span>
-                      <Link href={`/orders/${o.ref}`} onClick={() => close(false)} className="line-clamp-2 min-w-0 flex-1 text-[13px] leading-6 text-ink hover:text-gold-ink"><MdInline text={o.text} links={false} /></Link>
+                      <Link href={`/s/${o.ref}`} onClick={() => close(false)} className="line-clamp-2 min-w-0 flex-1 text-[13px] leading-6 text-ink hover:text-gold-ink"><MdInline text={o.text} links={false} /></Link>
                       <span className="flex-none text-[11px] text-muted">{ago(o.created_at)}</span>
                     </div>
                     {o.routes?.length ? <div className="flex flex-wrap gap-1.5 ps-6">{o.routes.map((r, i) => <Route key={i} r={r} onGo={() => close(false)} />)}</div> : null}

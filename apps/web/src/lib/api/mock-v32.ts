@@ -100,6 +100,18 @@ function answer(c: any, text: string, id: string) {
   if (/طولانی/.test(text)) {
     base.say = 'این جواب طولانی است.'; base.md = Array.from({ length: 40 }, (_, i) => `بند شماره ${i + 1} از جواب طولانی`).join(' ');
     base.slow = true;
+  } else if (c.order_ref && /استخدام|استخدامش/.test(text)) {
+    base.say = 'یک پیشنهاد استخدام آماده کردم.'; base.md = 'برای این فرمان یک مسئول انتشار لازم است. پیشنهاد استخدام را ساختم؛ تا نزنی «اجرا کن» چیزی نمیشود.';
+    base.cards.push(makeCard(id, 'hire', 'استخدام مسئول انتشار تریدیار', 'نقش: مسئول انتشار · شرکت: تریدیار', { role: 'publisher', company: 'TY' }));
+  } else if (c.order_ref && /بسپار|به او بده/.test(text)) {
+    base.say = 'کار را به نویسنده میسپارم.'; base.md = 'این کار را به نویسنده‌ی رسانه‌ی تریدیار میسپارم.';
+    base.cards.push(makeCard(id, 'delegate', 'نوشتن متن سه ریلز', 'به: نویسنده‌ی رسانه‌ی تریدیار', { to: 'TY-MEDIA-01', text: 'متن سه ریلز را بنویس' }));
+  } else if (c.order_ref && /کارگروه/.test(text)) {
+    base.say = 'تریدیار را به کارگروه محتوا میبرم.'; base.md = 'اگر موافقی، تریدیار عضو کارگروه محتوا شود تا شاخص‌هایش کنار بقیه دیده شود.';
+    base.cards.push(makeCard(id, 'group', 'تریدیار به کارگروه محتوا', 'شرکت: تریدیار · کارگروه: محتوا', { company: 'TY', group: 'content' }));
+  } else if (c.order_ref && /خط تولید/.test(text)) {
+    base.say = 'یک خط تولید راه میاندازم.'; base.md = 'یک خط تولید ریلز روزانه برای تریدیار، از قالب آماده.';
+    base.cards.push(makeCard(id, 'line', 'خط تولید ریلز روزانه', 'شرکت: تریدیار · قالب: ریلز روزانه', { company: 'TY', template: 'daily-reel' }));
   } else if (/صورت.?جلسه|تسک|پایان جلسه/.test(text)) {
     base.say = 'صورت‌جلسه را آماده کردم؛ نگاهش کن.'; base.md = 'صورت‌جلسه آماده است. کارها را ببین، اگر لازم بود ویرایش کن و اجرا کن.';
     base.cards.push(makeCard(id, 'minutes', 'صورت‌جلسه‌ی همین گفتگو', 'خلاصه: برنامه‌ی انتشار هفته را سنجیدیم. تصمیم: خبرنامه روز پنجشنبه برود.', { tasks: [{ title_fa: 'نوشتن خبرنامه‌ی هفته', company: 'TY', department: 'content', due: '2026-11-06' }, { title_fa: 'بازبینی سقف تبلیغ', company: 'TY', department: 'growth', due: '2026-11-07' }] }));
@@ -203,7 +215,11 @@ export async function handle32(req: Request, p: string): Promise<Response | null
       // The server's defence: a key-shaped string is never kept.
       const safe = /AIza[0-9A-Za-z_-]{35}/.test(text) ? '[کلید حذف شد]' : text;
       addTurn(c, 'owner', safe, { source: b.source ?? 'typed' });
-      const t = addTurn(c, c.present[c.present.length - 1], '', { state: 'streaming' });
+      // ⟨1.17⟩ §35.4 `to`: a participant answers; «all» lets each present participant say a line first, then the holder sums up.
+      const holder = c.order_ref ? c.present[0] : c.present[c.present.length - 1];
+      const aimed = typeof b.to === 'string' && b.to !== 'all' && c.present.includes(b.to) ? b.to : holder;
+      if (b.to === 'all') for (const k of c.present.slice(1)) addTurn(c, k, '', { show_md: `نظر ${k.startsWith('player:') ? 'این مدل' : 'من'}: با همین برنامه جلو برویم؛ فقط زمان‌بندی را یک بار دیگر ببینید.` });
+      const t = addTurn(c, aimed, '', { state: 'streaming' });
       stopped.delete(t.id);
       const a = answer(c, safe, t.id);
       streams.set(t.id, a);
@@ -278,3 +294,16 @@ export async function handle32(req: Request, p: string): Promise<Response | null
   return null;
 }
 const streams = new Map<string, ReturnType<typeof answer>>();
+
+// ============================================================================== ⟨1.17⟩ §35 a session's conversation ==
+/** The session module (./mock-v34) makes, reads and closes the conversation of an order here. */
+export function sessionConversation(persona: string, title_fa: string, order_ref: string, lines: Array<[string, string]>, at = '2026-11-05T09:00:00Z') {
+  const c: any = newConv(persona, title_fa, { mode: 'work', order_ref, started_at: at, closed_at: null });
+  for (const [by, md] of lines) addTurn(c, by, by === 'owner' ? md : '', by === 'owner' ? { at } : { show_md: md, at });
+  return c;
+}
+export const conversationOf = (ref: string): any => convs.find((x) => x.ref === ref);
+export const presentAdd = (ref: string, key: string) => { const c = conversationOf(ref); if (c && !c.present.includes(key)) c.present.push(key); };
+export const presentDrop = (ref: string, key: string) => { const c = conversationOf(ref); if (c) c.present = c.present.filter((x: string) => x !== key); };
+export const conversationClosed = (ref: string, at: string | null) => { const c = conversationOf(ref); if (c) c.closed_at = at; };
+export const conversationSay = (ref: string, by: string, md: string) => { const c = conversationOf(ref); if (c) addTurn(c, by, by === 'owner' ? md : '', by === 'owner' ? {} : { show_md: md }); };

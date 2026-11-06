@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useNow } from '@/lib/store';
+import { plain } from '@/lib/plain';
 import { Icon } from '@/components/icon';
 import { CompanyMark } from '@/components/brand/marks';
 import { Pill } from '@/components/ui/primitives';
@@ -24,7 +25,7 @@ export function DecisionRow({ d, href, selected, onSelect }: { d: Row; href?: st
       <span className="mt-0.5 flex size-9 flex-none items-center justify-center rounded-[10px] bg-tile text-gold-ink"><Icon name={k.icon} size={18} /></span>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-[14px] font-semibold text-ink">{d.title}</span>
+          <span className="truncate text-[14px] font-semibold text-ink">{plain(d.title)}</span>
         </div>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted">
           <span className="text-sec"><CompanyMark code={d.company} height={13} mono /></span>
@@ -32,7 +33,6 @@ export function DecisionRow({ d, href, selected, onSelect }: { d: Row; href?: st
           {[k.fa, d.proposer ? d.proposer.display_fa ?? d.proposer.code : null, ago(d.created_at)].filter(Boolean).map((t, i, all) => (
             <span key={i} className="whitespace-nowrap">{t}{i < all.length - 1 ? '،' : ''}</span>
           ))}
-          <span className="fig whitespace-nowrap text-[11px]">{d.ref}</span>
         </div>
       </div>
       <div className="flex flex-none flex-col items-end gap-1">

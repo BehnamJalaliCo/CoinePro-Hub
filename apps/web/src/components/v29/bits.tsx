@@ -14,7 +14,7 @@ import { cx } from '@/lib/format';
 import { ConnectionSheet } from './connections';
 import { FaText } from './text';
 
-export { FaPara, FaText, fig } from './text';
+export { FaPara, FaText, PlainPara, PlainText, fig } from './text';
 
 export function OrderStatePill({ state }: { state: OrderState | string }) {
   const s = ORDER_STATE[state as OrderState] ?? { fa: state, tone: 'neutral' as const };

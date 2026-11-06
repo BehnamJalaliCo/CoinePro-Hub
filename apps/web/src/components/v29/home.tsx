@@ -19,7 +19,7 @@ import { CRITICAL_FA, sourceFa, useSuggestionAction, type Home, type HomeGroup, 
 import { linkRoute } from '@/lib/refs';
 import { useNow } from '@/lib/store';
 import { ago, cx, jDate } from '@/lib/format';
-import { FaPara, FaText, OrderStatePill, fig } from './bits';
+import { OrderStatePill, PlainPara as FaPara, PlainText as FaText, fig } from './bits';
 
 const SOURCE: Record<Suggestion['source'], string> = { council: 'از شورای مشاوران', group: 'از کارگروه', advisor: 'از مشاور کل' };
 const inputCls = 'h-10 min-w-0 flex-1 rounded-[10px] border border-strong bg-tile px-3 text-[14px] text-ink outline-none focus:border-gold-ink';
@@ -42,7 +42,8 @@ export function SuggestionCard({ kind, s }: { kind: 'effective' | 'good'; s: Sug
   const go = (action: 'run' | 'later' | 'no', reason_fa?: string) => act.mutate({ id: s!.id, action, reason_fa }, {
     onSuccess: (out) => {
       setAsking(false); setReason('');
-      if (action === 'run') toast({ tone: 'ok', text: 'فرمانش ساخته شد؛ گزارشش زنده است.', action: out?.order_ref ? { label: 'گزارش فرمان', run: () => router.push(`/orders/${out.order_ref}`) } : undefined });
+      // ⟨1.17⟩ §35.1: «اجرا کن» opens the order's session and the owner lands in it.
+      if (action === 'run') { toast({ tone: 'ok', text: 'جلسه‌اش باز شد.' }); if (out?.order_ref) router.push(`/s/${out.order_ref}`); }
       else toast({ tone: 'info', text: action === 'later' ? 'بعداً دوباره میاید.' : 'دلیلت در حافظه‌ی منشی ماند؛ این پیشنهاد دیگر نمیاید.' });
     },
     onError: (e) => toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : 'ثبت نشد.' }),
@@ -66,7 +67,7 @@ export function SuggestionCard({ kind, s }: { kind: 'effective' | 'good'; s: Sug
           {s.state === 'run' ? (
             <div className="flex flex-wrap items-center gap-2 rounded-[10px] bg-pos-soft px-3 py-2 text-[13px] text-pos">
               <Icon name="seal" size={16} active />فرمانش ساخته شد
-              {s.order_ref ? <Link href={`/orders/${s.order_ref}`} className="ms-auto font-semibold text-gold-ink hover:underline">گزارش فرمان</Link> : null}
+              {s.order_ref ? <Link href={`/s/${s.order_ref}`} className="ms-auto font-semibold text-gold-ink hover:underline">برو به جلسه</Link> : null}
             </div>
           ) : asking ? (
             <form className="flex flex-col gap-2" onSubmit={(e) => { e.preventDefault(); if (reason.trim()) go('no', reason.trim()); }}>
@@ -194,7 +195,7 @@ export function HomeOrders({ orders, onNewOrder }: { orders: Home['orders']; onN
         <ul className="flex flex-col">
           {orders.map((o) => (
             <li key={o.ref} className="border-t border-div first:border-0">
-              <Link href={`/orders/${o.ref}`} className="flex flex-col gap-1 py-2.5 hover:bg-hover/40">
+              <Link href={`/s/${o.ref}`} className="flex flex-col gap-1 py-2.5 hover:bg-hover/40">
                 <span className="flex items-start gap-2">
                   <span className="line-clamp-2 min-w-0 flex-1 text-[13px] font-semibold leading-6"><FaText text={o.text_fa} /></span>
                   <OrderStatePill state={o.state} />
