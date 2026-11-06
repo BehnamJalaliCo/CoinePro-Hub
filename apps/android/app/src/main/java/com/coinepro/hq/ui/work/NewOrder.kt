@@ -134,7 +134,7 @@ fun NewOrderContent(
                 // Followed at once: its stage changes are told even before the list is read again.
                 env.orders.track(w)
                 env.cache.invalidate("work", "planner", "companies")
-                toasts.ok("فرمان ${w.ref} رفت؛ در «فرمان‌های من» مرحله‌به‌مرحله دنبالش کن.", "فرمان‌های من") { nav.go("orders") }
+                toasts.ok("فرمان رفت؛ در «فرمان‌های من» مرحله‌به‌مرحله دنبالش کن.", "فرمان‌های من") { nav.go("orders") }
                 onDismiss()
                 nav.go("work/${w.id}")
             }

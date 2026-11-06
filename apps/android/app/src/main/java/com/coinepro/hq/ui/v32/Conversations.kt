@@ -84,7 +84,7 @@ fun ConversationsScreen(q0: String = "") {
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.card)) {
                     rows.forEachIndexed { i, cv ->
                         if (i > 0) HorizontalDivider(color = c.lineDivider)
-                        ConversationRow(cv, personas.data.orEmpty()) { nav.go("talk/${cv.ref}") }
+                        ConversationRow(cv, personas.data.orEmpty()) { nav.go(cv.orderRef?.takeIf { it.isNotBlank() }?.let { "session/$it" } ?: "talk/${cv.ref}") }
                     }
                 }
             }

@@ -234,9 +234,9 @@ class V29Test {
 
     @Test
     fun anOwnersOrderOpensItsReport() {
-        assertEquals("order/F-0041", Refs.route("F-0041"))
-        assertEquals("order/F-0041", Refs.forLink("order", "F-0041"))
-        assertEquals("orders", Refs.forLink("order", null))
+        assertEquals("session/F-0041", Refs.route("F-0041"))
+        assertEquals("session/F-0041", Refs.forLink("order", "F-0041"))
+        assertEquals("sessions", Refs.forLink("order", null))
         assertEquals("rules", Refs.forLink("rule", "SO-021"))
         assertEquals("groups/content", Refs.forLink("group", "content"))
         // A longer prefix still wins.

@@ -841,4 +841,7 @@ data class Order(
     val state: String? = null,
     val summary: OrderSummary? = null,
     val route: OrderRoute29? = null,
+    /** ⟨1.16⟩ §34.1 `step` · `auto`; §34.2/§35.1 the order's talk (always set by a hub of ⟨1.17⟩). */
+    val pace: String? = null,
+    val talkRef: String? = null,
 )

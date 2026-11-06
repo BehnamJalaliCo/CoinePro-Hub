@@ -313,6 +313,8 @@ class AlertCenter(
             return true // read already, or not shown in the app (held by Khalvat): nothing to tell
         }
         if (n.readAt != null) return true
+        // ⟨1.16⟩ §34.4 nothing technical and nothing the hub routed elsewhere reaches the owner's phone, unless it is critical.
+        if (!com.coinepro.hq.core.data.forOwner(n)) return true
         if (n.link?.kind == "decision" && n.link.ref != null) {
             val status = source.decisionStatus(n.link.ref)
             if (status != null && status != "pending") return true

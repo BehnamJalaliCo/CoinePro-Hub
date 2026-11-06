@@ -191,7 +191,7 @@ private fun PlanCard(o: OrderReport) {
 
 /** The steps in plain Persian, newest last: when, who, what. */
 @Composable
-private fun StepsCard(o: OrderReport) {
+internal fun StepsCard(o: OrderReport) {
     val c = Divan.colors
     HqCard(Modifier.fillMaxWidth()) {
         SectionTitle("قدم‌ها", note = if (o.steps.isEmpty()) "هنوز قدمی برداشته نشده" else "${o.steps.size} قدم، آخری پایین", icon = DivanIcon.TASK)
@@ -213,7 +213,7 @@ private fun StepsCard(o: OrderReport) {
 }
 
 @Composable
-private fun OutputsCard(o: OrderReport) {
+internal fun OutputsCard(o: OrderReport) {
     val nav = LocalNav.current
     val c = Divan.colors
     HqCard(Modifier.fillMaxWidth()) {
@@ -242,7 +242,7 @@ fun OrderReportOnWork(w: Work) {
     val c = Divan.colors
     val orders = rememberQuery("voice-orders", "orders", maxAgeMs = 10_000) { orders().items }
     val o = orders.data?.firstOrNull { x -> x.routes.any { it.workRef == w.ref } } ?: return
-    HqCard(Modifier.fillMaxWidth(), onClick = { nav.go("order/${o.ref}") }) {
+    HqCard(Modifier.fillMaxWidth(), onClick = { nav.go("session/${o.ref}") }) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             IconTile(DivanIcon.REPORT, c.goldInk, c.softGold, 36.dp)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -253,7 +253,7 @@ fun OrderReportOnWork(w: Work) {
                 )
             }
             o.state?.let { OrderStatePill(it) }
-            HqButton(null, { nav.go("order/${o.ref}") }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.NEXT, label = "گزارش فرمان")
+            HqButton(null, { nav.go("session/${o.ref}") }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.NEXT, label = "گزارش فرمان")
         }
     }
 }

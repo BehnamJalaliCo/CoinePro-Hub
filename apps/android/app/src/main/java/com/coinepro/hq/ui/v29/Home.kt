@@ -104,7 +104,7 @@ fun HomeCardsBlock(h: Home) {
 
 /** A suggestion with «اجرا کن» (an order is made from it), «بعداً» and «نه» (a short reason the secretary keeps). */
 @Composable
-fun SuggestionCard(s: HomeSuggestion, effective: Boolean, modifier: Modifier = Modifier) {
+fun SuggestionCard(s: HomeSuggestion, effective: Boolean, modifier: Modifier = Modifier, openSession: Boolean = false) {
     val env = LocalEnv.current
     val nav = LocalNav.current
     val toasts = LocalToasts.current
@@ -131,7 +131,7 @@ fun SuggestionCard(s: HomeSuggestion, effective: Boolean, modifier: Modifier = M
             when (s.state) {
                 "run" -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Pill("فرمانش داده شد", Tone.POS, icon = DivanIcon.SEAL)
-                    s.orderRef?.let { ref -> HqButton("گزارش فرمان", { nav.go("order/$ref") }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.NEXT) }
+                    s.orderRef?.let { ref -> HqButton(if (openSession) "جلسه‌اش" else "گزارش فرمان", { nav.go("session/$ref") }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.NEXT) }
                 }
                 "no" -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Pill("نه گفتی", Tone.SILVER)
@@ -141,9 +141,11 @@ fun SuggestionCard(s: HomeSuggestion, effective: Boolean, modifier: Modifier = M
                     HqButton("اجرا کن", {
                         action.run {
                             val out = env.api.suggestion(s.id, "run")
-                            env.cache.invalidate("home", "orders", "work")
+                            env.cache.invalidate("home", "orders", "work", "office", "sessions")
                             val ref = (out?.get("order_ref") as? JsonPrimitive)?.contentOrNull
-                            if (ref != null) toasts.ok("فرمانش داده شد؛ گزارشش را دنبال کن.", "گزارش") { nav.go("order/$ref") }
+                            // ⟨1.17⟩ §35.5 in the office «اجرا کن» opens the order's session at once.
+                            if (ref != null && openSession) nav.go("session/$ref")
+                            else if (ref != null) toasts.ok("فرمانش داده شد؛ جلسه‌اش باز شد.", "جلسه") { nav.go("session/$ref") }
                             else toasts.ok("فرمانش داده شد.")
                         }
                     }, Modifier.weight(1f), variant = BtnVariant.PRIMARY, size = BtnSize.SM, icon = DivanIcon.SEND, loading = action.busy)
@@ -297,7 +299,7 @@ fun HomeOrdersBlock(orders: List<HomeOrder>, onNewOrder: () -> Unit) {
             orders.take(5).forEachIndexed { i, o ->
                 if (i > 0) HorizontalDivider(color = c.lineDivider)
                 Column(
-                    Modifier.fillMaxWidth().clickable(role = Role.Button, onClickLabel = "گزارش فرمان") { nav.go("order/${o.ref}") }.padding(vertical = 10.dp),
+                    Modifier.fillMaxWidth().clickable(role = Role.Button, onClickLabel = "گزارش فرمان") { nav.go("session/${o.ref}") }.padding(vertical = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

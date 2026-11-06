@@ -466,12 +466,11 @@ private fun DecisionDetail(d: Decision, onChanged: (Decision) -> Unit) {
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             Box(Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(c.tile), contentAlignment = Alignment.Center) { DIcon(k.icon, size = 24.dp, tint = c.goldInk) }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(buildAnnotatedString { append(k.fa + " "); fig(d.ref); append("، " + co.nameFa) }, style = Divan.type.caption, color = c.textMuted)
+                Text("${k.fa}، ${co.nameFa}", style = Divan.type.caption, color = c.textMuted)
                 Text(d.title, style = Divan.type.h2)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Pill(rk.fa, rk.tone, dot = true)
                     Pill(if (d.reversible) "برگشت‌پذیر" else "برگشت‌ناپذیر", if (d.reversible) Tone.SILVER else Tone.WARN, icon = if (d.reversible) DivanIcon.REFRESH else DivanIcon.URGENT)
-                    Pill(d.actionClass, Tone.NEUTRAL, figure = true)
                     if (!pending) Pill(DECISION_STATUS[d.status] ?: d.status, if (d.status == "approved") Tone.GOLD else Tone.NEUTRAL)
                 }
             }
@@ -481,7 +480,7 @@ private fun DecisionDetail(d: Decision, onChanged: (Decision) -> Unit) {
                 Avatar(agentKindOf(d.proposer.code, d.proposer.kind), dept = deptOf(d.proposer.code), size = 40.dp)
                 Column(Modifier.weight(1f)) {
                     Text(actorFa(d.proposer), style = Divan.type.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold))
-                    Text(buildAnnotatedString { fig(d.proposer.code); append("، " + ago(d.createdAt)) }, style = Divan.type.micro, color = c.textMuted)
+                    Text(ago(d.createdAt), style = Divan.type.micro, color = c.textMuted)
                 }
                 if (pending && d.expiresAt != null) Text(until(d.expiresAt), style = Divan.type.caption, color = if ((hoursUntil(d.expiresAt) ?: 99.0) < 12) c.warning else c.textMuted)
             }
@@ -498,8 +497,9 @@ private fun DecisionDetail(d: Decision, onChanged: (Decision) -> Unit) {
         DecisionOutcomes(d)
         // ⟨1.5⟩ §21.1: the advisor's memo, standard or devil's advocate, with the substitutes' second and third opinions.
         MemoBlock(d)
-        Section("مصرف و ریسک") {
-            FactGrid(Triple("برآورد توکن", tokens(d.quotaEstimate.tokens), true), Triple("هزینه‌ی معادل", usd(d.quotaEstimate.usd), true))
+        // ⟨1.17⟩ §34.4 the money it may cost, in dollars; no token estimate, no action class.
+        Section("هزینه و ریسک") {
+            FactGrid(Triple("هزینه‌ی تخمینی", usd(d.quotaEstimate.usd), true))
             d.riskNote?.let {
                 Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.softWarning).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     DIcon(DivanIcon.URGENT, size = 18.dp, tint = c.warning)
@@ -544,7 +544,7 @@ private fun DecisionDetail(d: Decision, onChanged: (Decision) -> Unit) {
                     Seal(d.company, co.nameFa, co.nameEn, holding = co.holding, state = SealState.SEALED, size = 72.dp)
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(com.coinepro.hq.designsystem.timesFig("مُهر خورد، ${jDateTime(s.sealedAt)}"), style = Divan.type.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold))
-                        d.resolution?.let { Text(buildAnnotatedString { append("مصوبه‌ی "); fig(it, c.goldInk) }, style = Divan.type.small, color = c.textSecondary) }
+                        if (d.resolution != null) Text("در دفتر مصوبات ثبت شد", style = Divan.type.small, color = c.textSecondary)
                         d.note?.let { Text(it, style = Divan.type.caption, color = c.textMuted) }
                     }
                 }

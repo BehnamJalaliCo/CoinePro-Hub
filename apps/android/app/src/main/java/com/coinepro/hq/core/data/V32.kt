@@ -35,7 +35,7 @@ fun personaTitle(p: TalkPersona): String = p.titleFa.ifBlank { PERSONA_FA[p.key]
 
 /** The title for a persona id (`secretary`, `ceo@TY`) when the hub's list has no entry for it. */
 fun personaIdTitle(id: String, known: List<TalkPersona>): String =
-    known.firstOrNull { it.id == id }?.let(::personaTitle) ?: PERSONA_FA[id] ?: TALK_ROLE_FA[id.substringBefore('@')] ?: "مدیر"
+    known.firstOrNull { it.id == id }?.let(::personaTitle) ?: PERSONA_FA[id] ?: (if (isPlayer(id)) participantKeyTitle(id) else null) ?: TALK_ROLE_FA[id.substringBefore('@')] ?: "مدیر"
 
 /** The faces, in order: the standing four (always, even before the hub lists them), then every manager in the room. */
 fun faceOrder(known: List<TalkPersona>, present: List<String>): List<TalkPersona> {
@@ -66,6 +66,11 @@ val CARD_KIND_FA: Map<String, CardKindInfo> = mapOf(
     "automation" to CardKindInfo("اتوماسیون", "اجرا کن"),
     "minutes" to CardKindInfo("صورت‌جلسه", "اجرا کن"),
     "invite" to CardKindInfo("دعوت", "بیاور"),
+    // ⟨1.17⟩ §35.4 the work done in place, from inside a session.
+    "delegate" to CardKindInfo("سپردن", "بسپار"),
+    "budget" to CardKindInfo("بودجه", "بودجه بده"),
+    "group" to CardKindInfo("کارگروه", "به کارگروه ببر"),
+    "line" to CardKindInfo("خط تولید", "راه بینداز"),
 )
 
 fun cardInfo(kind: String): CardKindInfo = CARD_KIND_FA[kind] ?: CardKindInfo("کارت", "اجرا کن")

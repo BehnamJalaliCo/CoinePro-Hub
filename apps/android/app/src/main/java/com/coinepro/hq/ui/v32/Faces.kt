@@ -82,6 +82,10 @@ fun PersonaFace(p: TalkPersona, size: Dp = 52.dp, speaking: Boolean = false, sel
             p.key == "overseer" -> Sentinel(size, state = if (speaking) "working" else "idle", label = title)
             p.key == "assistant" -> Avatar("assistant", size = size, state = if (speaking) "working" else "idle", label = title)
             p.key == "secretary" -> SecretaryFace(size, speaking, title)
+            // ⟨1.17⟩ §35.4 a council model in a session: its own mark on a quiet disc.
+            p.key.startsWith("player:") -> Box(Modifier.size(size).clip(CircleShape).background(c.tile).semantics { contentDescription = title }, contentAlignment = Alignment.Center) {
+                com.coinepro.hq.ui.work.PlayerLogo(com.coinepro.hq.core.data.PlayerOption.entries.firstOrNull { it.key == p.key.removePrefix("player:") } ?: com.coinepro.hq.core.data.PlayerOption.AUTO, size = size * 0.5f)
+            }
             else -> Avatar(if (p.role == "ceo") "ceo" else "manager", size = size, state = if (speaking) "working" else "idle", label = title)
         }
     }

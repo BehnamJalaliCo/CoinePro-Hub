@@ -126,8 +126,9 @@ fun NotificationsScreen(tab0: String = "unread", open0: Set<String> = emptySet()
         sel = next
     }
 
-    val loaded = unreadQ.data?.items
-    val (unread, read) = NotificationGroups.split(loaded.orEmpty(), readQ.data?.items.orEmpty() + more, marked)
+    // ⟨1.16⟩ §34.4 only what is the owner's: owner-visible, and nothing technical unless it is critical.
+    val loaded = unreadQ.data?.items?.filter { com.coinepro.hq.core.data.forOwner(it) }
+    val (unread, read) = NotificationGroups.split(loaded.orEmpty(), (readQ.data?.items.orEmpty() + more).filter { com.coinepro.hq.core.data.forOwner(it) }, marked)
     val groups = NotificationGroups.group((if (tab == "unread") unread else read).filter { it.id !in gone })
     val keys = groups.map(::keyOf)
     var autoSelected by remember { mutableStateOf(false) }

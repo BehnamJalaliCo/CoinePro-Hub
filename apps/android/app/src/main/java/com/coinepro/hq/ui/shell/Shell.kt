@@ -95,7 +95,6 @@ import com.coinepro.hq.ui.companies.CompanyScreen
 import com.coinepro.hq.ui.companies.EmployeeScreen
 import com.coinepro.hq.ui.companies.WorkScreen
 import com.coinepro.hq.ui.control.ControlScreen
-import com.coinepro.hq.ui.home.HomeScreen
 import com.coinepro.hq.ui.messages.ChatScreen
 import com.coinepro.hq.ui.messages.ThreadsScreen
 import com.coinepro.hq.ui.notifications.NotificationsScreen
@@ -126,18 +125,18 @@ val LocalLive = staticCompositionLocalOf { Live(StreamState.CONNECTING, null, em
 
 private data class Tab(val route: String, val label: String, val icon: DivanIcon, val badge: String? = null)
 
-/** The bottom bar; the gold button in the middle ("order") is not a tab: a tap speaks an order, a long press types one. */
+/** The bottom bar (⟨1.17⟩ §35): the office, the sessions, the gold button (a new session: a tap speaks the order, a long press types
+ *  it), the companies and the cartable. The gold button in the middle ("order") is not a tab. */
 private val TABS = listOf(
-    // «خانه»: the tab beside the gold order button is the home page, not a place to give an order.
-    Tab("home", "خانه", DivanIcon.COMMAND),
-    Tab("cartable", "کارتابل", DivanIcon.CARTABLE, "decisions"),
-    Tab("order", "فرمان صوتی", DivanIcon.MIC),
+    Tab("home", "دفتر", DivanIcon.HOLDING),
+    Tab("sessions", "جلسه‌ها", DivanIcon.MEETING, "sessions"),
+    Tab("order", "جلسه‌ی تازه", DivanIcon.MIC),
     Tab("companies", "شرکت‌ها", DivanIcon.COMPANIES),
-    Tab("messages", "پیام‌ها", DivanIcon.MESSAGES, "messages"),
+    Tab("cartable", "کارتابل", DivanIcon.CARTABLE, "decisions"),
 )
 
 /** One place of the tools sheet: where it goes, its name, its icon and one short line on what it is for. */
-private data class Tool(val route: String, val label: String, val icon: DivanIcon, val hint: String)
+internal data class Tool(val route: String, val label: String, val icon: DivanIcon, val hint: String)
 
 /** A titled group of the tools sheet, with a line on what its places have in common. */
 private data class ToolGroupDef(val key: String, val title: String, val note: String, val tools: List<Tool>)
@@ -146,6 +145,9 @@ private data class ToolGroupDef(val key: String, val title: String, val note: St
 private val GROUPS = listOf(
     ToolGroupDef("work", "فرمان و کار", "آنچه دادی و آنچه تحویل گرفتی", listOf(
         Tool("orders", "فرمان‌های من", DivanIcon.COMMAND, "هر فرمانی که دادی، از ثبت تا تحویل"),
+        // ⟨1.17⟩ the messages and the talk left the bars: one tap here.
+        Tool("messages", "پیام‌ها", DivanIcon.MESSAGES, "حرف مدیرعامل‌ها و مشاور با تو"),
+        Tool("talk", "گفتگو با منشی", DivanIcon.MIC, "با منشی، ناظر، دستیار یا مشاور حرف بزن"),
         // ⟨1.11⟩ §29.3 and §29.11: the owner's rules for the holding, and the working groups (content and publishing first).
         Tool("rules", "قانون‌های من", DivanIcon.SEAL, "آنچه همه‌ی هلدینگ باید رعایت کند، با مُهر تو"),
         Tool("groups", "کارگروه‌ها", DivanIcon.DEPARTMENT, "محتوا و انتشار و رشد؛ شاخص‌ها و آزمایش هفته"),
@@ -156,27 +158,21 @@ private val GROUPS = listOf(
         Tool("library", "کتابخانه‌ی تولید", DivanIcon.IMAGE, "پوشه‌های کاور، صدا، پرامپت و الگو برای خط‌های تولید"),
         Tool("outputs", "خروجی‌ها", DivanIcon.DELIVERABLE, "گزارش‌ها و کارهای تحویل‌شده؛ بخوان و امتیاز بده"),
         Tool("planner", "پلنر", DivanIcon.PLANNER, "کارهای امروز و این هفته در یک تقویم"),
-        Tool("runs", "اجرای ایجنت‌ها", DivanIcon.AGENT, "هر ایجنت الان چه میکند، قدم‌به‌قدم"),
         Tool("notifications", "اعلان‌ها", DivanIcon.BELL, "هشدارها، گزارش‌ها و پرسش‌های یک‌ضربه‌ای"),
         Tool("resolutions", "دفتر مصوبات", DivanIcon.SEAL, "تصمیم‌های ثبت‌شده، با جست‌وجو و خروجی اکسل"),
-        Tool("workshop", "کارگاه کد", DivanIcon.CODE, "جلسه‌های کدنویسی ایجنت‌ها و اجازه‌ی push"),
     )),
     // The organisation beside the owner (contract §18): the advisor and the overseer first, then what they run.
     ToolGroupDef("org", "سازمان", "کسانی که کنار تو کار میکنند و آنچه یاد میگیرند", listOf(
         Tool("advisor", "مشاور کل", DivanIcon.ADVISOR, "با او فکر کن و نظر دوم بگیر"),
         Tool("oversight", "ناظر کل", DivanIcon.OVERSEER, "چه کسی کجا خطا کرد و چه نگه داشته شد"),
-        // ⟨1.10⟩ §28.3: the overseer's watch over the apps, the hub and every company.
-        Tool("watch", "دیده‌بان", DivanIcon.SCOPE, "امنیت، سلامت اپ، کد، رشد و پیشنهاد هلدینگ؛ هر یافته با اصلاحش"),
         Tool("assistant", "دستیار", DivanIcon.ASSISTANT, "کارهای بیرونی تو را در اینترنت پیگیری میکند"),
         Tool("stars", "ستاره‌ها", DivanIcon.STAR, "بهترین شرکت و کارمندهای هفته و ماه"),
         Tool("founding", "تأسیس شرکت", DivanIcon.FOUND, "شرکت تازه قدم‌به‌قدم: از ایده، ریپو یا فقط با نام"),
         Tool("skills", "مهارت‌ها", DivanIcon.SKILL, "مهارت تازه به ایجنت‌ها یاد بده و فعالش کن"),
         Tool("academy", "آکادمی", DivanIcon.ACADEMY, "آموزش، آزمون و پیشرفت هر نقش"),
-        Tool("tools", "ابزارها و اینترنت", DivanIcon.GLOBE, "ایجنت‌ها به کجا وصل میشوند و چه میفرستند"),
     )),
     // ⟨1.5⟩ revenue and support (§19), with the treasury.
     ToolGroupDef("money", "پول و مشتری", "خرج مدل‌ها، درآمد شرکت‌ها و حرف مشتری‌ها", listOf(
-        Tool("treasury", "خزانه‌ی توکن", DivanIcon.TREASURY, "مصرف مدل‌ها، بودجه‌ها و سهمیه‌ی اشتراک"),
         Tool("revenue", "درآمد", DivanIcon.CHART, "درآمد هر شرکت و هشدار وقتی افت کند"),
         // ⟨1.15⟩ §33: the board computed from the payments, the commission an exchange still owes, usage in the advisor's words, the journeys.
         Tool("revenue-board", "تابلوی درآمد", DivanIcon.CHART, "درآمد ماهانه، ریزش، ارزش هر مشتری و پیش‌بینی"),
@@ -191,7 +187,6 @@ private val GROUPS = listOf(
     ToolGroupDef("manage", "ابزار مدیریت", "یادداشت، گزارش صوتی و پیش‌بینی تصمیم‌های تو", listOf(
         Tool("notes", "یادداشت‌ها", DivanIcon.EDIT, "فکرهای سریع؛ بعداً کار یا فرمان میشوند"),
         Tool("letter", "گزارش صوتی و نامه‌ها", DivanIcon.MIC, "گزارش صبح و نامه‌ی هفتگی مدیرعامل‌ها"),
-        Tool("substitutes", "بازیکن‌های ذخیره", DivanIcon.AGENT, "ChatGPT و Gemini، وقتی سهمیه‌ی Claude تمام شود"),
         Tool("digital-ceo", "مدیر کل دیجیتال", DivanIcon.HOLDING, "پیش‌بینی تصمیم تو و این‌که چقدر درست درآمد"),
     )),
     // ⟨1.5⟩ governance (§20).
@@ -200,7 +195,7 @@ private val GROUPS = listOf(
         Tool("charter", "اساسنامه", DivanIcon.REPORT, "قانون پایه‌ی هلدینگ و هر شرکت"),
         Tool("knowledge", "دانشنامه", DivanIcon.KNOWLEDGE, "آنچه سازمان میداند، با منبع و انقضا"),
         Tool("scorecard", "کارت‌ها و امتیاز", DivanIcon.CHART, "شاخص‌های اصلی هر شرکت در یک نگاه"),
-        Tool("okr", "OKR", DivanIcon.PLANNER, "هدف‌های فصل و نتیجه‌های کلیدی"),
+        Tool("okr", "هدف‌های فصل", DivanIcon.PLANNER, "هدف‌های فصل و نتیجه‌های کلیدی"),
         Tool("outcomes", "بازبینی نتیجه", DivanIcon.REFRESH, "تصمیم‌ها بعد از ۳۰، ۶۰ و ۹۰ روز چه شدند"),
         Tool("risks", "دفتر ریسک", DivanIcon.URGENT, "ریسک‌ها روی ماتریس احتمال و اثر"),
         Tool("calendar", "تقویم تغییرات", DivanIcon.TIME, "انتشارها و تغییرها، و تداخل‌هایشان"),
@@ -221,18 +216,44 @@ private val GROUPS = listOf(
         Tool("archive-retention", "پایان نگهداری", DivanIcon.MEMORY, "سندهایی که زمان امحایشان رسیده"),
         Tool("archive-settings", "طرح بایگانی", DivanIcon.SETTINGS, "دسته‌ها، پوشه‌ها و قاعده‌های بایگانی"),
     )),
-    ToolGroupDef("system", "سیستم و ایمنی", "کلیدهای توقف، سلامت و ردّ هر اقدام", listOf(
+    ToolGroupDef("system", "ایمنی و تنظیمات", "کلیدهای توقف و تنظیمات اپ؛ کارهای فنی در «هلدینگ ← فنی»", listOf(
         Tool("control", "کنترل", DivanIcon.LOCK, "توقف و ادامه‌ی شرکت‌ها و انتشارها"),
-        // ⟨1.8⟩ §26: the companies' servers under the holding's control, and the few things that wait for the owner's seal there.
-        Tool("servers", "همه‌ی سرورها", DivanIcon.SERVER, "نقشه، کارهای زنده، ترمینال و Claude روی سرور شرکت‌ها"),
-        Tool("network", "شبکه‌ی هلدینگ", DivanIcon.GLOBE, "راه هر سرور به هاب و به سرورهای دیگر"),
-        Tool("server-policy", "قوانین سرورها", DivanIcon.SEAL, "شش کار ویرانگری که مُهر تو را میخواهند"),
-        Tool("sites", "پایش سایت‌ها", DivanIcon.SERVER, "سالم بودن سایت‌ها و رخدادهایشان"),
-        Tool("audit", "دفتر Audit", DivanIcon.REPORT, "ردّ تغییرناپذیر هر اقدام در هاب"),
         Tool("settings", "تنظیمات", DivanIcon.SETTINGS, "دستگاه‌ها، اعلان‌ها، استخدام و ظاهر"),
-        Tool("errors", "خطاخوان", DivanIcon.URGENT, "خطاهای اپ، برای فرستادن به توسعه‌دهنده"),
+        Tool("holding-tech", "فنی", DivanIcon.CODE, "سرورها، کارگاه کد و خطاها؛ پیش تیم فنی"),
     )),
 )
+
+/**
+ * ⟨1.17⟩ §34.4 the technical places, out of the owner's main tools: under the holding's «فنی» tab (its company page), where the
+ * technical team works. Each is still one tap from there.
+ */
+internal val TECH_TOOLS = listOf(
+    Tool("workshop", "کارگاه کد", DivanIcon.CODE, "جلسه‌های کدنویسی ایجنت‌ها و اجازه‌ی انتشار"),
+    Tool("runs", "اجرای ایجنت‌ها", DivanIcon.AGENT, "هر ایجنت الان چه میکند، قدم‌به‌قدم"),
+    // ⟨1.10⟩ §28.3: the overseer's watch over the apps, the hub and every company.
+    Tool("watch", "دیده‌بان", DivanIcon.SCOPE, "امنیت، سلامت اپ، کد و رشد؛ هر یافته با اصلاحش"),
+    Tool("tools", "ابزارها و اینترنت", DivanIcon.GLOBE, "ایجنت‌ها به کجا وصل میشوند و چه میفرستند"),
+    Tool("treasury", "خزانه‌ی مصرف", DivanIcon.TREASURY, "مصرف مدل‌ها، بودجه‌ها و سهمیه‌ی اشتراک"),
+    Tool("substitutes", "بازیکن‌های ذخیره", DivanIcon.AGENT, "مدل‌های بیرونی، وقتی سهمیه‌ی مدل اصلی تمام شود"),
+    // ⟨1.8⟩ §26: the companies' servers under the holding's control, and the few things that wait for the owner's seal there.
+    Tool("servers", "همه‌ی سرورها", DivanIcon.SERVER, "نقشه، کارهای زنده و ترمینال سرور شرکت‌ها"),
+    Tool("network", "شبکه‌ی هلدینگ", DivanIcon.GLOBE, "راه هر سرور به هاب و به سرورهای دیگر"),
+    Tool("server-policy", "قوانین سرورها", DivanIcon.SEAL, "کارهای ویرانگری که مُهر تو را میخواهند"),
+    Tool("sites", "پایش سایت‌ها", DivanIcon.SERVER, "سالم بودن سایت‌ها و رخدادهایشان"),
+    Tool("audit", "دفتر رخدادها", DivanIcon.REPORT, "ردّ تغییرناپذیر هر اقدام در هاب"),
+    Tool("errors", "خطاخوان", DivanIcon.URGENT, "خطاهای اپ، برای فرستادن به توسعه‌دهنده"),
+)
+
+/** The holding's «فنی» tab: the technical places as tiles, two to a row. */
+@Composable
+fun TechToolsGrid(go: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        for (row in TECH_TOOLS.chunked(2)) Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            for (t in row) Box(Modifier.weight(1f)) { ToolTile(t, null, Modifier, go) }
+            if (row.size == 1) Spacer(Modifier.weight(1f))
+        }
+    }
+}
 
 private val TOP = TABS.map { it.route }.toSet() + GROUPS.flatMap { g -> g.tools.map { it.route } }
 
@@ -283,6 +304,9 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
         }
     }
     var tools by remember { mutableStateOf(false) }
+    // ⟨1.17⟩ §34.4 the bell counts only what is the owner's (the same page the notifications list reads).
+    val bell = rememberQuery("notifications:unread:all", "notifications") { notifications(unread = true, level = null, limit = 200) }
+    val yourTurn = com.coinepro.hq.ui.session.yourTurnBadge()
     var order by remember { mutableStateOf(false) }
     var voice by remember { mutableStateOf(false) }
     // The gold button's long press, and «فرمان تازه»: the order typed.
@@ -344,14 +368,11 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
             TopBar(
                 back = !top,
                 onBack = navApi::back,
-                stream = streamState,
                 demo = env.demo,
-                urgent = (inbox.data?.notifications?.get("urgent") ?: 0) + (inbox.data?.notifications?.get("decision") ?: 0),
+                urgent = bell.data?.items?.let { com.coinepro.hq.core.data.ownerUnread(it) } ?: 0,
                 onBell = { navApi.go("notifications") },
                 onMore = { tools = true; graph.errors.crumb("sheet tools") },
                 onDemo = { com.coinepro.hq.Demo.simulateRestart() },
-                onVoice = { voice = true },
-                onTalk = { if (route != "talk") navApi.go("talk") },
             )
             // A restart of the hub (a deploy): one calm line, the screens keep what they had and reconnect on their own.
             androidx.compose.animation.AnimatedVisibility(hubState == com.coinepro.hq.core.net.HubState.RESTARTING, enter = com.coinepro.hq.designsystem.expandIn(), exit = com.coinepro.hq.designsystem.collapseOut()) {
@@ -402,7 +423,12 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                         }
                     },
                 ) {
-                    composable("home") { HomeScreen(onNewOrder = { order = true }, onVoiceOrder = { voice = true }) }
+                    // ⟨1.17⟩ §35.5 the home is the owner's office; §35.3 his sessions and the archive; one order, one session.
+                    composable("home") { com.coinepro.hq.ui.office.OfficeScreen() }
+                    composable("sessions") { com.coinepro.hq.ui.session.SessionsScreen() }
+                    composable("sessions-archive") { com.coinepro.hq.ui.session.SessionsScreen(tab0 = "closed") }
+                    composable("session/{ref}") { com.coinepro.hq.ui.session.OrderSessionScreen(it.arguments?.getString("ref").orEmpty()) }
+                    composable("holding-tech") { com.coinepro.hq.ui.companies.HoldingTechScreen() }
                     composable("orders") { com.coinepro.hq.ui.work.OrdersScreen(onNewOrder = { order = true }) }
                     composable("workshop") { WorkshopScreen(onNewSession = { newSession = true }, onGrant = { grantFor = it; granting = true }) }
                     composable("workshop/{ref}") { SessionScreen(it.arguments?.getString("ref").orEmpty()) }
@@ -436,7 +462,8 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     // ⟨1.11⟩ §29.12 a connection's guide opened at once (a blocker's or a readiness check's «وصل کن»).
                     composable("companies/{code}/connections/{kind}") { CompanyScreen(it.arguments?.getString("code").orEmpty(), tab0 = "connections", kind0 = it.arguments?.getString("kind")) }
                     // ⟨1.11⟩ §29.2 an order's report; §29.3 the owner's rules; §29.11 the working groups.
-                    composable("order/{ref}") { com.coinepro.hq.ui.v29.OrderReportScreen(it.arguments?.getString("ref").orEmpty()) }
+                    // An older link to an order's report opens its session.
+                    composable("order/{ref}") { com.coinepro.hq.ui.session.OrderSessionScreen(it.arguments?.getString("ref").orEmpty()) }
                     composable("rules") { com.coinepro.hq.ui.v29.RulesScreen() }
                     composable("groups") { com.coinepro.hq.ui.v29.GroupsScreen() }
                     composable("groups/{key}") { com.coinepro.hq.ui.v29.GroupScreen(it.arguments?.getString("key").orEmpty()) }
@@ -533,7 +560,7 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     composable("archive-settings/{tab}/{ref}") { com.coinepro.hq.ui.archive.ArchiveSettingsScreen(tab0 = it.arguments?.getString("tab"), open0 = it.arguments?.getString("ref")) }
                 }
             }
-            BottomBar(route, inbox.data?.decisionsPending ?: 0, inbox.data?.messagesUnread ?: 0, listening = voice, onOrder = { voice = true }, onTypedOrder = { order = true }) { navApi.go(it) }
+            BottomBar(route, inbox.data?.decisionsPending ?: 0, yourTurn, listening = voice, onOrder = { voice = true }, onTypedOrder = { order = true }) { navApi.go(it) }
         }
         if (tools) {
             // Half height first (the first groups), pulled up for the rest.
@@ -554,7 +581,7 @@ private fun AnimatedContentTransitionScope<androidx.navigation.NavBackStackEntry
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun TopBar(back: Boolean, onBack: () -> Unit, stream: StreamState, demo: Boolean, urgent: Int, onBell: () -> Unit, onMore: () -> Unit, onVoice: () -> Unit, onTalk: () -> Unit, onDemo: () -> Unit = {}) {
+private fun TopBar(back: Boolean, onBack: () -> Unit, demo: Boolean, urgent: Int, onBell: () -> Unit, onMore: () -> Unit, onDemo: () -> Unit = {}) {
     val c = Divan.colors
     Column(Modifier.fillMaxWidth().background(c.page).statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -573,13 +600,7 @@ private fun TopBar(back: Boolean, onBack: () -> Unit, stream: StreamState, demo:
                 }
             }
             Spacer(Modifier.weight(1f))
-            Box(
-                Modifier.size(32.dp).semantics { contentDescription = if (stream == StreamState.LIVE) "استریم زنده وصل است" else "استریم قطع است" },
-                contentAlignment = Alignment.Center,
-            ) { LiveDot(if (stream == StreamState.LIVE) c.positive else c.warning, live = stream == StreamState.LIVE, size = 8.dp) }
-            // ⟨1.14⟩ §32.1: the talk button, apart from the gold order mic beside it.
-            com.coinepro.hq.ui.v32.TalkButton(onTalk)
-            IconBtn(DivanIcon.MIC, "فرمان صوتی", onVoice, tint = c.goldInk)
+            // ⟨1.17⟩ one way to speak: the gold button below. No stream light, no second microphone.
             IconBtn(DivanIcon.BELL, "اعلان‌ها", onBell, badge = urgent)
             IconBtn(DivanIcon.MORE, "ابزارها", onMore)
         }
@@ -589,14 +610,14 @@ private fun TopBar(back: Boolean, onBack: () -> Unit, stream: StreamState, demo:
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun BottomBar(route: String, decisions: Int, messages: Int, listening: Boolean, onOrder: () -> Unit, onTypedOrder: () -> Unit, go: (String) -> Unit) {
+private fun BottomBar(route: String, decisions: Int, sessions: Int, listening: Boolean, onOrder: () -> Unit, onTypedOrder: () -> Unit, go: (String) -> Unit) {
     val c = Divan.colors
     val current = route.substringBefore('/')
     Column(Modifier.fillMaxWidth().background(c.card)) {
         HorizontalDivider(color = c.lineDivider, thickness = 1.dp)
         Row(Modifier.fillMaxWidth().height(64.dp), verticalAlignment = Alignment.CenterVertically) {
             for (t in TABS) {
-                val active = current == t.route || (t.route == "companies" && current in setOf("employees", "work"))
+                val active = current == t.route || (t.route == "companies" && current in setOf("employees", "work")) || (t.route == "sessions" && current in setOf("session", "order", "sessions-archive"))
                 if (t.route == "order") {
                     // The gold button: a tap opens the voice order and starts listening; a long press opens the order typed.
                     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
@@ -613,22 +634,22 @@ private fun BottomBar(route: String, decisions: Int, messages: Int, listening: B
                                     interactionSource = src,
                                     indication = androidx.compose.material3.ripple(bounded = false, radius = 30.dp),
                                     role = Role.Button,
-                                    onClickLabel = "فرمان صوتی: بگو",
-                                    onLongClickLabel = "فرمان نوشتنی",
+                                    onClickLabel = "جلسه‌ی تازه: بگو",
+                                    onLongClickLabel = "جلسه‌ی تازه: بنویس",
                                     onLongClick = { haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress); onTypedOrder() },
                                     onClick = onOrder,
                                 )
-                                .semantics { contentDescription = "فرمان صوتی؛ نگه دار برای فرمان نوشتنی" },
+                                .semantics { contentDescription = "جلسه‌ی تازه؛ بزن و بگو، نگه دار و بنویس" },
                             contentAlignment = Alignment.Center,
                         ) {
                             // While the order is being spoken the orb breathes and a soft gold glow swells around it.
-                            Orb(48.dp, state = if (listening) "listening" else "rest", label = "فرمان صوتی")
+                            Orb(48.dp, state = if (listening) "listening" else "rest", label = "جلسه‌ی تازه")
                             DIcon(DivanIcon.MIC, size = 22.dp, tint = c.onGold)
                         }
                     }
                     continue
                 }
-                val badge = when (t.badge) { "decisions" -> decisions; "messages" -> messages; else -> 0 }
+                val badge = when (t.badge) { "decisions" -> decisions; "sessions" -> sessions; else -> 0 }
                 Column(
                     Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).clickable(role = Role.Tab, onClickLabel = t.label) { go(t.route) }.padding(vertical = 6.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,

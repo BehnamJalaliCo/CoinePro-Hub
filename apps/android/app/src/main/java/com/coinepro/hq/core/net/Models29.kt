@@ -94,6 +94,18 @@ data class OrderReport(
     val parts: List<WorkSplit> = emptyList(),
     /** ⟨1.15⟩ §33.10 (additive): the works done in their own folder on their company's server. */
     val workspaces: List<WorkspaceProgress> = emptyList(),
+    /** ⟨1.16⟩ §34.1 `step` (the owner leads, one step at a time) · `auto` (the holder goes to the end). */
+    val pace: String = "auto",
+    /** ⟨1.16⟩ §34.2 the order's live talk (`CV-…`), once opened. */
+    val conversationRef: String? = null,
+    /** ⟨1.16⟩ §34.3 the owner's open turn: a question waiting for his reply. */
+    val turn: OrderTurn? = null,
+    /** ⟨1.17⟩ §35.2 the session: open or closed, its badge and why, hidden or not. */
+    val session: SessionState? = null,
+    /** ⟨1.17⟩ «چه شد · حالا چه · از تو چه». */
+    val brief: SessionBrief? = null,
+    val tasks: List<SessionTask> = emptyList(),
+    val participants: List<SessionParticipant> = emptyList(),
 )
 
 // ------------------------------------------------------------- §29.3 rules --

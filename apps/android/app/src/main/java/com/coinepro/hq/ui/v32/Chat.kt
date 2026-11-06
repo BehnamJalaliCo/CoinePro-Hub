@@ -182,9 +182,10 @@ fun TalkCardView(card: TalkCard, onRun: suspend (TalkCard, JsonObject?) -> Unit,
         card.reasonFa?.takeIf { card.state == "failed" }?.let { Text(plain(it), style = Divan.type.caption, color = c.negative) }
         if (card.state == "done" && card.made.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
             Text("ساخته شد", style = Divan.type.micro, color = c.textMuted)
+            // ⟨1.17⟩ what it made, in one word each («فرمان»، «تصمیم»); the ref is the way in, never a word on the screen.
             for (ref in card.made) {
-                val route = madeRoute(ref)
-                Fig(ref, Modifier.clip(CircleShape).background(c.raised).clickable(enabled = route != null, role = Role.Button) { route?.let(nav::go) }.padding(horizontal = 8.dp, vertical = 2.dp), style = Divan.type.figureSmall, color = c.goldInk)
+                val route = com.coinepro.hq.core.data.madeRouteOf(ref)
+                Text(com.coinepro.hq.core.data.madeFa(ref), Modifier.clip(CircleShape).background(c.raised).clickable(enabled = route != null, role = Role.Button, onClickLabel = "باز کن") { route?.let(nav::go) }.padding(horizontal = 8.dp, vertical = 2.dp), style = Divan.type.micro, color = c.goldInk)
             }
         }
         if (card.state == "offered" || card.state == "failed") {

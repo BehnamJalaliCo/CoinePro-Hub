@@ -1667,8 +1667,9 @@ class Api(
     suspend fun patchTalkConversation(ref: String, mode: String? = null, titleFa: String? = null): TalkConversation =
         send("PATCH", "/talk/conversations/${seg(ref)}", json.encodeToString(JsonElement.serializer(), buildJsonObject { if (mode != null) put("mode", mode); if (titleFa != null) put("title_fa", titleFa) }))
     /** A turn of the owner (`Idempotency-Key` = [clientId], kept across a retry of one press); the answer streams on [TalkTurnOut.events]. */
-    suspend fun sendTalkTurn(ref: String, text: String, source: String, clientId: String): TalkTurnOut =
-        call(write("POST", "/talk/conversations/${seg(ref)}/turns", buildJsonObject { put("text", text); put("source", source); put("client_id", clientId) }, null, key = clientId), serializer())
+    /** ⟨1.17⟩ §35.4 [to]: in a session, the participant who answers (a key), or `all` (each present one once, then the holder sums up). */
+    suspend fun sendTalkTurn(ref: String, text: String, source: String, clientId: String, to: String? = null): TalkTurnOut =
+        call(write("POST", "/talk/conversations/${seg(ref)}/turns", buildJsonObject { put("text", text); put("source", source); put("client_id", clientId); if (to != null) put("to", to) }, null, key = clientId), serializer())
     suspend fun inviteToTalk(ref: String, role: String, company: String, department: String? = null): JsonObject? =
         writeLoose("POST", "/talk/conversations/${seg(ref)}/invite", buildJsonObject { put("role", role); put("company", company); if (department != null) put("department", department) })
     /** «صورت‌جلسه کن»: one `minutes` card from the conversation so far. */
@@ -1774,6 +1775,65 @@ class Api(
         return post("/work/${seg(id)}/stop", JsonObject(emptyMap()))
     }
 
+    // ------------------------------- ⟨1.16⟩ §34 · ⟨1.17⟩ §35 every order a session, the owner's office, company links --
+    /** §35.3 the sessions: `open` (your turn, ready, stuck, moving; newest first in each), `closed` (the archive), `all` (hidden too). */
+    suspend fun sessions(state: String = "open", limit: Int = 50, cursor: String? = null): Page<SessionCard> =
+        get("/sessions", mapOf("state" to state, "limit" to limit.coerceIn(1, MAX_PAGE), "cursor" to cursor))
+
+    /** §35.5 the owner's office: open sessions, approvals, money, critical items, suggestions and the canvas. */
+    suspend fun office(): Office = get("/office")
+
+    /** §34.2 the order's live talk, made once (a hub of ⟨1.17⟩ has already made it on routing: `talk_ref`). */
+    suspend fun orderTalk(ref: String): OrderTalk = post("/orders/${seg(ref)}/talk", JsonObject(emptyMap()))
+
+    /** §34.3 the owner's word on his order; [key] is the press's own Idempotency-Key (a retry sends the same). An ended order: 409. */
+    suspend fun orderReply(ref: String, text: String, key: String): OrderReport =
+        call(write("POST", "/orders/${seg(ref)}/reply", buildJsonObject { put("text", text) }, null, key), serializer())
+
+    /** §35.3 a person (any persona key) or a player (`gpt` · `gemini` · `deepseek`; one signed out answers 409 with `message_fa`). */
+    suspend fun addParticipant(ref: String, kind: String, key: String): OrderReport =
+        post("/orders/${seg(ref)}/participants", buildJsonObject { put("kind", kind); put("key", key) })
+
+    /** Never the holder (the hub refuses it). */
+    suspend fun removeParticipant(ref: String, key: String): JsonObject? = request("DELETE", "/orders/${seg(ref)}/participants/${seg(key)}")
+
+    suspend fun addSessionTask(ref: String, titleFa: String): SessionTask = post("/orders/${seg(ref)}/tasks", buildJsonObject { put("title_fa", titleFa) })
+
+    /** A task ticked, dropped, renamed or moved ([n]); only the fields given are sent. */
+    suspend fun patchSessionTask(ref: String, id: String, titleFa: String? = null, state: String? = null, n: Int? = null): SessionTask =
+        send("PATCH", "/orders/${seg(ref)}/tasks/${seg(id)}", json.encodeToString(JsonElement.serializer(), buildJsonObject {
+            if (titleFa != null) put("title_fa", titleFa)
+            if (state != null) put("state", state)
+            if (n != null) put("n", n)
+        }))
+
+    /** §35.3 «با من» (`step`) or «خودکار» (`auto`), at any time; the holder's next brief follows it. */
+    suspend fun setPace(ref: String, pace: String): OrderReport = post("/orders/${seg(ref)}/pace", buildJsonObject { put("pace", pace) })
+
+    /** §35.3 «تأیید و بستن» (`ok`) or «لغو» (`cancel`): the session closed and archived; the permanent structures it set up stay. */
+    suspend fun closeSession(ref: String, verdict: String, note: String?, key: String): OrderReport =
+        call(write("POST", "/orders/${seg(ref)}/close", buildJsonObject { put("verdict", verdict); if (!note.isNullOrBlank()) put("note", note) }, null, key), serializer())
+
+    suspend fun reopenSession(ref: String): OrderReport = post("/orders/${seg(ref)}/reopen", JsonObject(emptyMap()))
+    /** Nothing is deleted: a hidden session leaves every list (only `state=all` shows it). */
+    suspend fun hideSession(ref: String): OrderReport = post("/orders/${seg(ref)}/hide", JsonObject(emptyMap()))
+    suspend fun unhideSession(ref: String): OrderReport = post("/orders/${seg(ref)}/unhide", JsonObject(emptyMap()))
+
+    /** §35.6 the canvas: the hub and the companies, and the links between them. */
+    suspend fun links(): Canvas = get("/links")
+    suspend fun newLink(from: String, to: String, kind: String, purposeFa: String): CompanyLink =
+        post("/links", buildJsonObject { put("from", from); put("to", to); put("kind", kind); put("purpose_fa", purposeFa) })
+    /** A link changed or turned `off` (nothing is deleted). */
+    suspend fun patchLink(id: String, kind: String? = null, purposeFa: String? = null, state: String? = null): CompanyLink =
+        send("PATCH", "/links/${seg(id)}", json.encodeToString(JsonElement.serializer(), buildJsonObject {
+            if (kind != null) put("kind", kind)
+            if (purposeFa != null) put("purpose_fa", purposeFa)
+            if (state != null) put("state", state)
+        }))
+    /** Where the owner put a company on the canvas, as fractions of its width and height (0…1). */
+    suspend fun putCanvasNode(code: String, x: Double, y: Double): JsonObject? =
+        putLoose("/canvas/nodes/${seg(code)}", buildJsonObject { put("x", x); put("y", y) })
+
     // ------------------------------------------------------------ plumbing --
     private fun seg(s: String): String = java.net.URLEncoder.encode(s, "UTF-8").replace("+", "%20")
     private fun ids(xs: List<String>) = JsonArray(xs.map(::JsonPrimitive))
@@ -1793,6 +1853,17 @@ class Api(
             .build()
         return call(req, serializer())
     }
+
+    /** A PUT whose answer may be empty (204) or a shape the app does not need whole. */
+    private suspend fun putLoose(path: String, body: JsonElement): JsonObject? = writeLoose("PUT", path, body)
+
+    /** A body-less call ([method] DELETE …) whose answer may be empty: the object when there is one. */
+    private suspend fun request(method: String, path: String): JsonObject? =
+        execute(Request.Builder().url(url(path)).method(method, null).build()).use { r ->
+            check(r)
+            val t = r.body.string()
+            if (t.isBlank()) null else runCatching { json.parseToJsonElement(t) as? JsonObject }.getOrNull()
+        }
 
     private suspend fun postUnit(path: String, body: JsonElement, stepUp: String? = null) {
         execute(write("POST", path, body, stepUp)).use { check(it) }

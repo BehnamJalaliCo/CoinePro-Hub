@@ -29,7 +29,7 @@ object NotificationGroups {
         "code_session" to "کارگاه کد", "archive_record" to "بایگانی", "archive_fixity" to "سلامت بایگانی",
         "support_conversation" to "پشتیبانی", "support_queue" to "صف پشتیبانی", "revenue_alert" to "درآمد",
         "substitute" to "بازیکن ذخیره", "employee" to "کارمند", "treasury" to "خزانه", "academy" to "آکادمی",
-        "backup" to "پشتیبان‌گیری", "audit" to "دفتر Audit", "device" to "امنیت ورود",
+        "backup" to "پشتیبان‌گیری", "audit" to "دفتر رخدادها", "device" to "امنیت ورود",
     )
 
     /** The label on a notification: what it is about; without a link (a learning question), its level. */

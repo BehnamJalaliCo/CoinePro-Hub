@@ -43,6 +43,9 @@ enum class HubFeature {
     MONEY,
     /** ⟨1.15⟩ §33.8, §33.9: the company journey and the personas; without them those screens are hidden. */
     JOURNEY,
+    /** ⟨1.17⟩ §35: `/sessions`, `/office`, the session routes of an order, `/links` and the canvas; without them the office is built from
+     *  the older home and an order's report is its session. */
+    SESSIONS,
 }
 
 /**

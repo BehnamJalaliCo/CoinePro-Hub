@@ -142,7 +142,6 @@ fun ThreadsScreen(company0: String? = null) {
                         Text(h.body.replace(Regex("[*_`#>]"), ""), style = Divan.type.small, color = c.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(com.coinepro.hq.core.format.actorFa(h.author), style = Divan.type.micro, color = c.textMuted)
-                            Fig(h.ref, style = Divan.type.figureSmall, color = c.textMuted)
                             Text(com.coinepro.hq.core.format.jDate(h.createdAt), style = Divan.type.micro, color = c.textMuted)
                         }
                     }
@@ -343,7 +342,6 @@ private fun Bubble(m: Message, agentKind: String, onResolve: (Message) -> Unit) 
                     Text("ویس", style = Divan.type.micro, color = c.textMuted)
                 }
                 Text(com.coinepro.hq.designsystem.timesFig(jTime(m.createdAt)), style = Divan.type.micro, color = c.textMuted)
-                Fig(m.ref, style = Divan.type.figureSmall, color = c.textMuted)
                 for ((k, v) in m.links) {
                     val ref = (v as? JsonPrimitive)?.contentOrNull ?: continue
                     val route = when (k) {
@@ -352,7 +350,11 @@ private fun Bubble(m: Message, agentKind: String, onResolve: (Message) -> Unit) 
                         // ⟨1.6⟩ §22: the counsel's cases (thread L), media items and series.
                         "case" -> "legal/$ref"; "media_item" -> "studio/$ref"; "series" -> "series/$ref"; else -> null
                     }
-                    Fig(ref, Modifier.clip(CircleShape).background(c.tile).clickable(enabled = route != null) { route?.let(nav::go) }.padding(horizontal = 8.dp, vertical = 2.dp), style = Divan.type.figureSmall, color = c.goldInk)
+                    // ⟨1.17⟩ what it points to, in one word; the ref stays the key.
+                    Text(when (k) {
+                        "decision" -> "تصمیم"; "work" -> "کار"; "resolution" -> "مصوبه"; "errand" -> "پیگیری"; "teaching" -> "آموزش"; "inquiry" -> "استعلام"
+                        "finding" -> "یافته"; "session" -> "کارگاه"; "case" -> "پرونده"; "media_item" -> "رسانه"; "series" -> "برنامه‌ی انتشار"; else -> "ببین"
+                    }, Modifier.clip(CircleShape).background(c.tile).clickable(enabled = route != null) { route?.let(nav::go) }.padding(horizontal = 8.dp, vertical = 2.dp), style = Divan.type.micro, color = c.goldInk)
                 }
                 if (m.body.isNotBlank()) Text("مصوبه", style = Divan.type.micro, color = c.textSecondary, modifier = Modifier.clip(CircleShape).clickable(onClickLabel = "این پیام را به‌عنوان مصوبه ثبت کن") { onResolve(m) }.padding(horizontal = 8.dp, vertical = 2.dp))
             }
@@ -457,7 +459,7 @@ fun ChatScreen(
             else Avatar(agentKind, size = 40.dp, state = if (live.state != LiveState.IDLE) "working" else "idle")
             Column(Modifier.weight(1f)) {
                 Text(if (advisor) "مشاور کل" else who?.title ?: thread?.titleFa ?: code, style = Divan.type.h3)
-                Text(if (advisor) "رتبه‌ی دوم؛ همه‌چیز را میخواند و از مدیرها رسمی میپرسد. به همه‌چیز ارجاع میدهد." else who?.sub ?: "هر پیام شناسه‌ی ثابت دارد و میماند.", style = Divan.type.micro, color = c.textMuted, maxLines = 2)
+                Text(if (advisor) "رتبه‌ی دوم؛ همه‌چیز را میخواند و از مدیرها رسمی میپرسد. به همه‌چیز ارجاع میدهد." else who?.sub ?: "هر پیام برای همیشه میماند.", style = Divan.type.micro, color = c.textMuted, maxLines = 2)
             }
             headerAction?.invoke()
         }
@@ -467,7 +469,7 @@ fun ChatScreen(
             when {
                 q.data == null && q.error == null -> items(3) { i -> Skeleton(Modifier.fillMaxWidth(if (i % 2 == 0) 0.75f else 0.6f).height(72.dp), radius = 16.dp) }
                 q.data == null -> item { ErrorBlock(q.error, { q.refresh() }) }
-                items.isEmpty() && live.state == LiveState.IDLE -> item { Empty("گفت‌وگو هنوز شروع نشده", icon = DivanIcon.MESSAGES, body = "هر پیام شناسه‌ی ثابت دارد و برای همیشه میماند؛ بعداً میتوانی به آن استناد کنی.") }
+                items.isEmpty() && live.state == LiveState.IDLE -> item { Empty("گفت‌وگو هنوز شروع نشده", icon = DivanIcon.MESSAGES, body = "هر پیام برای همیشه میماند؛ بعداً میتوانی به آن برگردی.") }
                 else -> items(items, key = { it.id }) { m -> Box(itemMotion()) { Bubble(m, agentKind) { resolve = it } }}
             }
             if (live.state != LiveState.IDLE) item {

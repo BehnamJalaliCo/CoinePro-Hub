@@ -84,7 +84,7 @@ fun CouncilPlan(k: Council) {
             action.run {
                 val o = env.api.order(plan.trim(), "text", null)
                 env.cache.invalidate("orders", "work", "home")
-                toasts.ok("برنامه فرمان شد؛ گزارشش را دنبال کن.", "گزارش") { nav.go("order/${o.ref}") }
+                toasts.ok("برنامه فرمان شد؛ گزارشش را دنبال کن.", "گزارش") { nav.go("session/${o.ref}") }
             }
         }, Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, icon = DivanIcon.SEND, loading = action.busy)
     }

@@ -40,7 +40,6 @@ import com.coinepro.hq.ui.companies.CompanyScreen
 import com.coinepro.hq.ui.companies.EmployeeScreen
 import com.coinepro.hq.ui.companies.WorkScreen
 import com.coinepro.hq.ui.control.ControlScreen
-import com.coinepro.hq.ui.home.HomeScreen
 import com.coinepro.hq.ui.messages.ChatScreen
 import com.coinepro.hq.ui.messages.ThreadsScreen
 import com.coinepro.hq.ui.notifications.NotificationsScreen
@@ -80,7 +79,7 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
                 .flatMap { listOf(arrayOf<Any>(it, true), arrayOf<Any>(it, false)) }
 
         private val SCREENS: Map<String, @Composable (AppGraph) -> Unit> = linkedMapOf(
-            "home" to { _ -> HomeScreen(onNewOrder = {}) },
+            "home" to { _ -> com.coinepro.hq.ui.office.OfficeScreen() },
             // The owner's orders: on their way (one just given, one taken, one delegated, one at work under a manager and two analysts),
             // delivered and done, failed; an order at work, a delivered one with its output and a failed one with its reason (their pages:
             // the tracker, then the timeline on its own); the new order with the priorities in words; the live feed's lines (a work named
@@ -97,7 +96,7 @@ abstract class ScreensTest(private val name: String, private val night: Boolean)
             "hub-restarting" to { _ ->
                 androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
                     com.coinepro.hq.ui.shell.HubBanner()
-                    HomeScreen(onNewOrder = {})
+                    com.coinepro.hq.ui.office.OfficeScreen()
                 }
             },
             "cartable" to { _ -> CartableScreen() },

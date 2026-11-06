@@ -35,6 +35,8 @@ class StreamTopicsTest {
         "talk",
         // ⟨1.15⟩ §33.11: payments, leads, usage reports and the journey (`payment.`, `lead.`, `usage.`, `journey.`)
         "money",
+        // ⟨1.17⟩ §35.7: the company links (`links.`)
+        "holding",
     )
 
     @Test

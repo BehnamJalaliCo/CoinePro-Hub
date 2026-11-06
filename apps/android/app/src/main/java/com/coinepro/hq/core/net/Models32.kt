@@ -82,6 +82,10 @@ data class TalkConversation(
     val summaryFa: String? = null,
     val cost: TalkCost = TalkCost(),
     val openCards: Int = 0,
+    /** ⟨1.16⟩ §34.2 the order this conversation is the session of: it opens as that session. */
+    val orderRef: String? = null,
+    /** ⟨1.17⟩ §35.3 a closed session's talk is read-only. */
+    val closedAt: String? = null,
 ) {
     val presentIds: List<String>
         get() = present.mapNotNull { e ->
@@ -143,7 +147,7 @@ data class TalkTurn(
 data class TalkCard(
     val id: JsonPrimitive = JsonPrimitive(""),
     val turn: JsonPrimitive? = null,
-    /** order · ask · hire · decision · planner · rule · automation · minutes · invite */
+    /** order · ask · hire · decision · planner · rule · automation · minutes · invite; ⟨1.17⟩ §35.4 delegate · budget · group · line */
     val kind: String = "order",
     val titleFa: String = "",
     val bodyFa: String = "",

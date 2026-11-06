@@ -175,10 +175,17 @@ class TalkSession(private val env: Env, private val scope: CoroutineScope, priva
     }
 
     // ------------------------------------------------------------ sending --
+    /** ⟨1.17⟩ §35.4 in an order's session: who answers the owner's next turn (a participant's key, or `all`); null: the holder. */
+    var addressee by mutableStateOf<String?>(null)
+
+    /** ⟨1.16⟩ §34.3 an order's session with the owner's turn open (or no talk yet): his words go to the order's reply instead. */
+    var interceptor: (suspend (text: String, source: String) -> Boolean)? = null
+
     /** Sends a turn of the owner and follows the answer; false when it could not go (the draft stays with the caller). */
     suspend fun send(text: String, source: String = SOURCE_TYPED): Boolean {
         val body = text.trim()
         if (body.isEmpty()) return false
+        interceptor?.let { return it(body, source) }
         if (busy) bargeIn()
         val c = conv ?: run {
             startNew("secretary")
@@ -189,7 +196,7 @@ class TalkSession(private val env: Env, private val scope: CoroutineScope, priva
         turns.add(mine)
         beginAnswer()
         return try {
-            val out = env.api.sendTalkTurn(c.ref, body, source, clientId)
+            val out = env.api.sendTalkTurn(c.ref, body, source, clientId, addressee)
             val i = turns.indexOf(mine)
             if (out.turn.owner && i >= 0) turns[i] = out.turn
             val id = out.turn.idText.ifBlank { null }

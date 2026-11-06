@@ -171,6 +171,8 @@ fun TalkScreen(ref0: String? = null, persona0: String = "secretary") {
         Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) { Empty("گفتگو با به‌روزرسانی بعدی هاب میاید", icon = DivanIcon.MESSAGES) }
         return
     }
+    // ⟨1.16⟩ §34.2 a talk bound to an order is that order's session: one place, not two.
+    conv?.orderRef?.takeIf { it.isNotBlank() }?.let { o -> com.coinepro.hq.ui.session.OrderSessionScreen(o); return }
 
     Column(Modifier.fillMaxSize().imePadding()) {
         // The faces, and the menu.
@@ -202,12 +204,7 @@ fun TalkScreen(ref0: String? = null, persona0: String = "secretary") {
                 }
             }
         }
-        // The lights, the meter.
-        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            LightsRow(engineList, inUse, session.lightsLive, onTap = { engineOpen = it; sheet = TalkSheetKind.ENGINE })
-            Box(Modifier.weight(1f))
-            MeterChip(live, settings.data?.voice?.warnAt ?: 0.8, { sheet = TalkSheetKind.METER })
-        }
+        // ⟨1.17⟩ §34.4 no engine lights and no meter on the conversation: «خرج صدا و سقف» and «کلید صدا» in the menu keep them.
         warning?.let {
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 DIcon(DivanIcon.INFO, size = 14.dp, tint = c.warning)

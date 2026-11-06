@@ -202,8 +202,8 @@ fun HqSheet(onDismiss: () -> Unit, title: String, sub: String? = null, ref: Stri
     val c = Divan.colors
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = c.overlay) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            // ⟨1.17⟩ [ref] is the sheet's key only: the owner never reads a ref (§34.4).
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                if (ref != null) Fig(ref, style = Divan.type.figureSmall, color = c.textMuted)
                 RichText(title, style = Divan.type.h2, color = c.textPrimary)
                 if (sub != null) Text(sub, style = Divan.type.caption, color = c.textMuted)
             }

@@ -226,7 +226,6 @@ fun OrderCard(w: Work) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             CompanyMark(w.company, height = 13.dp, mono = true, ink = c.textSecondary)
             Text(companyOf(companies, w.company).let { if (it.holding) "هلدینگ" else it.nameFa }, style = Divan.type.caption, color = c.textSecondary, maxLines = 1)
-            Text(buildAnnotatedString { append("· "); fig(w.ref) }, style = Divan.type.caption, color = c.textMuted)
             Spacer(Modifier.weight(1f))
             // ⟨1.9⟩ §27: who plays it, when the owner named a player or called the council.
             PlayerTag(w.player, w.mode)
@@ -386,7 +385,8 @@ fun RefButton(label: String, ref: String, icon: DivanIcon, modifier: Modifier = 
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         DIcon(icon, size = 18.dp, tint = c.goldInk)
-        Text(buildAnnotatedString { append("$label "); fig(ref, weight = FontWeight.Bold) }, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+        // ⟨1.17⟩ the ref is where it goes, never a word on the button.
+        Text(label, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
         Spacer(Modifier.weight(1f))
         DIcon(DivanIcon.NEXT, size = 14.dp, tint = c.goldInk)
     }

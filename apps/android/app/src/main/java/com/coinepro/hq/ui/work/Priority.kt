@@ -142,8 +142,8 @@ fun PriorityTag(code: String?, modifier: Modifier = Modifier, compact: Boolean =
         if (!compact) DIcon(p.icon, size = 13.dp, tint = ink)
         Text(
             buildAnnotatedString {
+                // ⟨1.17⟩ the priority in words only (no P1…P4 code).
                 append(p.fa)
-                if (p.fa != p.code) { append(" "); fig(p.code, color = ink.copy(alpha = 0.7f)) }
             },
             style = Divan.type.caption.copy(fontSize = if (compact) 11.sp else 12.sp, fontWeight = FontWeight.SemiBold), color = ink, maxLines = 1,
         )

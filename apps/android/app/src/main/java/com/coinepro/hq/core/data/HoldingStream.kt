@@ -358,7 +358,10 @@ class HoldingStream(
             "file." to arrayOf("messages", "files", "notes"),
             "workshop." to arrayOf("workshop"),
             // ⟨1.11⟩ §29.16: an order's report changed (its page, the home's orders), before the rest of `order.`.
-            "order.report" to arrayOf("order-report", "orders", "home"),
+            "order.report" to arrayOf("order-report", "orders", "home", "sessions", "office"),
+            // ⟨1.17⟩ §35.7: a session moved (its badge), on `orders`; the companies' links changed, on `holding`.
+            "session." to arrayOf("sessions", "office", "order-report"),
+            "links." to arrayOf("links", "office"),
             "order." to arrayOf("orders", "planner", "work"),
             // ⟨1.11⟩ §29.16: the home and its suggestions, a group's routine run, a connection read or changed, a rule's report.
             "home." to arrayOf("home"),

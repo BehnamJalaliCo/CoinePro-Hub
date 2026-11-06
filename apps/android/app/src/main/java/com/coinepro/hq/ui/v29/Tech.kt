@@ -42,11 +42,13 @@ import com.coinepro.hq.ui.rememberQuery
 
 /** The company's «فنی» tab: the note on who handles it, the catalogue, the technical findings and the servers. */
 @Composable
-fun CompanyTech(code: String) {
+fun CompanyTech(code: String, holding: Boolean = false) {
     val c = Divan.colors
     val nav = LocalNav.current
     val name = companyOf(rememberCompanies(), code).nameFa
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        // ⟨1.17⟩ §34.4 the holding's «فنی»: every technical place, out of the owner's main tools.
+        if (holding) com.coinepro.hq.ui.shell.TechToolsGrid { nav.go(it) }
         Text(
             "کارهای فنی $name پیش مدیر فنی و مسئول پایداری همین شرکت میرود و همان‌ها درستش میکنند. به خانه‌ی تو فقط چیزی میرسد که بحرانی باشد: نشت داده، از دسترس افتادن محصول، پول یا موضوع حقوقی. خلاصه‌ی فنی هفته هم شنبه‌ها میاید.",
             style = Divan.type.caption.copy(textAlign = TextAlign.Justify), color = c.textMuted,

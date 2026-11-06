@@ -31,6 +31,8 @@ object StreamTopics {
         "talk",
         // ⟨1.15⟩ §33.11: payments read and alerts, a lead, a usage report, a journey stage (`payment.`, `lead.`, `usage.`, `journey.`).
         "money",
+        // ⟨1.17⟩ §35.7: the sessions come on `orders` (`session.updated`); the links on `holding` (`links.updated`).
+        "holding",
     )
 
     /**

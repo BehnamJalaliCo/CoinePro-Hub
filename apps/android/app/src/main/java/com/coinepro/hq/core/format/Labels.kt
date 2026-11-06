@@ -13,7 +13,7 @@ val DECISION_KIND = mapOf(
     "hire" to Kind("استخدام", DivanIcon.HIRE),
     "dismissal" to Kind("برکناری", DivanIcon.DISMISS),
     "recurring_approval" to Kind("کار دائمی", DivanIcon.TIME),
-    "deploy" to Kind("انتشار (deploy)", DivanIcon.SERVER),
+    "deploy" to Kind("انتشار نسخه", DivanIcon.SERVER),
     "a3_action" to Kind("اقدام بیرونی", DivanIcon.SHARE),
     "proposal" to Kind("پیشنهاد رشد", DivanIcon.CHART),
     "budget_change" to Kind("تغییر بودجه", DivanIcon.BUDGET),

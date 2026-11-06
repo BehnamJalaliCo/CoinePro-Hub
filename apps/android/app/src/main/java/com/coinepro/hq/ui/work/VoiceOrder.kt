@@ -120,7 +120,6 @@ private fun RouteChip(r: OrderRoute, onGo: (String) -> Unit) {
         CompanyMark(r.company, height = 12.dp, mono = true, ink = c.textSecondary)
         DIcon(icon, size = 14.dp, tint = c.textSecondary)
         Text("$fa ← $who", style = Divan.type.micro, color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        (r.sessionRef ?: r.decisionRef ?: r.workRef)?.let { Fig(it, style = Divan.type.figureSmall, color = c.textMuted) }
     }
 }
 
@@ -165,6 +164,7 @@ fun VoiceOrderBody(
     val action = rememberAction()
     // ⟨1.11⟩ §29.3 the owner's rule, beside the order (when this hub has rules).
     val rulesOn = served(HubFeature.RULES)
+    val sessionsOn = served(HubFeature.SESSIONS)
     var mode by rememberSaveable { mutableStateOf(if (rule0) "rule" else "order") }
     val rule = mode == "rule" && rulesOn
     var phase by rememberSaveable { mutableStateOf(if (proposed0 != null) "sent" else if (typed || text0.isNotBlank()) "review" else "ready") }
@@ -282,7 +282,9 @@ fun VoiceOrderBody(
                             out?.let { env.api.applyPlayer(it, option) }
                             sentWith = option
                             phase = "sent"
-                            env.cache.invalidate("orders", "work", "planner", "workshop", "decisions", "inbox", "home")
+                            env.cache.invalidate("orders", "work", "planner", "workshop", "decisions", "inbox", "home", "sessions", "office")
+                            // ⟨1.17⟩ §35.1 every order is a session: it opens at once, and its holder speaks first there.
+                            if (sessionsOn) out?.let { o -> go("session/${o.ref}") }
                         }
                     },
                     Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.SEND, enabled = text.trim().length >= 3 && !v.active, loading = action.busy,
@@ -304,7 +306,7 @@ fun VoiceOrderBody(
                 RichText(o.summaryFa, style = Divan.type.small)
                 PlayerTag(sentWith.player, sentWith.mode)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) { for (r in o.routes) RouteChip(r, go) }
-                if (served(HubFeature.ORDER_REPORT)) HqButton("گزارش فرمان", { go("order/${o.ref}") }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.REPORT)
+                if (served(HubFeature.ORDER_REPORT)) HqButton("جلسه‌ی فرمان", { go("session/${o.ref}") }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.MEETING)
             }
             HqButton("فرمان بعدی", { phase = "ready"; text = ""; voice = null; out = null; picked = false; preview.route = null; preview.edited = false; vh.start() }, Modifier.fillMaxWidth(), icon = DivanIcon.MIC)
         }

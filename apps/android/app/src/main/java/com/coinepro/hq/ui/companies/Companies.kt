@@ -124,7 +124,6 @@ fun CompaniesScreen() {
                             ) {
                                 com.coinepro.hq.designsystem.CompanyMark(co.code, height = 14.dp, mono = true, ink = Divan.colors.textMuted)
                                 Text(co.nameFa ?: co.code, style = Divan.type.small, color = Divan.colors.textSecondary, modifier = Modifier.weight(1f))
-                                Fig(co.code, style = Divan.type.figureSmall, color = Divan.colors.textMuted)
                             }
                         }
                     }
@@ -158,12 +157,12 @@ fun CompanyScreen(code: String, tab0: String = "control", dept0: String? = null,
                     Seal(x.code, x.nameFa ?: x.code, x.nameEn ?: x.code, holding = x.kind == "holding", size = 84.dp)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(x.nameFa ?: x.code, style = Divan.type.h1)
-                        Text(buildAnnotatedString { fig(x.nameEn ?: ""); append(" · "); fig(x.code) }, style = Divan.type.caption, color = c.textMuted)
+                        x.nameEn?.takeIf { it.isNotBlank() && it != x.code }?.let { Text(buildAnnotatedString { fig(it) }, style = Divan.type.caption, color = c.textMuted) }
                         val st = d.state(x.code, x.kind == "holding", x)
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             // Running or stopped, and the deploys on their own chip when they are closed.
                             StateChip(st.copy(freeze = null), d.busy(x.code))
-                            st.freeze?.let { Pill("deploy بسته، ${until(it.until)}", Tone.WARN, icon = DivanIcon.LOCK) }
+                            st.freeze?.let { Pill("انتشار نسخه بسته، ${until(it.until)}", Tone.WARN, icon = DivanIcon.LOCK) }
                         }
                     }
                 }
@@ -184,7 +183,8 @@ fun CompanyScreen(code: String, tab0: String = "control", dept0: String? = null,
                     (if (brand && com.coinepro.hq.ui.v29.served(com.coinepro.hq.core.net.HubFeature.MONEY)) listOf("money" to "پول", "sales" to "فروش") else emptyList()) +
                     (if (brand && com.coinepro.hq.ui.v29.served(com.coinepro.hq.core.net.HubFeature.JOURNEY)) listOf("personas" to "مخاطب‌ها", "journey" to "مسیر") else emptyList()) +
                     listOf("departments" to "دپارتمان‌ها", "people" to "کارمندها", "work" to "کارها") +
-                    (if (brand) listOf("servers" to "فنی", "brand" to "نشان و مُهر") else emptyList()))
+                    // ⟨1.17⟩ the holding's «فنی» holds every technical place the owner's tools no longer show.
+                    (if (brand) listOf("servers" to "فنی", "brand" to "نشان و مُهر") else listOf("servers" to "فنی")))
                     .forEach { (k, l) -> com.coinepro.hq.designsystem.FilterChip(l, tab == k, { tab = k }) }
                 // The company's conversations: the messages page, opened on this company's section.
                 com.coinepro.hq.designsystem.FilterChip("پیام‌ها", false, { nav.go("messages-co/$code") })
@@ -215,7 +215,7 @@ fun CompanyScreen(code: String, tab0: String = "control", dept0: String? = null,
                 }
             }
             // ⟨1.8⟩ §26: the company's servers, under the holding's control; ⟨1.11⟩ §29.1 with everything technical of the company.
-            "servers", "tech" -> item(key = "servers") { com.coinepro.hq.ui.v29.CompanyTech(code) }
+            "servers", "tech" -> item(key = "servers") { com.coinepro.hq.ui.v29.CompanyTech(code, holding = co.data?.kind == "holding") }
             // ⟨1.11⟩ §29.9, §29.11 its working groups and readiness; §29.12 its connections.
             "growth" -> item(key = "growth") { com.coinepro.hq.ui.v29.CompanyGroups(code) }
             "connections" -> item(key = "connections") { com.coinepro.hq.ui.v29.CompanyConnections(code, kind0) }
@@ -280,7 +280,7 @@ private fun Node(n: ChartNode, depth: Int, open: (String) -> Unit) {
         Avatar(agentKindOf(n.code, n.kind), dept = n.department, size = 40.dp, state = n.state?.let { com.coinepro.hq.core.data.avatarStateOf(it) } ?: n.activity)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(n.displayName ?: n.titleFa, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold))
-            Text(buildAnnotatedString { fig(n.code) }, style = Divan.type.micro, color = c.textMuted)
+            n.displayName?.takeIf { it != n.titleFa }?.let { Text(n.titleFa, style = Divan.type.micro, color = c.textMuted) }
             // ⟨1.11⟩ §29.14 why it is stuck, in the owner's words.
             n.stuck?.takeIf { n.state == "stuck" }?.let { Text(com.coinepro.hq.designsystem.timesFig(it.reasonFa), style = Divan.type.micro, color = c.negative, maxLines = 2) }
         }
@@ -301,7 +301,7 @@ fun WorkRow(w: Work, onClick: () -> Unit) {
         Box(Modifier.size(8.dp).clip(CircleShape).background(when { w.overdue -> c.negative; w.status == "in_progress" -> c.goldFill; w.status in setOf("done", "delivered") -> c.positive; else -> c.silverInk }))
         Column(Modifier.weight(1f)) {
             Text(w.title, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(buildAnnotatedString { fig(w.ref); append("، ${w.assignee?.titleFa ?: "بدون مسئول"}، ${ago(w.updatedAt)}") }, style = Divan.type.micro, color = c.textMuted, maxLines = 1)
+            Text("${w.assignee?.titleFa ?: "بدون مسئول"}، ${ago(w.updatedAt)}", style = Divan.type.micro, color = c.textMuted, maxLines = 1)
         }
         com.coinepro.hq.ui.work.PriorityTag(w.priority, compact = true)
         Text(WORK_STATUS[w.status] ?: w.status, style = Divan.type.micro, color = c.textSecondary)
@@ -324,7 +324,7 @@ fun EmployeeScreen(code: String) {
                         Avatar(agentKindOf(e.code, e.kind), dept = e.department, size = 72.dp, state = e.state?.let { com.coinepro.hq.core.data.avatarStateOf(it) } ?: e.activity)
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(e.displayName ?: e.titleFa, style = Divan.type.h2)
-                            Text(buildAnnotatedString { fig(e.code); append(" · " + (EMPLOYEE_KIND[e.kind] ?: e.kind)) }, style = Divan.type.caption, color = c.textMuted)
+                            Text(listOfNotNull(e.titleFa.takeIf { e.displayName != null && it != e.displayName }, EMPLOYEE_KIND[e.kind] ?: e.kind).joinToString(" · "), style = Divan.type.caption, color = c.textMuted)
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 // ⟨1.11⟩ §29.14 the employee's state (the older activity when the hub has none).
                                 com.coinepro.hq.ui.v29.EmployeeStatePill(e.state, e.activity)
@@ -385,11 +385,16 @@ fun WorkScreen(id: String) {
     val c = Divan.colors
     val env = com.coinepro.hq.ui.LocalEnv.current
     val q = rememberQuery("work:$id", "work") { workOne(id) }
+    // ⟨1.17⟩ §35.1 the root work of an owner's order is its session: the same page, its talk and its plan, not a second place.
+    val orders = rememberQuery("voice-orders", "orders", maxAgeMs = 10_000) { orders().items }
+    val w0 = q.data
+    val sessionRef = w0?.takeIf { com.coinepro.hq.ui.v29.served(com.coinepro.hq.core.net.HubFeature.ORDER_REPORT) && com.coinepro.hq.core.data.isOwnerOrder(it) && it.depth == 0 }
+        ?.let { x -> orders.data?.firstOrNull { o -> o.routes.any { it.workRef == x.ref } }?.ref }
+    if (sessionRef != null) { com.coinepro.hq.ui.session.OrderSessionScreen(sessionRef); return }
     val wid = q.data?.id
     androidx.compose.runtime.LaunchedEffect(q.data) { q.data?.let(env.works::seed) }
     val track = if (wid != null) com.coinepro.hq.ui.work.rememberTrack(wid, full = true) else null
-    val runs = if (wid != null) rememberQuery("runs:work:$wid", "runs", "work", maxAgeMs = 15_000) { workRuns(wid) } else null
-    val r = refresher(*listOfNotNull(q, track, runs).toTypedArray())
+    val r = refresher(*listOfNotNull(q, track).toTypedArray())
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
         item {
             Loadable(q) { w ->
@@ -397,7 +402,6 @@ fun WorkScreen(id: String) {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             CompanyMark(w.company, height = 13.dp, mono = true, ink = c.textSecondary)
-                            Fig(w.ref, style = Divan.type.figureSmall, color = c.textMuted)
                             Text(WORK_KIND[w.kind] ?: w.kind, style = Divan.type.micro, color = c.textMuted)
                         }
                         Text(w.title, style = Divan.type.h2)
@@ -427,17 +431,15 @@ fun WorkScreen(id: String) {
                         }
                     }
                     if (w.brief.isNotBlank()) HqCard(Modifier.fillMaxWidth()) { SectionTitle("شرح کار"); Md(w.brief, Modifier.padding(top = 6.dp)) }
+                    // ⟨1.17⟩ §34.4 the money it cost, in dollars (money is meant); no tokens, no depth, no runs.
                     HqCard(Modifier.fillMaxWidth()) {
-                        SectionTitle("بودجه")
-                        Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            Column { Text("توکن", style = Divan.type.micro, color = c.textMuted); Fig("${tokens(w.budget.tokensUsed)} / ${tokens(w.budget.tokens)}") }
-                            // No dollar ceiling: the spend alone, said in words (not "/ —").
-                            Column { Text(if (w.budget.usd == null) "دلار معادل (بی‌سقف)" else "دلار معادل", style = Divan.type.micro, color = c.textMuted); Fig(if (w.budget.usd == null) usd(w.budget.usdUsed) else "${usd(w.budget.usdUsed)} / ${usd(w.budget.usd)}") }
-                        }
-                        w.budget.tokens?.let { lim -> MeterBar(w.budget.tokensUsed * 100.0 / lim.coerceAtLeast(1), Modifier.padding(top = 10.dp), tone = com.coinepro.hq.designsystem.budgetTone(w.budget.tokensUsed * 100.0 / lim.coerceAtLeast(1))) }
+                        SectionTitle("خرج این کار")
+                        Fig(if (w.budget.usd == null) usd(w.budget.usdUsed) else "${usd(w.budget.usdUsed)} / ${usd(w.budget.usd)}", Modifier.padding(top = 8.dp))
+                        val used = w.budget.usdUsed.toDoubleOrNull() ?: 0.0
+                        w.budget.usd?.toDoubleOrNull()?.takeIf { it > 0 }?.let { lim -> MeterBar(used * 100.0 / lim, Modifier.padding(top = 10.dp), tone = com.coinepro.hq.designsystem.budgetTone(used * 100.0 / lim)) }
                     }
                     if (w.chain.isNotEmpty()) HqCard(Modifier.fillMaxWidth()) {
-                        SectionTitle("مسیر ارجاع", note = "از فرمان تو تا مجری؛ عمق حداکثر ۲")
+                        SectionTitle("چه کسانی رویش کار میکنند", note = "از فرمان تو تا کسی که انجامش میدهد")
                         Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             w.chain.forEach { s ->
                                 Row(Modifier.fillMaxWidth().padding(start = (s.depth * 18).dp).clickable(enabled = s.assignee != null) { s.assignee?.let { nav.go("employees/${it.code}") } }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -446,21 +448,23 @@ fun WorkScreen(id: String) {
                                         Text(s.assignee?.titleFa ?: "—", style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold))
                                         Text(WORK_STATUS[s.status] ?: s.status, style = Divan.type.micro, color = c.textMuted)
                                     }
-                                    Fig("${tokens(s.tokensUsed)} · ${usd(s.usdUsed)}", style = Divan.type.figureSmall, color = c.textMuted)
                                 }
                             }
                         }
                     }
                     track?.data?.let { com.coinepro.hq.ui.work.TimelineCard(it) }
-                    runs?.let { rq ->
-                        HqCard(Modifier.fillMaxWidth()) {
-                            SectionTitle("اجرای ایجنت‌ها روی این کار", note = "هر اجرا با قدم‌ها و ابزارهایش")
-                            Column(Modifier.padding(top = 10.dp)) { Loadable(rq) { list -> com.coinepro.hq.ui.owner.RunList(list, "هنوز ایجنتی روی این کار اجرا نشده.", withSteps = true) } }
-                        }
-                    }
                     Text("ساخته‌شده توسط ${actorFa(w.createdBy)}، ${ago(w.createdAt)}", style = Divan.type.micro, color = c.textMuted)
                 }
             }
         }
     }
+}
+
+/** ⟨1.17⟩ «فنی» of the tools sheet: the holding's company page, opened on its «فنی» tab (servers, workshop, errors and the rest). */
+@Composable
+fun HoldingTechScreen() {
+    val companies = com.coinepro.hq.ui.rememberCompanies()
+    val holding = companies.firstOrNull { it.kind == "holding" }?.code
+    if (holding == null) Box(Modifier.fillMaxWidth().padding(16.dp)) { Skeleton(Modifier.fillMaxWidth().height(120.dp), radius = 16.dp) }
+    else CompanyScreen(holding, tab0 = "servers")
 }
