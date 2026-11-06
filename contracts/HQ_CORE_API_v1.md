@@ -17,6 +17,8 @@
 >
 > **v1.18 (۲۰۲۶-۱۱-۰۶):** فایل در جلسه (§۳۶، پرامپت ۲۶): فونت و سند در بارگذاری، فایل در هر نوبت گفتگو، و فایل‌های جلسه برای همه‌ی کارهای همان فرمان.
 >
+> **v1.19 (۲۰۲۶-۱۱-۰۶):** پاک کردن برای همیشه (§۳۷، پرامپت ۲۶): جلسه، سند بایگانی و خروجی با مُهر مالک؛ پیشنهاد پاک کردن از ایجنت‌ها؛ لغو فرمان و حرف تازه بعد از تحویل.
+>
 > **v1.17 (۲۰۲۶-۱۱-۰۶):** هر فرمان یک جلسه (§۳۵، پرامپت ۲۵): جلسه‌ی همیشه‌صاحب‌دار با حاضران و بازیکن‌ها، فهرست کارها، کارها در همان‌جا، بستن و بایگانی و باز کردن دوباره؛ دفتر مدیر کل؛ پیوند شرکت‌ها و بوم.
 >
 > **v1.16 (۲۰۲۶-۱۱-۰۶):** فرمان با جواب زنده (§۳۴، پرامپت ۲۵): ابزار گزارش و پرسش برای مسئول هر فرمان، «نوبت شما» و پاسخ مالک روی همان کار، گفتگوی زنده‌ی هر فرمان با مسئولش، و هیچ موضوع فنی برای مالک.
@@ -3926,3 +3928,46 @@ The owner, 2026-11-06: «میخوام اینجا فایل بفرستم برای 
   them with `files.read` (whatever its company). A font of the order is used by the creative overlay and the media studio when the work
   names it (`overlay.font_file_id`, `media.item` style `font_file_id`); IRANYekanX stays the default.
 - Data: migration `0054` (`talk.turns.files`, the order's files, the file kinds).
+
+## 37. Erasing for good, and cancel that works ⟨1.19⟩ (2026-11-06, prompt 26)
+The owner, 2026-11-06: «روی لغو این فرمان میزنم اجرا نمیکنه و باید یه گزینه حذف هم داشته باشه که اصلا شاید یه سشن رو من میخوام پاک
+کنم اصلا نباشه و قابلیت پاک کردن از بایگانی هم بذار … یا به کمک ایجنت ها یه چیزایی رو بگم پاک کنند». Hiding (§35) stays; erasing is
+for good. Every erase is the owner's alone and sealed (🔏): an agent only proposes one.
+
+### 37.1 A session erased
+- `GET /orders/{ref}/erase/preview` → `ErasePreview {ref, kind: "session", title_fa, counts: {turns, files, outputs, works,
+  notifications}, keeps_fa: [str]}`: nothing changes. `keeps_fa` names in plain Persian what stays (a working group or production line
+  the session set up; one line in the audit book; the token and money figures, which the treasury must still add up).
+- `POST /orders/{ref}/erase` 🔏 (action `session.erase`, target = ref; `Idempotency-Key`), open or closed, hidden or not. In one
+  transaction: the order's open works are cancelled as `close {verdict: cancel}` does; then gone for good are the session (its report,
+  steps, tasks, participants), its talk (conversation, turns, their voice and attached files), the order's files, the order's outputs
+  (deliverables) and their files, its pending decisions (withdrawn), the notifications that point at the order or its works, the run
+  transcripts of its works, and the works themselves. A stored file is destroyed only when no record that stays uses it. A guarded
+  ledger row the hub cannot delete (the token ledger, the audit chain, a work event) keeps no text of the order: its words are
+  replaced with «پاک‌شده» and it leaves every list and search. One audit entry `session.erase` (A3) holds the ref and the counts.
+  → `{ref, erased: {turns, files, outputs, works, notifications}}`. Afterwards the order and its session answer `404`, and no list,
+  search, office card, canvas, digest, brief or agent context shows it.
+- A permanent structure the session set up (a working group, a production line) is never erased with it; erase it on its own page.
+
+### 37.2 From the archive, and one output
+- `GET /archive/records/{ref}/erase/preview` and `POST /archive/records/{ref}/erase` 🔏 (`archive.erase`, target = ref): the archive's
+  own disposal (§23) run now instead of on its schedule: the record's files destroyed and the record removed; a tombstone keeps only
+  the ref, the date and «به دستور مدیر کل». A record under a legal hold answers `409` with `message_fa` naming the hold.
+- `GET /deliverables/{ref}/erase/preview` and `POST /deliverables/{ref}/erase` 🔏 (`output.erase`): one output and its files, its
+  pending decision withdrawn; the work it belongs to stays (its step says «خروجی پاک شد»).
+- A closed session in the sessions archive is erased with 37.1.
+
+### 37.3 «پاکش کن» in words: an agent proposes
+- Agent tool `erase.propose {kind: "session"|"archive_record"|"output", ref, why_fa}` (A1, every working role; the policy lets a role
+  propose only what it can read): a decision card `erase` to the owner with the preview's counts. Approving it (🔏, target = the card's
+  ref, bound to the preview) runs 37.1/37.2; rejecting it changes nothing. In a session the owner may say «این سه خروجی را پاک کن»:
+  the holder proposes one card per item (or one card for a session); several erase cards may be sealed together (§20.10).
+- An agent never erases anything itself.
+
+### 37.4 Cancel that works, and a word after delivery
+- `POST /orders/{ref}/close` accepts `verdict: "cancel"` with its own `Idempotency-Key` (a UUID; a client never derives one key from
+  another). The Android 0.15.0 «لغو این فرمان» sent a non-UUID key and got `422`: fixed in the app (0.16.0).
+- The owner's word in a session whose works are all delivered (`ready`) is not refused any more (`409 no open work on the order`):
+  the holder's delivered root work goes back to `in_progress` with the word as its next step and the holder is woken — a revision,
+  as in any working session. Only an ended session (closed) asks to be reopened first.
+- Data: migration `0056` (erase markers, the `erase` decision kind).
