@@ -15,6 +15,8 @@
 >
 > **v1.14 (۲۰۲۶-۱۱-۰۴):** «گفتگو» (§۳۲، پرامپت ۲۳): گفتگوی صوتی و متنی مالک با منشی هلدینگ، ناظر کل، دستیار شخصی و هر مدیر هر شرکت؛ هر کدام با صدای خودش، حالت مشورت یا جلسه‌ی کاری، کارت به‌جای کار خودسر، کلید صدا در خود چت با چراغ وضعیت، و کنتور زنده‌ی هزینه با سقف مالک.
 >
+> **v1.17 (۲۰۲۶-۱۱-۰۶):** هر فرمان یک جلسه (§۳۵، پرامپت ۲۵): جلسه‌ی همیشه‌صاحب‌دار با حاضران و بازیکن‌ها، فهرست کارها، کارها در همان‌جا، بستن و بایگانی و باز کردن دوباره؛ دفتر مدیر کل؛ پیوند شرکت‌ها و بوم.
+>
 > **v1.16 (۲۰۲۶-۱۱-۰۶):** فرمان با جواب زنده (§۳۴، پرامپت ۲۵): ابزار گزارش و پرسش برای مسئول هر فرمان، «نوبت شما» و پاسخ مالک روی همان کار، گفتگوی زنده‌ی هر فرمان با مسئولش، و هیچ موضوع فنی برای مالک.
 >
 > **v1.15 (۲۰۲۶-۱۱-۰۵):** پول و شیوه‌ی کار Grok (§۳۳، پرامپت ۲۴): گزارش مصرف به زبان مشاور، خواندن و تطبیق پرداخت‌های کریپتویی شرکت‌ها (دفتر خود شرکت از راه runner و زنجیره‌ی عمومی)، تحلیل درآمد، CRM کوچک، پیگیری افیلیت، اثر پولی تصمیم‌ها، ایجنت‌های موازی، سفر شرکت، پرسونا و تست پیام، و محیط کاری روی سرور هر شرکت.
@@ -3798,3 +3800,104 @@ the owner reply. This section is the base of §35 (every order a session).
   company's CTO by `inquiry.ask`), unless critical by §29.1.
 - Data: migration `0051` (`owner.orders.pace`, `owner.order_reports.turn` and `conversation_ref`, `talk.conversations.order_ref`,
   `work.wake_assignee`). OPA: `order.ask` beside `order.ack`/`order.progress` (`routing.rego`).
+
+## 35. Every order a session; the owner's office; company links ⟨1.17⟩ (2026-11-06, prompt 25)
+The owner, 2026-11-06: «هر فرمان من باید یک سشن خودش رو داشته باشه تا بتونیم به نتیجه برسونیم و کار رو که اوکی کردیم و همه چی تموم شد
+سشن بایگانی بشه یا پاک بشه» · «مدل مثلا چت جیپی تی رو به سشن فرمان اضافه بکنیم» · «همونجا … میگفتم برو اینو استخدام کن اینو بهش بسپر
+اینکارو بکن … در انتها خط تولید و کار گروه رو راه اندازی میکردیم و بعد سشن رو میبستیم تا فرمان های منم بی صاحب نمیموندند» · «اون صفحه
+خانه دفتر مدیر کله … شرکت ها به هم دیگه ارتباط داشته باشند و همه به هاب و بتونم این ارتباط هارو شکل بدم». Plan:
+`docs/PLAN_2026-11-06_ORDER_SESSIONS.md`. §34 is its base. Any subject, not only content.
+
+### 35.1 The session is the order
+- **Every routed order has a holder and a session at once.** Every route makes a root work (a `question` single: the advisor's work, its
+  answer the deliverable; `code`: the company's technical manager's work beside the workshop session; a kit: the secretary until sealed).
+  The order's talk (§34.2) is opened on routing for every order (not only `step`); `OrderOut.talk_ref` is always set. A holder missing
+  (no active employee): the secretary holds it and its first turn proposes the hire (a `hire` card) — never ownerless.
+- **The order no longer ends by itself.** When its root works are delivered the session is `ready` and waits for the owner's OK
+  (`POST /orders/{ref}/close`). Only `close` sets `ended_at`; the report still refreshes while open. A council's «اجرا کن» (§29.8) and a
+  home suggestion's «اجرا کن» continue the same order (a reply), never a new F-ref, when they come from a session.
+- `summary_fa` and every owner-facing text are humanized (§29.7); every owner-facing ApiError carries `message_fa`.
+
+### 35.2 Shapes
+```
+SessionCard { ref,                       # F-… (the app's key; never shown)
+              conversation_ref,          # CV-… the session's talk
+              title_fa,                  # the order's words, plain, ≤ 80 chars
+              holder: {code, title_fa, company, company_fa} | null,
+              badge: "your_turn"|"ready"|"stuck"|"moving"|"closed",
+              reason_fa,                 # one plain line: why this badge («مدیرعامل میپرسد: …»)
+              brief: {done_fa, now_fa, need_fa},   # «چه شد · حالا چه · از تو چه», always filled
+              pace: "auto"|"step",
+              participants: [Participant],
+              tasks: {done, total},
+              opened_at, last_at, closed_at|null, hidden: bool }
+Participant { key,                        # persona key: role@CODE | advisor | overseer | assistant | secretary | player:gpt …
+              kind: "holder"|"person"|"player", title_fa, company|null }
+SessionTask { id, n, title_fa, state: "todo"|"doing"|"done"|"dropped", by: "owner"|"agent", who_fa|null, work_ref|null }
+```
+- `OrderReport` (additive): `session: {state: "open"|"closed", badge, reason_fa, closed_at|null, hidden}`, `brief`, `tasks: [SessionTask]`,
+  `participants: [Participant]`.
+- **Badge by code:** `closed` — closed. `your_turn` — an open `turn` (§34.3), a blocker whose fix is the owner's, or a pending
+  owner-visible decision of one of the order's works. `ready` — every root work delivered (or the holder reported done) and not closed.
+  `stuck` — a blocker without an owner fix, `talk_loop`, or no step for `order_progress_hours`. `moving` — otherwise.
+
+### 35.3 Routes (owner)
+- `GET /sessions?state=open|closed|all&limit&cursor` → `Page[SessionCard]`; open: `your_turn`, `ready`, `stuck`, `moving`, each newest
+  `last_at` first; hidden ones only with `state=all`.
+- `POST /orders/{ref}/participants {kind: "person"|"player", key}` → `OrderReport`. A person: any persona key (managers of any company, the
+  advisor, the overseer, the assistant). A player: `gpt`, `gemini`, `deepseek` (the substitutes §21.13; one signed out answers 409 with
+  `message_fa`). `DELETE /orders/{ref}/participants/{key}` (never the holder).
+- `POST /orders/{ref}/tasks {title_fa}` → `SessionTask`; `PATCH /orders/{ref}/tasks/{id} {title_fa?, state?, n?}` → `SessionTask`.
+- `POST /orders/{ref}/close {verdict: "ok"|"cancel", note?}` (`Idempotency-Key`) → `OrderReport`: `ok` — the order `delivered`
+  (`cancelled` when it has no final output), its open works cancelled except the permanent structures it set up (groups, lines,
+  automations, rules); the session closed and archived (its talk read-only). `cancel` — the same, `cancelled`.
+- `POST /orders/{ref}/reopen` → `OrderReport`: `ended_at` cleared, the session open, the holder woken.
+- `POST /orders/{ref}/hide` · `POST /orders/{ref}/unhide` → `OrderReport` (nothing is deleted; a hidden session leaves every list).
+- Existing: `GET /orders/{ref}/report`, `POST /orders/{ref}/reply`, `POST /orders/{ref}/talk`, `POST /orders/{ref}/fix`.
+
+### 35.4 Talking in a session
+- `POST /talk/conversations/{ref}/turns` (§32) adds `to?: key|"all"`: `key` — that participant answers; `"all"` (also «نظر همه» in the
+  owner's words) — each present participant answers once (at most 5, players included), then the holder sums up. Default: the holder.
+- A **player** participant (persona key `player:gpt|gemini|deepseek`) answers through its substitute seat (§21.13) from the masked
+  conversation; its turn is labelled with its model; it reads nothing of the hub but the conversation and «## The order you hold».
+- Fixed personas join too (`invite` accepts `advisor`, `overseer`, `assistant`).
+- **Cards in a session** (each runs the existing route with its own checks; what it makes is a step of the order):
+  `order` (→ reply §34.3), `ask`, `hire` (any persona; `company` explicit), `delegate {to: code|role|department, text}` (a child work of the
+  order's root for that employee/department), `budget {tokens}` (the order's budget fix), `group {company, group}` (the company joins the
+  working group §29.11), `line {company, template}` (a production line from a template §30, its own seal), `decision`, `planner`, `rule`,
+  `automation`, `invite`.
+- Agent tools: `order.ack` takes `steps?: [str]` (→ agent tasks); `order.progress` takes `done?: [n]` (ticks tasks). A second `order.ask`
+  while a turn is open joins the same turn (both questions; the reply wakes both askers). An open turn reminds the owner once after
+  `order_owner_hours`.
+
+### 35.5 The owner's office (the home)
+```
+Office { sessions: [SessionCard],          # open, as GET /sessions (≤ 30)
+         approvals: [Decision], approvals_total,   # owner-visible pending only (≤ 10)
+         money: {revenue_month_usd|null, spend_month_usd, budget_month_usd|null, line_fa},
+         critical: [Notification],         # owner-visible critical only (§29.1)
+         suggestions: [Suggestion],        # §29.13, any subject; «اجرا کن» opens a session
+         canvas: Canvas }
+```
+- `GET /office` (owner). `GET /home` stays for older apps. Nothing on the office is fixed to one subject (no per-group KPI block).
+
+### 35.6 Company links and the canvas
+```
+Canvas { nodes: [{code, name_fa, kind: "holding"|"company", x|null, y|null, line_fa, open_sessions}],
+         links: [CompanyLink] }
+CompanyLink { id, from, to, kind: "serves"|"publishes"|"feeds"|"sells"|"supports", purpose_fa, state: "on"|"off", open_works, updated_at }
+```
+- `GET /links` → `Canvas`; `POST /links {from, to, kind, purpose_fa}` → `CompanyLink`; `PATCH /links/{id} {kind?, purpose_fa?, state?}`;
+  `PUT /canvas/nodes/{code} {x, y}`. Every company is linked to the hub (the holding node) implicitly. Every write audited (A1). Nothing
+  deleted: a link is turned `off`.
+- **Honoured:** the secretary's preview suggests collaborators along `on` links that fit the order (publishing → `publishes`, data →
+  `feeds`…); a cross-company work request along an `on` link is accepted at once (`owner.settings.links_enforced`, default false: until
+  the owner turns it on, requests stay open as today); `company.state` (agent tool) lists the company's links; in a session, people of
+  linked companies are suggested first.
+
+### 35.7 Stream, data, policy
+- Stream topic `orders`: `session.updated {ref, badge}`; topic `holding`: `links.updated`.
+- Data: migration `0052` (sessions: `owner.order_reports.closed_at`, `hidden_at`, `turn` asks, `owner.session_tasks`, talk persona keys
+  `player:…`, card kinds `delegate|budget|group|line`, `talk.conversations.closed_at`, `work.wake_assignee` honours the locks),
+  `0053` (`core.company_links`, `owner.canvas_nodes`, `owner.settings.links_enforced`).
+- OPA: `sessions.rego` (owner routes), `links` in `internal.rego` (`work_create_ok` with `linked`), tests 100%.
