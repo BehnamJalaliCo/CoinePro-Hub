@@ -36,7 +36,7 @@ MB = 1024 * 1024
 
 @dataclass(frozen=True)
 class Kind:
-    kind: str  # image | video | audio | document
+    kind: str  # image | video | audio | document | font
     max_bytes: int
     max_seconds: int | None = None
 
@@ -45,6 +45,23 @@ IMAGE = Kind("image", 20 * MB)
 VIDEO = Kind("video", 200 * MB, 10 * 60)
 AUDIO = Kind("audio", 25 * MB, 15 * 60)
 DOCUMENT = Kind("document", 30 * MB)
+# ⟨1.18⟩ §36.1: fonts (TrueType, OpenType, WOFF, WOFF2), and plain text, Markdown and ZIP
+# archives (a ZIP is stored as it is, never unpacked by the hub)
+FONT = Kind("font", 20 * MB)
+PACKAGE = Kind("document", 50 * MB)
+
+# The declared types of a font, by what its first bytes are; the stored type is the canonical one.
+SFNT_TYPES = frozenset({
+    "font/ttf", "font/otf", "font/sfnt", "application/x-font-ttf", "application/x-font-truetype",
+    "application/x-font-otf", "application/x-font-opentype", "application/vnd.ms-opentype",
+    "application/font-sfnt",
+})  # fmt: skip
+WOFF_TYPES = frozenset({"font/woff", "application/font-woff", "application/x-font-woff"})
+WOFF2_TYPES = frozenset({"font/woff2", "application/font-woff2"})
+TEXT_TYPES = frozenset({"text/plain", "text/markdown", "text/x-markdown"})
+ZIP_TYPES = frozenset({"application/zip", "application/x-zip-compressed", "application/x-zip"})
+# A phone often sends a font or an archive as plain bytes: then the bytes alone name its type.
+OCTET = "application/octet-stream"
 
 # The allowed declared types (contract §17.1) and their kind.
 ALLOWED: dict[str, Kind] = {
@@ -68,6 +85,8 @@ ALLOWED: dict[str, Kind] = {
     "audio/wave": AUDIO,
     "audio/mpeg": AUDIO,
     "application/pdf": DOCUMENT,
+    **dict.fromkeys(SFNT_TYPES | WOFF_TYPES | WOFF2_TYPES, FONT),
+    **dict.fromkeys(TEXT_TYPES | ZIP_TYPES, PACKAGE),
 }
 HEAD_BYTES = 64  # enough for every signature below
 # A 40 MP photo; larger is refused, over 80 MP before a byte is decoded (Pillow's
@@ -83,8 +102,57 @@ _FTYP_AUDIO = {b"M4A ", b"M4B ", b"M4P "}
 _FTYP_HEIC = {b"heic", b"heix", b"hevc", b"hevx", b"heim", b"heis", b"mif1", b"msf1"}
 
 
+def _sfnt(head: bytes) -> bool:
+    """An sfnt font's table directory: a sane table count and a printable first table tag."""
+    if len(head) < 16:
+        return False
+    tables = int.from_bytes(head[4:6], "big")
+    return 1 <= tables <= 128 and all(0x20 <= b <= 0x7E for b in head[12:16])
+
+
+def font_type(head: bytes) -> str | None:
+    """The canonical type of a font by its first bytes (TrueType, OpenType, WOFF, WOFF2)."""
+    if head[:4] in (b"\x00\x01\x00\x00", b"true") and _sfnt(head):
+        return "font/ttf"
+    if head[:4] == b"OTTO" and _sfnt(head):
+        return "font/otf"
+    if head[:4] == b"wOFF":
+        return "font/woff"
+    if head[:4] == b"wOF2":
+        return "font/woff2"
+    return None
+
+
+def is_zip(head: bytes) -> bool:
+    return head[:4] in (b"PK\x03\x04", b"PK\x05\x06")
+
+
+def looks_text(head: bytes) -> bool:
+    """Plain UTF-8 text (an optional BOM): no NUL, no control character but tab, line ends and
+    form feed; a character cut at the end of the head is fine."""
+    import codecs
+
+    if not head:
+        return False
+    try:
+        text = codecs.getincrementaldecoder("utf-8")().decode(head, final=False)
+    except UnicodeDecodeError:
+        return False
+    text = text.removeprefix("﻿")
+    return all(ch in "\t\n\r\f" or ord(ch) >= 0x20 for ch in text) and "\x7f" not in text
+
+
 def sniff(head: bytes) -> set[str]:
     """The declared types these first bytes are consistent with (empty: none)."""
+    font = font_type(head)
+    if font in ("font/ttf", "font/otf"):
+        return set(SFNT_TYPES)
+    if font == "font/woff":
+        return set(WOFF_TYPES)
+    if font == "font/woff2":
+        return set(WOFF2_TYPES)
+    if is_zip(head):
+        return set(ZIP_TYPES)
     if head.startswith(b"\xff\xd8\xff"):
         return {"image/jpeg"}
     if head.startswith(b"\x89PNG\r\n\x1a\n"):
@@ -126,11 +194,27 @@ def check_type(content_type: str | None, head: bytes) -> tuple[str, Kind] | str:
     """(mime, kind) when the declared type is allowed and the bytes agree; else
     the reason (for 415/422)."""
     mime = declared(content_type)
+    if mime == OCTET:
+        # ⟨1.18⟩ §36.1 plain bytes: a font or a ZIP by its first bytes, nothing else
+        font = font_type(head)
+        if font is not None:
+            return font, FONT
+        if is_zip(head):
+            return "application/zip", PACKAGE
+        return "this type is not accepted"
     kind = ALLOWED.get(mime)
     if kind is None:
         return "this type is not accepted"
+    if mime in TEXT_TYPES:  # text has no signature: UTF-8 with no binary bytes
+        if not looks_text(head) or font_type(head) or is_zip(head) or head.startswith(b"%PDF-"):
+            return "the content is not what the Content-Type says"
+        return ("text/markdown" if "markdown" in mime else "text/plain"), kind
     if mime not in sniff(head):
         return "the content is not what the Content-Type says"
+    if kind is FONT:  # stored under the type its bytes are
+        return font_type(head) or mime, kind
+    if mime in ZIP_TYPES:
+        return "application/zip", kind
     return mime, kind
 
 
@@ -375,3 +459,70 @@ async def pdf_text(path: Path) -> PdfText:
 def _is_pdf(path: Path) -> bool:
     with open(path, "rb") as fh:
         return fh.read(5) == b"%PDF-"
+
+
+# ------------------------------------------------------------- text, fonts --
+TEXT_READ_BYTES = 1024 * 1024  # a text file's first MiB is its text for files.read
+FONT_LIMITS = untrusted.Limits(network=False)
+FAMILY_CHARS = 100
+
+
+def plain_text_job(path: str) -> str | None:
+    """A text or Markdown file's text (its first MiB, UTF-8, 200k characters at most)."""
+    with open(path, "rb") as fh:
+        raw = fh.read(TEXT_READ_BYTES)
+    text = raw.decode("utf-8", errors="replace").removeprefix("﻿").replace("\x00", "")
+    out = text.strip()[:MAX_PDF_CHARS]
+    return out or None
+
+
+async def document_text(path: Path, mime: str | None = None) -> PdfText:
+    """A document's text for files.read: a PDF's from a child process (pdf_text), a text or
+    Markdown file's first MiB (⟨1.18⟩ §36.1, plain UTF-8: nothing to parse); a ZIP has none
+    (never unpacked)."""
+    if mime in TEXT_TYPES:
+        return PdfText("ready", await asyncio.to_thread(plain_text_job, str(path)))
+    return await pdf_text(path)
+
+
+class FontRefused(ValueError):
+    """Not a font the hub can read (no family name, broken, or too much work): 415."""
+
+
+def clean_family(value: Any) -> str:
+    """A family name as the hub keeps it: printable, without a quote, comma, semicolon, bracket
+    or ampersand (it goes into a CSS/SVG font-family list), one line, at most 100 characters."""
+    text = "".join(
+        ch
+        for ch in str(value or "")
+        if (ch.isprintable() or ch in "‌‍") and ch not in "\"'`,;<>&\\{}()"
+    )
+    return " ".join(text.split())[:FAMILY_CHARS]
+
+
+def font_family_job(path: str) -> dict[str, str]:
+    """In the child: the font's family and style names, read by FreeType (Pillow)."""
+    from PIL import ImageFont
+
+    family, style = ImageFont.truetype(path, 24).getname()
+    return {"family": str(family or ""), "style": str(style or "")}
+
+
+async def font_meta(path: Path) -> dict[str, str]:
+    """{family, style} of an uploaded font, read in a child with hard limits (no network);
+    FontRefused when it cannot be read or has no family name."""
+    got = await untrusted.run(
+        "hq_api.media:font_family_job", kwargs={"path": str(path)}, limits=FONT_LIMITS
+    )
+    if not got.ok:
+        log.info("font refused", extra={"reason": got.reason, "seconds": round(got.seconds, 2)})
+        raise FontRefused("too large to read" if got.killed else _short(got.error))
+    value = got.value if isinstance(got.value, dict) else {}
+    family = clean_family(value.get("family"))
+    if not family:
+        raise FontRefused("the font has no family name")
+    out = {"family": family}
+    style = clean_family(value.get("style"))
+    if style:
+        out["style"] = style
+    return out

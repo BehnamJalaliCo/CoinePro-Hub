@@ -85,6 +85,7 @@ WIPE: tuple[str, ...] = (
     # experiments, the home's mornings, suggestions and progress) goes
     "owner.order_reports", "owner.suggestions", "owner.progress",
     "owner.session_tasks",  # ⟨1.17⟩ §35 a session's plan goes with its order
+    "owner.order_files",  # ⟨1.18⟩ §36.3 an order's files go with it (the files themselves stay)
     "growth.routine_runs", "growth.experiments", "growth.metrics_daily", "growth.home_mornings",
     # ⟨1.13⟩ §31.6, §31.7: the ads' daily figures, campaigns' state, trips; the automations' runs
     "growth.ad_daily", "growth.ad_campaigns", "growth.ad_trips", "growth.automation_runs",

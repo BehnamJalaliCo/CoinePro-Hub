@@ -549,6 +549,8 @@ HOLDING_ONLY = {
     "growth.home_mornings",
     # prompt 25 (§35): a session's plan is the owner's, as the order and its report are
     "owner.session_tasks",
+    # prompt 26 (§36.3): an order's files are the owner's, as the order is
+    "owner.order_files",
     # prompt 21 (§29.4, §29.5): the secretary's memory and the owner's long voice
     "owner.dispatch_memory",
     "owner.voice_sessions",

@@ -27,6 +27,7 @@ from fastapi import APIRouter, Depends, Query, Request
 
 from hq_api import idempotency, pagination
 from hq_api.context import Ctx, internal_ctx, owner_ctx
+from hq_api.domain import creative_overlay as CO
 from hq_api.domain import files as F
 from hq_api.domain import substitutes as S
 from hq_api.errors import ApiError, responses
@@ -324,6 +325,9 @@ async def create_creative(
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
             return idem.replay
+        if body.overlay is not None and body.overlay.font_file_id is not None:
+            # ⟨1.18⟩ §36.3 the title in one of the owner's own fonts
+            await CO.font_for(tx, body.overlay.font_file_id)
         row = await S.create_creative(
             tx,
             ctx.hub,
@@ -430,6 +434,10 @@ async def substitute_call(body: S.CallIn, ctx: Ctx = Depends(internal_ctx)) -> d
         mine = await S.run_work(tx, who)
         if body.seat == "creative":
             assert body.placement is not None
+            if body.overlay is not None and body.overlay.font_file_id is not None:
+                # ⟨1.18⟩ §36.3 a font of the order this run works on, or of its own company
+                await CO.font_for(tx, body.overlay.font_file_id, run_id=who.run_id,
+                                  company_id=who.company_id)  # fmt: skip
             row = await S.create_creative(
                 tx,
                 hub,

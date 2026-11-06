@@ -11,6 +11,7 @@ Until then the holding's own agents do not see it either (UNATTACHED_UPLOAD).
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
 from pathlib import Path
@@ -20,13 +21,13 @@ from uuid import UUID
 from hq_api import media
 from hq_api.db import Tx
 from hq_api.errors import ApiError
-from hq_api.schemas import FileRef, FileVariants
+from hq_api.schemas import FileMeta, FileRef, FileVariants
 
 MAX_ATTACHMENTS = 10
 
 FILE_SQL = """
     SELECT f.id, f.name, f.mime, f.size, f.sha256, f.kind, f.width, f.height, f.duration_s,
-           f.company_id, f.storage_key, f.variant, f.parent_id,
+           f.company_id, f.storage_key, f.variant, f.parent_id, f.meta, f.created_by_kind,
            p.status, p.transcript,
            (SELECT v.id FROM files.files v WHERE v.parent_id = f.id AND v.variant = 'thumb' LIMIT 1) AS thumb,
            (SELECT v.id FROM files.files v WHERE v.parent_id = f.id AND v.variant = 'poster' LIMIT 1) AS poster
@@ -39,6 +40,14 @@ FILE_SQL = """
 UNATTACHED_UPLOAD = """(f.created_by_kind = 'owner'
     AND EXISTS (SELECT 1 FROM core.companies hc WHERE hc.id = f.company_id AND hc.kind = 'holding')
     AND NOT EXISTS (SELECT 1 FROM msg.messages m WHERE m.attachments @> ARRAY[f.id]))"""
+
+
+def _meta(r: dict[str, Any]) -> FileMeta | None:
+    raw = r.get("meta")
+    meta = json.loads(raw) if isinstance(raw, str) else raw
+    if not isinstance(meta, dict) or not meta.get("family"):
+        return None
+    return FileMeta(family=str(meta["family"]), style=meta.get("style"))
 
 
 def render(r: dict[str, Any]) -> FileRef:
@@ -56,6 +65,7 @@ def render(r: dict[str, Any]) -> FileRef:
         duration_s=float(r["duration_s"]) if r.get("duration_s") is not None else None,
         variants=FileVariants(thumb=r.get("thumb"), poster=r.get("poster")),
         transcript=r.get("transcript"),
+        meta=_meta(r),
     )
 
 
@@ -88,12 +98,13 @@ async def insert(
     height: int | None = None,
     duration_s: float | None = None,
     frame_at_s: float | None = None,
+    meta: dict[str, Any] | None = None,
 ) -> UUID:
     file_id: UUID = await tx.scalar(
         """INSERT INTO files.files (company_id, name, mime, size, sha256, storage_key, created_by_kind,
-               created_by_code, kind, variant, parent_id, width, height, duration_s, frame_at_s)
+               created_by_code, kind, variant, parent_id, width, height, duration_s, frame_at_s, meta)
            VALUES (:co, :name, :mime, :size, :sha, :key, :bk, :bc, :kind, :variant, :parent, :w, :h,
-                   :dur, :at)
+                   :dur, :at, CAST(:meta AS jsonb))
            RETURNING id""",
         co=company_id,
         name=name[:255],
@@ -110,6 +121,7 @@ async def insert(
         h=height,
         dur=duration_s,
         at=frame_at_s,
+        meta=json.dumps(meta or {}, ensure_ascii=False),
     )
     return file_id
 
@@ -171,6 +183,92 @@ async def attach(tx: Tx, ids: list[UUID], thread_company: UUID, holding_id: UUID
     return unique
 
 
+UNKNOWN_FA = "این فایل پیدا نشد؛ دوباره بارگذاری کنید."
+ELSEWHERE_FA = "این فایل پیش‌تر در گفتگوی یک شرکت فرستاده شده است؛ دوباره بارگذاری کنید."
+
+
+async def owner_uploads(tx: Tx, ids: list[UUID], holding_id: UUID) -> list[dict[str, Any]]:
+    """⟨1.18⟩ §36.2 the files of a talk turn: the owner's own uploads (originals), still in the
+    holding (one already sent in a company's thread is that company's: upload it again). In the
+    given order, without repeats; 422 with `message_fa` otherwise."""
+    unique = list(dict.fromkeys(ids))
+    if len(unique) > MAX_ATTACHMENTS:
+        raise ApiError(
+            422,
+            "validation_failed",
+            fields={"file_ids": f"at most {MAX_ATTACHMENTS}"},
+            message_fa=f"در هر پیام حداکثر {MAX_ATTACHMENTS} فایل.",
+        )
+    if not unique:
+        return []
+    rows = {
+        r["id"]: dict(r) for r in await tx.all(FILE_SQL + " WHERE f.id = ANY(:ids)", ids=unique)
+    }
+    for fid in unique:
+        r = rows.get(fid)
+        if r is None or r["variant"] != "original" or r["created_by_kind"] != "owner":
+            raise ApiError(422, "validation_failed", fields={"file_ids": f"unknown file {fid}"},
+                           message_fa=UNKNOWN_FA)  # fmt: skip
+        if r["company_id"] != holding_id:
+            raise ApiError(422, "validation_failed",
+                           fields={"file_ids": "a file sent in a company's thread"},
+                           message_fa=ELSEWHERE_FA)  # fmt: skip
+    return [rows[f] for f in unique]
+
+
+ORDER_FILES = 50  # the newest an order's report and briefs list
+
+
+async def of_order(tx: Tx, order_id: UUID) -> list[dict[str, Any]]:
+    """⟨1.18⟩ §36.3 an order's files (the owner's, from its session), newest first."""
+    rows = await tx.all(
+        FILE_SQL
+        + """ JOIN owner.order_files o ON o.file_id = f.id
+             WHERE o.order_id = :o ORDER BY o.added_at DESC, o.id LIMIT :l""",
+        o=order_id,
+        l=ORDER_FILES,
+    )
+    return [dict(r) for r in rows]
+
+
+async def order_of_run(tx: Tx, run_id: str | None) -> UUID | None:
+    """⟨1.18⟩ §36.3 the order a run works on (its work, up its parents and requests); None for a
+    run without a work or a work outside any order. `tx` reads every company's rows."""
+    if not run_id:
+        return None
+    work_id = await tx.scalar(
+        "SELECT work_id FROM agents.runs WHERE id = CAST(:r AS uuid)", r=str(run_id)
+    )
+    if work_id is None:
+        return None
+    from hq_api.domain import order_report as OR
+
+    ref = await OR.order_of_work(tx, work_id)
+    if ref is None:
+        return None
+    order_id: UUID | None = await tx.scalar("SELECT id FROM owner.orders WHERE ref = :r", r=ref)
+    return order_id
+
+
+async def order_grant(tx: Tx, run_id: str | None, file_ids: list[UUID]) -> set[UUID]:
+    """⟨1.18⟩ §36.3 which of `file_ids` (originals, or a variant of one: an image's copy for a
+    model, a video's poster or frames) belong to the order the run works on: a run of the
+    order's works reads them whatever its company; nothing else is granted."""
+    if not file_ids:
+        return set()
+    order_id = await order_of_run(tx, run_id)
+    if order_id is None:
+        return set()
+    rows = await tx.all(
+        """SELECT f.id FROM files.files f
+           JOIN owner.order_files o ON o.file_id = COALESCE(f.parent_id, f.id)
+           WHERE o.order_id = :o AND f.id = ANY(:ids)""",
+        o=order_id,
+        ids=list(file_ids),
+    )
+    return {r["id"] for r in rows}
+
+
 async def document_pending(tx: Tx, file_id: UUID, company_id: UUID) -> None:
     """A PDF whose text is still to come (prompt 07.1 §1.2): recorded first,
     extracted outside any transaction, written by document_done."""
@@ -205,10 +303,11 @@ async def extract_text(
     path: Path,
     *,
     count: bool = True,
+    mime: str | None = None,
 ) -> str:
-    """A PDF's text from a child process (media.pdf_text), outside any
-    transaction, then written in one of its own -> the status."""
-    got = await media.pdf_text(path)
+    """A PDF's text from a child process (media.pdf_text), ⟨1.18⟩ a text or Markdown file's
+    (`mime`), outside any transaction, then written in one of its own -> the status."""
+    got = await media.document_text(path, mime)
     async with tx() as t:
         await document_done(t, file_id, got.status, got.text, got.error, count=count)
     return got.status

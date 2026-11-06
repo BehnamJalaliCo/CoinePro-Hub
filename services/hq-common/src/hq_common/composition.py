@@ -12,7 +12,8 @@ A composition is ONE self-contained document:
       <script src="/lib/lottie.min.js"></script>   lottie-web 5.12.2, light build (MIT)
   images and videos only from the item's own assets as /assets/<file id>
   (or an inline data:image PNG/JPEG/WebP); IRANYekanX the only font (the
-  render page declares it: no @font-face, no other family); `lang="fa"` and
+  render page declares it: no @font-face, no other family; ⟨1.18⟩ but the
+  family of the item's own font, which the render page declares too); `lang="fa"` and
   `dir="rtl"` on <html>.
 - `lottie`: one Lottie JSON for lottie-web: no expressions (code), no
   external asset or font path, IRANYekanX for every text layer.
@@ -126,6 +127,8 @@ class Report:
     fonts: list[str] = field(default_factory=list)
     libraries: list[str] = field(default_factory=list)
     assets: list[str] = field(default_factory=list)
+    # ⟨1.18⟩ the families the item's style adds beside IRANYekanX (declared by the render page)
+    extra_fonts: tuple[str, ...] = ()
 
     @property
     def ok(self) -> bool:
@@ -158,12 +161,17 @@ def sha256(source: str) -> str:
     return hashlib.sha256(source.encode("utf-8")).hexdigest()
 
 
-def check(fmt: str, source: str, allowed_assets: set[str] | None = None) -> Report:
+def check(
+    fmt: str, source: str, allowed_assets: set[str] | None = None, fonts: tuple[str, ...] = ()
+) -> Report:
     """The schema check of one composition. `allowed_assets`: the file ids the
     item may use (its company's files and creatives); None = any well-formed
-    /assets/<id> (the render worker, which only has the job's own files)."""
+    /assets/<id> (the render worker, which only has the job's own files).
+    ⟨1.18⟩ `fonts`: the families the item's style adds beside IRANYekanX (the owner's font of
+    its order, declared by the render page; still no @font-face in the composition)."""
     raw = source.encode("utf-8", "surrogatepass")
-    rep = Report(format=fmt, sha256=hashlib.sha256(raw).hexdigest(), size=len(raw))
+    rep = Report(format=fmt, sha256=hashlib.sha256(raw).hexdigest(), size=len(raw),
+                 extra_fonts=tuple(fonts))  # fmt: skip
     if len(raw) > MAX_BYTES:
         rep.refuse("too_large", f"{len(raw)} bytes > {MAX_BYTES}")
         return rep
@@ -234,7 +242,7 @@ def _families(rep: Report, value: str) -> None:
         if not name or name.lower() in GENERIC_FAMILIES or name.startswith("var("):
             continue
         rep.fonts.append(name)
-        if name != FONT:
+        if name != FONT and name not in rep.extra_fonts:
             rep.refuse("font", f"font-family {name!r}: IRANYekanX is the only font")
 
 
@@ -364,7 +372,7 @@ def _check_lottie(rep: Report, source: str, allowed: set[str] | None) -> None:
         for k in ("fFamily", "fName"):
             name = str(f.get(k) or "")
             rep.fonts.append(name)
-            if not name.startswith(FONT):
+            if not name.startswith((FONT, *rep.extra_fonts)):
                 rep.refuse("font", f"Lottie font {name!r}: IRANYekanX is the only font")
         if f.get("fPath") or f.get("origin") not in (None, 0):
             rep.refuse("network", "a Lottie font loaded from a path")

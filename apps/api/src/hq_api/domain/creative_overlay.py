@@ -12,6 +12,11 @@ set by the hub, by code, never asked of an image model.
   renders it, again in a child -> the `composed` PNG.
 - A video keeps its original (its key frames are what the agent reviews); the
   overlay on a video is the media studio's (prompt 13).
+- ⟨1.18⟩ §36.3 the title may be set in a font the owner gave (`overlay.font_file_id`: a font of
+  the work's order, of the company, or for the owner any of the owner's own fonts); the other
+  lines and every glyph the font lacks stay IRANYekanX. TrueType and OpenType are used as
+  they are, a WOFF is unpacked to its sfnt in the child; a WOFF2 cannot be read by the
+  renderer (no Brotli here) and is refused at the call with the reason.
 """
 
 from __future__ import annotations
@@ -19,14 +24,18 @@ from __future__ import annotations
 import asyncio
 import base64
 import html
+import struct
+import zlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from uuid import UUID
 
 from hq_api import media
+from hq_api.db import Tx
 from hq_api.domain import brands
 from hq_api.domain import files as F
+from hq_api.errors import ApiError
 from hq_common import untrusted
 
 # Canvas per placement (pixels) and its safe zone as fractions of it:
@@ -122,8 +131,11 @@ def svg(
     picture: tuple[str, bytes] | None,
     colours: dict[str, str],
     mark: dict[str, Any] | None,
+    title_family: str | None = None,
 ) -> str:
-    """The composed picture as SVG (resvg renders it)."""
+    """The composed picture as SVG (resvg renders it). ⟨1.18⟩ `title_family`: the family of the
+    owner's font for the title (IRANYekanX behind it for every glyph it lacks)."""
+    family = media.clean_family(title_family) if title_family else ""
     w, h = CANVAS[placement]
     ink = colours.get("ink", "#111216")
     accent = colours.get("accent", "#0E9F6E")
@@ -165,8 +177,11 @@ def svg(
             x = right - pad
         else:
             x = b.x - b.size * 0.4
+        fonts = FONT
+        if family and b.role == "title":
+            fonts = html.escape(f"'{family}', {FONT}", quote=True)
         parts.append(
-            f'<text x="{x:.0f}" y="{b.y:.0f}" font-family="{FONT}" font-size="{b.size:.0f}" '
+            f'<text x="{x:.0f}" y="{b.y:.0f}" font-family="{fonts}" font-size="{b.size:.0f}" '
             f'font-weight="{weight}" fill="{colour}" direction="rtl" unicode-bidi="embed" '
             f'text-anchor="end">{html.escape(b.text)}</text>'
         )
@@ -183,12 +198,68 @@ def svg(
     return "".join(parts)
 
 
-def compose_job(svg_text: str, out: str, font_dir: str) -> dict[str, Any]:
+MAX_SFNT = 64 * 1024 * 1024  # a WOFF unpacked (its tables together)
+
+
+def woff_to_sfnt(data: bytes) -> bytes:
+    """A WOFF 1.0 font's sfnt (TrueType or OpenType), its tables unpacked with zlib, never more
+    than each table's declared size (ValueError for anything else)."""
+    if len(data) < 44 or data[:4] != b"wOFF":
+        raise ValueError("not a WOFF font")
+    flavor, _length, count = struct.unpack(">IIH", data[4:14])
+    if not 1 <= count <= 128 or len(data) < 44 + 20 * count:
+        raise ValueError("a broken WOFF table directory")
+    tables: list[tuple[bytes, int, bytes]] = []
+    total = 0
+    for i in range(count):
+        tag, off, comp, orig, checksum = struct.unpack(">4sIIII", data[44 + 20 * i : 64 + 20 * i])
+        total += orig
+        if total > MAX_SFNT or off + comp > len(data) or comp > orig:
+            raise ValueError("a WOFF table out of bounds")
+        raw = data[off : off + comp]
+        if comp < orig:
+            z = zlib.decompressobj()
+            raw = z.decompress(raw, orig)
+        if len(raw) != orig:
+            raise ValueError("a WOFF table of the wrong size")
+        tables.append((tag, checksum, raw))
+    tables.sort(key=lambda t: t[0])
+    power = 1 << (count.bit_length() - 1)
+    head = struct.pack(">IHHHH", flavor, count, power * 16, power.bit_length() - 1,
+                       count * 16 - power * 16)  # fmt: skip
+    offset = 12 + 16 * count
+    entries, blobs = [], []
+    for tag, checksum, raw in tables:
+        entries.append(struct.pack(">4sIII", tag, checksum, offset, len(raw)))
+        pad = b"\0" * ((-len(raw)) % 4)
+        blobs.append(raw + pad)
+        offset += len(raw) + len(pad)
+    return head + b"".join(entries) + b"".join(blobs)
+
+
+def compose_job(
+    svg_text: str,
+    out: str,
+    font_dir: str,
+    extra_font: str | None = None,
+    extra_mime: str | None = None,
+    sfnt_out: str | None = None,
+) -> dict[str, Any]:
     """In the child: resvg renders the overlay with IRANYekanX only (no
-    system font)."""
+    system font); ⟨1.18⟩ and the owner's font for the title when one is named (a WOFF unpacked
+    to `sfnt_out` first)."""
     import resvg_py
 
     fonts = [str(Path(font_dir) / f) for f in FONT_FILES if (Path(font_dir) / f).exists()]
+    if extra_font:
+        if extra_mime == "font/woff":
+            if not sfnt_out:
+                raise ValueError("a WOFF needs a place to unpack to")
+            Path(sfnt_out).write_bytes(woff_to_sfnt(Path(extra_font).read_bytes()))
+            extra_font = sfnt_out
+        elif extra_mime not in ("font/ttf", "font/otf"):
+            raise ValueError("this font cannot be used on a picture")
+        fonts.insert(0, extra_font)
     png = bytes(
         resvg_py.svg_to_bytes(
             svg_string=svg_text, skip_system_fonts=True, font_files=fonts, font_family=FONT
@@ -198,18 +269,69 @@ def compose_job(svg_text: str, out: str, font_dir: str) -> dict[str, Any]:
     return {"bytes": len(png), "fonts": len(fonts)}
 
 
-async def render_png(hub: Any, svg_text: str) -> Path:
+async def render_png(hub: Any, svg_text: str, font: dict[str, Any] | None = None) -> Path:
+    """The SVG rendered in a child; ⟨1.18⟩ `font`: the owner's font row (its file and type)."""
     out = hub.storage.scratch()
-    got = await untrusted.run(
-        "hq_api.domain.creative_overlay:compose_job",
-        kwargs={"svg_text": svg_text, "out": str(out), "font_dir": hub.settings.fonts_dir},
-        limits=COMPOSE_LIMITS,
-    )
+    sfnt = hub.storage.scratch() if font is not None else None
+    kwargs: dict[str, Any] = {"svg_text": svg_text, "out": str(out),
+                              "font_dir": hub.settings.fonts_dir}  # fmt: skip
+    if font is not None:
+        kwargs.update(
+            extra_font=str(hub.storage.local_path(font["storage_key"])),
+            extra_mime=font["mime"],
+            sfnt_out=str(sfnt),
+        )
+    try:
+        got = await untrusted.run(
+            "hq_api.domain.creative_overlay:compose_job", kwargs=kwargs, limits=COMPOSE_LIMITS
+        )
+    finally:
+        if sfnt is not None:
+            sfnt.unlink(missing_ok=True)
     if not got.ok:
         out.unlink(missing_ok=True)
         raise Refused(f"the overlay could not be rendered ({str(got.error)[:60]})")
     rendered: Path = out
     return rendered
+
+
+# ⟨1.18⟩ §36.3 the owner's font on a picture
+FONT_UNKNOWN_FA = "این فونت پیدا نشد یا مال این کار نیست؛ فونت را در جلسه‌ی همین فرمان بفرستید."
+FONT_WOFF2_FA = "فونت WOFF2 را نمیشود روی تصویر گذاشت؛ نسخه‌ی TTF یا OTF همین فونت را بفرستید."
+OVERLAY_FONTS = ("font/ttf", "font/otf", "font/woff")
+
+
+async def font_for(
+    tx: Tx,
+    file_id: UUID,
+    *,
+    run_id: str | None = None,
+    company_id: UUID | None = None,
+    mimes: tuple[str, ...] | None = OVERLAY_FONTS,
+) -> dict[str, Any]:
+    """The font a work names for a picture's title (`tx` reads every company's rows): for an
+    agent (`run_id`, `company_id`) a font of the order its run works on, or of its own company;
+    for the owner (no run) any of the owner's own fonts. 422 with `message_fa` otherwise, and
+    for a type not in `mimes` (the overlay's renderer cannot read a WOFF2; the media studio's
+    browser reads every font: `mimes=None`)."""
+    row = await tx.first(
+        F.FILE_SQL + " WHERE f.id = :id AND f.variant = 'original' AND f.kind = 'font'", id=file_id
+    )
+    allowed = False
+    if row is not None:
+        if company_id is None:
+            allowed = row["created_by_kind"] == "owner"
+        else:
+            allowed = row["company_id"] == company_id or bool(
+                await F.order_grant(tx, run_id, [file_id])
+            )
+    if row is None or not allowed:
+        raise ApiError(422, "validation_failed", fields={"font_file_id": "not a font of this work"},
+                       message_fa=FONT_UNKNOWN_FA)  # fmt: skip
+    if mimes is not None and row["mime"] not in mimes:
+        raise ApiError(422, "validation_failed", fields={"font_file_id": "WOFF2 is not drawn"},
+                       message_fa=FONT_WOFF2_FA)  # fmt: skip
+    return dict(row)
 
 
 async def _brand(hub: Any, company_id: UUID) -> tuple[dict[str, str], dict[str, Any] | None]:
@@ -222,6 +344,22 @@ async def _brand(hub: Any, company_id: UUID) -> tuple[dict[str, str], dict[str, 
     if c.get("accent"):
         colours["accent"] = c["accent"]
     return colours, c.get("mark")
+
+
+async def _title_font(hub: Any, file_id: Any) -> dict[str, Any] | None:
+    """⟨1.18⟩ the owner's font a creative's overlay names (checked when the creative was asked
+    for); None when none is named, or it is gone or no longer drawable (IRANYekanX then)."""
+    if not file_id:
+        return None
+    try:
+        fid = UUID(str(file_id))
+    except ValueError:
+        return None
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        row = await tx.first(
+            F.FILE_SQL + " WHERE f.id = :id AND f.variant = 'original' AND f.kind = 'font'", id=fid
+        )
+    return dict(row) if row is not None and row["mime"] in OVERLAY_FONTS else None
 
 
 async def store_result(
@@ -256,9 +394,15 @@ async def store_result(
         agent_bytes = await asyncio.to_thread(img.agent.read_bytes)
         colours, mark = await _brand(hub, company_id)
         overlay = dict(creative["overlay"] or {})
+        font = await _title_font(hub, overlay.get("font_file_id"))
+        meta = F.render(font).meta if font else None
+        family = meta.family if meta else None
         png = await render_png(
-            hub, svg(creative["placement"], overlay, ("image/jpeg", agent_bytes), colours, mark)
-        )
+            hub,
+            svg(creative["placement"], overlay, ("image/jpeg", agent_bytes), colours, mark,
+                title_family=family),
+            font,
+        )  # fmt: skip
         ckey, csha, csize = await hub.storage.commit(png)
         img.thumb.unlink(missing_ok=True)
         img.agent.unlink(missing_ok=True)

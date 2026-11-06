@@ -415,9 +415,15 @@ async def messages(
     )
     head.append("## Now\n" + json.dumps(pack, ensure_ascii=False, default=str))
     out: list[dict[str, Any]] = [{"role": "user", "content": "\n\n".join(head)}]
-    for t in await store.last_turns(tx, conv["id"], LAST_TURNS, before_n=before_n):
+    # ⟨1.18⟩ §36.2 the owner's files: named in their turns, and the files of the turn being
+    # answered seen as they are (an image as an image, a document's first pages as text, …)
+    from hq_api.talk import files as TF
+
+    earlier = await store.last_turns(tx, conv["id"], LAST_TURNS, before_n=before_n)
+    sent = await TF.notes(tx, earlier)
+    for t in earlier:
         if t["by_kind"] == "owner":
-            _push(out, "user", t["text"])
+            _push(out, "user", t["text"] + sent.get(t["id"], ""))
         elif t["show_md"]:
             who = _speaker(t, titles)
             _push(
@@ -425,7 +431,11 @@ async def messages(
                 "assistant",
                 f"[{who}] {t['show_md']}" if t["persona"] != p.key else t["show_md"],
             )
-    _push(out, "user", owner_text or "(the owner asked for this without words)")
+    seen = await TF.for_turn(tx, hub, conv["id"], before_n)
+    if not owner_text and seen.text:
+        owner_text = "(the owner sent these files without words)"
+    _push(out, "user", (owner_text or "(the owner asked for this without words)") + seen.text)
+    out[-1]["content"] = TF.with_images(out[-1]["content"], seen)
     return out
 
 

@@ -258,6 +258,9 @@ class Overlay(Model):
     body_fa: str | None = Field(default=None, max_length=200)
     cta_fa: str | None = Field(default=None, max_length=60)
     mark: bool = True
+    # ⟨1.18⟩ §36.3 the title in the owner's font (a font of the work's order or company; for the
+    # owner any of the owner's fonts); IRANYekanX otherwise and for every glyph it lacks
+    font_file_id: UUID | None = None
 
 
 Placement = Literal[

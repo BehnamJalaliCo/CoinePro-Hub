@@ -39,6 +39,24 @@ FONT_FACES = "\n".join(
     f"font-display: block; src: url('{path}') format('woff2'); }}"
     for path, (_, w) in FONT_FILES.items()
 )
+FONT_FORMATS = {"font/ttf": "truetype", "font/otf": "opentype", "font/woff": "woff",
+                "font/woff2": "woff2"}  # fmt: skip
+
+
+def item_font_faces(fonts: list[tuple[str, str, str]]) -> str:
+    """⟨1.18⟩ §36.3 the item's own fonts ((file id, family, mime); the family already checked:
+    no quote, comma, semicolon, bracket or backslash), served from the job's assets."""
+    return "\n".join(
+        f"@font-face {{ font-family: '{family}'; font-style: normal; font-display: block; "
+        f"src: url('/assets/{fid}') format('{FONT_FORMATS[mime]}'); }}"
+        for fid, family, mime in fonts
+        if ASSET.match(f"/assets/{fid}") and mime in FONT_FORMATS
+    )
+
+
+# Waits until each of the item's own fonts is loaded (the page keeps IRANYekanX's own wait).
+ITEM_FONTS_READY_JS = """(families) => Promise.all(families.map((f) =>
+  document.fonts.load(`48px "${f}"`, 'آزمون Test 123'))).then(() => true)"""
 
 
 @dataclass(frozen=True)

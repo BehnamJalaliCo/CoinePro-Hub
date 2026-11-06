@@ -71,6 +71,21 @@ def test_network_scripts_tags_and_fonts_are_refused_by_rule(snippet: str, rule: 
     assert rule in {p["rule"] for p in rep.problems}, rep.problems
 
 
+def test_the_items_own_font_may_be_named_beside_iranyekanx() -> None:
+    """⟨1.18⟩ §36.3 the family of the item's style font, never @font-face, never another."""
+    doc = GOOD.replace(
+        "font: 700 64px/1.3 IRANYekanX", "font: 700 64px/1.3 'Pro Chart', IRANYekanX"
+    )
+    assert [p["rule"] for p in C.check("html", doc, {ASSET}).problems] == ["font"]
+    rep = C.check("html", doc, {ASSET}, fonts=("Pro Chart",))
+    assert rep.ok, rep.problems
+    assert rep.fonts == ["IRANYekanX", "Pro Chart"]
+    other = doc.replace("'Pro Chart'", "'Comic Sans MS'")
+    assert not C.check("html", other, {ASSET}, fonts=("Pro Chart",)).ok
+    face = doc.replace("</style>", "@font-face { font-family: X; src: url('/assets/x'); }</style>")
+    assert not C.check("html", face, {ASSET}, fonts=("Pro Chart",)).ok
+
+
 def test_rtl_and_persian_are_required() -> None:
     rep = C.check("html", GOOD.replace(' dir="rtl"', ""), {ASSET})
     assert {p["rule"] for p in rep.problems} == {"rtl"}

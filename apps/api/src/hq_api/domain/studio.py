@@ -1020,6 +1020,15 @@ async def write_step(tx: Tx, hub: Any, who: Principal, body: dict[str, Any]) -> 
     _require_role(who, roles_for(item["kind"], fmt, step), step)
     actor = {"kind": "agent", "code": who.code}
     hint = None
+    if body.get("style"):
+        # ⟨1.18⟩ §36.3 the item's font (checked by the route: a font of the run's order or of
+        # the company), declared by the render page beside IRANYekanX
+        await tx.exec(
+            "UPDATE media.items SET style = CAST(:s AS jsonb) WHERE id = :id",
+            id=item["id"],
+            s=canonical(body["style"]),
+        )
+        item["style"] = body["style"]
     if step == "script":
         sc = body.get("script") or {}
         if not str(sc.get("text_fa") or "").strip():
@@ -1113,8 +1122,14 @@ async def write_step(tx: Tx, hub: Any, who: Principal, body: dict[str, Any]) -> 
     }
 
 
+def item_fonts(item: dict[str, Any]) -> tuple[str, ...]:
+    """⟨1.18⟩ the families an item may name beside IRANYekanX: its style's font."""
+    family = (item.get("style") or {}).get("family")
+    return (str(family),) if family else ()
+
+
 async def check_composition(tx: Tx, item: dict[str, Any], fmt: str, source: str) -> C.Report:
-    rep = C.check(fmt, source, None)
+    rep = C.check(fmt, source, None, fonts=item_fonts(item))
     if rep.assets:
         own = {
             str(r["id"])
@@ -1271,6 +1286,15 @@ async def render_spec(tx: Tx, item: dict[str, Any]) -> dict[str, Any]:
         ids=list(item.get("assets") or []),
         co=item["company_id"],
     )
+    # ⟨1.18⟩ §36.3 the item's font (checked and described when its style was written: the
+    # order's font is a holding row this company's transaction does not read), one of its assets
+    style = item.get("style") or {}
+    own_font = (
+        {"id": str(style["font_file_id"]), "name": str(style.get("name") or "font"),
+         "mime": str(style["mime"]), "sha256": str(style["sha256"]), "size": int(style["size"])}
+        if style.get("font_file_id") and style.get("family") and style.get("sha256")
+        else None
+    )  # fmt: skip
     voice = None
     if item.get("voice_file_id"):
         v = await tx.first(
@@ -1305,8 +1329,12 @@ async def render_spec(tx: Tx, item: dict[str, Any]) -> dict[str, Any]:
                 "size": int(f["size"]),
             }
             for f in files
-        ],
+        ]
+        + ([own_font] if own_font else []),
         "voice": voice,
+        "fonts": [{"id": own_font["id"], "family": style["family"], "mime": own_font["mime"]}]
+        if own_font
+        else [],
         "music": None,
         "captions": captions(shots, voice["duration_s"] if voice else None)
         if (video and fmt.get("captions", True))

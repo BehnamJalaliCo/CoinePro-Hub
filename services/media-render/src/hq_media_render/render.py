@@ -216,6 +216,10 @@ class Session:
         if not overlay:
             if self.job.fmt == "html":
                 await page.add_style_tag(content=H.FONT_FACES)
+            if self.job.fonts:  # ⟨1.18⟩ §36.3 the item's own fonts beside IRANYekanX
+                own = [(f.id, f.family, f.mime) for f in self.job.fonts]
+                await page.add_style_tag(content=H.item_font_faces(own))
+                await page.evaluate(H.ITEM_FONTS_READY_JS, [f.family for f in self.job.fonts])
             await page.evaluate(H.FONTS_READY_JS)
             if self.job.fmt == "lottie":
                 await page.evaluate(H.LOTTIE_START_JS, json.loads(self.job.source))

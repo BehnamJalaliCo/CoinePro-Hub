@@ -267,7 +267,7 @@ class MediaActivities:
             # A PDF whose text the api never finished (it restarted between the
             # two transactions, prompt 07.1 §1.2): the same child, here.
             async with self._beating():
-                status = await F.extract_text(self._tx, f["id"], src, count=False)
+                status = await F.extract_text(self._tx, f["id"], src, count=False, mime=f["mime"])
             return {"file": file_id, "text": status}
         root = Path(self.hub.settings.files_root)
         out: dict[str, Any] = {"file": file_id, "frames": 0}

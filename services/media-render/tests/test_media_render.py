@@ -153,6 +153,36 @@ def test_the_composition_is_checked_again_before_anything_is_drawn() -> None:
     assert S.refusal(changed) == "sha256_mismatch"
 
 
+FONT = "5a6b7c8d-1e2f-4a3b-9c4d-5e6f7a8b9c0d"
+
+
+def test_the_items_own_font_is_one_of_its_assets_and_the_page_declares_it() -> None:
+    """⟨1.18⟩ §36.3 an item's style font: the composition may name its family, the job carries
+    it as an asset, and the render page declares it beside IRANYekanX."""
+    font = b"\x00\x01\x00\x00 fake"
+    src = HTML.replace("font-family: IRANYekanX", "font-family: 'Pro Chart', IRANYekanX")
+    with_font = job(
+        composition={"format": "html", "sha256": composition.sha256(src), "source": src},
+        assets=[*job()["assets"], {"id": FONT, "name": "brand.ttf", "mime": "font/ttf",
+                                   "sha256": hashlib.sha256(font).hexdigest(), "size": len(font)}],
+        fonts=[{"id": FONT, "family": "Pro Chart", "mime": "font/ttf"}],
+    )  # fmt: skip
+    j = S.parse(with_font)
+    assert j.fonts == (S.Font(FONT, "Pro Chart", "font/ttf"),) and S.refusal(j) is None
+    # without the font the same composition is refused: IRANYekanX is the only other font
+    assert S.refusal(S.parse({**with_font, "fonts": []})) == "composition_refused: font"
+    faces = H.item_font_faces([(f.id, f.family, f.mime) for f in j.fonts])
+    assert f"src: url('/assets/{FONT}') format('truetype')" in faces
+    assert "font-family: 'Pro Chart'" in faces
+    for bad in (
+        [{"id": FONT, "family": "x'); } body { background: url(https://e.x", "mime": "font/ttf"}],
+        [{"id": "0b4a5c6d-0000-4000-8000-000000000000", "family": "A", "mime": "font/ttf"}],
+        [{"id": FONT, "family": "A", "mime": "image/png"}],
+    ):
+        with pytest.raises(S.SpecError):
+            S.parse({**with_font, "fonts": bad})
+
+
 # ------------------------------------------------------------- harness --
 def test_the_harness_serves_only_its_own_files_and_aborts_the_rest(tmp_path: Path) -> None:
     assets = {ASSET: (str(tmp_path / ASSET), "image/png")}

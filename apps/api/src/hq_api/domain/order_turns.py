@@ -29,6 +29,7 @@ from uuid import UUID
 
 from hq_api import events
 from hq_api.db import Tx
+from hq_api.domain import files as F
 from hq_api.domain import humanize as HZ
 from hq_api.domain import notify
 from hq_api.domain import order_report as OR
@@ -450,7 +451,62 @@ async def talk_brief(tx: Tx, order_ref: str) -> dict[str, Any] | None:
         "steps": [f"{s.get('who_fa')}: {s.get('what_fa')}" for s in steps[-DIALOGUE_STEPS:]],
         "blockers": [b.get("title_fa") for b in OR._j(rep["blockers"]) or []],
         "outputs": [o.get("title_fa") for o in OR._j(rep["outputs"]) or []],
+        # ⟨1.18⟩ §36.3 the owner's files of this order, newest first: read one with files.read
+        # {"file_id": id}; a font is used by naming it (overlay.font_file_id, a media item's style)
+        "files": [_file_line(f) for f in await F.of_order(tx, rep["order_id"])],
     }
+
+
+def _file_line(f: dict[str, Any]) -> dict[str, Any]:
+    ref = F.render(f)
+    out: dict[str, Any] = {"id": str(ref.id), "name": ref.name, "kind": ref.kind}
+    if ref.meta is not None and ref.meta.family:
+        out["family"] = ref.meta.family
+    return out
+
+
+# ---------------------------------------------------------------- the files --
+FILE_STEP_FA = "فایل از مدیر کل: "
+SYSTEM_FA = "سامانه"
+
+
+def _name(name: str) -> str:
+    return " ".join("".join(ch for ch in name if ch.isprintable()).split())[:120] or "فایل"
+
+
+async def add_files(
+    tx: Tx, ref: str, files: list[dict[str, Any]], turn_id: UUID | None
+) -> list[UUID]:
+    """⟨1.18⟩ §36.3 the owner's files of a session's turn go with its order: each one a file of
+    the order (once) and a step «فایل از مدیر کل: <name>» (the owner's own name for it, never
+    rewritten). The ids added."""
+    rep = await OR.ensure(tx, ref)
+    if rep is None or not files:
+        return []
+    holding = await OR._holding(tx)
+    added: list[UUID] = []
+    steps: list[dict[str, Any]] = []
+    for f in files:
+        new = await tx.scalar(
+            """INSERT INTO owner.order_files (company_id, order_id, file_id, turn_id, added_at)
+               VALUES (:co, :o, :f, :t, clock_timestamp())
+               ON CONFLICT (order_id, file_id) DO NOTHING RETURNING id""",
+            co=holding["id"],
+            o=rep["order_id"],
+            f=f["id"],
+            t=turn_id,
+        )
+        if new is not None:
+            added.append(f["id"])
+            steps.append(
+                {
+                    "at": datetime.now(UTC).isoformat(),
+                    "who_fa": SYSTEM_FA,
+                    "what_fa": FILE_STEP_FA + _name(str(f["name"])),
+                }
+            )
+    await OR._append_steps(tx, rep["id"], steps)
+    return added
 
 
 async def dialogue(tx: Tx, work_id: UUID) -> dict[str, Any] | None:

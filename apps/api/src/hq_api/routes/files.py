@@ -128,6 +128,8 @@ class Prepared:
 
     info: dict[str, Any] = field(default_factory=dict)
     image: media.Image | None = None
+    # ⟨1.18⟩ §36.1 a font's {family, style}, read in the child
+    meta: dict[str, Any] = field(default_factory=dict)
 
     def discard(self) -> None:
         if self.image is not None:
@@ -160,6 +162,14 @@ async def prepare_upload(ctx: Ctx, up: Upload) -> Prepared:
                 415, "validation_failed", fields={"body": f"not a readable image ({exc})"[:120]}
             ) from exc
         return Prepared(image=img)
+    if up.kind.kind == "font":
+        try:
+            meta = await media.font_meta(up.path)
+        except media.FontRefused as exc:
+            raise ApiError(
+                415, "validation_failed", fields={"body": f"not a readable font ({exc})"[:120]}
+            ) from exc
+        return Prepared(meta=meta)
     return Prepared()
 
 
@@ -224,6 +234,7 @@ async def store_upload(
         width=info.get("width"),
         height=info.get("height"),
         duration_s=info.get("duration_s"),
+        meta=prep.meta or None,
     )
     follow: str | None = None
     if up.kind.kind in ("video", "audio"):
@@ -235,7 +246,8 @@ async def store_upload(
             stt=json.dumps({"purpose": purpose} if purpose else {}),
         )
         follow = "workflow"
-    elif up.mime == "application/pdf":  # its text for files.read (prompt 07 §3), after the commit
+    elif up.mime == "application/pdf" or up.mime in media.TEXT_TYPES:
+        # its text for files.read (prompt 07 §3; ⟨1.18⟩ a text or Markdown file's), after the commit
         await F.document_pending(tx, fid, holding.id)
         follow = "text"
     await _audit(ctx, tx, holding.id, fid, up)
@@ -260,8 +272,11 @@ async def upload_owner_file(request: Request, ctx: Ctx = Depends(owner_ctx)) -> 
     UTF-8 name, percent-encoded; `Idempotency-Key` as every POST. Images
     (jpeg, png, webp, heic ≤ 20 MB), video (mp4, webm, quicktime ≤ 200 MB,
     ≤ 10 min), audio (m4a/aac, ogg/opus, webm, wav, mpeg ≤ 25 MB, ≤ 15 min),
-    pdf (≤ 30 MB). The type is checked by content, the size while streaming.
-    `201 FileRef` (`status: processing` for video and audio)."""
+    pdf (≤ 30 MB); ⟨1.18⟩ fonts (TrueType, OpenType, WOFF, WOFF2 ≤ 20 MB: `kind: font`,
+    `meta.family` read in a child process), plain text, Markdown and ZIP (≤ 50 MB: `kind:
+    document`; a ZIP is stored, never unpacked). A font or a ZIP sent as
+    `application/octet-stream` is taken by its first bytes. The type is checked by content,
+    the size while streaming. `201 FileRef` (`status: processing` for video and audio)."""
     name = file_name(request.headers.get("x-file-name"))
     up = await Upload.receive(request, ctx.hub.storage.scratch())
     prep = Prepared()
@@ -288,7 +303,9 @@ async def upload_owner_file(request: Request, ctx: Ctx = Depends(owner_ctx)) -> 
 
 
 async def _document_text(ctx: Ctx, row: dict[str, Any], idem: Any) -> FileRef:
-    await F.extract_text(ctx.tx, row["id"], ctx.hub.storage.local_path(row["storage_key"]))
+    await F.extract_text(
+        ctx.tx, row["id"], ctx.hub.storage.local_path(row["storage_key"]), mime=row["mime"]
+    )
     async with ctx.tx() as tx:
         ref = F.render(await F.load(tx, row["id"]))
         if idem:

@@ -1276,6 +1276,9 @@ class Runner:
                 line = f"video {ref.duration_s or 0:.0f} s (file:{ref.id}; {len(pics)} key frames shown below)"
             elif ref.kind == "audio":
                 line, pics = f"audio {ref.duration_s or 0:.0f} s (file:{ref.id})", []
+            elif ref.kind == "font":  # ⟨1.18⟩ §36.1 its family, read at upload
+                family = ref.meta.family if ref.meta else None
+                line, pics = f"font «{family or '?'}» {ref.mime} (file:{ref.id})", []
             else:
                 line, pics = f"document {ref.mime} (file:{ref.id})", []
             if ref.status == "processing":
@@ -1291,14 +1294,20 @@ class Runner:
         room = MAX_IMAGES - rc.images
         if not ids or room <= 0:
             return text
+        sql = """SELECT id, mime, storage_key FROM files.files
+                 WHERE id = ANY(:ids) AND kind = 'image'
+                   AND variant IN ('agent', 'frame', 'poster', 'thumb')"""
         async with self.hub.db.tx(await self.read_scope(rc)) as tx:
-            rows = await tx.all(
-                """SELECT id, mime, storage_key FROM files.files
-                   WHERE id = ANY(:ids) AND kind = 'image'
-                     AND variant IN ('agent', 'frame', 'poster', 'thumb')""",
-                ids=ids,
-            )
+            rows = list(await tx.all(sql, ids=ids))
         by_id = {r["id"]: r for r in rows}
+        rest = [i for i in ids if i not in by_id]
+        if rest:
+            # ⟨1.18⟩ §36.3 the pictures of a file the owner gave the run's order (the holding's)
+            async with await self._tx() as all_tx:
+                granted = await F.order_grant(all_tx, str(rc.run["id"]), rest)
+                if granted:
+                    for r in await all_tx.all(sql, ids=list(granted)):
+                        by_id[r["id"]] = r
         blocks: list[dict[str, Any]] = [{"type": "text", "text": text}]
         for fid in ids:
             r = by_id.get(fid)

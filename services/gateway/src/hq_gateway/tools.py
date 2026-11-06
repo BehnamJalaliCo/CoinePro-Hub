@@ -500,6 +500,7 @@ FILE_FIELDS = (
     "duration_s",
     "transcript",
     "text",
+    "meta",  # ⟨1.18⟩ §36.1 a font's family and style
 )
 MAX_VIEW_IMAGES = 13  # a video's poster and its (up to 12) key frames
 

@@ -52,6 +52,7 @@ from hq_api.security import agent_tokens
 from hq_api.talk import answer as A
 from hq_api.talk import context as C
 from hq_api.talk import data, personas, scrub, store
+from hq_api.talk import files as TF
 from hq_api.talk.intents import read as read_intents
 from hq_api.talk.personas import Persona
 from hq_api.voice import speaker
@@ -258,9 +259,7 @@ class TurnRun:
         while True:
             step += 1
             left = TOKENS_PER_TURN - sum(self.tokens.values())
-            room = min(
-                STEP_OUTPUT, left - (len(system) + sum(len(m["content"]) for m in messages)) // 4
-            )
+            room = min(STEP_OUTPUT, left - (len(system) + sum(TF.size(m) for m in messages)) // 4)
             last = step > TOOL_STEPS or room < MIN_OUTPUT * 2
             if room < MIN_OUTPUT:
                 return await self._finish(

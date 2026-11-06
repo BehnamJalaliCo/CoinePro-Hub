@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from hq_api.db import Tx
 from hq_api.errors import ApiError
+from hq_api.schemas import FileRef
 
 Mode = Literal["consult", "work"]
 Source = Literal["typed", "hold", "handsfree"]
@@ -135,6 +136,8 @@ class TalkTurn(BaseModel):
     state: TurnState
     reason_fa: str | None
     at: datetime
+    # ⟨1.18⟩ §36.2 the owner's files with this turn (the owner's turn only; else [])
+    files: list[FileRef] = Field(default_factory=list)
 
 
 class TalkTurnPage(BaseModel):
@@ -181,9 +184,15 @@ def render_card(r: dict[str, Any]) -> TalkCard:
     )
 
 
-def render_turn(r: dict[str, Any], ref: str, cards: list[dict[str, Any]]) -> TalkTurn:
+def render_turn(
+    r: dict[str, Any],
+    ref: str,
+    cards: list[dict[str, Any]],
+    files: dict[UUID, FileRef] | None = None,
+) -> TalkTurn:
     tokens = _j(r["tokens"]) or {}
     voice = _j(r["voice"])
+    shown = [files[f] for f in r.get("files") or [] if files and f in files]
     return TalkTurn(
         id=r["id"],
         conversation=ref,
@@ -200,7 +209,15 @@ def render_turn(r: dict[str, Any], ref: str, cards: list[dict[str, Any]]) -> Tal
         state=r["state"],
         reason_fa=r["reason_fa"],
         at=r["at"],
+        files=shown,
     )
+
+
+async def turn_files(tx: Tx, rows: list[dict[str, Any]]) -> dict[UUID, FileRef]:
+    """⟨1.18⟩ §36.2 the FileRefs of the turns' files (one read for a page of turns)."""
+    from hq_api.domain import files as F
+
+    return await F.refs(tx, list(dict.fromkeys(f for r in rows for f in r.get("files") or [])))
 
 
 async def render_conversation(tx: Tx, r: dict[str, Any]) -> TalkConversation:
@@ -272,7 +289,7 @@ async def cards_of(tx: Tx, turn_ids: list[UUID]) -> dict[UUID, list[dict[str, An
 async def turn_out(tx: Tx, turn_id: UUID | str) -> TalkTurn:
     t = await turn(tx, turn_id)
     cards = await cards_of(tx, [t["id"]])
-    return render_turn(t, t["conversation_ref"], cards[t["id"]])
+    return render_turn(t, t["conversation_ref"], cards[t["id"]], await turn_files(tx, [t]))
 
 
 async def last_turns(

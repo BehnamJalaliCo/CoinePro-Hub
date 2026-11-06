@@ -197,6 +197,18 @@ class Cost(BaseModel):
     usd: Decimal
 
 
+class ItemStyle(Model):
+    """⟨1.18⟩ §36.3 an item's style: a font of its order (or its company) beside IRANYekanX;
+    the render page declares it and the composition may name its family."""
+
+    font_file_id: UUID | None = None
+
+
+class ItemStyleOut(BaseModel):
+    font_file_id: UUID | None = None
+    family: str | None = None
+
+
 class MediaItem(BaseModel):
     id: UUID
     ref: str
@@ -227,6 +239,8 @@ class MediaItem(BaseModel):
     state_note_fa: str | None = None
     pages: list[FileRef] = Field(default_factory=list)
     publish_at: datetime | None = None
+    # ⟨1.18⟩ §36.3 the item's font beside IRANYekanX (its family as the composition names it)
+    style: ItemStyleOut | None = None
 
 
 class PlatformLimit(BaseModel):
@@ -248,6 +262,9 @@ class StepIn(Model):
     direction: dict[str, Any] | None = None
     composition: dict[str, Any] | None = None
     brief_md: str | None = Field(default=None, max_length=20000)
+    # ⟨1.18⟩ §36.3 with any step: the item's font (a font of the order the run works on, or of
+    # the item's company); the composition then may name its family beside IRANYekanX
+    style: ItemStyle | None = None
 
 
 class RefIn(Model):
@@ -281,6 +298,9 @@ class RenderJob(BaseModel):
     voice: dict[str, Any] | None
     music: None = None
     captions: list[dict[str, Any]]
+    # ⟨1.18⟩ §36.3 the item's own fonts ({id, family, mime}; each one of `assets`), declared by
+    # the render page beside IRANYekanX
+    fonts: list[dict[str, Any]] = Field(default_factory=list)
     overlay: dict[str, Any]
     brand: dict[str, Any]
     safe_zone: dict[str, float]
@@ -386,6 +406,7 @@ async def _item(tx: Any, r: dict[str, Any]) -> MediaItem:
         state_note_fa=r.get("state_note_fa"),
         pages=[refs[i] for i in page_ids if i in refs],
         publish_at=r.get("publish_at"),
+        style=ItemStyleOut(**r["style"]) if r.get("style") else None,
     )
 
 
@@ -709,10 +730,26 @@ async def tool_item(body: StepIn, ctx: Ctx = Depends(internal_ctx)) -> ToolOut:
     names the rule)."""
     co_id = _agent(ctx)
     await allow(ctx, "media.item", {"company": ctx.who.company, "charter": ctx.who.charter})
+    step = body.model_dump(mode="json", exclude_none=True)
+    if body.style is not None and body.style.font_file_id is not None:
+        # ⟨1.18⟩ §36.3 a font of the order this run works on, or of the item's company (the
+        # order's files are the holding's rows: read across companies, this file only)
+        from hq_api.domain import creative_overlay as CO
+
+        async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
+            font = await CO.font_for(tx, body.style.font_file_id, run_id=ctx.who.run_id,
+                                     company_id=co_id, mimes=None)  # fmt: skip
+        meta = F.render(font).meta
+        step["style"] = {
+            "font_file_id": str(font["id"]),
+            "family": meta.family if meta else None,
+            "name": font["name"],
+            "mime": font["mime"],
+            "sha256": font["sha256"],
+            "size": int(font["size"]),
+        }
     async with ctx.tx() as tx:
-        out = await S.write_step(
-            tx, ctx.hub, ctx.who, body.model_dump(mode="json", exclude_none=True)
-        )
+        out = await S.write_step(tx, ctx.hub, ctx.who, step)
         await _audit(ctx, tx, co_id, "media.item", "A1", "media_item", body.ref, body.step)
     return ToolOut(
         ref=out["ref"],

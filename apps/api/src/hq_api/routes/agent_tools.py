@@ -1175,8 +1175,18 @@ async def tool_file_meta(id: UUID, ctx: Ctx = Depends(internal_ctx)) -> AgentFil
             + f" WHERE f.id = :id AND f.variant = 'original' AND NOT {F.UNATTACHED_UPLOAD}",
             id=id,
         )
-        if row is None:
-            raise ApiError(403, "policy_denied", "file.read_not_permitted")
+    scope = None
+    if row is None:
+        # ⟨1.18⟩ §36.3 a file the owner gave the order this run works on: read whatever the run's
+        # company (the order's files are the holding's rows); nothing else is granted
+        scope = await ctx.hub.companies.ids()
+        async with ctx.hub.db.tx(scope) as tx:
+            if id in await F.order_grant(tx, ctx.who.run_id, [id]):
+                row = await tx.first(F.FILE_SQL + " WHERE f.id = :id AND f.variant = 'original'",
+                                     id=id)  # fmt: skip
+    if row is None:
+        raise ApiError(403, "policy_denied", "file.read_not_permitted")
+    async with ctx.hub.db.tx(scope) if scope is not None else ctx.tx() as tx:
         frames = await tx.all(
             """SELECT id, frame_at_s FROM files.files WHERE parent_id = :id AND variant = 'frame'
                ORDER BY frame_at_s NULLS LAST, created_at""",

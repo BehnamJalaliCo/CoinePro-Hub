@@ -52,6 +52,14 @@ class CompositionIn(T.In):
     source: str = Field(min_length=1, max_length=1_500_000)
 
 
+class StyleIn(T.In):
+    """⟨1.18⟩ §36.3 the item's font: a font of the order (its id from the brief's order.files)."""
+
+    font_file_id: str | None = Field(
+        default=None, pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    )
+
+
 class MediaItemIn(T.In):
     ref: str = Field(pattern=REF)
     step: Literal["script", "direction", "composition", "brief"]
@@ -59,6 +67,7 @@ class MediaItemIn(T.In):
     direction: DirectionIn | None = None
     composition: CompositionIn | None = None
     brief_md: str | None = Field(default=None, max_length=20000)
+    style: StyleIn | None = None
 
 
 class MediaRefIn(T.In):

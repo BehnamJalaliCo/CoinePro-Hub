@@ -49,7 +49,7 @@ from hq_api.domain import split as SP
 from hq_api.domain import work as W
 from hq_api.domain import workspace as WS
 from hq_api.principal import Principal
-from hq_api.schemas import Actor, actor
+from hq_api.schemas import Actor, FileRef, actor
 
 STATES = (
     "received", "planned", "in_progress", "waiting", "blocked", "delivered", "failed", "cancelled",
@@ -209,6 +209,8 @@ class OrderReport(BaseModel):
     brief: SS.Brief | None = None
     tasks: list[SS.SessionTask] = Field(default_factory=list)
     participants: list[SS.Participant] = Field(default_factory=list)
+    # ⟨1.18⟩ §36.3 the owner's files of the session (every file of the owner's turns), newest first
+    files: list[FileRef] = Field(default_factory=list)
 
 
 # ----------------------------------------------------------------- reading --
@@ -890,15 +892,18 @@ async def report(tx: Tx, ref: str) -> OrderReport | None:
     assert order is not None
     works = await tree(tx, root_refs(order))
     ids = [w["id"] for w in works]
+    from hq_api.domain import files as F
     from hq_api.domain import sessions as SE
 
-    return render(
+    out = render(
         rep,
         order,
         parts=await SP.views(tx, ids) if ids else [],
         workspaces=await WS.progress(tx, ids) if ids else [],
         session=await SE.view(tx, rep, order, works=works),
     )
+    out.files = [F.render(f) for f in await F.of_order(tx, rep["order_id"])]  # ⟨1.18⟩ §36.3
+    return out
 
 
 def render(

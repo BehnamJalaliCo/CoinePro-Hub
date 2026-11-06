@@ -72,6 +72,23 @@ class FileRef:
 
 
 @dataclass(frozen=True)
+class Font:
+    """⟨1.18⟩ the item's own font (the owner's, of its order): one of the job's assets, declared
+    by the render page under its family beside IRANYekanX."""
+
+    id: str
+    family: str
+    mime: str
+
+
+FONT_MIMES = {"font/ttf": "truetype", "font/otf": "opentype", "font/woff": "woff",
+              "font/woff2": "woff2"}  # fmt: skip
+# A family as the hub keeps it (media.clean_family): no quote, comma, semicolon, bracket or
+# backslash, so it can stand inside a CSS string.
+FAMILY = re.compile(r"^[^\x00-\x1f\"'`,;<>&\\{}()]{1,100}$")
+
+
+@dataclass(frozen=True)
 class Caption:
     start_s: float
     end_s: float
@@ -122,6 +139,8 @@ class Job:
     brand: Brand
     safe: SafeZone
     timeout_s: int
+    # ⟨1.18⟩ §36.3 the item's own fonts (each one of `assets`)
+    fonts: tuple[Font, ...] = ()
     raw: dict[str, Any] = field(default_factory=dict, compare=False, repr=False)
 
     @property
@@ -157,7 +176,7 @@ def refusal(job: Job) -> str | None:
     pass (or was changed on the way) is never drawn; the reason names the rules."""
     if composition.sha256(job.source) != job.sha256:
         return "sha256_mismatch"
-    rep = composition.check(job.fmt, job.source, None)
+    rep = composition.check(job.fmt, job.source, None, fonts=tuple(f.family for f in job.fonts))
     if not rep.ok:
         return "composition_refused: " + ",".join(sorted({p["rule"] for p in rep.problems}))
     return None
@@ -268,6 +287,19 @@ def parse(data: Any) -> Job:
         if not isinstance(text, str) or not text.strip() or len(text) > 300:
             raise SpecError("bad caption.text_fa")
         captions.append(Caption(start, end, text.strip()))
+    files = tuple(_file(a, "asset") for a in assets)
+    fonts: list[Font] = []
+    for f in data.get("fonts") or []:
+        if not isinstance(f, dict) or len(fonts) >= 4:
+            raise SpecError("bad font")
+        font = Font(
+            id=_str(f.get("id"), "font.id", UUID),
+            family=_str(f.get("family"), "font.family", FAMILY, 100),
+            mime=_str(f.get("mime"), "font.mime"),
+        )
+        if font.mime not in FONT_MIMES or all(a.id != font.id for a in files):
+            raise SpecError("a font that is not one of the job's assets")
+        fonts.append(font)
     overlay = data.get("overlay") or {}
     if not isinstance(overlay, dict):
         raise SpecError("bad overlay")
@@ -320,9 +352,10 @@ def parse(data: Any) -> Job:
         outputs=outs,
         duration_s=duration,
         fps=_int(data.get("fps", 30), 1, MAX_FPS, "fps"),
-        assets=tuple(_file(a, "asset") for a in assets),
+        assets=files,
         voice=_file(voice, "voice") if voice else None,
         captions=tuple(sorted(captions, key=lambda c: c.start_s)),
+        fonts=tuple(fonts),
         mark=overlay.get("mark") is True and bool(layers),
         cta_fa=cta.strip() if isinstance(cta, str) and cta.strip() else None,
         brand=Brand(ink=ink, accent=accent, palette=palette, mark_vb=mark_vb, mark=tuple(layers)),

@@ -71,6 +71,10 @@ class Overlay(T.In):
     body_fa: str | None = Field(default=None, max_length=200)
     cta_fa: str | None = Field(default=None, max_length=60)
     mark: bool = True
+    # ⟨1.18⟩ §36.3 the title in a font of the order (its id from the brief's order.files)
+    font_file_id: str | None = Field(
+        default=None, pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    )
 
 
 class SubstituteCallIn(T.In):

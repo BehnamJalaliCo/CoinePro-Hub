@@ -26,6 +26,7 @@ from uuid import UUID
 from hq_api import workflows_client
 from hq_api.context import Ctx
 from hq_api.db import Tx
+from hq_api.domain import files as F
 from hq_api.domain import orders as O
 from hq_api.errors import ApiError
 from hq_api.talk import cards as K
@@ -103,8 +104,11 @@ async def add_turns(
     *,
     directive: str | None = None,
     to: str | None = None,
+    files: list[UUID] | None = None,
 ) -> tuple[list[UUID], UUID | None]:
-    """(the answer turns, in order; the owner's turn) in the caller's transaction."""
+    """(the answer turns, in order; the owner's turn) in the caller's transaction. ⟨1.18⟩ §36.2
+    `files`: the owner's own uploads, kept on the owner's turn; in a session each one becomes a
+    file of the order (§36.3)."""
     conv = await store.conversation(tx, ref, lock=True)
     if conv.get("closed_at") is not None:
         raise ApiError(409, "validation_failed", "the session is closed", message_fa=CLOSED_FA)
@@ -119,6 +123,7 @@ async def add_turns(
         if prev:  # the same turn sent again: its answers, not new ones
             return [r["answer"] for r in prev], prev[0]["owner"]
     holding = await ctx.hub.companies.holding()
+    sent = await F.owner_uploads(tx, files or [], holding.id) if directive is None else []
     clean_text, had_key = clean(text) if text else ("", False)
     owner_id: UUID | None = None
     n = int(conv["turns"])
@@ -156,15 +161,21 @@ async def add_turns(
         n += 1
         owner_id = await tx.scalar(
             """INSERT INTO talk.turns (conversation_id, company_id, n, by_kind, source, text, client_id,
-                   state, finished_at)
-               VALUES (:c, :co, :n, 'owner', :s, :t, :k, 'done', now()) RETURNING id""",
+                   state, finished_at, files)
+               VALUES (:c, :co, :n, 'owner', :s, :t, :k, 'done', now(), :f) RETURNING id""",
             c=conv["id"],
             co=holding.id,
             n=n,
             s=source,
             t=clean_text,
             k=client_id,
+            f=[r["id"] for r in sent],
         )
+        if sent and conv.get("order_ref"):
+            # ⟨1.18⟩ §36.3 in a session the owner's files go with the order
+            from hq_api.domain import order_turns as OT
+
+            await OT.add_files(tx, str(conv["order_ref"]), sent, owner_id)
         if intent.remember and not had_key:
             await store.remember(tx, holding.id, clean(intent.remember)[0], owner_id)
     who = (
@@ -209,6 +220,7 @@ async def add_turns(
         target_kind="conversation",
         target_ref=ref,
         summary=f"turn {n - len(answers)} to {', '.join(k for k, _ in who)}"
+        + (f" with {len(sent)} file(s)" if sent else "")
         + (" (a key was removed)" if had_key else ""),
     )
     return answers, owner_id

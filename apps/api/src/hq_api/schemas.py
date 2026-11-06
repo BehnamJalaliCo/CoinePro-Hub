@@ -85,15 +85,24 @@ class FileVariants(BaseModel):
     poster: UUID | None = None
 
 
+class FileMeta(BaseModel):
+    """⟨1.18⟩ contract §36.1: what the hub read of a file at upload (in the untrusted child): a
+    font's family and style names."""
+
+    family: str | None = None
+    style: str | None = None
+
+
 class FileRef(BaseModel):
-    """A stored file (contract §17.1, ⟨1.3⟩ adds kind … transcript)."""
+    """A stored file (contract §17.1, ⟨1.3⟩ adds kind … transcript; ⟨1.18⟩ §36.1 `font` and
+    `meta`)."""
 
     id: UUID
     name: str
     mime: str
     size: int
     sha256: str
-    kind: Literal["image", "video", "audio", "document"] = "document"
+    kind: Literal["image", "video", "audio", "document", "font"] = "document"
     status: Literal["processing", "ready", "failed"] = "ready"
     width: int | None = None
     height: int | None = None
@@ -103,6 +112,8 @@ class FileRef(BaseModel):
     # ⟨1.9⟩ contract §27.3: the hub's Persian transcript of a voice message,
     # voice note or audio attachment (the same text, by its contract name)
     transcript_fa: str | None = None
+    # ⟨1.18⟩ §36.1 a font's family (and style) name; null for every other kind
+    meta: FileMeta | None = None
 
     @model_validator(mode="after")
     def _transcript_fa(self) -> FileRef:

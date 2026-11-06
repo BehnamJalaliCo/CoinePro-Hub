@@ -9,7 +9,7 @@ voice layer's.
     POST  /talk/conversations                {persona, role?, company?, mode?, title_fa?} -> 201
     GET   /talk/conversations/{ref}          with its turns page (?cursor: after turn n)
     PATCH /talk/conversations/{ref}          {mode?, title_fa?}
-    POST  /talk/conversations/{ref}/turns    {text, source, client_id?} -> 202 {turn, events}
+    POST  /talk/conversations/{ref}/turns    {text, source, client_id?, to?, file_ids?} -> 202 {turn, events}
     POST  /talk/conversations/{ref}/invite   {role, company}
     POST  /talk/conversations/{ref}/minutes  -> 202 {turn, events}: one minutes card
     GET   /talk/turns/{id}/events            SSE: text, say, audio, card, invite, meter, tool, done, error
@@ -241,6 +241,7 @@ async def talk_get_conversation(
             )
             rows, nxt = pagination.page([dict(r) for r in rows], limit, ("n",))
         cards = await store.cards_of(tx, [r["id"] for r in rows])
+        files = await store.turn_files(tx, [dict(r) for r in rows])
         base = await store.render_conversation(tx, conv)
         present = []
         for key in conv["present"] or []:
@@ -251,7 +252,7 @@ async def talk_get_conversation(
         return store.TalkConversationDetail(
             **base.model_dump(),
             turns_page=store.TalkTurnPage(
-                items=[store.render_turn(dict(r), ref, cards[r["id"]]) for r in rows],
+                items=[store.render_turn(dict(r), ref, cards[r["id"]], files) for r in rows],
                 next_cursor=nxt,
             ),
             personas=present,
@@ -283,12 +284,22 @@ async def talk_patch_conversation(
 
 # ------------------------------------------------------------------ turns --
 class TalkTurnIn(Model):
-    text: str = Field(min_length=1, max_length=10000)
+    # ⟨1.18⟩ §36.2 may be empty when the turn carries files
+    text: str = Field(max_length=10000)
     source: store.Source = "typed"
     client_id: str | None = Field(default=None, min_length=1, max_length=100)
     # ⟨1.17⟩ §35.4 in a session: the participant who answers (a persona key), or "all" (each
     # present participant once, then the holder sums up); default: the holder
     to: str | None = Field(default=None, pattern=r"^(all|" + PERSONA_KEY[2:-2] + r")$")
+    # ⟨1.18⟩ §36.2 the owner's own uploads with these words (at most 10); in a session every
+    # one of them belongs to the order (§36.3)
+    file_ids: list[UUID] | None = Field(default=None, max_length=10)
+
+    @model_validator(mode="after")
+    def _words_or_files(self) -> TalkTurnIn:
+        if not self.text and not self.file_ids:
+            raise ValueError("text is empty and no file is sent")
+        return self
 
 
 @router.post(
@@ -312,15 +323,19 @@ async def talk_add_turn(
     answers the same turn. Never 5xx: without a brain, the plain line. ⟨1.17⟩ §35.4 in a
     session `to` names who answers (a participant's key; a player answers through its seat), or
     `all` («نظر همه»): every present participant once, then the holder sums up (`turns`); a
-    closed session answers 409."""
+    closed session answers 409. ⟨1.18⟩ §36.2 `file_ids`: the owner's own uploads (at most 10;
+    one unknown, not the owner's or already sent in a company's thread: 422 with `message_fa`),
+    kept on the owner's turn (`files`) and seen by the persona's model; in a session each one
+    becomes a file of the order (a step, `OrderReport.files`, the works' briefs)."""
     await _policy(ctx, "turn.create", {"ref": ref})
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
             return idem.replay
         answers, owner = await service.add_turns(
-            ctx, tx, ref, body.text, body.source, body.client_id, to=body.to
-        )
+            ctx, tx, ref, body.text, body.source, body.client_id, to=body.to,
+            files=body.file_ids or [],
+        )  # fmt: skip
         answer = answers[0]
         started = await tx.scalar(
             "SELECT state = 'streaming' AND NOT EXISTS (SELECT 1 FROM talk.turn_events WHERE turn_id = :id) "
