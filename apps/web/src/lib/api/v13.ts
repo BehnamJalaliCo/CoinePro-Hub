@@ -10,13 +10,15 @@ import { useEffect, useRef, useState } from 'react';
 import { ApiError, isMock, type Problem } from './client';
 import { observed } from './observe';
 
-export type FileKind = 'image' | 'video' | 'audio' | 'document';
+// ⟨1.18⟩ §36.1: `font` and `document` (plain text, Markdown, ZIP) join the kinds; a font's `meta.family` is its family name.
+export type FileKind = 'image' | 'video' | 'audio' | 'document' | 'font';
 export type MediaRef = {
   id: string; name: string; mime: string; size: number; sha256: string;
   kind: FileKind; status: 'processing' | 'ready' | 'failed';
   width?: number; height?: number; duration_s?: number;
   variants?: { thumb?: string; poster?: string };
   transcript?: string;
+  meta?: { family?: string };
 };
 export type Transcript = {
   text: string; language: 'fa'; duration_s: number; confidence: number;
@@ -96,6 +98,7 @@ export function kindOf(mime: string): FileKind {
   if (mime.startsWith('image/')) return 'image';
   if (mime.startsWith('video/')) return 'video';
   if (mime.startsWith('audio/')) return 'audio';
+  if (mime.startsWith('font/') || /^application\/(x-font-|font-|vnd\.ms-opentype)/.test(mime)) return 'font';
   return 'document';
 }
 

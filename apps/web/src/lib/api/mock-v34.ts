@@ -5,7 +5,7 @@
 // the owner's words, never at random, so the end-to-end checks can follow them. Kept in memory. Never bundled in production (reached only
 // through ./mock-v21 when NEXT_PUBLIC_HQ_MOCK=1).
 
-import { conversationClosed, conversationSay, presentAdd, presentDrop, sessionConversation } from './mock-v32';
+import { conversationFiles, conversationClosed, conversationSay, presentAdd, presentDrop, sessionConversation } from './mock-v32';
 
 const json = (body: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const problem = (status: number, code: string, message_fa: string) => json({ code, message_fa, status, title: code, type: 'about:blank' }, status);
@@ -125,6 +125,8 @@ function decorate(rep: any, s: S) {
     ...rep, state, pace: s.pace, talk_ref: s.conv, conversation_ref: s.conv, turn: s.turn,
     session: { state: s.closed_at ? 'closed' : 'open', badge, reason_fa, closed_at: s.closed_at, hidden: s.hidden },
     brief: briefOf(rep, s), tasks: s.tasks, participants: s.participants,
+    // ⟨1.18⟩ §36.3 the files of the owner's turns belong to the order, newest first
+    files: conversationFiles(s.conv),
   };
 }
 const card = (s: S, rep: any) => {

@@ -214,7 +214,12 @@ export async function handle32(req: Request, p: string): Promise<Response | null
       if (!text) return problem(422, 'validation_failed', 'متن خالی است.');
       // The server's defence: a key-shaped string is never kept.
       const safe = /AIza[0-9A-Za-z_-]{35}/.test(text) ? '[کلید حذف شد]' : text;
-      addTurn(c, 'owner', safe, { source: b.source ?? 'typed' });
+      // ⟨1.18⟩ §36.2 `file_ids` (≤ 10): the owner's own uploads come back on his turn; a font gets its family from the file name.
+      const ids: string[] = Array.isArray(b.file_ids) ? b.file_ids : [];
+      if (ids.length > 10) return problem(422, 'validation_failed', 'حداکثر ۱۰ فایل در هر پیام.');
+      const fileRef = ids.length ? (await import('./mock')).fileRef : () => null; // the big fixtures module loads only when files come along
+      const refs = ids.map((id) => fileRef(id)).filter((x): x is Record<string, unknown> => !!x).map((f) => (f.kind === 'font' ? { ...f, meta: { family: String(f.name).replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ') } } : f));
+      addTurn(c, 'owner', safe, { source: b.source ?? 'typed', files: refs });
       // ⟨1.17⟩ §35.4 `to`: a participant answers; «all» lets each present participant say a line first, then the holder sums up.
       const holder = c.order_ref ? c.present[0] : c.present[c.present.length - 1];
       const aimed = typeof b.to === 'string' && b.to !== 'all' && c.present.includes(b.to) ? b.to : holder;
@@ -307,3 +312,6 @@ export const presentAdd = (ref: string, key: string) => { const c = conversation
 export const presentDrop = (ref: string, key: string) => { const c = conversationOf(ref); if (c) c.present = c.present.filter((x: string) => x !== key); };
 export const conversationClosed = (ref: string, at: string | null) => { const c = conversationOf(ref); if (c) c.closed_at = at; };
 export const conversationSay = (ref: string, by: string, md: string) => { const c = conversationOf(ref); if (c) addTurn(c, by, by === 'owner' ? md : '', by === 'owner' ? {} : { show_md: md }); };
+
+/** ⟨1.18⟩ Every file of the owner's turns in a conversation, newest first (§36.3). */
+export const conversationFiles = (ref: string): unknown[] => [...(turnsOf[ref] ?? [])].reverse().filter((t) => t.by === 'owner').flatMap((t) => [...(t.files ?? [])].reverse());

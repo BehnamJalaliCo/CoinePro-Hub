@@ -18,9 +18,14 @@ const ACCEPT: Record<FileKind, { types: string[]; max: number; fa: string }> = {
   video: { types: ['video/mp4', 'video/webm', 'video/quicktime'], max: 200 * MB, fa: 'فیلم' },
   audio: { types: ['audio/mp4', 'audio/x-m4a', 'audio/aac', 'audio/ogg', 'audio/webm', 'audio/wav', 'audio/x-wav', 'audio/mpeg'], max: 25 * MB, fa: 'صدا' },
   document: { types: ['application/pdf'], max: 30 * MB, fa: 'PDF' },
+  font: { types: [], max: 0, fa: 'فونت' },
 };
-const BY_EXT: Record<string, string> = { heic: 'image/heic', heif: 'image/heif', mov: 'video/quicktime', m4a: 'audio/mp4', opus: 'audio/ogg', pdf: 'application/pdf' };
+// ⟨1.18⟩ §36.1 the session's composer also takes fonts (≤ 20 MB) and text, Markdown and ZIP (≤ 50 MB); the messages' composer stays as it was.
+const RICH_FONT = { types: ['font/ttf', 'font/otf', 'font/woff', 'font/woff2', 'application/font-woff', 'application/font-sfnt', 'application/x-font-ttf', 'application/x-font-otf', 'application/vnd.ms-opentype'], max: 20 * MB, fa: 'فونت' };
+const RICH_DOC = { types: ['application/pdf', 'text/plain', 'text/markdown', 'application/zip', 'application/x-zip-compressed'], max: 50 * MB, fa: 'سند' };
+const BY_EXT: Record<string, string> = { heic: 'image/heic', heif: 'image/heif', mov: 'video/quicktime', m4a: 'audio/mp4', opus: 'audio/ogg', pdf: 'application/pdf', ttf: 'font/ttf', otf: 'font/otf', woff: 'font/woff', woff2: 'font/woff2', txt: 'text/plain', md: 'text/markdown', markdown: 'text/markdown', zip: 'application/zip' };
 export const PICKER_ACCEPT = [...ACCEPT.image.types, ...ACCEPT.video.types, ...ACCEPT.document.types, '.heic', '.heif', '.mov'].join(',');
+export const RICH_ACCEPT = [...ACCEPT.image.types, ...ACCEPT.video.types, ...ACCEPT.audio.types, ...RICH_DOC.types, '.heic', '.heif', '.mov', '.m4a', '.ttf', '.otf', '.woff', '.woff2', '.txt', '.md', '.zip'].join(',');
 const MAX_VIDEO_S = 600;
 
 /** Desktop browsers often leave HEIC and MOV untyped. */
@@ -35,11 +40,11 @@ export function fileSize(bytes: number): string {
   return `${(bytes / MB).toFixed(bytes < 10 * MB ? 1 : 0)} MB`;
 }
 
-function rejectReason(f: File): string | null {
+function rejectReason(f: File, rich: boolean): string | null {
   const mime = mimeOf(f);
   const kind = kindOf(mime);
-  const rule = ACCEPT[kind];
-  if (!rule.types.includes(mime)) return `«${f.name}»: این نوع فایل پذیرفته نمیشود (عکس، فیلم یا PDF).`;
+  const rule = rich ? (kind === 'font' ? RICH_FONT : kind === 'document' ? RICH_DOC : ACCEPT[kind]) : ACCEPT[kind];
+  if (!rule.types.includes(mime)) return rich ? `«${f.name}»: این نوع فایل پذیرفته نمیشود (عکس، فیلم، صدا، PDF، فونت، متن یا ZIP).` : `«${f.name}»: این نوع فایل پذیرفته نمیشود (عکس، فیلم یا PDF).`;
   if (f.size > rule.max) return `«${f.name}»: ${rule.fa} حداکثر ${fileSize(rule.max)} است.`;
   return null;
 }
@@ -63,7 +68,7 @@ export type Pending = {
 };
 
 /** Files the owner is attaching: checked, uploaded at once with progress, cancellable, retryable. */
-export function useAttachments(max = 10) {
+export function useAttachments(max = 10, rich = false) {
   const toast = useToast();
   const [items, setItems] = useState<Pending[]>([]);
   const files = useRef(new Map<string, { file: File; ctrl: AbortController }>());
@@ -86,7 +91,7 @@ export function useAttachments(max = 10) {
   const add = useCallback(async (list: Iterable<File>) => {
     for (const file of list) {
       if (count.current >= max) { toast({ tone: 'error', text: `حداکثر ${max} پیوست در هر پیام.` }); return; }
-      const why = rejectReason(file);
+      const why = rejectReason(file, rich);
       if (why) { toast({ tone: 'error', text: why }); continue; }
       const mime = mimeOf(file);
       const kind = kindOf(mime);
@@ -104,7 +109,7 @@ export function useAttachments(max = 10) {
       setItems((xs) => [...xs, { key, name: file.name, kind, size: file.size, preview, seconds, pct: 0, state: 'uploading', ref: null, error: null }]);
       upload(key);
     }
-  }, [max, toast, upload]);
+  }, [max, rich, toast, upload]);
 
   const remove = useCallback((key: string) => {
     files.current.get(key)?.ctrl.abort();
@@ -147,7 +152,7 @@ function Ring({ pct, size = 30 }: { pct: number; size?: number }) {
   );
 }
 
-const KIND_ICON: Record<FileKind, 'image' | 'video' | 'mic' | 'report'> = { image: 'image', video: 'video', audio: 'mic', document: 'report' };
+const KIND_ICON: Record<FileKind, 'image' | 'video' | 'mic' | 'report' | 'edit'> = { image: 'image', video: 'video', audio: 'mic', document: 'report', font: 'edit' };
 
 /** The composer's row of files on their way. */
 export function AttachmentTray({ items, onRemove, onRetry }: { items: Pending[]; onRemove: (key: string) => void; onRetry: (key: string) => void }) {
@@ -334,12 +339,13 @@ export function AudioPlayer({ a, showTranscript = true }: { a: MediaRef; showTra
 }
 
 function Doc({ d }: { d: MediaRef }) {
+  const font = d.kind === 'font';
   return (
     <a href={fileUrl(d.id)} download={d.name} className="flex w-[min(100%,340px)] items-center gap-3 rounded-[12px] bg-tile px-3 py-2.5 hover:bg-hover">
-      <span className="text-sec"><Icon name="report" size={22} /></span>
+      <span className="text-sec">{font ? <span className="fig flex size-[22px] items-center justify-center text-[15px] font-bold" aria-hidden>Aa</span> : <Icon name="report" size={22} />}</span>
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-[13px] text-ink">{d.name}</span>
-        <span className="fig text-[11px] text-muted">{fileSize(d.size)}</span>
+        <span className="text-[11px] text-muted">{font ? <>فونت{d.meta?.family ? <> · <bdi dir="ltr">{d.meta.family}</bdi></> : null} · </> : null}<span className="fig">{fileSize(d.size)}</span></span>
       </span>
       <span className="text-sec"><Icon name="download" size={18} /></span>
     </a>
@@ -356,7 +362,7 @@ export function MessageMedia({ items, transcriptInBody = false }: { items: Media
       {images.length ? <Images images={images} /> : null}
       {by('video').map((v) => <Video key={v.id} v={v} />)}
       {by('audio').map((a) => <AudioPlayer key={a.id} a={a} showTranscript={!transcriptInBody} />)}
-      {by('document').map((d) => <Doc key={d.id} d={d} />)}
+      {[...by('font'), ...by('document')].map((d) => <Doc key={d.id} d={d} />)}
     </div>
   );
 }

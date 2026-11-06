@@ -14,6 +14,7 @@ import { Sheet } from '@/components/ui/overlay';
 import { Card, Empty, ErrorState, FilterChip, PageHeader, Pill, SectionTitle, Segmented, Skeleton } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
 import { BlockerRow, KitCard, OrderReportView, RouteLine, Steps } from '@/components/v29/report';
+import { MessageMedia } from '@/components/media/attachments';
 import { CompanyMark } from '@/components/brand/marks';
 import { SplitParts, WorkspaceCard } from '@/components/v33/parallel';
 import type { OrderParallel } from '@/lib/api/v33';
@@ -151,6 +152,7 @@ function Session({ refId, r }: { refId: string; r: Full }) {
           <Plan r={r} />
           <Tasks r={r} closed={closed} />
           <Results r={r} closed={closed} />
+          <FilesCard r={r} />
           <Steps r={r} />
         </div>
       </div>
@@ -359,6 +361,18 @@ function Results({ r, closed }: { r: Full; closed: boolean }) {
           ))}
         </ul>
       ) : <p className="text-[13px] text-muted">{closed ? 'نتیجه‌ای ثبت نشد.' : 'هنوز نتیجه‌ای نیست؛ با هر نتیجه این‌جا پر میشود.'}</p>}
+    </Card>
+  );
+}
+
+/** ⟨1.18⟩ §36.3 every file the owner sent in this talk belongs to the order: listed here, newest first, with a download on each. */
+function FilesCard({ r }: { r: Full }) {
+  const files = r.files ?? [];
+  if (!files.length) return null;
+  return (
+    <Card className="flex flex-col gap-3 p-5" aria-label="فایل‌ها">
+      <SectionTitle title="فایل‌ها" note="آنچه برای این جلسه فرستادی؛ کارکنان همین را میبینند" />
+      <MessageMedia items={files} />
     </Card>
   );
 }

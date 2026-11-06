@@ -9,7 +9,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { stepUp } from '@/lib/auth';
 import { ApiError, isMock } from './client';
 import { handled } from './observe';
-import { call } from './v13';
+import { call, type MediaRef } from './v13';
 import { ifMatch } from './v15';
 import { notServed } from './v28';
 
@@ -46,7 +46,7 @@ export type TurnState = 'streaming' | 'done' | 'stopped' | 'failed';
 export type Turn = {
   id: string; conversation: string; n: number; by: string; source: TurnSource | null; text: string; say_fa: string | null; show_md: string | null; cards: TalkCard[];
   audio: Array<{ seq: number; file_id: string; seconds: number; engine: string }>; tokens: { input: number; output: number; cache_read: number; cache_write: number } | null;
-  voice: { engine: string; seconds: number; audio_tokens: number; usd: number } | null; state: TurnState; reason_fa: string | null; at: string;
+  voice: { engine: string; seconds: number; audio_tokens: number; usd: number } | null; state: TurnState; files?: MediaRef[]; reason_fa: string | null; at: string;
 };
 /** The page of a conversation: the conversation itself and its turns (assumed flat, like the list rows, with the turns beside). */
 export type ConversationPage = Conversation & { turns_page?: Turn[]; items?: Turn[]; next?: string | null };
@@ -99,7 +99,7 @@ export function useTalkActions() {
     dismiss: useMutation({ mutationFn: (id: string) => call<TalkCard>('POST', `/talk/cards/${enc(id)}/dismiss`, {}), onSettled: settle }),
   };
 }
-export const postTurn = (ref: string, b: { text: string; source: TurnSource; client_id: string; to?: string }) =>
+export const postTurn = (ref: string, b: { text: string; source: TurnSource; client_id: string; to?: string; file_ids?: string[] }) =>
   call<{ turn: Turn; events: string }>('POST', `/talk/conversations/${enc(ref)}/turns`, b, { 'Idempotency-Key': b.client_id });
 export const stopTurn = (id: string) => call<void>('POST', `/talk/turns/${enc(id)}/stop`, {});
 

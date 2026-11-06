@@ -104,6 +104,8 @@ export type OrderReport = {
   steps: Array<{ at: string; who_fa: string; what_fa: string }>;
   blockers: Blocker[]; outputs: Array<{ ref: string; title_fa: string; kind: string }>;
   summary: { done_fa: string; left_fa: string; need_fa: string } | null; updated_at: string;
+  /** ⟨1.18⟩ §36.3 every file the owner sent in the order's talk, newest first. */
+  files?: import('./v13').MediaRef[];
   /** A «شرکت آماده» order (route kind `kit`): the chosen kit, the name if given, whether it is sealed, and the kit's own shape (GET /kits/{key}). */
   kit?: { kit: string; title_fa: string; name_fa: string | null; sealed: boolean; summary: import('./v31').Kit } | null;
 };

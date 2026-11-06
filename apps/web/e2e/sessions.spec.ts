@@ -260,6 +260,40 @@ test('the sessions list: his turn first, a badge in words for each, the archive'
   });
 });
 
+// ⟨1.18⟩ Contract §36: files in a session. A font for the covers' title and a picture go with a turn (`file_ids`), show in the owner's
+// bubble, and are listed under «فایل‌ها» (OrderReport.files).
+test('files in a session: a font and a picture are attached, sent, seen in the turn and in «فایل‌ها»', async ({ page }) => {
+  // 1×1 PNG and a font-shaped blob: the demo hub only checks names and types.
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+  await clean(page, async () => {
+    await page.goto('/s/F-0008');
+    await expect(page.getByLabel('فایل‌ها', { exact: true })).toHaveCount(0);
+    await page.getByLabel('فایل برای فرستادن').setInputFiles([
+      { name: 'Title-Font.ttf', mimeType: 'font/ttf', buffer: Buffer.from('\x00\x01\x00\x00demo-font') },
+      { name: 'cover.png', mimeType: 'image/png', buffer: png },
+      { name: 'virus.exe', mimeType: 'application/x-msdownload', buffer: Buffer.from('MZ') },
+    ]);
+    // The unsupported one is refused in plain words; the other two become chips and upload.
+    await expect(page.getByText('این نوع فایل پذیرفته نمیشود')).toBeVisible();
+    const tray = page.getByLabel('پیوست‌ها', { exact: true });
+    await expect(tray.getByRole('button', { name: 'حذف Title-Font.ttf' })).toBeVisible();
+    await expect(tray.getByRole('button', { name: 'حذف cover.png' })).toBeVisible();
+    // Send with no text: the word «فایل» stands in.
+    const send = page.getByRole('button', { name: 'بفرست' }).last();
+    await expect(send).toBeEnabled();
+    await send.click();
+    const talk = page.getByLabel('گفتگو', { exact: true });
+    const mine = talk.locator('[data-by="owner"]').last();
+    await expect(mine.getByRole('link', { name: /Title-Font\.ttf/ })).toBeVisible();
+    await expect(mine.getByRole('button', { name: 'نمایش cover.png' })).toBeVisible();
+    await expect(page.getByLabel('پیوست‌ها', { exact: true })).toHaveCount(0);
+    // The order keeps them.
+    const files = page.getByLabel('فایل‌ها', { exact: true });
+    await expect(files.getByRole('link', { name: /Title-Font\.ttf/ })).toBeVisible();
+    await expect(files.getByRole('button', { name: 'نمایش cover.png' })).toBeVisible();
+  });
+});
+
 test('@phone the office and a session fit a phone', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/');

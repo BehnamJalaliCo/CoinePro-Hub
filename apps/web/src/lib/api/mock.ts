@@ -143,6 +143,8 @@ const SKETCH = ref(DEMO_SKETCH.url, 'image', 'image/webp', 'signup-sketch.webp',
 const VOICE = ref(DEMO_VOICE.url, 'audio', 'audio/mp4', 'voice.m4a', 13_163, { duration_s: DEMO_VOICE.seconds, transcript: 'صفحه‌ی ثبت‌نام هنوز کند است…' });
 const files = new Map<string, any>();
 export function register(f: { id: string; [k: string]: unknown }): void { files.set(f.id, f); }
+/** ⟨1.18⟩ An uploaded file as the hub's FileRef shows it (the bytes stay here). */
+export function fileRef(id: string): Record<string, unknown> | null { const f = files.get(id); if (!f) return null; const { blob: _bytes, ...r } = f; return r; }
 
 const messages: Record<string, any[]> = {
   A: [

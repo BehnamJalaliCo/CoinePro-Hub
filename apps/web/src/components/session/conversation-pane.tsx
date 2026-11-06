@@ -9,8 +9,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Avatar, Orb } from '@/components/brand/avatar';
 import { Icon } from '@/components/icon';
+import { AttachmentTray, MessageMedia, RICH_ACCEPT, useAttachments } from '@/components/media/attachments';
 import { Waveform } from '@/components/media/composer';
-import { Button } from '@/components/ui/button';
+import { Button, IconButton } from '@/components/ui/button';
 import { Md } from '@/components/ui/md';
 import { Card, Empty, Pill, Skeleton, Switch } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
@@ -22,6 +23,7 @@ import {
   looksLikeKey, postTurn, readTurnEvents, stopTurn, turnsOf, useConversation, useEngines, usePersonas, useTalkActions,
   type Persona, type TalkCard, type Turn, type TurnEvent, type TurnSource,
 } from '@/lib/api/v32';
+import type { MediaRef } from '@/lib/api/v13';
 import { PLAYERS } from '@/lib/api/v34';
 import { cx } from '@/lib/format';
 import { LONG_VOICE_ERROR, recognizer, useLongVoice } from '@/lib/long-voice';
@@ -48,7 +50,7 @@ export function Face({ k, size = 44, state = 'idle' }: { k: string; size?: numbe
 }
 
 // What the pane keeps about the turn that is being answered right now.
-type Live = { owner: string; id: string | null; answer: string; cards: TalkCard[]; error: string | null; streaming: boolean };
+type Live = { owner: string; files: MediaRef[]; id: string | null; answer: string; cards: TalkCard[]; error: string | null; streaming: boolean };
 
 /** What a page can ask of the pane from outside. */
 export type PaneApi = { send: (text: string) => Promise<void> };
@@ -56,10 +58,25 @@ export type PaneApi = { send: (text: string) => Promise<void> };
 export function Bubble({ children, own }: { children: React.ReactNode; own?: boolean }) {
   return <div className={cx('max-w-[46rem] rounded-[14px] px-3.5 py-2.5 text-[14px] leading-7', own ? 'self-start bg-gold-soft text-ink' : 'bg-tile text-ink')}>{children}</div>;
 }
-export const OwnerBubble = ({ text }: { text: string }) => <div className="flex justify-start" data-by="owner"><Bubble own><span dir="auto" className="whitespace-pre-wrap"><FaText text={text} /></span></Bubble></div>;
+// ⟨1.18⟩ §36.2 the owner's files sit in his bubble: pictures as thumbnails, the rest as rows with a download. The word «فایل» that stands in
+// for an empty text is not shown when files are there.
+export const FILE_WORD = 'فایل';
+export function OwnerBubble({ text, files }: { text: string; files?: MediaRef[] }) {
+  const has = !!files?.length;
+  return (
+    <div className="flex justify-start" data-by="owner">
+      <Bubble own>
+        <div className="flex flex-col gap-2">
+          {has ? <div aria-label="فایل‌های فرستاده‌شده"><MessageMedia items={files!} /></div> : null}
+          {has && text === FILE_WORD ? null : <span dir="auto" className="whitespace-pre-wrap"><FaText text={text} /></span>}
+        </div>
+      </Bubble>
+    </div>
+  );
+}
 
 export function TurnView({ t, persona, title }: { t: Turn; persona: Persona | null; title?: string }) {
-  if (t.by === 'owner') return <OwnerBubble text={t.text} />;
+  if (t.by === 'owner') return <OwnerBubble text={t.text} files={t.files} />;
   const body = t.show_md ?? t.say_fa ?? t.text;
   return (
     <div className="flex gap-2.5" data-by={t.by} data-state={t.state}>
@@ -111,6 +128,11 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
   const [text, setText] = useState('');
   const [keyOpen, setKeyOpen] = useState<{ n: number; key: string } | null>(null);
   const [handsFree, setHandsFree] = useState(false);
+  const [drag, setDrag] = useState(false);
+  const files = useAttachments(10, true);
+  const pick = useRef<HTMLInputElement | null>(null);
+  const filesRef = useRef(files);
+  useEffect(() => { filesRef.current = files; });
   const audio = useAudioQueue();
   const abort = useRef<AbortController | null>(null);
   const liveId = useRef<string | null>(null);
@@ -133,8 +155,12 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
 
   const openKey = (k = '') => setKeyOpen((o) => ({ n: (o?.n ?? 0) + 1, key: k }));
 
-  const send = useCallback(async (raw: string, source: TurnSource = 'typed') => {
-    const t = raw.trim();
+  // `withFiles`: what the owner has attached goes with this word (his own composer); a word the page speaks for him carries none.
+  const send = useCallback(async (raw: string, source: TurnSource = 'typed', withFiles = false) => {
+    const att = withFiles ? filesRef.current : null;
+    const ids = att?.ids ?? [];
+    if (att?.uploading) return;
+    const t = raw.trim() || (ids.length ? FILE_WORD : '');
     if (!t || readOnly) return;
     // A key-shaped string is never a message: it moves into the key sheet (the server also scrubs one that slips through).
     if (looksLikeKey(t, engines.data)) { setText(''); openKey(t); return; }
@@ -143,8 +169,9 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
       const cv = ref ?? (ensure ? await ensure() : null);
       if (!cv) return;
       setText('');
-      setLive({ owner: t, id: null, answer: '', cards: [], error: null, streaming: true });
-      const { turn } = await postTurn(cv, { text: t, source, client_id: crypto.randomUUID(), ...(to ? { to } : {}) });
+      setLive({ owner: t, files: (att?.items ?? []).flatMap((x) => (x.ref ? [x.ref] : [])), id: null, answer: '', cards: [], error: null, streaming: true });
+      const { turn } = await postTurn(cv, { text: t, source, client_id: crypto.randomUUID(), ...(to ? { to } : {}), ...(ids.length ? { file_ids: ids } : {}) });
+      if (ids.length) att?.clear();
       liveId.current = turn.id;
       setLive((l) => l && { ...l, id: turn.id });
       abort.current?.abort();
@@ -183,14 +210,14 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
   // Hold to talk: the phone's recogniser first; long speech goes to the hub's transcription (purpose «talk»).
   const lv = useLongVoice({
     purpose: 'talk',
-    onText: (r) => void send(r.text, 'hold'),
+    onText: (r) => void send(r.text, 'hold', true),
     onError: (f, d) => toast({ tone: f === 'empty' ? 'info' : 'error', text: d ?? LONG_VOICE_ERROR[f] }),
   });
   const holding = lv.phase === 'listening' || lv.phase === 'asking';
   useHandsFree({
     enabled: handsFree && !readOnly,
     onSpeech: interrupt,
-    onUtterance: (t) => void send(t, 'handsfree'),
+    onUtterance: (t) => void send(t, 'handsfree', true),
     onFatal: (why) => { setHandsFree(false); toast({ tone: 'error', text: why === 'not-allowed' || why === 'service-not-allowed' ? LONG_VOICE_ERROR.denied : 'گوش دادن بی‌دست متوقف شد؛ دوباره روشنش کن.' }); },
   });
   useEffect(() => () => { abort.current?.abort(); }, []);
@@ -206,7 +233,7 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
         {turns.map((t) => <TurnView key={t.id} t={t} persona={personaOf(t.by)} title={titleOf?.(t.by)} />)}
         {live ? (
           <>
-            <OwnerBubble text={live.owner} />
+            <OwnerBubble text={live.owner} files={live.files} />
             <div className="flex gap-2.5" aria-label="پاسخ در حال نوشته شدن">
               <Face k={to && to !== 'all' && to.startsWith('player:') ? to : liveFace} size={32} state={live.streaming ? 'working' : 'idle'} />
               <div className="flex min-w-0 flex-1 flex-col gap-2">
@@ -225,7 +252,11 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
       {readOnly ? (
         <Card as="section" className="p-3 text-[13px] text-sec" aria-label="نوشتن">این جلسه بسته شده و فقط خواندنی است؛ برای ادامه، دوباره بازش کن.</Card>
       ) : (
-        <Card as="section" className="flex flex-col gap-2.5 p-3" aria-label="نوشتن">
+        <Card as="section" className={cx('flex flex-col gap-2.5 p-3 transition-colors', drag && 'bg-gold-soft ring-1 ring-[var(--hq-gold-ink)]')} aria-label="نوشتن"
+          onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDrag(true); } }}
+          onDragLeave={() => setDrag(false)}
+          onDrop={(e) => { e.preventDefault(); setDrag(false); void files.add(e.dataTransfer.files); }}>
+          <AttachmentTray items={files.items} onRemove={files.remove} onRetry={files.retry} />
           {holding ? (
             <div className="flex items-center gap-3 rounded-[10px] bg-tile px-3 py-2" role="status" aria-label="در حال شنیدن">
               <Waveform levels={lv.levels} className="h-8 min-w-0 flex-1" />
@@ -235,10 +266,13 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
             </div>
           ) : null}
           <div className="flex items-end gap-2">
+            <input ref={pick} type="file" multiple hidden accept={RICH_ACCEPT} aria-label="فایل برای فرستادن" onChange={(e) => { if (e.target.files) void files.add(e.target.files); e.target.value = ''; }} />
+            <IconButton icon="attach" label="فایل بفرست: عکس، فیلم، صدا، PDF، فونت، متن یا ZIP" size={48} onClick={() => pick.current?.click()} />
             <textarea
               value={text} rows={2} dir="auto" aria-label="پیام" placeholder={placeholder ?? 'بنویس یا نگه‌دار و بگو…'} autoComplete="off" spellCheck={false}
+              onPaste={(e) => { const fs = [...e.clipboardData.files]; if (fs.length) { e.preventDefault(); void files.add(fs); } }}
               onChange={(e) => { const v = e.target.value; if (looksLikeKey(v, engines.data)) { setText(''); openKey(v.trim()); } else setText(v); }}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(text); } }}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(text, 'typed', true); } }}
               className={cx(field, 'min-h-[3rem] flex-1 resize-none py-2.5 leading-6')} />
             <button type="button" aria-label="نگه‌دار و بگو" aria-pressed={holding} disabled={!recSupported && typeof MediaRecorder === 'undefined'}
               onPointerDown={(e) => { e.preventDefault(); (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); interrupt(); void lv.start(); }}
@@ -247,10 +281,11 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
               className={cx('flex size-12 flex-none touch-none select-none items-center justify-center rounded-full', holding ? 'bg-neg text-white' : 'bg-gold text-on-gold hover:bg-gold-bright disabled:bg-disabled-fill disabled:text-disabled')}>
               <Icon name="mic" size={22} />
             </button>
-            <Button variant="primary" icon="send" disabled={!text.trim() || busy} onClick={() => void send(text)} aria-label="بفرست">بفرست</Button>
+            <Button variant="primary" icon="send" disabled={(!text.trim() && !files.ids.length) || files.uploading || busy} onClick={() => void send(text, 'typed', true)} aria-label="بفرست">بفرست</Button>
           </div>
           <div className="flex flex-wrap items-center gap-3 text-[12px] text-muted">
             <Switch checked={handsFree} onChange={setHandsFree} label="بی‌دست (خودش گوش میدهد)" disabled={!recSupported} />
+            {files.uploading ? <span role="status">صبر کن فایل‌ها بالا بروند…</span> : null}
             <span>{recSupported ? 'دکمه‌ی طلایی را نگه دار، بگو و رها کن.' : 'این مرورگر گفتار را نمیشناسد؛ بنویس.'}</span>
           </div>
         </Card>
