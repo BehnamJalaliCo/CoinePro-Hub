@@ -25,6 +25,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -39,6 +40,8 @@ from hq_api.domain import work as W
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
 from hq_api.talk.scrub import clean
+
+log = logging.getLogger("hq_api.order_turns")
 
 OWNER_FA = "مدیر کل"
 DIALOGUE_STEPS = 12
@@ -303,16 +306,17 @@ async def reply(tx: Tx, ref: str, text: str) -> dict[str, Any]:
     open but the session not closed (`ready`), the word is a revision: the holder's delivered root
     work goes back to `in_progress` with the word as its next step and the holder is woken; only an
     order with nothing delivered or open left answers 409."""
+    # an empty word is refused first, whatever the order
+    words = " ".join(text.split())[:2000]
+    if len(words) < 1:
+        raise ApiError(422, "validation_failed", fields={"text": "empty"},
+                       message_fa="متن پاسخ خالی است.")  # fmt: skip
     rep = await OR.ensure(tx, ref)
     if rep is None:
         raise ApiError(404, "not_found", "unknown order", message_fa="این فرمان پیدا نشد.")
     if rep["ended_at"] is not None:
         raise ApiError(409, "validation_failed", "the order has ended",
                        message_fa="این جلسه بسته شده است؛ برای ادامه آن را دوباره باز کنید.")  # fmt: skip
-    words = " ".join(text.split())[:2000]
-    if len(words) < 1:
-        raise ApiError(422, "validation_failed", fields={"text": "empty"},
-                       message_fa="متن پاسخ خالی است.")  # fmt: skip
     turn = OR._j(rep.get("turn")) or {}
     order = await OR.load_order(tx, ref)
     assert order is not None
@@ -510,6 +514,17 @@ async def talk_brief(tx: Tx, order_ref: str) -> dict[str, Any] | None:
         out["memory_md"] = str(rep["memory_md"])
     if rep.get("source_playbook"):
         out["source_playbook"] = str(rep["source_playbook"])
+        # the holder adapts it: every key it needs (roles, schedules, briefs), the owner's turn
+        # carries only the plain words (PB.markdown)
+        try:
+            async with tx.conn.begin_nested():
+                pb = await PB.render(tx, await PB.row_of(tx, str(rep["source_playbook"])))
+            out["source_playbook_definition"] = pb.model_dump(
+                mode="json", include={"title_fa", "purpose_fa", "platform", "seats", "routines",
+                                      "kpis", "connections", "rules_fa"},
+            )  # fmt: skip
+        except Exception:  # noqa: BLE001 - the brief never fails on a playbook it cannot read
+            log.warning("the source playbook could not be read", extra={"order": order_ref})
     books = await PB.of_order(tx, order_ref)
     if books:
         out["playbooks"] = books

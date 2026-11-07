@@ -985,28 +985,50 @@ async def seal(tx: Tx, hub: Any, ref: str) -> dict[str, Any]:
 
 
 # ------------------------------------------------------------------- apply --
+HELPER_FA = {
+    "gpt": "ChatGPT",
+    "gemini": "Gemini",
+    "deepseek": "DeepSeek",
+    "aistudio": "Google AI Studio",
+}
+
+
+def _when_fa(rrule: str) -> str:
+    """A routine's time in the owner's words (never the RRULE itself)."""
+    try:
+        return AU.when_fa(rrule)
+    except Exception:  # noqa: BLE001 - an odd rule reads as «زمان‌بندی‌شده», never as code
+        return "زمان‌بندی‌شده"
+
+
 def markdown(pb: Playbook) -> str:
-    """The playbook as Markdown: the first word of the session that adapts it."""
-    lines = [f"# کارگروه {pb.ref}: {pb.title_fa}", ""]
+    """The playbook in the owner's words: the first word of the session that adapts it. No ref, no
+    role key, no RRULE, no helper key (§29.7): titles, plain times and the helpers' names. The
+    holder reads the playbook itself, with every key, from its brief (`source_playbook`)."""
+    from hq_api.domain.connections import LABEL_FA as CONNECTION_FA
+
+    lines = [f"# کارگروه «{pb.title_fa}»", ""]
     if pb.purpose_fa:
         lines += [pb.purpose_fa, ""]
     lines.append(f"پلتفرم: {PLATFORM_FA.get(pb.platform, pb.platform)}")
+    seat_fa = {s.seat: s.title_fa for s in pb.seats}
     if pb.seats:
-        lines += ["", "## جایگاه‌ها"]
+        lines += ["", "## چه کسانی"]
         for s in pb.seats:
-            helpers = f" (با {', '.join(s.helpers)})" if s.helpers else ""
+            names = [HELPER_FA.get(h, h) for h in s.helpers]
+            helpers = f" (با {' و '.join(names)})" if names else ""
             duties = f": {s.duties_fa}" if s.duties_fa else ""
-            lines.append(f"- {s.title_fa} ({s.role}){helpers}{duties}")
+            lines.append(f"- {s.title_fa}{helpers}{duties}")
     if pb.routines:
-        lines += ["", "## روال‌ها"]
+        lines += ["", "## کارهای همیشگی"]
         for r in pb.routines:
-            lines.append(f"- {r.title_fa} — جایگاه {r.seat}، زمان‌بندی `{r.schedule}`")
-            lines.append(f"  {r.brief_md.strip()}")
+            who = seat_fa.get(r.seat, "")
+            lines.append(f"- {r.title_fa}، {_when_fa(r.schedule)}" + (f"، با {who}" if who else ""))
     if pb.kpis:
-        lines += ["", "## شاخص‌ها"]
-        lines += [f"- {k.title_fa} ({k.source})" for k in pb.kpis]
+        lines += ["", "## چه چیزی را میسنجیم"]
+        lines += [f"- {k.title_fa}" for k in pb.kpis]
     if pb.connections:
-        lines += ["", "اتصال‌ها: " + "، ".join(pb.connections)]
+        lines += ["", "از راه: " + "، ".join(CONNECTION_FA.get(c, c) for c in pb.connections)]
     if pb.rules_fa:
         lines += ["", "## قاعده‌ها"]
         lines += [f"- {x}" for x in pb.rules_fa]

@@ -527,7 +527,9 @@ async def test_a_sealed_playbook_is_given_as_is_or_adapted_in_a_new_session_and_
     assert text.startswith(
         f"این کارگروه را برای شرکت آزمایشی {third['code']} روی تلگرام پیاده کن: با لحن رسمی‌تر"
     )
-    assert f"# کارگروه {pref}" in text and "موضوع‌یاب" in text and RRULE in text
+    # the owner's words only: the title, the people, plain times; no ref, no RRULE, no role key
+    assert "# کارگروه «" in text and "موضوع‌یاب" in text and "هر روز ساعت 08:00" in text
+    assert pref not in text and RRULE not in text
     rep = await report(client, owner, new_ref)
     assert rep["session"]["source"] == pref and rep["session"]["state"] == "open"
     assert rep["participants"][0]["company"] == third["code"]
@@ -537,10 +539,13 @@ async def test_a_sealed_playbook_is_given_as_is_or_adapted_in_a_new_session_and_
     detail = (await client.get(f"/api/v1/talk/conversations/{new_conv}", headers=owner)).json()
     assert detail["order_ref"] == new_ref
     owner_turns = [t for t in detail["turns_page"]["items"] if t["by"] == "owner"]
-    assert owner_turns and f"# کارگروه {pref}" in owner_turns[-1]["text"]
+    assert owner_turns and "# کارگروه «" in owner_turns[-1]["text"]
     async with await all_tx(hub) as tx:
         brief = await OT.talk_brief(tx, new_ref)
     assert brief is not None and brief["source_playbook"] == pref
+    # the holder sees every key the owner's words leave out
+    defn = brief["source_playbook_definition"]
+    assert defn["routines"] and defn["routines"][0]["schedule"] == RRULE and defn["seats"]
     # the playbook lists that session as the company's (not yet a member)
     pb = (await client.get(f"/api/v1/playbooks/{pref}", headers=owner)).json()
     assert third["code"] not in {m["company"] for m in pb["members"]}
@@ -602,5 +607,22 @@ def test_the_shapes_are_checked_by_code_never_refused() -> None:
         source=PB.PlaybookSource(order="F-0001", company=None, conversation=None),
         created_at=datetime.now(),
     ))  # fmt: skip
-    assert text.startswith("# کارگروه PB-0001: t") and "هر پلتفرمی" in text
+    assert text.startswith("# کارگروه «t»") and "هر پلتفرمی" in text and "PB-" not in text
+    # the owner's words: helpers by name, times in plain Persian, no RRULE, no role key
+    rich = PB.markdown(PB.Playbook(
+        ref="PB-0002", title_fa="موضوع روزانه", purpose_fa="", state="sealed", version=1,
+        platform="instagram",
+        seats=[PB.PlaybookSeat(seat="writer", role="scriptwriter", title_fa="نویسنده",
+                               duties_fa="موضوع روز", helpers=["gpt"])],
+        routines=[PB.PlaybookRoutine(key="topic", title_fa="یافتن موضوع", seat="writer",
+                                     schedule="FREQ=DAILY;BYHOUR=8;BYMINUTE=0", brief_md="x")],
+        source=PB.PlaybookSource(order="F-0001", company=None, conversation=None),
+        created_at=datetime.now(),
+    ))  # fmt: skip
+    assert "ChatGPT" in rich and "هر روز ساعت 08:00" in rich and "با نویسنده" in rich
+    assert (
+        "FREQ=" not in rich
+        and "scriptwriter" not in rich
+        and "gpt" not in rich.replace("ChatGPT", "")
+    )
     assert "playbook" in C.BOUND_HELP and "playbook" in store.CardKind.__args__  # type: ignore[attr-defined]
