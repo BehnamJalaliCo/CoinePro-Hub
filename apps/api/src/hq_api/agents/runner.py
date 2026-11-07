@@ -131,6 +131,9 @@ CAPS_CHARS = 12_000  # the capability brief and the holding map, never cut by th
 LEAN_TRIGGERS = ("alert", "schedule")
 
 
+DECIDE_PREFIX = "تصمیم درباره‌ی "  # hiring.DECIDE_TITLE's start: a card's decide item
+
+
 def caps_scope(trigger: str, charter_kind: str) -> str:
     """`full` for a person's work, a message or a talk; `lean` for a watcher's run."""
     return "lean" if trigger in LEAN_TRIGGERS or charter_kind == "system" else "full"
@@ -1251,6 +1254,16 @@ class Runner:
         from hq_api.domain import capabilities as CAP
 
         async with await self._tx() as all_tx:
+            # ⟨2026-11-07⟩ a card's «تصمیم درباره‌ی D-…» item is a yes/no on what the card shows:
+            # the holding's map and helpers are not its business (a hire decision cost ~155 000
+            # tokens, a third of all use, before this)
+            deciding = run["work_id"] is not None and bool(
+                await all_tx.scalar(
+                    "SELECT 1 FROM work.work WHERE id = :w AND title LIKE :t",
+                    w=run["work_id"],
+                    t=DECIDE_PREFIX + "%",
+                )
+            )
             caps = await CAP.brief(
                 all_tx,
                 run["company_id"],
@@ -1261,7 +1274,7 @@ class Runner:
                 tools=rc.charter.tools,
                 scope=rc.charter.scope,
                 # ⟨2026-11-07⟩ W9 E: a run that is not work for a person carries no map
-                lean=caps_scope(run["trigger"], rc.charter.kind) == "lean",
+                lean=deciding or caps_scope(run["trigger"], rc.charter.kind) == "lean",
             )
         # ⟨2026-11-06⟩ kept apart from the trim: appended last, it was the first part cut from a
         # long context, and the agent then said a helper or a company did not exist

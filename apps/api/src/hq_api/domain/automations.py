@@ -210,6 +210,20 @@ async def company_roles(
     return out
 
 
+# ⟨2026-11-07⟩ the everyday words for the media charters (the working groups' seat titles say them
+# so: content.yaml's «نویسنده» is the scriptwriter, whose charter title is «سناریست»)
+ROLE_WORDS = {
+    "نویسنده": "scriptwriter", "سناریست": "scriptwriter", "سناریونویس": "scriptwriter",
+    "کارگردان": "video_director", "کارگردان ریلز": "video_director",
+    "طراح": "visual_designer", "طراح تصویر": "visual_designer", "طراح گرافیک": "visual_designer",
+    "موشن": "motion_designer", "موشن دیزاینر": "motion_designer", "سازنده ریلز": "motion_designer",
+    "گوینده": "voice_producer", "صداگذار": "voice_producer", "سازنده صدا": "voice_producer",
+    "مسئول انتشار": "publisher", "ناشر": "publisher",
+    "تحلیلگر": "content_analyst", "تحلیلگر عملکرد": "content_analyst",
+    "مدیر محتوا": "media_director", "مدیر رسانه": "media_director",
+}  # fmt: skip
+
+
 def normalize_role(raw: Any, roles: Roles | None) -> tuple[str | None, str | None]:
     """(the role key the work goes to, a plain note when it is not the one written). Never
     refuses: a role nobody holds goes to the matching department's manager, else the CEO, else to
@@ -235,6 +249,14 @@ def normalize_role(raw: Any, roles: Roles | None) -> tuple[str | None, str | Non
     )
     if hit is None:
         hit = next((k for t, k in roles.titles.items() if t.replace(" ", "") == tight), None)
+    if hit is None:  # ⟨2026-11-07⟩ the company's own title for it («نویسنده» is PC's scriptwriter)
+        hit = next(
+            (k for k, t in roles.held.items()
+             if norm_word(t) == plain or norm_word(t).replace(" ", "") == tight),
+            None,
+        )  # fmt: skip
+    if hit is None:  # the everyday word the owner and the models use for a charter
+        hit = ROLE_WORDS.get(plain) or ROLE_WORDS.get(tight)
     if hit is None and len(plain) >= 4:  # «مدیر رسانه» for «مدیر رسانه و طراحی»
         hit = next((k for t, k in roles.titles.items() if plain in t or t in plain), None)
     charter = hit or (key if key in roles.departments or key == roles.ceo else None)

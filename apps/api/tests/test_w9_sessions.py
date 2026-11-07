@@ -99,12 +99,14 @@ async def test_a_role_as_a_model_writes_it_never_refuses_the_rule(
     assert role == "media_director" and note and "مسئول ایمنی هوش مصنوعی" in note
     assert "مدیر رسانه و طراحی" in note
     # an unknown word: the proposer's department manager; without one, the CEO; never a refusal
-    role, note = AU.normalize_role("نویسنده", roles)
-    assert role == "media_director" and note and "نویسنده" in note
+    role, note = AU.normalize_role("موضوع‌یاب", roles)
+    assert role == "media_director" and note and "موضوع‌یاب" in note
     assert AU.normalize_role("content writer", roles)[0] == "media_director"
     bare = roles.model_copy(update={"department": None})
-    role, note = AU.normalize_role("نویسنده", bare)
+    role, note = AU.normalize_role("موضوع‌یاب", bare)
     assert role == "ceo" and note and "مدیرعامل" in note
+    # ⟨2026-11-07⟩ the everyday word for the scriptwriter (prompt 26.2's gap) is the scriptwriter
+    assert AU.normalize_role("نویسنده", roles) == ("scriptwriter", None)
     assert AU.normalize_role("ceo", roles) == ("ceo", None)
     assert AU.normalize_role(None, roles) == (None, None)
     assert AU.normalize_role("  ", roles) == (None, None)
@@ -114,7 +116,8 @@ async def test_a_role_as_a_model_writes_it_never_refuses_the_rule(
     assert role is None and note
     # the compiler: the owner's sentence, each bad role form; ONE call carrying the real roles
     expected = {
-        "نویسنده": "media_director",
+        "نویسنده": "scriptwriter",
+        "موضوع‌یاب": "media_director",
         f"scriptwriter@{co}": "scriptwriter",
         writer: "scriptwriter",
         "Scriptwriter": "scriptwriter",
@@ -179,8 +182,8 @@ async def test_the_owners_automation_card_runs_in_the_session_with_any_role_word
     said = await say(client, owner, conv, "هر روز صبح موضوع پیدا کنید")
     (c,) = said["answer"]["cards"]
     orders_before = await su.fetchval("SELECT count(*) FROM owner.orders")
-    # the model wrote «نویسنده»: no scriptwriter is hired, the media director takes the work
-    seen = route_answer(monkeypatch, routes(daily_work("نویسنده")))
+    # the model wrote a word no charter has: the proposer's department manager takes the work
+    seen = route_answer(monkeypatch, routes(daily_work("موضوع‌یاب")))
     r = await run_card(client, owner, c)
     assert r.status_code == 200, r.text
     [aref] = r.json()["made"]
@@ -194,7 +197,7 @@ async def test_the_owners_automation_card_runs_in_the_session_with_any_role_word
     assert json.loads(seen[0]["prompt"])["company"] == co
     assert await su.fetchval("SELECT count(*) FROM owner.orders") == orders_before
     rep = await report(client, owner, ref)
-    assert any("خودکارسازی" in s["what_fa"] and "نویسنده" in s["what_fa"] for s in rep["steps"])
+    assert any("خودکارسازی" in s["what_fa"] and "موضوع‌یاب" in s["what_fa"] for s in rep["steps"])
     # the same card with another field wrong: the plain reason names the field, on the card too
     talk["router"].answers = [answer("کارت آماده است.", cards=[card])]
     said = await say(client, owner, conv, "دوباره")
@@ -519,3 +522,14 @@ async def test_the_budgets_per_run(
         print("run context budgets (chars): work", runner.CONTEXT_CHARS + runner.CAPS_CHARS,
               "watcher", runner.CONTEXT_CHARS + size["lean"],
               "meeting", runner.CONTEXT_CHARS)  # fmt: skip
+
+
+def test_the_everyday_and_the_companys_own_words_find_the_role() -> None:
+    """⟨2026-11-07⟩ prompt 26.2's gap: «نویسنده» is the company's title of its scriptwriter, whose
+    charter title is «سناریست»; it went to the CEO. It finds the scriptwriter now."""
+    roles = AU.Roles(held={"scriptwriter": "نویسنده", "media_director": "مدیر رسانه و طراحی",
+                           "ceo": "مدیرعامل"}, ceo="ceo")  # fmt: skip
+    assert AU.normalize_role("نویسنده", roles) == ("scriptwriter", None)
+    assert AU.normalize_role("سناریست", roles) == ("scriptwriter", None)
+    other = AU.Roles(held={"scriptwriter": "سناریست", "ceo": "مدیرعامل"}, ceo="ceo")
+    assert AU.normalize_role("نویسنده", other) == ("scriptwriter", None)
