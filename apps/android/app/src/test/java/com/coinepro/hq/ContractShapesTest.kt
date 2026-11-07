@@ -287,7 +287,9 @@ class ContractShapesTest {
     @Test
     fun aMismatchIsLoggedWithItsFieldPathAndNotItsBody() = runTest {
         server.enqueue(MockResponse.Builder().code(200).addHeader("Content-Type", "application/json").addHeader("X-Request-Id", "req-77")
-            .body("""[{"id":"v1","samples":[{"script":"a","file":{"secret":"do-not-log"}}]}]""").build())
+            // ⟨0.16.0⟩ a file's fields all have defaults now (one odd file never hides a conversation):
+            // the mismatch is a voice without its id, the secret sits beside it
+            .body("""[{"samples":[{"script":"a","file":{"secret":"do-not-log"}}]}]""").build())
         try {
             api.voices()
             fail("expected a mismatch")
@@ -297,8 +299,8 @@ class ContractShapesTest {
         val f = recorded.single().second
         assertEquals("decode", f.kind)
         assertEquals("/api/v1/media/voices", f.path)
-        assertEquals("$[0].samples[0].file", f.field)
-        assertTrue(f.detail!!.contains("missing"))
+        assertEquals("$[0]", f.field)
+        assertTrue(f.detail!!.contains("missing id"))
         assertFalse(f.detail!!.contains("do-not-log"))
     }
 
