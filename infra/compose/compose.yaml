@@ -663,6 +663,10 @@ services:
       # Prompt 12 part B: the Persian voice is on only while the opt-in profile
       # "tts" runs (hq.sh sets HQ_TTS_ACTIVE); else briefings are text only.
       HQ_TTS: ${HQ_TTS_ACTIVE:-off}
+      # ⟨2026-11-07⟩ n8n's address while the profile "automations" is on (hq.sh), as the worker
+      # has it: a talk's capability brief says n8n is up, and an automation's n8n step run from
+      # the api reaches it on hq-internal (empty: "not set up", nothing is called)
+      HQ_N8N_URL: ${HQ_N8N_URL:-}
       # 15 §2.3: /transcribe answers 503 at once and /meta says speech is off
       # while hq.sh leaves this empty (HQ_STT off).
       STT_URL: ${STT_URL:-}
