@@ -21,6 +21,8 @@
 >
 > **v1.20 (۲۰۲۶-۱۱-۰۶):** هاب از داخل اپ (§۳۸، پرامپت ۲۶): کاتالوگ ثابت عملیات هاب برای تیم فنی هلدینگ با مُهر مالک برای کارهای حساس، و هیچ‌کس نمیگوید «دسترسی ندارم».
 >
+> **v1.22 (۲۰۲۶-۱۱-۰۷):** جلسه به کارگروه تبدیل میشود (§۴۰): حافظه‌ی جلسه، کارگروهِ قابل‌تکرار از نتیجه‌ی جلسه، و دادنش به شرکت یا پلتفرم دیگر.
+>
 > **v1.21 (۲۰۲۶-۱۱-۰۷):** جلسه کار را همان‌جا تمام میکند (§۳۹، W9): نقش در خودکارسازی هرگز رد نمیشود، هیچ کارتی از داخل جلسه فرمان تازه نمیسازد، مسئول کارت خراب خودش را درست میکند، داستان فرمان بی‌رسید و بی‌تکرار، و هر اجرا فقط آنچه لازم دارد را حمل میکند.
 >
 > **v1.17 (۲۰۲۶-۱۱-۰۶):** هر فرمان یک جلسه (§۳۵، پرامپت ۲۵): جلسه‌ی همیشه‌صاحب‌دار با حاضران و بازیکن‌ها، فهرست کارها، کارها در همان‌جا، بستن و بایگانی و باز کردن دوباره؛ دفتر مدیر کل؛ پیوند شرکت‌ها و بوم.
@@ -4081,3 +4083,50 @@ In a talk bound to an order no card makes a new `F-` ref:
   holding map. A person's work run, a message run and a working persona's talk turn keep the full brief (≤ `CAPS_CHARS` 12 000).
 - Measured per run (characters of context): a work run 24 000 + 12 000 (unchanged); a watcher's run 24 000 + ~750 (was + 12 000);
   a meeting turn 24 000 (unchanged, no brief); the overseer's talk head ~9 700 (was ~16 000), the secretary's unchanged.
+
+## 40. A session becomes a working group the owner can give to any company ⟨1.22⟩ (2026-11-07, W10)
+The owner, 2026-11-07: «همون لحظه که داریم برای موضوع یه نفر رو استخدام میکنیم اون توی اون جلسه حضور داشته باشه تا بهش محول بشه و آخر
+جلسه که صورت جلسه شد … ۲-۳ هزار خط چت کردیم و به یه نتیجه رسیدیم. میخوام اون نتیجه به یه اسکیل تبدیل بشه، به یه فرمان قابل اجرا … که
+بتونم اونو به شرکت‌های دیگه هم بدم … همون مدل رو برای یوتیوب … برای تلگرام … باید همه اتفاقها توی همون جلسه بیفته … جلسه‌ها به
+همدیگه ارتباطی ندارن، کار گم میشه». §39 keeps everything inside the session (a hire joins it at once); this section makes a long
+session remember, and turns its result into a reusable working group.
+
+### 40.1 The session remembers
+- Every session keeps a **memory** (≤ 6 000 chars, Persian, plain): what was decided, who does what (the people in the session and
+  their tasks), the tools and helpers chosen (e.g. «موضوع روزانه را نویسنده با ChatGPT پیدا میکند»), open points. Code appends each
+  card done and each person joining; a small model pass (the cheapest model that does it well) folds the last turns in every 20
+  turns and at close. The holder's and every participant's context carries the memory plus the last turns, so a session of thousands
+  of lines never loses its thread. `OrderReport.memory_md` (read-only for the clients; the details sheet shows it as «تا اینجا»).
+- The holder's context also names the company's last three sessions (title, one outcome line, their playbook if any): sessions are
+  not islands.
+
+### 40.2 From the session: a playbook (a working group as data)
+- `POST /orders/{ref}/playbook` (owner; `Idempotency-Key`; open or closed session) → `Playbook` in `draft`, drafted by the holder
+  from the memory, the plan, the session's hires, automations, lines and cards done:
+  ```
+  Playbook { ref: "PB-0001", title_fa, purpose_fa, state: "draft"|"sealed"|"retired", version,
+             platform: "instagram"|"youtube"|"telegram"|"site"|"any",
+             seats: [{seat, role, title_fa, duties_fa, helpers: ["gpt"|"gemini"|"deepseek"|"aistudio"], model?}],
+             routines: [{key, title_fa, seat, schedule (RRULE, the owner's time zone), brief_md}],
+             kpis: [{key, title_fa, source}], connections: [kind], rules_fa: [str],
+             source: {order, company, conversation}, members: [{company, name_fa, state, order?}], parent?: PB-ref,
+             created_at, sealed_at? }
+  ```
+  It appears in the session as a card «کارگروه از این جلسه» (open, edit, seal). The owner changes it in words in the session (the
+  holder rewrites the draft) or directly: `PATCH /playbooks/{ref}` (draft only; any field above but `ref`, `state`, `source`).
+- `POST /playbooks/{ref}/seal` 🔏 (`playbook.seal`, target = ref) → a working group (§29.11, stored in the database, eligibility
+  `chosen`: only companies the owner gives it to) and the session's company its first member: seats resolved to the employees the
+  session hired, empty seats filled by §29.10 inside the envelope; its routines start at their next time. A playbook's routines are
+  ordinary group routines (one small work per occurrence for the seat's employee).
+
+### 40.3 Give it to another company or another platform
+- `GET /playbooks?state=` (the library) · `GET /playbooks/{ref}`.
+- `POST /playbooks/{ref}/apply {company, platform?, note_fa?}` (owner; `Idempotency-Key`) → a **new session** for that company,
+  held by its CEO (or the manager of the matching department), whose first turn carries the playbook and the owner's note
+  («این کارگروه را برای <نام شرکت> روی <پلتفرم> پیاده کن»). The holder adapts it there (its accounts, tone, platform specifics);
+  sealing the adapted draft from that session makes a version (`parent` = the source) and that company its member. Applying with
+  no change: the company joins the sealed group directly (`apply {…, as_is: true}`), no session. `SessionCard.source` names the
+  playbook a session came from.
+- `POST /playbooks/{ref}/retire` 🔏: its routines stop for every member; nothing is deleted.
+- Nothing runs before the owner's seal. Every write is audited.
+- Data: migration `0057` (owner.playbooks, the sessions' memory, group eligibility `chosen`, the source of a session).
