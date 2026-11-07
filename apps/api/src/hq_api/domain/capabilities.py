@@ -22,6 +22,7 @@ every talk persona's, so that nobody claims a capability does not exist or inven
 
 from __future__ import annotations
 
+import json
 from typing import Any
 from uuid import UUID
 
@@ -64,7 +65,8 @@ HOW = {
     "hire": "propose {kind: hire} (a CEO decides inside its envelope; hiring rules in company.state)",
     "delegate": "work.delegate / work.split; another company: work.request to a linked company",
     "other_companies": (
-        "the_holding names every company; before you say you do not know a company, its accounts "
+        "the_holding names every company (beyond its room by code and name, the_holding_more counts "
+        "the rest); before you say you do not know a company, its accounts "
         "or its figures, read it: linked.read {company: CODE, what: profile | kpis | outputs | "
         "catalogue | connections | links, ref?} (connections: Instagram accounts as IG-Hub reads "
         "them); then ask it for work with work.request"
@@ -141,46 +143,75 @@ def _few(items: list[Any]) -> list[Any]:
     return items[:MAP_LIST_MAX]
 
 
-async def _holding_map(tx: Tx) -> list[dict[str, Any]]:
-    """Every active company in short, from linked.profile (masked, public handles only)."""
+# The map's room in a brief, in JSON characters (a talk turn's whole budget is
+# talk.engine.TOKENS_PER_TURN): the holding, the reader's own company and then the others in
+# full while they fit, then the rest by code and name, then only how many more there are. The
+# number of companies is data (owner rule 9): it never grows the brief past this room.
+MAP_CHARS = 8000
+MAP_NAMES_CHARS = 2000
+
+
+def _size(item: Any) -> int:
+    return len(json.dumps(item, ensure_ascii=False, default=str))
+
+
+def _entry(p: dict[str, Any]) -> dict[str, Any]:
+    channels = []
+    for c in p.get("connections") or []:
+        ch: dict[str, Any] = {"kind": c.get("kind"), "state": c.get("state")}
+        ch.update({k: v for k, v in (c.get("handles") or {}).items() if v})
+        if c.get("accounts_seen"):
+            ch["accounts_seen"] = _few(list(c["accounts_seen"]))
+        channels.append(ch)
+    return {
+        "code": p.get("code"),
+        "name_fa": p.get("name_fa"),
+        "name_en": p.get("name_en"),
+        "kind": p.get("kind"),
+        "departments": _few(
+            [
+                f"{d.get('code')}: {d.get('name_fa') or d.get('name_en') or ''}".strip()
+                for d in p.get("departments") or []
+            ]
+        ),
+        "sites": _few(list(p.get("sites") or [])),
+        "channels": channels,
+        "servers": _few([s.get("name") for s in p.get("servers") or []]),
+        "lines_on": len(p.get("lines") or []),
+        "groups": [g.get("key") for g in p.get("groups") or []],
+    }
+
+
+async def _holding_map(tx: Tx, first: UUID | None = None) -> tuple[list[dict[str, Any]], int]:
+    """Every active company in short, from linked.profile (masked, public handles only), within
+    MAP_CHARS (then by code and name within MAP_NAMES_CHARS); and how many are left out."""
     from hq_api.domain import linked as LK
 
     rows = await tx.all(
-        """SELECT id FROM core.companies WHERE status = 'active'
-           ORDER BY (kind = 'holding') DESC, code"""
+        """SELECT id, code, name_fa FROM core.companies WHERE status = 'active'
+           ORDER BY (kind = 'holding') DESC, (id = CAST(:first AS uuid)) DESC NULLS LAST, code""",
+        first=str(first) if first is not None else None,
     )
-    out = []
-    for r in rows:
-        p = await _safe(tx, LK.profile, r["id"])
-        if p is None:
-            continue
-        channels = []
-        for c in p.get("connections") or []:
-            ch: dict[str, Any] = {"kind": c.get("kind"), "state": c.get("state")}
-            ch.update({k: v for k, v in (c.get("handles") or {}).items() if v})
-            if c.get("accounts_seen"):
-                ch["accounts_seen"] = _few(list(c["accounts_seen"]))
-            channels.append(ch)
-        out.append(
-            {
-                "code": p.get("code"),
-                "name_fa": p.get("name_fa"),
-                "name_en": p.get("name_en"),
-                "kind": p.get("kind"),
-                "departments": _few(
-                    [
-                        f"{d.get('code')}: {d.get('name_fa') or d.get('name_en') or ''}".strip()
-                        for d in p.get("departments") or []
-                    ]
-                ),
-                "sites": _few(list(p.get("sites") or [])),
-                "channels": channels,
-                "servers": _few([s.get("name") for s in p.get("servers") or []]),
-                "lines_on": len(p.get("lines") or []),
-                "groups": [g.get("key") for g in p.get("groups") or []],
-            }
-        )
-    return out
+    out: list[dict[str, Any]] = []
+    used = names = 0
+    full = True
+    for i, r in enumerate(rows):
+        if full:
+            p = await _safe(tx, LK.profile, r["id"])
+            if p is None:
+                continue
+            entry = _entry(p)
+            if used + _size(entry) <= MAP_CHARS:
+                out.append(entry)
+                used += _size(entry)
+                continue
+            full = False
+        short = {"code": r["code"], "name_fa": r["name_fa"]}
+        if names + _size(short) > MAP_NAMES_CHARS:
+            return out, len(rows) - i
+        out.append(short)
+        names += _size(short)
+    return out, 0
 
 
 async def _safe(tx: Tx, fn: Any, *args: Any) -> Any:
@@ -198,9 +229,16 @@ async def brief(tx: Tx, company_id: UUID | None, *, n8n_up: bool) -> dict[str, A
         "automations": {"engine": "the hub's rule engine", "n8n": "up" if n8n_up else "not set up"},
         "how": HOW,
     }
-    holding = await _safe(tx, _holding_map)
-    if holding:
-        out["the_holding"] = holding
+    mapped = await _safe(tx, _holding_map, company_id)
+    if mapped:
+        holding, more = mapped
+        if holding:
+            out["the_holding"] = holding
+        if more:
+            out["the_holding_more"] = {
+                "companies": more,
+                "read": "linked.read {company: CODE, what: profile}",
+            }
     from hq_api.domain import speech_make as SM
 
     voice = await _safe(tx, SM.speech_state)
