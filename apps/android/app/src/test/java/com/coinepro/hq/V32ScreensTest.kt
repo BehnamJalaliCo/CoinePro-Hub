@@ -103,6 +103,12 @@ class V32ScreensTest(private val name: String, private val night: Boolean) {
                     Composer("", HoldUi(), HandsFree.LISTENING, hf = "")
                     Composer("", HoldUi(), HandsFree.HEARING, hf = "برای تریدیار یک ریلز بساز")
                     Composer("", HoldUi(), HandsFree.ANSWERING, hf = "")
+                    // ⟨0.17.0⟩ a long draft across the whole width (six lines, then it scrolls), «بفرست» in place of the mic; and «↓».
+                    Composer(LONG_DRAFT, HoldUi(), HandsFree.OFF)
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        com.coinepro.hq.ui.v32.JumpButton(0, {})
+                        com.coinepro.hq.ui.v32.JumpButton(3, {})
+                    }
                 }
             },
             "v32-header-states" to { _ ->
@@ -130,6 +136,10 @@ class V32ScreensTest(private val name: String, private val night: Boolean) {
             "v32-conversations" to { _ -> com.coinepro.hq.ui.v32.ConversationsScreen() },
             "v32-conversations-search" to { _ -> com.coinepro.hq.ui.v32.ConversationsScreen(q0 = "طلا") },
         )
+
+        private const val LONG_DRAFT = "هفته‌ی آموزش طلا را برای تریدیار برنامه‌ریزی کن: سه ریلز کوتاه درباره‌ی پیوت طلا، دو پست کانال و یک مقاله‌ی " +
+            "ساده برای تازه‌کارها. ریلزها پیش از انتشار برای من بیاید و تیتر کاورها با فونت خودمان باشد. بودجه‌ی تبلیغ همان سقف ماه است؛ " +
+            "اگر بیشتر لازم شد اول بپرس. گزارش بازده را آخر هفته بفرست، کوتاه و با عدد، که بدانم کدام ریلز بهتر دیده شد و چرا."
 
         private val LEVELS = List(32) { i -> (0.15f + 0.6f * kotlin.math.abs(kotlin.math.sin(i * 0.7f))).coerceIn(0f, 1f) }
 

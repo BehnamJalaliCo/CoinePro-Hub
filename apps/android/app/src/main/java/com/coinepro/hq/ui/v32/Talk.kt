@@ -13,8 +13,8 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -42,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.coinepro.hq.core.data.FIXED_PERSONAS
 import com.coinepro.hq.core.data.PERSONA_FA
@@ -63,7 +64,6 @@ import com.coinepro.hq.designsystem.Divan
 import com.coinepro.hq.designsystem.Empty
 import com.coinepro.hq.designsystem.ErrorBlock
 import com.coinepro.hq.designsystem.IconBtn
-import com.coinepro.hq.designsystem.LocalReducedMotion
 import com.coinepro.hq.designsystem.Skeleton
 import com.coinepro.hq.designsystem.generated.DivanIcon
 import com.coinepro.hq.designsystem.timesFig
@@ -213,20 +213,25 @@ fun TalkScreen(ref0: String? = null, persona0: String = "secretary") {
         }
         HorizontalDivider(color = c.lineDivider, modifier = Modifier.padding(top = 4.dp))
 
-        // The chat.
+        // The chat, drawn bottom-up (⟨0.17.0⟩ [rememberChatFollow]): it opens at the newest word, stays there while the owner is there,
+        // and offers «↓» once he has scrolled up.
         val list = rememberLazyListState()
-        val reduced = LocalReducedMotion.current
-        val total = session.turns.size + (if (session.phase != Phase.IDLE || session.liveText.isNotBlank()) 1 else 0)
-        LaunchedEffect(total, session.liveText.length) {
-            if (total == 0) return@LaunchedEffect
-            if (reduced) list.scrollToItem(total - 1) else list.animateScrollToItem(total - 1)
+        val turns = session.turns.toList()
+        val newest = turns.lastOrNull()
+        val follow = rememberChatFollow(list, turns.size, newest?.let { it.idText.ifBlank { "n${it.n}" } + it.n }, newest?.owner == true)
+        val live = session.phase != Phase.IDLE || session.liveText.isNotBlank() || session.liveFailed != null
+        // A speaker's name over the first of his answers in a row, when more than one persona is in the room.
+        val multi = present.size > 1
+        val named = remember(turns, multi) {
+            var lastBy: String? = null
+            turns.map { t -> (multi && !t.owner && t.by != lastBy).also { lastBy = if (t.owner) null else t.by } }
         }
         Box(Modifier.weight(1f)) {
-            LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            if (turns.isEmpty() && !live) Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 when {
-                    session.loading && session.turns.isEmpty() -> items(3) { i -> Skeleton(Modifier.fillMaxWidth(if (i % 2 == 0) 0.7f else 0.5f).height(64.dp), radius = 16.dp) }
-                    session.error != null && session.turns.isEmpty() -> item { ErrorBlock(session.error, { scope.launch { session.openPersona(persona0) } }) }
-                    session.turns.isEmpty() && session.phase == Phase.IDLE -> item(key = "start") {
+                    session.loading -> repeat(3) { i -> Skeleton(Modifier.fillMaxWidth(if (i % 2 == 0) 0.7f else 0.5f).height(64.dp), radius = 16.dp) }
+                    session.error != null -> ErrorBlock(session.error, { scope.launch { session.openPersona(persona0) } })
+                    else -> {
                         val who = faces.firstOrNull { it.id == conv?.persona }
                         Column(Modifier.fillMaxWidth().padding(top = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             who?.let { PersonaFace(it, size = 72.dp, speaking = false) }
@@ -239,26 +244,31 @@ fun TalkScreen(ref0: String? = null, persona0: String = "secretary") {
                             }
                         }
                     }
-                    else -> {
-                        var lastBy: String? = null
-                        val multi = present.size > 1
-                        items(session.turns.toList(), key = { it.idText.ifBlank { "n${it.n}" } + it.n }) { t ->
-                            val show = multi && !t.owner && t.by != lastBy
-                            lastBy = if (t.owner) null else t.by
-                            Box(itemMotion()) {
-                                TalkBubble(
-                                    t, faces.firstOrNull { it.id == t.by }, session.personas, show,
-                                    onReplay = if (t.audio.isEmpty()) null else ({ t.audio.sortedBy { it.seq }.forEach(session::play) }),
-                                    onRun = ::runCard, onDismiss = ::dismissCard,
-                                )
-                            }
+                }
+                for (n in session.notices) Text(n, style = Divan.type.caption, color = c.textMuted, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
+            } else {
+                LazyColumn(
+                    Modifier.fillMaxSize().testTag("talk-chat"), state = list, reverseLayout = true, contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.Bottom),
+                ) {
+                    item(key = CHAT_TAIL) { Spacer(Modifier.height(2.dp)) }
+                    for (n in session.notices.asReversed()) item(key = "notice-$n") { Text(n, style = Divan.type.caption, color = c.textMuted, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) }
+                    if (live) item(key = "live") {
+                        LiveBubble(session.phase, session.liveText, session.liveFailed, faces.firstOrNull { it.id == conv?.persona }, session.liveCards.toList(), session.speaking, ::runCard, ::dismissCard)
+                    }
+                    items(turns.size, key = { i -> turns[turns.size - 1 - i].let { it.idText.ifBlank { "n${it.n}" } + it.n } }) { i ->
+                        val k = turns.size - 1 - i
+                        val t = turns[k]
+                        Box(itemMotion()) {
+                            TalkBubble(
+                                t, faces.firstOrNull { it.id == t.by }, session.personas, named[k],
+                                onReplay = if (t.audio.isEmpty()) null else ({ t.audio.sortedBy { it.seq }.forEach(session::play) }),
+                                onRun = ::runCard, onDismiss = ::dismissCard,
+                            )
                         }
                     }
                 }
-                if (session.phase != Phase.IDLE || session.liveText.isNotBlank() || session.liveFailed != null) item(key = "live") {
-                    LiveBubble(session.phase, session.liveText, session.liveFailed, faces.firstOrNull { it.id == conv?.persona }, session.liveCards.toList(), session.speaking, ::runCard, ::dismissCard)
-                }
-                for (n in session.notices) item(key = "notice-$n") { Text(n, style = Divan.type.caption, color = c.textMuted, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) }
+                JumpToEnd(follow)
             }
         }
 

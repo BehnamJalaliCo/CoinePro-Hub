@@ -10,10 +10,13 @@ import com.coinepro.hq.core.net.HomeOrder
 import com.coinepro.hq.core.net.Notification
 import com.coinepro.hq.core.net.Office
 import com.coinepro.hq.core.net.OrderReport
+import com.coinepro.hq.core.net.ReportOutput
+import com.coinepro.hq.core.net.ReportStep
 import com.coinepro.hq.core.net.SessionParticipant
 import com.coinepro.hq.core.net.SessionBrief
 import com.coinepro.hq.core.net.SessionCard
 import com.coinepro.hq.core.net.SessionTask
+import com.coinepro.hq.core.net.TalkTurn
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.hypot
@@ -124,6 +127,113 @@ fun briefOf(r: OrderReport): SessionBrief = r.brief ?: SessionBrief(
     nowFa = r.ack?.planFa.orEmpty(),
     needFa = r.turn?.questionFa?.let { "جواب بده: $it" } ?: r.summary?.needFa.orEmpty(),
 )
+
+/** ⟨0.17.0⟩ The one line beside the badge in the session's head: why it is stuck; on the owner's turn what is needed from him; else
+ *  «حالا چه»; else why its badge. */
+fun sessionStatusLine(r: OrderReport): String {
+    val b = briefOf(r)
+    val reason = r.session?.reasonFa.orEmpty()
+    return when (sessionBadge(r)) {
+        "stuck" -> reason.ifBlank { b.nowFa }
+        "your_turn" -> b.needFa.ifBlank { r.turn?.questionFa.orEmpty() }.ifBlank { b.nowFa }
+        "closed" -> reason
+        else -> b.nowFa.ifBlank { reason }
+    }.let(::oneLine)
+}
+
+// ------------------------------------------------------------- the timeline --
+// ⟨0.17.0⟩ The session is a chat that gets things done: the talk's turns as bubbles; the steps of the work as one quiet line each at
+// their time (a step the hub wrote into the talk, or a step of the report the talk never heard); each result delivered as one compact
+// card at its time. Nothing is stacked above the chat.
+
+/** Who the hub's own steps are by (`order_report._step`). */
+const val SYSTEM_FA = "سامانه"
+
+/** The lead of a holder's question in the talk (`order_turns.to_talk(ask=True)`): a question is a bubble, never a quiet line. */
+private const val ASK_LEAD = "**سؤال از شما**"
+
+/** The hub's line for a result that arrived (`order_report`, «خروجی رسید: …» / «خروجی ناقص رسید: …»). */
+private val ARRIVED = listOf("خروجی رسید:", "خروجی ناقص رسید:")
+
+/** One line of a session's chat, in time order. */
+sealed interface SessionEntry {
+    val key: String
+    val at: String
+
+    /** A turn of the talk: the owner's, or an answer with its cards. */
+    data class Said(val turn: TalkTurn) : SessionEntry {
+        override val key: String get() = "t-" + turn.idText.ifBlank { "n${turn.n}" } + "-" + turn.n
+        override val at: String get() = turn.at
+    }
+
+    /** A step of the work, one quiet line at its time; [by] the persona it was written under, when it came through the talk. */
+    data class Step(override val at: String, val text: String, override val key: String, val by: String? = null) : SessionEntry
+
+    /** A result delivered, one compact card at its time (at the end when its time is not known). */
+    data class Output(val output: ReportOutput, override val at: String) : SessionEntry {
+        override val key: String get() = "o-" + output.ref
+    }
+}
+
+/** A step the hub wrote into the talk by itself (a progress line, «… آمد.»): no model spoke, nothing to act on. A holder's question,
+ *  his hello and any turn with cards, files or voice stay bubbles. */
+fun isStepTurn(t: TalkTurn): Boolean {
+    if (t.owner || t.source != "system" || t.state != "done" || t.cards.isNotEmpty() || t.files.isNotEmpty() || t.audio.isNotEmpty()) return false
+    val s = t.shown.trim()
+    return s.isNotEmpty() && !s.startsWith(ASK_LEAD) && !s.startsWith("سلام")
+}
+
+/** An instant of the hub's ISO times, read here (pure JVM: the unit tests run it without Android's calendar). */
+private fun instantOf(iso: String): java.time.Instant? =
+    if (iso.isBlank()) null else runCatching { java.time.OffsetDateTime.parse(iso).toInstant() }.getOrNull() ?: runCatching { java.time.Instant.parse(iso) }.getOrNull()
+
+/** A text in one line: no markdown marks, no line breaks. */
+fun oneLine(text: String): String = com.coinepro.hq.core.format.plainOfMd(text).replace(Regex("\\s*\\n+\\s*"), " ").trim()
+
+/** A quiet line with who did it: «[title]: [text]», unless the line already names him or someone («مدیر رسانه آمد.», «مدیر رسانه: …»). */
+fun stepWithSpeaker(text: String, title: String?): String =
+    if (title.isNullOrBlank() || text.contains(title) || NAMED.containsMatchIn(text)) text else "$title: $text"
+
+private val NAMED = Regex("^[^:،.]{1,40}:\\s")
+
+/** The result a step of the report announces («خروجی رسید: <title>»), if it is one of [outputs]. */
+private fun arrivalOf(s: ReportStep, outputs: List<ReportOutput>): ReportOutput? {
+    val what = s.whatFa.trim()
+    val lead = ARRIVED.firstOrNull { what.startsWith(it) } ?: return null
+    val title = what.removePrefix(lead).trim()
+    return outputs.firstOrNull { o -> o.titleFa.isNotBlank() && (o.titleFa.trim() == title || title.contains(o.titleFa.trim())) }
+}
+
+/**
+ * The session's chat in time order: the talk's [turns] as they are (each a bubble, or a quiet line when [isStepTurn]); the report's
+ * steps the talk never heard (the hub's own, by [SYSTEM_FA]; every step when there is no talk yet, [hasTalk] false) as quiet lines; and
+ * each of its outputs as a card at the time its arrival was written. Each one goes before the first turn later than it.
+ */
+fun sessionTimeline(turns: List<TalkTurn>, report: OrderReport?, hasTalk: Boolean): List<SessionEntry> {
+    val said = turns.map { t -> if (isStepTurn(t)) SessionEntry.Step(t.at, oneLine(t.shown), "st-" + t.idText.ifBlank { "n${t.n}" } + "-" + t.n, by = t.by) else SessionEntry.Said(t) }
+    val outputs = report?.outputs.orEmpty()
+    val steps = report?.steps.orEmpty()
+    val extra = mutableListOf<SessionEntry>()
+    for (s in steps) {
+        if (arrivalOf(s, outputs) != null) continue
+        if (hasTalk && s.whoFa.trim() != SYSTEM_FA) continue
+        val what = oneLine(s.whatFa)
+        if (what.isBlank() || what == "-") continue
+        val line = if (hasTalk || s.whoFa.isBlank() || s.whoFa.trim() == SYSTEM_FA) what else "${s.whoFa.trim()}: $what"
+        extra += SessionEntry.Step(s.at, line, "sr-" + s.at + "-" + line.hashCode())
+    }
+    for (o in outputs) extra += SessionEntry.Output(o, steps.firstOrNull { arrivalOf(it, outputs)?.ref == o.ref }?.at.orEmpty())
+    val later = extra.distinctBy { it.key }.sortedBy { instantOf(it.at)?.toEpochMilli() ?: Long.MAX_VALUE }
+    val out = ArrayList<SessionEntry>(said.size + later.size)
+    var j = 0
+    for (e in said) {
+        val t = instantOf(e.at)
+        if (t != null) while (j < later.size && instantOf(later[j].at)?.let { !it.isAfter(t) } == true) out += later[j++]
+        out += e
+    }
+    while (j < later.size) out += later[j++]
+    return out
+}
 
 // --------------------------------------------------------------- the office --
 /** The office from a hub before ⟨1.17⟩ (no `/office`): its orders as sessions, the pending cards, the critical items and suggestions. */

@@ -33,10 +33,11 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * ⟨1.16, 1.17⟩ Contract §34–§35, night and day, with the demo holding, drawn tall (1600dp): one order's session in each of its states,
- * from the header (the words, the badge, «نوبت تو», the brief) through the people and models, the pace, the plan, the blockers and the
- * results to the live conversation with its cards and the close. ⟨1.18⟩ §36 the files: the owner's turn with the covers' font, a sample
- * cover and a brief, the session's «فایل‌ها», and the composer with files on their way (going, there, failed) and a turn of files only.
+ * ⟨1.16, 1.17⟩ Contract §34–§35, night and day, with the demo holding, drawn tall (1600dp): one order's session in each of its states.
+ * ⟨0.17.0⟩ A compact head (the words in two lines, the badge and one line, «جزئیات») over the chat, which sits at its newest word: the
+ * steps of the work as quiet lines, a result as one card, what blocks it with its fix at the foot, and a closed session's way back.
+ * ⟨1.18⟩ §36 the files: the owner's turn with the covers' font, a sample cover and a brief, and the composer with files on their way
+ * (going, there, failed) and a turn of files only. The phone-height views are in [SessionChatScreensTest].
  */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -59,7 +60,25 @@ class SessionScreensTest(private val name: String, private val night: Boolean) {
             // ⟨1.19⟩ §37 «پاک کردن برای همیشه»: a session's preview (what goes, in Persian digits; what stays) and its two choices, then
             // an archive record's under a hold the hub named, and a hub before ⟨1.19⟩.
             "order-session-erase" to { _ -> Erasing() },
+            // ⟨0.17.0⟩ «جزئیات»: the order's words whole, the brief, the people and models, the pace, the plan, the files; close, hide
+            // and erase. Everything the head no longer stacks above the chat.
+            "order-session-details" to { _ -> Details("F-0101") },
         )
+
+        @Composable
+        private fun Details(ref: String) {
+            val o = com.coinepro.hq.ui.v29.rememberOrderReport(ref).data ?: return
+            androidx.compose.foundation.layout.Column(
+                Modifier.fillMaxSize().background(com.coinepro.hq.designsystem.Divan.colors.overlay).padding(16.dp),
+                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(14.dp),
+            ) {
+                androidx.compose.material3.Text("جزئیات جلسه", style = com.coinepro.hq.designsystem.Divan.type.h2)
+                com.coinepro.hq.ui.session.SessionDetailsBody(
+                    o, closed = false, sessionsOn = true, participants = com.coinepro.hq.core.data.orderParticipants(o.participants), addressee = null,
+                    onPick = {}, onAddPerson = {}, onAddModel = {}, onPace = {}, onTasksChanged = {}, onClose = {}, onReopen = {}, onHide = {}, onErase = {},
+                )
+            }
+        }
 
         @Composable
         private fun Erasing() {

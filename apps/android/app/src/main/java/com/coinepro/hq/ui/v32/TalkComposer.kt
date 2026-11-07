@@ -176,17 +176,25 @@ fun TalkComposerView(
             }
             Text(hfPartial.ifBlank { HANDS_FREE_FA.getValue(handsFree) }, style = Divan.type.small, color = c.textSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
-        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            IconBtn(DivanIcon.LOCK, "کلید صدا", onKey, tint = c.textSecondary)
-            BasicTextField(
-                text, { if (it.length <= 10_000) onText(it) },
-                Modifier.weight(1f).heightIn(min = 44.dp).padding(horizontal = 4.dp, vertical = 10.dp).semantics { contentDescription = placeholder },
-                textStyle = Divan.type.body.copy(color = c.textPrimary),
-                cursorBrush = SolidColor(c.goldInk),
-                maxLines = 5,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
-                decorationBox = { inner -> Box { if (text.isEmpty()) Text(placeholder, style = Divan.type.small, color = c.textMuted, maxLines = 2); inner() } },
-            )
+        // ⟨0.17.0⟩ The words take the whole width on their own rows (up to [COMPOSER_LINES], then they scroll), never a narrow column
+        // between the buttons. While the mic is held and nothing is written, the voice has the room.
+        if (text.isNotEmpty() || !(hold.active || hold.transcribing)) BasicTextField(
+            text, { if (it.length <= 10_000) onText(it) },
+            Modifier.fillMaxWidth().heightIn(min = 40.dp).padding(horizontal = 10.dp).padding(top = 8.dp, bottom = 4.dp).semantics { contentDescription = placeholder },
+            textStyle = Divan.type.body.copy(color = c.textPrimary),
+            cursorBrush = SolidColor(c.goldInk),
+            maxLines = COMPOSER_LINES,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
+            decorationBox = { inner -> Box { if (text.isEmpty()) Text(placeholder, style = Divan.type.small, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis); inner() } },
+        )
+        // The actions in one compact row under the words: the paperclip, hands-free, the key; at the end the mic, or «بفرست» once there
+        // are words (with files only, both: a held turn takes the files too).
+        val mic = text.isBlank() || hold.active || hold.transcribing
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            if (onAttach != null) Box {
+                IconBtn(DivanIcon.ATTACH, "پیوست فایل: عکس، فیلم، صدا، PDF، فونت، متن یا ZIP", onAttach, tint = c.textSecondary)
+                attachMenu()
+            }
             // Hands-free: one tap, listening until it is switched off.
             Box(
                 Modifier.size(44.dp).clip(CircleShape).background(if (hf) c.softLapis else Color.Transparent)
@@ -194,15 +202,16 @@ fun TalkComposerView(
                     .semantics { contentDescription = "دست‌آزاد" },
                 contentAlignment = Alignment.Center,
             ) { WaveGlyph(22.dp, if (hf) c.lapis else c.textSecondary) }
-            if (onAttach != null) Box {
-                IconBtn(DivanIcon.ATTACH, "پیوست فایل: عکس، فیلم، صدا، PDF، فونت، متن یا ZIP", onAttach, tint = c.textSecondary)
-                attachMenu()
-            }
-            HoldMic(hold, onHoldStart, onHoldEnd)
+            IconBtn(DivanIcon.LOCK, "کلید صدا", onKey, tint = c.textSecondary)
+            androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+            if (mic) HoldMic(hold, onHoldStart, onHoldEnd)
             if (ready) com.coinepro.hq.ui.media.RoundAction(DivanIcon.SEND, if (filesBusy) "صبر کن تا فایل‌ها برسند" else "بفرست", canSend, onSend, busy = sending)
         }
     }
 }
+
+/** How many lines the composer grows to before its words scroll. */
+const val COMPOSER_LINES = 6
 
 /** The hold-to-talk button: press, speak, release. It swells with the owner's voice while held. */
 @Composable
@@ -215,7 +224,7 @@ private fun HoldMic(hold: HoldUi, onStart: () -> Unit, onEnd: () -> Unit) {
     val start by androidx.compose.runtime.rememberUpdatedState(onStart)
     val end by androidx.compose.runtime.rememberUpdatedState(onEnd)
     Box(
-        Modifier.size(52.dp)
+        Modifier.size(48.dp)
             .semantics { contentDescription = "نگه دار و حرف بزن"; role = Role.Button }
             .pointerInput(Unit) {
                 detectTapGestures(onPress = {
@@ -226,7 +235,7 @@ private fun HoldMic(hold: HoldUi, onStart: () -> Unit, onEnd: () -> Unit) {
             },
         contentAlignment = Alignment.Center,
     ) {
-        Canvas(Modifier.size(52.dp)) {
+        Canvas(Modifier.size(48.dp)) {
             if (hold.active) drawCircle(c.goldFill.copy(alpha = 0.14f + 0.14f * breath.value), this.size.minDimension / 2 * (0.9f + 0.1f * breath.value), style = Stroke(2.dp.toPx()))
         }
         Box(Modifier.size(44.dp).scale(grow).clip(CircleShape).background(if (hold.active) c.goldFill else c.softGold), contentAlignment = Alignment.Center) {

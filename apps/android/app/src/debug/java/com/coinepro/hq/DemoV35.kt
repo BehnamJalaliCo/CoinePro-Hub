@@ -77,6 +77,7 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
             steps = mutableListOf(
                 step(188, "مدیرعامل تریدیار", "فرمان را گرفت و برنامه‌ی هفته را نوشت."),
                 *tyFiles.map { step(120, "مدیر کل", "فایل از مدیر کل: ${it.str("name")}") }.toTypedArray(),
+                step(100, "سامانه", "به مدیر رسانه‌ی تریدیار سپرده شد"),
                 step(95, "مدیر رسانه", "سه ریلز آموزشی ساخته شد."), step(6, "مدیرعامل تریدیار", "سؤال از شما: اول ریلزها یا پست‌ها؟"),
             ),
             files = tyFiles.toMutableList(),
@@ -89,6 +90,7 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
             null, Triple("گزارش سه‌ماهه‌ی همه‌ی شرکت‌ها نوشته شد.", "منتظر تأیید توست.", "اگر راضی هستی، تأیید کن و ببند."),
             opened = 1500, last = 40,
             outputs = listOf(jo("ref" to "O-000201", "title_fa" to "گزارش مالی سه‌ماهه‌ی هلدینگ", "kind" to "report")),
+            steps = mutableListOf(step(1495, "مشاور کل", "فرمان را گرفت و برنامه را نوشت."), step(45, "سامانه", "خروجی رسید: گزارش مالی سه‌ماهه‌ی هلدینگ")),
         ),
         S(
             "F-0103", "برای کوینه‌پرو FX یک پشتیبان تلگرامی بگذار که شب‌ها هم جواب بدهد.", "stuck", "کسی برای این کار نیست؛ اول استخدام لازم است.", "auto",
@@ -128,8 +130,9 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
     )
 
     // ------------------------------------------------------------- the talk --
-    private fun turn(cv: String, n: Int, by: String, text: String, min: Long, cards: List<JsonObject> = emptyList(), files: List<JsonObject> = emptyList()) = jo(
-        "id" to "T-${cv.removePrefix("CV-")}-$n", "conversation" to cv, "n" to n, "by" to by, "source" to "typed",
+    // ⟨0.17.0⟩ [source] `system`: a step the hub wrote into the talk by itself (a progress line, «… آمد.»), drawn as one quiet line.
+    private fun turn(cv: String, n: Int, by: String, text: String, min: Long, cards: List<JsonObject> = emptyList(), files: List<JsonObject> = emptyList(), source: String = "typed") = jo(
+        "id" to "T-${cv.removePrefix("CV-")}-$n", "conversation" to cv, "n" to n, "by" to by, "source" to source,
         "text" to (if (by == "owner") text else ""), "show_md" to (if (by == "owner") null else text), "say_fa" to null,
         "cards" to JsonArray(cards), "audio" to JsonArray(emptyList()), "state" to "done", "at" to at(min), "files" to JsonArray(files),
     )
@@ -139,16 +142,18 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         "payload" to jo("title_fa" to "پشتیبان تلگرام", "company" to "FX"), "state" to "offered", "made" to JsonArray(emptyList()), "reason_fa" to null,
     )
     private val lineCard = jo(
-        "id" to "TC-502", "turn" to "T-0501-3", "kind" to "delegate", "title_fa" to "بسپار به مدیر رسانه: دو پست کانال", "body_fa" to "دو پست کانال درباره‌ی پیوت طلا، پیش از انتشار برای تو.",
+        "id" to "TC-502", "turn" to "T-0501-4", "kind" to "delegate", "title_fa" to "بسپار به مدیر رسانه: دو پست کانال", "body_fa" to "دو پست کانال درباره‌ی پیوت طلا، پیش از انتشار برای تو.",
         "payload" to jo("text_fa" to "دو پست کانال درباره‌ی پیوت طلا بنویس", "company" to "TY"), "state" to "done", "made" to JsonArray(listOf(JsonPrimitive("W-000310"))), "reason_fa" to null,
     )
 
     private val turnsBy: MutableMap<String, MutableList<JsonObject>> = mutableMapOf(
         "CV-0501" to mutableListOf(
             turn("CV-0501", 1, "ceo@TY", "سلام. فرمان هفته‌ی آموزش طلا را گرفتم. **برنامه:** سه ریلز، دو پست و یک مقاله. چون گفتی مرحله به مرحله، هر قدم را با تو جلو میبرم.", 188),
-            turn("CV-0501", 2, "owner", "خوب است. ریلزها را بساز و نظر جی‌پی‌تی را هم درباره‌ی متن‌ها بپرس. تیتر کاورها با این فونت باشد؛ نمونه‌ی کاور و بریف هم پیوست است.", 120, files = tyFiles),
-            turn("CV-0501", 3, "player:gpt", "متن ریلزها روشن است؛ پیشنهاد میکنم در ریلز دوم یک مثال عددی از پیوت هفته‌ی قبل بیاید.", 110, listOf(lineCard)),
-            turn("CV-0501", 4, "ceo@TY", "سه ریلز آماده شد و تیتر کاورها با فونتی که دادی نوشته شد؛ دو پست را به مدیر رسانه سپردم. **سؤال:** اول ریلزها منتشر شود یا پست‌ها؟", 6),
+            turn("CV-0501", 2, "media@TY", "مدیر رسانه‌ی تریدیار آمد.", 150, source = "system"),
+            turn("CV-0501", 3, "owner", "خوب است. ریلزها را بساز و نظر جی‌پی‌تی را هم درباره‌ی متن‌ها بپرس. تیتر کاورها با این فونت باشد؛ نمونه‌ی کاور و بریف هم پیوست است.", 120, files = tyFiles),
+            turn("CV-0501", 4, "player:gpt", "متن ریلزها روشن است؛ پیشنهاد میکنم در ریلز دوم یک مثال عددی از پیوت هفته‌ی قبل بیاید.", 110, listOf(lineCard)),
+            turn("CV-0501", 5, "media@TY", "سه ریلز آموزشی ساخته شد و تیتر کاورها با فونت «Titr Cover» نوشته شد.", 95, source = "system"),
+            turn("CV-0501", 6, "ceo@TY", "سه ریلز آماده شد و تیتر کاورها با فونتی که دادی نوشته شد؛ دو پست را به مدیر رسانه سپردم. **سؤال:** اول ریلزها منتشر شود یا پست‌ها؟", 6),
         ),
         "CV-0502" to mutableListOf(
             turn("CV-0502", 1, "advisor", "سلام. گزارش مالی سه‌ماهه را مینویسم؛ عددها از دفتر هر شرکت میآید.", 1490),
