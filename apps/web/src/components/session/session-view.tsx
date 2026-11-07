@@ -13,13 +13,14 @@ import { Button, IconButton } from '@/components/ui/button';
 import { Sheet } from '@/components/ui/overlay';
 import { Card, Empty, ErrorState, FilterChip, PageHeader, Pill, SectionTitle, Segmented, Skeleton } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
-import { BlockerRow, KitCard, OrderReportView, RouteLine, Steps } from '@/components/v29/report';
+import { BlockerRow, KitCard, OrderReportView, RouteLine } from '@/components/v29/report';
 import { EraseButton } from '@/components/erase/erase-button';
 import { MessageMedia } from '@/components/media/attachments';
 import { CompanyMark } from '@/components/brand/marks';
 import { SplitParts, WorkspaceCard } from '@/components/v33/parallel';
 import type { OrderParallel } from '@/lib/api/v33';
 import { FixButton, OrderStatePill, PlainPara, PlainText } from '@/components/v29/bits';
+import { FaText } from '@/components/v29/text';
 import { errText, field } from '@/components/v31/kit';
 import { useCompanies } from '@/lib/api/hooks';
 import { useRoles } from '@/lib/api/v14';
@@ -28,7 +29,7 @@ import {
   BADGE, PACE_FA, PLAYERS, sessionTalk, useOrderSession, useSessionActions, type Pace, type Participant, type SessionReport, type SessionTask,
 } from '@/lib/api/v34';
 import { useConversation } from '@/lib/api/v32';
-import { cx, jDateTime } from '@/lib/format';
+import { cx, jDateTime, jTime } from '@/lib/format';
 import { plain } from '@/lib/plain';
 import { ConversationPane, Face, playerName, type PaneApi } from './conversation-pane';
 
@@ -81,48 +82,54 @@ function Session({ refId, r }: { refId: string; r: Full }) {
   const hide = () => act.hide.mutate(undefined, { onSuccess: () => { toast({ tone: 'info', text: 'جلسه از فهرست رفت. چیزی پاک نشد؛ از «بایگانی» برمیگردد.' }); router.push('/s'); }, onError: (e) => failed(e, 'پنهان نشد.') });
   const target = to && r.participants.some((p) => p.key === to) ? to : to === 'all' ? 'all' : '';
 
-  return (
-    <>
-      <PageHeader
-        eyebrow={<Link href="/s" className="hover:text-ink">جلسه‌ها</Link>}
-        title={<PlainText text={r.text_fa} />}
-        actions={closed ? (
-          <>
-            <Button variant="primary" icon="refresh" loading={act.reopen.isPending} onClick={() => act.reopen.mutate(undefined, { onError: (e) => failed(e, 'باز نشد.') })}>دوباره باز کن</Button>
-            <EraseButton kind="session" refId={refId} variant="ghost" size="md" onGone={() => router.push('/s')} />
-            <Button variant="text" onClick={() => (r.session.hidden ? act.unhide : act.hide).mutate(undefined, { onError: (e) => failed(e, 'انجام نشد.') })}>{r.session.hidden ? 'برگردان به فهرست' : 'از فهرست بردار'}</Button>
-          </>
-        ) : (
-          <>
-            <Button variant="primary" icon="seal" onClick={() => setClosing(true)}>تأیید و بستن</Button>
-            <IconButton icon="dismiss" label="از فهرست بردار" onClick={hide} />
-            <EraseButton kind="session" refId={refId} variant="ghost" size="md" onGone={() => router.push('/s')} />
-          </>
-        )}
-      >
-        <div className="flex flex-wrap items-center gap-2 pt-1">
-          <BadgePill badge={r.session.badge} />
-          <span className="text-[13px] text-sec"><PlainText text={r.session.reason_fa} /></span>
-          <OrderStatePill state={r.state} />
-          {closed ? (
-            <Pill tone="neutral" icon="time">روش کار: {PACE_FA[r.pace ?? 'auto']}</Pill>
-          ) : (
-            <div className="w-48 max-w-full">
-              <Segmented<Pace>
-                label="روش کار"
-                value={r.pace ?? 'auto'}
-                onChange={(v) => act.pace.mutate(v, { onSuccess: () => toast({ tone: 'ok', text: v === 'step' ? 'از این به بعد قدم‌به‌قدم با تو.' : 'از این به بعد خودش تا آخر میرود.' }), onError: (e) => failed(e, 'عوض نشد؛ دوباره بزن.') })}
-                options={[{ value: 'step', label: PACE_FA.step }, { value: 'auto', label: PACE_FA.auto }]}
-              />
-            </div>
-          )}
-          {closed && r.session.closed_at ? <span className="text-[12px] text-muted">بسته شد {jDateTime(r.session.closed_at)}</span> : null}
-        </div>
-      </PageHeader>
+  const [details, setDetails] = useState(false);
+  const [wide, setWide] = useState(false);
+  const askClose = () => { setDetails(false); setClosing(true); };
+  const ready = r.session.badge === 'ready' && !closed;
 
-      <Brief r={r} />
+  // The talk is the body: the order's system steps sit in it as small grey lines at their time, and what was delivered as compact cards at its end.
+  const timeline = r.steps.map((s, i) => ({ key: `step-${s.at}-${i}`, at: s.at, node: <StepLine s={s} /> }));
+  const tail = r.outputs.length ? (
+    <div className="flex flex-col items-start gap-1.5" aria-label="نتیجه‌های رسیده">
+      {r.outputs.map((o) => <OutputChip key={o.ref} o={o} />)}
+    </div>
+  ) : null;
+
+  return (
+    <div className="mx-auto flex w-full max-w-[58rem] flex-col gap-3">
+      <header className="flex flex-col gap-1.5">
+        <Link href="/s" className="self-start text-caption text-muted hover:text-ink">جلسه‌ها</Link>
+        <div className="flex items-start gap-2">
+          <h1 className={cx('min-w-0 flex-1 text-h3 font-semibold leading-8 text-ink', !wide && 'line-clamp-2')}><PlainText text={r.text_fa} /></h1>
+          {r.text_fa.length > 60 ? <button type="button" aria-expanded={wide} onClick={() => setWide(!wide)} className="flex-none pt-1 text-[12px] text-muted hover:text-ink">{wide ? 'کمتر' : 'بیشتر'}</button> : null}
+        </div>
+        <div className="flex items-center gap-2">
+          <BadgePill badge={r.session.badge} />
+          <span className="min-w-0 flex-1 truncate text-[13px] text-sec" title={plain(r.session.reason_fa)}><PlainText text={r.session.reason_fa} /></span>
+          {ready ? <Button size="sm" variant="primary" icon="seal" onClick={() => setClosing(true)}>تأیید و بستن</Button> : null}
+          {closed ? <Button size="sm" variant="primary" icon="refresh" loading={act.reopen.isPending} onClick={() => act.reopen.mutate(undefined, { onError: (e) => failed(e, 'باز نشد.') })}>دوباره باز کن</Button> : null}
+          <Button size="sm" icon="more" aria-haspopup="dialog" onClick={() => setDetails(true)}>جزئیات</Button>
+        </div>
+      </header>
 
       {r.turn && !closed ? <OpenTurn r={r} onReply={(text) => act.reply.mutate(text, { onSuccess: () => toast({ tone: 'ok', text: 'جوابت رفت.' }), onError: (e) => failed(e, 'جوابت نرفت؛ دوباره بزن.') })} busy={act.reply.isPending} /> : null}
+
+      {r.blockers.length && !closed ? (
+        <Card className="flex flex-col gap-3 p-4 ring-1 ring-[var(--hq-neg-line)]" aria-label="گیرها">
+          <SectionTitle title="کجا گیر کرده" note="هر گیر با دکمه‌ی رفعش؛ یک ضربه کافی است" />
+          <ul className="flex flex-col gap-2">{r.blockers.map((b, i) => <BlockerRow key={`${b.kind}-${i}`} b={b} company={company} run={runFix} />)}</ul>
+        </Card>
+      ) : null}
+
+      <Room r={r} closed={closed} to={target} onTo={setTo} />
+      {talk ? (
+        <ConversationPane
+          conversationRef={talk} face={holder?.key ?? 'secretary'} to={target || null} titleOf={titleOf} readOnly={closed || !!conv.data?.closed_at} onApi={bindPane}
+          talkHeight="h-[calc(100dvh-20rem)]" timeline={timeline} tail={tail} placeholder="به مسئول بگو چه بکند، یا از همین‌جا بسپار، استخدام کن، گروه و خط تولید راه بینداز…"
+          emptyTitle="هنوز حرفی زده نشده" emptyBody="هر چه بگویی همین‌جا به مسئول فرمان میرسد؛ هر کاری که از دل گفتگو بیرون بیاید فقط با کارتی که تو میزنی انجام میشود." />
+      ) : (
+        <Card className="p-5"><Empty icon="messages" title="گفتگوی این جلسه هنوز باز نشده" action={<Button icon="messages" loading={act.talk.isPending} onClick={() => act.talk.mutate(undefined, { onError: (e) => failed(e, 'باز نشد.') })}>گفتگو را شروع کن</Button>} /></Card>
+      )}
 
       {/* ⟨1.13⟩ §31.2: a «new company» order — the kit's form, preview and seal, right in its session. */}
       {r.kit ? <KitCard refId={refId} kit={r.kit} /> : null}
@@ -131,55 +138,85 @@ function Session({ refId, r }: { refId: string; r: Full }) {
       <SplitParts r={r as OrderParallel} />
       <WorkspaceCard r={r as OrderParallel} />
 
-      {r.blockers.length && !closed ? (
-        <Card className="flex flex-col gap-3 p-5 ring-1 ring-[var(--hq-neg-line)]" aria-label="گیرها">
-          <SectionTitle title="کجا گیر کرده" note="هر گیر با دکمه‌ی رفعش؛ یک ضربه کافی است" />
-          <ul className="flex flex-col gap-2">{r.blockers.map((b, i) => <BlockerRow key={`${b.kind}-${i}`} b={b} company={company} run={runFix} />)}</ul>
-        </Card>
-      ) : null}
-
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-        <div className="flex min-w-0 flex-col gap-3">
-          <Room r={r} closed={closed} to={target} onTo={setTo} />
-          {talk ? (
-            <ConversationPane
-              conversationRef={talk} face={holder?.key ?? 'secretary'} to={target || null} titleOf={titleOf} readOnly={closed || !!conv.data?.closed_at} onApi={bindPane}
-              talkHeight="lg:max-h-[calc(100dvh-26rem)]" placeholder="به مسئول بگو چه بکند، یا از همین‌جا بسپار، استخدام کن، گروه و خط تولید راه بینداز…"
-              emptyTitle="هنوز حرفی زده نشده" emptyBody="هر چه بگویی همین‌جا به مسئول فرمان میرسد؛ هر کاری که از دل گفتگو بیرون بیاید فقط با کارتی که تو میزنی انجام میشود." />
-          ) : (
-            <Card className="p-5"><Empty icon="messages" title="گفتگوی این جلسه هنوز باز نشده" action={<Button icon="messages" loading={act.talk.isPending} onClick={() => act.talk.mutate(undefined, { onError: (e) => failed(e, 'باز نشد.') })}>گفتگو را شروع کن</Button>} /></Card>
-          )}
-        </div>
-        <div className="flex min-w-0 flex-col gap-4">
+      <Sheet open={details} onOpenChange={setDetails} title="جزئیات جلسه" description="همه‌ی چیزهایی که کنار گفتگو لازم میشوند" width={520}>
+        <div className="flex flex-col gap-4">
+          <Brief r={r} />
+          <Card className="flex flex-col gap-2 p-4" aria-label="وضعیت و روش کار">
+            <div className="flex flex-wrap items-center gap-2"><BadgePill badge={r.session.badge} /><OrderStatePill state={r.state} />{closed && r.session.closed_at ? <span className="text-[12px] text-muted">بسته شد {jDateTime(r.session.closed_at)}</span> : null}</div>
+            {closed ? (
+              <Pill tone="neutral" icon="time">روش کار: {PACE_FA[r.pace ?? 'auto']}</Pill>
+            ) : (
+              <Segmented<Pace>
+                label="روش کار"
+                value={r.pace ?? 'auto'}
+                onChange={(v) => act.pace.mutate(v, { onSuccess: () => toast({ tone: 'ok', text: v === 'step' ? 'از این به بعد قدم‌به‌قدم با تو.' : 'از این به بعد خودش تا آخر میرود.' }), onError: (e) => failed(e, 'عوض نشد؛ دوباره بزن.') })}
+                options={[{ value: 'step', label: PACE_FA.step }, { value: 'auto', label: PACE_FA.auto }]}
+              />
+            )}
+          </Card>
           <Participants r={r} closed={closed} onAddPerson={() => setPeople(true)} />
-          <Plan r={r} />
           <Tasks r={r} closed={closed} />
+          <Plan r={r} />
           <Results r={r} closed={closed} />
           <FilesCard r={r} />
-          <Steps r={r} />
+          <Card className="flex flex-col gap-2 p-4" aria-label="بستن و پنهان کردن">
+            <SectionTitle title="پایان جلسه" />
+            <div className="flex flex-wrap items-center gap-2">
+              {closed ? (
+                <Button variant="primary" icon="refresh" loading={act.reopen.isPending} onClick={() => act.reopen.mutate(undefined, { onSuccess: () => setDetails(false), onError: (e) => failed(e, 'باز نشد.') })}>دوباره باز کن</Button>
+              ) : (
+                <Button variant="primary" icon="seal" onClick={askClose}>تأیید و بستن</Button>
+              )}
+              {closed ? (
+                <Button variant="secondary" onClick={() => (r.session.hidden ? act.unhide : act.hide).mutate(undefined, { onError: (e) => failed(e, 'انجام نشد.') })}>{r.session.hidden ? 'برگردان به فهرست' : 'از فهرست بردار'}</Button>
+              ) : (
+                <Button variant="secondary" onClick={hide}>از فهرست بردار</Button>
+              )}
+              <EraseButton kind="session" refId={refId} variant="ghost" size="md" onGone={() => router.push('/s')} />
+            </div>
+          </Card>
         </div>
-      </div>
-
+      </Sheet>
       <PersonSheet open={people} onOpenChange={setPeople} r={r} />
       <CloseSheet open={closing} onOpenChange={setClosing} r={r} onAsk={(t) => { setClosing(false); speak(t); }} onClosed={() => { setClosing(false); toast({ tone: 'ok', text: 'جلسه بسته و بایگانی شد.' }); }} />
-    </>
+    </div>
+  );
+}
+
+/** A system step, small and grey and centred on one line, in the talk at its time. */
+function StepLine({ s }: { s: SessionReport['steps'][number] }) {
+  return (
+    <div className="mx-auto flex max-w-full items-center justify-center gap-1.5 px-2 py-0.5 text-[11px] leading-5 text-muted" data-step title={`${s.who_fa}: ${plain(s.what_fa)}`}>
+      <span className="fig flex-none">{jTime(s.at)}</span>
+      <span className="min-w-0 truncate">{s.who_fa}: <FaText text={s.what_fa} /></span>
+    </div>
+  );
+}
+
+/** A delivered output, a compact card in the talk. */
+function OutputChip({ o }: { o: SessionReport['outputs'][number] }) {
+  return (
+    <Link href={`/outputs?ref=${o.ref}&tab=all`} data-output className="flex max-w-full items-center gap-2 rounded-[12px] border border-div bg-tile px-3 py-2 text-[13px] hover:bg-hover">
+      <Icon name={o.kind === 'reel' ? 'video' : o.kind === 'post' || o.kind === 'story' ? 'image' : 'deliverable'} size={16} className="flex-none text-silver-ink" />
+      <span className="min-w-0 truncate"><PlainText text={o.title_fa} /></span>
+      <span className="flex-none text-[11px] text-muted">{OUTPUT_KIND_FA[o.kind as OutputKind] ?? 'خروجی'}</span>
+    </Link>
   );
 }
 
 // ================================================================================================ the brief ==
+/** «چه شد · حالا چه · از تو چه», stacked, in the details sheet. */
 function Brief({ r }: { r: Full }) {
   const rows = [['چه شد', r.brief.done_fa, 'seal', 'text-pos'], ['حالا چه', r.brief.now_fa, 'time', 'text-warn'], ['از تو چه', r.brief.need_fa, 'owner', 'text-gold-ink']] as const;
   return (
-    <Card className="tahrir flex flex-col gap-3 p-5" aria-label="خلاصه‌ی جلسه">
-      <div className="grid gap-3 md:grid-cols-3">
-        {rows.map(([t, v, icon, tint]) => (
-          <section key={t} className="flex flex-col gap-1.5 rounded-[12px] bg-tile p-3">
-            <h3 className={cx('flex items-center gap-1.5 text-[13px] font-semibold', tint)}><Icon name={icon} size={15} />{t}</h3>
-            {v ? <PlainPara text={v} className="text-[13px] leading-6 text-ink" /> : <p className="text-[13px] text-muted">—</p>}
-          </section>
-        ))}
-      </div>
-    </Card>
+    <section className="tahrir flex flex-col gap-2" aria-label="خلاصه‌ی جلسه">
+      {rows.map(([t, v, icon, tint]) => (
+        <section key={t} className="flex flex-col gap-1.5 rounded-[12px] bg-tile p-3">
+          <h3 className={cx('flex items-center gap-1.5 text-[13px] font-semibold', tint)}><Icon name={icon} size={15} />{t}</h3>
+          {v ? <PlainPara text={v} className="text-[13px] leading-6 text-ink" /> : <p className="text-[13px] text-muted">—</p>}
+        </section>
+      ))}
+    </section>
   );
 }
 
@@ -205,7 +242,7 @@ function Room({ r, closed, to, onTo }: { r: Full; closed: boolean; to: string; o
   const others = r.participants.filter((p) => p.kind !== 'holder');
   if (!others.length) return null;
   return (
-    <div className="flex flex-wrap items-center gap-1.5" role="radiogroup" aria-label="به چه کسی میگویی">
+    <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5" role="radiogroup" aria-label="به چه کسی میگویی">
       <span className="text-[12px] text-muted">میگویی به</span>
       <FilterChip selected={to === ''} onClick={() => onTo('')}>مسئول فرمان</FilterChip>
       {others.map((p) => <FilterChip key={p.key} selected={to === p.key} onClick={() => onTo(p.key)}>{p.title_fa}</FilterChip>)}

@@ -27,3 +27,11 @@ export async function clean(page: Page, run: () => Promise<void>, allow: RegExp[
   errors.push(...(await loggedFailures(page)).filter((l) => !allow.some((re) => re.test(l))));
   expect(errors, errors.join('\n')).toEqual([]);
 }
+
+/** The session page keeps everything but the talk in «جزئیات»: opens that sheet and hands it back. */
+export async function openDetails(page: Page) {
+  await page.getByRole('button', { name: 'جزئیات', exact: true }).click();
+  const sheet = page.getByRole('dialog', { name: 'جزئیات جلسه' });
+  await expect(sheet).toBeVisible();
+  return sheet;
+}

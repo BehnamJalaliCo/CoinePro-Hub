@@ -6,7 +6,7 @@
 // in a session it is the order's own talk, and `to` aims a word at one participant or at everyone (§35.4).
 
 import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Avatar, Orb } from '@/components/brand/avatar';
 import { Icon } from '@/components/icon';
 import { AttachmentTray, MessageMedia, RICH_ACCEPT, useAttachments } from '@/components/media/attachments';
@@ -117,12 +117,22 @@ export type PaneProps = {
   onApi?: (api: PaneApi | null) => void;
   emptyTitle?: string;
   emptyBody?: string;
-  /** Height of the scrolling talk on wide screens. */
+  /** Height classes of the scrolling talk (it scrolls inside, the composer stays under it). */
   talkHeight?: string;
   placeholder?: string;
+  /** Small things that belong in the timeline at their time (a session's system steps): shown between the turns by `at`. */
+  timeline?: Array<{ key: string; at: string; node: ReactNode }>;
+  /** What is shown after the last turn and before the live answer (a session's delivered outputs). */
+  tail?: ReactNode;
 };
 
-export function ConversationPane({ conversationRef: ref, face, ensure, to, titleOf, readOnly, onBusy, onMeter, onApi, emptyTitle, emptyBody, talkHeight = 'lg:max-h-[calc(100dvh-22rem)]', placeholder }: PaneProps) {
+/** The composer's textarea grows to this many lines, then scrolls. */
+const MAX_LINES = 6;
+const LINE_PX = 24;
+/** How near the end counts as «at the end» (px). */
+const END_SLACK = 80;
+
+export function ConversationPane({ conversationRef: ref, face, ensure, to, titleOf, readOnly, onBusy, onMeter, onApi, emptyTitle, emptyBody, talkHeight = 'max-h-[calc(100dvh-22rem)]', placeholder, timeline, tail }: PaneProps) {
   const qc = useQueryClient();
   const toast = useToast();
   const act = useTalkActions();
@@ -141,15 +151,63 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
   const audio = useAudioQueue();
   const abort = useRef<AbortController | null>(null);
   const liveId = useRef<string | null>(null);
-  const bottom = useRef<HTMLDivElement | null>(null);
+  const scroller = useRef<HTMLDivElement | null>(null);
+  const inner = useRef<HTMLDivElement | null>(null);
+  const area = useRef<HTMLTextAreaElement | null>(null);
+  // The talk opens at its last turn and stays there while he is at the end; once he scrolls up it leaves him be and offers «↓».
+  const pinned = useRef(true);
+  // `left`: how many turns there were when he scrolled away from the end (null while he is at the end), per conversation.
+  const [leave, setLeave] = useState<{ ref: string | null; at: number } | null>(null);
 
   const c = conv.data ?? null;
   const turns = turnsOf(c);
   const busy = !!live?.streaming;
+  const turnsLen = useRef(0);
+  useEffect(() => { turnsLen.current = turns.length; });
   const personaOf = (key: string) => personas.data?.find((p) => p.key === key || key.startsWith(`${p.role}@`)) ?? null;
 
   useEffect(() => { onBusy?.(busy); }, [busy, onBusy]);
-  useEffect(() => { bottom.current?.scrollIntoView({ block: 'end' }); }, [turns.length, live?.answer, live?.cards.length]);
+  const toEnd = useCallback((smooth = false) => {
+    const el = scroller.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+  }, []);
+  useLayoutEffect(() => { pinned.current = true; }, [ref]);
+  useLayoutEffect(() => { if (pinned.current) toEnd(); }, [toEnd, turns.length, live?.answer, live?.cards.length, timeline?.length]);
+  // Pictures, cards and the streamed answer grow the talk after it was placed: stay at the end if he is there.
+  useEffect(() => {
+    const el = inner.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => { if (pinned.current) toEnd(); });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [toEnd]);
+  const onScroll = () => {
+    const el = scroller.current;
+    if (!el) return;
+    const near = el.scrollHeight - el.scrollTop - el.clientHeight < END_SLACK;
+    pinned.current = near;
+    setLeave((l) => (near ? (l ? null : l) : l && l.ref === ref ? l : { ref, at: turnsLen.current }));
+  };
+  const atEnd = !leave || leave.ref !== ref;
+  const unseen = atEnd ? 0 : Math.max(0, turns.length - leave.at);
+
+  // The composer grows with the text to six lines and then scrolls.
+  useLayoutEffect(() => {
+    const el = area.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    const max = MAX_LINES * LINE_PX + 22;
+    el.style.height = `${Math.min(el.scrollHeight, max)}px`;
+    el.style.overflowY = el.scrollHeight > max ? 'auto' : 'hidden';
+  }, [text, readOnly]);
+
+  const items = (() => {
+    const all = [
+      ...turns.map((t, i) => ({ key: t.id, at: Date.parse(t.at), i, node: <TurnView t={t} persona={personaOf(t.by)} title={titleOf?.(t.by)} /> })),
+      ...(timeline ?? []).map((x, i) => ({ key: x.key, at: Date.parse(x.at), i: turns.length + i, node: x.node })),
+    ];
+    return all.sort((a, b) => (Number.isNaN(a.at) || Number.isNaN(b.at) ? a.i - b.i : a.at - b.at || a.i - b.i));
+  })();
 
   /** Barge-in: what is playing stops, what is waiting is not played, and the generation ends (so unspoken sentences are not billed). */
   const interrupt = useCallback(() => {
@@ -171,6 +229,7 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
     if (looksLikeKey(t, engines.data)) { setText(''); openKey(t); return; }
     try {
       interrupt();
+      pinned.current = true; // what he says, and the answer to it, are seen
       const cv = ref ?? (ensure ? await ensure() : null);
       if (!cv) return;
       setText('');
@@ -230,34 +289,49 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
   const recSupported = typeof window !== 'undefined' && !!recognizer();
   const liveFace = c?.persona.includes('@') ? 'manager' : (c?.persona ?? face);
 
+  const hasText = !!text.trim() || files.items.length > 0;
   return (
     <>
-      <Card as="section" className={cx('flex min-h-[320px] flex-col gap-3 p-4 lg:overflow-y-auto', talkHeight)} aria-label="گفتگو" aria-live="polite">
-        {ref && conv.isLoading ? <Skeleton className="h-40 rounded-[14px]" /> : null}
-        {!ref && !live ? <Empty icon="messages" title={emptyTitle ?? `با ${FACE_FA[face] ?? 'مدیر'} حرف بزن`} body={emptyBody ?? 'بنویس یا دکمه‌ی میکروفون را نگه دار و بگو. کاری که از دل گفتگو بیرون میآید، فقط با کارتی که تو میزنی اجرا میشود.'} /> : null}
-        {turns.map((t) => <TurnView key={t.id} t={t} persona={personaOf(t.by)} title={titleOf?.(t.by)} />)}
-        {live ? (
-          <>
-            <OwnerBubble text={live.owner} files={live.files} />
-            <div className="flex gap-2.5" aria-label="پاسخ در حال نوشته شدن">
-              <Face k={to && to !== 'all' && to.startsWith('player:') ? to : liveFace} size={32} state={live.streaming ? 'working' : 'idle'} />
-              <div className="flex min-w-0 flex-1 flex-col gap-2">
-                {live.answer ? <Bubble><Md text={live.answer} /></Bubble> : live.streaming ? <Bubble><span className="text-[13px] text-muted" role="status">دارم فکر میکنم…</span></Bubble> : null}
-                {live.cards.map((cd) => <TalkCardView key={cd.id} card={cd} />)}
-                {live.error ? <p className="rounded-[10px] bg-warn-soft px-3 py-2 text-[13px] leading-6" role="alert"><FaText text={live.error} /></p> : null}
-                {live.streaming ? <div><Button size="sm" icon="stop" onClick={() => { interrupt(); }}>ساکت شو</Button></div> : null}
-              </div>
+      <div className="relative">
+        <Card as="section" className="p-0" aria-label="گفتگو" aria-live="polite">
+          <div ref={scroller} onScroll={onScroll} data-testid="talk-scroll" className={cx('min-h-[320px] overflow-y-auto overscroll-contain p-4', talkHeight)}>
+            <div ref={inner} className="flex flex-col gap-3">
+              {ref && conv.isLoading ? <Skeleton className="h-40 rounded-[14px]" /> : null}
+              {!ref && !live ? <Empty icon="messages" title={emptyTitle ?? `با ${FACE_FA[face] ?? 'مدیر'} حرف بزن`} body={emptyBody ?? 'بنویس یا دکمه‌ی میکروفون را نگه دار و بگو. کاری که از دل گفتگو بیرون میآید، فقط با کارتی که تو میزنی اجرا میشود.'} /> : null}
+              {ref && !conv.isLoading && !items.length && !live && !tail ? <Empty icon="messages" title={emptyTitle ?? 'هنوز حرفی زده نشده'} body={emptyBody} /> : null}
+              {items.map((x) => <div key={x.key} className="flex flex-col">{x.node}</div>)}
+              {tail}
+              {live ? (
+                <>
+                  <OwnerBubble text={live.owner} files={live.files} />
+                  <div className="flex gap-2.5" aria-label="پاسخ در حال نوشته شدن">
+                    <Face k={to && to !== 'all' && to.startsWith('player:') ? to : liveFace} size={32} state={live.streaming ? 'working' : 'idle'} />
+                    <div className="flex min-w-0 flex-1 flex-col gap-2">
+                      {live.answer ? <Bubble><Md text={live.answer} /></Bubble> : live.streaming ? <Bubble><span className="text-[13px] text-muted" role="status">دارم فکر میکنم…</span></Bubble> : null}
+                      {live.cards.map((cd) => <TalkCardView key={cd.id} card={cd} />)}
+                      {live.error ? <p className="rounded-[10px] bg-warn-soft px-3 py-2 text-[13px] leading-6" role="alert"><FaText text={live.error} /></p> : null}
+                      {live.streaming ? <div><Button size="sm" icon="stop" onClick={() => { interrupt(); }}>ساکت شو</Button></div> : null}
+                    </div>
+                  </div>
+                </>
+              ) : null}
+              {audio.playing ? <span className="self-start"><Pill tone="gold" live icon="mic">در حال گفتن</Pill></span> : null}
             </div>
-          </>
+          </div>
+        </Card>
+        {!atEnd ? (
+          <button type="button" aria-label={unseen ? `برو به آخر گفتگو، ${unseen} نوبت تازه` : 'برو به آخر گفتگو'} onClick={() => { pinned.current = true; toEnd(true); }}
+            className="absolute bottom-3 left-3 flex h-10 min-w-10 items-center justify-center gap-1 rounded-full border border-strong bg-page px-2.5 text-[18px] leading-none text-ink shadow-[0_6px_20px_rgba(0,0,0,.3)] hover:bg-hover">
+            {unseen ? <span className="fig rounded-full bg-gold px-1.5 text-[11px] font-semibold leading-5 text-on-gold">{unseen}</span> : null}
+            <span aria-hidden>↓</span>
+          </button>
         ) : null}
-        {audio.playing ? <span className="self-start"><Pill tone="gold" live icon="mic">در حال گفتن</Pill></span> : null}
-        <div ref={bottom} />
-      </Card>
+      </div>
 
       {readOnly ? (
         <Card as="section" className="p-3 text-[13px] text-sec" aria-label="نوشتن">این جلسه بسته شده و فقط خواندنی است؛ برای ادامه، دوباره بازش کن.</Card>
       ) : (
-        <Card as="section" className={cx('flex flex-col gap-2.5 p-3 transition-colors', drag && 'bg-gold-soft ring-1 ring-[var(--hq-gold-ink)]')} aria-label="نوشتن"
+        <Card as="section" className={cx('flex flex-col gap-2 p-3 transition-colors', drag && 'bg-gold-soft ring-1 ring-[var(--hq-gold-ink)]')} aria-label="نوشتن"
           onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDrag(true); } }}
           onDragLeave={() => setDrag(false)}
           onDrop={(e) => { e.preventDefault(); setDrag(false); void files.add(e.dataTransfer.files); }}>
@@ -270,28 +344,38 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
               <button type="button" onClick={lv.cancel} className="text-[12px] text-muted hover:text-ink">لغو</button>
             </div>
           ) : null}
-          <div className="flex items-end gap-2">
+          {/* The text takes the whole width; the actions are one compact row under it. */}
+          <textarea
+            ref={area} value={text} rows={1} dir="auto" aria-label="پیام" placeholder={placeholder ?? 'بنویس یا نگه‌دار و بگو…'} autoComplete="off" spellCheck={false}
+            onPaste={(e) => { const fs = [...e.clipboardData.files]; if (fs.length) { e.preventDefault(); void files.add(fs); } }}
+            onChange={(e) => { const v = e.target.value; if (looksLikeKey(v, engines.data)) { setText(''); openKey(v.trim()); } else setText(v); }}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(text, 'typed', true); } }}
+            style={{ minHeight: 48, maxHeight: MAX_LINES * LINE_PX + 22 }}
+            className={cx(field, 'block w-full min-w-0 resize-none py-[11px] leading-6')} />
+          <div className="flex items-center gap-2">
             <input ref={pick} type="file" multiple hidden accept={RICH_ACCEPT} aria-label="فایل برای فرستادن" onChange={(e) => { if (e.target.files) void files.add(e.target.files); e.target.value = ''; }} />
-            <IconButton icon="attach" label="فایل بفرست: عکس، فیلم، صدا، PDF، فونت، متن یا ZIP" size={48} onClick={() => pick.current?.click()} />
-            <textarea
-              value={text} rows={2} dir="auto" aria-label="پیام" placeholder={placeholder ?? 'بنویس یا نگه‌دار و بگو…'} autoComplete="off" spellCheck={false}
-              onPaste={(e) => { const fs = [...e.clipboardData.files]; if (fs.length) { e.preventDefault(); void files.add(fs); } }}
-              onChange={(e) => { const v = e.target.value; if (looksLikeKey(v, engines.data)) { setText(''); openKey(v.trim()); } else setText(v); }}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(text, 'typed', true); } }}
-              className={cx(field, 'min-h-[3rem] flex-1 resize-none py-2.5 leading-6')} />
-            <button type="button" aria-label="نگه‌دار و بگو" aria-pressed={holding} disabled={!recSupported && typeof MediaRecorder === 'undefined'}
-              onPointerDown={(e) => { e.preventDefault(); (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); interrupt(); void lv.start(); }}
-              onPointerUp={() => lv.finish()} onPointerCancel={() => lv.cancel()}
-              onKeyDown={(e) => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) { e.preventDefault(); if (holding) lv.finish(); else { interrupt(); void lv.start(); } } }}
-              className={cx('flex size-12 flex-none touch-none select-none items-center justify-center rounded-full', holding ? 'bg-neg text-white' : 'bg-gold text-on-gold hover:bg-gold-bright disabled:bg-disabled-fill disabled:text-disabled')}>
-              <Icon name="mic" size={22} />
-            </button>
-            <Button variant="primary" icon="send" disabled={(!text.trim() && !files.ids.length) || files.uploading || busy} onClick={() => void send(text, 'typed', true)} aria-label="بفرست">بفرست</Button>
-          </div>
-          <div className="flex flex-wrap items-center gap-3 text-[12px] text-muted">
-            <Switch checked={handsFree} onChange={setHandsFree} label="بی‌دست (خودش گوش میدهد)" disabled={!recSupported} />
-            {files.uploading ? <span role="status">صبر کن فایل‌ها بالا بروند…</span> : null}
-            <span>{recSupported ? 'دکمه‌ی طلایی را نگه دار، بگو و رها کن.' : 'این مرورگر گفتار را نمیشناسد؛ بنویس.'}</span>
+            <IconButton icon="attach" label="فایل بفرست: عکس، فیلم، صدا، PDF، فونت، متن یا ZIP" size={40} onClick={() => pick.current?.click()} />
+            <span className="flex items-center gap-2 text-[12px] text-muted">
+              <Switch checked={handsFree} onChange={setHandsFree} label="بی‌دست (خودش گوش میدهد)" disabled={!recSupported} />
+              <span aria-hidden>بی‌دست</span>
+            </span>
+            {files.uploading ? <span role="status" className="min-w-0 truncate text-[12px] text-muted">صبر کن فایل‌ها بالا بروند…</span> : null}
+            {!recSupported ? <span className="min-w-0 truncate text-[11px] text-muted">این مرورگر گفتار را نمیشناسد؛ بنویس.</span> : null}
+            <span className="flex-1" />
+            {hasText && !holding ? (
+              <button type="button" aria-label="بفرست" disabled={files.uploading || busy} onClick={() => void send(text, 'typed', true)}
+                className="flex size-10 flex-none items-center justify-center rounded-full bg-gold text-on-gold hover:bg-gold-bright disabled:bg-disabled-fill disabled:text-disabled">
+                <Icon name="send" size={20} mirror />
+              </button>
+            ) : (
+              <button type="button" aria-label="نگه‌دار و بگو" title="دکمه‌ی طلایی را نگه دار، بگو و رها کن." aria-pressed={holding} disabled={!recSupported && typeof MediaRecorder === 'undefined'}
+                onPointerDown={(e) => { e.preventDefault(); (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); interrupt(); void lv.start(); }}
+                onPointerUp={() => lv.finish()} onPointerCancel={() => lv.cancel()}
+                onKeyDown={(e) => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) { e.preventDefault(); if (holding) lv.finish(); else { interrupt(); void lv.start(); } } }}
+                className={cx('flex size-10 flex-none touch-none select-none items-center justify-center rounded-full', holding ? 'bg-neg text-white' : 'bg-gold text-on-gold hover:bg-gold-bright disabled:bg-disabled-fill disabled:text-disabled')}>
+                <Icon name="mic" size={20} />
+              </button>
+            )}
           </div>
         </Card>
       )}

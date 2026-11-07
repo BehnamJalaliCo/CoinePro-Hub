@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { clean } from './support';
+import { clean, openDetails } from './support';
 
 // ⟨1.11⟩ Contract §29 end to end over the demo holding (NEXT_PUBLIC_HQ_MOCK=1, lib/api/mock-v29.ts, fixed dates and figures; animations off):
 // the owner's office (⟨1.17⟩: sessions, suggestions with «نه» and a reason, «اجرا کن» opening a session, nothing technical), the order's session and its one-tap
@@ -49,7 +49,7 @@ test('«نه» asks a short reason; «اجرا کن» opens the order\'s session
     const eff = page.getByRole('article', { name: /^پیشنهاد مؤثر/ });
     await eff.getByRole('button', { name: 'اجرا کن' }).click();
     await expect(page).toHaveURL(/\/s\/F-\d+$/);
-    await expect(page.getByLabel('رسید و برنامه')).toBeVisible();
+    await expect((await openDetails(page)).getByLabel('رسید و برنامه')).toBeVisible();
   });
 });
 
@@ -57,13 +57,15 @@ test('an order report: receipt, route, steps, outputs, and each blocker fixed in
   await clean(page, async () => {
     await page.goto('/s/F-0005');
     await expect(page.getByRole('heading', { level: 1 })).toContainText('سه پست معرفی ابزار تحلیل تکنیکال');
-    await expect(page.getByLabel('رسید و برنامه').getByText(/خروجی:/)).toBeVisible();
+    const sheet = await openDetails(page);
+    await expect(sheet.getByLabel('رسید و برنامه').getByText(/خروجی:/)).toBeVisible();
+    await page.keyboard.press('Escape');
     const blockers = page.getByLabel('گیرها');
     await expect(blockers.getByText('بودجه‌ی این فرمان تمام شد')).toBeVisible();
     await blockers.getByRole('button', { name: '+200 هزار واحد بده' }).click();
     await expect(page.getByText('انجام شد.')).toBeVisible();
     await expect(page.getByLabel('گیرها')).toHaveCount(0);
-    await expect(page.getByLabel('خلاصه‌ی جلسه').getByText('واحد به بودجه اضافه شد؛ کار ادامه دارد.')).toBeVisible();
+    await expect((await openDetails(page)).getByLabel('خلاصه‌ی جلسه').getByText('واحد به بودجه اضافه شد؛ کار ادامه دارد.')).toBeVisible();
 
     // The clip order: the series is sealed behind the passkey, the publisher hired.
     await page.goto('/s/F-0007');
@@ -71,17 +73,21 @@ test('an order report: receipt, route, steps, outputs, and each blocker fixed in
     await expect(page.getByText('سری انتشار مُهر شد؛ انتشار از فردا صبح شروع میشود.')).toBeVisible();
     await page.getByLabel('گیرها').getByRole('button', { name: 'استخدام مسئول انتشار' }).click();
     await expect(page.getByLabel('گیرها')).toHaveCount(0);
-    await expect(page.getByLabel('خروجی‌ها').getByRole('link')).toHaveCount(3);
+    await expect((await openDetails(page)).getByLabel('خروجی‌ها').getByRole('link')).toHaveCount(3);
+    await page.keyboard.press('Escape');
+    // The delivered outputs are also compact cards in the talk.
+    await expect(page.getByLabel('نتیجه‌های رسیده').getByRole('link')).toHaveCount(3);
   });
 });
 
 test('a delivered order is ready for his OK with «چه شد / حالا چه / از تو چه», and its fix opens the guide', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/s/F-0006');
-    const end = page.getByLabel('خلاصه‌ی جلسه');
+    const end = (await openDetails(page)).getByLabel('خلاصه‌ی جلسه');
     await expect(end.getByText('چه شد')).toBeVisible();
     await expect(end.getByText('حالا چه')).toBeVisible();
     await expect(end.getByText('از تو چه')).toBeVisible();
+    await page.keyboard.press('Escape');
     await page.getByLabel('گیرها').getByRole('button', { name: 'وصل کردن جست‌وجوی گوگل' }).click();
     await expect(page.getByRole('dialog', { name: 'وصل کردن جست‌وجوی گوگل (سئو)' })).toBeVisible();
   });
@@ -103,7 +109,7 @@ test('the secretary says where an order goes in one line; the owner changes the 
     await sheet.getByRole('button', { name: 'بفرست' }).click();
     // ⟨1.17⟩ The order is a session at once and the owner lands in it.
     await expect(page).toHaveURL(/\/s\/F-\d+$/);
-    await expect(page.getByLabel('رسید و برنامه').getByText(/استوری/)).toBeVisible();
+    await expect((await openDetails(page)).getByLabel('رسید و برنامه').getByText(/استوری/)).toBeVisible();
   });
 });
 

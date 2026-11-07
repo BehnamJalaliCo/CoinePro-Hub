@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { clean } from './support';
+import { clean, openDetails } from './support';
 
 // ⟨1.17⟩ Contract §34–§35: every order is a session the owner talks in; the home is his office; the canvas of the companies and their links.
 // The demo holding (NEXT_PUBLIC_HQ_MOCK=1) has five sessions: his turn with a question (F-0008, step by step), a blocker with a one-tap fix
@@ -51,14 +51,17 @@ test('his turn: the question is answered in place, the session moves on', async 
     await expect(page.getByText('نوبت تو').first()).toBeVisible();
     const turn = page.getByLabel('نوبت تو', { exact: true });
     await expect(turn).toContainText('کدام عنوان بهتر است');
-    const pace = page.getByRole('radiogroup', { name: 'روش کار' });
-    await expect(pace.getByRole('radio', { name: 'با من' })).toHaveAttribute('aria-checked', 'true');
+    // The pace lives in «جزئیات».
+    const sheet = await openDetails(page);
+    await expect(sheet.getByRole('radiogroup', { name: 'روش کار' }).getByRole('radio', { name: 'با من' })).toHaveAttribute('aria-checked', 'true');
+    await page.keyboard.press('Escape');
     await turn.getByLabel('جواب تو').fill('عنوان دوم، سه نکته برای حد ضرر');
     await turn.getByRole('button', { name: 'جواب بده' }).click();
     await expect(page.getByText('جوابت رفت.')).toBeVisible();
     await expect(page.getByLabel('نوبت تو', { exact: true })).toHaveCount(0);
-    await expect(page.getByLabel('گفتگو', { exact: true }).getByText('عنوان دوم، سه نکته برای حد ضرر')).toBeVisible();
+    await expect(page.getByLabel('گفتگو', { exact: true }).locator('[data-by="owner"]').getByText('عنوان دوم، سه نکته برای حد ضرر')).toBeVisible();
     // he switches to «do it all» at any time
+    const pace = (await openDetails(page)).getByRole('radiogroup', { name: 'روش کار' });
     await pace.getByRole('radio', { name: 'خودکار' }).click();
     await expect(page.getByText('از این به بعد خودش تا آخر میرود.')).toBeVisible();
     await expect(pace.getByRole('radio', { name: 'خودکار' })).toHaveAttribute('aria-checked', 'true');
@@ -69,9 +72,9 @@ test('his turn: the question is answered in place, the session moves on', async 
 test('the brief says what happened, what is going on and what is needed from him', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/s/F-0006');
-    const brief = page.getByLabel('خلاصه‌ی جلسه');
-    for (const t of ['چه شد', 'حالا چه', 'از تو چه']) await expect(brief.getByRole('heading', { name: t })).toBeVisible();
     await expect(page.getByText('آماده‌ی تأیید').first()).toBeVisible();
+    const brief = (await openDetails(page)).getByLabel('خلاصه‌ی جلسه');
+    for (const t of ['چه شد', 'حالا چه', 'از تو چه']) await expect(brief.getByRole('heading', { name: t })).toBeVisible();
   });
 });
 
@@ -91,7 +94,7 @@ test('people and model seats join, are aimed at, and leave', async ({ page }) =>
   // The signed-out model is refused on purpose (409 with words), and «خطاخوان» keeps that.
   await clean(page, async () => {
     await page.goto('/s/F-0007');
-    const who = page.getByLabel('کی در جلسه است');
+    const who = (await openDetails(page)).getByLabel('کی در جلسه است');
     await who.getByRole('button', { name: 'مدل' }).click();
     // A model that is signed out says so in words and does not join.
     await who.getByRole('button', { name: 'دیپ‌سیک' }).click();
@@ -100,8 +103,10 @@ test('people and model seats join, are aimed at, and leave', async ({ page }) =>
     await expect(who.getByText('جمنای', { exact: true }).first()).toBeVisible();
     // A person: the overseer.
     await who.getByRole('button', { name: 'آدم' }).click();
-    await page.getByRole('dialog').getByRole('button', { name: 'ناظر کل' }).click();
+    await page.getByRole('dialog', { name: 'کی را بیاورم؟' }).getByRole('button', { name: 'ناظر کل' }).click();
     await expect(who.getByText('ناظر کل')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
     // Aim a word at the model; it answers under its own name.
     const aim = page.getByRole('radiogroup', { name: 'به چه کسی میگویی' });
     await aim.getByRole('button', { name: 'جمنای' }).click();
@@ -114,8 +119,9 @@ test('people and model seats join, are aimed at, and leave', async ({ page }) =>
     await page.getByRole('button', { name: 'بفرست' }).last().click();
     await expect(page.locator('[data-by="overseer"]').first()).toBeVisible();
     // He sends the model away.
-    await who.getByRole('button', { name: 'جمنای را بیرون ببر' }).click();
-    await expect(who.getByText('جمنای', { exact: true })).toHaveCount(0);
+    const who2 = (await openDetails(page)).getByLabel('کی در جلسه است');
+    await who2.getByRole('button', { name: 'جمنای را بیرون ببر' }).click();
+    await expect(who2.getByText('جمنای', { exact: true })).toHaveCount(0);
     await noRefs(page);
   }, [/player_signed_out/]);
 });
@@ -123,7 +129,7 @@ test('people and model seats join, are aimed at, and leave', async ({ page }) =>
 test('tasks: add, tick, drop', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/s/F-0007');
-    const tasks = page.getByLabel('کارها', { exact: true });
+    const tasks = (await openDetails(page)).getByLabel('کارها', { exact: true });
     await expect(tasks.getByText('2 از 4 انجام شد')).toBeVisible();
     await tasks.getByLabel('کار تازه').fill('گزارش هفتگی را بفرست');
     await tasks.getByRole('button', { name: 'بیفزا' }).click();
@@ -174,10 +180,11 @@ test('confirm and close: the working group and the line come first, then the ord
     // Reopen: the session is open again and the composer is back.
     await page.getByText('یک مقاله‌ی سئو برای FX').click();
     await page.getByRole('button', { name: 'دوباره باز کن' }).click();
-    await expect(page.getByRole('button', { name: 'تأیید و بستن' })).toBeVisible();
     await expect(page.getByLabel('پیام', { exact: true })).toBeVisible();
+    await expect((await openDetails(page)).getByRole('button', { name: 'تأیید و بستن' })).toBeVisible();
+    await page.keyboard.press('Escape');
     // Hide: it leaves every list; nothing is deleted.
-    await page.getByRole('button', { name: 'از فهرست بردار' }).click();
+    await (await openDetails(page)).getByRole('button', { name: 'از فهرست بردار' }).click();
     await expect(page).toHaveURL(/\/s$/);
     await expect(page.getByText('یک مقاله‌ی سئو برای FX')).toHaveCount(0);
     await page.getByRole('button', { name: /^از فهرست برداشته‌شده/ }).click();
@@ -288,7 +295,7 @@ test('files in a session: a font and a picture are attached, sent, seen in the t
     await expect(mine.getByRole('button', { name: 'نمایش cover.png' })).toBeVisible();
     await expect(page.getByLabel('پیوست‌ها', { exact: true })).toHaveCount(0);
     // The order keeps them.
-    const files = page.getByLabel('فایل‌ها', { exact: true });
+    const files = (await openDetails(page)).getByLabel('فایل‌ها', { exact: true });
     await expect(files.getByRole('link', { name: /Title-Font\.ttf/ })).toBeVisible();
     await expect(files.getByRole('button', { name: 'نمایش cover.png' })).toBeVisible();
   });
@@ -313,7 +320,7 @@ test('erase a closed session from the archive: preview, passkey, gone', async ({
 test('erase an open session from its page, and an output from its detail', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/s/F-0006');
-    await page.getByRole('button', { name: 'پاک کردن برای همیشه' }).click();
+    await (await openDetails(page)).getByRole('button', { name: 'پاک کردن برای همیشه' }).click();
     await page.getByRole('dialog', { name: 'پاک کردن برای همیشه' }).getByRole('button', { name: /پاکش کن/ }).click();
     await expect(page).toHaveURL(/\/s$/);
     await expect(page.getByText('یک مقاله‌ی سئو برای FX')).toHaveCount(0);
@@ -354,5 +361,55 @@ test('@phone the office and a session fit a phone', async ({ page }) => {
     await expect(page.getByLabel('گفتگو', { exact: true })).toBeVisible();
     const w2 = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(w2).toBeLessThanOrEqual(1);
+  });
+});
+
+// ⟨0.17⟩ The talk is the body of the page: it opens at the latest message, stays there, and offers «↓» once he has scrolled up.
+test('a session opens scrolled to its last turn; scrolled up it offers «↓» that brings him back', async ({ page }) => {
+  await clean(page, async () => {
+    await page.setViewportSize({ width: 900, height: 560 });
+    await page.goto('/s/F-0007');
+    const talk = page.getByTestId('talk-scroll');
+    await expect(talk.locator('[data-by]').first()).toBeVisible();
+    const gap = () => talk.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight);
+    expect(await talk.evaluate((el) => el.scrollHeight - el.clientHeight), 'the talk must overflow for this to mean anything').toBeGreaterThan(40);
+    await expect.poll(gap).toBeLessThan(4);
+    await expect(page.getByRole('button', { name: /^برو به آخر گفتگو/ })).toHaveCount(0);
+    // The system steps are small lines inside the talk, not a card.
+    await expect(talk.locator('[data-step]').first()).toBeAttached();
+    // Scrolled up: the round button shows; one tap and he is at the end again.
+    await talk.evaluate((el) => el.scrollTo({ top: 0 }));
+    const jump = page.getByRole('button', { name: /^برو به آخر گفتگو/ });
+    await expect(jump).toBeVisible();
+    await jump.click();
+    await expect.poll(gap).toBeLessThan(4);
+    await expect(jump).toHaveCount(0);
+    // A word he sends keeps him at the end.
+    await page.getByLabel('پیام', { exact: true }).fill('یک کلمه');
+    await page.getByRole('button', { name: 'بفرست', exact: true }).click();
+    await expect.poll(gap).toBeLessThan(4);
+  });
+});
+
+test('the composer keeps the whole width for a long draft, grows to about six lines, then scrolls', async ({ page }) => {
+  await clean(page, async () => {
+    await page.goto('/s/F-0007');
+    const box = page.getByLabel('پیام', { exact: true });
+    const region = page.getByLabel('نوشتن', { exact: true });
+    const wide = async () => ((await box.boundingBox())!.width) / ((await region.boundingBox())!.width);
+    expect(await wide()).toBeGreaterThan(0.9);
+    // Without text the mic is there; with text the send takes its place.
+    await expect(page.getByRole('button', { name: 'نگه‌دار و بگو' })).toBeVisible();
+    await box.fill('این یک پیام خیلی طولانی فارسی است که نباید هیچ وقت در یک ستون باریک بشکند. '.repeat(4));
+    await expect(page.getByRole('button', { name: 'بفرست', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'نگه‌دار و بگو' })).toHaveCount(0);
+    expect(await wide()).toBeGreaterThan(0.9);
+    const h1 = (await box.boundingBox())!.height;
+    expect(h1).toBeGreaterThan(60); // it grew
+    await box.fill(Array.from({ length: 30 }, (_, i) => `خط ${i + 1}`).join('\n'));
+    const h2 = (await box.boundingBox())!.height;
+    expect(h2, 'about six lines, then it scrolls').toBeLessThan(180);
+    expect(await box.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+    expect(await wide()).toBeGreaterThan(0.9);
   });
 });
