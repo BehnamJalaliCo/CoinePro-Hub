@@ -22,6 +22,8 @@ const PAGES = [
   '/archive/AR-000180', '/archive/AR-000150', '/archive/holds', '/archive/holds?ref=LH-0002', '/archive/reminders', '/archive/retention', '/archive/settings',
   '/archive/settings?tab=classes&ref=invoice', '/archive/settings?tab=clearance', '/archive/settings?tab=automations&ref=AU-0002', '/archive/settings?tab=levels',
   '/archive/settings?tab=parties', '/archive/settings?tab=sources', '/cartable?ref=D-000092', '/cartable?ref=D-000093',
+  // ⟨1.22⟩ playbooks (§40)
+  '/playbooks', '/playbooks/PB-0001', '/playbooks/PB-0002',
 ];
 
 

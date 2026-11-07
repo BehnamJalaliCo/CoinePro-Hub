@@ -5,7 +5,8 @@
 // the owner's words, never at random, so the end-to-end checks can follow them. Kept in memory. Never bundled in production (reached only
 // through ./mock-v21 when NEXT_PUBLIC_HQ_MOCK=1).
 
-import { conversationCounts, conversationDrop, conversationFiles, conversationClosed, conversationSay, presentAdd, presentDrop, sessionConversation } from './mock-v32';
+import { conversationCard, conversationCounts, conversationDrop, conversationFiles, conversationClosed, conversationSay, presentAdd, presentDrop, sessionConversation } from './mock-v32';
+import { memoryOf, setSource, sourceOf } from './mock-v40';
 
 const json = (body: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const problem = (status: number, code: string, message_fa: string) => json({ code, message_fa, status, title: code, type: 'about:blank' }, status);
@@ -125,7 +126,8 @@ function decorate(rep: any, s: S) {
   const state = s.closed_at ? (s.verdict === 'cancel' ? 'cancelled' : 'delivered') : rep.state;
   return {
     ...rep, state, pace: s.pace, talk_ref: s.conv, conversation_ref: s.conv, turn: s.turn,
-    session: { state: s.closed_at ? 'closed' : 'open', badge, reason_fa, closed_at: s.closed_at, hidden: s.hidden },
+    session: { state: s.closed_at ? 'closed' : 'open', badge, reason_fa, closed_at: s.closed_at, hidden: s.hidden, source: sourceOf(s.ref) },
+    memory_md: memoryOf(s.ref),
     brief: briefOf(rep, s), tasks: s.tasks, participants: s.participants,
     // ⟨1.18⟩ §36.3 the files of the owner's turns belong to the order, newest first
     files: conversationFiles(s.conv),
@@ -135,7 +137,7 @@ const card = (s: S, rep: any) => {
   const { badge, reason_fa } = badgeOf(s, rep);
   return {
     ref: s.ref, conversation_ref: s.conv, title_fa: s.text_fa.slice(0, 80), holder: s.holder, badge, reason_fa, brief: briefOf(rep, s), pace: s.pace,
-    participants: s.participants, tasks: counts(s), opened_at: s.opened_at, last_at: s.last_at, closed_at: s.closed_at, hidden: s.hidden,
+    participants: s.participants, tasks: counts(s), opened_at: s.opened_at, last_at: s.last_at, closed_at: s.closed_at, hidden: s.hidden, source: sourceOf(s.ref),
   };
 };
 
@@ -392,4 +394,40 @@ export async function handle34(req: Request, p: string, q: URLSearchParams, next
     return json(await sync(s));
   }
   return null;
+}
+
+// ------------------------------------------------------------------------------------ ⟨1.22⟩ §40 for ./mock-v40
+/** What the playbook router reads of a session: its words, its company, its talk. */
+export async function playbookOrder(ref: string) {
+  const s = sessions.get(ref);
+  if (!s || erased.has(ref)) return null;
+  return { text_fa: s.text_fa, company: s.holder?.company ?? 'TY', conversation: s.conv };
+}
+/** The holder posts the playbook card («کارگروه از این جلسه») into the session's talk. */
+export function postPlaybookCard(ref: string, pb: { ref: string; title_fa: string; purpose_fa: string }) {
+  const s = sessions.get(ref);
+  if (!s) return;
+  conversationCard(s.conv, s.participants[0]!.key, 'کارگروه از این جلسه آماده است. باز کنید، ویرایش کنید و مُهر بزنید.', 'playbook', `کارگروه از این جلسه: ${pb.title_fa}`, pb.purpose_fa, { playbook: pb.ref });
+  s.last_at = NOW();
+}
+let applySeq = 200;
+/** A session for a company, opened by giving it a playbook: the owner's first turn is the playbook as Markdown. */
+export function openFromPlaybook(v: { company: string; text_fa: string; first_md: string; source: string }) {
+  const ref = `F-${String(++applySeq).padStart(4, '0')}`;
+  const conv = sessionConversation(`ceo@${v.company}`, v.text_fa.slice(0, 80), ref, [
+    ['owner', v.first_md],
+    [`ceo@${v.company}`, 'سلام مدیر کل. کارگروه را گرفتم و برای ما تطبیقش میدهم؛ پیش‌نویس را همین‌جا میبینی و اگر درست بود مُهرش میکنی.'],
+  ], NOW());
+  sessions.set(ref, {
+    ref, conv: conv.ref, pace: 'auto', hidden: false, opened_at: NOW(), closed_at: null, verdict: null,
+    participants: [holderP(`مدیرعامل ${NAME[v.company] ?? v.company}`, v.company, `ceo@${v.company}`)], tasks: [], turn: null,
+    holder: { code: `${v.company}-CEO`, title_fa: 'مدیرعامل', company: v.company, company_fa: NAME[v.company] ?? v.company }, persona: `ceo@${v.company}`, text_fa: v.text_fa.slice(0, 80), last_at: NOW(),
+  });
+  LOCAL[ref] = {
+    ref, text_fa: v.text_fa, at: NOW(), state: 'in_progress', ack: null,
+    route: { companies: [v.company], department: null, collaborators: [], output_kind: 'answer', budget_tokens: 60_000, mode: 'single', player: 'auto' },
+    steps: [{ at: NOW(), who_fa: 'مدیر کل', what_fa: 'کارگروه را به این شرکت داد.' }], blockers: [], outputs: [], summary: null, updated_at: NOW(),
+  };
+  setSource(ref, v.source);
+  return { ref, conversation: conv.ref };
 }

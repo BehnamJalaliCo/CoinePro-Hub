@@ -30,10 +30,14 @@ export type SessionCard = {
   holder: { code: string; title_fa: string; company: string; company_fa: string } | null;
   badge: Badge; reason_fa: string; brief: SessionBrief; pace: Pace; participants: Participant[];
   tasks: { done: number; total: number }; opened_at: string; last_at: string; closed_at: string | null; hidden: boolean;
+  /** ⟨1.22⟩ §40.3 the playbook this session was opened from. */
+  source?: string | null;
 };
 /** What §35.2 adds to `OrderReport`. */
 export type SessionExtras = {
-  session: { state: 'open' | 'closed'; badge: Badge; reason_fa: string; closed_at: string | null; hidden: boolean };
+  session: { state: 'open' | 'closed'; badge: Badge; reason_fa: string; closed_at: string | null; hidden: boolean; source?: string | null };
+  /** ⟨1.22⟩ §40.1 what the session remembers («تا اینجا»). */
+  memory_md?: string | null;
   brief: SessionBrief; tasks: SessionTask[]; participants: Participant[];
   pace?: Pace; talk_ref?: string | null; conversation_ref?: string | null;
   turn?: { question_fa: string; at: string; by: { kind: string; code: string; display_fa?: string | null }; who_fa: string } | null;

@@ -28,6 +28,8 @@ import { handle32 } from './mock-v32';
 import { handle33 } from './mock-v33';
 import { handle34 } from './mock-v34';
 import { handle38 } from './mock-v38';
+import { handle40 } from './mock-v40';
+import { openFromPlaybook, playbookOrder, postPlaybookCard } from './mock-v34';
 
 const json = (body: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const problem = (status: number, code: string, message_fa: string) => json({ code, message_fa, status, title: code, type: 'about:blank' }, status);
@@ -523,6 +525,9 @@ export async function handle(req: Request): Promise<Response> {
       return v33 ?? handleBelow(r);
     };
     // ⟨1.17⟩ §34–§35 the order as a session, the owner's office and the canvas (./mock-v34); it reads the rest through [below].
+    // ⟨1.22⟩ §40 playbooks (./mock-v40): the session's talk and orders come through the hooks.
+    const v40 = await handle40(req, path, { order: playbookOrder, postCard: postPlaybookCard, openSession: openFromPlaybook });
+    if (v40) return v40;
     const v38 = await handle38(req, path);
     if (v38) return v38;
     const v34 = await handle34(req, path, u.searchParams, below);

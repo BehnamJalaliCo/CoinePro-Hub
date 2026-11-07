@@ -9,6 +9,8 @@ export const NAV_MAIN: NavItem[] = [
   { href: '/s', label: 'جلسه‌ها', icon: 'messages', badge: 'sessions' },
   { href: '/cartable', label: 'کارتابل', icon: 'cartable', badge: 'decisions' },
   { href: '/companies', label: 'شرکت‌ها', icon: 'companies' },
+  // ⟨1.22⟩ §40: the working groups a session made, ready to give to any company or platform.
+  { href: '/playbooks', label: 'کارگروه‌های آماده', icon: 'seal' },
   { href: '/messages', label: 'پیام‌ها', icon: 'messages', badge: 'messages' },
   { href: '/outputs', label: 'خروجی‌ها', icon: 'deliverable', badge: 'deliverables' },
 ];

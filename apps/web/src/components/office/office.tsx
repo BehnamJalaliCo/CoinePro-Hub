@@ -94,7 +94,7 @@ export function OfficeSessions({ sessions }: { sessions: Office['sessions'] }) {
   const turn = list.filter((s) => s.badge === 'your_turn').length;
   return (
     <Card as="section" className="flex flex-col gap-1 p-4" aria-label="جلسه‌ها">
-      <SectionTitle title="جلسه‌ها" note={turn ? `${turn} جلسه منتظر جواب توست` : 'هر فرمان یک جلسه است'} action={<Link href="/s" className="text-[12px] font-semibold text-gold-ink hover:underline">همه و بایگانی</Link>} />
+      <SectionTitle title="جلسه‌ها" note={turn ? `${turn} جلسه منتظر جواب توست` : 'هر فرمان یک جلسه است'} action={<span className="flex items-center gap-3"><Link href="/playbooks" className="text-[12px] font-semibold text-gold-ink hover:underline">کارگروه‌های آماده</Link><Link href="/s" className="text-[12px] font-semibold text-gold-ink hover:underline">همه و بایگانی</Link></span>} />
       {list.length ? <ul className="flex flex-col">{list.slice(0, 8).map((s) => <li key={s.ref}><SessionRow s={s} /></li>)}</ul> : <Empty icon="messages" title="جلسه‌ی بازی نیست" body="یک فرمان بده تا جلسه‌اش باز شود." />}
     </Card>
   );

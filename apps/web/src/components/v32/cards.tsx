@@ -15,14 +15,21 @@ import { ApiError } from '@/lib/api/client';
 import { stepUp } from '@/lib/auth';
 import { CARD_FA, useTalkActions, type TalkCard } from '@/lib/api/v32';
 import { cx } from '@/lib/format';
+import { PlaybookCard } from '@/components/v40/playbook';
 
 type Task = { title_fa: string; company?: string; department?: string; due?: string };
 const STATE_FA = { offered: '', done: 'انجام شد', dismissed: 'کنار گذاشته شد', failed: 'نشد' } as const;
 // ⟨1.17⟩ The owner never reads a ref: what a card made is a link in words (an order is its session, a decision its card in the cartable).
 const linkOf = (ref: string): { href: string; fa: string } | null => (/^F-/.test(ref) ? { href: `/s/${ref}`, fa: 'جلسه‌اش را باز کن' } : /^D-/.test(ref) ? { href: `/cartable?ref=${ref}`, fa: 'کارتش در کارتابل' } : null);
 
-/** One card under an answer. [onChanged] lets the page refresh the conversation after a run. */
+/** One card under an answer. ⟨1.22⟩ The `playbook` card without a `draft` is the working group itself (title, seats, routines, rules; open, seal); every other kind, and a playbook with a `draft` (the holder's rewrite), renders generically. */
 export function TalkCardView({ card }: { card: TalkCard }) {
+  const ref = typeof card.payload.playbook === 'string' ? card.payload.playbook : null;
+  if (card.kind === 'playbook' && ref && !card.payload.draft) return <PlaybookCard refId={ref} fallback={{ title_fa: card.title_fa, body_fa: card.body_fa }} />;
+  return <GenericTalkCard card={card} />;
+}
+
+function GenericTalkCard({ card }: { card: TalkCard }) {
   const act = useTalkActions();
   const toast = useToast();
   const kind = CARD_FA[card.kind] ?? CARD_FA.order;

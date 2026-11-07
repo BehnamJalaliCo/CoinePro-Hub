@@ -313,6 +313,16 @@ export const presentDrop = (ref: string, key: string) => { const c = conversatio
 export const conversationClosed = (ref: string, at: string | null) => { const c = conversationOf(ref); if (c) c.closed_at = at; };
 export const conversationSay = (ref: string, by: string, md: string) => { const c = conversationOf(ref); if (c) addTurn(c, by, by === 'owner' ? md : '', by === 'owner' ? {} : { show_md: md }); };
 
+/** ⟨1.22⟩ §40.2 a card the holder posts into a session's talk (the playbook card of a fresh draft): a turn of the holder's with one offered card. */
+export function conversationCard(ref: string, by: string, md: string, kind: string, title_fa: string, body_fa: string, payload: Record<string, unknown>) {
+  const c = conversationOf(ref);
+  if (!c) return null;
+  const t = addTurn(c, by, '', { show_md: md });
+  const card = makeCard(t.id, kind, title_fa, body_fa, payload);
+  t.cards = [card]; c.open_cards += 1;
+  return card;
+}
+
 /** ⟨1.18⟩ Every file of the owner's turns in a conversation, newest first (§36.3). */
 export const conversationFiles = (ref: string): unknown[] => [...(turnsOf[ref] ?? [])].reverse().filter((t) => t.by === 'owner').flatMap((t) => [...(t.files ?? [])].reverse());
 

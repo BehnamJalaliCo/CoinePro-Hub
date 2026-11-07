@@ -34,7 +34,7 @@ export type Persona = {
   voice: { engine: string; voice: string; rate: number }; brain: { task_class: string; effort: string }; tools: string[]; face?: string | null; consult_only: boolean;
 };
 export type Mode = 'consult' | 'work';
-export type CardKind = 'order' | 'ask' | 'hire' | 'decision' | 'planner' | 'rule' | 'automation' | 'minutes' | 'invite' | 'delegate' | 'budget' | 'group' | 'line';
+export type CardKind = 'order' | 'ask' | 'hire' | 'decision' | 'planner' | 'rule' | 'automation' | 'minutes' | 'invite' | 'delegate' | 'budget' | 'group' | 'line' | 'playbook';
 export type CardState = 'offered' | 'done' | 'dismissed' | 'failed';
 export type TalkCard = { id: string; turn: string; kind: CardKind; title_fa: string; body_fa: string; payload: Record<string, unknown>; state: CardState; made: string[]; reason_fa: string | null };
 export type Conversation = {
@@ -66,6 +66,8 @@ export const CARD_FA: Record<CardKind, { fa: string; icon: 'task' | 'advisor' | 
   budget: { fa: 'بودجه', icon: 'treasury', run: 'بودجه بده' },
   group: { fa: 'کارگروه', icon: 'companies', run: 'به کارگروه ببر' },
   line: { fa: 'خط تولید', icon: 'task', run: 'راه بینداز' },
+  // ⟨1.22⟩ §40.2 the working group a session made; with a `draft` it is the holder's rewrite of the draft.
+  playbook: { fa: 'کارگروه از این جلسه', icon: 'companies', run: 'بازنویسی را بپذیر' },
 };
 
 export const usePersonas = () => useQuery({ queryKey: ['talk', 'personas'], staleTime: 60_000, queryFn: list<Persona>('/talk/personas') });

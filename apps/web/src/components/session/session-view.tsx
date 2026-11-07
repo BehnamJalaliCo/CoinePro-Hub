@@ -31,6 +31,7 @@ import {
 import { useConversation } from '@/lib/api/v32';
 import { cx, jDateTime, jTime } from '@/lib/format';
 import { plain } from '@/lib/plain';
+import { FromPlaybook, MakePlaybook, MemoryCard } from '@/components/v40/playbook';
 import { ConversationPane, Face, playerName, type PaneApi } from './conversation-pane';
 
 const FIXED: Array<{ key: string; fa: string }> = [{ key: 'advisor', fa: 'مشاور کل' }, { key: 'overseer', fa: 'ناظر کل' }, { key: 'assistant', fa: 'دستیار شخصی' }, { key: 'secretary', fa: 'منشی هلدینگ' }];
@@ -105,6 +106,7 @@ function Session({ refId, r }: { refId: string; r: Full }) {
         </div>
         <div className="flex items-center gap-2">
           <BadgePill badge={r.session.badge} />
+          {r.session.source ? <FromPlaybook refId={r.session.source} /> : null}
           <span className="min-w-0 flex-1 truncate text-[13px] text-sec" title={plain(r.session.reason_fa)}><PlainText text={r.session.reason_fa} /></span>
           {ready ? <Button size="sm" variant="primary" icon="seal" onClick={() => setClosing(true)}>تأیید و بستن</Button> : null}
           {closed ? <Button size="sm" variant="primary" icon="refresh" loading={act.reopen.isPending} onClick={() => act.reopen.mutate(undefined, { onError: (e) => failed(e, 'باز نشد.') })}>دوباره باز کن</Button> : null}
@@ -141,6 +143,8 @@ function Session({ refId, r }: { refId: string; r: Full }) {
       <Sheet open={details} onOpenChange={setDetails} title="جزئیات جلسه" description="همه‌ی چیزهایی که کنار گفتگو لازم میشوند" width={520}>
         <div className="flex flex-col gap-4">
           <Brief r={r} />
+          <MemoryCard md={r.memory_md} />
+          <MakePlaybook order={refId} onDone={() => setDetails(false)} />
           <Card className="flex flex-col gap-2 p-4" aria-label="وضعیت و روش کار">
             <div className="flex flex-wrap items-center gap-2"><BadgePill badge={r.session.badge} /><OrderStatePill state={r.state} />{closed && r.session.closed_at ? <span className="text-[12px] text-muted">بسته شد {jDateTime(r.session.closed_at)}</span> : null}</div>
             {closed ? (
