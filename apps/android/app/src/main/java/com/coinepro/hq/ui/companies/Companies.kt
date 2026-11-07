@@ -93,11 +93,14 @@ fun CompaniesScreen() {
     val d = rememberControlData()
     val ui = rememberControlUi()
     val r = refresher(q)
+    val playbooksOn = com.coinepro.hq.ui.v29.served(com.coinepro.hq.core.net.HubFeature.PLAYBOOKS)
     Page(onRefresh = { r.refresh(); env.cache.invalidate("control", "runs", "treasury") }, refreshing = r.refreshing) {
         item(key = "header") {
             PageHeader("شرکت‌ها", eyebrow = "هلدینگ و شرکت‌هایش، زنده") {
                 // One way to a new company: the founding wizard (an idea, a repository, or registered only).
                 com.coinepro.hq.designsystem.HqButton("تأسیس شرکت", { nav.go("founding/new") }, size = com.coinepro.hq.designsystem.BtnSize.SM, icon = DivanIcon.FOUND)
+                // ⟨1.22⟩ §40.3 the working groups drawn from sessions, each one given to any company.
+                if (playbooksOn) com.coinepro.hq.designsystem.HqButton("کارگروه‌ها", { nav.go("playbooks") }, size = com.coinepro.hq.designsystem.BtnSize.SM, variant = com.coinepro.hq.designsystem.BtnVariant.GHOST, icon = DivanIcon.DEPARTMENT)
             }
         }
         val list = q.data

@@ -113,6 +113,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             val q = req.url.queryParameterNames.associateWith { req.url.queryParameter(it) }
             // ⟨1.20⟩ §38.3 the hub's services and their jobs.
             v38.handle(req.method, path, b)?.let { Thread.sleep(60); return respond(req, it) }
+            // ⟨1.22⟩ §40 the playbooks, a session's draft and the playbook cards in its talk, before the sessions' own routes.
+            v40.handle(req.method, path, q, b)?.let { Thread.sleep(60); return respond(req, it) }
             // ⟨1.17⟩ §35 first: the sessions (F-01xx), their talk (CV-05xx), the office and the canvas.
             v35.handle(req.method, path, q, b)?.let { Thread.sleep(60); return respond(req, it) }
             // ⟨1.15⟩ §33 first: its order report (F-0045) and the stop of a workspace answer before §29's reports and the orders' /work.
@@ -308,6 +310,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     private val v35 = V35Demo(store, files)
     /** ⟨1.20⟩ §38.3 the owner's «سرویس‌ها». */
     private val v38 = V38Demo()
+    /** ⟨1.22⟩ §40 a session becomes a working group: the library, the drafts in the sessions' talk, a session opened from one. */
+    private val v40 = V40Demo(v35)
     /** ⟨1.8⟩ before [scripts]: wakes on the first look at a server, so other screens see the holding as before. */
     private val servers = ServersDemo(store)
 

@@ -35,6 +35,9 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         var steps: MutableList<JsonObject> = mutableListOf(),
         /** ⟨1.18⟩ the owner's files in the session, newest first. */
         val files: MutableList<JsonObject> = mutableListOf(),
+        /** ⟨1.22⟩ §40.1 what the session remembers; §40.3 the playbook it was opened from. */
+        var memory: String? = null,
+        var source: String? = null,
     ) {
         val cv: String get() = "CV-05" + ref.takeLast(2)
     }
@@ -81,6 +84,7 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
                 step(95, "مدیر رسانه", "سه ریلز آموزشی ساخته شد."), step(6, "مدیرعامل تریدیار", "سؤال از شما: اول ریلزها یا پست‌ها؟"),
             ),
             files = tyFiles.toMutableList(),
+            memory = TY_MEMORY,
         ),
         S(
             "F-0102", "یک گزارش مالی سه‌ماهه برای همه‌ی شرکت‌ها آماده کن.", "ready", "گزارش آماده است و منتظر تأیید توست.", "auto",
@@ -109,6 +113,7 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
             mutableListOf(task("w1", 1, "بررسی سه رقیب اول", "doing"), task("w2", 2, "فهرست صفحه‌هایی که باید بهتر شوند", "todo")),
             null, Triple("فرمان گرفته شد و برنامه نوشته شد.", "بررسی رقبا در جریان است.", "فعلاً چیزی لازم نیست."),
             opened = 720, last = 25,
+            memory = PC_MEMORY,
         ),
         S(
             "F-0105", "برنامه‌ی سفر کاری استانبول برای هفته‌ی بعد.", "moving", "دستیار شخصی هتل‌ها را مقایسه میکند.", "auto",
@@ -186,7 +191,7 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         "holder" to jo("code" to s.holder.first, "title_fa" to s.holder.second, "company" to s.holder.third, "company_fa" to companyFa(s.holder.third)),
         "badge" to s.badge, "reason_fa" to s.reason, "brief" to brief(s), "pace" to s.pace, "participants" to JsonArray(s.participants),
         "tasks" to jo("done" to s.tasks.count { it.str("state") == "done" }, "total" to s.tasks.count { it.str("state") != "dropped" }),
-        "opened_at" to at(s.opened), "last_at" to at(s.last), "closed_at" to s.closedAt, "hidden" to s.hidden,
+        "opened_at" to at(s.opened), "last_at" to at(s.last), "closed_at" to s.closedAt, "hidden" to s.hidden, "source" to s.source,
     )
 
     private fun brief(s: S) = jo("done_fa" to s.brief.first, "now_fa" to s.brief.second, "need_fa" to s.brief.third)
@@ -198,8 +203,9 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         "route" to jo("companies" to JsonArray(listOfNotNull(s.holder.third?.let { JsonPrimitive(it) })), "output_kind" to "other", "preview_fa" to "", "why_fa" to "", "kind" to "work"),
         "steps" to JsonArray(s.steps), "blockers" to JsonArray(s.blockers), "outputs" to JsonArray(s.outputs), "summary" to null, "updated_at" to at(s.last),
         "pace" to s.pace, "conversation_ref" to s.cv, "turn" to s.turn,
-        "session" to jo("state" to (if (s.closedAt != null) "closed" else "open"), "badge" to s.badge, "reason_fa" to s.reason, "closed_at" to s.closedAt, "hidden" to s.hidden),
+        "session" to jo("state" to (if (s.closedAt != null) "closed" else "open"), "badge" to s.badge, "reason_fa" to s.reason, "closed_at" to s.closedAt, "hidden" to s.hidden, "source" to s.source),
         "brief" to brief(s), "tasks" to JsonArray(s.tasks), "participants" to JsonArray(s.participants), "files" to JsonArray(s.files),
+        "memory_md" to s.memory,
     )
 
     /** ⟨1.19⟩ the sessions erased for good. */
@@ -383,8 +389,95 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         return null
     }
 
+    // ------------------------------------------------- ⟨1.22⟩ §40 for [V40Demo] --
+    /** What the playbooks' demo reads of a session: its words, company, holder and talk. */
+    data class Look(val ref: String, val text: String, val company: String?, val holder: String, val holderFa: String, val cv: String, val participants: List<JsonObject>)
+
+    @Synchronized
+    fun look(order: String): Look? = sessions.firstOrNull { it.ref == order && it.ref !in erased }?.let {
+        Look(it.ref, it.text, it.holder.third, it.holder.first, it.holder.second, it.cv, it.participants.toList())
+    }
+
+    /** Turns of a session's talk ([by], words, minutes ago, cards), after the ones it has; the holder speaks when [by] is null. */
+    @Synchronized
+    fun append(order: String, turns: List<Triple<String?, String, Pair<Long, List<JsonObject>>>>, stepFa: String? = null) {
+        val s = sessions.firstOrNull { it.ref == order } ?: return
+        val ts = turnsBy.getOrPut(s.cv) { mutableListOf() }
+        for ((by, text, rest) in turns) ts.add(turn(s.cv, ts.size + 1, by ?: s.holder.first, text, rest.first, rest.second))
+        if (stepFa != null) { s.steps.add(step(0, s.holder.second, stepFa)); s.last = 0 }
+    }
+
+    /** A card in any session's talk, by its id. */
+    @Synchronized
+    fun card(id: String): JsonObject? = turnsBy.values.asSequence().flatten().flatMap { ((it["cards"] as? JsonArray).orEmpty()).asSequence() }
+        .mapNotNull { it as? JsonObject }.firstOrNull { it.str("id") == id }
+
+    /** The card [id] replaced by [upd] wherever it is. */
+    @Synchronized
+    fun setCard(id: String, upd: JsonObject) {
+        for (ts in turnsBy.values) for (i in ts.indices) {
+            val cards = (ts[i]["cards"] as? JsonArray) ?: continue
+            val at = cards.indexOfFirst { (it as? JsonObject)?.str("id") == id }
+            if (at >= 0) ts[i] = JsonObject(ts[i] + ("cards" to JsonArray(cards.toMutableList().also { it[at] = upd })))
+        }
+    }
+
+    /**
+     * §40.3 a new session for [company] from the playbook [pb]: held by its CEO, the owner's first word the playbook (as the hub writes it),
+     * the holder's hello, its source the playbook. → its ref and its talk.
+     */
+    @Synchronized
+    fun openFrom(pb: String, title: String, company: String, companyFa: String, text: String): Pair<String, String> {
+        val n = (sessions.mapNotNull { it.ref.removePrefix("F-").toIntOrNull() }.maxOrNull() ?: 105).coerceAtLeast(105) + 1
+        val ref = "F-0" + n.toString().padStart(3, '0')
+        val holder = "ceo@$company"
+        val holderFa = "مدیرعامل $companyFa"
+        val s = S(
+            ref, text.lineSequence().first().trim(), "moving", "$holderFa کارگروه «$title» را برای شرکتش جور میکند.", "auto",
+            Triple(holder, holderFa, company), mutableListOf(person(holder, "holder", holderFa, company)), mutableListOf(),
+            null, Triple("کارگروه «$title» رسید.", "$holderFa جایگاه‌ها را با آدم‌های شرکت جور میکند.", "فعلاً چیزی لازم نیست."),
+            opened = 0, last = 0, steps = mutableListOf(step(0, "مدیر کل", "این جلسه از کارگروه «$title» باز شد")),
+            memory = "- این جلسه از کارگروه $pb «$title» باز شد", source = pb,
+        )
+        sessions.add(0, s)
+        turnsBy[s.cv] = mutableListOf(
+            turn(s.cv, 1, "owner", text, 0),
+            turn(s.cv, 2, holder, "سلام. کارگروه «$title» را گرفتم؛ جایگاه‌ها را با آدم‌های $companyFa جور میکنم و پیش‌نویسش را همین‌جا برای مُهر تو میگذارم.", 0),
+        )
+        return ref to s.cv
+    }
+
     // ------------------------------------------------------------- helpers --
     companion object {
+        /** ⟨1.22⟩ §40.1 what F-0101 remembers, as the hub's small model writes it (its headings; a ref kept, the app hides it). */
+        const val TY_MEMORY = "## تصمیم‌ها\n" +
+            "- هفته‌ی آموزش طلا: سه ریلز، دو پست کانال و یک مقاله.\n" +
+            "- روش کار «با من»: هر قدم پیش از قدم بعد به تأیید مدیر کل میرسد.\n" +
+            "- تیتر کاورها با فونت «Titr Cover» که مدیر کل داد.\n\n" +
+            "## چه کسی چه میکند\n" +
+            "- مدیرعامل تریدیار: مسئول جلسه؛ برنامه و زمان انتشار.\n" +
+            "- مدیر رسانه‌ی تریدیار: سه ریلز (ساخته شد) و دو پست کانال (W-000310).\n" +
+            "- جی‌پی‌تی: متن ریلزها را پیش از انتشار میخواند؛ در ریلز دوم یک مثال عددی از پیوت هفته‌ی قبل.\n\n" +
+            "## ابزارها و کمک‌ها\n" +
+            "- موضوع هر ریلز را مدیر رسانه با ChatGPT پیدا میکند.\n" +
+            "- کاورها با Gemini در AI Studio ساخته میشوند.\n\n" +
+            "## نکته‌های باز\n" +
+            "- اول ریلزها منتشر شود یا پست‌ها؟ منتظر جواب مدیر کل.\n" +
+            "- گزارش بازده تبلیغ در پایان هفته، با عدد."
+
+        /** What F-0104 remembers; its playbook (PB-0002) is drafted from it. */
+        const val PC_MEMORY = "## تصمیم‌ها\n" +
+            "- هر هفته سه رقیب اول «چارت طلا» بررسی میشوند.\n" +
+            "- هفته‌ای دو مقاله‌ی آموزشی؛ هر کدام با منبع.\n\n" +
+            "## چه کسی چه میکند\n" +
+            "- مدیرعامل پرو-چارت: مسئول جلسه و تأیید پیش از انتشار.\n" +
+            "- کارشناس سئو: بررسی رقبا و فهرست صفحه‌هایی که باید بهتر شوند.\n" +
+            "- نویسنده‌ی مقاله: دو مقاله در هفته.\n\n" +
+            "## ابزارها و کمک‌ها\n" +
+            "- موضوع مقاله‌ها را نویسنده با ChatGPT پیدا میکند و DeepSeek متن را میسنجد.\n\n" +
+            "## نکته‌های باز\n" +
+            "- کارگروه PB-0002 «سئوی هفتگی سایت» منتظر مُهر مدیر کل است."
+
         /** A font's family as the demo reads it: its file name without the extension, words capitalised («titr-cover.ttf» → «Titr Cover»). */
         fun familyOf(name: String): String =
             name.substringBeforeLast('.').split('-', '_', ' ').filter { it.isNotBlank() }.joinToString(" ") { w -> w.replaceFirstChar { it.uppercase() } }.ifBlank { name }

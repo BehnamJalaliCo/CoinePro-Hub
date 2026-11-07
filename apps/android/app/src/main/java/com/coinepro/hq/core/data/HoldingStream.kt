@@ -366,6 +366,8 @@ class HoldingStream(
             // ⟨1.11⟩ §29.16: the home and its suggestions, a group's routine run, a connection read or changed, a rule's report.
             "home." to arrayOf("home"),
             "suggestion." to arrayOf("home"),
+            // ⟨1.22⟩ §40 a playbook drafted, edited, sealed, given or retired (topic `groups`), before the rest of `group.`.
+            "group.playbook" to arrayOf("playbooks", "groups", "home"),
             "group." to arrayOf("groups", "home"),
             // ⟨1.12⟩ §30.5: a production line or one of its runs changed (the lists, the line, the run page, the calendar).
             "line_run." to arrayOf("lines", "line-runs", "home"),

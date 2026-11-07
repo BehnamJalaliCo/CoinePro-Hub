@@ -79,6 +79,7 @@ fun OfficeScreen() {
     val q = rememberOffice()
     val sessionsOn = served(HubFeature.SESSIONS)
     val servicesOn = served(HubFeature.HUB_SERVICES)
+    val playbooksOn = served(HubFeature.PLAYBOOKS)
     val companies = rememberCompanies()
     val presence = rememberQuery("presence", "presence") { presence() }
     // The older hub: the same office from `/home` and the pending cards.
@@ -95,6 +96,8 @@ fun OfficeScreen() {
                     Text("دفتر مدیر کل", style = Divan.type.h1, modifier = Modifier.weight(1f))
                     if (presence.data?.khalvat == true) Pill("خلوت؛ فقط فوری", Tone.LEARN, icon = DivanIcon.KHALVAT)
                     // ⟨1.20⟩ §38.3 the hub's services, one tap from the office.
+                    // ⟨1.22⟩ §40 the working groups drawn from sessions, one tap from the office.
+                    if (playbooksOn) com.coinepro.hq.designsystem.IconBtn(DivanIcon.DEPARTMENT, "کارگروه‌ها", { nav.go("playbooks") }, tint = c.textSecondary)
                     if (servicesOn) com.coinepro.hq.designsystem.IconBtn(DivanIcon.SERVER, "سرویس‌های هاب", { nav.go("services") }, tint = c.textSecondary)
                 }
             }

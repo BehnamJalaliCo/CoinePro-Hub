@@ -332,6 +332,8 @@ fun OrderSessionScreen(ref: String) {
                     onReopen = { sheet = SessionSheet.NONE; reopen() },
                     onHide = { sheet = SessionSheet.NONE; hide() },
                     onErase = { sheet = SessionSheet.ERASE },
+                    // ⟨1.22⟩ §40.2 the draft's card is in the chat now: back to it.
+                    onDrafted = { sheet = SessionSheet.NONE; scope.launch { q.refresh(); talk.reload() } },
                 )
             }
         }
@@ -423,6 +425,8 @@ private fun SessionHead(o: OrderReport, closed: Boolean, sessionsOn: Boolean, on
     val line = sessionStatusLine(o)
     var open by rememberSaveable(o.ref) { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().background(c.page).padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        // ⟨1.22⟩ §40.3 a session opened to adapt a playbook says so, small; a tap opens the playbook.
+        o.session?.source?.takeIf { it.isNotBlank() }?.let { com.coinepro.hq.ui.playbook.SourceChip(it, Modifier.padding(top = 4.dp, end = 8.dp)) }
         Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 plain(o.textFa.trim()), style = Divan.type.bodyStrong, color = c.textPrimary,
@@ -521,9 +525,11 @@ internal fun SessionDetailsBody(
     onReopen: () -> Unit,
     onHide: () -> Unit,
     onErase: () -> Unit,
+    onDrafted: (com.coinepro.hq.core.net.Playbook) -> Unit = {},
 ) {
     val c = Divan.colors
     val brief = briefOf(o)
+    val playbooksOn = served(HubFeature.PLAYBOOKS)
     val ready = sessionBadge(o) == "ready"
     val eraseOn = served(HubFeature.ERASE)
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -542,6 +548,9 @@ internal fun SessionDetailsBody(
             }
         }
     }
+    // ⟨1.22⟩ §40.1 what the session remembers, and §40.2 its result as a working group (open or closed alike).
+    o.memoryMd?.takeIf { it.isNotBlank() }?.let { com.coinepro.hq.ui.playbook.MemoryCard(it) }
+    if (playbooksOn) com.coinepro.hq.ui.playbook.SessionPlaybooks(o.ref, onDrafted)
     PeopleBar(participants, open = !closed && sessionsOn, addressee = addressee, onPick = onPick, onAddPerson = onAddPerson, onAddModel = onAddModel)
     PaceRow(o.pace, enabled = !closed && sessionsOn, onPace = onPace)
     if (o.tasks.isNotEmpty() || (sessionsOn && !closed)) TasksCard(o.ref, o.tasks, editable = sessionsOn && !closed, onChanged = onTasksChanged)

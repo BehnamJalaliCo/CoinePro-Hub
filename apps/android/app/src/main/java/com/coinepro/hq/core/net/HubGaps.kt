@@ -53,6 +53,8 @@ enum class HubFeature {
     ERASE,
     /** ⟨1.20⟩ §38.3 `/hub/services` and `/hub/jobs/{ref}`; without them the «سرویس‌ها» page says it comes with the next hub update. */
     HUB_SERVICES,
+    /** ⟨1.22⟩ §40 `/playbooks…` and `POST /orders/{ref}/playbook`; without them «کارگروه از این جلسه بساز» and the library are hidden. */
+    PLAYBOOKS,
 }
 
 /**

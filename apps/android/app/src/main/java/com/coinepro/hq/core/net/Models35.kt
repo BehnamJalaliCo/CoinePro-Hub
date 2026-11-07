@@ -72,6 +72,8 @@ data class SessionCard(
     val lastAt: String = "",
     val closedAt: String? = null,
     val hidden: Boolean = false,
+    /** ⟨1.22⟩ §40.3 the playbook (`PB-…`) this session was opened from, to adapt it for its company. */
+    val source: String? = null,
 )
 
 /** The session block of an order report (§35.2, additive). */
@@ -83,6 +85,8 @@ data class SessionState(
     val reasonFa: String = "",
     val closedAt: String? = null,
     val hidden: Boolean = false,
+    /** ⟨1.22⟩ §40.3 the playbook (`PB-…`) this session was opened from. */
+    val source: String? = null,
 )
 
 // ------------------------------------------------------------------ §35.5 --

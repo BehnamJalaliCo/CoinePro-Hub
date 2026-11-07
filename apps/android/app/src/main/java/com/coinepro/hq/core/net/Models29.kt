@@ -108,6 +108,8 @@ data class OrderReport(
     val participants: List<SessionParticipant> = emptyList(),
     /** ⟨1.18⟩ §36.3 every file of the owner's turns in the session, newest first: they belong to the order. */
     val files: List<FileRef> = emptyList(),
+    /** ⟨1.22⟩ §40.1 the session's memory («تا اینجا»): what was decided, who does what, the helpers chosen, open points. Read-only. */
+    val memoryMd: String? = null,
 )
 
 // ------------------------------------------------------------- §29.3 rules --

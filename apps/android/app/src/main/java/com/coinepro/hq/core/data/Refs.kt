@@ -37,6 +37,8 @@ object Refs {
         "RR" to "archive-settings/retention/$", "RM" to "archive-settings/reminders/$", "AU" to "archive-settings/automations/$",
         // ⟨1.15⟩ §33: a lead, a usage report
         "LD" to "leads/$", "UR" to "usage",
+        // ⟨1.22⟩ §40 a working group drafted from a session (a playbook): its page.
+        "PB" to "playbook/$",
     ).sortedByDescending { it.first.length }
 
     private val REF = Regex("^([A-Z]{1,3})-(\\d{1,10})$")

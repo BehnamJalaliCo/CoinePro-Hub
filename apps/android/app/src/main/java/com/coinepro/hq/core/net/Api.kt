@@ -1860,6 +1860,28 @@ class Api(
         EraseKind.OUTPUT -> eraseOutput(ref, key, stepUp)
     }
 
+    // --------------------------------------------- ⟨1.22⟩ §40 a session becomes a working group --
+    /** §40.2 the holder drafts a playbook from this session (open or closed): one model call, so it takes a few seconds. → 201, `draft`;
+     *  its card follows in the session's talk. [key] is the press's own UUID (a retry of the press replays the same draft). */
+    suspend fun draftPlaybook(ref: String, key: String): Playbook =
+        call(write("POST", "/orders/${seg(ref)}/playbook", JsonObject(emptyMap()), null, key), serializer())
+    /** §40.3 the library, newest first; [state] `draft` · `sealed` · `retired` narrows it. A bare list. */
+    suspend fun playbooks(state: String? = null): List<Playbook> = get("/playbooks", mapOf("state" to state))
+    suspend fun playbook(ref: String): Playbook = get("/playbooks/${seg(ref)}")
+    /** The owner's light edit of a draft ([com.coinepro.hq.core.data.playbookPatch]: only what changed); a sealed one is a 409. */
+    suspend fun patchPlaybook(ref: String, body: JsonObject): Playbook =
+        send("PATCH", "/playbooks/${seg(ref)}", json.encodeToString(JsonElement.serializer(), body))
+    /** 🔏 `playbook.seal` on the ref (a routine action: no fingerprint, the hub answers with the token itself). */
+    suspend fun sealPlaybook(ref: String, stepUp: StepUp): Playbook =
+        call(write("POST", "/playbooks/${seg(ref)}/seal", JsonObject(emptyMap()), stepUp("playbook.seal", ref)), serializer())
+    /** §40.3 give it to [company]: a new session that adapts it there ([PlaybookApplied.order]), or, sealed and [asIs], the membership
+     *  at once. [key] is the press's own UUID. A retired playbook is a 409. */
+    suspend fun applyPlaybook(ref: String, company: String, platform: String?, noteFa: String?, asIs: Boolean, key: String): PlaybookApplied =
+        call(write("POST", "/playbooks/${seg(ref)}/apply", com.coinepro.hq.core.data.applyBody(company, platform, noteFa, asIs), null, key), serializer())
+    /** 🔏 `playbook.retire`: its routines stop for every member; nothing is deleted. */
+    suspend fun retirePlaybook(ref: String, stepUp: StepUp): Playbook =
+        call(write("POST", "/playbooks/${seg(ref)}/retire", JsonObject(emptyMap()), stepUp("playbook.retire", ref)), serializer())
+
     /** §35.6 the canvas: the hub and the companies, and the links between them. */
     suspend fun links(): Canvas = get("/links")
     suspend fun newLink(from: String, to: String, kind: String, purposeFa: String): CompanyLink =

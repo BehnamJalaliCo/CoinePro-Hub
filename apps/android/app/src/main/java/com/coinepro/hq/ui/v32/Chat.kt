@@ -91,7 +91,10 @@ fun TalkBubble(
                 // A long press selects (the phone's handles and «کپی»); nothing above the bubble takes the press.
                 com.coinepro.hq.ui.Selectable {
                     Box(Modifier.clip(shape).background(if (mine) c.raised else c.card).padding(horizontal = 14.dp, vertical = 10.dp)) {
-                        if (mine) Text(plain(t.text), style = Divan.type.body, color = c.textPrimary) else Md(t.shown, color = c.textPrimary)
+                        // ⟨1.22⟩ §40.3 the hub writes the owner's first word of a session opened from a playbook as Markdown (the
+                        // playbook whole): it reads as the owner's text formatted, its refs hidden. Every other word of his stays plain.
+                        if (mine && OWNER_MD.containsMatchIn(t.text)) Md(com.coinepro.hq.core.data.withoutRefs(t.text), color = c.textPrimary)
+                        else if (mine) Text(plain(t.text), style = Divan.type.body, color = c.textPrimary) else Md(t.shown, color = c.textPrimary)
                     }
                 }
             }
@@ -126,8 +129,15 @@ fun TalkBubble(
     }
 }
 
+/** A heading at the start of a line: an owner's turn the hub wrote as Markdown (§40.3). */
+private val OWNER_MD = Regex("(?m)^#{1,3}\\s")
+
 /** What «کپی» puts on the clipboard for a turn: the owner's words as he wrote them, a persona's answer without its markdown marks. */
-fun turnPlain(t: TalkTurn): String = if (t.owner) t.text.trim() else com.coinepro.hq.core.format.plainOfMd(t.shown)
+fun turnPlain(t: TalkTurn): String = when {
+    t.owner && OWNER_MD.containsMatchIn(t.text) -> com.coinepro.hq.core.format.plainOfMd(com.coinepro.hq.core.data.withoutRefs(t.text))
+    t.owner -> t.text.trim()
+    else -> com.coinepro.hq.core.format.plainOfMd(t.shown)
+}
 
 /** The answer while it is written: three quiet dots first, then the text as it comes; a failure in one plain line. */
 @Composable
@@ -173,6 +183,12 @@ fun ThinkingDots(modifier: Modifier = Modifier) {
  */
 @Composable
 fun TalkCardView(card: TalkCard, onRun: suspend (TalkCard, JsonObject?) -> Unit, onDismiss: suspend (TalkCard) -> Unit, modifier: Modifier = Modifier, editing0: Boolean = false) {
+    // ⟨1.22⟩ §40.2 a working group drafted from the session: drawn from the playbook itself. A `playbook` card that names none, and
+    // every kind this app does not know, is drawn as any card below.
+    if (card.kind == "playbook") com.coinepro.hq.core.data.playbookCardOf(card.payload)?.let { pc ->
+        com.coinepro.hq.ui.playbook.PlaybookCardView(card, pc, onRun, onDismiss, modifier)
+        return
+    }
     val c = Divan.colors
     val nav = LocalNav.current
     val run = rememberAction()

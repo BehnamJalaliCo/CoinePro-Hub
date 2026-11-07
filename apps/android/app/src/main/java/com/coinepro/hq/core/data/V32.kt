@@ -71,6 +71,8 @@ val CARD_KIND_FA: Map<String, CardKindInfo> = mapOf(
     "budget" to CardKindInfo("بودجه", "بودجه بده"),
     "group" to CardKindInfo("کارگروه", "به کارگروه ببر"),
     "line" to CardKindInfo("خط تولید", "راه بینداز"),
+    // ⟨1.22⟩ §40.2 a working group drafted from the session (drawn by its own card; this is its name elsewhere).
+    "playbook" to CardKindInfo("کارگروه از جلسه", "باز کن"),
 )
 
 fun cardInfo(kind: String): CardKindInfo = CARD_KIND_FA[kind] ?: CardKindInfo("کارت", "اجرا کن")

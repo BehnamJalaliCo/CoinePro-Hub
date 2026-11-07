@@ -278,6 +278,7 @@ fun madeFa(ref: String): String = when (Refs.prefix(ref)) {
     "SO" -> "قانون"
     "PL" -> "یادآوری"
     "CV" -> "گفتگو"
+    "PB" -> "کارگروه"
     else -> "مورد"
 }
 
