@@ -25,6 +25,12 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 ensure_env
 
 PERCENT=80
+percent_of() { # percent_of PROFILE: its HQ_BUDGET_PERCENT (hq.sh budget_pct), else 80
+  local pct
+  pct="$(sed -n 's/^HQ_BUDGET_PERCENT=//p' "$REPO_DIR/infra/compose/profiles/$1.env" | tail -n1)"
+  [[ "$pct" =~ ^[0-9]+$ ]] && ((pct >= 50 && pct <= 90)) || pct=80
+  printf '%s\n' "$pct"
+}
 HEADROOM_PERCENT=5
 failed=0
 
@@ -101,6 +107,7 @@ fi
 mapfile -t OPT_IN < <(opt_in_profiles)
 for profile in "${PROFILES[@]}"; do
   ref="$(sed -n 's/^HQ_BUDGET_REF_RAM_MB=//p' "$REPO_DIR/infra/compose/profiles/$profile.env")"
+  PERCENT="$(percent_of "$profile")"
   check "$profile" "$(limit_sum_mb "$profile")" "$ref" "reference" "$HEADROOM_PERCENT"
   for extra in "${OPT_IN[@]}"; do
     enforced=no
@@ -122,6 +129,7 @@ if [[ "$on_server" == yes ]]; then
   for extra in "${enabled[@]}"; do
     if [[ "$extra" != stt ]]; then steady+=("$extra"); fi
   done
+  PERCENT="$(percent_of "$active")"
   label="$active"
   for extra in "${steady[@]}"; do label+="+$extra"; done
   check "$label" "$(limit_sum_mb "$active" "${steady[@]}")" "$ram" "this server"
