@@ -10,7 +10,8 @@ children and the requests made from them, in any company.
 What happens, by code (no model):
 - the dispatcher's receipt «دریافت شد؛ به … سپرده شد» at once
   (`on_order_routed`, called after routing; a report made later writes it too);
-- steps: the plan, each `order.progress`, each hand-over and each output;
+- steps: the plan and each `order.progress` (⟨2026-11-07⟩ W9 D: no longer a line per hand-over
+  or per output; the outputs are listed as themselves, the holder's plan names who got what);
 - blockers, detected on every change and every few minutes, each with its
   one-tap fix (`no_employee` hire, `hiring_closed` hiring.open, `locked`
   lock.open, `series_unsealed` series.seal, `budget` budget.add, `player_down`
@@ -794,20 +795,13 @@ async def refresh(tx: Tx, ref: str) -> dict[str, Any] | None:
     assert order is not None
     works = await tree(tx, root_refs(order))
     outputs = await _outputs(tx, works)
-    new_steps: list[dict[str, Any]] = []
+    # ⟨2026-11-07⟩ W9 D (the owner: «این بروکراسی اداری چیه»): no step that only says a work was
+    # handed over («به … سپرده شد»: the holder's own plan and the card's line say it) and no
+    # «سامانه: خروجی رسید» repeating an output that is listed under `outputs` itself; a new work
+    # or a new output still moves the story's clock (`last_step_at`)
     known = set(rep["work_refs"] or [])
-    for w in works:
-        if w["ref"] not in known and not w["is_root"]:
-            new_steps.append(
-                _step("سامانه", f"به {who_fa(w['a_title_fa'], w['company_fa'])} سپرده شد")
-            )
     seen = {o["ref"] for o in _j(rep["outputs"]) or []}
-    for o in outputs:
-        if o["ref"] not in seen:
-            what = ("خروجی ناقص رسید: " if o["kind"] == "partial" else "خروجی رسید: ") + o[
-                "title_fa"
-            ]
-            new_steps.append(_step("سامانه", what))
+    moved = any(w["ref"] not in known for w in works) or any(o["ref"] not in seen for o in outputs)
     # ⟨1.17⟩ §35.1 the order ends only by the owner's close (ended_at is the close's): while the
     # session is open the report keeps moving, delivered root works make it `ready`
     ended = rep["ended_at"] is not None
@@ -829,10 +823,9 @@ async def refresh(tx: Tx, ref: str) -> dict[str, Any] | None:
         sm=json.dumps(summary, ensure_ascii=False) if summary else None,
         refs=[w["ref"] for w in works],
         route=json.dumps(_route(order, works), ensure_ascii=False),
-        moved=bool(new_steps),
+        moved=moved,
         id=rep["id"],
     )
-    await _append_steps(tx, rep["id"], new_steps)
     # ⟨1.14⟩ §32.2 an order made by a talk `ask` card: its answer goes back into
     # the conversation as a turn («جواب آمد»), once per deliverable
     from hq_api.domain import sessions as SE

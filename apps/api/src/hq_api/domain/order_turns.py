@@ -480,7 +480,7 @@ async def talk_brief(tx: Tx, order_ref: str) -> dict[str, Any] | None:
 
     steps = OR._j(rep["steps"]) or []
     tasks = await SE.tasks_of(tx, rep["order_id"])
-    return {
+    out = {
         "order": order_ref,
         "text": " ".join(str(order.get("text") or "").split())[:1500],
         "pace": order.get("pace") or "auto",
@@ -497,6 +497,41 @@ async def talk_brief(tx: Tx, order_ref: str) -> dict[str, Any] | None:
         # {"file_id": id}; a font is used by naming it (overlay.font_file_id, a media item's style)
         "files": [_file_line(f) for f in await F.of_order(tx, rep["order_id"])],
     }
+    # ⟨2026-11-07⟩ W9 C: the session's last failed cards, for the holder to fix itself
+    failed = await failed_cards(tx, rep.get("conversation_ref"))
+    if failed:
+        out["failed_cards"] = failed
+    return out
+
+
+FAILED_CARDS = 3
+
+
+async def failed_cards(tx: Tx, conversation_ref: str | None) -> list[dict[str, Any]]:
+    """⟨2026-11-07⟩ W9 C: the last failed cards of a session (kind, title, the exact refusal and
+    the payload fields involved), newest first, so the holder reads why and offers the card again
+    corrected, instead of sending the owner elsewhere."""
+    if not conversation_ref:
+        return []
+    rows = await tx.all(
+        """SELECT c.kind, c.title_fa, c.reason_fa, c.payload FROM talk.cards c
+           JOIN talk.conversations v ON v.id = c.conversation_id
+           WHERE v.ref = :r AND c.state = 'failed' ORDER BY c.updated_at DESC LIMIT :l""",
+        r=conversation_ref,
+        l=FAILED_CARDS,
+    )
+    out = []
+    for r in rows:
+        payload = OR._j(r["payload"]) or {}
+        out.append(
+            {
+                "kind": r["kind"],
+                "title_fa": r["title_fa"],
+                "reason_fa": r["reason_fa"],
+                "payload": {str(k): str(v)[:300] for k, v in payload.items() if k != "asked"},
+            }
+        )
+    return out
 
 
 def _file_line(f: dict[str, Any]) -> dict[str, Any]:

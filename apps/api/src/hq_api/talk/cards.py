@@ -29,6 +29,16 @@ every result is a step of the order (its report refreshed, so it streams):
     line        {company, template}: a production line from a template (§30), its own seal
 A closed session runs no card (409).
 
+⟨2026-11-07⟩ W9 B: inside a session NO card makes a new order (the owner: «همش اینور و اونور … این
+بروکراسی اداری چیه»; his «go find why» had become two new orders to the advisor):
+    ask         the asked person joins THIS session and the question is a child work of this order
+                assigned to them (the holder's company: under the root; another company or the
+                holding's advisor: a work requested by the root, in the order's tree); its answer
+                comes back as that person's turn here («جواب آمد»)
+    minutes     its tasks are child works of this order (a department named: its manager; another
+                company: its CEO, requested by the root), else plan tasks of the session
+    the rest    keep their effect; the result is one short line in the session (a step and a turn)
+
 A card that fails stays visible as `failed` with its plain reason, and may be
 run again (with the owner's edits). Running a done card answers what it made.
 """
@@ -194,15 +204,16 @@ async def run(
     payload = {**(store._j(card["payload"]) or {}), **(edits or {})}
     payload = json.loads(clean(json.dumps(payload, ensure_ascii=False, default=str))[0])
     later: list[Any] = []
+    note: list[str] = []  # ⟨2026-11-07⟩ the one line the session shows for what the card made
     try:
-        made, later = await _carry_out(ctx, request, card, conv, p, payload)
+        made, later = await _carry_out(ctx, request, card, conv, p, payload, note)
     except ApiError as exc:
         why = exc.message_fa or CODES.get(exc.code, CODES["internal_error"])[2]
         await _mark(ctx, card, "failed", [], why, payload)
         await _order_step(ctx, conv, card, payload, why)
         raise
     row = await _mark(ctx, card, "done", made, None, payload)
-    await _order_step(ctx, conv, card, payload, None)
+    await _order_step(ctx, conv, card, payload, None, note[0] if note else None)
     for job in later:
         if job[0] == "decision":
             background.add_task(workflows_client.decision_created, ctx.hub, job[1])
@@ -249,15 +260,22 @@ async def _mark(
 
 
 async def _order_step(
-    ctx: Ctx, conv: dict[str, Any], card: dict[str, Any], payload: dict[str, Any], why: str | None
+    ctx: Ctx,
+    conv: dict[str, Any],
+    card: dict[str, Any],
+    payload: dict[str, Any],
+    why: str | None,
+    line: str | None = None,
 ) -> None:
     """⟨1.17⟩ §35.4 what a card made (or why it did not) is a step of the session's order, and
     the report is refreshed so `order.report` streams. The bound `order` card is the reply itself
-    (its own step): only the refresh."""
+    (its own step): only the refresh. ⟨2026-11-07⟩ W9 B: what a card made is also one short line
+    in the session's talk (the holder's turn, by code), so the owner reads it where he is."""
     ref = conv.get("order_ref")
     if not ref:
         return
     from hq_api.domain import order_report as OR
+    from hq_api.domain import order_turns as OT
     from hq_api.domain import sessions as SE
 
     async with ctx.tx() as tx:
@@ -266,8 +284,13 @@ async def _order_step(
             return
         label = LABEL_FA.get(card["kind"], card["kind"])
         title = str(payload.get("title_fa") or payload.get("text") or card["title_fa"])[:200]
-        what = f"{label} انجام شد: {title}" if why is None else f"{label} انجام نشد: {why}"
+        done = line or f"{label} انجام شد: {title}"
+        what = f"{label} انجام نشد: {why}" if why is not None else done
         await SE.step(tx, str(ref), OWNER_FA, what)
+        if why is None and card["kind"] != "invite":  # an invite writes its own «آمد» line
+            locked = await store.conversation(tx, conv["ref"], lock=True)
+            said = clean(what)[0][:400]
+            await OT.post_turn(tx, locked, OT.holder_key(locked), said, said)
 
 
 async def _carry_out(
@@ -277,9 +300,16 @@ async def _carry_out(
     conv: dict[str, Any],
     p: Persona,
     payload: dict[str, Any],
+    note: list[str] | None = None,
 ) -> tuple[list[str], list[Any]]:
     kind, ref = card["kind"], conv["ref"]
     text = str(payload.get("text") or card["body_fa"] or card["title_fa"])
+    note = [] if note is None else note
+    if conv.get("order_ref") and kind == "ask":
+        # ⟨2026-11-07⟩ W9 B: never a new order from inside a session
+        return await _session_ask(ctx, conv, p, payload, text, note)
+    if conv.get("order_ref") and kind == "minutes":
+        return await _session_minutes(ctx, conv, payload, note)
     if kind == "order" and conv.get("order_ref"):
         # ⟨1.16⟩ §34.2 a talk bound to an order: the owner's word goes onto that same order
         from hq_api.domain import order_turns as OT
@@ -347,13 +377,20 @@ async def _carry_out(
         sentence = str(payload.get("sentence_fa") or text)[:1000]
         company = payload.get("company") if isinstance(payload.get("company"), str) else None
         company = company or p.company_code  # ⟨2026-11-06⟩ a manager's: its own company
-        compiled = await AU.compile_sentence(ctx.hub, sentence, company)
+        # ⟨2026-11-07⟩ the proposer's department: its manager takes a work for a role nobody holds
+        compiled = await AU.compile_sentence(
+            ctx.hub, sentence, company, department=(p.employee or {}).get("department")
+        )
         if compiled.rule is None:
             raise _fail(
                 compiled.refused_fa[0] if compiled.refused_fa else "این جمله به قاعده تبدیل نشد."
             )
         auto = {"rule": compiled.rule, "sentence_fa": sentence, "company": company}
         out = await add_automation(AutomationIn(**auto), sub_request(request, 0, auto), ctx)
+        # ⟨2026-11-07⟩ the one line of the session: what was set up, and what code changed
+        changed = [x for x in (compiled.preview_fa or "").split("\n") if x.startswith("کسی با نقش")]
+        title = str(payload.get("title_fa") or card["title_fa"])[:120]
+        note.append(" ".join([f"خودکارسازی ثبت شد: {title}؛ تا مُهر شما اجرا نمیشود.", *changed]))
         return [_ref_of(out)], []
     if kind in ("decision", "hire"):
         return await _decision(ctx, card, p, payload, text)
@@ -365,6 +402,199 @@ def _ref_of(out: Any) -> str:
         return str(out.ref)  # type: ignore[attr-defined]
     body = json.loads(bytes(out.body)) if hasattr(out, "body") else {}  # an idempotent replay
     return str(body.get("ref"))
+
+
+# ----------------------------------------------- the session: ask and minutes (W9 B) --
+HOLDING_FIXED = ("advisor", "overseer", "assistant")
+
+
+async def _holding_fixed(tx: Tx, role: str) -> dict[str, Any] | None:
+    return await tx.first(
+        """SELECT e.code, e.role, e.title_fa, c.id AS company_id, c.code AS company, c.kind AS company_kind,
+                  c.name_fa AS company_fa
+           FROM core.employees e JOIN core.companies c ON c.id = e.company_id
+           WHERE c.kind = 'holding' AND e.role = :r AND e.status = 'active' ORDER BY e.hired_at LIMIT 1""",
+        r=role,
+    )
+
+
+async def _employee_row(tx: Tx, code: str) -> dict[str, Any]:
+    return dict(
+        await tx.one(
+            """SELECT e.code, e.role, e.title_fa, c.id AS company_id, c.code AS company,
+                      c.kind AS company_kind, c.name_fa AS company_fa
+               FROM core.employees e JOIN core.companies c ON c.id = e.company_id WHERE e.code = :c""",
+            c=code,
+        )
+    )
+
+
+async def _asked(
+    ctx: Ctx, tx: Tx, parent: dict[str, Any], to: str, company: str | None
+) -> dict[str, Any]:
+    """Who a session's `ask` is for: a fixed persona of the holding by name; a person of another
+    company named (`company`: an employee code, a department's manager, a role, else its CEO); a
+    person of the holder's company (code, department, role); nobody named: the holding's advisor."""
+    if to in HOLDING_FIXED or (not to and not company):
+        row = await _holding_fixed(tx, to or "advisor")
+        if row is None:
+            raise _fail("مشاور کل در هلدینگ نیست.", "payload.to")
+        return dict(row)
+    if company and company != parent["company"]:
+        co = await ctx.hub.companies.find(company)
+        if co is None or co.kind == "holding":
+            raise _fail("این شرکت را نمیشناسم.", "payload.company")
+        code = await _delegate_target(tx, co.id, to or "ceo")
+        return await _employee_row(tx, code)
+    code = await _delegate_target(tx, parent["company_id"], to)
+    return await _employee_row(tx, code)
+
+
+async def _child_of_order(
+    ctx: Ctx,
+    tx: Tx,
+    parent: dict[str, Any],
+    emp: dict[str, Any],
+    *,
+    title: str,
+    brief: str,
+) -> dict[str, Any]:
+    """A work of the order for `emp`: a child of the root in the holder's company; in another
+    company (or the holding) a work requested by the root, which the order's tree follows."""
+    from hq_api.domain import work as W
+
+    if emp["company_id"] == parent["company_id"]:
+        return await W.delegate(tx, ctx.who, parent, to_code=str(emp["code"]), title=title,
+                                brief=brief, priority=None, due_at=None, budget=None)  # fmt: skip
+    return await W.create(
+        tx,
+        ctx.who,
+        company_id=emp["company_id"],
+        company_code=str(emp["company"]),
+        title=title,
+        brief=brief,
+        kind="one_off",
+        priority=str(parent["priority"]),
+        assignee_code=str(emp["code"]),
+        requested_by_work_id=parent["id"],
+    )
+
+
+async def _join(ctx: Ctx, tx: Tx, ref: str, conv: dict[str, Any], emp: dict[str, Any]) -> str:
+    """The asked person joins this session (the existing participant path), unless already here;
+    the persona key the answer comes back under."""
+    from hq_api.domain import order_turns as OT
+    from hq_api.domain import sessions as SE
+
+    key = OT.persona_key(emp)
+    if key != conv.get("holder") and key not in (conv.get("present") or []):
+        try:
+            key = await SE.add_participant(ctx, tx, ref, "person", key)
+        except ApiError as exc:
+            if exc.status != 409:  # the holder is already here: fine
+                raise
+    return key
+
+
+async def _session_ask(
+    ctx: Ctx,
+    conv: dict[str, Any],
+    p: Persona,
+    payload: dict[str, Any],
+    text: str,
+    note: list[str],
+) -> tuple[list[str], list[Any]]:
+    """⟨2026-11-07⟩ W9 B: a question for someone else, answered IN THIS session: they join, the
+    question is a work of this order assigned to them, and the answer is their turn here."""
+    from hq_api.domain import order_report as OR
+    from hq_api.domain import sessions as SE
+
+    question = clean(" ".join(str(payload.get("text") or text).split()))[0]
+    if len(question) < 2:
+        raise _fail("متن پرسش خالی است.", "payload.text")
+    to = str(payload.get("to") or payload.get("role") or "").strip()
+    company = payload.get("company") if isinstance(payload.get("company"), str) else None
+    async with ctx.tx() as tx:
+        ref, parent = await _root_work(ctx, tx, conv)
+        emp = await _asked(ctx, tx, parent, to, company)
+        key = await _join(ctx, tx, ref, conv, emp)
+        who = OR.who_fa(
+            emp["title_fa"], None if emp["company_kind"] == "holding" else emp["company_fa"]
+        )
+        child = await _child_of_order(
+            ctx,
+            tx,
+            parent,
+            emp,
+            title=f"پرسش مدیر کل: {question}"[:300],
+            brief=(
+                f"{question}\n\n(پرسش مدیر کل در جلسه‌ی فرمان {ref}؛ جواب را با deliver بده: "
+                "به همان جلسه برمیگردد. کسی را به فرمان تازه حواله نکن.)"
+            ),
+        )
+        rep = await OR.ensure(tx, ref)
+        if rep is not None:
+            await SE.add_task(tx, rep, title_fa=f"پاسخ به: {question}"[:300], by="owner",
+                              who_fa=who, who_code=str(emp["code"]), work_ref=str(child["ref"]))  # fmt: skip
+        payload["asked"] = key  # the answer comes back as this persona's turn
+        await ctx.audit(tx, company_id=parent["company_id"], action="work.ask", action_class="A2",
+                        target_kind="work", target_ref=child["ref"],
+                        summary=f"from session {conv['ref']} to {emp['code']}")  # fmt: skip
+    note.append(f"پرسش به {who} سپرده شد؛ جوابش همین‌جا می‌آید.")
+    return [str(child["ref"])], []
+
+
+async def _session_minutes(
+    ctx: Ctx, conv: dict[str, Any], payload: dict[str, Any], note: list[str]
+) -> tuple[list[str], list[Any]]:
+    """⟨2026-11-07⟩ W9 B: the minutes' tasks become works of this order (a department named: its
+    manager; another company named: its CEO), else plan tasks of the session; never new orders."""
+    from hq_api.domain import order_report as OR
+    from hq_api.domain import sessions as SE
+
+    tasks = [t for t in payload.get("tasks") or [] if isinstance(t, dict)]
+    if not tasks:
+        raise _fail("صورت‌جلسه کاری برای اجرا ندارد.", "payload.tasks")
+    made: list[str] = []
+    works = 0
+    async with ctx.tx() as tx:
+        ref, parent = await _root_work(ctx, tx, conv)
+        rep = await OR.ensure(tx, ref)
+        for t in tasks:
+            title = clean(" ".join(str(t.get("title_fa") or "").split()))[0]
+            if len(title) < 2:
+                continue
+            due = f" (تا {t['due']})" if t.get("due") else ""
+            co = t.get("company") if isinstance(t.get("company"), str) else None
+            dept = str(t.get("department") or "").strip()
+            emp: dict[str, Any] | None = None
+            if dept or (co and co != parent["company"]):
+                try:
+                    emp = await _asked(ctx, tx, parent, dept, co)
+                except ApiError:
+                    emp = None  # nobody by that name: the task stays on the plan
+            if emp is not None:
+                child = await _child_of_order(
+                    ctx, tx, parent, emp,
+                    title=title[:300],
+                    brief=f"{title}{due}\n\n(از صورت‌جلسه‌ی فرمان {ref} مدیر کل)",
+                )  # fmt: skip
+                works += 1
+                made.append(str(child["ref"]))
+                if rep is not None:
+                    who = OR.who_fa(emp["title_fa"], emp["company_fa"])
+                    await SE.add_task(tx, rep, title_fa=title + due, by="owner", who_fa=who,
+                                      who_code=str(emp["code"]), work_ref=str(child["ref"]))  # fmt: skip
+            elif rep is not None:
+                row = await SE.add_task(tx, rep, title_fa=title + due, by="owner")
+                made.append(str(row["id"]))
+        if not made:
+            raise _fail("صورت‌جلسه کاری برای اجرا ندارد.", "payload.tasks")
+        await ctx.audit(tx, company_id=parent["company_id"], action="session.minutes",
+                        action_class="A2", target_kind="order", target_ref=ref,
+                        summary=f"{len(made)} tasks ({works} works) from {conv['ref']}")  # fmt: skip
+    note.append(f"صورت‌جلسه: {len(made)} کار به همین فرمان اضافه شد.")
+    return made, []
 
 
 # ------------------------------------------------------------ the session --
@@ -648,21 +878,32 @@ async def on_outputs(tx: Tx, order_ref: str, outputs: list[dict[str, Any]]) -> i
     («جواب آمد») with one notification (§32.2). Once per deliverable."""
     if not outputs:
         return 0
+    rows = await tx.all(
+        """SELECT d.ref, d.title, d.summary, d.body, w.ref AS work_ref FROM cartable.deliverables d
+           JOIN work.work w ON w.id = d.work_id WHERE d.ref = ANY(:refs)""",
+        refs=[o["ref"] for o in outputs],
+    )
+    by_ref = {r["ref"]: dict(r) for r in rows}
+    # ⟨2026-11-07⟩ W9 B: a session's ask made a work of the same order; its deliverable (a part
+    # of the order) answers that card, under the asked person's persona
     cards = await tx.all(
-        "SELECT * FROM talk.cards WHERE kind = 'ask' AND :r = ANY(made) FOR UPDATE", r=order_ref
+        """SELECT * FROM talk.cards WHERE kind = 'ask'
+             AND (:r = ANY(made) OR made && CAST(:works AS text[])) FOR UPDATE""",
+        r=order_ref,
+        works=[str(r["work_ref"]) for r in rows],
     )
     posted = 0
     for card in cards:
+        mine = order_ref in (card["made"] or [])
         for o in outputs:
-            if o["ref"] in (card["answered"] or []) or o.get("kind") == "part":
+            d = by_ref.get(o["ref"])
+            if d is None or o["ref"] in (card["answered"] or []):
                 continue
-            d = await tx.first(
-                "SELECT ref, title, summary, body FROM cartable.deliverables WHERE ref = :r",
-                r=o["ref"],
-            )
-            if d is None:
+            if mine and o.get("kind") == "part":
                 continue
-            await _post_answer(tx, dict(card), dict(d))
+            if not mine and d["work_ref"] not in (card["made"] or []):
+                continue
+            await _post_answer(tx, dict(card), d)
             await tx.exec(
                 """UPDATE talk.cards SET answered = array_append(answered, :d), updated_at = now()
                    WHERE id = :id""",
@@ -679,7 +920,11 @@ async def _post_answer(tx: Tx, card: dict[str, Any], d: dict[str, Any]) -> None:
     conv = await tx.one(
         "SELECT * FROM talk.conversations WHERE id = :c FOR UPDATE", c=card["conversation_id"]
     )
-    persona = await tx.scalar("SELECT persona FROM talk.turns WHERE id = :t", t=card["turn_id"])
+    # ⟨2026-11-07⟩ a session's ask: the asked person's own persona answers
+    asked = (store._j(card["payload"]) or {}).get("asked")
+    persona = asked or await tx.scalar(
+        "SELECT persona FROM talk.turns WHERE id = :t", t=card["turn_id"]
+    )
     title = clean(str(d["title"]))[0][:200]
     body = clean(str(d["summary"] or d["body"] or ""))[0][:6000]
     n = int(conv["turns"]) + 1

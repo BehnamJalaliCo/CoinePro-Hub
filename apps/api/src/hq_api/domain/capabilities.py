@@ -312,6 +312,9 @@ async def technical(
     return out
 
 
+LEAN_HOW = ("owner", "hub", "delegate")  # what a watcher's run still needs of HOW
+
+
 async def brief(
     tx: Tx,
     company_id: UUID | None,
@@ -321,23 +324,34 @@ async def brief(
     role: str | None = None,
     tools: Collection[str] | None = None,
     scope: str | None = None,
+    holding_map: bool = True,
+    lean: bool = False,
 ) -> dict[str, Any]:
     """Every agent run and every talk persona. With the caller (`employee_code`, or its charter
-    `role`, `tools` and `scope`) the brief gains `technical` (§38.2)."""
-    out: dict[str, Any] = {
-        "outside_players": await _safe(tx, _players) or [],
-        "automations": {"engine": "the hub's rule engine", "n8n": "up" if n8n_up else "not set up"},
-        "how": HOW,
-    }
-    from hq_api.domain import speech_make as SM
+    `role`, `tools` and `scope`) the brief gains `technical` (§38.2). ⟨2026-11-07⟩ W9 E:
+    `holding_map=False` leaves the map of every company out (a consult-only persona's talk);
+    `lean=True` is the brief of a run that is not work for a person (an ops alert, a watcher, a
+    review, a digest): `technical`, who to hand things to, and nothing else."""
+    if lean:
+        out: dict[str, Any] = {"how": {k: HOW[k] for k in LEAN_HOW}}
+    else:
+        out = {
+            "outside_players": await _safe(tx, _players) or [],
+            "automations": {
+                "engine": "the hub's rule engine",
+                "n8n": "up" if n8n_up else "not set up",
+            },
+            "how": HOW,
+        }
+        from hq_api.domain import speech_make as SM
 
-    voice = await _safe(tx, SM.speech_state)
-    if voice is not None:
-        out["voice"] = voice
-    if company_id is not None:
-        company = await _safe(tx, _company, company_id)
-        if company is not None:
-            out["your_company"] = company
+        voice = await _safe(tx, SM.speech_state)
+        if voice is not None:
+            out["voice"] = voice
+        if company_id is not None:
+            company = await _safe(tx, _company, company_id)
+            if company is not None:
+                out["your_company"] = company
     if employee_code is not None and role is None:
         row = await _safe(tx, _employee, employee_code)
         if row is not None:
@@ -346,6 +360,8 @@ async def brief(
         tech = await _safe(tx, _technical, company_id, role, tuple(tools or ()), scope or "company")
         if tech is not None:
             out["technical"] = tech
+    if lean or not holding_map:
+        return out
     # the map last: a trim from the end never reaches the reader's own parts
     mapped = await _safe(tx, _holding_map, company_id)
     if mapped:

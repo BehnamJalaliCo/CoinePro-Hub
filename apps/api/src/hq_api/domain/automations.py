@@ -12,6 +12,14 @@ says runs unchecked:
   refused at compile time with a plain Persian reason.
 - `preview_fa` is built by code from the validated rule, so the owner reads what
   will really run, never the model's own description.
+- ⟨2026-11-07⟩ **a role never refuses a rule.** `work.create.role` as a model writes it («نویسنده»,
+  `scriptwriter@PC`, `PC-SCRIPT`, `Scriptwriter`, `content writer`) is normalised by code against the
+  company's real roles (`Roles`: the charters its active employees hold and its departments' teams,
+  the charter library's titles): an employee code is that employee's role, `role@CODE` is the role,
+  a Persian or English title is the charter with that title; a role nobody in the company holds goes
+  to the matching department's manager, else the CEO, and the preview says so. The owner (2026-11-07)
+  pressed «اجرا» three times on a «نقش کارمند درست نیست» for a valid intention; never again.
+- Every refusal of another field names the field and what is allowed, in one plain line.
 - Nothing runs before the owner's seal (🔏 `automation.seal`); a sealed
   automation's sentence and rule never change (a trigger in the database).
 - Running is code: `tick` (schedules and metrics, every few minutes) and the
@@ -112,6 +120,7 @@ KEY = re.compile(r"^[a-z][a-z0-9_]{0,40}$")
 LINE = re.compile(r"^LN-[0-9]{4,}$")
 WORKFLOW = re.compile(r"^[a-z0-9][a-z0-9_-]{1,60}$")
 ROLE = re.compile(r"^[a-z][a-z_]{1,30}$")
+_ARABIC = str.maketrans({"ي": "ی", "ك": "ک", "ى": "ی", "‌": " ", "‏": "", "‎": ""})
 
 # Every action: its arguments (required first), and whether it acts inside a company.
 ACTION_ARGS: dict[str, tuple[tuple[str, ...], tuple[str, ...], bool]] = {
@@ -129,6 +138,123 @@ class Compiled(BaseModel):
     rule: dict[str, Any] | None
     preview_fa: str | None
     refused_fa: list[str]
+
+
+# ------------------------------------------------------------------- roles --
+class Roles(BaseModel):
+    """⟨2026-11-07⟩ The company's real roles: the compiler's instructions and the normaliser."""
+
+    held: dict[str, str] = {}  # role key -> title_fa: an active employee's, or a department team's
+    employees: dict[str, str] = {}  # employee code -> role key (active, not system)
+    managers: dict[str, str] = {}  # department code -> its manager's role key
+    ceo: str | None = None
+    titles: dict[str, str] = {}  # normalised title (Persian or English) -> role key (the library)
+    departments: dict[str, str] = {}  # role key -> the charter's department code
+    department: str | None = None  # the proposer's department (a manager's): the fallback manager
+
+    def manager_of(self, department: str | None) -> str | None:
+        return self.managers.get(department) if department else None
+
+
+def norm_word(v: str) -> str:
+    """A role as written, comparable: lowercase, Arabic letters to Persian, one space."""
+    return " ".join(str(v).translate(_ARABIC).lower().replace("_", " ").replace("-", " ").split())
+
+
+def role_titles(lib: Any) -> dict[str, str]:
+    """role key -> title_fa of every charter (for the preview), {} without a library."""
+    roles = getattr(lib, "roles", None) or {}
+    return {k: str(c.title_fa) for k, c in roles.items()}
+
+
+async def company_roles(
+    tx: Tx, hub: Any, company_code: str, *, department: str | None = None
+) -> Roles:
+    """What `role` may mean in this company: its active employees' roles and codes, its
+    departments' managers and teams (the template's), the CEO; and the charter library's titles."""
+    from hq_api.domain import templates as T
+
+    co = await tx.first("SELECT id, template FROM core.companies WHERE code = :c", c=company_code)
+    out = Roles(department=department)
+    lib = getattr(hub, "charters", None)
+    roles = getattr(lib, "roles", None) or {}
+    for key, c in roles.items():
+        for t in (c.title_fa, c.title_en):
+            if t:
+                out.titles.setdefault(norm_word(str(t)), key)
+        if c.department:
+            out.departments[key] = str(c.department)
+    if co is None:
+        return out
+    rows = await tx.all(
+        """SELECT e.code, e.role, e.kind, e.title_fa, d.code AS department
+           FROM core.employees e LEFT JOIN core.departments d ON d.id = e.department_id
+           WHERE e.company_id = :co AND e.status = 'active' AND e.kind <> 'system'
+             AND e.role IS NOT NULL
+           ORDER BY e.hired_at""",
+        co=co["id"],
+    )
+    for r in rows:
+        role = str(r["role"])
+        out.employees[str(r["code"])] = role
+        out.held.setdefault(role, str(r["title_fa"] or role))
+        if r["kind"] == "ceo" and out.ceo is None:
+            out.ceo = role
+        if r["kind"] in ("manager", "ceo") and r["department"]:
+            out.managers.setdefault(str(r["department"]), role)
+    depts = await tx.all("SELECT code FROM core.departments WHERE company_id = :co", co=co["id"])
+    for d in depts:
+        code = str(d["code"])
+        for t in T.team_of(T.department(co["template"], code), lib, code):
+            out.held.setdefault(str(t["role"]), str(t["title_fa"]))
+    return out
+
+
+def normalize_role(raw: Any, roles: Roles | None) -> tuple[str | None, str | None]:
+    """(the role key the work goes to, a plain note when it is not the one written). Never
+    refuses: a role nobody holds goes to the matching department's manager, else the CEO, else to
+    nobody (the work's own default: its department's manager, else the CEO)."""
+    if raw is None:
+        return None, None
+    word = " ".join(str(raw).split())
+    if not word:
+        return None, None
+    if roles is None:
+        key = word.lower()
+        return (key, None) if ROLE.match(key) else (None, _unknown_note(word, None))
+    bare = word.split("@", 1)[0].strip() if "@" in word else word
+    if bare.upper() in roles.employees:  # an employee's code: that employee's role
+        return roles.employees[bare.upper()], None
+    plain = norm_word(bare)
+    key = plain.replace(" ", "_")
+    if key in roles.held:
+        return key, None
+    tight = plain.replace(" ", "")  # `script-writer`, `Script Writer`: scriptwriter
+    hit = roles.titles.get(plain) or next(
+        (k for k in roles.held if k.replace("_", "") == tight), None
+    )
+    if hit is None:
+        hit = next((k for t, k in roles.titles.items() if t.replace(" ", "") == tight), None)
+    if hit is None and len(plain) >= 4:  # «مدیر رسانه» for «مدیر رسانه و طراحی»
+        hit = next((k for t, k in roles.titles.items() if plain in t or t in plain), None)
+    charter = hit or (key if key in roles.departments or key == roles.ceo else None)
+    if charter is not None and charter in roles.held:
+        return charter, None
+    # nobody in the company holds it: the charter's department manager, else the proposer's
+    # department manager, else the CEO
+    manager = (
+        roles.manager_of(roles.departments.get(charter or ""))
+        or roles.manager_of(roles.department)
+        or roles.ceo
+    )
+    if manager is None:
+        return None, _unknown_note(word, None)
+    return manager, _unknown_note(word, roles.held.get(manager, manager))
+
+
+def _unknown_note(word: str, who_title: str | None) -> str:
+    who = f"به {who_title}" if who_title else "به مدیر مربوط، وگرنه مدیرعامل"
+    return f"کسی با نقش «{word[:40]}» در این شرکت نیست؛ این کار {who} داده میشود."
 
 
 # ---------------------------------------------------------------- validation --
@@ -209,7 +335,13 @@ def trigger_of(raw: Any, company: str | None) -> dict[str, Any]:
     return {"kind": "metric", **metric_of(raw, named="عدد")}
 
 
-def action_of(raw: Any, company: str | None, known: set[str]) -> dict[str, Any]:
+def action_of(
+    raw: Any,
+    company: str | None,
+    known: set[str],
+    roles: Roles | None = None,
+    notes: list[str] | None = None,
+) -> dict[str, Any]:
     kind = raw.get("kind") if isinstance(raw, dict) else None
     if kind not in ACTION_KINDS:
         raise Refused(
@@ -234,32 +366,39 @@ def action_of(raw: Any, company: str | None, known: set[str]) -> dict[str, Any]:
         elif name == "line":
             got = v if isinstance(v, str) and LINE.match(v) else None
             if got is None:
-                raise Refused("شماره‌ی خط تولید درست نیست (مثل LN-0001).")
+                raise Refused("«خط تولید» (line) باید شماره‌ی یک خط باشد، مثل LN-0001.")
         elif name == "workflow":
             got = v if isinstance(v, str) and WORKFLOW.match(v) else None
             if got is None:
-                raise Refused("نام جریان خودکار درست نیست.")
+                raise Refused(
+                    "«جریان خودکار» (workflow) باید نام یک جریان موجود باشد: حرف و عدد کوچک و خط تیره."
+                )
         elif name == "role":
-            got = v if v is None or (isinstance(v, str) and ROLE.match(v)) else "!"
-            if got == "!":
-                raise Refused("نقش کارمند درست نیست.")
+            # ⟨2026-11-07⟩ never a refusal: the company's role, else its manager, else nobody
+            got, note = normalize_role(v, roles)
+            if note and notes is not None:
+                notes.append(note)
         elif name == "priority":
             got = v if v in (None, "P0", "P1", "P2", "P3", "P4") else "!"
             if got == "!":
-                raise Refused("اولویت کار درست نیست.")
+                raise Refused("«اولویت» (priority) باید یکی از P0 تا P4 باشد.")
         elif name == "platform":
             if v not in ("google_ads", "meta_ads"):
-                raise Refused("پلتفرم تبلیغاتی باید Google Ads یا Meta Ads باشد.")
+                raise Refused("«پلتفرم» (platform) باید google_ads یا meta_ads باشد.")
             got = v
         elif name == "campaign":
             if not (isinstance(v, str) and v.isdigit() and len(v) <= 30):
-                raise Refused("شناسه‌ی کمپین باید عدد باشد.")
+                raise Refused("«کمپین» (campaign) باید شناسه‌ی عددی کمپین باشد.")
             got = v
         else:  # company
             got = v
             if v is not None:
                 if not (isinstance(v, str) and CODE.match(v) and v in known):
-                    raise Refused("این شرکت را نمیشناسم.")
+                    raise Refused(
+                        "«شرکت» (company) باید کد یکی از شرکت‌های هلدینگ باشد: "
+                        + ", ".join(sorted(known))
+                        + "."
+                    )
                 if company is not None and v != company:
                     raise Refused("یک خودکارسازی شرکتی فقط داخل شرکت خودش کار میکند.")
         if got is not None:
@@ -270,10 +409,16 @@ def action_of(raw: Any, company: str | None, known: set[str]) -> dict[str, Any]:
 
 
 def validate_rule(
-    raw: Any, company: str | None, known: set[str]
+    raw: Any,
+    company: str | None,
+    known: set[str],
+    roles: Roles | None = None,
+    notes: list[str] | None = None,
 ) -> tuple[dict[str, Any] | None, list[str]]:
     """The rule as the model gave it, checked by code: (the normalised rule, [])
-    or (None, the plain Persian reasons). Only this shape ever runs."""
+    or (None, the plain Persian reasons). Only this shape ever runs. ⟨2026-11-07⟩ `roles` is the
+    company's (company_roles): a role is normalised, never refused; `notes` collects what code
+    changed, for the preview."""
     reasons: list[str] = []
     if not isinstance(raw, dict) or set(raw) - {"trigger", "conditions", "actions"}:
         return None, ["قاعده درست ساخته نشد؛ جمله را ساده‌تر بنویسید."]
@@ -301,7 +446,7 @@ def validate_rule(
         out["actions"] = []
         for a in acts:
             try:
-                out["actions"].append(action_of(a, company, known))
+                out["actions"].append(action_of(a, company, known, roles, notes))
             except Refused as exc:
                 reasons.append(exc.why)
     if reasons:
@@ -333,13 +478,14 @@ def metric_fa(m: dict[str, Any]) -> str:
     return f"«{m['key']}» از {conn}{span} {OPS_FA[m['op']]} {num_fa(m['value'])} باشد"
 
 
-def action_fa(a: dict[str, Any], company: str | None) -> str:
+def action_fa(a: dict[str, Any], company: str | None, titles: dict[str, str] | None = None) -> str:
     g = a["args"]
     where = g.get("company") or company
     at = f" برای شرکت {where}" if where else ""
     k = a["kind"]
     if k == "work.create":
-        who = f" برای نقش «{g['role']}»" if g.get("role") else ""
+        role = (titles or {}).get(g.get("role") or "", g.get("role"))
+        who = f" برای «{role}»" if role else ""
         return f"یک کار تازه{at}{who} با عنوان «{g['title_fa']}» ساخته میشود"
     if k == "line.run":
         return f"خط تولید «{g['line']}»{at} یک بار اجرا میشود"
@@ -357,9 +503,15 @@ def action_fa(a: dict[str, Any], company: str | None) -> str:
     return f"جریان خودکار آماده «{g['workflow']}»{at} با امضای هاب فراخوانده میشود"
 
 
-def preview_fa(rule: dict[str, Any], company: str | None) -> str:
-    """What this rule really does, in plain Persian, built from the validated
-    rule (never from the model's words)."""
+def preview_fa(
+    rule: dict[str, Any],
+    company: str | None,
+    titles: dict[str, str] | None = None,
+    notes: list[str] | None = None,
+) -> str:
+    """What this rule really does, in plain Persian, built from the validated rule (never from
+    the model's words); `titles` names a role by its charter's title, `notes` says what code
+    changed (a role nobody holds)."""
     t = rule["trigger"]
     if t["kind"] == "schedule":
         when = when_fa(t["rrule"]) + " (به وقت شما)"
@@ -371,7 +523,8 @@ def preview_fa(rule: dict[str, Any], company: str | None) -> str:
     if rule["conditions"]:
         lines.append("به شرط اینکه " + " و ".join(metric_fa(c) for c in rule["conditions"]) + ".")
     lines.append("آن‌وقت این کارها انجام میشود:")
-    lines += [f"{i}. {action_fa(a, company)}." for i, a in enumerate(rule["actions"], 1)]
+    lines += [f"{i}. {action_fa(a, company, titles)}." for i, a in enumerate(rule["actions"], 1)]
+    lines += list(dict.fromkeys(notes or []))
     lines.append(
         "غیر از این‌ها هیچ کار دیگری نمیکند: بودجه‌ای را بالا نمیبرد، چیزی را حذف نمیکند و "
         "تا مُهر شما نخورد اجرا نمیشود."
@@ -475,7 +628,9 @@ MODEL_SYSTEM = (
     "event (type from the enum), metric (connection, key, op, value, window_days, agg). "
     "conditions: extra metric tests that must all hold. actions: up to five of "
     + ", ".join(ACTION_KINDS)
-    + ", each {kind, args}. work.create needs title_fa (brief_fa, role, priority optional); "
+    + ", each {kind, args}. work.create needs title_fa (brief_fa, role, priority optional; role is one "
+    "of the keys of `roles` in the input, the company's real roles, exactly as written there, never a "
+    "person's name, a code or a translation; when none fits, leave role out); "
     "line.run and line.pause need line; notify.owner and notify.lead need title_fa (body_fa optional); "
     "ad.pause needs platform (google_ads|meta_ads) and campaign (digits); n8n.run needs workflow. "
     "You may only use these. If the sentence asks for anything else (spending money, raising a budget, "
@@ -485,7 +640,12 @@ MODEL_SYSTEM = (
 )
 
 
-def model_request(masked: str, holding: str, company: str | None) -> dict[str, Any]:
+def model_request(
+    masked: str, holding: str, company: str | None, roles: Roles | None = None
+) -> dict[str, Any]:
+    prompt: dict[str, Any] = {"company": company, "sentence": masked}
+    if roles is not None and roles.held:
+        prompt["roles"] = dict(sorted(roles.held.items()))
     return {
         "company_code": holding,
         "actor_ref": "automations",
@@ -494,7 +654,7 @@ def model_request(masked: str, holding: str, company: str | None) -> dict[str, A
         "model": MODEL,
         "effort": "low",
         "system": MODEL_SYSTEM,
-        "prompt": json.dumps({"company": company, "sentence": masked}, ensure_ascii=False),
+        "prompt": json.dumps(prompt, ensure_ascii=False),
         "json_schema": MODEL_SCHEMA,
         "max_output_tokens": MAX_OUTPUT_TOKENS,
         "timeout_s": 40,
@@ -512,16 +672,27 @@ def _model_reasons(items: Any) -> list[str]:
     return out[:5]
 
 
-async def compile_sentence(hub: Any, sentence: str, company: str | None) -> Compiled:
-    """ONE router call, then code decides what survives."""
+async def compile_sentence(
+    hub: Any, sentence: str, company: str | None, *, department: str | None = None
+) -> Compiled:
+    """ONE router call, then code decides what survives. ⟨2026-11-07⟩ the company's real roles go
+    with the sentence and come back through the normaliser (`department`: the proposer's, whose
+    manager takes a work for a role nobody holds)."""
     text = " ".join(scrub(sentence).split())
     if len(text) < 3:
-        raise ApiError(422, "validation_failed", fields={"sentence_fa": "too short"})
+        raise ApiError(422, "validation_failed", fields={"sentence_fa": "too short"},
+                       message_fa="«جمله» (sentence_fa) باید دست‌کم سه نویسه باشد.")  # fmt: skip
     known = {c.code for c in await hub.companies.all() if c.kind != "holding"}
     if company is not None and company not in known:
-        raise ApiError(404, "not_found")
+        raise ApiError(404, "not_found", message_fa="این شرکت را نمیشناسم.")
     holding = await hub.companies.holding()
-    answer = await workflows_client.route_order(hub, model_request(text, holding.code, company))
+    roles: Roles | None = None
+    if company is not None:
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            roles = await company_roles(tx, hub, company, department=department)
+    answer = await workflows_client.route_order(
+        hub, model_request(text, holding.code, company, roles)
+    )
     routes = (answer or {}).get("routes")
     if (
         not isinstance(routes, list)
@@ -540,7 +711,12 @@ async def compile_sentence(hub: Any, sentence: str, company: str | None) -> Comp
         )
     item = routes[0]
     refused = _model_reasons(item.get("refused_fa"))
-    rule, why = validate_rule(item.get("rule"), company, known) if item.get("rule") else (None, [])
+    notes: list[str] = []
+    rule, why = (
+        validate_rule(item.get("rule"), company, known, roles, notes)
+        if item.get("rule")
+        else (None, [])
+    )
     refused = list(dict.fromkeys([*why, *refused]))
     if rule is None:
         return Compiled(
@@ -549,7 +725,8 @@ async def compile_sentence(hub: Any, sentence: str, company: str | None) -> Comp
             refused_fa=refused
             or ["این جمله به یک کار روشن و مجاز تبدیل نشد؛ زمان و کار را دقیق‌تر بنویسید."],
         )
-    return Compiled(rule=rule, preview_fa=preview_fa(rule, company), refused_fa=refused)
+    preview = preview_fa(rule, company, role_titles(getattr(hub, "charters", None)), notes)
+    return Compiled(rule=rule, preview_fa=preview, refused_fa=refused)
 
 
 # --------------------------------------------------------------------- shapes --
@@ -587,14 +764,16 @@ def n8n_of(rule: dict[str, Any]) -> str | None:
     return next((a["args"]["workflow"] for a in rule["actions"] if a["kind"] == "n8n.run"), None)
 
 
-def render(a: dict[str, Any], company: str | None) -> Automation:
+def render(
+    a: dict[str, Any], company: str | None, titles: dict[str, str] | None = None
+) -> Automation:
     rule = a["rule"] if isinstance(a["rule"], dict) else json.loads(a["rule"])
     return Automation(
         ref=a["ref"],
         company=company if a["scope"] == "company" else None,
         sentence_fa=a["sentence_fa"],
         rule=rule,
-        preview_fa=preview_fa(rule, company if a["scope"] == "company" else None),
+        preview_fa=preview_fa(rule, company if a["scope"] == "company" else None, titles),
         state=a["state"],
         runs=a["runs"],
         last_run_at=a["last_run_at"],

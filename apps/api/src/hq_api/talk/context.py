@@ -92,6 +92,17 @@ BOUND_HELP = {
         "invite: bring ChatGPT, Gemini or DeepSeek into this session (it answers here when asked); "
         'payload {"player": "gpt" | "gemini" | "deepseek"}'
     ),
+    # ⟨2026-11-07⟩ W9 B: nothing leaves the session; an ask brings the person in
+    "ask": (
+        "ask: a question for someone else, answered IN THIS session: they join it and the question "
+        "is a work of THIS order assigned to them (never a new order); payload "
+        '{"text": the question, "to"?: an employee code | a department code | a charter role | '
+        '"advisor", "company"?: another company\'s code}'
+    ),
+    "minutes": (
+        "minutes: the tasks become works of THIS order (a department named: its manager; another "
+        "company: its CEO), the rest the session's plan; never new orders"
+    ),
 }
 
 
@@ -138,6 +149,17 @@ def persona_section(
     holder: bool = True,
 ) -> str:
     out = [f"# You, here\nYou are «{p.title_fa}» ({p.key}). The conversation is in `{mode}` mode."]
+    if order_ref:
+        # ⟨2026-11-07⟩ W9 C (the owner: «مگه نگفتم توی سشن‌ها به همه چیز دسترسی باشه … نه اینکه
+        # یجا جلوشو بگیره بگه این وظیفه‌ی کسی دیگه‌ست»)
+        out.append(
+            "In this session you have the tools and the data you need. When a card of yours failed "
+            "(«failed_cards» under «## The order you hold»: its kind, title, the exact reason and the "
+            "payload), read the reason, fix the card and offer it again yourself, corrected. If you "
+            "truly need someone else, bring them into this session with an `ask` card (they join and "
+            "the question is a work of this order) — never send the owner's question to another "
+            "order, and never say it is someone else's job."
+        )
     if order_ref and holder:
         out.append(
             f"This talk is the session of the owner's order {order_ref}, which you hold (its "
@@ -398,9 +420,16 @@ async def messages(
 
         held = await OT.talk_brief(tx, str(conv["order_ref"]))
         if held is not None:
+            failed = held.pop("failed_cards", None)
             head.append(
                 "## The order you hold\n" + json.dumps(held, ensure_ascii=False, default=str)
             )
+            if failed:  # ⟨2026-11-07⟩ W9 C: yours to fix, here
+                head.append(
+                    "## Cards that failed in this session (read the reason, fix the payload, offer "
+                    "the card again; never hand the owner's question to another order)\n"
+                    + json.dumps(failed, ensure_ascii=False, default=str)
+                )
     # ⟨2026-11-06⟩ what the holding can do (outside players, covers, automations, the company's
     # connections and links): the persona never says it is not connected when it is
     from hq_api.domain import automations as AU
@@ -416,6 +445,9 @@ async def messages(
         role=charter.role if charter is not None else None,
         tools=charter.tools if charter is not None else None,
         scope=charter.scope if charter is not None else None,
+        # ⟨2026-11-07⟩ W9 E: a consult-only persona (the overseer, the advisor) advises; it does
+        # not route work across the holding, so the map of every company stays out of its turn
+        holding_map=not p.consult_only,
     )
     head.append(
         "## What the holding can do (live; offer it through a card, never say it is missing)\n"

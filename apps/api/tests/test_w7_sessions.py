@@ -566,7 +566,10 @@ async def test_the_sessions_cards_run_the_orders_routes_and_become_its_steps(
     rep = await report(client, owner, ref)
     assert [t["work_ref"] for t in rep["tasks"]] == [child_ref]
     assert rep["steps"][-1]["what_fa"].startswith("سپردن کار انجام شد")
-    assert rep["steps"][-2]["what_fa"].endswith("سپرده شد")  # the hand-over the card made
+    # ⟨2026-11-07⟩ W9 D: the hand-over the card made is no step of its own (the card's line says it)
+    assert not any(
+        s["who_fa"] == "سامانه" and s["what_fa"].endswith("سپرده شد") for s in rep["steps"]
+    )
     # budget: the root work's own
     r = await run_card(client, owner, got["budget"])
     assert r.status_code == 200 and r.json()["made"] == [work_ref], r.text

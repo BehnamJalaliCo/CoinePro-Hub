@@ -21,6 +21,8 @@
 >
 > **v1.20 (۲۰۲۶-۱۱-۰۶):** هاب از داخل اپ (§۳۸، پرامپت ۲۶): کاتالوگ ثابت عملیات هاب برای تیم فنی هلدینگ با مُهر مالک برای کارهای حساس، و هیچ‌کس نمیگوید «دسترسی ندارم».
 >
+> **v1.21 (۲۰۲۶-۱۱-۰۷):** جلسه کار را همان‌جا تمام میکند (§۳۹، W9): نقش در خودکارسازی هرگز رد نمیشود، هیچ کارتی از داخل جلسه فرمان تازه نمیسازد، مسئول کارت خراب خودش را درست میکند، داستان فرمان بی‌رسید و بی‌تکرار، و هر اجرا فقط آنچه لازم دارد را حمل میکند.
+>
 > **v1.17 (۲۰۲۶-۱۱-۰۶):** هر فرمان یک جلسه (§۳۵، پرامپت ۲۵): جلسه‌ی همیشه‌صاحب‌دار با حاضران و بازیکن‌ها، فهرست کارها، کارها در همان‌جا، بستن و بایگانی و باز کردن دوباره؛ دفتر مدیر کل؛ پیوند شرکت‌ها و بوم.
 >
 > **v1.16 (۲۰۲۶-۱۱-۰۶):** فرمان با جواب زنده (§۳۴، پرامپت ۲۵): ابزار گزارش و پرسش برای مسئول هر فرمان، «نوبت شما» و پاسخ مالک روی همان کار، گفتگوی زنده‌ی هر فرمان با مسئولش، و هیچ موضوع فنی برای مالک.
@@ -4027,3 +4029,52 @@ the owner's word is recorded (audit) and the same hub-ops dispatcher (38.1) runs
   refused by the memory budget: `state: "refused"`, `result_fa` «جا نیست؛ این‌ها جا را گرفته‌اند» and `blocking` = the optional
   services that are on, largest first, so the app offers one tap: «<x> را خاموش کن و <y> را روشن کن» (`turn_off`).
 - Every switch is audited (A2) and is an interaction; the agents' `hub.ops profile` is the same job.
+
+## 39. The session gets the work done in one place ⟨1.21⟩ (2026-11-07, W9)
+The owner, 2026-11-07, in the session of his Pro-Chart content order: the media director's `automation` card («یافتن موضوع روزانه
+ساعت ۰۸:۰۰») answered «نقش کارمند درست نیست.» three times (the compiler's `role` was a free string the model wrote as a word, and
+code refused anything outside `^[a-z][a-z_]{1,30}$`); «go find why» became two NEW orders to the advisor, each with its receipt, plan
+and «سامانه: خروجی رسید» lines. «همش اینور و اونور … این بروکراسی اداری چیه … مگه نگفتم توی سشن‌ها به همه چیز دسترسی باشه».
+
+### 39.1 A role never refuses an automation (§31.7)
+- `POST /automations/compile` and the `automation` card carry the company's real roles to the model (`roles` in the prompt: the
+  charters its active employees hold and its departments' teams, key → title) and normalise what comes back by code: an employee code
+  is that employee's role, `role@CODE` is the role, a Persian or English title (`سناریست`, `Scriptwriter`, `script-writer`) is its
+  charter; a role nobody in the company holds goes to the charter's department manager, else the proposer's department manager, else the
+  CEO, and `preview_fa` says so («کسی با نقش «نویسنده» در این شرکت نیست؛ این کار به مدیر رسانه و طراحی داده میشود.»). Never a 422 for
+  a role. The preview and the stored automation name a role by its charter's title.
+- Every other refusal names the field and what is allowed, in one line (««اولویت» (priority) باید یکی از P0 تا P4 باشد.»); the talk
+  card's `reason_fa` is that line, and so is the session's step «خودکارسازی انجام نشد: …».
+
+### 39.2 Nothing leaves the session (§35.4)
+In a talk bound to an order no card makes a new `F-` ref:
+- `ask {text, to?: code | department | charter role | "advisor", company?}`: the asked person joins THIS session (the participant path,
+  «… آمد.») and the question is a work of this order assigned to them: a child of the root in the holder's company, a work requested
+  by the root in another company or the holding (the order's tree follows both); a plan task names it; nobody named: the holding's
+  advisor. Its deliverable comes back as that person's own turn here («جواب آمد») and the card is answered.
+- `minutes`: each task a work of this order (a department named: its manager; another company: its CEO, requested by the root), the
+  rest plan tasks of the session («صورت‌جلسه: 3 کار به همین فرمان اضافه شد.»).
+- `order` stays the reply on the same order; `hire`, `group`, `line`, `automation`, `delegate`, `budget`, `planner`, `rule`, `decision`
+  keep their effect and leave one short line in the session (a step and the holder's turn, by code).
+- A talk not bound to an order keeps §32's behaviour (an order per ask or task, through the dispatcher).
+
+### 39.3 The holder fixes its own failures
+- «## The order you hold» (the talk) and the holder's run brief (`order`) carry `failed_cards`: the session's last three failed cards
+  (kind, title, the exact `reason_fa`, the payload fields). The persona section of a session and `_common.md` (v8; `manager.md` v9,
+  `ceo.md` v13): read the reason, fix the card and offer it again; someone else needed joins this session (`ask`) or works under this
+  order (`work.delegate`, `work.request`); never the owner's question to another order; never «this is someone else's job».
+
+### 39.4 Less noise for the owner (§29.7, §35.2)
+- The order's story writes no «به … سپرده شد» per hand-over and no «سامانه: خروجی رسید» per output (the outputs are listed as
+  themselves; the cards' lines and the holder's plan say who got what); a new work or output still moves `last_step_at`. The order's
+  own receipt stays its first line.
+- `brief.done_fa`, `now_fa`, `need_fa`: each one plain line of at most 90 characters (cut at a word, «…»).
+
+### 39.5 What a run carries
+- The capability brief (§38.2) is `lean` for a run that is not work for a person — an `alert` (an event work a service made: an ops
+  alert, a watcher's protocol run, the weekly review, a digest, a technical summary), a `schedule` (a recurring occurrence, the CEO's
+  daily report) and any run of a system role: `technical` and whom to hand things to (~750 characters), never the players, the
+  company profile or the holding map. A consult-only persona's talk turn (the overseer, the advisor) carries the brief without the
+  holding map. A person's work run, a message run and a working persona's talk turn keep the full brief (≤ `CAPS_CHARS` 12 000).
+- Measured per run (characters of context): a work run 24 000 + 12 000 (unchanged); a watcher's run 24 000 + ~750 (was + 12 000);
+  a meeting turn 24 000 (unchanged, no brief); the overseer's talk head ~9 700 (was ~16 000), the secretary's unchanged.

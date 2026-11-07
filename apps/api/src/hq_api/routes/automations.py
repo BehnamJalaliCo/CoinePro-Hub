@@ -76,12 +76,16 @@ async def add_automation(
     change afterwards. Nothing runs before the seal. Requires `Idempotency-Key`."""
     known = await _known(ctx)
     if body.company is not None and body.company not in known:
-        raise ApiError(404, "not_found")
-    rule, why = AU.validate_rule(body.rule, body.company, known)
-    if rule is None:
-        raise ApiError(422, "validation_failed", fields={"rule": " ".join(why)}, message_fa=why[0])
+        raise ApiError(404, "not_found", message_fa="این شرکت را نمیشناسم.")
     sentence = scrub(" ".join(body.sentence_fa.split()))
     async with ctx.tx() as tx:
+        # ⟨2026-11-07⟩ the role as the company knows it (never a 422 for a role)
+        roles = await AU.company_roles(tx, ctx.hub, body.company) if body.company else None
+        rule, why = AU.validate_rule(body.rule, body.company, known, roles)
+        if rule is None:
+            raise ApiError(
+                422, "validation_failed", fields={"rule": " ".join(why)}, message_fa=why[0]
+            )
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
             return idem.replay
@@ -105,7 +109,7 @@ async def add_automation(
             target_ref=row["ref"],
             summary="proposed",
         )
-        result = AU.render(row, body.company)
+        result = AU.render(row, body.company, AU.role_titles(ctx.hub.charters))
         if idem:
             await idem.store(tx, 201, result.model_dump(mode="json"))
     return result
@@ -150,7 +154,7 @@ async def seal_automation(
             summary="sealed",
             step_up=True,
         )
-        return AU.render(row, a["company_code"])
+        return AU.render(row, a["company_code"], AU.role_titles(ctx.hub.charters))
 
 
 @router.post("/automations/{ref}/state", response_model=AU.Automation, responses=E)
@@ -183,7 +187,7 @@ async def set_automation_state(
             target_ref=ref,
             summary=body.state,
         )
-        return AU.render(row, a["company_code"])
+        return AU.render(row, a["company_code"], AU.role_titles(ctx.hub.charters))
 
 
 @router.get("/automations", response_model=list[AU.Automation], responses=E)
@@ -204,7 +208,8 @@ async def list_automations(
             st=state,
             co=company,
         )
-    return [AU.render(r, r["company_code"]) for r in rows]
+    titles = AU.role_titles(ctx.hub.charters)
+    return [AU.render(r, r["company_code"], titles) for r in rows]
 
 
 @router.get("/automations/{ref}", response_model=AU.AutomationDetail, responses=E)
@@ -218,7 +223,8 @@ async def get_automation(ref: str, ctx: Ctx = Depends(owner_ctx)) -> AU.Automati
             a=a["id"],
         )
     return AU.AutomationDetail(
-        **AU.render(a, a["company_code"]).model_dump(), run_log=[AU.render_run(r) for r in runs]
+        **AU.render(a, a["company_code"], AU.role_titles(ctx.hub.charters)).model_dump(),
+        run_log=[AU.render_run(r) for r in runs],
     )
 
 
@@ -245,16 +251,14 @@ async def propose_automation(
     await allow(ctx, "automation.propose", {"company": who.company})
     holding = await ctx.hub.companies.holding()
     company = None if who.company_id == holding.id else who.company
-    compiled = await AU.compile_sentence(ctx.hub, body.sentence_fa, company)
+    # ⟨2026-11-07⟩ the proposer's department: its manager takes a work for a role nobody holds
+    compiled = await AU.compile_sentence(
+        ctx.hub, body.sentence_fa, company, department=who.department
+    )
     if compiled.rule is None:
         why = compiled.refused_fa[0] if compiled.refused_fa else "این جمله به قاعده تبدیل نشد."
         raise ApiError(422, "validation_failed", fields={"sentence_fa": why[:200]}, message_fa=why)
-    known = await _known(ctx)
-    rule, reasons = AU.validate_rule(compiled.rule, company, known)
-    if rule is None:
-        raise ApiError(
-            422, "validation_failed", fields={"rule": " ".join(reasons)}, message_fa=reasons[0]
-        )
+    rule = compiled.rule  # already code-checked and normalised by the compile
     sentence = scrub(" ".join(body.sentence_fa.split()))
     async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
@@ -294,7 +298,7 @@ async def propose_automation(
             domain="business",
             owner_action=True,
         )
-        result = AU.render(row, company)
+        result = AU.render(row, company, AU.role_titles(ctx.hub.charters))
         if idem:
             await idem.store(tx, 201, result.model_dump(mode="json"))
     return result

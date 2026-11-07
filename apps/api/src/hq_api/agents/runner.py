@@ -123,6 +123,19 @@ def meeting_tools(lib: Any, charter: Charter, tool: str | None) -> tuple[str, ..
 FINAL = ("done", "failed", "refused")
 CONTEXT_CHARS = 24_000
 CAPS_CHARS = 12_000  # the capability brief and the holding map, never cut by the work's own context
+# ⟨2026-11-07⟩ W9 E: the runs that are not work for a person carry the lean brief (`technical`
+# and whom to hand things to), never the players, the company profile or the holding map:
+# an `alert` (an event work a service made: an ops alert, a watcher's protocol run, the weekly
+# review, a digest, a technical summary), a `schedule` (a recurring work's occurrence, the CEO's
+# daily report) and any run of a system role (the archivist, the librarian, the secretary).
+LEAN_TRIGGERS = ("alert", "schedule")
+
+
+def caps_scope(trigger: str, charter_kind: str) -> str:
+    """`full` for a person's work, a message or a talk; `lean` for a watcher's run."""
+    return "lean" if trigger in LEAN_TRIGGERS or charter_kind == "system" else "full"
+
+
 THREAD_MESSAGES = 12
 # The router's task class of a run comes from the charter's KIND (data in
 # agents/roles), never from a role name (contract hard rule 1).
@@ -1247,6 +1260,8 @@ class Runner:
                 role=rc.charter.role,
                 tools=rc.charter.tools,
                 scope=rc.charter.scope,
+                # ⟨2026-11-07⟩ W9 E: a run that is not work for a person carries no map
+                lean=caps_scope(run["trigger"], rc.charter.kind) == "lean",
             )
         # ⟨2026-11-06⟩ kept apart from the trim: appended last, it was the first part cut from a
         # long context, and the agent then said a helper or a company did not exist

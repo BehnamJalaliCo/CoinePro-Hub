@@ -145,6 +145,20 @@ def _last_at(rep: dict[str, Any]) -> datetime:
     return max(found) if found else datetime.now(UTC)
 
 
+BRIEF_CHARS = 90  # ⟨2026-11-07⟩ W9 D: each line of the brief, one short plain line
+
+
+def short(text: str, limit: int = BRIEF_CHARS) -> str:
+    """One line of at most `limit` characters, cut at a word when it must be."""
+    one = " ".join((text or "").split())
+    if len(one) <= limit:
+        return one
+    cut = one[: limit - 1]
+    if " " in cut[limit // 2 :]:
+        cut = cut[: cut.rfind(" ")]
+    return cut.rstrip("،؛:,; ") + "…"
+
+
 def brief_of(
     badge: str,
     reason_fa: str,
@@ -152,14 +166,14 @@ def brief_of(
     outputs: list[dict[str, Any]],
     tasks: list[dict[str, Any]],
 ) -> dict[str, str]:
-    """«چه شد · حالا چه · از تو چه», always filled."""
+    """«چه شد · حالا چه · از تو چه», always filled, each one short plain line (≤ BRIEF_CHARS)."""
     finals = [o for o in outputs if o.get("kind") != "partial"]
     steps = OR._j(rep.get("steps")) or []
     if finals:
         names = "، ".join(str(o["title_fa"]) for o in finals[-3:])
         done = f"{len(finals)} خروجی تحویل شد: {names}"
     elif len(steps) > 1:
-        done = f"{len(steps) - 1} قدم برداشته شد؛ آخرین: {steps[-1].get('what_fa')}"
+        done = f"آخرین قدم: {steps[-1].get('what_fa')}"
     else:
         done = "دریافت شد؛ هنوز قدمی برداشته نشده"
     doing = [t for t in tasks if t["state"] == "doing"]
@@ -182,9 +196,9 @@ def brief_of(
     else:
         need = "چیزی لازم نیست"
     return {
-        "done_fa": HZ.humanize(done)[:300],
-        "now_fa": HZ.humanize(now)[:300],
-        "need_fa": HZ.humanize(need)[:300],
+        "done_fa": short(HZ.humanize(done)),
+        "now_fa": short(HZ.humanize(now)),
+        "need_fa": short(HZ.humanize(need)),
     }
 
 
