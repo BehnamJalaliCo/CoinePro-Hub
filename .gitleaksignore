@@ -36,3 +36,6 @@ f86f63045b68a1737d15e998046cd2a088813603:services/provisioner/tests/test_app_vau
 # the OpenBao path of the newsletter's API user (a path, not a secret)
 443836a7d50f0fbcb23ab1e1b67759aa2097141e:apps/api/src/hq_api/domain/newsletter.py:generic-api-key:42
 /scan/apps/api/src/hq_api/domain/newsletter.py:generic-api-key:42
+# prompt 26.1: a fake token ("s3cr3t-v4lue-xyz") in the hub-ops output a test proves is masked, not a secret
+9ab6a02924b6d069f98d7c4d4286cfffb802ed47:apps/api/tests/test_w8_hubops.py:generic-api-key:198
+/scan/apps/api/tests/test_w8_hubops.py:generic-api-key:198

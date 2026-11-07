@@ -5,12 +5,14 @@ CEO or a manager proposes an automation in one sentence that the owner seals."""
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from typing import Any
 
 import httpx
 import pytest
 
+from hq_api.agents import runner
 from hq_api.domain import capabilities as CAP
 from hq_api.domain import order_report as OR
 from hq_api.domain import players as PL
@@ -72,6 +74,37 @@ async def test_the_capability_brief_names_every_helper_and_how(
         }
     ]
     assert b["your_company"]["production_lines_on"] == 0
+
+
+async def test_the_holding_map_keeps_to_its_room_however_many_companies(
+    hub: Hub, su: Any, new_company: Callable[..., Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Owner rule 9: the number of companies is data; the map never grows a talk turn past its
+    room (2026-11-07: with every test company in it, the talk turns ran out of tokens)."""
+    co = await new_company()
+    for _ in range(3):
+        await new_company()
+    active = await su.fetchval("SELECT count(*) FROM core.companies WHERE status = 'active'")
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        b = await CAP.brief(tx, co["id"], n8n_up=False)
+    full = [c for c in b["the_holding"] if "departments" in c]
+    assert full[0]["kind"] == "holding" and full[1]["code"] == co["code"]  # the reader's first
+    assert sum(len(json.dumps(c, ensure_ascii=False)) for c in full) <= CAP.MAP_CHARS
+    more = (b.get("the_holding_more") or {}).get("companies", 0)
+    assert len(b["the_holding"]) + more == active
+    keys = list(b)
+    assert keys.index("your_company") < keys.index("the_holding") == len(keys) - 1
+    assert len(json.dumps(b, ensure_ascii=False, default=str)) <= runner.CAPS_CHARS
+    # a small room: the rest by code and name, then only how many more
+    monkeypatch.setattr(CAP, "MAP_CHARS", 1)
+    monkeypatch.setattr(CAP, "MAP_NAMES_CHARS", 120)
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        b = await CAP.brief(tx, co["id"], n8n_up=False)
+    assert all(set(c) == {"code", "name_fa"} for c in b["the_holding"])
+    assert sum(len(json.dumps(c, ensure_ascii=False)) for c in b["the_holding"]) <= 120
+    assert b["the_holding_more"]["companies"] == active - len(b["the_holding"]) > 0
+    assert "linked.read" in b["the_holding_more"]["read"]
+    assert "the_holding_more" in b["how"]["other_companies"]
 
 
 async def test_a_manager_proposes_an_automation_and_the_owner_is_told(
@@ -288,7 +321,7 @@ async def test_an_automation_order_goes_to_the_ceo_never_by_a_stray_word(
 
 
 async def test_the_brief_maps_the_whole_holding_and_ig_hubs_accounts(
-    hub: Hub, su: Any, new_company: Callable[..., Any]
+    hub: Hub, su: Any, new_company: Callable[..., Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The owner, 2026-11-06: a media director did not know what company IG is or which Instagram
     accounts IG-Hub holds. Every run's brief now names every active company and its channels."""
@@ -302,6 +335,8 @@ async def test_the_brief_maps_the_whole_holding_and_ig_hubs_accounts(
         json.dumps({"via": "ig_hub", "accounts": ["@pro.chart"],
                     "server": {"company": "IG", "name": "IG-Hub"}}),
     )  # fmt: skip
+    # every company in full: a room for all of them (the room itself is the next test's)
+    monkeypatch.setattr(CAP, "MAP_CHARS", 10**8)
     async with hub.db.tx(await hub.companies.ids()) as tx:
         brief = await CAP.brief(tx, a["id"], n8n_up=True)
     by_code = {c["code"]: c for c in brief["the_holding"]}

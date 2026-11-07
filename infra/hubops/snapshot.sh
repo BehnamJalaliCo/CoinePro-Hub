@@ -2,7 +2,7 @@
 # The hub's memory and services as one JSON object (contract §38.3; hub.ops `stats`): the hub-ops
 # dispatcher posts it to the api at most every 60 s and after each job, and the owner's «سرویس‌ها»
 # page shows it. Read only: nothing on the host changes.
-#   memory    total_mb (MemTotal), budget_mb (80% of the profile's reference RAM, or of this
+#   memory    total_mb (MemTotal), budget_mb (HQ_BUDGET_PERCENT, else 80%, of the profile's reference RAM, or of this
 #             server's when larger: hq.sh's budget_ref), caps_mb (the active set's memory limits),
 #             free_mb (budget - caps: what may still be switched on), available_mb (MemAvailable)
 #   services  every compose service of every profile: its profiles, memory cap, one-shot or not,
@@ -35,7 +35,10 @@ avail="$(awk '/^MemAvailable:/ {print int($2 / 1024)}' "$MEMINFO" 2>/dev/null ||
 [[ "$total" =~ ^[0-9]+$ ]] || total=0
 [[ "$avail" =~ ^[0-9]+$ ]] || avail=0
 if ((total > ref)); then ref="$total"; fi
-budget=$((ref * 80 / 100))
+# The share of it, as hq.sh's budget_pct: the profile's HQ_BUDGET_PERCENT (50..90), else 80.
+pct="$(sed -n 's/^HQ_BUDGET_PERCENT=//p' "$COMPOSE_DIR/profiles/$profile.env" 2>/dev/null | tail -n1)"
+[[ "$pct" =~ ^[0-9]+$ ]] && ((pct >= 50 && pct <= 90)) || pct=80
+budget=$((ref * pct / 100))
 
 # Files, not arguments: a compose config is larger than one argument may be (128 KiB).
 T="$(mktemp -d "${RUNTIME_DIRECTORY:-${TMPDIR:-/tmp}}/snapshot.XXXXXX")"

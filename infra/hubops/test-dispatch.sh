@@ -263,7 +263,8 @@ printf 'MemTotal:       15982592 kB\nMemAvailable:   10485760 kB\n' >"$T/meminfo
 printf 'HQ_OCR=on\nHQ_MEDIA=off\nPOSTGRES_PASSWORD=not-for-the-snapshot\n' >"$T/env"
 snap="$(HQ_SH="$T/snap-hq" HQ_DOCKER="$T/snap-docker" HQ_MEMINFO="$T/meminfo" HQ_ENV_FILE="$T/env" \
   RUNTIME_DIRECTORY="$T/run" bash "$HERE/snapshot.sh")"
-want='{"total_mb":15608,"budget_mb":12486,"caps_mb":768,"free_mb":11718,"available_mb":10240}'
+# full.env's HQ_BUDGET_PERCENT (86 by the owner's order, 2026-11-06), as hq.sh counts it
+want='{"total_mb":15608,"budget_mb":13422,"caps_mb":768,"free_mb":12654,"available_mb":10240}'
 if [[ "$(jq -c .memory <<<"$snap")" != "$want" ]]; then
   bad "snapshot memory: $(jq -c .memory <<<"$snap")"
 elif [[ "$(jq -r '[.services[] | select(.service == "api") | .mem_used_mb, .cpu_percent, .state] | map(tostring) | join(" ")' <<<"$snap")" != "301.5 1.25 running" ]]; then
