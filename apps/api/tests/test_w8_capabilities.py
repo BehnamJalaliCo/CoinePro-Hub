@@ -12,6 +12,7 @@ from typing import Any
 import httpx
 import pytest
 
+from hq_api.agents import runner
 from hq_api.domain import capabilities as CAP
 from hq_api.domain import order_report as OR
 from hq_api.domain import players as PL
@@ -91,6 +92,9 @@ async def test_the_holding_map_keeps_to_its_room_however_many_companies(
     assert sum(len(json.dumps(c, ensure_ascii=False)) for c in full) <= CAP.MAP_CHARS
     more = (b.get("the_holding_more") or {}).get("companies", 0)
     assert len(b["the_holding"]) + more == active
+    keys = list(b)
+    assert keys.index("your_company") < keys.index("the_holding") == len(keys) - 1
+    assert len(json.dumps(b, ensure_ascii=False, default=str)) <= runner.CAPS_CHARS
     # a small room: the rest by code and name, then only how many more
     monkeypatch.setattr(CAP, "MAP_CHARS", 1)
     monkeypatch.setattr(CAP, "MAP_NAMES_CHARS", 120)
@@ -317,7 +321,7 @@ async def test_an_automation_order_goes_to_the_ceo_never_by_a_stray_word(
 
 
 async def test_the_brief_maps_the_whole_holding_and_ig_hubs_accounts(
-    hub: Hub, su: Any, new_company: Callable[..., Any]
+    hub: Hub, su: Any, new_company: Callable[..., Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The owner, 2026-11-06: a media director did not know what company IG is or which Instagram
     accounts IG-Hub holds. Every run's brief now names every active company and its channels."""
@@ -331,6 +335,8 @@ async def test_the_brief_maps_the_whole_holding_and_ig_hubs_accounts(
         json.dumps({"via": "ig_hub", "accounts": ["@pro.chart"],
                     "server": {"company": "IG", "name": "IG-Hub"}}),
     )  # fmt: skip
+    # every company in full: a room for all of them (the room itself is the next test's)
+    monkeypatch.setattr(CAP, "MAP_CHARS", 10**8)
     async with hub.db.tx(await hub.companies.ids()) as tx:
         brief = await CAP.brief(tx, a["id"], n8n_up=True)
     by_code = {c["code"]: c for c in brief["the_holding"]}

@@ -143,12 +143,13 @@ def _few(items: list[Any]) -> list[Any]:
     return items[:MAP_LIST_MAX]
 
 
-# The map's room in a brief, in JSON characters (a talk turn's whole budget is
-# talk.engine.TOKENS_PER_TURN): the holding, the reader's own company and then the others in
-# full while they fit, then the rest by code and name, then only how many more there are. The
-# number of companies is data (owner rule 9): it never grows the brief past this room.
-MAP_CHARS = 8000
-MAP_NAMES_CHARS = 2000
+# The map's room in a brief, in JSON characters: the holding, the reader's own company and then
+# the others in full while they fit, then the rest by code and name, then only how many more
+# there are. The number of companies is data (owner rule 9): it never grows the brief past this
+# room. With the rest of the brief it stays inside agents.runner.CAPS_CHARS (12 000), and the map
+# comes last so a trim never reaches the reader's own company.
+MAP_CHARS = 5000
+MAP_NAMES_CHARS = 1500
 
 
 def _size(item: Any) -> int:
@@ -229,16 +230,6 @@ async def brief(tx: Tx, company_id: UUID | None, *, n8n_up: bool) -> dict[str, A
         "automations": {"engine": "the hub's rule engine", "n8n": "up" if n8n_up else "not set up"},
         "how": HOW,
     }
-    mapped = await _safe(tx, _holding_map, company_id)
-    if mapped:
-        holding, more = mapped
-        if holding:
-            out["the_holding"] = holding
-        if more:
-            out["the_holding_more"] = {
-                "companies": more,
-                "read": "linked.read {company: CODE, what: profile}",
-            }
     from hq_api.domain import speech_make as SM
 
     voice = await _safe(tx, SM.speech_state)
@@ -248,4 +239,14 @@ async def brief(tx: Tx, company_id: UUID | None, *, n8n_up: bool) -> dict[str, A
         company = await _safe(tx, _company, company_id)
         if company is not None:
             out["your_company"] = company
+    mapped = await _safe(tx, _holding_map, company_id)
+    if mapped:
+        holding, more = mapped
+        if more:
+            out["the_holding_more"] = {
+                "companies": more,
+                "read": "linked.read {company: CODE, what: profile}",
+            }
+        if holding:
+            out["the_holding"] = holding
     return out
