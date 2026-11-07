@@ -9,6 +9,7 @@ change) -> follow-up work when needed. Authority is policy (OPA), not code.
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, Literal
@@ -39,6 +40,8 @@ from hq_api.errors import ApiError
 from hq_api.principal import Principal
 from hq_api.schemas import Actor, Model, actor
 from hq_api.workshop import domain as workshop
+
+log = logging.getLogger("hq_api.decisions")
 
 KINDS = (
     "hire",
@@ -1844,6 +1847,15 @@ async def apply_effect(tx: Tx, ref: str, who: Principal) -> dict[str, Any]:
             {"change": "hired", "decision": d["ref"]},
         )
         await hiring.after_hire(tx, d, emp["code"], p)
+        # ⟨2026-11-07⟩ §39 hired from inside a session: the new employee joins that session
+        try:
+            async with tx.conn.begin_nested():
+                from hq_api.domain import sessions as SE
+
+                await SE.join_hired(tx, emp["code"], p.get("role"), d["company"], p["title_fa"],
+                                    decision_ref=d["ref"])  # fmt: skip
+        except Exception:  # noqa: BLE001 - joining the session never undoes a hire
+            log.warning("the hired employee could not join its session", extra={"ref": d["ref"]})
         result = {"employee": emp["code"]}
     elif d["kind"] == "lesson_adoption":
         status = "adopted" if p.get("adopt", True) else "rejected"

@@ -610,6 +610,61 @@ async def add_participant(ctx: Any, tx: Tx, ref: str, kind: str, key: str) -> st
     return pkey
 
 
+async def join_hired(
+    tx: Tx,
+    employee_code: str,
+    role: str | None,
+    company_code: str,
+    title_fa: str,
+    *,
+    decision_ref: str | None = None,
+    conversation_id: Any = None,
+) -> list[str]:
+    """⟨2026-11-07⟩ §39: whoever is hired from inside a session joins that same session (its
+    talk) with one line, never a new order: a hire filled at once (`conversation_id`, the card's
+    talk) or a hire card decided later (`decision_ref`, found in the session's `hire` cards).
+    Answers the conversations joined."""
+    from hq_api.talk import store
+
+    if not role:
+        return []
+    if conversation_id is not None:
+        rows = await tx.all(
+            """SELECT ref, order_ref FROM talk.conversations
+               WHERE id = :c AND order_ref IS NOT NULL AND closed_at IS NULL""",
+            c=conversation_id,
+        )
+    elif decision_ref:
+        rows = await tx.all(
+            """SELECT DISTINCT c.ref, c.order_ref FROM talk.cards k
+               JOIN talk.conversations c ON c.id = k.conversation_id
+               WHERE k.kind = 'hire' AND :d = ANY(k.made)
+                 AND c.order_ref IS NOT NULL AND c.closed_at IS NULL""",
+            d=decision_ref,
+        )
+    else:
+        return []
+    key = f"{role}@{company_code}"
+    line = f"{title_fa} استخدام شد و به همین جلسه آمد."
+    joined: list[str] = []
+    for r in rows:
+        conv = await store.conversation(tx, str(r["ref"]), lock=True)
+        if key != conv.get("holder"):
+            present = list(dict.fromkeys([*(conv.get("present") or []), key]))[-20:]
+            await tx.exec(
+                "UPDATE talk.conversations SET present = :p, updated_at = now() WHERE id = :id",
+                p=present,
+                id=conv["id"],
+            )
+            conv["present"] = present
+        await _notice(tx, conv, str(conv.get("holder") or conv["persona"]), line)
+        rep = await OR.ensure(tx, str(r["order_ref"]))
+        if rep is not None:
+            await OR._append_steps(tx, rep["id"], [OR._step(OWNER_FA, line)])
+        joined.append(str(r["ref"]))
+    return joined
+
+
 async def remove_participant(ctx: Any, tx: Tx, ref: str, key: str) -> None:
     """DELETE /orders/{ref}/participants/{key}: never the holder."""
     rep = await _open(tx, ref)

@@ -4056,6 +4056,9 @@ In a talk bound to an order no card makes a new `F-` ref:
   rest plan tasks of the session («صورت‌جلسه: 3 کار به همین فرمان اضافه شد.»).
 - `order` stays the reply on the same order; `hire`, `group`, `line`, `automation`, `delegate`, `budget`, `planner`, `rule`, `decision`
   keep their effect and leave one short line in the session (a step and the holder's turn, by code).
+- ⟨2026-11-07⟩ Whoever is hired from inside a session joins THAT session («<title> استخدام شد و به همین جلسه آمد.», a step and
+  a turn): a seat filled at once at the card's run, a manager's hire card when its decision is applied (found by the card's `made`).
+  Never a new order for the new employee.
 - A talk not bound to an order keeps §32's behaviour (an order per ask or task, through the dispatcher).
 
 ### 39.3 The holder fixes its own failures

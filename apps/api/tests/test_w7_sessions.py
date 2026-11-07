@@ -30,6 +30,7 @@ from hq_api.domain import humanize as HZ
 from hq_api.domain import order_report as OR
 from hq_api.domain import order_turns as OT
 from hq_api.domain import players as PL
+from hq_api.domain import sessions as SE
 from hq_api.hub import Hub
 
 from .conftest import agent_headers, idem
@@ -622,6 +623,20 @@ async def test_the_sessions_cards_run_the_orders_routes_and_become_its_steps(
         code,
         company["id"],
     )
+    # ⟨2026-11-07⟩ §39 hired from inside the session: the new employee joins this same session
+    present = await su.fetchval("SELECT present FROM talk.conversations WHERE ref = $1", conv)
+    assert f"publisher@{co}" in present
+    # a hire decided later (a manager's hire card) joins the session too, by its decision
+    card_id = await su.fetchval(
+        "SELECT id FROM talk.cards WHERE kind = 'hire' AND $1 = ANY(made)", code
+    )
+    await su.execute("UPDATE talk.cards SET made = ARRAY['D-999999'] WHERE id = $1", card_id)
+    async with await all_tx(hub) as tx:
+        joined = await SE.join_hired(tx, f"{co}-SCRIPT", "scriptwriter", co, "نویسنده",
+                                     decision_ref="D-999999")  # fmt: skip
+    assert joined == [conv]
+    present = await su.fetchval("SELECT present FROM talk.conversations WHERE ref = $1", conv)
+    assert f"scriptwriter@{co}" in present
     rep = await report(client, owner, ref)
     labels = [
         s["what_fa"].split(" انجام شد")[0] for s in rep["steps"] if "انجام شد" in s["what_fa"]

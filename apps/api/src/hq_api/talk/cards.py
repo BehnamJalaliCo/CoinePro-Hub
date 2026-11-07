@@ -772,6 +772,13 @@ async def _decision(
             await ctx.audit(tx, company_id=company.id, action="hire.auto", action_class="A2",
                             target_kind="employee", target_ref=str(out["employee"]),
                             summary=f"{role} for {code} from a talk card")  # fmt: skip
+            # ⟨2026-11-07⟩ §39 hired from inside a session: the new employee joins it at once
+            from hq_api.domain import sessions as SE
+
+            charter = ctx.hub.charters.get(role) if ctx.hub.charters is not None else None
+            await SE.join_hired(tx, str(out["employee"]), role, code,
+                                charter.title_fa if charter is not None else role,
+                                conversation_id=card["conversation_id"])  # fmt: skip
         return [str(out["employee"])], []
     if card["kind"] == "hire":
         lib = ctx.hub.charters
