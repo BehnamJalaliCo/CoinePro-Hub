@@ -452,6 +452,7 @@ async def view(
             reason_fa=reason,
             closed_at=rep.get("closed_at"),
             hidden=rep.get("hidden_at") is not None,
+            source=rep.get("source_playbook"),
         ),
         brief=Brief.model_validate(brief),
         tasks=[render_task(t) for t in tasks],
@@ -480,6 +481,7 @@ async def card(tx: Tx, rep: dict[str, Any], order: dict[str, Any]) -> SessionCar
         last_at=rep.get("last_step_at") or rep.get("updated_at") or order["created_at"],
         closed_at=rep.get("closed_at"),
         hidden=rep.get("hidden_at") is not None,
+        source=rep.get("source_playbook"),
     )
 
 
@@ -607,6 +609,7 @@ async def add_participant(ctx: Any, tx: Tx, ref: str, kind: str, key: str) -> st
     conv["present"] = present
     await _notice(tx, conv, pkey, f"{title} آمد.")
     await OR._append_steps(tx, rep["id"], [OR._step(OWNER_FA, f"{title} به جلسه آمد")])
+    await remember(tx, rep["id"], f"{title} به جلسه آمد")  # ⟨1.22⟩ §40.1
     return pkey
 
 
@@ -661,6 +664,7 @@ async def join_hired(
         rep = await OR.ensure(tx, str(r["order_ref"]))
         if rep is not None:
             await OR._append_steps(tx, rep["id"], [OR._step(OWNER_FA, line)])
+            await remember(tx, rep["id"], line)  # ⟨1.22⟩ §40.1
         joined.append(str(r["ref"]))
     return joined
 
@@ -868,8 +872,11 @@ async def set_pace(tx: Tx, ref: str, pace: str) -> dict[str, Any]:
 
 
 # ------------------------------------------------------------------ steps --
-async def step(tx: Tx, ref: str, who_fa: str, what_fa: str) -> None:
-    """One line of the order's story («what a card made»), then the report refreshed (it streams)."""
+async def step(
+    tx: Tx, ref: str, who_fa: str, what_fa: str, *, remember_line: str | None = None
+) -> None:
+    """One line of the order's story («what a card made»), then the report refreshed (it streams).
+    ⟨1.22⟩ §40.1 `remember_line`: the same (or a shorter) line into the session's memory."""
     rep = await OR.refresh(tx, ref)  # what the card made (a hand-over, an output) first
     if rep is None:
         return
@@ -878,4 +885,13 @@ async def step(tx: Tx, ref: str, who_fa: str, what_fa: str) -> None:
         "UPDATE owner.order_reports SET last_step_at = now(), updated_at = now() WHERE id = :id",
         id=rep["id"],
     )
+    if remember_line:
+        await remember(tx, rep["id"], remember_line)
     await OR.refresh(tx, ref)
+
+
+async def remember(tx: Tx, report_id: Any, line: str) -> None:
+    """⟨1.22⟩ §40.1 one line into the session's memory, by code (domain.session_memory)."""
+    from hq_api.domain import session_memory as MEM
+
+    await MEM.remember(tx, report_id, line)

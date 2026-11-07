@@ -103,6 +103,19 @@ BOUND_HELP = {
         "minutes: the tasks become works of THIS order (a department named: its manager; another "
         "company: its CEO), the rest the session's plan; never new orders"
     ),
+    # ⟨1.22⟩ §40.2 the owner changes the session's playbook draft in words: the holder rewrites it
+    "playbook": (
+        "playbook: the owner asked, in words, to change the working-group draft of this session "
+        "(«playbooks» under «## The order you hold» names it, state draft): the FULL new draft, "
+        "every field, with the owner's change applied; payload "
+        '{"playbook": "PB-…", "draft": {"title_fa", "purpose_fa", "platform": "instagram" | '
+        '"youtube" | "telegram" | "site" | "any", "seats": [{"seat", "role": a charter key, '
+        '"title_fa", "duties_fa", "helpers": ["gpt" | "gemini" | "deepseek" | "aistudio"]}], '
+        '"routines": [{"key", "title_fa", "seat", "schedule": RRULE, "brief_md"}], "kpis": '
+        '[{"key", "title_fa", "source"}], "connections": [kind], "rules_fa": [str]}}; running the '
+        "card stores the draft (sealed: refused). Without a draft yet, the owner drafts one from "
+        "the session's page (POST /orders/{ref}/playbook); say so, offer no card."
+    ),
 }
 
 
@@ -159,6 +172,15 @@ def persona_section(
             "truly need someone else, bring them into this session with an `ask` card (they join and "
             "the question is a work of this order) — never send the owner's question to another "
             "order, and never say it is someone else's job."
+        )
+    if order_ref:
+        # ⟨1.22⟩ §40.1 the session remembers: the memory and the company's last sessions
+        out.append(
+            "«memory_md» under «## The order you hold» is this session's memory («تا اینجا»: what "
+            "was decided, who does what, the helpers chosen, the open points), kept by code and a "
+            "small model; a long session keeps its thread through it. Read it before the last "
+            "turns. «related_sessions» names the company's last sessions and their playbooks: "
+            "build on them, never start from nothing."
         )
     if order_ref and holder:
         out.append(

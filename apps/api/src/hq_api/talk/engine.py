@@ -48,6 +48,7 @@ from hq_api import events
 from hq_api.agents.clients import ModelCall
 from hq_api.db import Tx
 from hq_api.domain import orders as O
+from hq_api.domain import session_memory as MEM
 from hq_api.security import agent_tokens
 from hq_api.talk import answer as A
 from hq_api.talk import context as C
@@ -700,7 +701,17 @@ class TurnRun:
                               {"turn": self.turn_id, "state": state, "persona": p.key})  # fmt: skip
             every = data.summary_spec()["every_turns"]
             due = int(conv["turns"]) - int(conv["summary_upto"]) >= every
-        return {"state": state, "summary_due": due, "cards": len(made), "ref": self.conv["ref"]}
+            # ⟨1.22⟩ §40.1 a session's memory is folded every FOLD_EVERY turns (the workflow
+            # runs it after this turn; a failure there never touches the turn)
+            memory_due = bool(conv.get("order_ref")) and await MEM.due(tx, str(conv["order_ref"]))
+        return {
+            "state": state,
+            "summary_due": due,
+            "cards": len(made),
+            "ref": self.conv["ref"],
+            "memory_due": memory_due,
+            "order_ref": conv.get("order_ref"),
+        }
 
 
 def untrusted(results: list[dict[str, Any]]) -> str:

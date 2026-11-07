@@ -4130,3 +4130,21 @@ session remember, and turns its result into a reusable working group.
 - `POST /playbooks/{ref}/retire` 🔏: its routines stop for every member; nothing is deleted.
 - Nothing runs before the owner's seal. Every write is audited.
 - Data: migration `0057` (owner.playbooks, the sessions' memory, group eligibility `chosen`, the source of a session).
+- ⟨1.22, as built (W10)⟩ additive: `Playbook.retired_at`, `.group` (the growth.groups key `pb_<n>`), `.note_fa` (what the
+  drafter dropped and why: a role nobody has a charter for, an RRULE the calendar cannot hold, a routine on no seat, a KPI
+  without a source, an unknown connection; or «مدل پیش‌نویس نداد …» when the holder's model gave nothing and code built the
+  skeleton from the session's hires and scheduled automations); `PlaybookRoutine.max_tokens` (default 40 000), `PlaybookKpi.unit`;
+  `PlaybookMember.order` is the session the playbook came from for its own company. A seat's role may be an employee's, a
+  manager's or the CEO's charter (never a system role). `POST /orders/{ref}/playbook` answers 201. `PATCH` takes any of
+  `title_fa, purpose_fa, platform, seats, routines, kpis, connections, rules_fa` (one at least; `version` counts up). `apply`
+  answers `PlaybookApplied {playbook, member?, order?, conversation?}`: `as_is` the membership, else the new session (its
+  `OrderReport.session.source` and `SessionCard.source` = the playbook; the owner's first turn in its talk is the playbook as
+  Markdown; `apply` on a retired playbook: 409). The holder rewrites the draft in words with a `playbook` card
+  `{playbook, draft}` (talk.cards kind `playbook`; the card the draft posts carries `{playbook}` only and running it just
+  points at it); the holder's context names the session's playbooks (`playbooks`), its memory (`memory_md`), the playbook it
+  was opened from (`source_playbook`) and the company's last three sessions (`related_sessions`). `Group.eligible` adds
+  `chosen` and `Group.playbook`; a seat once resolved keeps its employee while they hold the role. Step-up actions
+  `playbook.seal` and `playbook.retire` are routine (no fingerprint, `stepup.LIGHT`). The memory is folded by task class
+  `session_memory` (Haiku-class, every 20 turns in the talk worker and once more after `close`, in the background); the draft
+  by `playbook_draft` (Sonnet-class), through the same awaited worker call as the order's routing. Stream: `group.playbook
+  {state, version?, group?}` (topic `groups`), the card as `talk.card`.

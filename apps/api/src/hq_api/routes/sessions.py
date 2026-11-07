@@ -26,13 +26,14 @@ from __future__ import annotations
 from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
 from pydantic import Field
 
 from hq_api import idempotency, pagination
 from hq_api.context import Ctx, owner_ctx
 from hq_api.domain import erase as ER
 from hq_api.domain import order_report as OR
+from hq_api.domain import session_memory as MEM
 from hq_api.domain import sessions as SE
 from hq_api.errors import ApiError, responses
 from hq_api.schemas import Model, Page
@@ -151,16 +152,23 @@ class CloseIn(Model):
 
 @router.post("/orders/{ref}/close", response_model=OR.OrderReport, responses=E)
 async def close_session(
-    ref: str, body: CloseIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+    ref: str,
+    body: CloseIn,
+    request: Request,
+    background: BackgroundTasks,
+    ctx: Ctx = Depends(owner_ctx),
 ) -> Any:
     """The owner's OK: `ok` — the order `delivered` (`cancelled` when it has no final output),
     its open works cancelled except the permanent structures it set up, the session closed and
-    archived (its talk read-only); `cancel` — the same, `cancelled`. Requires `Idempotency-Key`."""
+    archived (its talk read-only); `cancel` — the same, `cancelled`. ⟨1.22⟩ §40.1 the session's
+    memory is folded once more after the close. Requires `Idempotency-Key`."""
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
         if idem and idem.replay:
             return idem.replay
         rep = await SE.close(tx, ref, body.verdict, body.note, hub=ctx.hub)
+        if rep.get("conversation_ref"):
+            background.add_task(MEM.fold_after_close, ctx.hub, ref)
         await ctx.audit(tx, company_id=rep["company_id"], action="session.close", action_class="A2",
                         target_kind="order", target_ref=ref,
                         summary=f"{body.verdict}: {rep['state']}")  # fmt: skip

@@ -5,7 +5,8 @@ periodic reconciliation (workflow `Maintenance`) catches up, so a request
 never fails because of Temporal. Workflows are addressed by name:
     DecisionLifecycle(ref)   id decision-<ref>, signal "decided"
     Reconcile()              id hq-reconcile (schedules, morning report)
-    OrderRouting(req)        id order-route-<uuid>, awaited (the only one awaited)
+    OrderRouting(req)        id order-route-<uuid>, awaited (the only one awaited); ⟨1.22⟩ also
+                             the api's other one-call uses of the model (`model_call`)
 """
 
 from __future__ import annotations
@@ -125,6 +126,17 @@ async def route_order(
         log.warning("could not route the order with the model")
         return None
     return out
+
+
+async def model_call(
+    hub: Any, req: dict[str, Any], timeout_s: float = 90.0
+) -> dict[str, Any] | None:
+    """⟨1.22⟩ §40 one call of the model from the api, through the same awaited workflow as the
+    order's routing (the api cannot reach llm-router): the structured answer, or None when
+    Temporal, the router or the model is not there. The caller checks the shape."""
+    out = await route_order(hub, req, timeout_s)
+    got = (out or {}).get("structured")
+    return got if isinstance(got, dict) else None
 
 
 async def reconcile(hub: Any) -> None:

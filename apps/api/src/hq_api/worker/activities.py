@@ -1106,6 +1106,9 @@ class Activities:
                 out = None
         return {
             "routes": out.get("routes") if isinstance(out, dict) else None,
+            # ⟨1.22⟩ §40 the whole answer, for the api's other one-call uses of the model (a
+            # playbook's draft, the memory folded at close): the api checks it against its schema
+            "structured": out if isinstance(out, dict) else None,
             "status": "ok",
             "model": call.model,
             "input_tokens": call.input_tokens,

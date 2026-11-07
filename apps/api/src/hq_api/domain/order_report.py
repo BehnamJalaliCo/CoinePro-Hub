@@ -212,6 +212,8 @@ class OrderReport(BaseModel):
     participants: list[SS.Participant] = Field(default_factory=list)
     # ⟨1.18⟩ §36.3 the owner's files of the session (every file of the owner's turns), newest first
     files: list[FileRef] = Field(default_factory=list)
+    # ⟨1.22⟩ §40.1 the session's memory («تا اینجا»; read-only: code and a small model keep it)
+    memory_md: str | None = None
 
 
 # ----------------------------------------------------------------- reading --
@@ -947,6 +949,7 @@ def render(
         brief=session.brief if session is not None else None,
         tasks=session.tasks if session is not None else [],
         participants=session.participants if session is not None else [],
+        memory_md=rep.get("memory_md"),
     )
 
 

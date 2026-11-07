@@ -30,8 +30,10 @@ CARD_KINDS = (
     "budget",
     "group",
     "line",
+    # ⟨1.22⟩ §40.2 the playbook drafted from a session, and its rewrite in words
+    "playbook",
 )
-SESSION_CARDS = ("delegate", "budget", "group", "line")
+SESSION_CARDS = ("delegate", "budget", "group", "line", "playbook")
 
 
 @dataclass(frozen=True)

@@ -97,11 +97,15 @@ class Group(BaseModel):
     routines: list[Routine]
     kpis: list[Kpi]
     connections: list[str]
-    eligible: Literal["has_channel", "all"]
+    # ⟨1.22⟩ §40.2 `chosen`: a playbook's group, only the companies the owner gives it to (never
+    # a join by itself)
+    eligible: Literal["has_channel", "all", "chosen"]
     state: Literal["on", "off"]
     # ⟨additive⟩ the definition's version (a changed file is a new one), the lead seat
     version: int = 1
     lead: str | None = None
+    # ⟨1.22⟩ §40.2 the playbook this group was sealed from (PB-…), or null for a file's group
+    playbook: str | None = None
 
 
 class SeatBlocked(BaseModel):
@@ -180,6 +184,7 @@ def _canonical(data: dict[str, Any]) -> dict[str, Any]:
         ],
         "kpis": [Kpi(**k).model_dump() for k in data.get("kpis") or []],
         "connections": [str(c) for c in data.get("connections") or []],
+        **({"playbook": str(data["playbook"])} if data.get("playbook") else {}),
     }
 
 
@@ -206,7 +211,7 @@ def validate(key: str, d: dict[str, Any]) -> None:
             raise ValueError(f"{key}: routine {r['key']!r} max_tokens")
     if d["lead"] is not None and d["lead"] not in seats:
         raise ValueError(f"{key}: lead {d['lead']!r} is no seat")
-    if d["eligible"] not in ("has_channel", "all") or d["state"] not in ("on", "off"):
+    if d["eligible"] not in ("has_channel", "all", "chosen") or d["state"] not in ("on", "off"):
         raise ValueError(f"{key}: eligible/state")
 
 
@@ -233,7 +238,9 @@ def _cached_files() -> tuple[tuple[str, str], ...]:
 
 async def seed(tx: Tx, holding_id: UUID, root: Path | None = None) -> int:
     """Every group file into growth.groups: a new one at version 1, a changed
-    one as its next version (the owner's routine pauses kept). Idempotent."""
+    one as its next version (the owner's routine pauses kept). Idempotent.
+    ⟨1.22⟩ §40.2 a group sealed from a playbook (its key `pb_…`, no file) is
+    never touched here: the files name only their own keys."""
     files = (
         load_files(root) if root is not None else [(k, json.loads(d)) for k, d in _cached_files()]
     )
@@ -310,6 +317,7 @@ def render(row: dict[str, Any]) -> Group:
         state=row["state"],
         version=row["version"],
         lead=d.get("lead"),
+        playbook=d.get("playbook"),
     )
 
 
@@ -421,7 +429,10 @@ EXPERIMENT_SQL = """
 
 # ---------------------------------------------------------------- members --
 async def eligible(tx: Tx, g: Group) -> list[dict[str, Any]]:
-    """The active operating companies the group takes (data: any number)."""
+    """The active operating companies the group takes (data: any number). ⟨1.22⟩ `chosen`: none
+    by itself; the owner gives the group to a company (a playbook's seal or apply)."""
+    if g.eligible == "chosen":
+        return []
     if g.eligible == "all":
         return await tx.all(
             """SELECT id, code, name_fa FROM core.companies
@@ -447,6 +458,21 @@ async def seat_holders(tx: Tx, company_id: UUID, roles: list[str]) -> dict[str, 
         roles=roles,
     )
     return {r["role"]: r["code"] for r in found}
+
+
+async def role_holders(tx: Tx, company_id: UUID, roles: list[str]) -> dict[str, set[str]]:
+    """role -> every active employee code of the company with that charter (⟨1.22⟩ a seat once
+    resolved keeps its employee while they hold the role: the session's hires stay in their seats)."""
+    found = await tx.all(
+        """SELECT e.role, e.code FROM core.employees e
+           WHERE e.company_id = :co AND e.status = 'active' AND e.role = ANY(:roles)""",
+        co=company_id,
+        roles=roles,
+    )
+    out: dict[str, set[str]] = {}
+    for r in found:
+        out.setdefault(str(r["role"]), set()).add(str(r["code"]))
+    return out
 
 
 def _auto_filler() -> Any:
@@ -502,11 +528,15 @@ async def reconcile_members(
     filler = _auto_filler() if fill else None
     for m in await members(tx, grow["id"]):
         holders = await seat_holders(tx, m["company_id"], roles)
+        all_holders = await role_holders(tx, m["company_id"], roles)
         before = {s["seat"]: s for s in m["seats"] or []}
         seats = []
         for s in g.seats:
             prev = before.get(s.seat) or {}
             emp = holders.get(s.role)
+            # ⟨1.22⟩ the employee already in the seat stays while they hold the role
+            if prev.get("employee") in all_holders.get(s.role, set()):
+                emp = str(prev["employee"])
             entry: dict[str, Any] = {"seat": s.seat, "role": s.role, "employee": emp}
             asked = prev.get("asked_at")
             wants = (

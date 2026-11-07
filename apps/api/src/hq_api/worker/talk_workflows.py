@@ -43,6 +43,15 @@ class TalkTurn:
                     start_to_close_timeout=timedelta(minutes=3),
                     retry_policy=ONCE,
                 )
+        if out.get("memory_due") and out.get("order_ref"):
+            # ⟨1.22⟩ §40.1 the session's memory folded every 20 turns; never blocks the turn
+            with contextlib.suppress(ActivityError):
+                await workflow.execute_activity(
+                    "session_memory",
+                    out["order_ref"],
+                    start_to_close_timeout=timedelta(minutes=3),
+                    retry_policy=ONCE,
+                )
         return {"state": out.get("state")}
 
 

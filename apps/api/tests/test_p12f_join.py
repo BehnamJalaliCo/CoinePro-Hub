@@ -77,8 +77,9 @@ async def test_the_chain_runs_through_prompt_11_then_prompt_12(su: Any) -> None:
     assert rev["0054"] == "0053"  # 26: files in a session (fonts, a turn's files, the order's)
     assert rev["0055"] == "0054"  # 26.1: erasing for good, the decision kind `erase`
     assert rev["0056"] == "0055"  # 26.1: the hub run from the app (hub jobs, the hub_op kind)
-    assert heads == {"0056"}
-    assert await su.fetchval("SELECT version_num FROM alembic_version_api") == "0056"
+    assert rev["0057"] == "0056"  # W10: a session's memory, the playbooks, the `playbook` card kind
+    assert heads == {"0057"}
+    assert await su.fetchval("SELECT version_num FROM alembic_version_api") == "0057"
 
 
 async def test_the_kind_check_holds_every_kind_and_is_validated(su: Any) -> None:

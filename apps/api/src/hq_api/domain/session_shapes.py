@@ -53,6 +53,8 @@ class SessionState(BaseModel):
     reason_fa: str
     closed_at: datetime | None = None
     hidden: bool = False
+    # ⟨1.22⟩ §40.3 the playbook this session was opened from (PB-…), or null
+    source: str | None = None
 
 
 class SessionCard(BaseModel):
@@ -70,3 +72,5 @@ class SessionCard(BaseModel):
     last_at: datetime
     closed_at: datetime | None = None
     hidden: bool = False
+    # ⟨1.22⟩ §40.3 the playbook this session was opened from (PB-…), or null
+    source: str | None = None

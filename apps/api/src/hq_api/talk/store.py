@@ -27,6 +27,9 @@ CardKind = Literal[
     "order", "ask", "hire", "decision", "planner", "rule", "automation", "minutes", "invite",
     # ⟨1.17⟩ §35.4 the cards of a session
     "delegate", "budget", "group", "line",
+    # ⟨1.22⟩ §40.2 «کارگروه از این جلسه»: the playbook drafted from the session (open, edit,
+    # seal), and the holder's rewrite of the draft when the owner asks in words
+    "playbook",
 ]  # fmt: skip
 CardState = Literal["offered", "done", "dismissed", "failed"]
 EVENT_TYPES = ("text", "say", "audio", "card", "invite", "meter", "tool", "done", "error")

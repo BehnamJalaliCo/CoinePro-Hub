@@ -18434,7 +18434,8 @@
           "eligible": {
             "enum": [
               "has_channel",
-              "all"
+              "all",
+              "chosen"
             ],
             "title": "Eligible",
             "type": "string"
@@ -18460,6 +18461,17 @@
               }
             ],
             "title": "Lead"
+          },
+          "playbook": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Playbook"
           },
           "purpose_fa": {
             "title": "Purpose Fa",
@@ -31913,6 +31925,17 @@
               }
             ]
           },
+          "memory_md": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Memory Md"
+          },
           "outputs": {
             "items": {
               "$ref": "#/components/schemas/Output"
@@ -36152,6 +36175,575 @@
           "note_fa"
         ],
         "title": "PlatformLimit",
+        "type": "object"
+      },
+      "Playbook": {
+        "properties": {
+          "connections": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Connections",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
+          },
+          "kpis": {
+            "items": {
+              "$ref": "#/components/schemas/PlaybookKpi"
+            },
+            "title": "Kpis",
+            "type": "array"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/PlaybookMember"
+            },
+            "title": "Members",
+            "type": "array"
+          },
+          "note_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Fa"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent"
+          },
+          "platform": {
+            "enum": [
+              "instagram",
+              "youtube",
+              "telegram",
+              "site",
+              "any"
+            ],
+            "title": "Platform",
+            "type": "string"
+          },
+          "purpose_fa": {
+            "title": "Purpose Fa",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "retired_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retired At"
+          },
+          "routines": {
+            "items": {
+              "$ref": "#/components/schemas/PlaybookRoutine"
+            },
+            "title": "Routines",
+            "type": "array"
+          },
+          "rules_fa": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Rules Fa",
+            "type": "array"
+          },
+          "sealed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sealed At"
+          },
+          "seats": {
+            "items": {
+              "$ref": "#/components/schemas/PlaybookSeat"
+            },
+            "title": "Seats",
+            "type": "array"
+          },
+          "source": {
+            "$ref": "#/components/schemas/PlaybookSource"
+          },
+          "state": {
+            "enum": [
+              "draft",
+              "sealed",
+              "retired"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ref",
+          "title_fa",
+          "purpose_fa",
+          "state",
+          "version",
+          "platform",
+          "source",
+          "created_at"
+        ],
+        "title": "Playbook",
+        "type": "object"
+      },
+      "PlaybookApplied": {
+        "properties": {
+          "conversation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation"
+          },
+          "member": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlaybookMember"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "order": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order"
+          },
+          "playbook": {
+            "$ref": "#/components/schemas/Playbook"
+          }
+        },
+        "required": [
+          "playbook"
+        ],
+        "title": "PlaybookApplied",
+        "type": "object"
+      },
+      "PlaybookApplyIn": {
+        "additionalProperties": false,
+        "properties": {
+          "as_is": {
+            "default": false,
+            "title": "As Is",
+            "type": "boolean"
+          },
+          "company": {
+            "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+            "title": "Company",
+            "type": "string"
+          },
+          "note_fa": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Fa"
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "enum": [
+                  "instagram",
+                  "youtube",
+                  "telegram",
+                  "site",
+                  "any"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform"
+          }
+        },
+        "required": [
+          "company"
+        ],
+        "title": "PlaybookApplyIn",
+        "type": "object"
+      },
+      "PlaybookKpi": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "unit": {
+            "default": "",
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title_fa",
+          "source"
+        ],
+        "title": "PlaybookKpi",
+        "type": "object"
+      },
+      "PlaybookMember": {
+        "properties": {
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "name_fa": {
+            "title": "Name Fa",
+            "type": "string"
+          },
+          "order": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order"
+          },
+          "state": {
+            "enum": [
+              "on",
+              "paused"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "company",
+          "name_fa",
+          "state"
+        ],
+        "title": "PlaybookMember",
+        "type": "object"
+      },
+      "PlaybookPatch": {
+        "additionalProperties": false,
+        "description": "PATCH /playbooks/{ref} (draft only): any field of the shape but ref, state, source.",
+        "properties": {
+          "connections": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connections"
+          },
+          "kpis": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "maxItems": 12,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kpis"
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "enum": [
+                  "instagram",
+                  "youtube",
+                  "telegram",
+                  "site",
+                  "any"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform"
+          },
+          "purpose_fa": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purpose Fa"
+          },
+          "routines": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "maxItems": 12,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Routines"
+          },
+          "rules_fa": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rules Fa"
+          },
+          "seats": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "maxItems": 12,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seats"
+          },
+          "title_fa": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title Fa"
+          }
+        },
+        "title": "PlaybookPatch",
+        "type": "object"
+      },
+      "PlaybookRoutine": {
+        "properties": {
+          "brief_md": {
+            "title": "Brief Md",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "max_tokens": {
+            "default": 40000,
+            "title": "Max Tokens",
+            "type": "integer"
+          },
+          "schedule": {
+            "title": "Schedule",
+            "type": "string"
+          },
+          "seat": {
+            "title": "Seat",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title_fa",
+          "seat",
+          "schedule",
+          "brief_md"
+        ],
+        "title": "PlaybookRoutine",
+        "type": "object"
+      },
+      "PlaybookSeat": {
+        "properties": {
+          "duties_fa": {
+            "default": "",
+            "title": "Duties Fa",
+            "type": "string"
+          },
+          "helpers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Helpers",
+            "type": "array"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "seat": {
+            "title": "Seat",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seat",
+          "role",
+          "title_fa"
+        ],
+        "title": "PlaybookSeat",
+        "type": "object"
+      },
+      "PlaybookSource": {
+        "properties": {
+          "company": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "conversation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation"
+          },
+          "order": {
+            "title": "Order",
+            "type": "string"
+          }
+        },
+        "required": [
+          "order",
+          "company",
+          "conversation"
+        ],
+        "title": "PlaybookSource",
         "type": "object"
       },
       "Point": {
@@ -45478,6 +46070,17 @@
             "title": "Ref",
             "type": "string"
           },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
           "tasks": {
             "$ref": "#/components/schemas/TaskCount"
           },
@@ -45677,6 +46280,17 @@
           "reason_fa": {
             "title": "Reason Fa",
             "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
           },
           "state": {
             "enum": [
@@ -49582,7 +50196,8 @@
               "delegate",
               "budget",
               "group",
-              "line"
+              "line",
+              "playbook"
             ],
             "title": "Kind",
             "type": "string"
@@ -50125,7 +50740,8 @@
                 "delegate",
                 "budget",
                 "group",
-                "line"
+                "line",
+                "playbook"
               ],
               "type": "string"
             },
@@ -89721,6 +90337,7 @@
                       }
                     ],
                     "lead": "x",
+                    "playbook": "x",
                     "purpose_fa": "x",
                     "routines": [
                       {
@@ -89868,6 +90485,7 @@
                     }
                   ],
                   "lead": "x",
+                  "playbook": "x",
                   "purpose_fa": "x",
                   "routines": [
                     {
@@ -90589,6 +91207,7 @@
                     }
                   ],
                   "lead": "x",
+                  "playbook": "x",
                   "purpose_fa": "x",
                   "routines": [
                     {
@@ -108585,6 +109204,7 @@
                       ],
                       "reason_fa": "x",
                       "ref": "W-000789",
+                      "source": "x",
                       "tasks": {
                         "done": 1,
                         "total": 1
@@ -109850,7 +110470,7 @@
     },
     "/api/v1/orders/{ref}/close": {
       "post": {
-        "description": "The owner's OK: `ok` — the order `delivered` (`cancelled` when it has no final output),\nits open works cancelled except the permanent structures it set up, the session closed and\narchived (its talk read-only); `cancel` — the same, `cancelled`. Requires `Idempotency-Key`.",
+        "description": "The owner's OK: `ok` — the order `delivered` (`cancelled` when it has no final output),\nits open works cancelled except the permanent structures it set up, the session closed and\narchived (its talk read-only); `cancel` — the same, `cancelled`. ⟨1.22⟩ §40.1 the session's\nmemory is folded once more after the close. Requires `Idempotency-Key`.",
         "operationId": "close_session",
         "parameters": [
           {
@@ -109997,6 +110617,7 @@
                     },
                     "title_fa": "گزارش هفتگی رشد"
                   },
+                  "memory_md": "x",
                   "outputs": [
                     {
                       "kind": "final",
@@ -110059,6 +110680,7 @@
                     "closed_at": "2026-10-17T05:42:00Z",
                     "hidden": false,
                     "reason_fa": "x",
+                    "source": "x",
                     "state": "open"
                   },
                   "state": "received",
@@ -110546,6 +111168,7 @@
                     },
                     "title_fa": "گزارش هفتگی رشد"
                   },
+                  "memory_md": "x",
                   "outputs": [
                     {
                       "kind": "final",
@@ -110608,6 +111231,7 @@
                     "closed_at": "2026-10-17T05:42:00Z",
                     "hidden": false,
                     "reason_fa": "x",
+                    "source": "x",
                     "state": "open"
                   },
                   "state": "received",
@@ -110890,6 +111514,7 @@
                     },
                     "title_fa": "گزارش هفتگی رشد"
                   },
+                  "memory_md": "x",
                   "outputs": [
                     {
                       "kind": "final",
@@ -110952,6 +111577,7 @@
                     "closed_at": "2026-10-17T05:42:00Z",
                     "hidden": false,
                     "reason_fa": "x",
+                    "source": "x",
                     "state": "open"
                   },
                   "state": "received",
@@ -111236,6 +111862,7 @@
                     },
                     "title_fa": "گزارش هفتگی رشد"
                   },
+                  "memory_md": "x",
                   "outputs": [
                     {
                       "kind": "final",
@@ -111298,6 +111925,7 @@
                     "closed_at": "2026-10-17T05:42:00Z",
                     "hidden": false,
                     "reason_fa": "x",
+                    "source": "x",
                     "state": "open"
                   },
                   "state": "received",
@@ -111583,6 +112211,7 @@
                     },
                     "title_fa": "گزارش هفتگی رشد"
                   },
+                  "memory_md": "x",
                   "outputs": [
                     {
                       "kind": "final",
@@ -111645,6 +112274,7 @@
                     "closed_at": "2026-10-17T05:42:00Z",
                     "hidden": false,
                     "reason_fa": "x",
+                    "source": "x",
                     "state": "open"
                   },
                   "state": "received",
@@ -111925,6 +112555,7 @@
                     },
                     "title_fa": "گزارش هفتگی رشد"
                   },
+                  "memory_md": "x",
                   "outputs": [
                     {
                       "kind": "final",
@@ -111987,6 +112618,7 @@
                     "closed_at": "2026-10-17T05:42:00Z",
                     "hidden": false,
                     "reason_fa": "x",
+                    "source": "x",
                     "state": "open"
                   },
                   "state": "received",
@@ -112120,6 +112752,157 @@
         "summary": "Remove Participant",
         "tags": [
           "orders"
+        ]
+      }
+    },
+    "/api/v1/orders/{ref}/playbook": {
+      "post": {
+        "description": "The holder drafts a working group from this session (open or closed): one model call over\nthe memory, the plan, the people hired into it, its automations, lines and cards, checked by\ncode (a seat's role must be a real charter, a routine's schedule a rule the calendar holds;\nthe rest is dropped with a note in `note_fa`). Stored `draft`; a card «کارگروه از این جلسه»\nis posted in the session. Requires `Idempotency-Key`.",
+        "operationId": "draft_playbook",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "connections": [
+                    "claude-max"
+                  ],
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "group": "x",
+                  "kpis": [
+                    {
+                      "key": "x",
+                      "source": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "unit": "x"
+                    }
+                  ],
+                  "members": [
+                    {
+                      "company": "TY",
+                      "name_fa": "تریدیار",
+                      "order": "x",
+                      "state": "on"
+                    }
+                  ],
+                  "note_fa": "x",
+                  "parent": "x",
+                  "platform": "instagram",
+                  "purpose_fa": "x",
+                  "ref": "W-000789",
+                  "retired_at": "2026-10-17T05:42:00Z",
+                  "routines": [
+                    {
+                      "brief_md": "x",
+                      "key": "x",
+                      "max_tokens": 1,
+                      "schedule": "x",
+                      "seat": "x",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "rules_fa": [
+                    "x"
+                  ],
+                  "sealed_at": "2026-10-17T05:42:00Z",
+                  "seats": [
+                    {
+                      "duties_fa": "x",
+                      "helpers": [
+                        "x"
+                      ],
+                      "model": "claude-sonnet-5-5",
+                      "role": "x",
+                      "seat": "x",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "source": {
+                    "company": "TY",
+                    "conversation": "x",
+                    "order": "x"
+                  },
+                  "state": "draft",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Playbook"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Draft Playbook",
+        "tags": [
+          "playbooks"
         ]
       }
     },
@@ -112258,6 +113041,7 @@
                     },
                     "title_fa": "گزارش هفتگی رشد"
                   },
+                  "memory_md": "x",
                   "outputs": [
                     {
                       "kind": "final",
@@ -112320,6 +113104,7 @@
                     "closed_at": "2026-10-17T05:42:00Z",
                     "hidden": false,
                     "reason_fa": "x",
+                    "source": "x",
                     "state": "open"
                   },
                   "state": "received",
@@ -112604,6 +113389,7 @@
                     },
                     "title_fa": "گزارش هفتگی رشد"
                   },
+                  "memory_md": "x",
                   "outputs": [
                     {
                       "kind": "final",
@@ -112666,6 +113452,7 @@
                     "closed_at": "2026-10-17T05:42:00Z",
                     "hidden": false,
                     "reason_fa": "x",
+                    "source": "x",
                     "state": "open"
                   },
                   "state": "received",
@@ -112948,6 +113735,7 @@
                     },
                     "title_fa": "گزارش هفتگی رشد"
                   },
+                  "memory_md": "x",
                   "outputs": [
                     {
                       "kind": "final",
@@ -113010,6 +113798,7 @@
                     "closed_at": "2026-10-17T05:42:00Z",
                     "hidden": false,
                     "reason_fa": "x",
+                    "source": "x",
                     "state": "open"
                   },
                   "state": "received",
@@ -113626,6 +114415,7 @@
                     },
                     "title_fa": "گزارش هفتگی رشد"
                   },
+                  "memory_md": "x",
                   "outputs": [
                     {
                       "kind": "final",
@@ -113688,6 +114478,7 @@
                     "closed_at": "2026-10-17T05:42:00Z",
                     "hidden": false,
                     "reason_fa": "x",
+                    "source": "x",
                     "state": "open"
                   },
                   "state": "received",
@@ -118426,6 +119217,984 @@
         "summary": "Planner",
         "tags": [
           "work"
+        ]
+      }
+    },
+    "/api/v1/playbooks": {
+      "get": {
+        "description": "The library: every playbook, newest first (`state` narrows it).",
+        "operationId": "list_playbooks",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "draft",
+                    "sealed",
+                    "retired"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "connections": [
+                      "claude-max"
+                    ],
+                    "created_at": "2026-10-17T05:42:00Z",
+                    "group": "x",
+                    "kpis": [
+                      {
+                        "key": "x",
+                        "source": "x",
+                        "title_fa": "گزارش هفتگی رشد",
+                        "unit": "x"
+                      }
+                    ],
+                    "members": [
+                      {
+                        "company": "TY",
+                        "name_fa": "تریدیار",
+                        "order": "x",
+                        "state": "on"
+                      }
+                    ],
+                    "note_fa": "x",
+                    "parent": "x",
+                    "platform": "instagram",
+                    "purpose_fa": "x",
+                    "ref": "W-000789",
+                    "retired_at": "2026-10-17T05:42:00Z",
+                    "routines": [
+                      {
+                        "brief_md": "x",
+                        "key": "x",
+                        "max_tokens": 1,
+                        "schedule": "x",
+                        "seat": "x",
+                        "title_fa": "گزارش هفتگی رشد"
+                      }
+                    ],
+                    "rules_fa": [
+                      "x"
+                    ],
+                    "sealed_at": "2026-10-17T05:42:00Z",
+                    "seats": [
+                      {
+                        "duties_fa": "x",
+                        "helpers": [
+                          "x"
+                        ],
+                        "model": "claude-sonnet-5-5",
+                        "role": "x",
+                        "seat": "x",
+                        "title_fa": "گزارش هفتگی رشد"
+                      }
+                    ],
+                    "source": {
+                      "company": "TY",
+                      "conversation": "x",
+                      "order": "x"
+                    },
+                    "state": "draft",
+                    "title_fa": "گزارش هفتگی رشد",
+                    "version": 1
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Playbook"
+                  },
+                  "title": "Response List Playbooks",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Playbooks",
+        "tags": [
+          "playbooks"
+        ]
+      }
+    },
+    "/api/v1/playbooks/{ref}": {
+      "get": {
+        "description": "One playbook: its seats, routines, KPIs, connections, rules, source and members.",
+        "operationId": "get_playbook",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "connections": [
+                    "claude-max"
+                  ],
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "group": "x",
+                  "kpis": [
+                    {
+                      "key": "x",
+                      "source": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "unit": "x"
+                    }
+                  ],
+                  "members": [
+                    {
+                      "company": "TY",
+                      "name_fa": "تریدیار",
+                      "order": "x",
+                      "state": "on"
+                    }
+                  ],
+                  "note_fa": "x",
+                  "parent": "x",
+                  "platform": "instagram",
+                  "purpose_fa": "x",
+                  "ref": "W-000789",
+                  "retired_at": "2026-10-17T05:42:00Z",
+                  "routines": [
+                    {
+                      "brief_md": "x",
+                      "key": "x",
+                      "max_tokens": 1,
+                      "schedule": "x",
+                      "seat": "x",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "rules_fa": [
+                    "x"
+                  ],
+                  "sealed_at": "2026-10-17T05:42:00Z",
+                  "seats": [
+                    {
+                      "duties_fa": "x",
+                      "helpers": [
+                        "x"
+                      ],
+                      "model": "claude-sonnet-5-5",
+                      "role": "x",
+                      "seat": "x",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "source": {
+                    "company": "TY",
+                    "conversation": "x",
+                    "order": "x"
+                  },
+                  "state": "draft",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Playbook"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Playbook",
+        "tags": [
+          "playbooks"
+        ]
+      },
+      "patch": {
+        "description": "The owner edits the draft directly (draft only: 409 once sealed): any field of the shape\nbut `ref`, `state`, `source`. What does not hold (an unknown role, a bad schedule) is dropped\nwith a note in `note_fa`; `version` counts up.",
+        "operationId": "patch_playbook",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "connections": [
+                  "claude-max"
+                ],
+                "kpis": [
+                  {}
+                ],
+                "platform": "instagram",
+                "purpose_fa": "x",
+                "routines": [
+                  {}
+                ],
+                "rules_fa": [
+                  "x"
+                ],
+                "seats": [
+                  {}
+                ],
+                "title_fa": "گزارش هفتگی رشد"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/PlaybookPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "connections": [
+                    "claude-max"
+                  ],
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "group": "x",
+                  "kpis": [
+                    {
+                      "key": "x",
+                      "source": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "unit": "x"
+                    }
+                  ],
+                  "members": [
+                    {
+                      "company": "TY",
+                      "name_fa": "تریدیار",
+                      "order": "x",
+                      "state": "on"
+                    }
+                  ],
+                  "note_fa": "x",
+                  "parent": "x",
+                  "platform": "instagram",
+                  "purpose_fa": "x",
+                  "ref": "W-000789",
+                  "retired_at": "2026-10-17T05:42:00Z",
+                  "routines": [
+                    {
+                      "brief_md": "x",
+                      "key": "x",
+                      "max_tokens": 1,
+                      "schedule": "x",
+                      "seat": "x",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "rules_fa": [
+                    "x"
+                  ],
+                  "sealed_at": "2026-10-17T05:42:00Z",
+                  "seats": [
+                    {
+                      "duties_fa": "x",
+                      "helpers": [
+                        "x"
+                      ],
+                      "model": "claude-sonnet-5-5",
+                      "role": "x",
+                      "seat": "x",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "source": {
+                    "company": "TY",
+                    "conversation": "x",
+                    "order": "x"
+                  },
+                  "state": "draft",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Playbook"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Patch Playbook",
+        "tags": [
+          "playbooks"
+        ]
+      }
+    },
+    "/api/v1/playbooks/{ref}/apply": {
+      "post": {
+        "description": "Give the playbook to another company or platform. `as_is` (sealed only): the company joins\nthe working group at once, no session. Else a new order for that company, held by its CEO\n(or the manager of the matching department), whose first word is the playbook as Markdown\nand the owner's note («این کارگروه را برای … روی … پیاده کن»); the holder adapts it there, and\nsealing the draft made from that session records `parent`. Requires `Idempotency-Key`.",
+        "operationId": "apply_playbook",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "as_is": false,
+                "company": "TY",
+                "note_fa": "x",
+                "platform": "instagram"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/PlaybookApplyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "conversation": "x",
+                  "member": {
+                    "company": "TY",
+                    "name_fa": "تریدیار",
+                    "order": "x",
+                    "state": "on"
+                  },
+                  "order": "x",
+                  "playbook": {
+                    "connections": [
+                      "claude-max"
+                    ],
+                    "created_at": "2026-10-17T05:42:00Z",
+                    "group": "x",
+                    "kpis": [
+                      {
+                        "key": "x",
+                        "source": "x",
+                        "title_fa": "گزارش هفتگی رشد",
+                        "unit": "x"
+                      }
+                    ],
+                    "members": [
+                      {
+                        "company": "TY",
+                        "name_fa": "تریدیار",
+                        "order": "x",
+                        "state": "on"
+                      }
+                    ],
+                    "note_fa": "x",
+                    "parent": "x",
+                    "platform": "instagram",
+                    "purpose_fa": "x",
+                    "ref": "W-000789",
+                    "retired_at": "2026-10-17T05:42:00Z",
+                    "routines": [
+                      {
+                        "brief_md": "x",
+                        "key": "x",
+                        "max_tokens": 1,
+                        "schedule": "x",
+                        "seat": "x",
+                        "title_fa": "گزارش هفتگی رشد"
+                      }
+                    ],
+                    "rules_fa": [
+                      "x"
+                    ],
+                    "sealed_at": "2026-10-17T05:42:00Z",
+                    "seats": [
+                      {
+                        "duties_fa": "x",
+                        "helpers": [
+                          "x"
+                        ],
+                        "model": "claude-sonnet-5-5",
+                        "role": "x",
+                        "seat": "x",
+                        "title_fa": "گزارش هفتگی رشد"
+                      }
+                    ],
+                    "source": {
+                      "company": "TY",
+                      "conversation": "x",
+                      "order": "x"
+                    },
+                    "state": "draft",
+                    "title_fa": "گزارش هفتگی رشد",
+                    "version": 1
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/PlaybookApplied"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Apply Playbook",
+        "tags": [
+          "playbooks"
+        ]
+      }
+    },
+    "/api/v1/playbooks/{ref}/retire": {
+      "post": {
+        "description": "🔏 `playbook.retire` (target = the ref): its routines stop for every member (the group\n`off`); nothing is deleted.",
+        "operationId": "retire_playbook",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "connections": [
+                    "claude-max"
+                  ],
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "group": "x",
+                  "kpis": [
+                    {
+                      "key": "x",
+                      "source": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "unit": "x"
+                    }
+                  ],
+                  "members": [
+                    {
+                      "company": "TY",
+                      "name_fa": "تریدیار",
+                      "order": "x",
+                      "state": "on"
+                    }
+                  ],
+                  "note_fa": "x",
+                  "parent": "x",
+                  "platform": "instagram",
+                  "purpose_fa": "x",
+                  "ref": "W-000789",
+                  "retired_at": "2026-10-17T05:42:00Z",
+                  "routines": [
+                    {
+                      "brief_md": "x",
+                      "key": "x",
+                      "max_tokens": 1,
+                      "schedule": "x",
+                      "seat": "x",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "rules_fa": [
+                    "x"
+                  ],
+                  "sealed_at": "2026-10-17T05:42:00Z",
+                  "seats": [
+                    {
+                      "duties_fa": "x",
+                      "helpers": [
+                        "x"
+                      ],
+                      "model": "claude-sonnet-5-5",
+                      "role": "x",
+                      "seat": "x",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "source": {
+                    "company": "TY",
+                    "conversation": "x",
+                    "order": "x"
+                  },
+                  "state": "draft",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Playbook"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Retire Playbook",
+        "tags": [
+          "playbooks"
+        ]
+      }
+    },
+    "/api/v1/playbooks/{ref}/seal": {
+      "post": {
+        "description": "🔏 `playbook.seal` (target = the ref): the draft becomes a working group stored in the\ndatabase (eligibility `chosen`: only the companies the owner gives it to) and the session's\ncompany its first member, the seats resolved to the people the session hired, the empty ones\nfilled by automatic hiring inside the envelope; its routines run from their next time.",
+        "operationId": "seal_playbook",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "connections": [
+                    "claude-max"
+                  ],
+                  "created_at": "2026-10-17T05:42:00Z",
+                  "group": "x",
+                  "kpis": [
+                    {
+                      "key": "x",
+                      "source": "x",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "unit": "x"
+                    }
+                  ],
+                  "members": [
+                    {
+                      "company": "TY",
+                      "name_fa": "تریدیار",
+                      "order": "x",
+                      "state": "on"
+                    }
+                  ],
+                  "note_fa": "x",
+                  "parent": "x",
+                  "platform": "instagram",
+                  "purpose_fa": "x",
+                  "ref": "W-000789",
+                  "retired_at": "2026-10-17T05:42:00Z",
+                  "routines": [
+                    {
+                      "brief_md": "x",
+                      "key": "x",
+                      "max_tokens": 1,
+                      "schedule": "x",
+                      "seat": "x",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "rules_fa": [
+                    "x"
+                  ],
+                  "sealed_at": "2026-10-17T05:42:00Z",
+                  "seats": [
+                    {
+                      "duties_fa": "x",
+                      "helpers": [
+                        "x"
+                      ],
+                      "model": "claude-sonnet-5-5",
+                      "role": "x",
+                      "seat": "x",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "source": {
+                    "company": "TY",
+                    "conversation": "x",
+                    "order": "x"
+                  },
+                  "state": "draft",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "version": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Playbook"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Seal Playbook",
+        "tags": [
+          "playbooks"
         ]
       }
     },
@@ -126146,6 +127915,7 @@
                       ],
                       "reason_fa": "x",
                       "ref": "W-000789",
+                      "source": "x",
                       "tasks": {
                         "done": 1,
                         "total": 1
@@ -157188,6 +158958,7 @@
                     },
                     "title_fa": "گزارش هفتگی رشد"
                   },
+                  "memory_md": "x",
                   "outputs": [
                     {
                       "kind": "final",
@@ -157250,6 +159021,7 @@
                     "closed_at": "2026-10-17T05:42:00Z",
                     "hidden": false,
                     "reason_fa": "x",
+                    "source": "x",
                     "state": "open"
                   },
                   "state": "received",
@@ -157545,6 +159317,7 @@
                     },
                     "title_fa": "گزارش هفتگی رشد"
                   },
+                  "memory_md": "x",
                   "outputs": [
                     {
                       "kind": "final",
@@ -157607,6 +159380,7 @@
                     "closed_at": "2026-10-17T05:42:00Z",
                     "hidden": false,
                     "reason_fa": "x",
+                    "source": "x",
                     "state": "open"
                   },
                   "state": "received",
@@ -157905,6 +159679,7 @@
                     },
                     "title_fa": "گزارش هفتگی رشد"
                   },
+                  "memory_md": "x",
                   "outputs": [
                     {
                       "kind": "final",
@@ -157967,6 +159742,7 @@
                     "closed_at": "2026-10-17T05:42:00Z",
                     "hidden": false,
                     "reason_fa": "x",
+                    "source": "x",
                     "state": "open"
                   },
                   "state": "received",

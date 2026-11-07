@@ -17,3 +17,10 @@ assignments:
      note: Proactive note (owner 2026-11-06)}
   - {scope_type: task_class, scope_ref: advisor_memo, model: claude-sonnet-5-5, effort: medium,
      note: Decision memo (owner 2026-11-06)}
+  # Contract §40 (2026-11-07): a session's memory folded every 20 turns and at
+  # close is a small job for the cheapest model that does it well; the playbook
+  # drafted by the session's holder is a strong-but-not-premium one.
+  - {scope_type: task_class, scope_ref: session_memory, model: claude-haiku-5-5, effort: low,
+     note: A session's memory folded (contract 40.1)}
+  - {scope_type: task_class, scope_ref: playbook_draft, model: claude-sonnet-5-5, effort: medium,
+     note: A playbook drafted from a session (contract 40.2)}

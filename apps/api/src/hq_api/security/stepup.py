@@ -36,6 +36,10 @@ LIGHT = frozenset(
         "meetings.settings",
         "oversight.order",
         "oversight.release",
+        # ⟨1.22⟩ §40.2-§40.3 a playbook sealed into a working group, or retired: running the
+        # holding, nothing sent out or spent
+        "playbook.retire",
+        "playbook.seal",
         "rule.seal",
         "sites.update",
         "skill.activate",

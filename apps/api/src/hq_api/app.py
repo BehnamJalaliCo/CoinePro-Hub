@@ -91,6 +91,7 @@ from hq_api.routes import money as money_routes  # prompt 24: §33.2-§33.3 paym
 from hq_api.routes import newsletter as newsletter_routes  # prompt 22 part 3: §31.3
 from hq_api.routes import office as office_routes  # prompt 25: §35.5 the owner's office
 from hq_api.routes import order_report as order_report_routes  # prompt 21: §29.1-§29.2, §29.6
+from hq_api.routes import playbooks as playbook_routes  # ⟨1.22⟩ §40 a session's playbook
 from hq_api.routes import reviews as review_routes
 from hq_api.routes import role_drafts as role_draft_routes  # prompt 13 §1.1
 from hq_api.routes import rules as rule_routes  # prompt 21: the owner's rules
@@ -314,6 +315,8 @@ def create_app(
     # ⟨1.17⟩ prompt 25 (contract §35.1-§35.3): every order a session: the list, participants,
     # the plan, close / reopen / hide
     app.include_router(session_routes.router, prefix="/api/v1")
+    # ⟨1.22⟩ §40: a session's playbook (drafted, sealed, given to another company)
+    app.include_router(playbook_routes.router, prefix="/api/v1")
     # ⟨1.19⟩ prompt 26 (contract §37.2-§37.3): an archive record or an output erased for good, an
     # agent's proposed erase (the session's own erase is in session_routes)
     app.include_router(erase_routes.router, prefix="/api/v1")

@@ -501,6 +501,21 @@ async def talk_brief(tx: Tx, order_ref: str) -> dict[str, Any] | None:
     failed = await failed_cards(tx, rep.get("conversation_ref"))
     if failed:
         out["failed_cards"] = failed
+    # ⟨1.22⟩ §40.1 the session's memory («تا اینجا»), its playbooks and the company's last
+    # sessions: a session of thousands of lines keeps its thread, and sessions are not islands
+    from hq_api.domain import playbooks as PB
+    from hq_api.domain import session_memory as MEM
+
+    if rep.get("memory_md"):
+        out["memory_md"] = str(rep["memory_md"])
+    if rep.get("source_playbook"):
+        out["source_playbook"] = str(rep["source_playbook"])
+    books = await PB.of_order(tx, order_ref)
+    if books:
+        out["playbooks"] = books
+    related = await MEM.related(tx, order_ref, _company_of(order))
+    if related:
+        out["related_sessions"] = related
     return out
 
 

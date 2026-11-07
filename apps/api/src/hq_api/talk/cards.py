@@ -76,6 +76,7 @@ LABEL_FA = {
     "order": "فرمان", "ask": "پرسش", "hire": "استخدام", "decision": "کارت تصمیم", "planner": "یادآوری",
     "rule": "قاعده", "automation": "خودکارسازی", "minutes": "صورت‌جلسه", "invite": "دعوت",
     "delegate": "سپردن کار", "budget": "بودجه", "group": "کارگروه", "line": "خط تولید",
+    "playbook": "کارگروه از جلسه",
 }  # fmt: skip
 CLOSED_FA = "این جلسه بسته شده است؛ برای ادامه آن را دوباره باز کنید."
 
@@ -286,7 +287,8 @@ async def _order_step(
         title = str(payload.get("title_fa") or payload.get("text") or card["title_fa"])[:200]
         done = line or f"{label} انجام شد: {title}"
         what = f"{label} انجام نشد: {why}" if why is not None else done
-        await SE.step(tx, str(ref), OWNER_FA, what)
+        # ⟨1.22⟩ §40.1 a card done is one line of the session's memory (a failed one is not)
+        await SE.step(tx, str(ref), OWNER_FA, what, remember_line=done if why is None else None)
         if why is None and card["kind"] != "invite":  # an invite writes its own «آمد» line
             locked = await store.conversation(tx, conv["ref"], lock=True)
             said = clean(what)[0][:400]
@@ -322,7 +324,7 @@ async def _carry_out(
                             summary=f"the owner's word from {ref}; woken: {woken}")  # fmt: skip
         return [str(conv["order_ref"])], []
     if kind in data.SESSION_CARDS:
-        return await _session_card(ctx, request, card, conv, payload, text)
+        return await _session_card(ctx, request, card, conv, payload, text, note)
     if kind in ("order", "ask"):
         if p.consult_only and kind == "order":
             raise _fail("این نقش فقط مشورت میدهد و فرمان نمیسازد.", "kind")
@@ -654,6 +656,7 @@ async def _session_card(
     conv: dict[str, Any],
     payload: dict[str, Any],
     text: str,
+    note: list[str] | None = None,
 ) -> tuple[list[str], list[Any]]:
     kind = card["kind"]
     if kind == "delegate":
@@ -748,7 +751,42 @@ async def _session_card(
             code, body, sub_request(request, 0, body.model_dump(mode="json")), ctx
         )
         return [_ref_of(out)], []
+    if kind == "playbook":
+        return await _playbook_card(ctx, conv, payload, note)
     raise _fail("این نوع کارت شناخته نیست.", "kind")
+
+
+async def _playbook_card(
+    ctx: Ctx, conv: dict[str, Any], payload: dict[str, Any], note: list[str] | None
+) -> tuple[list[str], list[Any]]:
+    """⟨1.22⟩ §40.2 the `playbook` card: with a `draft`, the holder's rewrite of the session's
+    draft in the owner's words (stored through the same normaliser as PATCH; a sealed playbook
+    refuses); without one, the card «کارگروه از این جلسه» the draft posted: nothing to do but
+    point at it (the owner opens, edits and seals it on its page)."""
+    from hq_api.domain import playbooks as PB
+
+    ref = str(payload.get("playbook") or "").strip().upper()
+    if not PB.REF.match(ref):
+        raise _fail("شناسه‌ی کارگروه (playbook) روشن نیست.", "payload.playbook")
+    draft = payload.get("draft") if isinstance(payload.get("draft"), dict) else None
+    async with ctx.tx() as tx:
+        row = await PB.row_of(tx, ref)
+        if str((store._j(row["source"]) or {}).get("order") or "") != str(conv.get("order_ref")):
+            raise _fail("این کارگروه از جلسه‌ی دیگری است.", "payload.playbook")
+        if draft is None:
+            if note is not None:
+                note.append(f"کارگروه {ref} آماده‌ی بازبینی است؛ در صفحه‌اش باز، ویرایش و مُهر کنید.")
+            return [ref], []
+        notes: list[str] = []
+        out = await PB.patch(tx, ctx.hub, ref, draft, notes=notes)
+        await ctx.audit(tx, company_id=row["company_id"], action="playbook.edit", action_class="A1",
+                        target_kind="playbook", target_ref=ref,
+                        summary=f"rewritten from session {conv['ref']} (v{out['version']})")  # fmt: skip
+    if note is not None:
+        note.append(
+            " ".join([f"پیش‌نویس کارگروه {ref} بازنویسی شد (نسخه‌ی {out['version']}).", *notes])
+        )
+    return [ref], []
 
 
 async def _decision(
