@@ -161,7 +161,7 @@ test('confirm and close: the working group and the line come first, then the ord
     await page.goto('/s/F-0006');
     await page.getByRole('button', { name: 'تأیید و بستن' }).click();
     const sheet = page.getByRole('dialog', { name: 'تأیید و بستن جلسه' });
-    await expect(sheet.getByRole('button', { name: 'کارگروه راه بینداز' })).toBeVisible();
+    await expect(sheet.getByRole('button', { name: 'کارگروه از این جلسه' })).toBeVisible();
     await sheet.getByRole('button', { name: 'خط تولید راه بینداز' }).click();
     // The holder puts the line's card in the talk.
     await expect(page.getByLabel(/^کارت خط تولید/).first()).toBeVisible();

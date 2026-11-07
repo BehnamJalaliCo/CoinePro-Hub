@@ -32,6 +32,7 @@ import { useConversation } from '@/lib/api/v32';
 import { cx, jDateTime, jTime } from '@/lib/format';
 import { plain } from '@/lib/plain';
 import { FromPlaybook, MakePlaybook, MemoryCard } from '@/components/v40/playbook';
+import { useDraftPlaybook } from '@/lib/api/v40';
 import { ConversationPane, Face, playerName, type PaneApi } from './conversation-pane';
 
 const FIXED: Array<{ key: string; fa: string }> = [{ key: 'advisor', fa: 'مشاور کل' }, { key: 'overseer', fa: 'ناظر کل' }, { key: 'assistant', fa: 'دستیار شخصی' }, { key: 'secretary', fa: 'منشی هلدینگ' }];
@@ -425,6 +426,7 @@ function FilesCard({ r }: { r: Full }) {
 function CloseSheet({ open, onOpenChange, r, onAsk, onClosed }: { open: boolean; onOpenChange: (v: boolean) => void; r: Full; onAsk: (text: string) => void; onClosed: () => void }) {
   const toast = useToast();
   const act = useSessionActions(r.ref);
+  const draft = useDraftPlaybook(r.ref);
   const [note, setNote] = useState('');
   const [sure, setSure] = useState(false);
   const left = r.tasks.filter((t) => t.state === 'todo' || t.state === 'doing').length;
@@ -442,7 +444,10 @@ function CloseSheet({ open, onOpenChange, r, onAsk, onClosed }: { open: boolean;
           <h3 className="text-[13px] font-semibold text-sec">پیش از بستن، اگر کار تکرارشدنی است</h3>
           <p className="text-[13px] leading-6 text-sec">یک کارگروه یا یک خط تولید راه بینداز تا این کار بعد از بسته شدن جلسه هم ادامه پیدا کند؛ مسئول فرمان کارتش را همین‌جا در گفتگو میگذارد و تو اجرا میکنی.</p>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" icon="companies" onClick={() => onAsk('برای این کار یک کارگروه راه بینداز')}>کارگروه راه بینداز</Button>
+            <Button size="sm" icon="companies" loading={draft.isPending} onClick={() => draft.mutate(undefined, {
+              onSuccess: () => { onOpenChange(false); toast({ tone: 'ok', text: 'پیش‌نویس کارگروه آماده است؛ کارتش در گفتگوست.' }); },
+              onError: (e) => toast({ tone: 'error', text: errText(e, 'ساخته نشد؛ دوباره بزن.') }),
+            })}>کارگروه از این جلسه</Button>
             <Button size="sm" icon="task" onClick={() => onAsk('برای این کار یک خط تولید راه بینداز')}>خط تولید راه بینداز</Button>
           </div>
         </section>

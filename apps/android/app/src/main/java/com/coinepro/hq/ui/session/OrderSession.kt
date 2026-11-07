@@ -372,7 +372,18 @@ fun OrderSessionScreen(ref: String) {
         }
         SessionSheet.CLOSE -> o?.let { r ->
             CloseSheet(r, company, onDismiss = { sheet = SessionSheet.NONE },
-                onGroup = { sheet = SessionSheet.NONE; scope.launch { talk.addressee = null; talk.interceptor = null; talk.send("پیش از بستن، برای این کار یک کارگروه راه بینداز که بعد از بستن جلسه هم ادامه بدهد.") } },
+                // ⟨0.18.0⟩ §40: the working group is drafted from this session (its card comes into the chat to edit and seal)
+                onGroup = {
+                    sheet = SessionSheet.NONE
+                    scope.launch {
+                        try {
+                            env.api.draftPlaybook(r.ref, java.util.UUID.randomUUID().toString())
+                            env.cache.invalidate("talk", "order-report", *com.coinepro.hq.ui.playbook.PLAYBOOK_TAGS)
+                            toasts.ok("پیش‌نویس کارگروه آماده است؛ کارتش در گفتگوست.")
+                            refreshAll()
+                        } catch (e: ApiException) { toasts.error(e.messageFa) }
+                    }
+                },
                 onLine = { sheet = SessionSheet.LINE },
                 onClosed = { out -> sheet = SessionSheet.NONE; q.set(out); scope.launch { refreshAll() } })
         }
@@ -765,7 +776,7 @@ private fun CloseSheet(o: OrderReport, company: String?, onDismiss: () -> Unit, 
         Text("پیش از بستن، چیزی بماند؟", style = Divan.type.bodyStrong, color = c.textPrimary)
         Text("کارگروه یا خط تولید بعد از بستن هم کار را ادامه میدهد؛ بقیه‌ی کارهای باز این جلسه بسته میشوند.", style = Divan.type.caption, color = c.textMuted)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            HqButton("کارگروه راه بینداز", onGroup, Modifier.weight(1f), icon = DivanIcon.DEPARTMENT, size = BtnSize.SM)
+            HqButton("کارگروه از این جلسه", onGroup, Modifier.weight(1f), icon = DivanIcon.DEPARTMENT, size = BtnSize.SM)
             if (company != null) HqButton("خط تولید راه بینداز", onLine, Modifier.weight(1f), icon = DivanIcon.VIDEO, size = BtnSize.SM)
         }
         HorizontalDivider(color = c.lineDivider)
