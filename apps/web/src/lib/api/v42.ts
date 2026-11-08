@@ -4,29 +4,34 @@
 // with the stream's sequence to resume after) and the shapes of the five new events and the additive `server.state`. Until the OpenAPI file
 // carries them the shapes live here, written from §42 exactly. A hub from before §42 answers 404/405/501: the hook answers null, the views
 // show «—» and the stream starts live (no resume point). Missing data is null, shown «—», never zero.
+// ⟨1.24⟩ As built (§42.5): money is a decimal string of 6 places (§1); `seq` is null while the hub's event bus is down (the panel then
+// seeds without a resume point); a company row is an operating company and its `working` is thinking + working; `holding.flow`'s envelope
+// company is the holding's code, its ends are `data.from`/`data.to`.
 
 import { useQuery } from '@tanstack/react-query';
 import { call } from './v13';
 import { notServed } from './v28';
 
 type N = number | null;
+/** A dollar amount as the hub writes it (§1): a decimal string, 6 places ("2.410000"). */
+export type Usd = string;
 
 // ============================================================================================== §42.3 the seed ==
 export type CompanyState42 = 'ok' | 'busy' | 'stuck' | 'locked';
 export type LiveCompany = {
   code: string; name_fa: string | null; working: N; total: N; sessions_open: N; servers_online: N; servers_total: N;
-  spend_today_usd: N; last_event_at: string | null; state: CompanyState42 | null;
+  spend_today_usd: Usd | null; last_event_at: string | null; state: CompanyState42 | null;
 };
 export type LiveSummary = {
-  /** The stream's last sequence when read: the stream resumes exactly after it (`Last-Event-ID`). */
-  seq: number | string | null;
+  /** The stream's last sequence when read: the stream resumes exactly after it (`Last-Event-ID`); null while the event bus is down. */
+  seq: number | null;
   at: string;
   people: { working: N; thinking: N; waiting: N; stuck: N; total: N };
   sessions: { moving: N; your_turn: N; stuck: N; ready: N };
   approvals: N;
   urgent_unread: N;
   servers: { online: N; offline: N; total: N };
-  tokens: { today: N; effective_today: N; per_min: N; equiv_usd_today: N; budget_usd: N };
+  tokens: { today: N; effective_today: N; per_min: N; equiv_usd_today: Usd | null; budget_usd: Usd | null };
   control: { holding: boolean; companies_locked: string[] };
   companies: LiveCompany[];
 };
@@ -49,7 +54,8 @@ export type SessionActivity42 = {
 };
 
 export type FlowKind = 'order' | 'request' | 'accept' | 'deliver' | 'read' | 'playbook' | 'publish';
-/** `holding.flow` (topic `holding`): `from`/`to` = "hub", a company code, or "outside". */
+/** `holding.flow` (topic `holding`): `from`/`to` = "hub", a company code, or "outside". The envelope's `company` is the holding's code:
+ *  a flow is never read by its envelope company, only by its ends. */
 export type HoldingFlow = { from: string; to: string; kind: FlowKind; via: 'hub'; ref: string; root_ref: string | null; label_fa: string | null };
 
 /** `network.link` (topic `servers`): a measured link changed `ok` or crossed the slow threshold. */
@@ -65,12 +71,13 @@ export type EmployeeState42 = {
 export type TokenSplit = { input: number; output: number; cache_read: number; cache_write: number; thinking: number };
 /** `llm.tick` (topic `llm`): every 5 s for each company that had a call in the window; nothing when idle. */
 export type LlmTick = {
-  company: string; window_s: number; calls: number; in_flight: number; tokens: TokenSplit; equiv_usd: number;
-  day: { tokens: number; effective_tokens: number; equiv_usd: number; budget_usd: N; pct: N };
+  company: string; window_s: number; calls: number; in_flight: number; tokens: TokenSplit; equiv_usd: Usd;
+  day: { tokens: number; effective_tokens: number; equiv_usd: Usd; budget_usd: Usd | null; pct: N };
 };
 
 export type ServerReason = 'no_poll' | 'runner_stopped' | 'server_unreachable' | 'revoked' | 'fallback_public' | 'slow';
-/** `server.state` (topic `servers`) with §42.2's additive fields. A client never infers offline from silence. */
+/** `server.state` (topic `servers`) with §42.2's additive fields; `reason_fa` is null when `reason` is. A client never infers offline
+ *  from silence. */
 export type ServerState42 = {
   server: string; company?: string | null; state: string; via?: 'private' | 'public' | null;
   prev_state?: string | null; since?: string | null; reason?: ServerReason | null; reason_fa?: string | null; hub_rtt_ms?: N; open_jobs?: N;

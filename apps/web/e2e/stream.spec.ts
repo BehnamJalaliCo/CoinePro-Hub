@@ -69,3 +69,18 @@ test('seeds from the live summary and resumes after its sequence; an event at or
   await expect(feed.getByText(/W-000499/)).toHaveCount(0);
   expect(seen[0]).toBe('500');
 });
+
+// §42.5: while the hub's event bus is down the summary's `seq` is null; the panel seeds from it and starts the stream live (no resume).
+test('a summary without a sequence (the event bus down) seeds the views and starts the stream live', async ({ page }) => {
+  const seen: Array<string | null> = [];
+  await page.addInitScript(() => { window.localStorage.setItem('hq.e2e.stream', '1'); window.localStorage.setItem('hq.e2e.seq', 'null'); });
+  await page.route('**/api/v1/stream**', async (route: Route, req: Request) => {
+    const lastId = req.headers()['last-event-id'] ?? null;
+    seen.push(lastId);
+    // A development build mounts the shell twice: every connection that starts live gets the event.
+    return route.fulfill(sse(!lastId ? ev(7, 'work.council', 'W-000507', { state: 'done' }) : ''));
+  });
+  await page.goto('/companies');
+  await expect(page.getByRole('list', { name: 'آخرین رویدادها' }).getByText(/W-000507/).first()).toBeVisible({ timeout: 30_000 });
+  expect(seen[0]).toBeNull();
+});

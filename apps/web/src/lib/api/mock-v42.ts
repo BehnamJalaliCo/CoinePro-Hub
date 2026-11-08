@@ -12,6 +12,10 @@ type Next = (req: Request) => Promise<Response>;
 export type Ctx42 = { stopped: Set<string> };
 
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'content-type': 'application/json' } });
+/** Money as the hub writes it (§1, §42.5): a decimal string of 6 places. */
+const money = (v: number) => v.toFixed(6);
+/** The holding's code: the envelope company of every `holding.flow` (§42.5). */
+const HOLDING = 'HQ';
 const nowIso = () => new Date().toISOString();
 let seq = 0;
 let evN = 0;
@@ -65,8 +69,8 @@ function tokenTick(co: string, scale = 1): Ev | null {
   ticks.push({ at: Date.now(), tokens: n });
   const cap = COMPANY_BUDGET[co] ?? null;
   return ev(co, 'llm.tick', null, {
-    company: co, window_s: 5, calls: thinking + working, in_flight: thinking, tokens: t, equiv_usd: usd,
-    day: { tokens: d.tokens, effective_tokens: d.effective, equiv_usd: d.usd, budget_usd: cap, pct: cap ? Math.round((100 * d.usd) / cap) : null },
+    company: co, window_s: 5, calls: thinking + working, in_flight: thinking, tokens: t, equiv_usd: money(usd),
+    day: { tokens: d.tokens, effective_tokens: d.effective, equiv_usd: money(d.usd), budget_usd: cap == null ? null : money(cap), pct: cap ? Math.round((1000 * d.usd) / cap) / 10 : null },
   });
 }
 
@@ -102,7 +106,7 @@ function heal(id: string): Ev[] {
 
 // ------------------------------------------------------------------------------------------------------- flows --
 const flow = (f: Omit<HoldingFlow, 'via' | 'root_ref'> & { root_ref?: string | null }): Ev =>
-  ev(f.kind === 'order' ? f.to : f.from === 'hub' || f.from === 'outside' ? f.to : f.from, 'holding.flow', f.ref, { ...f, via: 'hub', root_ref: f.root_ref ?? null });
+  ev(HOLDING, 'holding.flow', f.ref, { ...f, via: 'hub', root_ref: f.root_ref ?? null });
 const ORDERS = ['ریلز آخر هفته', 'گزارش سئوی فنی', 'بررسی کندی ثبت‌نام', 'خبرنامه‌ی ماه'];
 const REQUESTS: Array<[string, string, string]> = [['TY', 'FX', 'سیگنال‌های امروز'], ['FX', 'TY', 'انتشار سیگنال در کانال'], ['TY', 'PC', 'نمودار هفتگی طلا'], ['PC', 'TY', 'متن کپشن']];
 let flowN = 0;
@@ -205,24 +209,26 @@ async function summary(req: Request, next: Next): Promise<LiveSummary> {
   const all = [...people.values()];
   const count = (st: PersonState, co?: string) => all.filter((p) => p.state === st && (!co || p.company === co)).length;
   const badge = (b: string) => cards.filter((c: any) => c.badge === b).length;
-  const list = listOf(cos).filter((c: any) => c.kind !== 'holding' && c.status !== 'archived');
+  const list = listOf(cos).filter((c: any) => c.kind !== 'holding' && (c.status === 'active' || c.status === 'paused'));
   const t = total();
+  // The e2e checks set the sequence the summary answers; «null» is the hub with its event bus down (§42.5).
   const stored = (() => { try { return window.localStorage.getItem('hq.e2e.seq'); } catch { return null; } })();
   return {
-    seq: stored ? Number(stored) : seq, at: nowIso(),
+    seq: stored === 'null' ? null : stored ? Number(stored) : seq, at: nowIso(),
     people: { working: count('working'), thinking: count('thinking'), waiting: count('waiting'), stuck: count('stuck'), total: all.length },
     sessions: { moving: badge('moving'), your_turn: badge('your_turn'), stuck: badge('stuck'), ready: badge('ready') },
     approvals: inbox?.decisions_pending ?? null, urgent_unread: inbox?.notifications?.urgent ?? null,
     servers: { online: nodes.filter((n: any) => n.state === 'online').length, offline: nodes.filter((n: any) => n.state === 'offline').length, total: nodes.length },
-    tokens: { today: t.tokens, effective_today: t.effective, per_min: perMin(), equiv_usd_today: Math.round(t.usd * 100) / 100, budget_usd: BUDGET_USD },
+    tokens: { today: t.tokens, effective_today: t.effective, per_min: perMin(), equiv_usd_today: money(t.usd), budget_usd: money(BUDGET_USD) },
     control: { holding: control?.holding?.state === 'engaged', companies_locked: locked },
     companies: list.map((c: any) => {
       const mine = nodes.filter((n: any) => n.company === c.code);
       const roster = all.filter((p) => p.company === c.code);
       return {
-        code: c.code, name_fa: c.name_fa ?? null, working: roster.length ? roster.filter(busy).length : null, total: roster.length || null,
+        // An operating company's row (§42.5): `working` is its people thinking or working.
+        code: c.code, name_fa: c.name_fa ?? c.code, working: roster.filter(busy).length, total: roster.length,
         sessions_open: cards.filter((s: any) => s.holder?.company === c.code).length, servers_online: mine.filter((n: any) => n.state === 'online').length, servers_total: mine.length,
-        spend_today_usd: day[c.code]?.usd ?? null, last_event_at: nowIso(),
+        spend_today_usd: money(day[c.code]?.usd ?? 0), last_event_at: nowIso(),
         state: locked.includes(c.code) ? 'locked' : count('stuck', c.code) ? 'stuck' : roster.some(busy) ? 'busy' : 'ok',
       };
     }),

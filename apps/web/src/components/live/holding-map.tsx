@@ -548,7 +548,7 @@ function MapSheet({ sel, model, onClose, onRoutes }: { sel: Sel | null; model: R
           <Row k="حال">{c.locked ? <Pill tone="neg">قفل · کلید توقف</Pill> : <Pill tone="pos">روشن</Pill>}</Row>
           <Row k="در کار">{c.live?.working == null ? '—' : `${c.live.working} از ${c.live.total ?? '—'} نفر`}</Row>
           <Row k="سشن‌های باز">{c.live?.sessions_open ?? '—'}</Row>
-          <Row k="خرج امروز"><span className="fig">{usd(c.live?.spend_today_usd)}{c.live?.budget_usd ? ` / ${usd(c.live.budget_usd, 0)}` : ''}</span></Row>
+          <Row k="خرج امروز"><span className="fig">{usd(c.live?.spend_today_usd)}{c.live?.budget_usd ? ` / ${usd(c.live.budget_usd)}` : ''}</span></Row>
           <Row k="سرورها">{c.servers.length ? c.servers.map((x) => `${x.name} · ${x.state === 'online' ? 'وصل' : x.state === 'offline' ? 'قطع' : x.state === 'revoked' ? 'برداشته شده' : 'در انتظار'}`).join('، ') : 'سروری وصل نیست'}</Row>
           <Row k="پیوندها">{links.length ? links.map((k) => `${companyOf(companies, k.from === sel.code ? k.to : k.from).nameFa} (${LINK_KIND[k.kind]}${k.state === 'off' ? '، خاموش' : ''})`).join('، ') : 'فقط با هاب'}</Row>
           <Row k="آخرین رویداد">{c.live?.last_event_at ? ago(c.live.last_event_at, now) : '—'}</Row>

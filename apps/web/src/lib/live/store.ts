@@ -65,7 +65,8 @@ export class LiveStore {
   noSeed() { if (!this.seeded) { this.seeded = true; this.resolveSeed(null); } }
   seed(sum: LiveSummary) {
     this.state = seedSummary(this.state, sum);
-    if (!this.seeded) { this.seeded = true; const q = Number(sum.seq); this.resolveSeed(Number.isFinite(q) && q > 0 ? q : null); }
+    // §42.5: `seq` is null while the hub's event bus is down; the stream then starts live, with no resume point.
+    if (!this.seeded) { this.seeded = true; const q = sum.seq == null ? NaN : Number(sum.seq); this.resolveSeed(Number.isFinite(q) && q > 0 ? q : null); }
     this.emit();
   }
   seedSessions(cards: Parameters<typeof seedSessions>[1]) { const s = seedSessions(this.state, cards); if (s !== this.state) { this.state = s; this.emit(); } }

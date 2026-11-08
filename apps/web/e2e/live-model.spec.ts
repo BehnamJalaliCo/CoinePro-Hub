@@ -21,12 +21,12 @@ const SUMMARY: LiveSummary = {
   sessions: { moving: 2, your_turn: 1, stuck: 0, ready: 1 },
   approvals: 4, urgent_unread: 0,
   servers: { online: 3, offline: 0, total: 3 },
-  tokens: { today: 1_000_000, effective_today: 500_000, per_min: 9000, equiv_usd_today: 10, budget_usd: 20 },
+  tokens: { today: 1_000_000, effective_today: 500_000, per_min: 9000, equiv_usd_today: '10.000000', budget_usd: '20.000000' },
   control: { holding: false, companies_locked: ['PC'] },
   companies: [
-    { code: 'TY', name_fa: 'تریدیار', working: 2, total: 8, sessions_open: 2, servers_online: 1, servers_total: 1, spend_today_usd: 4, last_event_at: at(0), state: 'busy' },
-    { code: 'FX', name_fa: 'کوینه‌پرو FX', working: 2, total: 7, sessions_open: 1, servers_online: 1, servers_total: 1, spend_today_usd: 6, last_event_at: at(0), state: 'busy' },
-    { code: 'PC', name_fa: 'پرو-چارت', working: 0, total: 5, sessions_open: 1, servers_online: 1, servers_total: 1, spend_today_usd: 0, last_event_at: null, state: 'locked' },
+    { code: 'TY', name_fa: 'تریدیار', working: 2, total: 8, sessions_open: 2, servers_online: 1, servers_total: 1, spend_today_usd: '4.000000', last_event_at: at(0), state: 'busy' },
+    { code: 'FX', name_fa: 'کوینه‌پرو FX', working: 2, total: 7, sessions_open: 1, servers_online: 1, servers_total: 1, spend_today_usd: '6.000000', last_event_at: at(0), state: 'busy' },
+    { code: 'PC', name_fa: 'پرو-چارت', working: 0, total: 5, sessions_open: 1, servers_online: 1, servers_total: 1, spend_today_usd: '0.000000', last_event_at: null, state: 'locked' },
   ],
 };
 const seeded = (): LiveState => seedSummary(EMPTY, SUMMARY);
@@ -51,6 +51,18 @@ test.describe('the live model (K-2)', () => {
     expect(waitingForOwner(s)).toBe(5);
     expect(s.control.locked).toHaveProperty('PC');
     expect(s.companies.PC!.last_event_at).toBeNull();
+    // §42.5: money comes as 6-place decimal strings and is held as dollars.
+    expect(s.tokens.equiv_usd_today).toBe(10);
+    expect(s.tokens.budget_usd).toBe(20);
+    expect(s.companies.FX!.spend_today_usd).toBe(6);
+  });
+
+  test('§42.5: a summary read while the event bus is down (seq null) keeps the sequence already known', () => {
+    expect(seedSummary(EMPTY, { ...SUMMARY, seq: null }).seq).toBeNull();
+    const s = run(seeded(), ev('decision.created', {}, { seq: 140 }));
+    const again = seedSummary(s, { ...SUMMARY, seq: null, approvals: 9 });
+    expect(again.seq).toBe(140);
+    expect(again.approvals).toBe(9);
   });
 
   test('OF-1 and CO-1: a person moves from the bucket they left (known from the list) to the one they entered', () => {
@@ -94,9 +106,10 @@ test.describe('the live model (K-2)', () => {
 
   test('MO-1: a tick adds its tokens by kind and its dollars; the burn rate is the last minute, zero when idle', () => {
     let s = seedTokenKinds(seeded(), { input_tokens: 100, output_tokens: 10, cache_read_tokens: 5, cache_write_tokens: 5, thinking_tokens: 0 });
+    // §42.5: the tick's dollars are 6-place decimal strings; `pct` is a number.
     const tick = (co: string, sec: number, k: number, usd: number, inFlight = 1) => ev('llm.tick', {
-      company: co, window_s: 5, calls: 2, in_flight: inFlight, tokens: { input: k, output: k, cache_read: k, cache_write: k, thinking: k }, equiv_usd: usd,
-      day: { tokens: 0, effective_tokens: 0, equiv_usd: usd * 10, budget_usd: 8, pct: null },
+      company: co, window_s: 5, calls: 2, in_flight: inFlight, tokens: { input: k, output: k, cache_read: k, cache_write: k, thinking: k }, equiv_usd: usd.toFixed(6),
+      day: { tokens: 0, effective_tokens: 0, equiv_usd: (usd * 10).toFixed(6), budget_usd: '8.000000', pct: 62.5 },
     }, { company: co, at: at(sec) });
     expect(perMin(s, T0 + 1000)).toBe(9000);
     s = run(s, tick('TY', 10, 100, 0.5), tick('FX', 20, 200, 0.25));
@@ -137,6 +150,9 @@ test.describe('the live model (K-2)', () => {
     expect(s.servers).toEqual({ online: 3, offline: 0, total: 3 });
     expect(s.servers_by_id['srv-ty-1']!.reason).toBeNull();
     expect(Object.values(s.links)).toHaveLength(0);
+    // §42.5: `reason_fa` is null when `reason` is (an offline server whose cause the hub does not know yet).
+    s = run(s, ev('server.state', { server: 'srv-ty-1', company: 'TY', state: 'offline', prev_state: 'online', reason: null, reason_fa: null }, { company: 'TY' }));
+    expect(s.servers_by_id['srv-ty-1']).toMatchObject({ state: 'offline', reason: null, reason_fa: null });
   });
 
   test('HM-2: what each flow draws (§5 «Event → motion»)', () => {
@@ -152,8 +168,11 @@ test.describe('the live model (K-2)', () => {
     const after = run(s, ev('server.call', { server: 'srv-fx-1', state: 'running' }), ev('server.call', { server: 'srv-fx-1', state: 'failed' }));
     expect(after.servers_by_id['srv-fx-1']!.jobs).toBe(0);
     expect(after.servers_by_id['srv-fx-1']!.failed_at).not.toBeNull();
-    const flows = run(s, ev('holding.flow', { from: 'TY', to: 'FX', kind: 'request', via: 'hub', ref: 'W-2' }, { at: at(1) }));
+    // §42.5: a flow's envelope company is the holding's; it is read by its ends only.
+    const flows = run(s, ev('holding.flow', { from: 'TY', to: 'FX', kind: 'request', via: 'hub', ref: 'W-2' }, { at: at(1), company: 'HQ' }));
     expect(flowsPerHour(flows.companies.TY, T0 + 60_000)).toBe(1);
+    expect(flowsPerHour(flows.companies.FX, T0 + 60_000)).toBe(1);
+    expect(effectsOf(ev('holding.flow', { from: 'hub', to: 'FX', kind: 'order', via: 'hub', ref: 'F-1' }, { company: 'HQ' }), s)[1]).toMatchObject({ path: ['hub', 'FX'] });
     expect(flowsPerHour(flows.companies.TY, T0 + 4_000_000)).toBe(0);
   });
 

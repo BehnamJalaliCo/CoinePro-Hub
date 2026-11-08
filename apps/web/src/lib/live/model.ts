@@ -5,7 +5,8 @@
 // Counts are the summary's, moved by deltas: an event says the new state of one employee, session or server; the delta needs the state it
 // left, which is the last one this model saw (or the event's own `prev_state`). When neither is known the event adds to its new bucket and
 // takes from none; the summary is read again every two minutes and on every return of the stream, so a guess never lasts. Missing data stays
-// null («—»), never zero.
+// null («—»), never zero. ⟨§42.5⟩ Money arrives as a 6-place decimal string; the model holds it as a number of dollars (sums kept to the
+// micro-dollar) and the views write it with format.usd.
 
 import type { StreamEvent } from '@/lib/stream';
 import type {
@@ -97,9 +98,10 @@ const blankCompany = (code: string): CompanyLive => ({
 });
 
 // ------------------------------------------------------------------------------------------------------- seeds --
-/** The summary read from the hub (§42.3): every count replaced; what the stream told about single things is kept. */
+/** The summary read from the hub (§42.3): every count replaced; what the stream told about single things is kept. A null `seq` (the hub's
+ *  event bus is down) keeps the sequence already known. */
 export function seedSummary(prev: LiveState, sum: LiveSummary): LiveState {
-  const seq = num(sum.seq);
+  const seq = sum.seq == null ? null : num(sum.seq);
   const companies: Record<string, CompanyLive> = { ...prev.companies };
   for (const c of sum.companies ?? []) {
     const old = prev.companies[c.code] ?? blankCompany(c.code);
@@ -265,7 +267,7 @@ export function reduceTokens(s: LiveState, e: StreamEvent): LiveState {
       ...s.tokens,
       today: add(s.tokens.today, total),
       effective_today: s.tokens.effective_today,
-      equiv_usd_today: s.tokens.equiv_usd_today == null ? null : Math.round((s.tokens.equiv_usd_today + (num(d.equiv_usd) ?? 0)) * 10_000) / 10_000,
+      equiv_usd_today: s.tokens.equiv_usd_today == null ? null : Math.round((s.tokens.equiv_usd_today + (num(d.equiv_usd) ?? 0)) * 1_000_000) / 1_000_000,
       kinds: k ? { input: k.input + (t.input ?? 0), output: k.output + (t.output ?? 0), cache: k.cache + (t.cache_read ?? 0) + (t.cache_write ?? 0), thinking: k.thinking + (t.thinking ?? 0) } : null,
       ticks: [...s.tokens.ticks.filter((x) => at - x.at < 70_000), { at, company: d.company, tokens: total }],
       ticked: true,
@@ -298,8 +300,11 @@ export function reduceNetwork(s: LiveState, e: StreamEvent): LiveState {
     const changed = prev != null && prev !== d.state;
     const srv: ServerLive = {
       id, company: d.company ?? e.company ?? old?.company ?? null, state: d.state, prev_state: d.prev_state ?? (changed ? prev : old?.prev_state ?? null),
-      via: d.via ?? old?.via ?? null, since: d.since ?? (changed || !old ? e.at : old.since), reason: d.reason ?? (d.state === 'online' ? null : old?.reason ?? null),
-      reason_fa: d.reason_fa ?? (d.state === 'online' ? null : old?.reason_fa ?? null), hub_rtt_ms: d.hub_rtt_ms !== undefined ? num(d.hub_rtt_ms) : old?.hub_rtt_ms ?? null,
+      via: d.via ?? old?.via ?? null, since: d.since ?? (changed || !old ? e.at : old.since),
+      // §42.5: the hub always says the reason (null when it has none, and then `reason_fa` is null too); an older hub leaves it out.
+      reason: 'reason' in d ? d.reason ?? null : d.state === 'online' ? null : old?.reason ?? null,
+      reason_fa: 'reason' in d ? (d.reason ? d.reason_fa ?? null : null) : d.state === 'online' ? null : old?.reason_fa ?? null,
+      hub_rtt_ms: d.hub_rtt_ms !== undefined ? num(d.hub_rtt_ms) : old?.hub_rtt_ms ?? null,
       open_jobs: d.open_jobs !== undefined ? num(d.open_jobs) : old?.open_jobs ?? null, at: e.at, jobs: d.state === 'online' ? old?.jobs ?? 0 : 0, failed_at: old?.failed_at ?? null,
     };
     let servers = s.servers;

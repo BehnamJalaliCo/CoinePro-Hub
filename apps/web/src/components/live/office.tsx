@@ -175,7 +175,7 @@ export function CompanyLiveStrip({ code, className }: { code: string; className?
         <span data-sessions>{line}</span>
         <span className="flex min-w-[120px] flex-1 items-center gap-2">
           {cap ? <span className="h-1 flex-1 overflow-hidden rounded-full bg-card" title="خرج امروز از سقف شرکت"><i className="hq-m12 block h-full rounded-full" style={{ width: `${Math.min(100, (100 * (spend ?? 0)) / cap)}%`, background: (spend ?? 0) >= cap ? 'var(--hq-negative)' : 'var(--hq-silver-ink)' }} /></span> : <span className="flex-1" />}
-          <span className="fig text-[12px] text-sec">{usd(spend)}{cap ? ` / ${usd(cap, 0)}` : ''}</span>
+          <span className="fig text-[12px] text-sec">{usd(spend)}{cap ? ` / ${usd(cap)}` : ''}</span>
         </span>
       </div>
     </div>
