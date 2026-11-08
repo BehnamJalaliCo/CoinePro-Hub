@@ -272,7 +272,8 @@ private fun WorkerCard(w: SessionWorker, now: Long) {
             if (w.doingFa.isNotBlank()) Text(timesFig(oneLine(w.doingFa)), style = Divan.type.small, color = c.textSecondary)
         }
         Text(
-            listOfNotNull(w.step.takeIf { it > 0 }?.let { "قدم ${com.coinepro.hq.core.data.faNum(it)}" }, elapsedFa(w.startedAt, now)).joinToString(" · "),
+            // The time first: a «·» between two figures reads as a Persian zero («۱۴۰۶»).
+            listOfNotNull(elapsedFa(w.startedAt, now), w.step.takeIf { it > 0 }?.let { "قدم ${com.coinepro.hq.core.data.faNum(it)}" }).joinToString(" · "),
             style = Divan.type.micro, color = c.textMuted, maxLines = 1,
         )
     }
@@ -319,7 +320,7 @@ internal fun PlanProgressRow(p: PlanProgress, current: String?, onPlan: () -> Un
     ) {
         DIcon(DivanIcon.TASK, size = 14.dp, tint = if (p.finished) c.positive else c.textMuted)
         Text(planProgressFa(p), style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary, maxLines = 1)
-        Box(Modifier.weight(1f).height(4.dp).clip(CircleShape).background(c.tile)) {
+        Box(Modifier.weight(1f).height(4.dp).clip(CircleShape).background(c.lineStrong.copy(alpha = 0.45f))) {
             Box(Modifier.fillMaxWidth(f).fillMaxHeight().clip(CircleShape).background(if (p.finished) c.positive else c.goldFill))
         }
     }
