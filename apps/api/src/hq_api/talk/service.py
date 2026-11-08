@@ -171,11 +171,15 @@ async def add_turns(
             k=client_id,
             f=[r["id"] for r in sent],
         )
-        if sent and conv.get("order_ref"):
-            # ⟨1.18⟩ §36.3 in a session the owner's files go with the order
+        if conv.get("order_ref"):
             from hq_api.domain import order_turns as OT
 
-            await OT.add_files(tx, str(conv["order_ref"]), sent, owner_id)
+            if sent:
+                # ⟨1.18⟩ §36.3 in a session the owner's files go with the order
+                await OT.add_files(tx, str(conv["order_ref"]), sent, owner_id)
+            if clean_text and not had_key:
+                # ⟨1.23⟩ §41.2 the owner's numbered steps are the session's plan (by code)
+                await OT.plan_from_owner(tx, str(conv["order_ref"]), clean_text)
         if intent.remember and not had_key:
             await store.remember(tx, holding.id, clean(intent.remember)[0], owner_id)
     who = (

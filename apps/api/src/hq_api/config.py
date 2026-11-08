@@ -147,6 +147,10 @@ class Settings:
     order_ack_minutes: int = field(default_factory=lambda: _int("ORDER_ACK_MINUTES", 10))
     order_progress_hours: int = field(default_factory=lambda: _int("ORDER_PROGRESS_HOURS", 2))
     order_owner_hours: int = field(default_factory=lambda: _int("ORDER_OWNER_HOURS", 6))
+    # ⟨1.23⟩ contract §41.3: a session with no queued or running run for this many minutes
+    # (and not waiting on the owner) wakes its holder once; as long again → `stuck`, the
+    # owner told why.
+    session_idle_minutes: int = field(default_factory=lambda: _int("SESSION_IDLE_MINUTES", 10))
     oversight_run_tokens: int = field(
         default_factory=lambda: _int("HQ_OVERSIGHT_RUN_TOKENS", 60_000)
     )

@@ -13,6 +13,10 @@
     POST   /orders/{ref}/hide · /unhide                 off every list; nothing is deleted
     POST   /orders/{ref}/pace {pace}                   «با من / خودکار» at any time: the holder's
                                                         next run reads the new pace
+    GET    /orders/{ref}/activity                      ⟨1.23⟩ §41.1 who works now, the last 30
+                                                        lines in plain Persian, idle/waiting/stuck
+    POST   /orders/{ref}/nudge                         ⟨1.23⟩ §41.3 «ادامه بده»: the holder woken
+                                                        now with the plan's next task (Idempotency-Key)
     GET    /orders/{ref}/erase/preview                 ⟨1.19⟩ §37.1 what an erase would remove and
                                                         what stays (nothing changes)
     POST   /orders/{ref}/erase                         ⟨1.19⟩ 🔏 session.erase (target = ref): the
@@ -33,6 +37,8 @@ from hq_api import idempotency, pagination
 from hq_api.context import Ctx, owner_ctx
 from hq_api.domain import erase as ER
 from hq_api.domain import order_report as OR
+from hq_api.domain import order_turns as OT
+from hq_api.domain import session_activity as SA
 from hq_api.domain import session_memory as MEM
 from hq_api.domain import sessions as SE
 from hq_api.errors import ApiError, responses
@@ -224,6 +230,59 @@ async def set_pace(ref: str, body: PaceIn, ctx: Ctx = Depends(owner_ctx)) -> OR.
                         target_kind="order", target_ref=ref,
                         summary=f"{body.pace}; woken: {', '.join(out['woken']) or 'nothing'}")  # fmt: skip
         return await _report(tx, ref)
+
+
+# --------------------------------------------------------- activity · nudge (§41) --
+async def _activity(tx: Any, ref: str) -> SA.SessionActivity:
+    rep = await OR.refresh(tx, ref)
+    if rep is None:
+        raise ApiError(404, "not_found", f"order {ref}", message_fa=SE.NOT_FOUND_FA)
+    order = await OR.load_order(tx, ref)
+    assert order is not None
+    return await SA.activity(tx, rep, await OR.tree(tx, OR.root_refs(order)))
+
+
+@router.get("/orders/{ref}/activity", response_model=SA.SessionActivity, responses=E)
+async def order_activity(ref: str, ctx: Ctx = Depends(owner_ctx)) -> SA.SessionActivity:
+    """⟨1.23⟩ §41.1 the session's live activity: who is working now (each queued or running run of
+    the order's works, with its current step), the last 30 lines in plain Persian (a run started,
+    each step in words, how it ended), and when nobody works: since when (`idle_since`), what the
+    owner is asked (`waiting_fa`) or why it is stuck (`stuck_fa`). Never a ref, a tool key or a
+    code in a line."""
+    async with ctx.tx() as tx:
+        return await _activity(tx, ref)
+
+
+@router.post("/orders/{ref}/nudge", response_model=SA.SessionActivity, responses=E)
+async def nudge_session(ref: str, request: Request, ctx: Ctx = Depends(owner_ctx)) -> Any:
+    """⟨1.23⟩ §41.3 «ادامه بده»: the holder is woken now, its brief carrying the plan's next open
+    task; a step «مدیر کل گفت ادامه بده» (and, when nobody could be woken, why). Answers the
+    session's activity. A closed session answers 409. Requires `Idempotency-Key`."""
+    async with ctx.tx() as tx:
+        idem = await idempotency.claim(tx, request, ctx.who, required=True)
+        if idem and idem.replay:
+            return idem.replay
+        rep = await SE._open(tx, ref)
+        await OR._append_steps(tx, rep["id"], [OR._step(SE.OWNER_FA, SA.NUDGED_FA)])
+        await tx.exec(
+            """UPDATE owner.order_reports SET last_step_at = now(), progress_nudged_at = NULL,
+                   owner_told_at = NULL, updated_at = now() WHERE id = :id""",
+            id=rep["id"],
+        )
+        if rep.get("conversation_ref"):
+            await OT.to_talk_owner(tx, rep, "ادامه بده")
+        out = await SA.wake_holder(tx, ref, SA.NUDGE_REASON.format(ref=ref))
+        if out["run_id"] is None:
+            await OR._append_steps(
+                tx, rep["id"], [OR._step(SA.SYSTEM_FA, SA.NOT_WOKEN_FA.format(why=out["why_fa"]))]
+            )
+        await ctx.audit(tx, company_id=rep["company_id"], action="session.nudge", action_class="A1",
+                        target_kind="order", target_ref=ref,
+                        summary=f"woken: {out['work_ref'] or 'nothing'}; {out['why_fa'] or 'ok'}")  # fmt: skip
+        result = await _activity(tx, ref)
+        if idem:
+            await idem.store(tx, 200, result.model_dump(mode="json"))
+    return result
 
 
 async def _hide(ref: str, hidden: bool, ctx: Ctx) -> OR.OrderReport:

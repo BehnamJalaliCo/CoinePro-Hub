@@ -30,6 +30,7 @@ from hq_api.db import Tx
 from hq_api.domain import humanize as HZ
 from hq_api.domain import notify
 from hq_api.domain import order_report as OR
+from hq_api.domain import session_activity as SA
 from hq_api.domain.session_shapes import (
     Badge,
     Brief,
@@ -97,8 +98,11 @@ def badge_of(
     *,
     decision_pending: bool,
     now: datetime | None = None,
+    pulse: SA.Pulse | None = None,
 ) -> tuple[str, str]:
-    """(badge, reason_fa) by code (contract §35.2)."""
+    """(badge, reason_fa) by code (contract §35.2). ⟨1.23⟩ §41.3 with the session's `pulse`:
+    `moving` only while a run is queued or running now; idle for two thresholds → `stuck` with the
+    cause; idle for less → still `moving`, saying since when nobody works."""
     now = now or datetime.now(UTC)
     if rep.get("closed_at") is not None or rep.get("ended_at") is not None:
         head = {"delivered": "تحویل شد و بسته شد", "cancelled": "لغو شد و بسته شد"}.get(
@@ -129,10 +133,22 @@ def badge_of(
         return "stuck", "گیر کرد: کارمندها چند بار کار کردند و خروجی ندادند"
     if stuck:
         return "stuck", str(stuck[0]["title_fa"])[:300]
+    steps = OR._j(rep.get("steps")) or []
+    if pulse is not None:
+        if pulse.live:
+            doing = pulse.doing_fa or (
+                f"{steps[-1].get('who_fa')}: {steps[-1].get('what_fa')}" if steps else None
+            )
+            return "moving", f"در حال کار: {doing}"[:300] if doing else "در حال کار"
+        if pulse.stuck_fa:
+            return "stuck", pulse.stuck_fa[:300]
     last = _last_at(rep)
     if roots and now - last >= timedelta(hours=PROGRESS_HOURS):
         return "stuck", f"از {PROGRESS_HOURS} ساعت پیش قدمی برداشته نشده"
-    steps = OR._j(rep.get("steps")) or []
+    if pulse is not None and roots:
+        minutes = int(pulse.idle.total_seconds() // 60)
+        if minutes >= 1:
+            return "moving", f"از {minutes} دقیقه پیش کسی کار نمیکند؛ مسئول بیدار میشود"[:300]
     if steps:
         s = steps[-1]
         return "moving", f"{s.get('who_fa')}: {s.get('what_fa')}"[:300]
@@ -441,7 +457,10 @@ async def view(
     works = await OR.tree(tx, OR.root_refs(order)) if works is None else works
     blockers = OR._j(rep.get("blockers")) or []
     pending = await decisions_pending(tx, [w["id"] for w in works])
-    badge, reason = badge_of(rep, rep["state"], works, blockers, decision_pending=pending)
+    pulse = await SA.read_pulse(tx, rep, works)
+    badge, reason = badge_of(
+        rep, rep["state"], works, blockers, decision_pending=pending, pulse=pulse
+    )
     tasks = await tasks_of(tx, rep["order_id"])
     holder = await OT.holder(tx, rep["ref"])
     brief = brief_of(badge, reason, rep, OR._j(rep.get("outputs")) or [], tasks)
@@ -665,6 +684,8 @@ async def join_hired(
         if rep is not None:
             await OR._append_steps(tx, rep["id"], [OR._step(OWNER_FA, line)])
             await remember(tx, rep["id"], line)  # ⟨1.22⟩ §40.1
+            # ⟨1.23⟩ §41.3 the holder is woken: the newcomer is here, the work goes on
+            await SA.wake_holder(tx, str(r["order_ref"]), f"joined:{employee_code}")
         joined.append(str(r["ref"]))
     return joined
 

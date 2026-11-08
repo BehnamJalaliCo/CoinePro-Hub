@@ -798,6 +798,7 @@ async def deliver_work(
         )
         if idem:
             await idem.store(tx, 200, result.model_dump(mode="json"))
+    await _wake_order_holder(ctx, w, "delivered")  # ⟨1.23⟩ §41.3 the order's holder goes on
     # ⟨1.5⟩ prompt 11 §2.6: a `rule` red line in a deliverable is a finding (PR-115)
     from hq_api.domain import charter as CH
 
@@ -831,7 +832,25 @@ async def fail_work(id: UUID, body: Fail, ctx: Ctx = Depends(internal_ctx)) -> W
         await SP.after_part(tx, w["id"])  # ⟨1.15⟩ §33.7: a failed part is reported, never hidden
         await SP.after_parent(tx, w["id"])
         await ctx.emit(tx, w["company"], "work.updated", w["ref"], {"status": status})
-        return W.render(await W.load(tx, id))
+        out = W.render(await W.load(tx, id))
+    await _wake_order_holder(ctx, w, status)
+    return out
+
+
+async def _wake_order_holder(ctx: Ctx, w: dict[str, Any], what: str) -> None:
+    """⟨1.23⟩ §41.3 a child (or requested) work of an owner's order was delivered or failed: the
+    order's holder is woken so the session goes on. The order's report is the holding's row: read
+    across companies in a transaction of its own (never nested in the agent's scoped one); a
+    failure here never fails the delivery."""
+    from hq_api.domain import order_turns as OT
+
+    if w.get("parent_id") is None and w.get("requested_by_work_id") is None:
+        return
+    try:
+        async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
+            await OT.on_child_closed(tx, w, what)
+    except Exception:  # noqa: BLE001
+        log.warning("the order's holder could not be woken", extra={"work": str(w.get("ref"))})
 
 
 @router.post("/work", response_model=WorkCreated, status_code=201, responses=E)

@@ -54,6 +54,7 @@ from hq_api.domain import meeting_flow as MF
 from hq_api.domain import order_report as OR
 from hq_api.domain import oversight as O
 from hq_api.domain import role_drafts as RD
+from hq_api.domain import session_activity as SA
 from hq_api.domain import skills as SK
 from hq_api.domain import work as W
 from hq_api.errors import sqlstate_of
@@ -372,6 +373,7 @@ class Runner:
                     "charter": f"{charter.role}@{charter.version}",
                 },
             )
+            await SA.on_run(tx, run, emp, "started")  # ⟨1.23⟩ §41.1 the session sees it start
         return Claim("running")
 
     async def _work_refusal(self, tx: Tx, work_id: UUID) -> str | None:
@@ -662,7 +664,10 @@ class Runner:
             for i, action in enumerate(step.actions):
                 self.heartbeat()
                 out = await self.gateway.call(rc.token, n, i, action.tool, action.args)
-                results.append({"tool": action.tool, **out})
+                # ⟨1.23⟩ §41.1 what of the arguments the owner may read beside the verb (a site,
+                # a player, a company): stored with the step, shown in the session's activity
+                hint = SA.hint_of(action.tool, action.args)
+                results.append({"tool": action.tool, **out, **({"hint": hint} if hint else {})})
                 await self._after_action(rc, action, out, live_thread)
             await self._record_step(rc, n, summary, results, call)
             # "done" next to an action refused for its arguments is not done: the
@@ -1510,6 +1515,7 @@ class Runner:
                 "outcome": r.get("outcome"),
                 **({"ref": str(r["ref"])[:80]} if r.get("ref") else {}),
                 **({"code": str(r["code"])[:60]} if r.get("code") else {}),
+                **({"hint": str(r["hint"])[:60]} if r.get("hint") else {}),
             }
             for r in results
         ]
@@ -1546,6 +1552,8 @@ class Runner:
                 str(rc.run["id"]),
                 {"employee": rc.emp["code"], "n": n, "actions": [a["tool"] for a in actions]},
             )
+            # ⟨1.23⟩ §41.1 the session sees the step as it happens
+            await SA.on_run(tx, rc.run, rc.emp, "step", n=n, summary=summary, actions=actions)
 
     async def _activity(self, tx: Tx, emp: dict[str, Any], activity: str, note: str | None) -> None:
         await tx.exec(
@@ -1626,6 +1634,8 @@ class Runner:
             str(run["id"]),
             {"employee": emp["code"], "state": state, "code": code, "partial": partial},
         )
+        # ⟨1.23⟩ §41.1 the session sees how the run ended (a refusal before a start too)
+        await SA.on_run(tx, run, emp, "finished", state=state, code=code, partial=partial)
         if run["trigger"] == "meeting":
             # ⟨1.5⟩ the meeting books the turn's tokens and queues the next (prompt 11 §1.4)
             await MF.turn_finished(tx, run)

@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 from uuid import UUID
@@ -52,6 +53,7 @@ from hq_api.domain import workspace as WS
 from hq_api.principal import Principal
 from hq_api.schemas import Actor, FileRef, actor
 
+log = logging.getLogger("hq_api.order_report")
 STATES = (
     "received", "planned", "in_progress", "waiting", "blocked", "delivered", "failed", "cancelled",
 )  # fmt: skip
@@ -837,7 +839,11 @@ async def refresh(tx: Tx, ref: str) -> dict[str, Any] | None:
     rep = dict(await tx.one("SELECT * FROM owner.order_reports WHERE id = :id", id=rep["id"]))
     # ⟨1.17⟩ §35.2 the badge, by code; a change streams `session.updated`
     pending = await SE.decisions_pending(tx, [w["id"] for w in works])
-    badge, _ = SE.badge_of(rep, state, works, blockers, decision_pending=pending)
+    # ⟨1.23⟩ §41.3 `moving` only while a run is queued or running; idle too long is `stuck`
+    from hq_api.domain import session_activity as SA
+
+    pulse = await SA.read_pulse(tx, rep, works)
+    badge, _ = SE.badge_of(rep, state, works, blockers, decision_pending=pending, pulse=pulse)
     if badge != rep["badge"]:
         await SE.badge_changed(tx, rep, badge, order)
         rep["badge"] = badge
@@ -1192,9 +1198,17 @@ async def tick(hub: Any) -> dict[str, Any]:
                    ORDER BY o.created_at"""
             )
         ]
+    from hq_api.domain import session_activity as SA
+
     for ref in refs:
         async with hub.db.tx(await hub.companies.ids()) as tx:
             fired = await timers(tx, hub.settings, ref)
+            # ⟨1.23⟩ §41.3 never a silent stall: idle → the holder woken once; still idle → stuck
+            try:
+                async with tx.conn.begin_nested():
+                    fired += await SA.sweep(tx, ref, minutes=hub.settings.session_idle_minutes)
+            except Exception:  # one session's sweep never stops the tick
+                log.exception("session sweep failed", extra={"order": ref})
             await refresh(tx, ref)
         out["orders"] += 1
         if fired:
