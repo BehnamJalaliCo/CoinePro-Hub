@@ -525,9 +525,12 @@ fun HoldingMap(net: NetworkMap?, live: LiveState, frozen: Boolean, onRoads: ((St
                     modifier = Modifier.absoluteOffset(x = x - 30.dp, y = y - SERVER / 2 - 7.dp).width(60.dp),
                 ) { sheet = MapSheet.Server(s.id) }
                 if (s.offline) {
-                    // Outward of the server, above or below it: clear of its company's name and of the spokes.
-                    val oy = if (y < geo.cy) y - SERVER / 2 - 26.dp else y + SERVER / 2 + 6.dp
-                    BreakChip(s, Modifier.absoluteOffset(x = (x - 40.dp).coerceIn(0.dp, w - 80.dp), y = oy.coerceIn(0.dp, h - 20.dp)).width(80.dp)) { sheet = MapSheet.Server(s.id) }
+                    // On the side of the server away from its company's name (below it when the name is above the node, else above),
+                    // and leaning outward, so neither the node, its name nor a spoke runs under the chip.
+                    val nameAbove = (compPos[s.company]?.second ?: geo.cy) < geo.cy - 4.dp
+                    val oy = if (nameAbove) y + SERVER / 2 + 6.dp else y - SERVER / 2 - 26.dp
+                    val ox = if (x >= geo.cx) x - 20.dp else x - 60.dp
+                    BreakChip(s, Modifier.absoluteOffset(x = ox.coerceIn(0.dp, w - 80.dp), y = oy.coerceIn(0.dp, h - 20.dp)).width(80.dp)) { sheet = MapSheet.Server(s.id) }
                 }
             }
         }
