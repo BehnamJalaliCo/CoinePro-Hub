@@ -311,7 +311,7 @@ async def test_the_preview_suggests_collaborators_along_fitting_links_only(
 
 
 # ----------------------------------------------------- the policy (agents) --
-async def test_a_manager_asks_along_an_on_link_only_while_enforcement_is_on(
+async def test_a_manager_asks_anywhere_while_off_and_along_an_on_link_while_enforced(
     client: httpx.AsyncClient,
     owner: dict[str, str],
     su: Any,
@@ -333,11 +333,14 @@ async def test_a_manager_asks_along_an_on_link_only_while_enforcement_is_on(
             json={"company": co, "title": "کمک", "brief": "x", **extra},
         )
 
-    # off (the default): nothing changes, a link or not
+    # off (the default): every company reaches every other (audit 2026-11-08 B4, as linked.read):
+    # a CEO or a manager asks the other company's CEO or a department's manager
     assert await su.fetchval("SELECT links_enforced FROM owner.settings WHERE id = 1") is False
-    assert (await ask(mgr, b)).status_code == 403
+    assert (await ask(mgr, b)).status_code == 201
+    assert (await ask(mgr, c)).status_code == 201
     assert (await ask(ceo, b)).status_code == 201  # CEO to CEO, as ever
-    assert (await ask(ceo, b, department="TECH")).status_code == 403
+    assert (await ask(ceo, b, department="TECH")).status_code == 201
+    assert (await ask(ceo, b, to=f"{b}-TECH-MGR")).status_code == 403  # never a named person
 
     # on: along the link a manager, and a CEO to a department's manager
     await su.execute("UPDATE owner.settings SET links_enforced = true WHERE id = 1")
@@ -367,7 +370,7 @@ async def test_a_manager_asks_along_an_on_link_only_while_enforcement_is_on(
         assert (await ask(back, a)).status_code == 201
     finally:
         await su.execute("UPDATE owner.settings SET links_enforced = false WHERE id = 1")
-    assert (await ask(mgr, b)).status_code == 403  # off again
+    assert (await ask(mgr, c)).status_code == 201  # off again: open again
     # the audit says which requests went along a link
     n = await su.fetchval(
         "SELECT count(*) FROM audit.entries WHERE action = 'work.create' AND summary LIKE '%along a link%'"
