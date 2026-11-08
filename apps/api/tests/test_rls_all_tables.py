@@ -1421,6 +1421,12 @@ async def _fill_p24(su: Any, co: dict[str, Any]) -> None:
     await su.execute(  # ⟨1.17⟩ §35.6 where the owner put the company on his canvas
         "INSERT INTO owner.canvas_nodes (company_id, x, y) VALUES ($1, 0.5, 0.5)", c
     )
+    await su.execute(  # ⟨1.24⟩ §42.2 an employee's live state (derived from its runs)
+        """INSERT INTO core.employee_live (employee_id, company_id, state)
+           SELECT id, company_id, 'idle' FROM core.employees WHERE company_id = $1
+           ORDER BY code LIMIT 1 ON CONFLICT DO NOTHING""",
+        c,
+    )
     server = await su.fetchval(
         """INSERT INTO infra.servers (company_id, origin, name, state)
            VALUES ($1, 'attached', 'ws-1', 'online') RETURNING id""",
