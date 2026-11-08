@@ -27,10 +27,12 @@ internal class V42Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
     private class Co(val code: String, val fa: String, val total: Int, val baseWorking: Int, var spend: Double, val budget: Double, var lastAt: Instant)
 
     private val now0 = HqClock.now()
+    /** The operating companies (the holding is the hub, not a row); today's spend as the treasury fixture's breakdown by company has it
+     *  (the holding's own agents spend the rest of the day's total), each with a daily cap. */
     private val cos = linkedMapOf(
-        "TY" to Co("TY", "تریدیار", 12, 2, 1.12, 1.50, now0.minusSeconds(35)),
-        "FX" to Co("FX", "کوینه‌پرو FX", 9, 2, 1.38, 1.50, now0.minusSeconds(80)),
-        "PC" to Co("PC", "پرو-چارت", 7, 0, 0.44, 1.00, now0.minusSeconds(60 * 47)),
+        "TY" to Co("TY", "تریدیار", 12, 2, 0.26, 0.80, now0.minusSeconds(35)),
+        "FX" to Co("FX", "کوینه‌پرو FX", 9, 2, 0.30, 0.80, now0.minusSeconds(80)),
+        "PC" to Co("PC", "پرو-چارت", 7, 0, 0.07, 0.50, now0.minusSeconds(60 * 47)),
     )
     /** The people the script moves, by code: (company, state). */
     private val people = linkedMapOf(

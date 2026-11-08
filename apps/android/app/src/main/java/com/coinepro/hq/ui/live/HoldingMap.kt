@@ -363,8 +363,11 @@ fun HoldingMap(net: NetworkMap?, live: LiveState, frozen: Boolean, onRoads: ((St
             val s = slotOf[code] ?: continue
             val step = 360.0 / max(1, geo.plan.slots.count { it.ring == s.ring })
             val spread = min(14.0, max(8.0, step * 0.5 / max(1, list.size)))
-            // A lone server sits a little beside its company's angle, so its runner link is not read as the company's own spoke.
-            val angles = serverAngles(s.angle + if (list.size == 1) min(24.0, step * 0.25) else 0.0, list.size, spread)
+            // A lone server sits a little beside its company's angle, so its runner link is not read as the company's own spoke; turned
+            // away from the vertical, so the link passes beside the company's name (above the node in the upper half, below it in the lower).
+            val rad = Math.toRadians(s.angle)
+            val away = if (cos(rad) >= -1e-9) (if (sin(rad) > 1e-9) -1.0 else 1.0) else (if (sin(rad) > 1e-9) 1.0 else -1.0)
+            val angles = serverAngles(s.angle + if (list.size == 1) away * min(24.0, step * 0.25) else 0.0, list.size, spread)
             list.take(angles.size).forEachIndexed { i, sv -> srvPos[sv.id] = polar(geo.cx, geo.cy, geo.rs, angles[i]) }
             if (list.size > angles.size) srvMore[code] = list.size - angles.size
         }
