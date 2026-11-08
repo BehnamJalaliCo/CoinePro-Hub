@@ -17,6 +17,7 @@ import {
 } from '@/lib/alerts';
 import { deviceName } from '@/lib/auth';
 import { alreadyReached, noticeOf, type OrderBrief } from '@/lib/orders';
+import { attention } from '@/lib/live/attention';
 import type { StreamEvent } from '@/lib/stream';
 
 // Alerts on the web (0.6.0; the Android app's AlertCenter): the stream's events and the order tracker's notices become alerts, one at a time
@@ -48,6 +49,9 @@ export function AlertCenter({ feed }: { feed: StreamEvent[] }) {
   const deliver = useCallback(async (a: Alert) => {
     if (visible()) {
       if (a.channel === 'outputs') return;
+      // ⟨1.24⟩ NO-1: an urgent alert is the banner that stays (with its one bell), a card for the seal the toast with the gold hairline.
+      if (a.channel === 'urgent' && a.notificationId) { attention.urgent(a); return; }
+      if (a.channel === 'cartable') { attention.decision(a); return; }
       toast({ tone: a.tone, text: a.channel === 'orders' ? a.text : `${a.title}؛ ${a.text}`, action: a.route ? { label: a.action, run: () => router.push(a.route!) } : undefined });
       return;
     }
@@ -84,7 +88,7 @@ export function AlertCenter({ feed }: { feed: StreamEvent[] }) {
     if (e.type === 'work.created') { void qc.invalidateQueries({ queryKey: ['work', 'orders'] }); return; }
     const n = noticeOf(e, known.current, told.current);
     if (n) { write(TOLD, [...told.current]); await deliver(ofOrder(n)); return; }
-    if (e.type === 'decision.decided' && e.ref) { await closeSystem({ tags: [`decision:${e.ref}`] }); counts.current.delete(`decision:${e.ref}`); return; }
+    if (e.type === 'decision.decided' && e.ref) { await closeSystem({ tags: [`decision:${e.ref}`] }); counts.current.delete(`decision:${e.ref}`); attention.forget(`decision:${e.ref}`); return; }
     if (e.type === 'control.changed') {
       const k = str(e.data.kill_switch) ?? (['engaged', 'released'].includes(str(e.data.state) ?? '') ? str(e.data.state) : null);
       if (!k) return;

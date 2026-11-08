@@ -11,7 +11,8 @@ import { Kbd } from '@/components/ui/primitives';
 import { ApiError } from '@/lib/api/client';
 import { useInbox, useSession } from '@/lib/api/hooks';
 import { ScopeProvider } from '@/lib/scope';
-import { useHoldingStream, type StreamEvent, type StreamState } from '@/lib/stream';
+import { useHoldingStream, type StreamEvent } from '@/lib/stream';
+import { DecisionToasts, KillBand, LiveBeacon, LiveSeed, UrgentBanner } from '@/components/live/shell';
 import { LiveContext } from '@/lib/live';
 import { useTheme } from '@/lib/theme';
 import { cx } from '@/lib/format';
@@ -25,31 +26,25 @@ import { useSessions } from '@/lib/api/v34';
 import { NAV_MOBILE, isActive } from './nav';
 import { ScopeSwitcher, Sidebar } from './sidebar';
 
-function LiveDot({ state }: { state: StreamState }) {
-  const label = state === 'live' ? 'زنده' : state === 'connecting' ? 'در حال اتصال' : 'قطع؛ دوباره وصل میشود';
-  return (
-    <span className={cx('inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[12px] font-semibold', state === 'live' ? 'bg-pos-soft text-pos' : state === 'offline' ? 'bg-warn-soft text-warn' : 'bg-tile text-muted')} title={label}>
-      <span className="size-1.5 rounded-full bg-current" style={state === 'live' ? { animation: 'hq-live 1.4s infinite' } : undefined} />
-      <span className="hidden sm:inline">{label}</span>
-    </span>
-  );
-}
-
 function ThemeToggle() {
   const [t, set] = useTheme();
   const next = t === 'day' ? 'night' : 'day';
   return <IconButton icon={t === 'day' ? 'sleeping' : 'time'} label={next === 'day' ? 'تم روز' : 'تم شب'} onClick={() => set(next)} />;
 }
 
-function TopBar({ onPalette, onBell, onMore, onVoice, stream, urgent }: { onPalette: () => void; onBell: () => void; onMore: () => void; onVoice: () => void; stream: StreamState; urgent: number }) {
+function TopBar({ onPalette, onBell, onMore, onVoice, urgent }: { onPalette: () => void; onBell: () => void; onMore: () => void; onVoice: () => void; urgent: number }) {
   return (
-    <div className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-div bg-page/90 px-4 backdrop-blur-md md:px-6">
+    // ⟨1.24⟩ GL-2: the kill-switch band rides on top of the bar, on every screen.
+    <div className="sticky top-0 z-30">
+    <KillBand />
+    <div className="flex h-16 items-center gap-3 border-b border-div bg-page/90 px-4 backdrop-blur-md md:px-6">
       <Link href="/" className="flex items-center gap-2 lg:hidden" aria-label="ستاد کوینه‌پرو"><Monogram size={26} /><span className="text-[15px] font-semibold">ستاد</span></Link>
       <button type="button" onClick={onPalette} className="hidden h-10 w-[min(360px,40vw)] items-center gap-2.5 rounded-[10px] border border-div bg-tile px-3 text-[13px] text-muted hover:text-sec md:flex" aria-label="جستجو و فرمان">
         <Icon name="search" size={18} /><span className="flex-1 text-right">جستجو یا فرمان…</span><Kbd>Ctrl K</Kbd>
       </button>
       <span className="flex-1" />
-      <LiveDot state={stream} />
+      {/* ⟨1.24⟩ GL-1: live / reconnecting / stale / offline, in words. */}
+      <LiveBeacon compact />
       <IconButton icon="search" label="جستجو" onClick={onPalette} className="md:hidden" />
       {/* ⟨1.14⟩ §32: talking is apart from the golden order button. */}
       <Link href="/talk" aria-label="گفتگو با ستاد" title="گفتگو با ستاد" className="inline-flex h-10 items-center gap-1.5 rounded-[10px] px-2.5 text-[13px] font-semibold text-ink hover:bg-hover"><Icon name="messages" size={20} /><span className="hidden md:inline">گفتگو</span></Link>
@@ -61,6 +56,7 @@ function TopBar({ onPalette, onBell, onMore, onVoice, stream, urgent }: { onPale
       {/* Phones: the theme lives in settings and the palette, so the bar keeps room for voice. */}
       <span className="hidden sm:inline-flex"><ThemeToggle /></span>
       <IconButton icon="more" label="همه‌ی بخش‌ها" onClick={onMore} />
+    </div>
     </div>
   );
 }
@@ -138,9 +134,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="flex min-h-dvh">
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">
-          <TopBar onPalette={() => setPalette(true)} onBell={() => setBell(true)} onMore={() => setMore(true)} onVoice={() => openVoice()} stream={stream} urgent={urgent} />
+          <TopBar onPalette={() => setPalette(true)} onBell={() => setBell(true)} onMore={() => setMore(true)} onVoice={() => openVoice()} urgent={urgent} />
           {/* 0.4.0: a hub restart is one calm line, not an error on every card. */}
           <HubBanner />
+          {/* ⟨1.24⟩ NO-1: what is urgent stays here until the owner has seen it. */}
+          <UrgentBanner />
           <main id="main" className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col gap-6 px-4 pb-28 pt-5 md:px-6 lg:pb-10">{children}</main>
         </div>
       </div>
@@ -152,6 +150,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       <ShellExtras feed={feed} stream={stream} />
       {/* ⟨1.8⟩ §26.3: a destructive command held for the seal on a company server says so at once. */}
       <ServersWatcher />
+      {/* ⟨1.24⟩ K-2 the live store's seed; NO-1 the cards for the seal. */}
+      <LiveSeed />
+      <DecisionToasts />
       <ToolsSheet open={more} onOpenChange={setMore} extra={<ScopeSwitcher />} />
       </VoiceOrderContext.Provider>
       </PulsesProvider>
