@@ -70,7 +70,12 @@ test('an order report: receipt, route, steps, outputs, and each blocker fixed in
     // The clip order: the series is sealed behind the passkey, the publisher hired.
     await page.goto('/s/F-0007');
     await page.getByLabel('گیرها').getByRole('button', { name: 'مُهر سری انتشار' }).click();
-    await expect(page.getByText('سری انتشار مُهر شد؛ انتشار از فردا صبح شروع میشود.')).toBeVisible();
+    // The fix is a system step in the talk; runs of system steps fold into «n رویداد» (the owner's tidy timeline): open them, then read it.
+    const talk = page.getByTestId('talk-scroll');
+    await expect(async () => {
+      for (const fold of await talk.locator('[data-sys-group] > button[aria-expanded="false"]').all()) await fold.click();
+      await expect(talk.getByText('سری انتشار مُهر شد؛ انتشار از فردا صبح شروع میشود.')).toBeVisible({ timeout: 1000 });
+    }).toPass({ timeout: 15_000 });
     await page.getByLabel('گیرها').getByRole('button', { name: 'استخدام مسئول انتشار' }).click();
     await expect(page.getByLabel('گیرها')).toHaveCount(0);
     await expect((await openDetails(page)).getByLabel('خروجی‌ها').getByRole('link')).toHaveCount(3);
