@@ -4227,3 +4227,35 @@ time, the reason and the fix · the session's live work (§41) · the session ba
 (70/90/100 marks, four token kinds) · the live company card · each employee's state by shape and word · the urgent banner and the
 decision toast · the kill-switch band. Reduced motion turns every motion into an instant change; a hidden app draws nothing and,
 on return, applies the state at once («n رویداد در نبودت» past 20).
+
+### 42.5 As built (W12, hub)
+Where the build is more precise than §42.1–§42.3, this list is the contract. Migration 0059.
+- **Money** stays a decimal string of 6 places (§1): `llm.tick` `equiv_usd`, `day.equiv_usd`, `day.budget_usd`; `LiveSummary`
+  `tokens.equiv_usd_today`, `tokens.budget_usd`, `companies[].spend_today_usd`. `pct` is a number (1 decimal).
+- **`holding.flow`:** the envelope's `company` is the holding's code (the map is the holding's); the ends are in `data`, the holding
+  itself is `"hub"`. Labels are built from company names only, never a title or a brief.
+  - `order`: one flow, hub → the holder's company (the first route's); `ref` the F-ref, `root_ref` its root work.
+  - `request` (A → B), `accept` and `deliver` (B → A): `ref` B's work, `root_ref` the root of A's asking work; `accept` on the first
+    acceptance only, `deliver` only when the work is delivered (not a partial output).
+  - `read` (data owner → reader): `linked.read` of another company (any `what`), `knowledge.search` of a named other company, and
+    `files.read` of a file the owner gave the order (from `"hub"`); `ref` the reader's work, its employee code when the run has none.
+  - `playbook`: from the company whose session made it (`"hub"` when none) to the receiver; `root_ref` the work of the session that
+    adapts it, null for `as_is`. `publish`: the line's company → `"outside"`, `ref` the line run.
+- **`network.link`:** `ref` `<server>:<to>:<port>`, envelope company the measuring server's; `error_fa` is mapped from the runner's
+  error (its own words never go out); slow = 300 ms or more (the same line is the hub round trip's tier). A ping row has no port and
+  is not stored, so `port` is never null today.
+- **`employee.state`:** derived in the same transaction after `run.started`, `run.finished`, `activity.changed` and an agent's
+  `server.call` (no writer calls it); what no event says (a card decided, a lock, the day turning) the worker's reconcile finds every
+  30 s. A change inside the 2 s window goes out at its end (the worker's flush, every second) with the latest state. `work_ref` is the
+  work of its running run, else its newest open work; null when `idle` or `done`; `root_ref` is the root work's ref (as `work.*`).
+- **`llm.tick`:** windows aligned to the clock; `calls` counts the calls that finished in the window (they carry the tokens), so a
+  window with only a start ticks with `calls: 0`; `in_flight` and `day` are read from the ledger; the day is the Token Treasury's UTC
+  day (as the router's budgets count it); `day.budget_usd` is the company's daily dollar budget, else null.
+- **`server.state`:** `reason_fa` is null when `reason` is; `prev_state` is the same state when only `via` or the tier changed; an
+  offline server's `since` is its last contact, and its reason counts only links measured since; a netcheck that changes an offline
+  server's reason sends `server.state` again.
+- **`LiveSummary`:** `seq` is null only while the event bus is down. `companies[]` are the operating companies (active or paused),
+  the holding being the hub; `working` = thinking + working; `sessions_open` = open sessions whose first route was that company;
+  `last_event_at` = its newest event among the last 20 000, else null. `servers` counts servers with a runner, not revoked.
+  `tokens.budget_usd` is the holding's daily dollar budget, else null; `urgent_unread` counts the owner-visible urgent notices of the
+  last 7 days not read (as the home's critical list). Eight queries whatever the number of companies.
