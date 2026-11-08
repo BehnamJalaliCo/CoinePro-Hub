@@ -562,7 +562,9 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
     }
 
     private fun activityEvent(s: S, ln: JsonObject, working: Int) = com.coinepro.hq.core.net.StreamEvent(
-        "demo-sa-${++liveSeq}", "session.activity", HqClock.now().toString(), s.holder.third, s.ref,
+        // No company on the demo's lines: the demo's own run script already stirs each company's ring, and the screenshots of the
+        // holding (seeded with the stream's first beats) stay as they were. The session reads its order from the data.
+        "demo-sa-${++liveSeq}", "session.activity", HqClock.now().toString(), null, s.ref,
         jo("order" to s.ref, "line" to ln, "working" to working),
     )
 
