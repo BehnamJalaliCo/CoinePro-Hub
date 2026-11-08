@@ -80,6 +80,8 @@ fun OfficeScreen() {
     val sessionsOn = served(HubFeature.SESSIONS)
     val servicesOn = served(HubFeature.HUB_SERVICES)
     val playbooksOn = served(HubFeature.PLAYBOOKS)
+    // ⟨1.24⟩ §42 the holding live: the pulse, the companies' live cards and the token meter (a hub without `/live/summary` leaves them out).
+    val liveOn = served(HubFeature.LIVE)
     val companies = rememberCompanies()
     val presence = rememberQuery("presence", "presence") { presence() }
     // The older hub: the same office from `/home` and the pending cards.
@@ -97,6 +99,8 @@ fun OfficeScreen() {
                     if (presence.data?.khalvat == true) Pill("خلوت؛ فقط فوری", Tone.LEARN, icon = DivanIcon.KHALVAT)
                     // ⟨1.20⟩ §38.3 the hub's services, one tap from the office.
                     // ⟨1.22⟩ §40 the working groups drawn from sessions, one tap from the office.
+                    // ⟨1.24⟩ HM: the holding's live network map, one tap from the office.
+                    com.coinepro.hq.designsystem.IconBtn(DivanIcon.GLOBE, "شبکه", { nav.go("network") }, tint = c.textSecondary)
                     if (playbooksOn) com.coinepro.hq.designsystem.IconBtn(DivanIcon.DEPARTMENT, "کارگروه‌ها", { nav.go("playbooks") }, tint = c.textSecondary)
                     if (servicesOn) com.coinepro.hq.designsystem.IconBtn(DivanIcon.SERVER, "سرویس‌های هاب", { nav.go("services") }, tint = c.textSecondary)
                 }
@@ -106,10 +110,16 @@ fun OfficeScreen() {
             office == null && (q.error ?: home?.error) != null -> item(key = "error") { ErrorBlock(q.error ?: home?.error, { r.refresh() }) }
             office == null -> item(key = "skeleton") { Column(verticalArrangement = Arrangement.spacedBy(16.dp)) { repeat(3) { Skeleton(Modifier.fillMaxWidth().height(if (it == 1) 300.dp else 140.dp), radius = 16.dp) } } }
             else -> {
+                // ⟨1.24⟩ OF-1: is my holding working, and is anything waiting for me — the first answer on opening the app.
+                if (liveOn) item(key = "pulse") { com.coinepro.hq.ui.live.OfficePulse() }
                 if (office.critical.isNotEmpty()) item(key = "critical") { com.coinepro.hq.ui.v29.CriticalCard(office.critical) }
                 item(key = "command") { CommandBar() }
                 item(key = "sessions") { SessionsCard(office, sessionsOn) }
+                // ⟨1.24⟩ CO-1: every company alive, working, healthy and what it costs today, the busiest first.
+                if (liveOn) item(key = "live-companies") { com.coinepro.hq.ui.live.LiveCompaniesCard() }
                 item(key = "canvas") { CanvasCard(office.canvas, editable = sessionsOn) }
+                // ⟨1.24⟩ MO-1: the holding's real cost, moving as it is spent.
+                if (liveOn) item(key = "tokens") { com.coinepro.hq.ui.live.TokenMeter() }
                 item(key = "approvals") { ApprovalsCard(office.approvals, office.approvalsTotal) }
                 item(key = "money") { MoneyLine(office.money, sessionsOn) }
                 if (office.suggestions.isNotEmpty()) {
