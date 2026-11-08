@@ -234,9 +234,13 @@ async def test_the_advisors_answer_counts_inside_its_steps(
     agents.fake.enqueue(
         "HQ-ADV", *[step(f"تحقیق {i}", done=False) for i in range(cap + 3)], "جمع‌بندی."
     )
+    # the steps are counted here, not the day: what the whole suite spent today stays out of it
+    real = agents.runner.s
+    agents.runner.s = replace(real, agent_daily_token_cap=10**12, company_daily_token_cap=0)
     try:
         assert (await run(agents, run_id))["state"] == "done"
     finally:
+        agents.runner.s = real
         agents.fake.queues["HQ-ADV"].clear()
     assert await su.fetchval("SELECT steps FROM agents.runs WHERE id = $1", run_id) == cap
     caps = [c.max_output_tokens for c in agents.fake.calls[-cap:] if c.actor_ref == "HQ-ADV"]
