@@ -455,6 +455,23 @@ async def _named_company(
             norm = O.normalise(source)
             named = [c for c in O.companies_named(norm, d) if not d["companies"][c].get("holding")]
             named = [c for c in named if c != parent["company"]]
+            if len(named) > 1:
+                # several match (a short name inside a longer one): a code written out wins, then
+                # the one whose matching name is the longest
+                by_code = [c for c in named if O.has(norm, c)]
+                if len(by_code) == 1:
+                    return str(by_code[0])
+
+                def longest(code: str, norm: str = norm) -> int:
+                    c = d["companies"][code]
+                    names = [c.get("name_fa") or "", c.get("name_en") or ""]
+                    return max(
+                        (len(O.normalise(n)) for n in names if n and O.has(norm, n)), default=0
+                    )
+
+                ranked = sorted(named, key=longest, reverse=True)
+                if longest(ranked[0]) > longest(ranked[1]):
+                    return str(ranked[0])
             if len(named) == 1:
                 return str(named[0])
         low = source.lower()

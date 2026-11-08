@@ -423,6 +423,13 @@ async def brief(
     if role is not None:
         tech = await _safe(tx, _technical, company_id, role, tuple(tools or ()), scope or "company")
         if tech is not None:
+            if lean and len(tech.get("servers") or []) > MAP_LIST_MAX:
+                # a lean run (an alert, a watcher) names a few servers; server.map lists them all
+                more = len(tech["servers"]) - MAP_LIST_MAX
+                tech = {
+                    **tech,
+                    "servers": [*tech["servers"][:MAP_LIST_MAX], f"+{more} (server.map)"],
+                }
             out["technical"] = tech
     if lean or not holding_map:
         return out

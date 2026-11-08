@@ -570,11 +570,18 @@ async def test_a_ceo_asks_the_holdings_counsel_through_a_work_item(
             r.json()["work"]["ref"],
         )
         assert assignee == "HQ-LGL"
-        # Only LEGAL: any other department of the holding is still refused.
-        bad = await client.post(
+        # LEGAL and (audit 2026-11-08 B4) AIOPS, the hub's technical hand, are open to every
+        # company; any other department of the holding (the oversight) is still refused.
+        aiops = await client.post(
             "/internal/v1/work",
             headers={**ceo, **idem()},
             json={"company": "HQ", "department": "AIOPS", "title": "x", "brief": "y"},
+        )
+        assert aiops.status_code == 201, aiops.text
+        bad = await client.post(
+            "/internal/v1/work",
+            headers={**ceo, **idem()},
+            json={"company": "HQ", "department": "OVS", "title": "x", "brief": "y"},
         )
         assert bad.status_code == 403
 
