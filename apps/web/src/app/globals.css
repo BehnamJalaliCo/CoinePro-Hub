@@ -187,7 +187,7 @@
 /* M3 ripple «موج»: one ring 1 → 1.5×, once, when a node changed state. */
 .hq-m3 { transform-box: fill-box; transform-origin: center; animation: hq-ring var(--hq-dur-ripple) var(--hq-ease-standard) 1 both; }
 /* M5 work band «نوار کار»: only while a run is queued or running. */
-.hq-m5 { --hq-flow-to: -32; stroke-dasharray: 12 20; animation: hq-flow var(--hq-dur-loop) linear infinite; }
+.hq-m5 { --hq-flow-to: -428; stroke-dasharray: 28 400; animation: hq-flow var(--hq-dur-loop) linear infinite; }
 /* M6 breath «دم»: only while a model call is in flight. */
 .hq-m6 { --hq-breath-low: .55; --hq-breath-scale: 1; animation: hq-breath var(--hq-dur-loop) ease-in-out infinite; }
 /* GL-1: one breath per byte from the hub, at most one every 2 s. */
@@ -207,6 +207,9 @@
 .hq-m12 { transition: width var(--hq-dur-ripple) var(--hq-ease-standard), flex-grow var(--hq-dur-ripple) var(--hq-ease-standard), stroke-dasharray var(--hq-dur-ripple) var(--hq-ease-standard), inset-inline-start var(--hq-dur-ripple) var(--hq-ease-standard), background-color var(--hq-dur-state) var(--hq-ease-standard); }
 /* M13 glint «برق تحریر»: the tahrir under a headline figure, once (gold: the owner's; silver: the agents'). */
 .hq-m13 { animation: hq-glint var(--hq-dur-ripple) var(--hq-ease-standard) 1 both; }
+/* HM-8: a table row whose figures changed tints once. */
+@keyframes hq-tint { from { background-color: var(--hq-soft-gold); } to { background-color: transparent; } }
+.hq-tint { animation: hq-tint var(--hq-dur-ripple) var(--hq-ease-standard) 1; }
 /* GL-2 and the map: a locked company is hatched at 45°. */
 .hq-hatch { background-image: repeating-linear-gradient(45deg, transparent 0 6px, var(--hq-soft-negative) 6px 8px); }
 /* Rule 8: under reduced motion a particle is a 1.5 s tint on its edge (lib/live/particles.ts sets data-tint). */

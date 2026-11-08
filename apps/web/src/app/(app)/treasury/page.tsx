@@ -10,6 +10,7 @@ import { CONN } from '@/components/v18/bits';
 import { RoiCard, WasteCard } from '@/components/v18/treasury';
 import Link from 'next/link';
 import type { Connection } from '@/lib/api/v15';
+import { TokenMeter } from '@/components/live/office';
 import { Bar, Card, ErrorState, PageHeader, Pill, SectionTitle, Segmented, Skeleton, StatTile, budgetTone } from '@/components/ui/primitives';
 import { useBreakdown, useCompanies, useConnections, useTreasury } from '@/lib/api/hooks';
 import { companyColor } from '@/lib/company';
@@ -50,6 +51,8 @@ export default function TreasuryPage() {
   return (
     <>
       <PageHeader eyebrow="مصرف هر فراخوانی، از یک مسیر واحد" title="خزانه‌ی توکن" actions={<div className="w-56"><Segmented label="دوره" value={period} onChange={setPeriod} options={[{ value: 'day', label: 'امروز' }, { value: 'month', label: 'این ماه' }]} /></div>} />
+      {/* ⟨1.24⟩ MO-1: today's spend against the daily budget, moving with every tick of the stream. */}
+      <TokenMeter named className="max-w-3xl" />
       {sum.error ? <ErrorState error={sum.error} onRetry={() => sum.refetch()} /> : null}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {!t ? Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-[104px] rounded-[14px]" />) : (

@@ -95,7 +95,8 @@ export function WorkBand({ on, color = 'var(--hq-silver-ink)', height = 3, class
   return (
     <span className={cx('block w-full overflow-hidden', className)} data-loop="band" aria-hidden={!rm}>
       <svg width="100%" height={height} preserveAspectRatio="none" aria-hidden>
-        <line x1={0} y1={height / 2} x2="100%" y2={height / 2} stroke={color} strokeWidth={height} strokeLinecap="round" className={rm ? undefined : 'hq-m5'} opacity={rm ? 0.5 : 0.9} />
+        {/* Drawn from the start edge (right, RTL) so the band runs the way the owner reads. */}
+        <line x1="100%" y1={height / 2} x2={0} y2={height / 2} stroke={color} strokeWidth={height} strokeLinecap="round" className={rm ? undefined : 'hq-m5'} opacity={rm ? 0.5 : 0.9} />
       </svg>
       {rm ? <span className="sr-only">{label}</span> : null}
     </span>
