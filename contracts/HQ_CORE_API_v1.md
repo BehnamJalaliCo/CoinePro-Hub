@@ -9,6 +9,8 @@
 >
 > **v1.2 (۲۰۲۶-۱۰-۱۷):** ایجنت‌ها سر کار (§۱۶، پرامپت ۵). **v1.3 (۲۰۲۶-۱۰-۱۷):** عکس و فیلم و صوت در پیام‌ها، تبدیل دقیق صدای فارسی به متن، کارگاه کد و فرمان صوتی (§۱۷، پرامپت ۶). **v1.4 (۲۰۲۶-۱۰-۱۷):** تصمیم‌های دور دوم مالک: ناظر کل، مشاور نسخه‌ی ۲، دستیار شخصی، ستاره‌ها، مهارت‌ها، آکادمی، اینترنت کامل و MCP برای ایجنت‌ها، تأسیس شرکت و ساخت سرور، backup ساعتی (§۱۸، پرامپت‌های ۷ تا ۹). **v1.4.1 (۲۰۲۶-۱۰-۱۷):** آنچه پرامپت ۵ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۶.۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_05_1_FIXES.md`. **v1.4.2 (۲۰۲۶-۱۰-۱۷):** استخدام با شروع خود مالک (§۱۸.۱۱). **v1.4.3 (۲۰۲۶-۱۰-۱۷):** مدیرعامل‌ها با اختیار کامل در پاکت بودجه‌ی ماهانه استخدام میکنند و مدل هر کار را خودشان انتخاب میکنند (§۱۸.۱۱)؛ استوری شرکت‌ها (§۱۸.۱۲)؛ ستاره برای مصرف درست بودجه (§۱۸.۴). **v1.4.4 (۲۰۲۶-۱۰-۱۷):** پروتکل‌هایی که قابلیتشان هنوز ساخته نشده `paused` میمانند و نظارت سهم توکن خودش را دارد (§۱۸.۱)؛ ممیزی دوم در `docs/GAP_ANALYSIS_v2.md`. **v1.4.5 (۲۰۲۶-۱۰-۱۸):** آنچه پرامپت ۷ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۳)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_07_1_FIXES.md`. **v1.4.6 (۲۰۲۶-۱۰-۱۹):** نشان و مُهر هر شرکت از PNG خود مالک ساخته میشود و داده است (§۱۸.۱۴، پرامپت ۹.۱). **v1.4.7 (۲۰۲۶-۱۰-۲۲):** آنچه پرامپت ۸ ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۵)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_08_1_FIXES.md`. **v1.4.8 (۲۰۲۶-۱۰-۲۲):** آنچه پرامپت ۹ ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_09_2_FIXES.md`. **v1.6 (۲۰۲۶-۱۰-۲۲):** دپارتمان رسانه و طراحی در هر شرکت با برنامه‌ی انتشار مُهرشده، صدای متن‌باز روی هاب، و مشاور حقوقی هلدینگ با مکاتبه‌ی ایمیلی (§۲۲، پرامپت ۱۳). **v1.5 (۲۰۲۶-۱۰-۱۸):** درآمد و پشتیبانی: رادار درآمد، قیف و نجات رفرال، میز پشتیبانی با حالت آموزش و آزمون سایه، قالب‌ها و قاعده‌های چرخه‌ی عمر، NPS، صندوق بازخورد، نگهبان خروجی (§۱۹، پرامپت ۱۰)؛ حاکمیت: اتاق جلسه، اساسنامه، دانشنامه‌ی چهارلایه، سه کارت و کارت امتیاز، OKR، بازبینی نتیجه‌ی تصمیم، ماتریس اختیار، دفتر ریسک، تقویم تغییرات، مُهر گروهی (§۲۰، پرامپت ۱۱)؛ ابزار مدیریت: مشاور پریمیوم، «از هاب بپرس»، گزارش صوتی، ارزیابی ماهانه، هدررفت، ROI، پیش‌بینی مدیر کل دیجیتال، MCP کانتینری، و ChatGPT و Gemini به‌عنوان «بازیکن ذخیره» (§۲۱، پرامپت ۱۲).
 
+> **v1.24 (۲۰۲۶-۱۱-۰۸):** هلدینگ زنده: یک جریان رویداد برای همه‌ی برنامه، نقشه‌ی شبکه، نبض دفتر، کنتور توکن و حال هر کارمند (§۴۲، W12).
+
 > **v1.12 (۲۰۲۶-۱۱-۰۴):** «خط تولید» (§۳۰، پرامپت ۲۲): موتور عمومی تولید و انتشار محتوا برای هر شرکت و هر پلتفرم، از روی قالب، با مرحله‌های قابل ویرایش، کتابخانه، تقویم، n8n برای مرحله‌های قاعده‌ای، و حالت پیش‌نویس تا خودکار.
 >
 > **v1.13 (۲۰۲۶-۱۱-۰۴):** رشد (§۳۱، پرامپت ۲۲): حلقه‌ی یادگیری خط تولید، شرکت آماده با یک فرمان، خبرنامه‌ی ایمیلی، رصد رتبه‌ی سئو و رقبا، تقویم یکپارچه‌ی کمپین، بودجه‌ی تبلیغات با توقف خودکار، و قاعده‌ی اتوماسیون از یک جمله‌ی مالک.
@@ -4180,3 +4182,48 @@ of a session, made visible and continuous.
   later → the badge is `stuck`, a step and one owner notification say why in plain words (the last refusal, a blocker, an empty
   seat, a sign-in or key the work needs) and what fixes it. `moving` means a run is queued or running now.
 - `POST /orders/{ref}/nudge` (owner; Idempotency-Key) → «ادامه بده»: the holder is woken now with the plan's next task.
+
+## 42. The holding live: one stream the whole app moves with ⟨1.24⟩ (2026-11-08, W12)
+The owner, 2026-11-08: «بهترین و حرفه ای ترین و تخصصی ترین انیمیشنا و استریم هارو … نقشه نشون بده کدوم شرکت به کدوم وصل شد قطع شد
+… همه جای آپ باشه». He approved the 12 P0 views of `design/LIVE_VIEWS.md` (D4-Live). This section is their data; the views, the
+motion grammar (M1–M13) and the map are in that document (§2, §4, §5). Every event follows §7: metadata and plain Persian labels
+only, never a message body, prompt, tool payload, secret, hostname or address; emitted inside the writer's transaction through the
+outbox (`events.emit`). Company codes are data; nothing assumes a number of companies (owner rule 9).
+
+### 42.1 Topics
+- `events.TOPICS`: `orders` = `("order.", "session.")` (`session.updated` of §35.7 and `session.activity` of §41.1 reach the apps);
+  `holding` = `("links.", "holding.")`; `servers` = `("server.", "network.")`. `employee.state` and `llm.tick` route under their
+  existing prefixes (`activity`, `llm`).
+- The holding view (`company=*`) passes in full, besides `activity.changed`: `server.state`, `network.link`, `holding.flow`,
+  `employee.state`, `llm.tick`, `session.updated`, `session.activity`, `control.changed`, `links.updated`. Everything else stays
+  reduced to `{id, type, at, company}`.
+
+### 42.2 New events
+| Event | Topic | `data` | Emitted when |
+|---|---|---|---|
+| `session.activity` (additive to §41.1) | `orders` | `{order, working: n, line: {id, at, who_fa, company, text_fa, kind: start\|step\|end\|wake\|ask\|join\|task\|memory, state: running\|done\|failed, task_n\|null}}`; `line.id` = run id + step n, so a step's end updates its line | each run start, step and end of a work of the order's tree; the holder woken (`wake`); someone joins (`join`); a plan task ticked (`task`) |
+| `holding.flow` | `holding` | `{from, to, kind: order\|request\|accept\|deliver\|read\|playbook\|publish, via: "hub", ref, root_ref\|null, label_fa\|null (≤ 60)}`; `from`/`to` = `"hub"`, a company code, or `"outside"` | an owner order is routed (hub → the holder's company); a cross-company work is created / accepted / delivered back (A → hub → B); an agent reads another company's data for a work; a playbook is given to another company; a line publishes |
+| `network.link` | `servers` | `{from: server, to: "hub"\|server, port\|null, ok, ms\|null, error_fa\|null, since, last_ok_at\|null}` | a measured link (`netcheck`, §26.6) changes `ok` or crosses the slow threshold; at most once per link per minute; every result during an owner's check |
+| `employee.state` | `activity` | `{employee, company, department, state: idle\|thinking\|working\|waiting\|stuck\|done, since, work_ref\|null, root_ref\|null, stuck_fa\|null}` | the §29.14 state changes; at most one per employee per 2 s (`stuck` and `done` at once) |
+| `llm.tick` | `llm` | `{company, window_s: 5, calls, in_flight, tokens: {input, output, cache_read, cache_write, thinking}, equiv_usd, day: {tokens, effective_tokens, equiv_usd, budget_usd\|null, pct\|null}}` | every 5 s for each company that had a call in the window (nothing when idle), built in the worker bridge that already reads the router's call events |
+
+`server.state` (additive): `{prev_state, since, reason: no_poll\|runner_stopped\|server_unreachable\|revoked\|fallback_public\|slow\|null,
+reason_fa, hub_rtt_ms\|null, open_jobs}`; also emitted when `via` changes and when the round-trip tier changes. `reason` is inferred
+by the hub: the runner is silent but another server still reaches that server's ports → `runner_stopped`; nobody reaches it →
+`server_unreachable`; otherwise `no_poll`. A client never infers offline from silence.
+
+### 42.3 `GET /live/summary` (owner)
+→ `LiveSummary {seq, at, people: {working, thinking, waiting, stuck, total}, sessions: {moving, your_turn, stuck, ready},
+approvals, urgent_unread, servers: {online, offline, total}, tokens: {today, effective_today, per_min, equiv_usd_today,
+budget_usd|null}, control: {holding: bool, companies_locked: [code]}, companies: [{code, name_fa, working, total, sessions_open,
+servers_online, servers_total, spend_today_usd, last_event_at|null, state: ok|busy|stuck|locked}]}`. `seq` is the stream's last
+sequence when read, so the client seeds from the summary and resumes the stream exactly after it (`Last-Event-ID`). Missing data is
+`null` (shown «—»), never zero.
+
+### 42.4 Clients (the 12 P0 views)
+Live heartbeat on every screen (live / reconnecting / stale; a frozen view must never look calm) · the network map (hub, companies
+and servers from data; spokes, runner links, company links) with particles per event and a table view · disconnects red with the
+time, the reason and the fix · the session's live work (§41) · the session badge and stall watch · the office pulse · the token meter
+(70/90/100 marks, four token kinds) · the live company card · each employee's state by shape and word · the urgent banner and the
+decision toast · the kill-switch band. Reduced motion turns every motion into an instant change; a hidden app draws nothing and,
+on return, applies the state at once («n رویداد در نبودت» past 20).
