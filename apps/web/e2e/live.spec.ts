@@ -89,3 +89,57 @@ test('the pace is switched in the header, and the plan progress opens the plan i
     await expect(chip.getByRole('radio', { name: 'با من' })).toHaveAttribute('aria-checked', 'true');
   });
 });
+
+// The session page is quiet: system lines fold, outputs are one compact card, blockers are pinned above the composer (never in the talk).
+// The dense demo session (F-0009): nine system steps in three places between real turns, two outputs, two blockers, a long answer.
+test('the dense session: system lines fold into rows that open, outputs are one card, blockers are pinned above the composer', async ({ page }) => {
+  await clean(page, async () => {
+    await page.goto('/s/F-0009');
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('کمپین');
+    const talk = page.getByTestId('talk-scroll');
+    // 1. Runs of system lines between two real turns fold; a lone one stays a line.
+    const groups = talk.locator('[data-sys-group]');
+    await expect(groups).toHaveCount(2);
+    await expect(groups.nth(0)).toHaveAttribute('data-count', '5');
+    await expect(groups.nth(1)).toHaveAttribute('data-count', '3');
+    await expect(groups.nth(0)).toContainText('رویداد');
+    await expect(groups.nth(0)).toContainText(/\d{2}:\d{2}.\d{2}:\d{2}/);
+    await expect(groups.nth(0).locator('[data-step]')).toHaveCount(0);
+    await groups.nth(0).getByRole('button').click();
+    const lines = groups.nth(0).locator('[data-step]');
+    await expect(lines).toHaveCount(5);
+    // Wrapped in full (no ellipsis), the time at the row's end, and no ref anywhere.
+    const long = lines.filter({ hasText: 'کلمه‌های کلیدی' });
+    await expect(long).toBeVisible();
+    expect(await long.locator('span').first().evaluate((el) => getComputedStyle(el).textOverflow)).not.toBe('ellipsis');
+    const box = await long.boundingBox();
+    const time = await long.locator('.fig').last().boundingBox();
+    expect(box && time && time.x - box.x < box.width / 3).toBeTruthy(); // RTL: the end of the row is its left side
+    await groups.nth(0).getByRole('button').first().click();
+    await expect(lines).toHaveCount(0);
+    expect(await talk.locator('[data-step]').count()).toBeGreaterThanOrEqual(1); // the lone line
+    expect((await page.locator('body').innerText()).match(/\b[A-Z]{1,3}-\d{3,}\b/)?.[0] ?? null).toBeNull();
+
+    // 2. Two outputs arrive as one compact card with their titles and «باز کن».
+    const outs = talk.locator('[data-outputs]');
+    await expect(outs).toHaveCount(1);
+    await expect(outs).toHaveAttribute('data-outputs', '2');
+    await expect(outs).toContainText('خروجی تحویل شد');
+    await expect(outs.locator('[data-output]')).toHaveCount(2);
+    await expect(outs).toContainText('ریلز ۱: معرفی ابزار خط روند');
+    await expect(outs.getByRole('link', { name: 'باز کن' })).toHaveCount(2);
+
+    // 3. The blockers are not in the talk: one banner above the composer, the first with its fix; the rest fold.
+    await expect(talk).not.toContainText('سری انتشار مُهر نشده');
+    const banner = page.getByTestId('blockers');
+    await expect(banner).toHaveAttribute('data-count', '2');
+    await expect(banner.locator('[data-blocker]')).toHaveCount(1);
+    await expect(banner.getByRole('button', { name: 'مُهر سری انتشار' })).toBeVisible();
+    await banner.getByRole('button', { name: /گیر دیگر/ }).click();
+    await expect(banner.locator('[data-blocker]')).toHaveCount(2);
+    const b = await banner.boundingBox();
+    const composer = await page.getByLabel('نوشتن', { exact: true }).boundingBox();
+    const tb = await talk.boundingBox();
+    expect(b && composer && tb && b.y >= tb.y + tb.height - 1 && b.y < composer.y).toBeTruthy();
+  });
+});
