@@ -14,7 +14,7 @@ import { ControlRoom, ControlSheets, StateChip, useControlData, useControlUi } f
 import { PriorityTag } from '@/components/v21/priority';
 import { useCompany, useEmployees, useOrgChart, useThreads, useWorkList } from '@/lib/api/hooks';
 import { useDepartments19 } from '@/lib/api/v19';
-import { EmployeeStateChip, StuckLine, ringOf } from '@/components/v29/bits';
+import { EmployeeStateChip, LiveMedal, StuckLine, ringOf } from '@/components/v29/bits';
 import { CompanyConnections } from '@/components/v29/connections';
 import { CompanyReadiness } from '@/components/v29/readiness';
 import { CompanyLines } from '@/components/v30/lines';
@@ -31,13 +31,13 @@ function OrgNode({ n, depth = 0 }: { n: Node; depth?: number }) {
   return (
     <li className="flex flex-col gap-2">
       <Link href={`/employees/${n.code}`} className="flex items-center gap-3 rounded-[12px] p-2 hover:bg-hover">
-        <Avatar kind={n.kind} dept={n.department} state={ringOf(n as { state?: string | null; activity?: string | null })} size={depth === 0 ? 44 : 36} />
+        <LiveMedal code={n.code} e={n as { state?: string | null; activity?: string | null }}>{(st) => <Avatar kind={n.kind} dept={n.department} state={ringOf(st)} size={depth === 0 ? 44 : 36} />}</LiveMedal>
         <div className="flex min-w-0 flex-1 flex-col">
           <span className="truncate text-[14px] font-semibold">{n.display_name ?? n.title_fa}</span>
           <span className="text-[11px] text-muted"><span className="fig">{n.code}</span></span>
         </div>
         {/* ⟨1.11⟩ §29.14: the employee's state on every chip. */}
-        <EmployeeStateChip e={n as { state?: string | null; activity?: string | null }} />
+        <EmployeeStateChip code={n.code} e={n as { state?: string | null; activity?: string | null }} />
       </Link>
       {n.children.length ? (
         <ul className="mr-6 flex flex-col gap-1 border-r border-div pr-3">{n.children.map((c) => <OrgNode key={c.code} n={c} depth={depth + 1} />)}</ul>
@@ -183,9 +183,9 @@ function CompanyInner({ code }: { code: string }) {
                 const stuck = stuckOf(st);
                 return [
                   <tr key={e.code} className="h-[52px] border-t border-div hover:bg-hover">
-                    <td className="px-3"><Link href={`/employees/${e.code}`} className="flex items-center gap-2.5"><Avatar kind={e.kind} dept={e.department} state={ringOf(st)} size={32} /><span className="flex flex-col"><span className="font-semibold">{e.display_name ?? e.title_fa}</span><span className="fig text-[11px] text-muted">{e.code}</span></span></Link></td>
+                    <td className="px-3"><Link href={`/employees/${e.code}`} className="flex items-center gap-2.5"><LiveMedal code={e.code} e={st}>{(x) => <Avatar kind={e.kind} dept={e.department} state={ringOf(x)} size={32} />}</LiveMedal><span className="flex flex-col"><span className="font-semibold">{e.display_name ?? e.title_fa}</span><span className="fig text-[11px] text-muted">{e.code}</span></span></Link></td>
                     <td className="fig px-3 text-sec">{e.department ?? '—'}</td>
-                    <td className="px-3"><EmployeeStateChip e={st} /></td>
+                    <td className="px-3"><EmployeeStateChip code={e.code} e={st} /></td>
                     <td className="fig px-3 text-[12px] text-sec">{e.model ? `${modelLabel(String(e.model.model ?? ''))} · ${e.model.effort ?? ''}` : '—'}</td>
                     <td className="px-3">{e.score.value != null ? e.score.value.toFixed(1).replace('.', '٫') : '—'}</td>
                   </tr>,

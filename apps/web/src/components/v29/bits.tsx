@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/toast';
 import { ApiError } from '@/lib/api/client';
 import { EMPLOYEE_STATE, ORDER_STATE, localFix, stateOf, type EmployeeState, type Fix, type OrderState, type Stuck } from '@/lib/api/v29';
 import { cx } from '@/lib/format';
+import { MedalState, StateGlyph, useLivePerson } from '@/components/live/person';
 import { ConnectionSheet } from './connections';
 import { FaText } from './text';
 
@@ -21,14 +22,27 @@ export function OrderStatePill({ state }: { state: OrderState | string }) {
   return <Pill tone={s.tone} dot={!s.live} live={s.live}>{s.fa}</Pill>;
 }
 
-/** §29.14 on every employee chip: idle, thinking, working, waiting, stuck, done. */
-export function EmployeeStateChip({ e, className }: { e: { state?: string | null; activity?: string | null }; className?: string }) {
-  const st: EmployeeState = stateOf(e);
+/** §29.14 on every employee chip: idle, thinking, working, waiting, stuck, done. ⟨1.24⟩ PE-1: with the employee's [code] it follows the
+ *  stream's `employee.state` live, and the state is a shape as well as a word (never colour alone). */
+export function EmployeeStateChip({ e, code, className }: { e: { state?: string | null; activity?: string | null; activity_at?: string | null }; code?: string; className?: string }) {
+  const live = useLivePerson(code, stateOf(e), e.activity_at ?? null);
+  const st: EmployeeState = live.state ?? stateOf(e);
   const s = EMPLOYEE_STATE[st];
-  return <Pill tone={s.tone} dot={!s.live} live={s.live} className={cx('h-5 text-[11px]', className)}>{s.fa}</Pill>;
+  return (
+    <Pill tone={s.tone} className={cx('h-5 text-[11px]', className)}>
+      <span className="-ms-1 inline-flex" title={live.stuckFa ?? undefined}><StateGlyph state={st} size={12} /></span>
+      <span data-person-word={st}>{s.fa}</span>
+    </Pill>
+  );
 }
 /** The avatar ring that matches the state. */
 export const ringOf = (e: { state?: string | null; activity?: string | null }) => EMPLOYEE_STATE[stateOf(e)].ring;
+/** ⟨1.24⟩ PE-1 on a medal: its ring follows the live state ([children] draws the medal for it) and the state's shape sits in its corner. */
+export function LiveMedal({ code, e, size = 14, children }: { code: string; e: { state?: string | null; activity?: string | null; activity_at?: string | null }; size?: number; children: (st: { state: string }) => ReactNode }) {
+  const live = useLivePerson(code, stateOf(e), e.activity_at ?? null);
+  const st = live.state ?? stateOf(e);
+  return <span className="relative inline-flex flex-none">{children({ state: st })}<MedalState code={code} seed={st} seedAt={e.activity_at ?? null} size={size} /></span>;
+}
 
 /**
  * A fix in one tap. A guide opens here (the write-only secret with it), a card or a switch opens its own page, and anything else is the

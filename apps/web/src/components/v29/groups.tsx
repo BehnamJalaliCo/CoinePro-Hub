@@ -135,7 +135,7 @@ function Seats({ g, list }: { g: Group; list: Membership[] }) {
                       ) : (
                         <Link href={`/employees/${code}`} className="flex flex-col items-start gap-1 hover:text-gold-ink">
                           <span className="text-[12px]">{e?.display_name ?? e?.title_fa ?? s.title_fa}</span>
-                          {e ? <EmployeeStateChip e={e as { state?: string | null; activity?: string | null }} /> : null}
+                          {e ? <EmployeeStateChip code={code} e={e as { state?: string | null; activity?: string | null }} /> : null}
                         </Link>
                       )}
                     </td>
