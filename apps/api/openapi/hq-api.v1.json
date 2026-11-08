@@ -94930,7 +94930,7 @@
     },
     "/api/v1/infra/network": {
       "get": {
-        "description": "Can every server reach the hub and the others (contract §26.1a)? The\nnodes (the hub and every paired server, with its route and round trip\nto the hub) and the latest result of each link a `netcheck` measured:\nfrom a server to the hub (443) and to each other server's private\naddress (22, 443, 80).",
+        "description": "Can every server reach the hub and the others (contract §26.1a)? The\nnodes (the hub and every paired server, with its route and round trip\nto the hub) and the latest result of each link a `netcheck` measured:\nfrom a server to the hub (443) and to each other server's private\naddress (443, 80; SSH between servers is not a path of the work).",
         "operationId": "infra_network",
         "responses": {
           "200": {
