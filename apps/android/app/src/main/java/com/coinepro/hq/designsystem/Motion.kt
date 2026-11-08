@@ -24,9 +24,27 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -268,4 +286,276 @@ fun Modifier.springIn(index: Int): Modifier = composed {
         scaleY = s
         translationY = (1f - v) * 18.dp.toPx()
     }
+}
+
+// ======================================================================================================================================
+// ⟨0.20.0⟩ The live views' motion grammar (design/LIVE_VIEWS.md §2, K-1): M1–M13, built once here and composed by every live view.
+// Every motion maps to exactly one event (or to the real clock); nothing moves at rest; loops live only as long as the process they
+// show. With «remove animations» ([LocalReducedMotion]) every primitive is an instant change, a loop a still glyph and a word, and a
+// particle a tint on its edge with a «×n» chip (Particles.kt). When the app is hidden nothing is drawn ([rememberAppVisible]).
+// ======================================================================================================================================
+
+/** The grammar's durations (ms) and its ceremony curve. */
+object Grammar {
+    /** M1 settle: a new thing arrives (list rows: [SETTLE_ROW]). */
+    const val SETTLE = 320
+    const val SETTLE_ROW = 200
+    /** M2 crossfade: a state, a label or a figure changes (figures never count up). */
+    const val CROSSFADE = 200
+    /** M3 ripple: one ring, once, when a node changes state. */
+    const val RIPPLE = 600
+    /** M4 particle: one event crossing one edge (proposed token `motion.duration.travel`). */
+    const val TRAVEL = 900
+    /** M5 work band and M6 breath: one loop. */
+    const val LOOP = 1600
+    /** M7 arc: one turn. */
+    const val ARC = 1000
+    /** M8 draw: a tick, an edge; a new node or edge is drawn as a small ceremony ([DRAW_NEW]). */
+    const val DRAW = 320
+    const val DRAW_NEW = 480
+    /** M9 break: a link drops (reversed on reconnect). */
+    const val BREAK = 320
+    /** M10 ceremony: the owner acts (an order arrives, a seal). */
+    const val CEREMONY = 480
+    /** M11 reorder, M12 fill, M13 glint. */
+    const val REORDER = 320
+    const val FILL = 600
+    const val GLINT = 600
+    /** Rule 8: in reduced motion a particle becomes a tint on its edge for this long. */
+    const val TINT = 1500
+    /** Rule 4: particles per edge and animating elements per screen. */
+    const val MAX_PER_EDGE = 3
+    const val MAX_ANIMATING = 24
+    /** M1's rise. */
+    val RISE = 6.dp
+    /** The ceremony curve (design/tokens `motion.ceremony`). */
+    val Ceremony: Easing = CubicBezierEasing(0.3f, 0f, 0.1f, 1f)
+    /** A particle through the hub (two legs) eases in and out. */
+    val InOut: Easing = CubicBezierEasing(0.4f, 0f, 0.2f, 1f)
+}
+
+/** Whether the app is on screen: hidden, nothing is drawn and no loop runs (rule 7). */
+@Composable
+fun rememberAppVisible(): Boolean {
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    val state by owner.lifecycle.currentStateFlow.collectAsState()
+    return state.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
+}
+
+// --------------------------------------------------------------- M1 settle --
+/** M1: arrives once — opacity 0 → 1 and 6 dp up into place (320 ms; 200 ms for a list row). Still when animations are removed. */
+fun Modifier.settle(row: Boolean = false): Modifier = composed {
+    if (LocalReducedMotion.current) return@composed this
+    val p = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { p.animateTo(1f, tween(if (row) Grammar.SETTLE_ROW else Grammar.SETTLE, easing = Motion.Standard)) }
+    graphicsLayer {
+        alpha = p.value
+        translationY = (1f - p.value) * Grammar.RISE.toPx()
+    }
+}
+
+// --------------------------------------------------------------- M2 crossfade --
+/** M2: [content] for [target], crossfading (200 ms) when it changes; instant when animations are removed. */
+@Composable
+fun <T> Crossfading(target: T, modifier: Modifier = Modifier, content: @Composable (T) -> Unit) {
+    if (LocalReducedMotion.current) Box(modifier) { content(target) }
+    else androidx.compose.animation.Crossfade(target, modifier, tween(Grammar.CROSSFADE, easing = Motion.Standard), label = "m2", content = content)
+}
+
+/** M2 for a colour (a node's ring, a badge's ink). */
+@Composable
+fun liveColor(target: Color): State<Color> =
+    androidx.compose.animation.animateColorAsState(target, if (LocalReducedMotion.current) snap() else tween(Grammar.CROSSFADE, easing = Motion.Standard), label = "m2-colour")
+
+// --------------------------------------------------------------- M3 ripple --
+/** M3: one ring, 1 → 1.5× its node and .55 → 0, once each time [trigger] changes (not on first showing). Nothing when animations are removed. */
+fun Modifier.rippleOnce(trigger: Any?, color: Color): Modifier = composed {
+    if (LocalReducedMotion.current) return@composed this
+    val p = remember { Animatable(1f) }
+    var first by remember { mutableStateOf(true) }
+    LaunchedEffect(trigger) {
+        if (first) { first = false; return@LaunchedEffect }
+        p.snapTo(0f)
+        p.animateTo(1f, tween(Grammar.RIPPLE, easing = Motion.Standard))
+    }
+    drawBehind {
+        val v = p.value
+        if (v < 1f) drawCircle(color.copy(alpha = 0.55f * (1f - v)), radius = size.minDimension / 2 * (1f + 0.5f * v), style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
+    }
+}
+
+/** M3 as a value for a canvas: 0 → 1 over the ripple each time [trigger] changes (1 at rest: nothing drawn). */
+@Composable
+fun rememberRipple(trigger: Any?): State<Float> {
+    val p = remember { Animatable(1f) }
+    if (LocalReducedMotion.current) return p.asState()
+    var first by remember { mutableStateOf(true) }
+    LaunchedEffect(trigger) {
+        if (first) { first = false; return@LaunchedEffect }
+        p.snapTo(0f)
+        p.animateTo(1f, tween(Grammar.RIPPLE, easing = Motion.Standard))
+    }
+    return p.asState()
+}
+
+// --------------------------------------------------------------- M5 work band --
+/**
+ * M5: a 4 dp band moving (1.6 s loop) only while [on] (a run queued or running); nothing at rest. With animations removed: a still band
+ * and [word] beside it («در حال انجام»).
+ */
+@Composable
+fun WorkBand(on: Boolean, color: Color, modifier: Modifier = Modifier, height: Dp = 4.dp, word: String? = null) {
+    val reduced = LocalReducedMotion.current
+    val visible = rememberAppVisible()
+    if (!on) { Box(modifier.height(height)); return }
+    if (reduced || !visible) {
+        Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Box(Modifier.weight(1f).height(height).clip(RoundedCornerShape(height / 2)).background(color.copy(alpha = 0.45f)))
+            if (word != null) Text(word, style = Divan.type.micro, color = Divan.colors.textMuted)
+        }
+        return
+    }
+    val t = rememberInfiniteTransition(label = "m5").animateFloat(0f, 1f, infiniteRepeatable(tween(Grammar.LOOP, easing = LinearEasing)), label = "m5")
+    Canvas(modifier.fillMaxWidth().height(height).clip(RoundedCornerShape(height / 2))) {
+        val w = size.width
+        val x = -w + 2 * w * t.value
+        drawRect(
+            Brush.horizontalGradient(listOf(Color.Transparent, color.copy(alpha = 0.9f), Color.Transparent), startX = x, endX = x + w),
+        )
+    }
+}
+
+// --------------------------------------------------------------- M6 breath --
+/** M6: opacity .55 ↔ 1 (1.6 s) only while [on] (a model call in flight, the advisor listening); still at 1 when off or removed. */
+fun Modifier.breath(on: Boolean): Modifier = composed {
+    if (!on || LocalReducedMotion.current || !rememberAppVisible()) return@composed this
+    val b = rememberInfiniteTransition(label = "m6").animateFloat(1f, 0.55f, infiniteRepeatable(tween(Grammar.LOOP / 2, easing = Motion.Standard), RepeatMode.Reverse), label = "m6")
+    graphicsLayer { alpha = b.value }
+}
+
+/** One breath (600 ms) each time [trigger] changes, at most one in [minGapMs] (GL-1's dot on a byte from the hub). */
+fun Modifier.beat(trigger: Any?, minGapMs: Long = 2_000): Modifier = composed {
+    if (LocalReducedMotion.current) return@composed this
+    val p = remember { Animatable(1f) }
+    var last by remember { mutableStateOf(0L) }
+    LaunchedEffect(trigger) {
+        val now = android.os.SystemClock.uptimeMillis()
+        if (trigger == null || now - last < minGapMs) return@LaunchedEffect
+        last = now
+        p.snapTo(1f)
+        p.animateTo(0.55f, tween(Grammar.RIPPLE / 2, easing = Motion.Standard))
+        p.animateTo(1f, tween(Grammar.RIPPLE / 2, easing = Motion.Standard))
+    }
+    graphicsLayer { alpha = p.value }
+}
+
+// --------------------------------------------------------------- M7 arc --
+/**
+ * M7: a 12 dp arc turning (1 s a turn) only while [on] (a step or a job runs). With animations removed: a still glyph (a ring with a dot)
+ * and [word] beside it, when given.
+ */
+@Composable
+fun Arc(on: Boolean, color: Color, modifier: Modifier = Modifier, size: Dp = 12.dp, word: String? = "در حال انجام") {
+    if (!on) return
+    val reduced = LocalReducedMotion.current || !rememberAppVisible()
+    if (reduced) {
+        Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Canvas(Modifier.size(size)) {
+                val r = this.size.minDimension / 2 - 1.dp.toPx()
+                drawCircle(color, r, style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
+                drawCircle(color, r * 0.35f)
+            }
+            if (word != null) Text(word, style = Divan.type.micro, color = Divan.colors.textMuted, maxLines = 1)
+        }
+        return
+    }
+    val turn = rememberInfiniteTransition(label = "m7").animateFloat(0f, 360f, infiniteRepeatable(tween(Grammar.ARC, easing = LinearEasing)), label = "m7")
+    Canvas(modifier.size(size).semantics { contentDescription = word ?: "در حال انجام" }) {
+        val st = 1.6.dp.toPx()
+        val r = this.size.minDimension / 2 - st
+        drawArc(
+            color, turn.value, 110f, false, topLeft = Offset(center.x - r, center.y - r), size = androidx.compose.ui.geometry.Size(2 * r, 2 * r),
+            style = androidx.compose.ui.graphics.drawscope.Stroke(st, cap = StrokeCap.Round),
+        )
+    }
+}
+
+// --------------------------------------------------------------- M8 draw --
+/** M8: a tick ([ok]) or a cross drawn in (320 ms) when it first shows; whole at once when animations are removed. */
+@Composable
+fun DrawnMark(ok: Boolean, color: Color, modifier: Modifier = Modifier, size: Dp = 12.dp) {
+    val reduced = LocalReducedMotion.current
+    val p = remember { Animatable(if (reduced) 1f else 0f) }
+    LaunchedEffect(Unit) { if (!reduced) p.animateTo(1f, tween(Grammar.DRAW, easing = Motion.Standard)) }
+    Canvas(modifier.size(size)) {
+        val w = this.size.width
+        val st = androidx.compose.ui.graphics.drawscope.Stroke(width = w * 0.16f, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round)
+        val path = Path().apply {
+            if (ok) { moveTo(w * 0.14f, w * 0.55f); lineTo(w * 0.4f, w * 0.8f); lineTo(w * 0.88f, w * 0.22f) }
+            else { moveTo(w * 0.2f, w * 0.2f); lineTo(w * 0.8f, w * 0.8f); moveTo(w * 0.8f, w * 0.2f); lineTo(w * 0.2f, w * 0.8f) }
+        }
+        if (p.value >= 1f) drawPath(path, color, style = st)
+        else {
+            val m = androidx.compose.ui.graphics.PathMeasure()
+            m.setPath(path, false)
+            val out = Path()
+            m.getSegment(0f, m.length * p.value, out, true)
+            drawPath(out, color, style = st)
+        }
+    }
+}
+
+// --------------------------------------------------------------- M9 break --
+/** M9: how open a broken link's gap is, 0 (whole) → 1 (open), over 320 ms; closing again on reconnect. Instant when removed. */
+@Composable
+fun animateBreak(broken: Boolean): State<Float> =
+    animateFloatAsState(if (broken) 1f else 0f, if (LocalReducedMotion.current) snap() else tween(Grammar.BREAK, easing = Motion.Standard), label = "m9")
+
+// --------------------------------------------------------------- M10 ceremony --
+/** M10: 0 → 1 over 480 ms (the ceremony curve) each time [trigger] changes, 1 at rest; always 1 when animations are removed (the state
+ *  changes, nothing plays). Only the owner's acts. */
+@Composable
+fun rememberCeremony(trigger: Any?): State<Float> {
+    val p = remember { Animatable(1f) }
+    if (LocalReducedMotion.current) return p.asState()
+    var first by remember { mutableStateOf(true) }
+    LaunchedEffect(trigger) {
+        if (first) { first = false; return@LaunchedEffect }
+        p.snapTo(0f)
+        p.animateTo(1f, tween(Grammar.CEREMONY, easing = Grammar.Ceremony))
+    }
+    return p.asState()
+}
+
+// --------------------------------------------------------------- M11 reorder --
+/** M11: the placement spec of a lazy list's item when its order changes (320 ms); none when animations are removed. */
+@Composable
+fun reorderSpec(): FiniteAnimationSpec<androidx.compose.ui.unit.IntOffset>? =
+    if (LocalReducedMotion.current) null else tween(Grammar.REORDER, easing = Motion.Standard)
+
+// --------------------------------------------------------------- M12 fill --
+/** M12: a meter's length following its real value (600 ms); it jumps when animations are removed. */
+@Composable
+fun animateFill(target: Float): State<Float> =
+    animateFloatAsState(target, if (LocalReducedMotion.current) snap() else tween(Grammar.FILL, easing = Motion.Standard), label = "m12")
+
+// --------------------------------------------------------------- M13 glint --
+/**
+ * M13: the tahrir under a headline figure, .3 → 1 → .3 once (600 ms) when [trigger] changes: [gold] when it concerns the owner, silver for
+ * the agents' work. At rest a quiet gold hairline; never when animations are removed (the figure's crossfade carries it).
+ */
+@Composable
+fun Glint(trigger: Any?, gold: Boolean, modifier: Modifier = Modifier) {
+    val c = Divan.colors
+    val p = remember { Animatable(0.3f) }
+    var first by remember { mutableStateOf(true) }
+    val reduced = LocalReducedMotion.current
+    LaunchedEffect(trigger) {
+        if (first || reduced) { first = false; return@LaunchedEffect }
+        p.snapTo(0.3f)
+        p.animateTo(1f, tween(Grammar.GLINT * 2 / 5, easing = Motion.Standard))
+        p.animateTo(0.3f, tween(Grammar.GLINT * 3 / 5, easing = Motion.Standard))
+    }
+    val ink = if (gold) c.goldInk else c.silverInk
+    Box(modifier.fillMaxWidth().height(1.dp).background(if (p.value <= 0.31f) c.lineTahrir else ink.copy(alpha = p.value)))
 }
