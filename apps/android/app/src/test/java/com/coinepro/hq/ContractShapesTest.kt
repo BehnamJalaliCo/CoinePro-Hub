@@ -6,7 +6,11 @@ import com.coinepro.hq.core.net.ApiFailure
 import com.coinepro.hq.core.net.DeliverableQuery
 import com.coinepro.hq.core.net.FailureSink
 import com.coinepro.hq.core.net.TokenSource
+import com.coinepro.hq.core.net.gated
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import org.junit.After
@@ -302,6 +306,106 @@ class ContractShapesTest {
         assertEquals("$[0]", f.field)
         assertTrue(f.detail!!.contains("missing id"))
         assertFalse(f.detail!!.contains("do-not-log"))
+    }
+
+    // ------------------------------------------------------------------ ⟨1.24⟩ §42.3 the live summary --
+    @Test
+    fun theLiveSummaryReadsNullsAsMissingAndMoneyAsDecimalStrings() = runTest {
+        server.enqueue(json(200, """{"seq":40213,"at":"2026-11-08T08:30:00Z",
+            "people":{"working":9,"thinking":4,"waiting":3,"stuck":null,"total":28},
+            "sessions":{"moving":2,"your_turn":1,"stuck":0,"ready":null},"approvals":12,"urgent_unread":null,
+            "servers":{"online":3,"offline":1,"total":4},
+            "tokens":{"today":188100,"effective_today":166000,"per_min":7600,"equiv_usd_today":"2.940000","budget_usd":null},
+            "control":{"holding":false,"companies_locked":["PC"]},
+            "companies":[{"code":"TY","name_fa":"تریدیار","working":4,"total":12,"sessions_open":1,"servers_online":1,"servers_total":1,
+              "spend_today_usd":"1.230000","last_event_at":"2026-11-08T08:29:25Z","state":"busy"},
+              {"code":"PC","name_fa":"پرو-چارت","working":null,"total":7,"sessions_open":0,"servers_online":0,"servers_total":1,
+              "spend_today_usd":"0.440000","last_event_at":null,"state":"locked"}]}"""))
+        val s = api.liveSummary()
+        assertEquals("/api/v1/live/summary", server.takeRequest().url.encodedPath)
+        assertEquals(40213L, s.seq)
+        assertNull("missing is null, never zero", s.people.stuck)
+        assertEquals(1, s.sessions.yourTurn)
+        assertNull(s.urgentUnread)
+        assertEquals(2.94, s.tokens.equivUsdToday!!, 1e-9)
+        assertNull(s.tokens.budgetUsd)
+        assertEquals(listOf("PC"), s.control.companiesLocked)
+        assertEquals(listOf("TY", "PC"), s.companies.map { it.code })
+        assertEquals(1.23, s.companies[0].spendTodayUsd!!, 1e-9)
+        assertEquals(0.44, s.companies[1].spendTodayUsd!!, 1e-9)
+        assertNull(s.companies[1].working)
+        assertNull(s.companies[1].lastEventAt)
+        assertTrue(recorded.isEmpty())
+    }
+
+    /** §42.5: `seq` is null while the event bus is down: the summary still reads (the app seeds and opens the stream without a resume). */
+    @Test
+    fun theLiveSummaryWithTheBusDownHasNoSequence() = runTest {
+        server.enqueue(json(200, """{"seq":null,"at":"2026-11-08T08:30:00Z","people":{"working":0,"thinking":0,"waiting":0,"stuck":0,"total":0},
+            "sessions":{"moving":0,"your_turn":0,"stuck":0,"ready":0},"approvals":0,"urgent_unread":0,"servers":{"online":0,"offline":0,"total":0},
+            "tokens":{"today":0,"effective_today":0,"per_min":0,"equiv_usd_today":"0.000000","budget_usd":"20.000000"},
+            "control":{"holding":false,"companies_locked":[]},"companies":[]}"""))
+        val s = api.liveSummary()
+        assertNull(s.seq)
+        assertEquals(20.0, s.tokens.budgetUsd!!, 1e-9)
+        assertTrue(s.companies.isEmpty())
+        // Seeded without a sequence, nothing is dropped as «already in the seed».
+        val store = com.coinepro.hq.core.data.LiveStore { 0L }
+        store.seed(s)
+        assertTrue(store.on(com.coinepro.hq.core.net.StreamEvent("1", "decision.created", "2026-11-08T08:30:01Z")))
+    }
+
+    /**
+     * §42.5 against the hub's own OpenAPI (`apps/api/openapi/hq-api.v1.json`, schemas `Live…`): every model reads exactly the fields the
+     * hub's schema has, money is a decimal string there, and the route's own example decodes. It runs once the hub's W12 schemas are in
+     * the tree (a tree before them skips it).
+     */
+    @Test
+    fun theLiveModelsMatchTheHubsOpenApi() {
+        val doc = Api.json.parseToJsonElement(java.io.File("../../api/openapi/hq-api.v1.json").readText()).jsonObject
+        val schemas = doc["components"]!!.jsonObject["schemas"]!!.jsonObject
+        org.junit.Assume.assumeTrue("the hub's §42 schemas are in this tree's OpenAPI", "LiveSummary" in schemas)
+        fun snake(s: String) = s.replace(Regex("([A-Z])")) { "_" + it.value.lowercase() }
+        val models = mapOf(
+            "LiveSummary" to com.coinepro.hq.core.net.LiveSummary.serializer().descriptor,
+            "LivePeople" to com.coinepro.hq.core.net.LivePeople.serializer().descriptor,
+            "LiveSessions" to com.coinepro.hq.core.net.LiveSessions.serializer().descriptor,
+            "LiveServers" to com.coinepro.hq.core.net.LiveServers.serializer().descriptor,
+            "LiveTokens" to com.coinepro.hq.core.net.LiveTokens.serializer().descriptor,
+            "LiveControl" to com.coinepro.hq.core.net.LiveControl.serializer().descriptor,
+            "LiveCompany" to com.coinepro.hq.core.net.LiveCompany.serializer().descriptor,
+        )
+        for ((name, d) in models) {
+            val schema = schemas[name]?.jsonObject ?: throw AssertionError("the hub has no $name")
+            val theirs = schema["properties"]!!.jsonObject.keys.sorted()
+            val ours = (0 until d.elementsCount).map { snake(d.getElementName(it)) }.sorted()
+            assertEquals("$name: the app reads every field the hub sends, and no other", theirs, ours)
+        }
+        // Money is a decimal string (§1), never a float; a count is an integer.
+        fun type(schema: String, field: String): String {
+            val p = schemas[schema]!!.jsonObject["properties"]!!.jsonObject[field]!!.jsonObject
+            val t = p["type"] ?: p["anyOf"]!!.jsonArray.first { it.jsonObject["type"]?.jsonPrimitive?.content != "null" }.jsonObject["type"]
+            return t!!.jsonPrimitive.content
+        }
+        for ((s, f) in listOf("LiveTokens" to "equiv_usd_today", "LiveTokens" to "budget_usd", "LiveCompany" to "spend_today_usd")) assertEquals("$s.$f", "string", type(s, f))
+        assertEquals("integer", type("LiveCompany", "working"))
+        assertEquals("integer", type("LiveSummary", "seq"))
+        // The route's example decodes as the app reads it.
+        val example = doc["paths"]!!.jsonObject["/api/v1/live/summary"]!!.jsonObject["get"]!!.jsonObject["responses"]!!.jsonObject["200"]!!
+            .jsonObject["content"]!!.jsonObject["application/json"]!!.jsonObject["example"]!!
+        val s = Api.json.decodeFromJsonElement(com.coinepro.hq.core.net.LiveSummary.serializer(), example)
+        assertEquals(1, s.companies.size)
+        assertEquals(2.41, s.companies.single().spendTodayUsd!!, 1e-9)
+        assertEquals(2.41, s.tokens.budgetUsd!!, 1e-9)
+    }
+
+    @Test
+    fun aHubWithoutTheLiveSummaryIsAGapNotAnError() = runTest {
+        server.enqueue(json(404, """{"detail":"Not Found"}"""))
+        assertNull(api.gated(com.coinepro.hq.core.net.HubFeature.LIVE) { liveSummary() })
+        assertFalse(api.gaps.has(com.coinepro.hq.core.net.HubFeature.LIVE))
+        // The log's entry for the missing route is taken back: the owner never sees an error for it.
+        assertEquals(recorded.map { it.first }, forgotten)
     }
 
     @Test

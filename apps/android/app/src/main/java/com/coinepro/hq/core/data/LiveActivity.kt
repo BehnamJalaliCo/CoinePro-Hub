@@ -54,7 +54,8 @@ class LiveActivity(private val clock: () -> Long = { HqClock.millis() }) {
                     working = if (e.data["activity"].str() == "working") working + employee else working - employee
                 }
             }
-            val readable = FEED.any { e.type.startsWith(it) } && e.type != "run.step"
+            // ⟨1.24⟩ a person's state (up to one every two seconds each) is the live store's, not a line of the company's feed.
+            val readable = FEED.any { e.type.startsWith(it) } && e.type != "run.step" && e.type != "employee.state"
             val recent = if (readable) (listOf(e.copy(at = e.at.ifBlank { HqClock.now().toString() })) + p.recent).distinctBy { "${it.type}|${it.ref}|${it.at}" }.take(MAX) else p.recent
             all + (co to Pulse(runs, working, clock(), recent))
         }

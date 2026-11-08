@@ -5,8 +5,13 @@ import kotlinx.serialization.Serializable
 // Contract §42 ⟨1.24⟩: the holding live, one stream the whole app moves with (design/LIVE_VIEWS.md, the 12 P0 views). The seed
 // `GET /live/summary` and the five new events (`holding.flow`, `network.link`, `employee.state`, `llm.tick`, and `session.activity`'s
 // additive line) plus `server.state`'s additive fields. Same rules as Models.kt: camelCase here, snake_case on the wire; a field the hub
-// omits takes its default. Missing data is null (shown «—»), never zero: every count here is nullable. Money may arrive as a Decimal
-// string or a number ([LenientNumber]).
+// omits takes its default. Missing data is null (shown «—»), never zero: every count here is nullable.
+// §42.5 as built (W12): every dollar is a decimal string of six places (§1: `llm.tick` `equiv_usd`, `day.equiv_usd`, `day.budget_usd`;
+// the summary's `tokens.equiv_usd_today`, `tokens.budget_usd`, `companies[].spend_today_usd`), read by [LenientNumber] (a number too);
+// `pct` is a number. `seq` is null only while the event bus is down (the app seeds and opens the stream without a resume then). A
+// company row is an operating company (the holding is the hub, never a row) and its `working` counts thinking and working. A
+// `holding.flow`'s envelope company is the holding's code; its ends are `data.from` / `data.to`. `server.state.reason_fa` is null
+// when `reason` is. Slow is 300 ms or more; `llm.tick` windows are clock-aligned; «today» is the UTC day.
 
 // ------------------------------------------------------------------ §42.3 the seed --
 @Serializable
@@ -31,7 +36,8 @@ data class LiveTokens(
 @Serializable
 data class LiveControl(val holding: Boolean = false, val companiesLocked: List<String> = emptyList())
 
-/** One company at a glance (any number of them, owner rule 9). `state`: ok · busy · stuck · locked. */
+/** One operating company at a glance (any number of them, owner rule 9; the holding is the hub, not a row). [working]: its people
+ *  thinking or working now. `state`: ok · busy · stuck · locked. */
 @Serializable
 data class LiveCompany(
     val code: String = "",

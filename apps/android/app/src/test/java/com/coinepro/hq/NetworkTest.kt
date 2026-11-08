@@ -76,8 +76,9 @@ class NetworkTest {
     @Test
     fun aRoadIsGreenAmberRedOrGrey() {
         assertEquals(LinkHealth.OK, Network.health(true, 3.0))
-        assertEquals(LinkHealth.OK, Network.health(true, 150.0))
-        assertEquals("slower than 150 ms is amber", LinkHealth.SLOW, Network.health(true, 150.1))
+        // ⟨1.24⟩ §42.5: slow is 300 ms or more (the hub's tier and network.link's line).
+        assertEquals(LinkHealth.OK, Network.health(true, 299.9))
+        assertEquals("300 ms or more is amber", LinkHealth.SLOW, Network.health(true, 300.0))
         assertEquals(LinkHealth.OK, Network.health(true, null))
         assertEquals(LinkHealth.FAIL, Network.health(false, null))
         assertEquals(LinkHealth.FAIL, Network.health(false, 12.0))

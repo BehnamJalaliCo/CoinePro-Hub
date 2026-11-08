@@ -738,8 +738,8 @@ private fun plainA(s: String) = timesFig(s)
 private fun HubSheet(live: LiveState, onDismiss: () -> Unit) {
     val beat = rememberBeat()
     val now = com.coinepro.hq.core.format.HqClock.millis()
-    val today = java.time.LocalDate.ofInstant(java.time.Instant.ofEpochMilli(now), java.time.ZoneId.of("Asia/Tehran"))
-    val orders = live.flows.count { it.kind == "order" && java.time.LocalDate.ofInstant(java.time.Instant.ofEpochMilli(it.at), java.time.ZoneId.of("Asia/Tehran")) == today }
+    val today = java.time.LocalDate.ofInstant(java.time.Instant.ofEpochMilli(now), java.time.ZoneOffset.UTC)
+    val orders = live.flows.count { it.kind == "order" && java.time.LocalDate.ofInstant(java.time.Instant.ofEpochMilli(it.at), java.time.ZoneOffset.UTC) == today }
     val hour = live.flows.count { now - it.at < 3_600_000L }
     com.coinepro.hq.ui.v14.HqSheet(onDismiss, "ستاد · هاب", sub = "هر کار میان شرکت‌ها از هاب میگذرد؛ سرورها با هم مستقیم حرف نمیزنند.") {
         SheetRow("فرمان‌های امروز", plainA(faNum(orders)))

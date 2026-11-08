@@ -424,11 +424,12 @@ fun reduceFlows(s: LiveState, e: StreamEvent, now: Long, quiet: Boolean): LiveSt
     }
     val flows = (s.flows + f).takeLast(LiveRules.FLOWS_MAX)
     var out = s.copy(flows = flows, flowN = f.n)
-    // The table's «flows per hour»: each company the flow touched.
+    // The table's «flows per hour» and the card's last event: each company the flow touched. §42.5: a `holding.flow`'s envelope
+    // company is the holding's own code; its ends are only in `data` (never read from the envelope).
     val hour = flows.filter { now - it.at < 3_600_000L }
     for (code in setOf(f.from, f.to).filter { it != "hub" && it != "outside" && !it.startsWith("srv:") }) {
         val c = out.company(code)
-        out = out.withCompany(c.copy(flowsHour = hour.count { it.from == code || it.to == code }))
+        out = out.withCompany(c.copy(flowsHour = hour.count { it.from == code || it.to == code }, lastEventAt = maxOf(c.lastEventAt ?: 0L, at)))
     }
     return out
 }
@@ -447,9 +448,10 @@ fun reduceControl(s: LiveState, e: StreamEvent): LiveState {
     }
 }
 
-/** CO-1: every event of a company is its «آخرین رویداد». */
+/** CO-1: every event of a company is its «آخرین رویداد» (only the operating companies have a card: §42.5, the holding is the hub). */
 fun reduceLastEvent(s: LiveState, e: StreamEvent, now: Long): LiveState {
-    val co = e.company?.takeIf { it.isNotBlank() && it != "HQ" } ?: return s
+    if (e.type == "holding.flow") return s // its envelope is the holding's; its ends are handled with the flow
+    val co = e.company?.takeIf { it.isNotBlank() } ?: return s
     val c = s.companies[co] ?: return s
     return s.withCompany(c.copy(lastEventAt = maxOf(c.lastEventAt ?: 0L, isoMs(e.at) ?: now)))
 }

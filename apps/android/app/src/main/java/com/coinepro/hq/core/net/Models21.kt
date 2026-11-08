@@ -825,7 +825,7 @@ data class NetworkMap(val at: String? = null, val nodes: List<NetNode> = emptyLi
 
 private fun instantOrMin(s: String?): java.time.Instant = s?.let { runCatching { java.time.Instant.parse(it) }.getOrNull() } ?: java.time.Instant.MIN
 
-/** How a line on the map is drawn: green, amber (slower than [Network.SLOW_MS]), red, or grey when nothing is known. */
+/** How a line on the map is drawn: green, amber (at or past [Network.SLOW_MS]), red, or grey when nothing is known. */
 enum class LinkHealth { OK, SLOW, FAIL, UNKNOWN }
 
 /** The line between the hub and one server: its health, the road (`private`/`public`), the round trip and why it failed. */
@@ -858,8 +858,8 @@ data class CheckProgress(val expected: Set<String>, val reported: Set<String>) {
 }
 
 object Network {
-    /** Slower than this (ms) is amber on the map. */
-    const val SLOW_MS = 150.0
+    /** ⟨1.24⟩ §42.5: this many ms or more is slow (amber on the map), the same line as the hub round trip's tier and `network.link`'s. */
+    const val SLOW_MS = 300.0
     /** A check is followed every few seconds, for at most a minute. */
     const val POLL_MS = 3_000L
     const val MAX_WAIT_MS = 60_000L
@@ -867,7 +867,7 @@ object Network {
     fun health(ok: Boolean?, ms: Double?): LinkHealth = when {
         ok == null -> LinkHealth.UNKNOWN
         !ok -> LinkHealth.FAIL
-        ms != null && ms > SLOW_MS -> LinkHealth.SLOW
+        ms != null && ms >= SLOW_MS -> LinkHealth.SLOW
         else -> LinkHealth.OK
     }
 

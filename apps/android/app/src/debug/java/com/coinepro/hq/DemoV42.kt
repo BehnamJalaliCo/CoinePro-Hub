@@ -86,7 +86,7 @@ internal class V42Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
             })
             put("tokens", buildJsonObject {
                 put("today", today); put("effective_today", effective); put("per_min", 7_600)
-                put("equiv_usd_today", String.format(java.util.Locale.US, "%.2f", usd)); put("budget_usd", String.format(java.util.Locale.US, "%.2f", budget))
+                put("equiv_usd_today", usd6(usd)); put("budget_usd", usd6(budget))
             })
             put("control", buildJsonObject {
                 put("holding", "HQ" in locked)
@@ -99,7 +99,7 @@ internal class V42Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
                     put("working", if (c.code in locked) 0 else working(c.code)); put("total", c.total)
                     put("sessions_open", badges.count { it.second == c.code })
                     put("servers_online", mine.count { it.second }); put("servers_total", mine.size)
-                    put("spend_today_usd", String.format(java.util.Locale.US, "%.2f", c.spend))
+                    put("spend_today_usd", usd6(c.spend))
                     put("last_event_at", c.lastAt.toString())
                     put("state", when {
                         c.code in locked || "HQ" in locked -> "locked"
@@ -162,11 +162,14 @@ internal class V42Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         })
     }
 
-    private fun flow(from: String, to: String, kind: String, ref: String, label: String?): StreamEvent =
-        event(listOf(from, to).firstOrNull { it in cos }, "holding.flow", ref, buildJsonObject {
+    /** §42.5: the envelope is the holding's (its code); the two ends are only in the data. */
+    private fun flow(from: String, to: String, kind: String, ref: String, label: String?): StreamEvent {
+        for (end in listOf(from, to)) cos[end]?.lastAt = HqClock.now()
+        return event(HOLDING, "holding.flow", ref, buildJsonObject {
             put("from", from); put("to", to); put("kind", kind); put("via", "hub"); put("ref", ref); put("root_ref", JsonNull)
             put("label_fa", label?.let(::JsonPrimitive) ?: JsonNull)
         })
+    }
 
     private fun job(server: String, company: String, state: String, summary: String): StreamEvent = event(company, "server.call", server, buildJsonObject {
         put("server", server); put("actor", "$company-TECH-MGR"); put("actor_fa", "مدیر فنی"); put("tool", "server.read"); put("summary_fa", summary)
@@ -183,7 +186,8 @@ internal class V42Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         })
     }
 
-    private fun networkLink(from: String, to: String, port: Int, ok: Boolean, error: String?): StreamEvent = event(null, "network.link", from, buildJsonObject {
+    /** §42.5: ref `<server>:<to>:<port>`, the envelope the measuring server's company. */
+    private fun networkLink(from: String, to: String, port: Int, ok: Boolean, error: String?): StreamEvent = event(servers[from]?.first, "network.link", "$from:$to:$port", buildJsonObject {
         put("from", from); put("to", to); put("port", port); put("ok", ok); put("ms", JsonNull)
         put("error_fa", error?.let(::JsonPrimitive) ?: JsonNull); put("since", HqClock.now().toString()); put("last_ok_at", JsonNull)
     })
@@ -199,10 +203,10 @@ internal class V42Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         return listOf(event(co, "llm.tick", null, buildJsonObject {
             put("company", co); put("window_s", 5); put("calls", calls); put("in_flight", inFlight)
             put("tokens", buildJsonObject { put("input", input); put("output", output); put("cache_read", cacheRead); put("cache_write", cacheWrite); put("thinking", thinking) })
-            put("equiv_usd", String.format(java.util.Locale.US, "%.4f", usd))
+            put("equiv_usd", usd6(usd))
             put("day", buildJsonObject {
                 put("tokens", JsonNull); put("effective_tokens", JsonNull)
-                put("equiv_usd", String.format(java.util.Locale.US, "%.2f", c.spend)); put("budget_usd", String.format(java.util.Locale.US, "%.2f", c.budget))
+                put("equiv_usd", usd6(c.spend)); put("budget_usd", usd6(c.budget))
                 put("pct", Math.round(c.spend / c.budget * 1000) / 10.0)
             })
         }))
@@ -213,5 +217,10 @@ internal class V42Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         const val START = 8
         const val LOOP = 48
         private val BUSY = setOf("working", "thinking")
+        /** The demo holding's own code (a `holding.flow`'s envelope). */
+        private const val HOLDING = "HQ"
+
+        /** §1 and §42.5: a dollar amount as the hub writes it, a decimal string of six places. */
+        private fun usd6(v: Double): String = String.format(java.util.Locale.US, "%.6f", v)
     }
 }

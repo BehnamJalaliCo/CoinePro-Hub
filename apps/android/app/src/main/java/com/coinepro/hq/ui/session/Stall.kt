@@ -55,7 +55,8 @@ fun StallWatch(badge: String, lastStepAt: String?, modifier: Modifier = Modifier
             )
         }
         Text(
-            if (reduced && w.minutes >= 1) "$last · ${idleWatchFa(w)}" else last,
+            // The ring in words while it fills; past both windows the red «آخرین قدم …» says it alone.
+            if (reduced && w.minutes >= 1 && w.window < 2) "$last · ${idleWatchFa(w)}" else last,
             style = Divan.type.micro, color = if (w.window >= 1) ink else c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
     }

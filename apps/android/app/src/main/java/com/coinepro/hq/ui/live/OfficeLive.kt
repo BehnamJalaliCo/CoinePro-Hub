@@ -308,7 +308,7 @@ fun lastFa(at: Long?, now: Long): String = when {
 @Composable
 fun rememberLiveCompanies(live: LiveState): List<CompanyLive> {
     val list = rememberCompanies()
-    val codes = (live.companies.keys + list.filter { it.kind != "holding" && it.status != "archived" }.map { it.code }).distinct().filter { it != "HQ" }
+    val codes = (live.companies.keys + list.filter { it.kind != "holding" && it.status != "archived" }.map { it.code }).distinct().filter { code -> list.none { it.code == code && it.kind == "holding" } }
     val named = codes.map { code -> (live.companies[code] ?: CompanyLive(code)).let { cl -> cl.copy(nameFa = cl.nameFa.ifBlank { list.firstOrNull { it.code == code }?.nameFa ?: code }) } }
     return activityOrder(named.map { it.code }, live.companies).mapNotNull { code -> named.firstOrNull { it.code == code } }
 }

@@ -276,7 +276,7 @@ private fun SummaryCard(s: NetSummary, names: (NetNode) -> ServerName) {
             }
             for (l in s.slow) Issue(c.warning) {
                 Text(buildAnnotatedString { append(names(l.node).text); append(" کند به هاب میرسد · "); fig(Network.ms(l.rttMs) ?: "—") }, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold))
-                Text(buildAnnotatedString { append("بیشتر از "); fig("${Network.SLOW_MS.toInt()} ms"); append("؛ کار میکند ولی هر فرمان دیرتر جواب میدهد.") }, style = Divan.type.caption, color = c.textSecondary)
+                Text(buildAnnotatedString { fig("${Network.SLOW_MS.toInt()} ms"); append(" یا بیشتر؛ کار میکند ولی هر فرمان دیرتر جواب میدهد.") }, style = Divan.type.caption, color = c.textSecondary)
             }
             for (n in s.unknown) Issue(c.textMuted) {
                 Text(buildAnnotatedString { append(names(n).text); append(": runner هنوز تماس نگرفته") }, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold))
