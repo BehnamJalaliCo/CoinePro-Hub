@@ -360,7 +360,10 @@ class HoldingStream(
             // ⟨1.11⟩ §29.16: an order's report changed (its page, the home's orders), before the rest of `order.`.
             "order.report" to arrayOf("order-report", "orders", "home", "sessions", "office"),
             // ⟨1.17⟩ §35.7: a session moved (its badge), on `orders`; the companies' links changed, on `holding`.
-            "session." to arrayOf("sessions", "office", "order-report"),
+            // ⟨1.23⟩ §41.1 a step of a session's work (every run start, step and end): its live panel only, never the lists or the report
+            // (they move on `session.updated` and `order.report`), before the rest of `session.`.
+            "session.activity" to arrayOf("session-activity"),
+            "session." to arrayOf("sessions", "office", "order-report", "session-activity"),
             "links." to arrayOf("links", "office"),
             "order." to arrayOf("orders", "planner", "work"),
             // ⟨1.11⟩ §29.16: the home and its suggestions, a group's routine run, a connection read or changed, a rule's report.
