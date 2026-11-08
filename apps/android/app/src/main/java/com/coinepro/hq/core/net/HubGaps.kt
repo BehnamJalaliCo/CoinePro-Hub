@@ -58,6 +58,9 @@ enum class HubFeature {
     /** ⟨1.23⟩ §41 `GET /orders/{ref}/activity` and `POST /orders/{ref}/nudge`; without them the session's live panel is read from its
      *  report (who it waits for, why it is stuck, when it last moved) and «ادامه بده» is hidden. */
     SESSION_ACTIVITY,
+    /** ⟨1.24⟩ §42.3 `GET /live/summary`; without it the live views start from what the stream says after the app connects (their figures
+     *  read «—» until then) and the stream resumes from its own last event. */
+    LIVE,
 }
 
 /**

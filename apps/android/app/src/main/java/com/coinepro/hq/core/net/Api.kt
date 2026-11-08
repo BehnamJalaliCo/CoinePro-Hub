@@ -1831,6 +1831,10 @@ class Api(
     suspend fun nudgeSession(ref: String, key: String): SessionActivity =
         call(write("POST", "/orders/${seg(ref)}/nudge", JsonObject(emptyMap()), null, key), serializer())
 
+    // ----------------------------------------------- ⟨1.24⟩ §42 the holding live --
+    /** §42.3 the holding right now, and the stream's sequence it was read at (the live views seed from it and resume after [LiveSummary.seq]). */
+    suspend fun liveSummary(): LiveSummary = get("/live/summary")
+
     // ------------------------------------------------------- ⟨1.19⟩ §37 erase --
     // Each erase is shown first (`…/erase/preview`: nothing changes), then sealed with a fresh passkey on the ref (🔏 `session.erase`,
     // `archive.erase`, `output.erase`) and sent with the press's own Idempotency-Key ([key], a UUID kept across a retry of one press).
