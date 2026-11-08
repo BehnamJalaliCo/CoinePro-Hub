@@ -13,7 +13,21 @@ import { useLive } from '@/lib/live';
 const enc = encodeURIComponent;
 
 export type Worker = { who_fa: string; company_fa: string; work_title_fa: string; started_at: string; step: number; doing_fa: string };
-export type ActivityLine = { at: string; who_fa: string; text_fa: string };
+/** ⟨1.24⟩ §42.2 adds `id` (run id + step n: a step's end updates its own line), `kind`, `state` and `task_n`; an older hub sends none. */
+export type ActivityLine = {
+  at: string; who_fa: string; text_fa: string;
+  id?: string | null; company?: string | null; kind?: 'start' | 'step' | 'end' | 'wake' | 'ask' | 'join' | 'task' | 'memory' | null;
+  state?: 'running' | 'done' | 'failed' | null; task_n?: number | null;
+};
+
+/** The lines after one more: a line whose id is known replaces it where it stands (the step ended); a new one goes last. */
+export function foldLine(lines: ActivityLine[], line: ActivityLine): ActivityLine[] {
+  if (line.id) {
+    const i = lines.findIndex((l) => l.id === line.id);
+    if (i >= 0) return lines.map((l, k) => (k === i ? { ...l, ...line, at: l.at } : l));
+  } else if (lines.some((l) => l.at === line.at && l.text_fa === line.text_fa)) return lines;
+  return [...lines, line].slice(-LINES_MAX);
+}
 export type SessionActivity = { working: Worker[]; last: ActivityLine[]; idle_since?: string | null; waiting_fa?: string | null; stuck_fa?: string | null };
 
 /** The hub keeps at most this many lines; so does the panel. */
@@ -42,11 +56,14 @@ export function useSessionActivity(ref: string, on = true) {
       let drift = false;
       qc.setQueryData<SessionActivity | null>(key(ref), (a) => {
         if (!a) return a;
-        if (a.last.some((l) => l.at === line.at && l.text_fa === line.text_fa)) return a;
+        const last = foldLine(a.last, line);
+        if (last === a.last) return a;
         const n = d.working ?? a.working.length;
-        const working = n === 0 ? [] : a.working.map((w) => (w.who_fa === line.who_fa ? { ...w, step: w.step + 1, doing_fa: line.text_fa } : w));
+        // ⟨1.24⟩ A step's end only updates its line; a new step (or a line from an older hub) moves the worker on.
+        const ended = !!line.id && last.length === a.last.length && a.last.some((l) => l.id === line.id);
+        const working = n === 0 ? [] : ended ? a.working : a.working.map((w) => (w.who_fa === line.who_fa ? { ...w, step: w.step + 1, doing_fa: line.text_fa } : w));
         drift = n !== working.length;
-        return { ...a, last: [...a.last, line].slice(-LINES_MAX), working, ...(n === 0 ? { idle_since: line.at } : { idle_since: null, stuck_fa: null }) };
+        return { ...a, last, working, ...(n === 0 ? { idle_since: line.at } : { idle_since: null, stuck_fa: null }) };
       });
       // A worker started or ended that this copy does not know: look again.
       if (drift) void qc.invalidateQueries({ queryKey: key(ref) });

@@ -5,8 +5,10 @@
 // the whole list on a tap; when nothing runs it says why in plain words (waiting for him, stuck with «ادامه بده», or quiet). `PaceChip` is
 // the «با من | خودکار» switch of the header; `PlanProgress` is «کار n از m» with its thin bar.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@/components/icon';
+import { Arc, TickMark, useTick } from '@/components/live/motion';
+import { StateGlyph } from '@/components/live/person';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
@@ -37,18 +39,71 @@ export function elapsed(from: string, now: number): string {
   return `${m}:${String(s % 60).padStart(2, '0')}`;
 }
 
+/** ⟨1.24⟩ SE-1: a line's mark. Running: the arc turns (M7) and its seconds count; done: the tick draws (M8); failed: a cross, the line's
+ *  words say why. A line from a hub before §42 carries no state and no mark. */
+function LineMark({ l, now, draw }: { l: ActivityLine; now: number; draw: boolean }) {
+  if (l.state === 'running') {
+    return (
+      <span className="inline-flex flex-none items-center gap-1" data-mark="running">
+        <Arc size={13} />
+        <span className="fig text-[11px] text-muted" data-line-secs>{Math.max(0, Math.round((now - Date.parse(l.at)) / 1000))}s</span>
+      </span>
+    );
+  }
+  if (l.state === 'done' || l.state === 'failed') return <TickMark size={13} failed={l.state === 'failed'} draw={draw} />;
+  return null;
+}
+
+const lineKey = (l: ActivityLine, i: number) => l.id ?? `${l.at}-${i}`;
+
 function Lines({ lines, all }: { lines: ActivityLine[]; all: boolean }) {
   const shown = all ? lines : lines.slice(-SHOWN);
+  const running = shown.some((l) => l.state === 'running');
+  const now = useTick(1000, running);
+  const box = useRef<HTMLUListElement | null>(null);
+  const times = useRef<number[]>([]);
+  const atBottom = useRef(true);
+  const [seenKey, setSeenKey] = useState<string | null>(null);
+  // Armed a moment after the panel opens: lines already there do not draw their ticks at once (nothing moves at rest).
+  const [armed, setArmed] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setArmed(true), 400); return () => clearTimeout(t); }, []);
+  const last = shown.at(-1);
+  const lastKey = last ? lineKey(last, shown.length - 1) : '';
+  // More than five lines a second are appended without motion; the open list follows the newest only while the owner is at its bottom.
+  useEffect(() => {
+    const el = box.current;
+    if (!el || !lastKey) return;
+    const t = performance.now();
+    times.current = [...times.current.filter((x) => t - x < 1000), t];
+    if (times.current.length > 5) el.setAttribute('data-burst', ''); else el.removeAttribute('data-burst');
+    if (all && atBottom.current) el.scrollTop = el.scrollHeight;
+  }, [lastKey, all]);
   if (!shown.length) return null;
+  const seenAt = seenKey ? shown.findIndex((l, i) => lineKey(l, i) === seenKey) : -1;
+  const unseen = all && seenKey && seenAt >= 0 ? shown.length - 1 - seenAt : 0;
+  const onScroll = () => {
+    const el = box.current;
+    if (!el) return;
+    atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
+    setSeenKey(atBottom.current ? null : (seenKey ?? lastKey));
+  };
   return (
-    <ul className={cx('flex flex-col gap-0.5', all && 'max-h-64 overflow-y-auto overscroll-contain')} aria-label="آخرین قدم‌ها" aria-live="polite" data-lines={shown.length}>
-      {shown.map((l, i) => (
-        <li key={`${l.at}-${i}`} data-line className={cx('flex items-baseline gap-2 text-[12px] leading-6', i === shown.length - 1 ? 'text-ink' : 'text-sec')}>
-          <span className="fig flex-none text-muted">{jTime(l.at)}</span>
-          <span className="min-w-0 flex-1"><span className="text-muted">{l.who_fa}: </span><FaText text={l.text_fa} /></span>
-        </li>
-      ))}
-    </ul>
+    <div className="relative">
+      <ul ref={box} onScroll={all ? onScroll : undefined} className={cx('flex flex-col gap-0.5 [&[data-burst]_.hq-m1-row]:animate-none', all && 'max-h-64 overflow-y-auto overscroll-contain')} aria-label="آخرین قدم‌ها" aria-live="polite" data-lines={shown.length}>
+        {shown.map((l, i) => (
+          <li key={lineKey(l, i)} data-line data-state={l.state ?? undefined} className={cx('flex items-baseline gap-2 text-[12px] leading-6', armed && 'hq-m1-row', i === shown.length - 1 ? 'text-ink' : 'text-sec', l.state === 'failed' && 'text-neg')}>
+            <span className="fig flex-none text-muted">{jTime(l.at)}</span>
+            <span className="min-w-0 flex-1"><span className="text-silver-ink">{l.who_fa}: </span><FaText text={l.text_fa} /></span>
+            <span className="flex-none self-center"><LineMark l={l} now={now} draw={armed} /></span>
+          </li>
+        ))}
+      </ul>
+      {unseen > 0 ? (
+        <button type="button" onClick={() => { const el = box.current; if (el) el.scrollTop = el.scrollHeight; }} className="hq-m1 absolute bottom-1 left-1/2 -translate-x-1/2 rounded-full border border-strong bg-raised px-3 text-[12px] leading-6 text-ink">
+          {unseen} خط تازه ↓
+        </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -79,7 +134,8 @@ export function LiveWork({ refId, closed }: { refId: string; closed: boolean }) 
     return (
       <Card as="section" className="flex flex-col gap-2 p-3 ring-1 ring-[var(--hq-lapis)]" aria-label="کار زنده" data-testid="live-work" data-state="working">
         <div className="flex items-center gap-2 text-[13px]">
-          <span aria-hidden className="size-2 flex-none rounded-full bg-lapis" style={{ animation: 'hq-live 1.4s infinite' }} />
+          {/* ⟨1.24⟩ PE-1: working is a ring that turns while the work lasts (shape and word, never colour alone). */}
+          <StateGlyph state="working" size={14} />
           <span className="min-w-0 flex-1 truncate font-semibold text-ink" role="status">
             {w.who_fa} دارد کار میکند · قدم {w.step}
             {a.working.length > 1 ? <span className="font-normal text-sec"> · و {a.working.length - 1} نفر دیگر</span> : null}

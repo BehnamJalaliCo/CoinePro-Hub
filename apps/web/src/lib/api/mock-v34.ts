@@ -97,38 +97,50 @@ function seed() {
 seed();
 
 // -------------------------------------------------------------------------------------- ⟨1.23⟩ §41 live activity
-type Line41 = { at: string; who_fa: string; text_fa: string };
+type Line41 = { at: string; who_fa: string; text_fa: string; id?: string; company?: string | null; kind?: string; state?: 'running' | 'done' | 'failed'; task_n?: number | null };
 type Work41 = { who_fa: string; company_fa: string; work_title_fa: string; started_at: string; step: number; doing_fa: string };
 type Act41 = { working: Work41[]; last: Line41[]; idle_since: string | null; waiting_fa: string | null; stuck_fa: string | null };
 const activity = new Map<string, Act41>();
 let actSeq = 0;
 const SAYS = ['سایت pro-chart.com را خواند', 'از ChatGPT پرسید', 'پیش‌نویس سناریوی ریلز را نوشت', 'صدای گوینده را ساخت', 'تصویر کاور را انتخاب کرد', 'خروجی را برای بازبینی تحویل داد'];
 const ago41 = (sec: number) => new Date(Date.now() - sec * 1000).toISOString();
-/** The activity of a session, made on first look: F-0007 is working (its lines stream with the mock stream), F-0005 is stuck, F-0008 waits for the owner, the rest are quiet. */
+/** The activity of a session, made on first look: F-0007 is working (its lines stream with the mock stream), F-0005 is stuck, F-0008 waits
+ *  for the owner, the rest are quiet. ⟨1.24⟩ §42.2: each line has its id (run + step), kind and state; a working session's last step runs. */
 function actOf(s: S): Act41 {
   let a = activity.get(s.ref);
   if (a) return a;
   const who = s.holder ? `${s.holder.title_fa} ${s.holder.company_fa}` : 'مشاور کل';
-  const lines = (n: number): Line41[] => SAYS.slice(0, n).map((t, i) => ({ at: ago41((n - i) * 40), who_fa: who, text_fa: t }));
-  if (s.ref === 'F-0007') a = { working: [{ who_fa: who, company_fa: s.holder?.company_fa ?? '', work_title_fa: 'ساخت سه ریلز', started_at: ago41(95), step: 3, doing_fa: SAYS[2]! }], last: lines(3), idle_since: null, waiting_fa: null, stuck_fa: null };
+  const co = s.holder?.company ?? null;
+  const lines = (n: number, running = false): Line41[] => SAYS.slice(0, n).map((t, i) => ({
+    id: `run-${s.ref}-${i + 1}`, at: ago41((n - i) * 40), who_fa: who, company: co, text_fa: t, kind: i === 0 ? 'start' : 'step', state: running && i === n - 1 ? 'running' : 'done', task_n: null,
+  }));
+  if (s.ref === 'F-0007') a = { working: [{ who_fa: who, company_fa: s.holder?.company_fa ?? '', work_title_fa: 'ساخت سه ریلز', started_at: ago41(95), step: 3, doing_fa: SAYS[2]! }], last: lines(3, true), idle_since: null, waiting_fa: null, stuck_fa: null };
   else if (s.ref === 'F-0005') a = { working: [], last: lines(2), idle_since: ago41(1500), waiting_fa: null, stuck_fa: 'بودجه‌ی پست سوم تمام شده؛ بودجه را اضافه کن یا بگو ادامه بدهم.' };
   else if (s.ref === 'F-0008') a = { working: [], last: lines(1), idle_since: ago41(300), waiting_fa: 'انتخاب یکی از سه عنوان', stuck_fa: null };
   else a = { working: [], last: s.closed_at ? [] : lines(1), idle_since: ago41(600), waiting_fa: null, stuck_fa: null };
   activity.set(s.ref, a);
   return a;
 }
-/** One tick of the demo's stream: every working session says its next step (`session.activity` {order, line, working}). */
+/** One tick of the demo's stream: every working session ends its running step (the same line, now done) and starts the next
+ *  (`session.activity` {order, line, working}). */
 export function tickActivity(): Array<{ id: string; type: string; at: string; company: string | null; ref: string | null; data: Record<string, unknown> }> {
   const out = [];
   for (const s of sessions.values()) {
     const a = actOf(s);
     const w = a.working[0];
     if (!w || s.closed_at) continue;
+    const co = s.holder?.company ?? null;
+    const open = a.last.findIndex((l) => l.state === 'running');
+    if (open >= 0) {
+      const done: Line41 = { ...a.last[open]!, state: 'done' };
+      a.last = a.last.map((l, i) => (i === open ? done : l));
+      out.push({ id: `d34-${++actSeq}`, type: 'session.activity', at: NOW(), company: co, ref: s.ref, data: { order: s.ref, line: done, working: a.working.length } });
+    }
     w.step += 1;
     w.doing_fa = SAYS[w.step % SAYS.length]!;
-    const line = { at: NOW(), who_fa: w.who_fa, text_fa: w.doing_fa };
+    const line: Line41 = { id: `run-${s.ref}-${w.step}`, at: NOW(), who_fa: w.who_fa, company: co, text_fa: w.doing_fa, kind: 'step', state: 'running', task_n: null };
     a.last = [...a.last, line].slice(-30);
-    out.push({ id: `d34-${++actSeq}`, type: 'session.activity', at: line.at, company: s.holder?.company ?? null, ref: s.ref, data: { order: s.ref, line, working: a.working.length } });
+    out.push({ id: `d34-${++actSeq}`, type: 'session.activity', at: line.at, company: co, ref: s.ref, data: { order: s.ref, line, working: a.working.length } });
   }
   return out;
 }
@@ -369,7 +381,7 @@ export async function handle34(req: Request, p: string, q: URLSearchParams, next
     if (s.closed_at) return problem(409, 'session_closed', 'این جلسه بسته شده است.');
     const a = actOf(s);
     const who = s.holder ? `${s.holder.title_fa} ${s.holder.company_fa}` : 'مشاور کل';
-    const line = { at: NOW(), who_fa: who, text_fa: 'برنامه را از کار بعدی ادامه داد' };
+    const line: Line41 = { id: `wake-${s.ref}-${a.last.length + 1}`, at: NOW(), who_fa: who, company: s.holder?.company ?? null, text_fa: 'برنامه را از کار بعدی ادامه داد', kind: 'wake', state: 'done', task_n: null };
     a.stuck_fa = null; a.waiting_fa = null; a.idle_since = null;
     if (!a.working.length) a.working = [{ who_fa: who, company_fa: s.holder?.company_fa ?? '', work_title_fa: s.tasks.find((t) => t.state !== 'done')?.title_fa ?? 'ادامه‌ی برنامه', started_at: line.at, step: 1, doing_fa: line.text_fa }];
     a.last = [...a.last, line].slice(-30);
