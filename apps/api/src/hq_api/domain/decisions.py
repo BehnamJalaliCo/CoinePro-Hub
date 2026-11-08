@@ -42,9 +42,10 @@ from hq_api.schemas import Actor, Model, actor
 from hq_api.workshop import domain as workshop
 
 log = logging.getLogger("hq_api.decisions")
-# ⟨2026-11-07⟩ a card's «decide» item reads the card and answers: a small budget (a hire decision
-# took ~155 000 tokens before, a third of all use)
-DECIDE_TOKENS = 60_000
+# ⟨2026-11-07⟩ a card's «decide» item reads the card and answers with the lean brief
+# (agents/runner.py: no holding map, no helpers); ⟨2026-11-08⟩ it carries no token budget of its
+# own (the owner: «سقفشو بردار … روشم میزنم عمل نمیکنه»): a decision never stops on budget, the
+# charter's per-run limit alone bounds each run.
 
 KINDS = (
     "hire",
@@ -1352,7 +1353,6 @@ async def propose(
                 "تو، کار اجرا نمیشود."
             ),
             kind="one_off",
-            budget=W.BudgetIn(tokens=DECIDE_TOKENS),
             priority="P1",
             assignee_code=approver,
         )
@@ -1372,7 +1372,6 @@ async def propose(
                 "است؟ تا تصمیم تو، کاری انجام نمیشود."
             ),
             kind="one_off",
-            budget=W.BudgetIn(tokens=DECIDE_TOKENS),
             priority="P2",
             assignee_code=approver,
         )
@@ -1391,7 +1390,6 @@ async def propose(
                 "تصمیم بگیر؛ تا تصمیم تو، خط جلو نمیرود."
             ),
             kind="one_off",
-            budget=W.BudgetIn(tokens=DECIDE_TOKENS),
             priority="P2",
             assignee_code=approver,
         )
@@ -1412,7 +1410,6 @@ async def propose(
                 "برآورد ماهانه و مدل انتخاب‌شده را بسنج (مدل قوی‌تر از نیاز کار، کارایی را کم میکند)."
             ),
             kind="one_off",
-            budget=W.BudgetIn(tokens=DECIDE_TOKENS),
             priority="P2",
             assignee_code=approver,
         )

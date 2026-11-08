@@ -186,6 +186,8 @@ async def fix_order(
             raise ApiError(409, "validation_failed", "no blocker of this order has that fix now",
                            message_fa="این فرمان الان گیری با این رفع ندارد.")  # fmt: skip
         summary = await _apply_fix(ctx, tx, request, body, target, in_tree, later)
+        if body.action == "budget.add" and not body.tokens:
+            await OR._append_steps(tx, rep["id"], [OR._step("مدیر کل", OR.UNCAPPED_FA)])
         await ctx.audit(
             tx,
             company_id=rep["company_id"],
@@ -250,13 +252,15 @@ async def _apply_fix(
             later.append(str(out["decision_ref"]))
         return f"series {target} sealed"
     if body.action == "budget.add":
-        if not body.tokens:
-            raise ApiError(422, "validation_failed", fields={"tokens": "how many tokens to add"},
-                           message_fa="چند واحد مصرف اضافه شود؟ عدد لازم است.")  # fmt: skip
         w = works.get(target or "")
         if w is None or w["status"] not in W.OPEN:
             raise ApiError(409, "validation_failed", "an open work of this order",
                            message_fa="این کار باز نیست که بودجه بگیرد.")  # fmt: skip
+        if not body.tokens:
+            # ⟨2026-11-08⟩ the owner's «بودجه را بیشتر کن» without a figure (the apps send none):
+            # the work's cap is lifted for good and the work goes on
+            await W.uncap(tx, w, ctx.who)
+            return f"budget lifted on {w['ref']}"
         new = await W.add_budget(tx, w, body.tokens, ctx.who)
         return f"+{body.tokens} tokens on {w['ref']} (budget {new})"
     if body.action == "player.auto":

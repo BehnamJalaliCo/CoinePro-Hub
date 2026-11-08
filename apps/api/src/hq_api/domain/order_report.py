@@ -14,9 +14,10 @@ What happens, by code (no model):
   or per output; the outputs are listed as themselves, the holder's plan names who got what);
 - blockers, detected on every change and every few minutes, each with its
   one-tap fix (`no_employee` hire, `hiring_closed` hiring.open, `locked`
-  lock.open, `series_unsealed` series.seal, `budget` budget.add, `player_down`
-  player.auto, `connection_missing` connection.guide; `no_progress` and
-  `talk_loop` have none);
+  lock.open, `series_unsealed` series.seal, `player_down` player.auto,
+  `connection_missing` connection.guide; `no_progress` and `talk_loop` have
+  none; ⟨2026-11-08⟩ `budget` only for a company's month envelope on a hire:
+  an owner's order has no token cap);
 - timers (the worker's tick): 10 minutes without a plan wakes the CEO with a
   small work item; 2 hours without a step the CEO must report; 6 hours the
   owner hears why (one decision-level notification, domain business);
@@ -98,6 +99,7 @@ OUTPUT_WORDS = {
     "post": ("پست", "کاروسل"),
 }
 NUDGE = "فرمان {ref}: "  # the title of the CEO's small work items of an order
+UNCAPPED_FA = "سقف مصرف این کار برداشته شد؛ کار ادامه دارد"  # ⟨2026-11-08⟩ budget.add, no figure
 
 
 # ------------------------------------------------------------------ models --
@@ -629,18 +631,9 @@ async def detect(
         elif c["code"] in CONNECTION_CODES:
             add("connection_missing", "یک اتصال وصل نیست",
                 "کار به حسابی نیاز دارد که هنوز وصل نشده است.", str(c["tool"] or ""))  # fmt: skip
-    # budget: the latest run of an open work stopped on a budget
-    stopped = await tx.all(
-        """SELECT DISTINCT ON (r.work_id) r.work_id, r.error_code, w.ref
-           FROM agents.runs r JOIN work.work w ON w.id = r.work_id
-           WHERE r.work_id = ANY(:ids) AND r.state IN ('done', 'failed', 'refused')
-           ORDER BY r.work_id, r.created_at DESC""",
-        ids=[w["id"] for w in open_works],
-    )
-    for s in stopped:
-        if s["error_code"] in BUDGET_CODES:
-            add("budget", "بودجه‌ی این کار کم است",
-                "کار در میانه ماند چون سقف مصرفش رسید.", s["ref"])  # fmt: skip
+    # ⟨2026-11-08⟩ the owner: «کلا بودجه رو سقفشو بردار»: a work of an owner's order has no token
+    # budget (routes/orders), so no `budget` blocker is raised for it; a run that reached its own
+    # per-run cap delivered what it had and the session's sweep wakes the holder (§41.3)
     # series_unsealed: a media item waits for a series card
     cards = await tx.all(
         """SELECT d.ref, d.payload ->> 'series' AS series FROM cartable.decisions d

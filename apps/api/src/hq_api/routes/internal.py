@@ -567,7 +567,8 @@ async def delegate_work(
             brief=body.brief,
             priority=body.priority,
             due_at=body.due_at,
-            budget=body.budget,
+            # ⟨2026-11-08⟩ under an owner's order nothing is capped (the parent has no budget)
+            budget=None if w.get("budget_tokens") is None else body.budget,
             key_result=body.key_result,
         )
         await _audit_work(
@@ -613,6 +614,15 @@ async def _run_ledger(tx: Tx, actor: str, run_id: str) -> tuple[UsageIn, dict[st
 
 # The urgent cap is per company per (rolling) hour: try again after a while.
 URGENT_RETRY_AFTER_S = 600
+
+
+async def _of_owner_order(ctx: Ctx, work_id: UUID) -> bool:
+    """Whether the work belongs to an owner's order (its report is the holding's row: read across
+    companies, in a transaction of its own)."""
+    from hq_api.domain import order_report as OR
+
+    async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as all_tx:
+        return await OR.order_of_work(all_tx, work_id) is not None
 
 
 async def _request_budget(
@@ -663,6 +673,10 @@ async def _request_budget(
             )
         if left is not None:
             cap = max(0, min(cap, int(left["left"])))
+        elif body.kind != "recurring" and await _of_owner_order(ctx, origin):
+            # ⟨2026-11-08⟩ a request made under an owner's order: no token budget on it either
+            # (the chain bound above still holds two managers from waking each other for ever)
+            return origin, None
     if body.kind == "recurring":  # bounded by its escrow, approved by a decision
         return origin, body.budget
     if cap <= 0:  # nothing left to hand on: no work with a zero budget

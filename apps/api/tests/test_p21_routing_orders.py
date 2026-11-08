@@ -858,15 +858,16 @@ async def test_blockers_and_their_fixes(
     rep = await report(client, h, ref)
     kinds = {b["kind"]: b for b in rep["blockers"]}
     assert rep["state"] == "blocked"
-    assert set(kinds) >= {"hiring_closed", "connection_missing", "budget", "player_down", "locked",
+    assert set(kinds) >= {"hiring_closed", "connection_missing", "player_down", "locked",
                           "no_employee"}  # fmt: skip
+    # ⟨2026-11-08⟩ an owner's order has no token cap: a run that stopped on a budget is no blocker
+    assert "budget" not in kinds
     assert kinds["no_employee"]["fix"] == {
         "action": "hire",
         "label_fa": "استخدام کن",
         "target": f"{co}:motion_designer",
     }
     assert kinds["locked"]["fix"]["target"] == f"company:{co}"
-    assert kinds["budget"]["fix"]["target"] == w["ref"]
     for text in owner_strings(rep):
         clean(text)
 

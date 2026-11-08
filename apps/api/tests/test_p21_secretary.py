@@ -129,7 +129,7 @@ async def test_the_clip_order_goes_to_the_media_director_with_its_collaborator(
     assert (root["company"], root["to"]) == ("IG", "IG-MEDIA-MGR")  # never IG-AIOPS-MGR
     w = await work_of(su, root["work_ref"])
     assert w["dept"] == "MEDIA" and w["mode"] == "single" and w["player"] == "auto"
-    assert w["budget_tokens"] >= D.budget_of("reel", None)
+    assert w["budget_tokens"] is None  # ⟨2026-11-08⟩ an owner's order has no token cap
     assert w["parent_id"] is None and w["created_by_kind"] == "owner"
     # one requested child work per collaborator, in its own company
     ty = next(c for c in children if c["company"] == "TY")
@@ -163,7 +163,7 @@ async def test_an_edited_preview_is_followed_exactly_and_remembered(
     [route] = out["routes"]
     assert route["to"] == f"{co}-GROWTH-MGR"
     w = await work_of(su, route["work_ref"])
-    assert w["dept"] == "GROWTH" and w["budget_tokens"] >= 90_000
+    assert w["dept"] == "GROWTH" and w["budget_tokens"] is None  # the estimate is no cap
     mem = await su.fetchrow(
         "SELECT kind, data, order_ref FROM owner.dispatch_memory WHERE order_ref = $1", out["ref"]
     )

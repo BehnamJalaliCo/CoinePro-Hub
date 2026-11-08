@@ -1015,7 +1015,11 @@ class Runner:
 
     async def _budget_stop(self, rc: RunCtx, work_ref: str) -> None:
         """The work waits (`waiting`, a `budget` blocker in its order) and its
-        company's CEO gets one small work item to add budget (work.budget)."""
+        company's CEO gets one small work item to add budget (work.budget).
+        ⟨2026-11-08⟩ Never for a work of an owner's order (the owner: «همش برای
+        یه کاری باید کار بخوابه»): it has no budget of its own, the run merely
+        reached its per-run cap; the work stays open and the session's sweep
+        wakes its holder (§41.3)."""
         async with await self._tx() as tx:
             w = await tx.first(
                 """SELECT w.id, w.ref, w.status, w.company_id, w.budget_tokens, w.tokens_used,
@@ -1025,6 +1029,8 @@ class Runner:
                 r=work_ref,
             )
             if w is None or w["status"] not in W.OPEN:
+                return
+            if w["budget_tokens"] is None or await OR.order_of_work(tx, w["id"]) is not None:
                 return
             await tx.exec("UPDATE work.work SET status = 'waiting' WHERE id = :id", id=w["id"])
             ceo = await tx.first(
