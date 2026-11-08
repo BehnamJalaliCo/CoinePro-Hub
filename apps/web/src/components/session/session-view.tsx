@@ -26,7 +26,7 @@ import { useCompanies } from '@/lib/api/hooks';
 import { useRoles } from '@/lib/api/v14';
 import { OUTPUT_KIND_FA, useOrderFix, type OutputKind } from '@/lib/api/v29';
 import {
-  BADGE, PACE_FA, PLAYERS, sessionTalk, useOrderSession, useSessionActions, type Pace, type Participant, type SessionReport, type SessionTask,
+  BADGE, PACE_FA, PLAYERS, sessionTalk, useOrderSession, useSessionActions, type Badge, type Pace, type Participant, type SessionReport, type SessionTask,
 } from '@/lib/api/v34';
 import { useConversation } from '@/lib/api/v32';
 import { cx, jDateTime, jTime } from '@/lib/format';
@@ -34,6 +34,8 @@ import { plain } from '@/lib/plain';
 import { FromPlaybook, MakePlaybook, MemoryCard } from '@/components/v40/playbook';
 import { useDraftPlaybook } from '@/lib/api/v40';
 import { LiveWork, PaceChip, PlanProgress } from './live-work';
+import { LiveBadge, SessionBand, StallWatch, useLastStep, useLiveBadge } from '@/components/live/session-pulse';
+import { useSessionActivity } from '@/lib/api/v41';
 import { SysRow } from './system-group';
 import { ConversationPane, Face, playerName, type PaneApi } from './conversation-pane';
 
@@ -42,6 +44,23 @@ const FIXED: Array<{ key: string; fa: string }> = [{ key: 'advisor', fa: 'مشا
 export function BadgePill({ badge }: { badge: keyof typeof BADGE }) {
   const b = BADGE[badge];
   return <Pill tone={b.tone} dot={!b.live} live={b.live}>{b.fa}</Pill>;
+}
+
+/** ⟨1.24⟩ SS-1 in the header: the live badge. */
+function HeaderBadge({ refId, badge, at }: { refId: string; badge: Badge; at?: string | null }) {
+  return <LiveBadge badge={useLiveBadge(refId, badge, at)} />;
+}
+/** ⟨1.24⟩ SS-1 in the header: the stall watch from the activity, the report's steps and the stream, and the work band. */
+function HeaderStall({ refId, badge, at, steps }: { refId: string; badge: Badge; at?: string | null; steps: Array<{ at: string }> }) {
+  const live = useLiveBadge(refId, badge, at);
+  const act = useSessionActivity(refId).data;
+  const last = useLastStep(refId, steps.at(-1)?.at, act?.last.at(-1)?.at);
+  return (
+    <span className="flex min-w-0 flex-col">
+      <StallWatch badge={live} lastAt={last.at} wokeAt={last.wokeAt} />
+      <SessionBand moving={live === 'moving' && !!act?.working.length} />
+    </span>
+  );
 }
 
 export function SessionView({ refId }: { refId: string }) {
@@ -107,7 +126,8 @@ function Session({ refId, r }: { refId: string; r: Full }) {
           {r.text_fa.length > 60 ? <button type="button" aria-expanded={wide} onClick={() => setWide(!wide)} className="flex-none pt-1 text-[12px] text-muted hover:text-ink">{wide ? 'کمتر' : 'بیشتر'}</button> : null}
         </div>
         <div className="flex items-center gap-2">
-          <BadgePill badge={r.session.badge} />
+          {/* ⟨1.24⟩ SS-1: the badge as the stream tells it. */}
+          <HeaderBadge refId={refId} badge={r.session.badge} at={r.updated_at} />
           {r.session.source ? <FromPlaybook refId={r.session.source} /> : null}
           <span className="min-w-0 flex-1 truncate text-[13px] text-sec" title={plain(r.session.reason_fa)}><PlainText text={r.session.reason_fa} /></span>
           {ready ? <Button size="sm" variant="primary" icon="seal" onClick={() => setClosing(true)}>تأیید و بستن</Button> : null}
@@ -117,6 +137,8 @@ function Session({ refId, r }: { refId: string; r: Full }) {
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
           {closed ? null : <PaceChip pace={r.pace ?? 'auto'} onChange={setPace} busy={act.pace.isPending} />}
           <PlanProgress tasks={r.tasks} onOpen={openPlan} />
+          {/* ⟨1.24⟩ SS-1: when the last step was, and the ring toward the hub's idle sweep; the band runs only while it moves. */}
+          {closed ? null : <HeaderStall refId={refId} badge={r.session.badge} at={r.updated_at} steps={r.steps} />}
         </div>
       </header>
 
