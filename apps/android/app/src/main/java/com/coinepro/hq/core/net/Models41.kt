@@ -18,9 +18,22 @@ data class SessionWorker(
     val doingFa: String = "",
 )
 
-/** One line of the work: a run's step in plain Persian («سایت pro-chart.com را خواند»، «از ChatGPT پرسید»), never a tool key or a ref. */
+/**
+ * One line of the work: a run's step in plain Persian («سایت pro-chart.com را خواند»، «از ChatGPT پرسید»), never a tool key or a ref.
+ * ⟨1.24⟩ §42.2 additive: [id] (run id + step n: a step's end updates its own line), [kind] (start · step · end · wake · ask · join · task ·
+ * memory), [state] (running · done · failed), [taskN] (the plan's task a `task` line ticked) and the [company] it happened in.
+ */
 @Serializable
-data class ActivityLine(val at: String = "", val whoFa: String = "", val textFa: String = "")
+data class ActivityLine(
+    val at: String = "",
+    val whoFa: String = "",
+    val textFa: String = "",
+    val id: String? = null,
+    val company: String? = null,
+    val kind: String? = null,
+    val state: String? = null,
+    val taskN: Int? = null,
+)
 
 /**
  * `GET /orders/{ref}/activity` and `POST /orders/{ref}/nudge`: the session's work right now. [last] holds at most 30 lines, newest last.

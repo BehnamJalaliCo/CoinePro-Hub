@@ -308,6 +308,7 @@ fun OrderSessionScreen(ref: String) {
                 o, closed, sessionsOn, pace = paceAsked ?: o.pace,
                 onDetails = { sheet = SessionSheet.DETAILS }, onClose = { sheet = SessionSheet.CLOSE },
                 onPace = { p -> setPace(p) }, onPlan = { sheet = SessionSheet.PLAN },
+                lastStepAt = shown?.last?.lastOrNull()?.at?.ifBlank { null } ?: shown?.idleSince,
             )
             q.error != null -> Box(Modifier.fillMaxWidth().padding(16.dp)) { ErrorBlock(q.error, { q.refresh() }) }
             else -> Skeleton(Modifier.fillMaxWidth().padding(16.dp).height(58.dp), radius = 12.dp)
@@ -505,6 +506,8 @@ internal fun SessionHead(
     pace: String = o.pace,
     onPace: (String) -> Unit = {},
     onPlan: () -> Unit = {},
+    /** ⟨1.24⟩ SS-1: when the work last took a step (the live panel's last line, else the hub's idle time, else the report's update). */
+    lastStepAt: String? = null,
 ) {
     val c = Divan.colors
     val badge = sessionBadge(o)
@@ -512,6 +515,8 @@ internal fun SessionHead(
     val plan = planProgress(o.tasks)
     var open by rememberSaveable(o.ref) { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().background(c.page).padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        // ⟨1.24⟩ SS-1: the work band (M5) runs only while the session is moving (a run queued or running), never at rest.
+        if (!closed) com.coinepro.hq.designsystem.WorkBand(badge == "moving", c.silverInk, Modifier.fillMaxWidth().padding(end = 8.dp), height = 3.dp)
         // ⟨1.22⟩ §40.3 a session opened to adapt a playbook says so, small; a tap opens the playbook.
         o.session?.source?.takeIf { it.isNotBlank() }?.let { com.coinepro.hq.ui.playbook.SourceChip(it, Modifier.padding(top = 4.dp, end = 8.dp)) }
         Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -532,6 +537,8 @@ internal fun SessionHead(
             if (badge == "ready" && !closed && sessionsOn) HqButton("تأیید و بستن", onClose, variant = BtnVariant.PRIMARY, size = BtnSize.SM, icon = DivanIcon.SEAL)
             else if (!closed && sessionsOn) PaceChip(pace, enabled = true, onPace = onPace)
         }
+        // ⟨1.24⟩ SS-1: «آخرین قدم ۷ دقیقه پیش» and the ring toward the hub's ten-minute sweep, while it is moving.
+        if (!closed) StallWatch(badge, lastStepAt ?: o.updatedAt.ifBlank { null })
         plan?.let { p -> PlanProgressRow(p, taskInHand(o.tasks)?.titleFa, onPlan) }
     }
 }

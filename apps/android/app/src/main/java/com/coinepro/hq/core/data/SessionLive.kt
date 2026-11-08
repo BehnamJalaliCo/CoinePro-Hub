@@ -45,12 +45,42 @@ private fun millisOf(iso: String): Long? =
     if (iso.isBlank()) null else runCatching { java.time.OffsetDateTime.parse(iso).toInstant().toEpochMilli() }.getOrNull()
         ?: runCatching { java.time.Instant.parse(iso).toEpochMilli() }.getOrNull()
 
-/** One line's identity: the same step heard on the stream and read again from the hub is one line (its time read as an instant). */
-fun lineKey(l: ActivityLine): String = "${millisOf(l.at) ?: l.at}|${l.whoFa.trim()}|${l.textFa.trim()}"
+/** One line's identity: ⟨1.24⟩ its `id` when the hub gives one (a step's start and its end are one line); else the same step heard on the
+ *  stream and read again from the hub is one line (its time read as an instant). */
+fun lineKey(l: ActivityLine): String =
+    l.id?.takeIf { it.isNotBlank() }?.let { "id:$it" } ?: "${millisOf(l.at) ?: l.at}|${l.whoFa.trim()}|${l.textFa.trim()}"
 
-/** Two lists of lines as one: each line once, in time order (a line without a time after the timed ones), the newest [max] kept. */
-fun mergeLines(a: List<ActivityLine>, b: List<ActivityLine>, max: Int = ACTIVITY_MAX): List<ActivityLine> =
-    (a + b).filter { it.textFa.isNotBlank() }.distinctBy(::lineKey).sortedBy { millisOf(it.at) ?: Long.MAX_VALUE }.takeLast(max)
+/** A step that ended (done or failed) outranks the same step still running, whichever was heard last. */
+private fun finality(l: ActivityLine): Int = if (l.state == "done" || l.state == "failed") 1 else 0
+
+/** Two sightings of one line (same [lineKey]) as one: the more final one's words and state, kept at the earlier time (where it began). */
+private fun sameLine(x: ActivityLine, y: ActivityLine): ActivityLine {
+    val w = if (finality(y) >= finality(x)) y else x
+    val tx = millisOf(x.at)
+    val ty = millisOf(y.at)
+    val at = when {
+        tx == null -> y.at.ifBlank { w.at }
+        ty == null -> x.at
+        tx <= ty -> x.at
+        else -> y.at
+    }
+    return w.copy(at = at)
+}
+
+/** Two lists of lines as one: each line once (⟨1.24⟩ a step's end in place of its start), in time order (a line without a time after the
+ *  timed ones), the newest [max] kept. */
+fun mergeLines(a: List<ActivityLine>, b: List<ActivityLine>, max: Int = ACTIVITY_MAX): List<ActivityLine> {
+    val one = LinkedHashMap<String, ActivityLine>()
+    for (l in a + b) {
+        if (l.textFa.isBlank()) continue
+        val k = lineKey(l)
+        one[k] = one[k]?.let { sameLine(it, l) } ?: l
+    }
+    return one.values.sortedBy { millisOf(it.at) ?: Long.MAX_VALUE }.takeLast(max)
+}
+
+/** ⟨1.24⟩ A line whose step began and has not ended (an older hub sends no state: never running). */
+fun lineRunning(l: ActivityLine): Boolean = l.state == "running"
 
 /**
  * A stream event applied to what the screen holds: its line appended at once; nobody working (`working: 0`) makes the session quiet since
@@ -157,6 +187,35 @@ fun sinceFa(iso: String?, now: Long = HqClock.millis()): String? {
 /** «آرام · آخرین کار ۵ دقیقه پیش» (since the hub's idle time, else the last line's). */
 fun idleFa(a: SessionActivity, now: Long = HqClock.millis()): String =
     (a.idleSince ?: a.last.lastOrNull()?.at)?.let { sinceFa(it, now) }?.let { "آرام · آخرین کار $it" } ?: "آرام"
+
+// ------------------------------------------------------------------ SS-1 the stall watch --
+/** §41.3: a session with no step this long wakes its holder; this long again and it is «گیر کرده». */
+const val SESSION_IDLE_MINUTES = 10
+
+/**
+ * ⟨1.24⟩ SS-1: how long since the last step, against the hub's idle sweep. [window] 0 the first ten minutes (the hub wakes the holder at
+ * its end), 1 the second (the badge turns «گیر کرده» at its end), 2 past both; [fraction] how full the current window's ring is.
+ */
+data class IdleWatch(val minutes: Int, val window: Int, val fraction: Float)
+
+/** The watch for a session whose last step was at [lastStepAt]; null without a time. Whole minutes: the ring moves once a minute. */
+fun idleWatch(lastStepAt: String?, now: Long = HqClock.millis()): IdleWatch? {
+    val t = millisOf(lastStepAt.orEmpty()) ?: return null
+    val m = ((now - t) / 60_000L).coerceAtLeast(0).toInt()
+    val window = (m / SESSION_IDLE_MINUTES).coerceAtMost(2)
+    val inWindow = if (window >= 2) SESSION_IDLE_MINUTES else m % SESSION_IDLE_MINUTES
+    return IdleWatch(m, window, inWindow.toFloat() / SESSION_IDLE_MINUTES)
+}
+
+/** «آخرین قدم ۷ دقیقه پیش» (or «همین الان»). */
+fun lastStepFa(lastStepAt: String?, now: Long = HqClock.millis()): String? = sinceFa(lastStepAt, now)?.let { "آخرین قدم $it" }
+
+/** The ring in words (with animations removed, and for TalkBack): «۷ از ۱۰ دقیقه»; past the first window, «هاب بیدارش کرد · ۳ از ۱۰ دقیقه». */
+fun idleWatchFa(w: IdleWatch): String = when (w.window) {
+    0 -> "${faNum(w.minutes)} از ${faNum(SESSION_IDLE_MINUTES)} دقیقه"
+    1 -> "هاب بیدارش کرد · ${faNum(w.minutes - SESSION_IDLE_MINUTES)} از ${faNum(SESSION_IDLE_MINUTES)} دقیقه"
+    else -> "بیش از ${faNum(2 * SESSION_IDLE_MINUTES)} دقیقه بی‌قدم"
+}
 
 // ------------------------------------------------------------------ the plan --
 /** Where the plan stands: the task in hand ([n], the first in work, else the first not done), of [total] (dropped ones out), [done]. */

@@ -1,6 +1,7 @@
 package com.coinepro.hq.ui.session
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -65,10 +66,22 @@ import com.coinepro.hq.ui.v29.served
 fun rememberSessions(state: String = "open") =
     rememberQuery("sessions:$state", "sessions", "orders", maxAgeMs = 15_000) { gated(HubFeature.SESSIONS) { sessions(state, limit = 100).items } }
 
-/** A session's badge as a pill: «نوبت تو» in gold, «گیر» in red; the moving one breathes. */
+/** A session's badge as a pill: «نوبت تو» in gold, «گیر» in red; the moving one breathes. ⟨1.24⟩ SS-1: a new badge crossfades in (M2),
+ *  and turning to «نوبت تو» glints its gold edge once (M13); instant when animations are removed. */
 @Composable
 fun BadgePill(badge: String, modifier: Modifier = Modifier) {
-    Pill(badgeFa(badge), badgeTone(badge), modifier, dot = badge != "moving", live = badge == "moving")
+    val c = Divan.colors
+    val reduced = com.coinepro.hq.designsystem.LocalReducedMotion.current
+    val glint = remember { androidx.compose.animation.core.Animatable(0f) }
+    var first by remember { mutableStateOf(true) }
+    androidx.compose.runtime.LaunchedEffect(badge) {
+        if (first || reduced || badge != "your_turn") { first = false; return@LaunchedEffect }
+        glint.animateTo(1f, androidx.compose.animation.core.tween(com.coinepro.hq.designsystem.Grammar.GLINT * 2 / 5, easing = com.coinepro.hq.designsystem.Motion.Standard))
+        glint.animateTo(0f, androidx.compose.animation.core.tween(com.coinepro.hq.designsystem.Grammar.GLINT * 3 / 5, easing = com.coinepro.hq.designsystem.Motion.Standard))
+    }
+    com.coinepro.hq.designsystem.Crossfading(badge, modifier.then(if (glint.value > 0f) Modifier.border(1.dp, c.goldInk.copy(alpha = glint.value), CircleShape) else Modifier)) { b ->
+        Pill(badgeFa(b), badgeTone(b), dot = b != "moving", live = b == "moving")
+    }
 }
 
 /** One session in a list: its words, its badge, why, who holds it, how far its plan is. ⟨1.19⟩ With [onErase] (the archive), a long
@@ -95,9 +108,11 @@ fun SessionRow(s: SessionCard, modifier: Modifier = Modifier, onErase: (() -> Un
                 s.holder?.let { h -> listOfNotNull(h.titleFa.ifBlank { null }, h.companyFa?.ifBlank { null }?.takeIf { co -> !h.titleFa.contains(co) }).joinToString("، ") }?.ifBlank { null },
                 s.participants.count { isPlayer(it.key) }.takeIf { it > 0 }?.let { "$it مدل" },
                 s.tasks.total.takeIf { it > 0 }?.let { "${s.tasks.done} از $it کار" },
-                (s.lastAt.ifBlank { s.openedAt }).takeIf { it.isNotBlank() }?.let { ago(it) },
+                // ⟨1.24⟩ SS-1: a moving session says when its last step was on its own line (with the idle ring), below.
+                (s.lastAt.ifBlank { s.openedAt }).takeIf { it.isNotBlank() && s.badge != "moving" }?.let { ago(it) },
             ).joinToString(" · ")
             if (who.isNotBlank()) Text(who, style = Divan.type.micro, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            StallWatch(s.badge, s.lastAt.ifBlank { s.openedAt })
         }
         BadgePill(s.badge)
         // The long press's menu: a popup, it takes no room in the row.

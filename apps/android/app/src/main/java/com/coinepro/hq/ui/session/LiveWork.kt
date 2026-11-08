@@ -96,12 +96,23 @@ private fun rememberNow(ticking: Boolean): Long {
     return now
 }
 
-/** A new line arrives softly (still when animations are removed); [alpha] is its place among the lines (older, fainter). */
+/** ⟨1.24⟩ SE-1: more than five lines in a second arrive without motion (a burst is read, not watched). True while the lines come calmly. */
 @Composable
-private fun Arriving(alpha: Float, content: @Composable () -> Unit) {
-    val reduced = LocalReducedMotion.current
+private fun rememberCalm(keys: List<String>): Boolean {
+    val arrivals = remember { ArrayDeque<Long>() }
+    val known = remember { HashSet<String>() }
+    val now = android.os.SystemClock.uptimeMillis()
+    for (k in keys) if (known.add(k)) arrivals.addLast(now)
+    while (arrivals.isNotEmpty() && now - arrivals.first() > 1_000) arrivals.removeFirst()
+    return arrivals.size <= 5
+}
+
+/** A new line arrives softly (M1, 200 ms; still when animations are removed or in a burst); [alpha] is its place among the lines. */
+@Composable
+private fun Arriving(alpha: Float, calm: Boolean = true, content: @Composable () -> Unit) {
+    val reduced = LocalReducedMotion.current || !calm
     val shown = remember { Animatable(if (reduced) 1f else 0f) }
-    LaunchedEffect(Unit) { if (!reduced) shown.animateTo(1f, androidx.compose.animation.core.tween(Motion.EMPHASISED, easing = Motion.Emphasised)) }
+    LaunchedEffect(Unit) { if (!reduced) shown.animateTo(1f, androidx.compose.animation.core.tween(com.coinepro.hq.designsystem.Grammar.SETTLE_ROW, easing = Motion.Standard)) }
     val a by animateFloatAsState(alpha, motionMedium(), label = "line-age")
     Box(Modifier.graphicsLayer { this.alpha = a * shown.value; translationY = (1f - shown.value) * 6.dp.toPx() }) { content() }
 }
@@ -143,7 +154,7 @@ private fun WorkingPanel(a: SessionActivity, onOpen: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            LiveDot(c.positive, live = true, size = 8.dp)
+            com.coinepro.hq.ui.live.PersonGlyph("working", size = 12.dp)
             Text(
                 workingHeadFa(lead), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
@@ -155,25 +166,46 @@ private fun WorkingPanel(a: SessionActivity, onOpen: () -> Unit) {
             ) { Chevron(open, size = 14.dp, tint = c.textMuted) }
         }
         othersFa(a.working)?.let { Text(it, style = Divan.type.micro, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(end = 8.dp)) }
+        val calm = rememberCalm(a.last.map(::lineKey))
         if (open && lines.isNotEmpty()) Column(Modifier.padding(top = 4.dp, end = 8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            lines.forEachIndexed { i, l -> key(lineKey(l)) { Arriving(ageAlpha(i, lines.size)) { PanelLine(l, lead.whoFa, newest = i == lines.lastIndex) } } }
+            lines.forEachIndexed { i, l -> key(lineKey(l)) { Arriving(ageAlpha(i, lines.size), calm) { PanelLine(l, lead.whoFa, newest = i == lines.lastIndex, now = now) } } }
         } else if (!open && lead.doingFa.isNotBlank()) {
             Text(timesFig(quietLine(lead.doingFa)), style = Divan.type.micro, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(end = 8.dp))
         }
     }
 }
 
-/** One line in the panel: a mark, its words in one line, its clock time. */
+/**
+ * ⟨1.24⟩ SE-1: a line's mark by its state (§42.2 `line.state`): a step in progress carries a turning arc (M7; «در حال انجام» with
+ * animations removed), a step that ended a tick drawn in (M8), one that failed a cross; a hub without the state, the quiet dot as before.
+ */
 @Composable
-private fun PanelLine(l: ActivityLine, lead: String?, newest: Boolean) {
+private fun LineMark(l: ActivityLine, newest: Boolean) {
     val c = Divan.colors
+    when (l.state) {
+        "running" -> com.coinepro.hq.designsystem.Arc(true, c.silverInk, size = 10.dp, word = null)
+        "done" -> com.coinepro.hq.designsystem.DrawnMark(true, c.positive, size = 10.dp)
+        "failed" -> com.coinepro.hq.designsystem.DrawnMark(false, c.negative, size = 10.dp)
+        else -> Box(Modifier.size(10.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(5.dp).clip(CircleShape).background(if (newest) c.positive else c.lineStrong))
+        }
+    }
+}
+
+/** One line in the panel: its mark, its words in one line, its clock time (a step in progress: for how long it has run). */
+@Composable
+private fun PanelLine(l: ActivityLine, lead: String?, newest: Boolean, now: Long = HqClock.millis()) {
+    val c = Divan.colors
+    val reduced = LocalReducedMotion.current
+    val running = com.coinepro.hq.core.data.lineRunning(l)
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(Modifier.size(5.dp).clip(CircleShape).background(if (newest) c.positive else c.lineStrong))
+        LineMark(l, newest)
         Text(
             timesFig(lineFa(l, lead)), style = Divan.type.micro.copy(fontWeight = if (newest) FontWeight.Medium else FontWeight.Normal),
-            color = if (newest) c.textPrimary else c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+            color = if (l.state == "failed") c.negative else if (newest) c.textPrimary else c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
         )
-        if (l.at.isNotBlank()) Text(timesFig(jTime(l.at)), style = Divan.type.micro, color = c.textMuted, maxLines = 1)
+        if (running) Text(listOfNotNull(if (reduced) "در حال انجام" else null, elapsedFa(l.at, now)).joinToString(" · "), style = Divan.type.micro, color = c.textMuted, maxLines = 1)
+        else if (l.at.isNotBlank()) Text(timesFig(jTime(l.at)), style = Divan.type.micro, color = c.textMuted, maxLines = 1)
     }
 }
 
@@ -249,7 +281,11 @@ private fun SheetLine(l: ActivityLine, showWho: Boolean) {
         Text(timesFig(if (l.at.isBlank()) "" else jTime(l.at)), style = Divan.type.micro, color = c.textMuted, maxLines = 1, modifier = Modifier.width(40.dp).padding(top = 2.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             if (showWho) Text(l.whoFa.trim(), style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary, maxLines = 1)
-            Text(timesFig(quietLine(l.textFa)), style = Divan.type.small, color = c.textPrimary)
+            // ⟨1.24⟩ SE-1: a step's state beside its words (in progress, done, failed) once the hub says it.
+            if (l.state != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                LineMark(l, newest = false)
+                Text(timesFig(quietLine(l.textFa)), style = Divan.type.small, color = if (l.state == "failed") c.negative else c.textPrimary, modifier = Modifier.weight(1f))
+            } else Text(timesFig(quietLine(l.textFa)), style = Divan.type.small, color = c.textPrimary)
         }
     }
 }
@@ -262,7 +298,7 @@ private fun WorkerCard(w: SessionWorker, now: Long) {
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.card).padding(12.dp),
         verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Box(Modifier.padding(top = 6.dp)) { LiveDot(c.positive, live = true, size = 8.dp) }
+        Box(Modifier.padding(top = 4.dp)) { com.coinepro.hq.ui.live.PersonGlyph("working", size = 12.dp) }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 listOfNotNull(w.whoFa.trim().ifBlank { "یک همکار" }, w.companyFa?.trim()?.ifBlank { null }?.takeIf { it !in w.whoFa }).joinToString(" · "),
