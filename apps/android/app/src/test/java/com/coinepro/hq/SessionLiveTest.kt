@@ -138,7 +138,7 @@ class SessionLiveTest {
         assertEquals(30, kept.size)
         assertEquals("خط 11", kept.first().textFa)
         assertEquals("خط 40", kept.last().textFa)
-        assertEquals(listOf("خط 37", "خط 38", "خط 39", "خط 40"), recentLines(SessionActivity(last = kept)).map { it.textFa })
+        assertEquals(listOf("خط 38", "خط 39", "خط 40"), recentLines(SessionActivity(last = kept)).map { it.textFa })
     }
 
     @Test

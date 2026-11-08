@@ -22,7 +22,7 @@ import kotlinx.serialization.json.contentOrNull
 const val ACTIVITY_MAX = 30
 
 /** The lines the live panel shows under its head (newest at the bottom). */
-const val PANEL_LINES = 4
+const val PANEL_LINES = 3
 
 // ------------------------------------------------------------------ the stream --
 /** A `session.activity` event: the order, the new line (a run started, took a step or ended), and how many work on it now. */
@@ -125,7 +125,7 @@ fun recentLines(a: SessionActivity, n: Int = PANEL_LINES): List<ActivityLine> = 
 
 /** A line as the panel reads it: its words, and who said it when it is not [lead] (two at work: whose step it was). */
 fun lineFa(l: ActivityLine, lead: String?): String {
-    val text = oneLine(l.textFa)
+    val text = quietLine(l.textFa)
     val who = l.whoFa.trim()
     return if (who.isBlank() || who == lead?.trim() || text.startsWith(who)) text else "$who: $text"
 }

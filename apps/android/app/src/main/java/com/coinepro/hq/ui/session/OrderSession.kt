@@ -39,9 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -50,7 +48,9 @@ import com.coinepro.hq.core.data.PACE_FA
 import com.coinepro.hq.core.data.PACE_HINT_FA
 import com.coinepro.hq.core.data.PLAYER_FA
 import com.coinepro.hq.core.data.PlayerOption
+import com.coinepro.hq.core.data.ChatRow
 import com.coinepro.hq.core.data.SessionEntry
+import com.coinepro.hq.core.data.chatRows
 import com.coinepro.hq.core.data.StreamState
 import com.coinepro.hq.core.data.activityEventOf
 import com.coinepro.hq.core.data.activityFromReport
@@ -65,27 +65,23 @@ import com.coinepro.hq.core.data.isPlayer
 import com.coinepro.hq.core.data.keyPatterns
 import com.coinepro.hq.core.data.orderParticipants
 import com.coinepro.hq.core.data.orderedTasks
-import com.coinepro.hq.core.data.outputKindFa
 import com.coinepro.hq.core.data.participantTitle
 import com.coinepro.hq.core.data.playersToAdd
 import com.coinepro.hq.core.data.sessionBadge
 import com.coinepro.hq.core.data.sessionClosed
 import com.coinepro.hq.core.data.sessionStatusLine
 import com.coinepro.hq.core.data.sessionTimeline
-import com.coinepro.hq.core.data.stepWithSpeaker
 import com.coinepro.hq.core.data.personaIdTitle
 import com.coinepro.hq.core.data.taskProgress
 import com.coinepro.hq.core.data.tickedState
 import com.coinepro.hq.core.format.ago
 import com.coinepro.hq.core.format.jDateTime
-import com.coinepro.hq.core.format.jTime
 import com.coinepro.hq.core.media.FilePolicy
 import com.coinepro.hq.core.net.Api
 import com.coinepro.hq.core.net.ApiException
 import com.coinepro.hq.core.net.FileRef
 import com.coinepro.hq.core.net.HubFeature
 import com.coinepro.hq.core.net.OrderReport
-import com.coinepro.hq.core.net.ReportOutput
 import com.coinepro.hq.core.net.SessionActivity
 import com.coinepro.hq.core.net.SessionParticipant
 import com.coinepro.hq.core.net.SessionTask
@@ -108,7 +104,6 @@ import com.coinepro.hq.designsystem.SectionTitle
 import com.coinepro.hq.designsystem.Skeleton
 import com.coinepro.hq.designsystem.generated.DivanIcon
 import com.coinepro.hq.designsystem.smoothSize
-import com.coinepro.hq.designsystem.timesFig
 import com.coinepro.hq.ui.LocalEnv
 import com.coinepro.hq.ui.LocalNav
 import com.coinepro.hq.ui.LocalToasts
@@ -119,7 +114,6 @@ import com.coinepro.hq.ui.media.rememberAttachments
 import com.coinepro.hq.ui.media.rememberPickers
 import com.coinepro.hq.ui.rememberAction
 import com.coinepro.hq.ui.rememberQuery
-import com.coinepro.hq.ui.v29.BlockerRow
 import com.coinepro.hq.ui.v29.OutputsCard
 import com.coinepro.hq.ui.v29.Para
 import com.coinepro.hq.ui.v29.plain
@@ -286,6 +280,7 @@ fun OrderSessionScreen(ref: String) {
 
     // The chat in time order; drawn bottom-up, so it opens at its newest word.
     val entries = sessionTimeline(talk.turns.toList(), o, hasTalk = cv != null)
+    val rows = remember(entries) { chatRows(entries) }
     val newest = entries.lastOrNull()
     val list = rememberLazyListState()
     val follow = rememberChatFollow(list, entries.size, newest?.key, (newest as? SessionEntry.Said)?.turn?.owner == true)
@@ -324,50 +319,51 @@ fun OrderSessionScreen(ref: String) {
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.Bottom),
             ) {
-                // The foot of the chat: what blocks the work now, each with its fix (or a hair of space).
-                item(key = CHAT_TAIL) {
-                    val blockers = o?.blockers.orEmpty().takeIf { !closed }.orEmpty()
-                    if (blockers.isEmpty()) Spacer(Modifier.height(2.dp))
-                    else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { for (b in blockers) BlockerRow(b, company, o?.ref, o?.route?.budgetTokens) }
-                }
+                // The foot of the chat (a hair of space): ⟨0.19.0⟩ what blocks the work is over the composer now, never in the chat.
+                item(key = CHAT_TAIL) { Spacer(Modifier.height(2.dp)) }
                 if (live) item(key = "live") {
                     LiveBubble(talk.phase, talk.liveText, talk.liveFailed, faces.firstOrNull { it.id == (talk.addressee?.takeIf { a -> a != "all" } ?: talk.conv?.persona) }, talk.liveCards.toList(), talk.speaking, ::runCard, ::dismissCard)
                 }
-                items(entries.asReversed(), key = { it.key }) { e ->
-                    when (e) {
-                        is SessionEntry.Said -> {
-                            val t = e.turn
+                // ⟨0.19.0⟩ in order: each turn a bubble; between two turns, the steps as one quiet row and the results as one card.
+                items(rows.asReversed(), key = { it.key }) { r ->
+                    when (r) {
+                        is ChatRow.Turn -> {
+                            val t = r.said.turn
                             TalkBubble(
-                                t, faces.firstOrNull { it.id == t.by }, faces + talk.personas, named[e.key] == true,
+                                t, faces.firstOrNull { it.id == t.by }, faces + talk.personas, named[r.key] == true,
                                 onReplay = if (t.audio.isEmpty()) null else ({ t.audio.sortedBy { a -> a.seq }.forEach(talk::play) }),
-                                onRun = ::runCard, onDismiss = ::dismissCard,
+                                onRun = ::runCard, onDismiss = ::dismissCard, timeAtEnd = true,
                             )
                         }
-                        is SessionEntry.Step -> StepLine(stepWithSpeaker(e.text, e.by?.let { b -> personaIdTitle(b, faces + talk.personas) }), e.at)
-                        is SessionEntry.Output -> OutputLine(e.output, e.at)
+                        is ChatRow.Events -> EventsRow(r) { by -> personaIdTitle(by, faces + talk.personas) }
+                        is ChatRow.Outputs -> OutputsCard(r.outputs)
                     }
                 }
                 if (talk.loading && talk.turns.isEmpty() && cv != null) items(2, key = { "tsk-$it" }) { i -> Skeleton(Modifier.fillMaxWidth(if (i == 0) 0.5f else 0.7f).height(56.dp), radius = 16.dp) }
                 // The top of the chat: when the session began, and a word when its talk is not open yet.
                 if (o != null) item(key = "start") {
-                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        if (o.at.isNotBlank()) StepLine("جلسه باز شد ${jDateTime(o.at)}", "")
-                        if (cv == null && !closed) StepLine("گفتگوی این فرمان هنوز باز نشده؛ جوابت مستقیم به فرمان میرود.", "")
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (o.at.isNotBlank()) QuietRow("جلسه باز شد", o.at, date = true)
+                        if (cv == null && !closed) QuietRow("گفتگوی این فرمان هنوز باز نشده؛ جوابت مستقیم به فرمان میرود.", "")
                     }
                 }
             }
             JumpToEnd(follow)
         }
         // Who answers, and the composer (typing, holding to talk, hands-free); a closed session, its way back.
-        if (o != null && !closed) Column(Modifier.fillMaxWidth().background(c.page).padding(horizontal = 12.dp).padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (o != null && !closed) Column(Modifier.fillMaxWidth().background(c.page).padding(horizontal = 16.dp).padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             HorizontalDivider(color = c.lineDivider)
             // ⟨1.23⟩ §41 the work, live, pinned over the composer: it takes its own room and never covers the chat's last word.
             shown?.let { a ->
                 LiveWorkPanel(
                     a, ready = sessionBadge(o) == "ready", canNudge = liveOn && sessionsOn, nudging = nudge.busy,
                     onNudge = { nudgeNow() }, onOpen = { sheet = SessionSheet.LIVE },
+                    // A blocker's fix is the one gold action then; «ادامه بده» steps back beside it.
+                    nudgeFirst = o.blockers.isEmpty(),
                 )
             }
+            // ⟨0.19.0⟩ what blocks the work: one compact banner with its fix (several: «۲ گیر», opened to each).
+            if (o.blockers.isNotEmpty()) BlockersBanner(o.blockers, company, o.ref, o.route?.budgetTokens)
             if (turnOpen) Text(plain("جوابت به «${o.turn?.whoFa?.ifBlank { null } ?: addresseeFa(null, participants)}» میرود"), style = Divan.type.micro, color = c.goldInk, modifier = Modifier.padding(horizontal = 4.dp))
             else if (cv != null && participants.size > 1) AddresseeRow(participants, talk.addressee) { talk.addressee = it }
             // The paperclip once the session's talk is open (files go with a turn of it) and the hub takes them.
@@ -537,51 +533,6 @@ internal fun SessionHead(
             else if (!closed && sessionsOn) PaceChip(pace, enabled = true, onPace = onPace)
         }
         plan?.let { p -> PlanProgressRow(p, taskInHand(o.tasks)?.titleFa, onPlan) }
-    }
-}
-
-// --------------------------------------------------------------- the chat --
-/** A step of the work in the chat: one quiet, centred line, its time always in view; a tap shows the whole of it. */
-@Composable
-private fun StepLine(text: String, at: String) {
-    val c = Divan.colors
-    var open by remember { mutableStateOf(false) }
-    Box(Modifier.fillMaxWidth().padding(horizontal = 20.dp), contentAlignment = Alignment.Center) {
-        Row(
-            Modifier.clip(RoundedCornerShape(10.dp)).background(c.tile.copy(alpha = 0.6f))
-                .clickable(role = Role.Button, onClickLabel = if (open) "کوتاه کن" else "همه‌ی این خط") { open = !open }
-                .padding(horizontal = 10.dp, vertical = 3.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Text(
-                plain(text), style = Divan.type.micro.copy(textAlign = TextAlign.Center), color = c.textMuted,
-                maxLines = if (open) Int.MAX_VALUE else 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
-            )
-            if (at.isNotBlank()) Text(timesFig(jTime(at)), style = Divan.type.micro, color = c.textMuted, maxLines = 1)
-        }
-    }
-}
-
-/** A result delivered, in the chat at its time: one compact card, its title and «باز کن». */
-@Composable
-private fun OutputLine(x: ReportOutput, at: String) {
-    val c = Divan.colors
-    val nav = LocalNav.current
-    val shape = RoundedCornerShape(14.dp)
-    Row(
-        Modifier.fillMaxWidth().clip(shape).background(c.card).border(1.dp, c.lineTahrir, shape)
-            .clickable(role = Role.Button, onClickLabel = "باز کردن") { nav.go("outputs/${x.ref}") }.padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Box(Modifier.size(34.dp).clip(CircleShape).background(c.softGold), contentAlignment = Alignment.Center) { DIcon(DivanIcon.DELIVERABLE, size = 18.dp, tint = c.goldInk) }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            Text(plain(x.titleFa.ifBlank { outputKindFa(x.kind) }), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                buildAnnotatedString { append("${outputKindFa(x.kind)} تحویل شد"); if (at.isNotBlank()) { append("  ·  "); append(timesFig(jTime(at))) } },
-                style = Divan.type.micro, color = c.textMuted, maxLines = 1,
-            )
-        }
-        HqButton("باز کن", { nav.go("outputs/${x.ref}") }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.NEXT)
     }
 }
 

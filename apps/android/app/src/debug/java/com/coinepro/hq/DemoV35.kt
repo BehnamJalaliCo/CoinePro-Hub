@@ -38,6 +38,8 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         /** ⟨1.22⟩ §40.1 what the session remembers; §40.3 the playbook it was opened from. */
         var memory: String? = null,
         var source: String? = null,
+        /** ⟨0.19.0⟩ in the lists (the office, «جلسه‌ها»); the dense session the screenshots read is not, so the lists stay as they were. */
+        val listed: Boolean = true,
     ) {
         val cv: String get() = "CV-05" + ref.takeLast(2)
     }
@@ -132,6 +134,38 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
             Triple("ceo@TY", "مدیرعامل تریدیار", "TY"), mutableListOf(person("ceo@TY", "holder", "مدیرعامل تریدیار", "TY")), mutableListOf(),
             null, Triple("کمپین اجرا شد.", "—", "—"), opened = 20000, last = 15000, closedAt = at(15000),
         ),
+        // ⟨0.19.0⟩ The owner's real session, as dense as his (F-0011, 2026-11-08): nine steps of his own, the media director's long notes,
+        // two hires approved, many of the hub's own lines (one with a ref in it), two results together, a short budget; two at work now.
+        S(
+            "F-0100", "برای پرو-چارت یک کارگروه ریلز راه بینداز؛ مرحله‌ها را در پیام نوشتم.", "moving", "مدیر رسانه ریلز آزمایشی را میسازد.", "auto",
+            Triple("ceo@PC", "مدیرعامل پرو-چارت", "PC"),
+            mutableListOf(
+                person("ceo@PC", "holder", "مدیرعامل پرو-چارت", "PC"),
+                person("media@PC", "person", "مدیر رسانه‌ی پرو-چارت", "PC"),
+            ),
+            REELS_STEPS.mapIndexed { i, t -> task("r${i + 1}", i + 1, t, if (i < 2) "done" else if (i == 2) "doing" else "todo", by = "owner") }.toMutableList(),
+            null, Triple("موضوع‌ها پیدا شد و دو استخدام تأیید شد.", "ریلز آزمایشی ساخته میشود.", "فعلاً چیزی لازم نیست."),
+            opened = 75, last = 4,
+            blockers = listOf(jo("kind" to "budget", "title_fa" to "بودجه‌ی این کار کم است", "detail_fa" to "ریلز آزمایشی ۸۲٪ بودجه‌اش را خرج کرده؛ برای صداگذاری کم میآید.", "since" to at(30),
+                "fix" to jo("action" to "budget.add", "label_fa" to "بودجه بده", "target" to null)),
+                jo("kind" to "connection_missing", "title_fa" to "اینستاگرام پرو-چارت هنوز وصل نیست", "detail_fa" to "برای انتشار ساعت ۱۸ (مرحله‌ی هشتم) اتصال اینستاگرام لازم است.", "since" to at(20),
+                    "fix" to jo("action" to "connection.guide", "label_fa" to "وصل کن", "target" to "instagram"))),
+            outputs = listOf(
+                jo("ref" to "O-000123", "title_fa" to "متن ریلز آزمایشی «سه اشتباه رایج در چارت طلا»", "kind" to "reel"),
+                jo("ref" to "O-000124", "title_fa" to "کاور ریلز آزمایشی", "kind" to "other"),
+            ),
+            steps = mutableListOf(
+                step(68, "سامانه", "به مدیر رسانه‌ی پرو-چارت سپرده شد"),
+                step(61, "سامانه", "جواب آمد (O-000122-): نکته‌های مدیر رسانه درباره‌ی ریلزها"),
+                step(48, "سامانه", "کار W-000412 «ریلز آزمایشی» شروع شد"),
+                step(41, "سامانه", "خروجی رسید: متن ریلز آزمایشی «سه اشتباه رایج در چارت طلا»"),
+                step(40, "سامانه", "خروجی رسید: کاور ریلز آزمایشی"),
+                step(36, "سامانه", "بودجه‌ی ریلز آزمایشی به ۸۲٪ رسید"),
+                step(31, "سامانه", "صداگذاری منتظر بودجه ماند (W-000413)"),
+                step(22, "سامانه", "زیرنویس ریلز آزمایشی به تدوینگر سپرده شد"),
+            ),
+            listed = false,
+        ),
     )
 
     // ------------------------------------------------------------- the talk --
@@ -169,6 +203,14 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         ),
         "CV-0504" to mutableListOf(turn("CV-0504", 1, "ceo@PC", "سلام. اول سه رقیب اول «چارت طلا» را بررسی میکنم و بعد فهرست صفحه‌ها را میفرستم.", 700)),
         "CV-0505" to mutableListOf(turn("CV-0505", 1, "assistant", "سلام. سه هتل نزدیک مترو پیدا کردم؛ حالا پرواز را مقایسه میکنم.", 1990)),
+        "CV-0500" to mutableListOf(
+            turn("CV-0500", 1, "owner", REELS_STEPS.mapIndexed { i, t -> "${i + 1} - $t" }.joinToString("\n", prefix = "این کارگروه ریلز پرو-چارت است؛ مرحله به مرحله:\n"), 70),
+            turn("CV-0500", 2, "media@PC", "مدیر رسانه‌ی پرو-چارت آمد.", 69, source = "system"),
+            turn("CV-0500", 3, "media@PC", REELS_NOTES, 62),
+            turn("CV-0500", 4, "ceo@PC", "کارت استخدام تأیید شد: تدوینگر ریلز", 56, source = "system"),
+            turn("CV-0500", 5, "ceo@PC", "کارت استخدام تأیید شد: صداپیشه", 55, source = "system"),
+            turn("CV-0500", 6, "ceo@PC", "دو استخدام تأیید شد؛ مدیر رسانه ریلز آزمایشی را میسازد و نسخه‌ی اول را همین‌جا میبینی. مرحله‌ی سوم در کار است.", 50),
+        ),
     )
 
     // ------------------------------------------------------------- the canvas --
@@ -233,15 +275,15 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
 
     private fun canvas() = jo("nodes" to JsonArray(nodes), "links" to JsonArray(links))
 
-    private fun open() = sessions.filter { it.closedAt == null && !it.hidden }
+    private fun open() = sessions.filter { it.closedAt == null && !it.hidden && it.listed }
 
     // -------------------------------------------------------------- routes --
     @Synchronized
     fun handle(method: String, path: String, query: Map<String, String?>, body: JsonObject?): Pair<Int, JsonElement>? {
         if (path == "/sessions" && method == "GET") {
             val list = when (query["state"]) {
-                "closed" -> sessions.filter { it.closedAt != null && !it.hidden }
-                "all" -> sessions
+                "closed" -> sessions.filter { it.closedAt != null && !it.hidden && it.listed }
+                "all" -> sessions.filter { it.listed }
                 else -> open()
             }
             return 200 to jo("items" to JsonArray(list.map(::card)), "next_cursor" to null)
@@ -434,6 +476,23 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
             )),
             loop = true,
         ),
+        "F-0100" to Live(
+            workers = mutableListOf(
+                worker("مدیر رسانه‌ی پرو-چارت", "پرو-چارت", "ریلز آزمایشی «سه اشتباه رایج در چارت طلا»", 22, 7, "زیرنویس ریلز آزمایشی را مینویسد"),
+                worker("تدوینگر ریلز", "پرو-چارت", "زیرنویس و برش ریلز آزمایشی", 6, 2, "برش‌های ریلز را با متن هم‌زمان میکند"),
+            ),
+            lines = mutableListOf(
+                line(at(48), "مدیر رسانه‌ی پرو-چارت", "کار «ریلز آزمایشی» را شروع کرد"),
+                line(at(46), "مدیر رسانه‌ی پرو-چارت", "از ChatGPT پرسید کدام اشتباه چارت طلا بیشتر دیده میشود"),
+                line(at(43), "مدیر رسانه‌ی پرو-چارت", "متن ریلز را نوشت"),
+                line(at(41), "مدیر رسانه‌ی پرو-چارت", "خروجی «متن ریلز آزمایشی» را تحویل داد"),
+                line(at(40), "مدیر رسانه‌ی پرو-چارت", "کاور را با Gemini در AI Studio ساخت"),
+                line(at(31), "مدیر رسانه‌ی پرو-چارت", "صداگذاری را برای بودجه نگه داشت"),
+                line(at(6), "تدوینگر ریلز", "کار «زیرنویس و برش» را شروع کرد"),
+                line(at(3), "مدیر رسانه‌ی پرو-چارت", "زیرنویس بخش اول را نوشت"),
+                line(at(1), "تدوینگر ریلز", "برش اول ریلز را ساخت"),
+            ),
+        ),
     )
 
     private fun liveOf(s: S): Live = live.getOrPut(s.ref) {
@@ -569,6 +628,27 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
 
     // ------------------------------------------------------------- helpers --
     companion object {
+        /** ⟨0.19.0⟩ the owner's nine steps of the reels working group (his own words, the plan of F-0100). */
+        val REELS_STEPS = listOf(
+            "موضوع هر ریلز با ChatGPT پیدا شود",
+            "متن ریلز نوشته و با جی‌پی‌تی خوانده شود",
+            "یک ریلز آزمایشی ساخته شود",
+            "کاور با Gemini در AI Studio ساخته شود",
+            "صداگذاری با صداپیشه",
+            "زیرنویس و برش با تدوینگر",
+            "پیش از انتشار به تأیید مدیر کل برسد",
+            "هر روز ساعت ۱۸ در اینستاگرام منتشر شود",
+            "گزارش هفتگی بازدید و دنبال‌کننده",
+        )
+
+        /** ⟨0.19.0⟩ the media director's long notes (a long answer of an agent, as they are). */
+        const val REELS_NOTES = "نکته‌های من درباره‌ی این کارگروه:\n\n" +
+            "- **موضوع‌ها:** از ChatGPT ده موضوع گرفتم؛ سه تا برای شروع بهترند: «سه اشتباه رایج در چارت طلا»، «حمایت و مقاومت در یک دقیقه» و «چرا تایم‌فریم مهم است».\n" +
+            "- **ساخت:** هر ریلز ۳۰ تا ۴۵ ثانیه، با کاور یکدست و فونت تیتر پرو-چارت.\n" +
+            "- **آدم‌ها:** برای صداگذاری و برش یک صداپیشه و یک تدوینگر لازم است؛ کارت استخدام هر دو را برای مدیرعامل گذاشتم.\n" +
+            "- **زمان انتشار:** ساعت ۱۸ بیشترین بازدید را دارد؛ آخر هفته‌ها یک ریلز بیشتر.\n\n" +
+            "اول یک ریلز آزمایشی میسازم تا لحن و طول را با هم ببینیم؛ بعد بقیه را پشت سر هم."
+
         /** ⟨1.23⟩ §41.3 why a stuck session is stuck, in plain words, and what fixes it (as the hub's sweep writes it). */
         val STUCK_FA = mapOf(
             "F-0103" to "کسی برای پشتیبان تلگرام نیست و استخدام در کوینه‌پرو FX بسته است؛ استخدام را باز کن تا منشی ادامه دهد.",

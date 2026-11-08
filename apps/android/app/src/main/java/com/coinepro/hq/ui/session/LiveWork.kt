@@ -54,7 +54,7 @@ import com.coinepro.hq.core.data.idleFa
 import com.coinepro.hq.core.data.lineFa
 import com.coinepro.hq.core.data.lineKey
 import com.coinepro.hq.core.data.livePanelOf
-import com.coinepro.hq.core.data.oneLine
+import com.coinepro.hq.core.data.quietLine
 import com.coinepro.hq.core.data.othersFa
 import com.coinepro.hq.core.data.planProgressFa
 import com.coinepro.hq.core.data.recentLines
@@ -115,15 +115,15 @@ private fun ageAlpha(i: Int, n: Int): Float = when (n - 1 - i) { 0 -> 1f; 1 -> 0
  * [onOpen] opens «کار زنده».
  */
 @Composable
-internal fun LiveWorkPanel(a: SessionActivity, ready: Boolean, canNudge: Boolean, nudging: Boolean, onNudge: () -> Unit, onOpen: () -> Unit) {
+internal fun LiveWorkPanel(a: SessionActivity, ready: Boolean, canNudge: Boolean, nudging: Boolean, onNudge: () -> Unit, onOpen: () -> Unit, nudgeFirst: Boolean = true) {
     when (livePanelOf(a)) {
         LivePanel.WORKING -> WorkingPanel(a, onOpen)
         LivePanel.WAITING -> StateRow(
-            DivanIcon.OWNER, Divan.colors.softGold, Divan.colors.goldInk, "منتظر شما", oneLine(a.waitingFa.orEmpty()), onOpen,
+            DivanIcon.OWNER, Divan.colors.softGold, Divan.colors.goldInk, "منتظر شما", quietLine(a.waitingFa.orEmpty()), onOpen,
         )
         LivePanel.STUCK -> StateRow(
-            DivanIcon.URGENT, Divan.colors.softWarning, Divan.colors.warning, "گیر کرده", oneLine(a.stuckFa.orEmpty()), onOpen,
-        ) { if (canNudge) HqButton("ادامه بده", onNudge, variant = BtnVariant.PRIMARY, size = BtnSize.SM, icon = DivanIcon.RESUME, loading = nudging) }
+            DivanIcon.URGENT, Divan.colors.softWarning, Divan.colors.warning, "گیر کرده", quietLine(a.stuckFa.orEmpty()), onOpen,
+        ) { if (canNudge) HqButton("ادامه بده", onNudge, variant = if (nudgeFirst) BtnVariant.PRIMARY else BtnVariant.SECONDARY, size = BtnSize.SM, icon = DivanIcon.RESUME, loading = nudging) }
         LivePanel.IDLE -> IdleRow(a, canNudge && !ready, nudging, onNudge, onOpen)
     }
 }
@@ -158,7 +158,7 @@ private fun WorkingPanel(a: SessionActivity, onOpen: () -> Unit) {
         if (open && lines.isNotEmpty()) Column(Modifier.padding(top = 4.dp, end = 8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             lines.forEachIndexed { i, l -> key(lineKey(l)) { Arriving(ageAlpha(i, lines.size)) { PanelLine(l, lead.whoFa, newest = i == lines.lastIndex) } } }
         } else if (!open && lead.doingFa.isNotBlank()) {
-            Text(timesFig(oneLine(lead.doingFa)), style = Divan.type.micro, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(end = 8.dp))
+            Text(timesFig(quietLine(lead.doingFa)), style = Divan.type.micro, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(end = 8.dp))
         }
     }
 }
@@ -249,7 +249,7 @@ private fun SheetLine(l: ActivityLine, showWho: Boolean) {
         Text(timesFig(if (l.at.isBlank()) "" else jTime(l.at)), style = Divan.type.micro, color = c.textMuted, maxLines = 1, modifier = Modifier.width(40.dp).padding(top = 2.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             if (showWho) Text(l.whoFa.trim(), style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary, maxLines = 1)
-            Text(timesFig(oneLine(l.textFa)), style = Divan.type.small, color = c.textPrimary)
+            Text(timesFig(quietLine(l.textFa)), style = Divan.type.small, color = c.textPrimary)
         }
     }
 }
@@ -268,8 +268,8 @@ private fun WorkerCard(w: SessionWorker, now: Long) {
                 listOfNotNull(w.whoFa.trim().ifBlank { "یک همکار" }, w.companyFa?.trim()?.ifBlank { null }?.takeIf { it !in w.whoFa }).joinToString(" · "),
                 style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
-            if (w.workTitleFa.isNotBlank()) Text(timesFig(oneLine(w.workTitleFa)), style = Divan.type.micro, color = c.textMuted, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            if (w.doingFa.isNotBlank()) Text(timesFig(oneLine(w.doingFa)), style = Divan.type.small, color = c.textSecondary)
+            if (w.workTitleFa.isNotBlank()) Text(timesFig(quietLine(w.workTitleFa)), style = Divan.type.micro, color = c.textMuted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (w.doingFa.isNotBlank()) Text(timesFig(quietLine(w.doingFa)), style = Divan.type.small, color = c.textSecondary)
         }
         Text(
             // The time first: a «·» between two figures reads as a Persian zero («۱۴۰۶»).

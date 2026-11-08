@@ -77,6 +77,7 @@ fun TalkBubble(
     onReplay: (() -> Unit)?,
     onRun: suspend (TalkCard, kotlinx.serialization.json.JsonObject?) -> Unit,
     onDismiss: suspend (TalkCard) -> Unit,
+    timeAtEnd: Boolean = false,
 ) {
     val c = Divan.colors
     val mine = t.owner
@@ -109,7 +110,8 @@ fun TalkBubble(
                 )
             }
             for (card in t.cards) TalkCardView(card, onRun, onDismiss)
-            Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // ⟨0.19.0⟩ [timeAtEnd] (the session): the time at the end of every bubble, the owner's too, as on every row of its chat.
+            Row(Modifier.padding(horizontal = 4.dp).then(if (timeAtEnd) Modifier.align(Alignment.End) else Modifier), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (mine && t.source != "typed") DIcon(DivanIcon.MIC, size = 12.dp, tint = c.textMuted)
                 if (t.at.isNotBlank()) Text(timesFig(jTime(t.at)), style = Divan.type.micro, color = c.textMuted)
                 // The whole turn in one tap, as plain words.
