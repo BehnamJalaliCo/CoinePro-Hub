@@ -14,9 +14,11 @@ refused with `awaiting_seal` and the card's ref, and never retried here.
 
 Scope (checked here before anything reaches the api, then again by the api
 against the database): the agent's own company; any company for the
-holding's platform SRE and the overseer; another company's server only on a
+holding's platform SRE and the overseer; another company's server on a
 cross-company request that company's CEO accepted, named by the agent's own
-work item (`via_work`, by default the run's work item).
+work item (`via_work`, by default the run's work item), or ⟨2026-11-08⟩ for a
+technical role (the TECH department's charters) within the api's reach rule
+(links not enforced, an `on` link, the company present in the session).
 """
 
 from __future__ import annotations
@@ -31,6 +33,7 @@ from hq_gateway import tools as T
 NAME = r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$"
 UUID_RE = T.UUID_RE
 HOLDING_ROLES = ("hub_platform_sre", "overseer")
+TECH_DEPARTMENT = "TECH"  # ⟨2026-11-08⟩ H1: the technical charters' department
 WAIT_S = 18  # within the gateway's own tool timeout
 OTHER_FA = (
     "این سرور شرکت دیگری است: فقط با درخواست میان‌شرکتی که مدیرعامل آن شرکت پذیرفته "
@@ -139,6 +142,12 @@ def scope(call: T.Call, a: _ServerIn) -> tuple[str | None, T.Result | None]:
     holding = call.gate.get("scope") == "holding" and call.gate.get("role") in HOLDING_ROLES
     if holding:
         return a.via_work, None
+    if call.gate.get("department") == TECH_DEPARTMENT:
+        # ⟨2026-11-08⟩ H1: a technical role names another company's server; the api decides
+        # whether it is within reach (links not enforced, an `on` link, the session), else 403.
+        # Its own work item still goes along: an accepted request opens the server too.
+        via = a.via_work or call.gate.get("work_ref")
+        return (str(via) if via and re.fullmatch(T.WORK_REF, str(via)) else None), None
     via = a.via_work or call.gate.get("work_ref")
     if not via or not re.fullmatch(T.WORK_REF, str(via)):
         return None, T.Result("denied", code="other_company", hint_fa=OTHER_FA)

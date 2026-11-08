@@ -5,8 +5,12 @@ every talk persona's, so that nobody claims a capability does not exist or inven
 
     outside players   ChatGPT (gpt), Gemini (gemini), DeepSeek (deepseek): their state and seats;
                       `substitute.call` (drafts, long reads, searches, third opinions, errands) and
-                      the `creative` seat for a cover, an image or a short video (a creative that
-                      waits for review before anything is published)
+                      the `creative` seat for a cover or an image (a creative that waits for
+                      review before anything is published)
+    video             ⟨2026-11-08⟩ the hub has no video tool: a plan's video step is done when the
+                      media team delivers the «بسته‌ی ساخت ویدیو»; the owner makes the video
+    instagram         ⟨2026-11-08⟩ every company's Instagram is read and published through IG-Hub;
+                      accounts not registered here are the technical team's `connection.set`
     automations       the holding's rule engine (`automation.propose`: one Persian sentence; the
                       owner seals it), which can also start an n8n workflow (`n8n.run`) when n8n is up
     the company       its connections (Instagram, Telegram, Search Console…: connected or not), its
@@ -16,7 +20,6 @@ every talk persona's, so that nobody claims a capability does not exist or inven
                       channels and accounts with what they are read through, e.g. Instagram via
                       IG-Hub of company IG, its servers by name, its lines and groups): nobody asks
                       «IG کدام شرکت است» again; the full profile and figures are `linked.read`
-    voice             Google AI Studio's state for `speech.make` (the media roles)
     technical         ⟨1.20⟩ §38.2 for this role: the server tools it holds and the servers it may use
                       (names only), whether it holds `hub.ops` (the hub itself), and for a role with
                       neither the one way: work.request to its company's CTO or the holding's AIOPS
@@ -49,13 +52,28 @@ HOW = {
         "assistant_errand, player?: gpt | gemini | deepseek, input_md}: masked input only; the "
         "answer is labelled and is a helper's view, never evidence"
     ),
-    "cover_image_video": (
-        "substitute.call {seat: creative, kind: image | video, player?: gpt | gemini, input_md: the "
+    "cover_image": (
+        "substitute.call {seat: creative, kind: image, player?: gpt | gemini, input_md: the "
         "brief, placement: instagram_post | instagram_story | telegram_post | …, overlay?: the "
         "Persian words}: a creative CR-… that waits for review; deliver its ref with your work; "
         "the owner accepts it on the creatives screen. Publishing it once is the owner's: propose "
         "{kind: a3_action, payload: {action: publish, target: 'CR-… → the channel', preview}} (A3); "
         "nothing is published by itself"
+    ),
+    "video": (
+        "the hub has no video tool (the owner, 2026-11-08): no render, no ffmpeg, no voice, and "
+        "none of them is ever a blocker, a readiness item or a step of the owner's. The video step "
+        "of any plan is done when the media team delivers the «بسته‌ی ساخت ویدیو» with `deliver`: "
+        "script, shot list, on-screen text, voice text (what the narrator reads), caption, "
+        "hashtags, cover prompt. The owner makes the video and drops the file into the session "
+        "(files); publishing goes on through IG-Hub"
+    ),
+    "instagram": (
+        "Instagram, for every company, is read and published through IG-Hub (company IG's server, "
+        "Meta's official API): the figures with connection.read; a reviewed item goes out as a "
+        "media_publish card or by the publisher through IG-Hub's API; a company whose accounts are "
+        "not registered here yet is the technical team's connection.set on IG-Hub, made by code — "
+        "never the owner's step, never «not connected»"
     ),
     "automation": (
         "a CEO or a manager only (an employee asks its manager): automation.propose {sentence_fa}: "
@@ -77,10 +95,6 @@ HOW = {
         "catalogue | connections | links, ref?} (connections: Instagram accounts as IG-Hub reads "
         "them); then ask it for work with work.request"
     ),
-    "voice": (
-        "the media roles: speech.make {text_fa, voice?, style?}: a Google AI Studio voice (file of "
-        "your company); the first answer is running with a job, call again with {job} until done"
-    ),
     "owner": "order.ask only when you truly cannot go on; report steps with order.progress",
     "hub": (
         "the hub itself (services, logs, memory, a service on or off, n8n, backup): hub.ops {op, "
@@ -90,6 +104,24 @@ HOW = {
     ),
 }
 SERVER_TOOLS = ("server.map", "server.read", "server.exec", "server.write", "server.claude")
+TECH_DEPARTMENT = "TECH"
+
+
+async def _tech_roles(tx: Tx) -> set[str]:
+    """The technical charters: the TECH department's company roles (read from the charters the
+    hub loaded, never a hardcoded list)."""
+    from hq_common import charters as CHL
+
+    lib = _CHARTERS.get("lib")
+    if lib is None:
+        lib = CHL.load()
+        _CHARTERS["lib"] = lib
+    return {
+        r for r, c in lib.roles.items() if c.department == TECH_DEPARTMENT and c.scope == "company"
+    }
+
+
+_CHARTERS: dict[str, Any] = {}
 HOLDING_SERVER_ROLES = ("hub_platform_sre", "overseer")  # every paired server (contract §26.6)
 SERVERS_MAX = 30
 
@@ -117,11 +149,23 @@ async def _players(tx: Tx) -> list[dict[str, Any]]:
     return out
 
 
+def connection_entry(c: dict[str, Any], company_code: str | None) -> dict[str, Any]:
+    """One connection as the brief shows it; ⟨2026-11-08⟩ H3 an Instagram account that is not
+    connected here is on IG-Hub: the note says so and who registers it (never «not connected»)."""
+    from hq_api.domain import connections as CN
+
+    out: dict[str, Any] = {"kind": c["kind"], "state": c["state"]}
+    if c["kind"] == "instagram" and c["state"] != "connected":
+        out["note"] = CN.ig_hub_note(company_code)
+    return out
+
+
 async def _company(tx: Tx, company_id: UUID) -> dict[str, Any]:
     conns = await tx.all(
         """SELECT kind, state FROM growth.connections WHERE company_id = :co ORDER BY kind""",
         co=company_id,
     )
+    code = await tx.scalar("SELECT code FROM core.companies WHERE id = :co", co=company_id)
     links = await tx.all(
         "SELECT * FROM core.company_links_of(:co)",
         co=company_id,
@@ -141,7 +185,7 @@ async def _company(tx: Tx, company_id: UUID) -> dict[str, Any]:
         "SELECT count(*) FROM lines.lines WHERE company_id = :co AND state = 'on'", co=company_id
     )
     return {
-        "connections": [{"kind": c["kind"], "state": c["state"]} for c in conns],
+        "connections": [connection_entry(dict(c), code) for c in conns],
         "links": [dict(x) for x in links],
         "working_groups": [
             {"key": g["key"], "title_fa": g["title_fa"], "state": g["state"]} for g in groups
@@ -276,21 +320,45 @@ async def technical(
     held = [t for t in SERVER_TOOLS if t in tools]
     servers: list[str] = []
     if held:
+        from hq_api.domain import links as LKS
+
         wide = scope == "holding" and role in HOLDING_SERVER_ROLES
+        # ⟨2026-11-08⟩ H1: a company's technical role (the TECH department's charters) reaches
+        # the other companies' servers by the rule of linked.read: every active company while
+        # the owner does not enforce links, else those sharing an `on` link
+        technical = scope == "company" and role in await _tech_roles(tx)
+        codes: list[str] = []
+        if technical and not wide and company_id is not None:
+            if not await LKS.enforced(tx):
+                wide = True
+            else:
+                codes = [str(x["company"]) for x in await LKS.links_of(tx, company_id)]
         rows = await tx.all(
             """SELECT c.code, s.name FROM infra.servers s JOIN core.companies c ON c.id = s.company_id
                WHERE s.state IS NOT NULL AND s.state <> 'revoked'
-                 AND (CAST(:wide AS boolean) OR s.company_id = CAST(:co AS uuid))
-               ORDER BY c.code, s.name LIMIT :l""",
+                 AND (CAST(:wide AS boolean) OR s.company_id = CAST(:co AS uuid)
+                      OR c.code = ANY(CAST(:codes AS text[])))
+               ORDER BY (s.company_id = CAST(:co AS uuid)) DESC, c.code, s.name LIMIT :l""",
             wide=wide,
             co=str(company_id) if company_id else None,
+            codes=codes,
             l=SERVERS_MAX,
         )
         servers = [f"{r['code']} · {r['name']}" for r in rows]
+        if technical:
+            out_reach = (
+                "every company's servers while the owner does not enforce links; else those of "
+                "a linked company or one present in your session (server.map lists them; a "
+                "destructive command still waits for the owner's seal)"
+            )
+        else:
+            out_reach = "your company's servers"
     who = Principal(kind="agent", code="-", role="employee", company_id=company_id,
                     charter=role, scope=scope)  # fmt: skip
     hub_ops = "hub.ops" in tools and HO.is_technical(who, holding_id=holding_id)
     out: dict[str, Any] = {"server_tools": held, "servers": servers, "hub_ops": hub_ops}
+    if held:
+        out["reach"] = out_reach
     if hub_ops:
         out["hub"] = (
             "hub.ops: the hub itself (status, logs, stats, restart, a profile, n8n, backup)"
@@ -343,11 +411,7 @@ async def brief(
             },
             "how": HOW,
         }
-        from hq_api.domain import speech_make as SM
-
-        voice = await _safe(tx, SM.speech_state)
-        if voice is not None:
-            out["voice"] = voice
+        # (⟨2026-11-08⟩ no `voice` block: voice is off by the owner's decision and never mentioned)
         if company_id is not None:
             company = await _safe(tx, _company, company_id)
             if company is not None:

@@ -508,7 +508,9 @@ async def test_the_budgets_per_run(
             msgs = await C.messages(tx, hub, p, conv, "سلام", 10**6, {})
             heads[key] = msgs[0]["content"]
     assert set(lean) <= {"how", "technical"} and set(lean["how"]) == set(CAP.LEAN_HOW)
-    assert lean["technical"]["servers"] == [] and "ask" in lean["technical"]
+    # (H1, 2026-11-08: a technical role reaches the other companies' servers; none of its own here)
+    assert not [s for s in lean["technical"]["servers"] if s.startswith(f"{company['code']} ·")]
+    assert "ask" in lean["technical"]
     assert "the_holding" in full and "the_holding" not in no_map and "technical" in no_map
     assert '"the_holding":' not in heads["overseer"] and '"the_holding":' in heads["secretary"]
     assert "What the holding can do" in heads["overseer"]  # the rest of the brief stays

@@ -46,7 +46,8 @@
           "server.claude",
           "server.run",
           "work.budget",
-          "card.decide"
+          "card.decide",
+          "connection.set"
         ],
         "manager": [
           "work.delegate",
@@ -76,7 +77,8 @@
           "server.run",
           "card.decide",
           "hub.ops",
-          "hubops.run"
+          "hubops.run",
+          "connection.set"
         ],
         "inspector": [
           "work.delegate",
@@ -125,7 +127,8 @@
           "server.claude",
           "server.run",
           "hub.ops",
-          "hubops.run"
+          "hubops.run",
+          "connection.set"
         ],
         "assistant": [
           "errand.step",

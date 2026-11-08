@@ -151,6 +151,249 @@ WRITERS = re.compile(
 REDIRECT = re.compile(r"(?<![0-9&<>])>{1,2}(?!&)(?!\s*/dev/null)")
 
 
+# ⟨2026-11-08⟩ H3 (the owner: «اکانت اینستاگرامم ثبت شده توی سرور IG-Hub، API رسمی متا دارم»):
+# every company's Instagram account lives on IG-Hub (company IG's server, the `ig_hub` setting of
+# seed/channels.yaml); the hub's own connection row only names the accounts and how they are read.
+IG_HUB_OWNER_FA = "حساب روی {server} است؛ تیم فنی آن را به هاب معرفی میکند"
+
+
+def ig_hub() -> dict[str, str]:
+    """{company, server} of IG-Hub, from the `ig_hub` setting (default IG / IG-Hub)."""
+    try:
+        data = channels_file().get("ig_hub") or {}
+    except OSError:
+        data = {}
+    return {
+        "company": str(data.get("company") or "IG"),
+        "server": str(data.get("server") or "IG-Hub"),
+    }
+
+
+def ig_hub_note(company_code: str | None = None) -> str:
+    """What an agent reads when a company's Instagram connection is not connected: the account is
+    on IG-Hub; who registers it here and how; publishing goes through IG-Hub's API."""
+    hub = ig_hub()
+    who = f"{company_code}'s" if company_code else "the company's"
+    return (
+        f"the Instagram account is on {hub['server']} (company {hub['company']}'s server, with "
+        f"Meta's official API); it is NOT missing. {hub['company']}'s technical team (or {who} own "
+        "technical role, under the linked rule) reads it there with server.map / server.read and "
+        "registers it here with connection.set {kind: instagram, accounts: [handles], via: "
+        f"ig_hub, server: {{company: {hub['company']}, name: {hub['server']}}}, read_command?}}; "
+        f"publishing goes through {hub['server']}'s API (docs/server-prompts/IGHUB_PUBLISH_API.md) "
+        "whose key the owner stores once. Never tell the owner Instagram is not connected."
+    )
+
+
+# ⟨2026-11-08⟩ the owner's decision: Instagram, for every company, is read and published through
+# IG-Hub. The owner never reads an Instagram blocker, «وصل نیست» or a step of his own; a company
+# whose accounts are not registered here yet gets the holding's technical work made by code.
+IG_HUB_LINE_FA = "از راه {server} خوانده و منتشر میشود"
+IG_HUB_TEAM_FA = (
+    "اینستاگرام از راه {server} خوانده و منتشر میشود؛ تیم فنی حساب‌ها را به هاب معرفی میکند"
+)
+IG_SETUP_TITLE_FA = "ثبت حساب‌های اینستاگرام {company} روی هاب (از راه {server})"
+IG_SETUP_PRIORITY = "P2"
+
+
+def ig_hub_line(row: dict[str, Any] | None) -> str:
+    """What the owner reads of a company's Instagram: through IG-Hub, with its accounts when they
+    are registered, else the technical team's registration (never «not connected»)."""
+    hub = ig_hub()
+    cfg = (row or {}).get("config") or {}
+    srv = cfg.get("server") if isinstance(cfg.get("server"), dict) else {}
+    server = str((srv or {}).get("name") or hub["server"])
+    accounts = [str(a) for a in cfg.get("accounts") or []] if row is not None else []
+    if accounts and cfg.get("command"):
+        return IG_HUB_LINE_FA.format(server=server) + f" ({len(accounts)} حساب)."
+    return IG_HUB_TEAM_FA.format(server=server) + "."
+
+
+def ig_setup_brief(company_code: str) -> str:
+    hub = ig_hub()
+    return (
+        f"Register {company_code}'s Instagram accounts on the hub. Instagram, for every company, is "
+        f"read and published through {hub['server']} (company {hub['company']}'s server, Meta's "
+        f"official API); the accounts are there already. Steps: (1) server.map, then server.read / "
+        f"server.exec (read-only) on {hub['company']}'s server {hub['server']} to find "
+        f"{company_code}'s account handles and the read-only command that prints their daily "
+        f"figures as JSON ({{accounts: [{{account, followers, reach, views}}]}}); (2) connection.set "
+        f"{{company: {company_code}, kind: instagram, accounts: [handles], via: ig_hub, server: "
+        f"{{company: {hub['company']}, name: {hub['server']}}}, read_command}}; (3) deliver one "
+        f"Persian line: the accounts registered. Publishing goes through {hub['server']}'s API "
+        "(docs/server-prompts/IGHUB_PUBLISH_API.md). Never ask the owner for anything here and "
+        "never say Instagram is not connected: it is, through IG-Hub."
+    )
+
+
+async def ig_setup_assignee(tx: Tx) -> dict[str, Any] | None:
+    """Who registers a company's Instagram here: IG-Hub's company's CTO (the TECH department's
+    manager), else the holding's AIOPS manager; None when neither seat is filled."""
+    hub = ig_hub()
+    sql = """SELECT e.code, e.company_id, c.code AS company FROM core.employees e
+             JOIN core.companies c ON c.id = e.company_id
+             JOIN core.departments d ON d.id = e.department_id
+             WHERE e.status = 'active' AND e.kind = 'manager' AND d.code = :dept AND {where}
+             ORDER BY e.created_at LIMIT 1"""
+    row = await tx.first(sql.format(where="c.code = :c"), dept="TECH", c=hub["company"])
+    if row is None:
+        row = await tx.first(sql.format(where="c.kind = 'holding'"), dept="AIOPS")
+    return dict(row) if row is not None else None
+
+
+async def ig_setup_work(tx: Tx, company_id: UUID) -> str | None:
+    """The open technical work that registers this company's Instagram here, or None."""
+    from hq_api.domain import work as W
+
+    code = await tx.scalar("SELECT code FROM core.companies WHERE id = :c", c=company_id)
+    ref: str | None = await tx.scalar(
+        """SELECT ref FROM work.work WHERE run_meta ->> 'ig_setup' = :code
+             AND status <> ALL(CAST(:closed AS text[])) ORDER BY created_at LIMIT 1""",
+        code=code,
+        closed=list(W.CLOSED),
+    )
+    return ref
+
+
+async def ensure_ig_setup_work(
+    tx: Tx, company_id: UUID, *, requested_by: UUID | None = None
+) -> str | None:
+    """The owner, 2026-11-08: a company whose Instagram accounts are not registered on the hub
+    gets the technical work made by code, once (one open work per company): IG-Hub's CTO (else
+    the holding's AIOPS) reads the accounts on IG-Hub (`server.*` by the linked rule, H1) and
+    registers them with `connection.set` (H2). Under an order's work when `requested_by` names
+    one, so the session sees the step and the holder is woken when it is delivered. The work's
+    ref, or None when nobody can take it."""
+    from hq_api.domain import work as W
+    from hq_api.principal import Principal
+
+    found = await ig_setup_work(tx, company_id)
+    if found is not None:
+        return found
+    co = await tx.first("SELECT code, name_fa FROM core.companies WHERE id = :c", c=company_id)
+    who = await ig_setup_assignee(tx)
+    if co is None or who is None:
+        return None
+    hub = ig_hub()
+    w = await W.create(
+        tx,
+        Principal(kind="service", code="connections", role="service"),
+        company_id=who["company_id"],
+        company_code=str(who["company"]),
+        title=IG_SETUP_TITLE_FA.format(company=co["name_fa"] or co["code"], server=hub["server"]),
+        brief=ig_setup_brief(str(co["code"])),
+        kind="one_off",
+        priority=IG_SETUP_PRIORITY,
+        assignee_code=str(who["code"]),
+        requested_by_work_id=requested_by,
+    )
+    await tx.exec(
+        """UPDATE work.work SET run_meta = COALESCE(run_meta, '{}'::jsonb) || CAST(:m AS jsonb)
+           WHERE id = :id""",
+        id=w["id"],
+        m=json.dumps({"ig_setup": co["code"]}),
+    )
+    return str(w["ref"])
+
+
+# ⟨2026-11-08⟩ H2 connection.set: what an agent may write of a connection (never a secret)
+SECRET_WORDS = re.compile(
+    r"(secret|token|password|passwd|api[_-]?key|private[_-]?key|bearer)", re.I
+)
+TOKEN_LIKE = re.compile(r"^[A-Za-z0-9+/=_\-]{32,}$")
+SET_FIELDS = ("accounts", "via", "server", "read_command", "channels", "site_url", "channel_id",
+              "handle", "property_id")  # fmt: skip
+NOT_READ_ONLY_FA = (
+    "این دستور فقط‌خواندنی نیست؛ روی سرور فقط دستوری اجرا میشود که چیزی را تغییر ندهد."
+)
+NO_SECRET_FA = (
+    "رمز، توکن یا کلید از اینجا ثبت نمیشود؛ رمز اتصال را مالک با فرمان ترمینال خودش میدهد."  # noqa: S105 - a sentence, not a secret
+)
+
+
+def looks_secret(value: Any) -> bool:
+    s = str(value or "")
+    return bool(SECRET_WORDS.search(s)) or bool(TOKEN_LIKE.match(s.strip()))
+
+
+def agent_config(kind: str, current: dict[str, Any], fields: dict[str, Any]) -> dict[str, Any]:
+    """⟨2026-11-08⟩ H2: the connection's config after an agent's `connection.set`: the public,
+    non-secret settings merged over what is there (handles as linked.handles accepts them, a
+    read-only command, public channels, a site's public address); anything secret-looking, an
+    unknown field or a command that could change the server is refused with the field named."""
+    from hq_api.domain import linked as LD
+    from hq_api.errors import ApiError
+
+    out = dict(current or {})
+    bad: dict[str, str] = {}
+    for key, value in fields.items():
+        if value is None:
+            continue
+        if key not in SET_FIELDS:
+            bad[key] = "not a field an agent sets"
+            continue
+        flat = json.dumps(value, ensure_ascii=False) if not isinstance(value, str) else value
+        if SECRET_WORDS.search(key) or (looks_secret(flat) and key != "read_command"):
+            raise ApiError(422, "validation_failed", fields={key: "a secret never goes here"},
+                           message_fa=NO_SECRET_FA)  # fmt: skip
+        if key == "accounts":
+            handles = [LD._handle(a) for a in (value if isinstance(value, list) else [value])]
+            if not handles or any(h is None for h in handles):
+                bad[key] = "handles like @name (2-64 letters, digits, . _ -)"
+                continue
+            out["accounts"] = [str(h).lstrip("@") for h in handles]
+        elif key == "via":
+            if value != "ig_hub":
+                bad[key] = "ig_hub"
+                continue
+            out["via"] = "ig_hub"
+        elif key == "server":
+            srv = value if isinstance(value, dict) else {}
+            co, name = LD._handle(srv.get("company")), LD._handle(srv.get("name"))
+            if not co or not name:
+                bad[key] = "{company, name}"
+                continue
+            out["server"] = {"company": co, "name": name}
+        elif key == "read_command":
+            cmd = str(value).strip()
+            if looks_secret(cmd) or not read_only(cmd):
+                raise ApiError(422, "validation_failed", fields={key: "a read-only command"},
+                               message_fa=NOT_READ_ONLY_FA)  # fmt: skip
+            out["command"] = cmd[:500]
+        elif key == "channels":
+            chans = []
+            for c in value if isinstance(value, list) else []:
+                if not isinstance(c, dict) or not re.match(CHAT, str(c.get("chat") or "")):
+                    bad[key] = "[{chat: @name | id, title_fa?, role?}]"
+                    break
+                chans.append({k: str(v)[:120] for k, v in c.items()
+                              if k in ("chat", "title_fa", "role") and v is not None})  # fmt: skip
+            else:
+                if chans:
+                    out["channels"] = chans
+                    continue
+                bad[key] = "[{chat: @name | id, title_fa?, role?}]"
+        elif key == "site_url":
+            url = LD._public_url(value)
+            if not url:
+                bad[key] = "a public https address without credentials or a query"
+                continue
+            out["site_url"] = url
+        else:  # channel_id, handle, property_id
+            h = LD._handle(value)
+            if not h:
+                bad[key] = "letters, digits, . _ - (2-64)"
+                continue
+            out[key] = h
+    if bad:
+        raise ApiError(422, "validation_failed", fields=bad,
+                       message_fa="یکی از مقدارها درست نیست: " + "، ".join(bad))  # fmt: skip
+    if kind != "instagram":
+        out.pop("via", None)
+        out.pop("server", None)
+    return out
+
+
 def read_only(cmd: str) -> bool:
     """A command the hub may run on IG-Hub for the daily read."""
     from hq_api.domain.server_classify import classify_detail
@@ -207,10 +450,16 @@ def missing(kind: str, config: dict[str, Any], secret_set: bool) -> list[str]:
     elif kind == "ga4" and not str(config.get("property_id") or "").isdigit():
         need.append("شماره‌ی ویژگی Analytics")
     elif kind == "instagram":
-        if not config.get("accounts"):
-            need.append("نام حساب‌های اینستاگرام")
-        if not config.get("command"):
-            need.append("دستور فقط‌خواندنی خواندن عددها روی IG-Hub")
+        if config.get("via") == "ig_hub" and not (config.get("accounts") and config.get("command")):
+            # ⟨2026-11-08⟩ H3: the account exists on IG-Hub; registering it here is the technical
+            # team's step (connection.set), never the owner's
+            srv = (config.get("server") or {}) if isinstance(config.get("server"), dict) else {}
+            need.append(IG_HUB_OWNER_FA.format(server=srv.get("name") or ig_hub()["server"]))
+        else:
+            if not config.get("accounts"):
+                need.append("نام حساب‌های اینستاگرام")
+            if not config.get("command"):
+                need.append("دستور فقط‌خواندنی خواندن عددها روی IG-Hub")
     elif kind == "telegram" and not _chats(config):
         need.append("نشانی کانال‌ها")
     elif kind == "youtube" and not config.get("channel_id"):
@@ -1088,7 +1337,23 @@ async def read_due(hub: Any, now: datetime | None = None) -> dict[str, Any]:
             hub_n += await store(
                 tx, co["id"], "hub", await hub_figures(tx, co["id"], yesterday, tz)
             )
-    out: dict[str, Any] = {"read": 0, "failed": 0, "waiting": 0, "hub": hub_n}
+        # ⟨2026-11-08⟩ the owner: an Instagram read path not registered here is the technical
+        # team's work, made by code (once per company), never a step of his
+        setup = 0
+        for r in due:
+            cfg = r["config"] or {}
+            if (
+                r["kind"] == "instagram"
+                and cfg.get("via") == "ig_hub"
+                and missing("instagram", cfg, True)
+            ):
+                try:
+                    async with tx.conn.begin_nested():
+                        if await ensure_ig_setup_work(tx, r["company_id"]) is not None:
+                            setup += 1
+                except Exception:  # noqa: BLE001 - never fails the daily read
+                    log.warning("ig setup work could not be made", extra={"company": r["code"]})
+    out: dict[str, Any] = {"read": 0, "failed": 0, "waiting": 0, "hub": hub_n, "ig_setup": setup}
     for r in due:
         if r["lock"] is not None:
             continue

@@ -8,9 +8,11 @@
 #
 #   own company       any agent whose charter lists the tool
 #   every server      the holding's platform SRE and the overseer
-#   another company   only through a cross-company request that company's
-#                     CEO accepted (`via: accepted_request`); the job then
-#                     runs as that CEO
+#   another company   through a cross-company request that company's CEO
+#                     accepted (`via: accepted_request`; the job then runs as
+#                     that CEO), or ⟨2026-11-08⟩ a technical role within reach
+#                     (`via: linked`: links not enforced, an `on` link, or the
+#                     company present in the session)
 package hq.internal
 
 import rego.v1
@@ -37,4 +39,16 @@ grant if {
 	agent
 	tv("via") == "accepted_request"
 	is_string(tv("company"))
+}
+
+# ⟨2026-11-08⟩ H1 (the owner: «همه شرکت‌ها به هم راه داشته باشند»): a company's technical role
+# (the TECH department's charters) on another company's server by the rule of linked.read — the
+# api sets `via: linked` when the owner does not enforce links, or the two share an `on` link, or
+# the company sits in the session of the run's order. Destructive commands still wait for the seal.
+grant if {
+	op in server_ops
+	agent
+	tv("via") == "linked"
+	is_string(tv("company"))
+	tv("company") != p.company
 }

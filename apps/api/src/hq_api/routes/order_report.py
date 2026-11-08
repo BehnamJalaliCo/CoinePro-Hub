@@ -149,7 +149,7 @@ async def talk_order(ref: str, ctx: Ctx = Depends(owner_ctx)) -> TalkOut:
 class FixIn(Model):
     action: Literal[
         "hire", "hiring.open", "lock.open", "series.seal", "budget.add", "player.auto",
-        "connection.guide", "kit.create",
+        "connection.guide", "kit.create", "envelope.set", "media.on",
     ]  # fmt: skip
     target: str | None = Field(default=None, max_length=120)
     tokens: int | None = Field(default=None, gt=0, le=10_000_000)
@@ -186,6 +186,8 @@ async def fix_order(
             raise ApiError(409, "validation_failed", "no blocker of this order has that fix now",
                            message_fa="این فرمان الان گیری با این رفع ندارد.")  # fmt: skip
         summary = await _apply_fix(ctx, tx, request, body, target, in_tree, later)
+        if body.action == "budget.add" and not body.tokens:
+            await OR._append_steps(tx, rep["id"], [OR._step("مدیر کل", OR.UNCAPPED_FA)])
         await ctx.audit(
             tx,
             company_id=rep["company_id"],
@@ -250,13 +252,15 @@ async def _apply_fix(
             later.append(str(out["decision_ref"]))
         return f"series {target} sealed"
     if body.action == "budget.add":
-        if not body.tokens:
-            raise ApiError(422, "validation_failed", fields={"tokens": "how many tokens to add"},
-                           message_fa="چند واحد مصرف اضافه شود؟ عدد لازم است.")  # fmt: skip
         w = works.get(target or "")
         if w is None or w["status"] not in W.OPEN:
             raise ApiError(409, "validation_failed", "an open work of this order",
                            message_fa="این کار باز نیست که بودجه بگیرد.")  # fmt: skip
+        if not body.tokens:
+            # ⟨2026-11-08⟩ the owner's «بودجه را بیشتر کن» without a figure (the apps send none):
+            # the work's cap is lifted for good and the work goes on
+            await W.uncap(tx, w, ctx.who)
+            return f"budget lifted on {w['ref']}"
         new = await W.add_budget(tx, w, body.tokens, ctx.who)
         return f"+{body.tokens} tokens on {w['ref']} (budget {new})"
     if body.action == "player.auto":
@@ -271,6 +275,9 @@ async def _apply_fix(
         # ⟨1.17⟩ W6 j: the kit's fix is the owner's seal of the kit card (POST /kits/{kit}/create
         # with the order): the app opens the card from the report; nothing is made here
         return "kit card (the app seals it)"
+    if body.action in ("envelope.set", "media.on"):
+        # ⟨2026-11-08⟩ audit M4, M10: the app's own pages (the month envelope, the media tools)
+        return f"{body.action} (the app does it)"
     return "guide"  # connection.guide: the app opens /connections/guides/{kind}
 
 
@@ -397,7 +404,16 @@ async def order_progress(
         if body.done:
             from hq_api.domain import sessions as SE
 
-            await SE.tick_tasks(tx, rep, body.done)
+            emp = await tx.first(
+                """SELECT e.title_fa, c.name_fa, c.code FROM core.employees e
+                   JOIN core.companies c ON c.id = e.company_id WHERE e.code = :c""",
+                c=ctx.who.code,
+            )
+            await SE.tick_tasks(
+                tx, rep, body.done,
+                who_fa=OR.who_fa(emp["title_fa"], emp["name_fa"]) if emp else None,
+                company=str(emp["code"]) if emp else None,
+            )  # fmt: skip
         await ctx.audit(
             tx,
             company_id=ctx.who.company_id,  # type: ignore[arg-type]

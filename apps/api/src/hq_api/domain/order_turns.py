@@ -24,8 +24,10 @@
 
 from __future__ import annotations
 
+import itertools
 import json
 import logging
+import re
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -45,6 +47,32 @@ log = logging.getLogger("hq_api.order_turns")
 
 OWNER_FA = "مدیر کل"
 DIALOGUE_STEPS = 12
+# ⟨1.23⟩ §41.2 what the holder's brief says about the plan (its run brief and «The order you hold»)
+PLAN_INSTRUCTION = (
+    "Work the plan task by task, in order: do the next open task now; tick each one you finish "
+    "with `order.progress` (`done: [n]`, one plain Persian line of what it produced). The moment a "
+    "task cannot go on (something only the owner knows, decides or must connect), ask the owner ONE "
+    "short question with `order.ask` and finish the run. Never stop silently: a run that ends "
+    "without a step, a question or a deliverable is a stall the owner sees at once. A video task "
+    "is done when the media team delivers the «بسته‌ی ساخت ویدیو» (script, shot list, on-screen "
+    "text, voice text, caption, hashtags, cover prompt): the hub has no video tool, the owner makes "
+    "the video and drops the file into the session; publishing goes on through IG-Hub. Instagram, "
+    "for every company, is read and published through IG-Hub: never an owner's step for it."
+)
+# ⟨1.23⟩ §41.2 an item of the owner's numbered list: Persian, Arabic-Indic or Latin digits, then
+# «-», «.», «)», «:» or «،»
+NUM_ITEM = re.compile(r"^\s*[(\[]?([0-9۰-۹٠-٩]{1,2})\s*[-.)\]:،–—]\s*(.*?)\s*$")
+INLINE_ITEM = re.compile(r"(?:(?<=\s)|^)([0-9۰-۹٠-٩]{1,2})\s*[-.)،:]\s+")
+PLAN_STEP_FA = "برنامه: {n} کار از حرف مدیر کل"
+MAX_PLAN_ITEMS = 30
+# ⟨2026-11-08⟩ audit B1: in a working session the owner's word is the order's word by code; a
+# question is answered by the talk alone
+QUESTION_MARKS = ("؟", "?")
+QUESTION_WORDS = (
+    "چرا", "چه", "چی", "چیه", "چیست", "کی", "کجا", "کجاست", "آیا", "چطور", "چطوری", "چگونه", "کدام",
+    "کدوم", "چند", "چندتا", "مگه", "مگر", "یعنی",
+)  # fmt: skip
+OWNER_SAID = 3
 FIXED_PERSONAS = ("advisor", "overseer", "assistant")
 RESTARTED_FA = "فرمان با پاسخ مدیر کل دوباره راه افتاد"
 REVISION_FA = "کار تحویل‌شده با حرف تازه‌ی مدیر کل دوباره باز شد"
@@ -221,6 +249,12 @@ async def ask(tx: Tx, who: Principal, ref: str, question_fa: str) -> dict[str, A
     )
     await OR._append_steps(tx, rep["id"], [OR._step(who_name, "سؤال از شما: " + question)])
     await OR._close_nudges(tx, ref, "مسئول از مدیر کل پرسید (order.ask)")
+    from hq_api.domain import session_activity as SA
+
+    await SA.emit_safe(tx, ref, SA.make_line(
+        f"ask:{ref}:{len(asks)}", who_name, "سؤال از شما: " + question, kind="ask",
+        state="running", company=who.company,
+    ))  # fmt: skip  # ⟨1.24⟩ §42.2
     talked = await to_talk(tx, rep, who.code, question, ask=True)
     order = await OR.load_order(tx, ref)
     text = " ".join(((order or {}).get("text") or "").split())[:80]
@@ -373,12 +407,171 @@ async def reply(tx: Tx, ref: str, text: str) -> dict[str, Any]:
     if not woken and why:
         steps.append(OR._step("سامانه", f"جواب رسید ولی {why}"))
     await OR._append_steps(tx, rep["id"], steps)
+    await plan_from_owner(tx, ref, words)  # ⟨1.23⟩ §41.2 a numbered list is the plan
     return {
         "work_ref": targets[0]["ref"],
         "run_id": runs[0] if runs else None,
         "woken": woken,
         "why_fa": None if woken else why,
     }
+
+
+# ------------------------------------------------------------ the owner's plan --
+_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
+
+
+def numbered_items(text: str) -> list[str]:
+    """⟨1.23⟩ §41.2 the items of a numbered list in the owner's words: lines that start with a
+    number and a mark («۱ -», «1.», «۱)», «2:»), each item possibly running over the lines that
+    follow; two items at least, else nothing. A list written in one line (its numbers running
+    1, 2, 3 …) is read too."""
+    items: list[str] = []
+    cur: list[str] | None = None
+    for raw in (text or "").splitlines():
+        m = NUM_ITEM.match(raw)
+        if m:
+            if cur is not None:
+                items.append(" ".join(" ".join(cur).split()))
+            cur = [m.group(2)]
+        elif cur is not None and raw.strip():
+            cur.append(raw.strip())
+        elif cur is not None and not raw.strip():
+            continue
+    if cur is not None:
+        items.append(" ".join(" ".join(cur).split()))
+    if len(items) < 2:
+        items = []
+        one = " ".join((text or "").split())
+        parts = INLINE_ITEM.split(one)
+        # parts: [lead, n1, text1, n2, text2, …]
+        if len(parts) >= 5:
+            seq = [int(p.translate(_DIGITS)) for p in parts[1::2]]
+            if seq[0] == 1 and all(b == a + 1 for a, b in itertools.pairwise(seq)):
+                items = [" ".join(p.split()) for p in parts[2::2]]
+    out = [i for i in items if len(i) >= 2]
+    return out[:MAX_PLAN_ITEMS] if len(out) >= 2 else []
+
+
+async def plan_from_owner(tx: Tx, ref: str, text: str) -> int:
+    """⟨1.23⟩ §41.2 the owner's numbered steps become the session's plan tasks, in order, by code
+    (an item the plan already has — the holder's `order.ack` or an earlier word — is not added
+    again); one step «برنامه: N کار از حرف مدیر کل». Answers how many were added."""
+    from hq_api.domain import sessions as SE
+
+    items = numbered_items(text)
+    if not items:
+        return 0
+    rep = await OR.ensure(tx, ref)
+    if rep is None or rep.get("ended_at") is not None:
+        return 0
+    have = {" ".join(str(t["title_fa"]).split()) for t in await SE.tasks_of(tx, rep["order_id"])}
+    added = 0
+    for item in items:
+        title = HZ.humanize(item) or item
+        title = " ".join(title.split())[:300]
+        if not title or title in have:
+            continue
+        await SE.add_task(tx, rep, title_fa=title, by="owner", who_fa=OWNER_FA)
+        have.add(title)
+        added += 1
+    if added:
+        line = PLAN_STEP_FA.format(n=added)
+        await OR._append_steps(tx, rep["id"], [OR._step(SYSTEM_FA, line)])
+        await SE.remember(tx, rep["id"], line)
+    return added
+
+
+def is_question(text: str) -> bool:
+    """Whether the owner's word is a question (a mark, or a question word first)."""
+    one = " ".join((text or "").split())
+    if not one:
+        return False
+    if any(m in one for m in QUESTION_MARKS):
+        return True
+    first = one.split()[0].strip("«»\"'،,")
+    return first in QUESTION_WORDS
+
+
+async def owner_word(tx: Tx, ref: str, text: str, *, work_mode: bool) -> dict[str, Any]:
+    """⟨2026-11-08⟩ audit B1 (the owner: his nine steps reached nobody): in a working session every
+    owner turn that is not a question is the order's word by code — `reply` (the step «مدیر کل:
+    …», the open turn cleared, the holder woken with the dialogue in its brief) — and a numbered
+    list in it is the plan (§41.2). A question, or a consult-mode talk, feeds the plan only. An
+    order with nothing to wake (ended, nothing open or delivered) is left to the talk. Answers
+    {replied, woken, tasks}."""
+    out: dict[str, Any] = {"replied": False, "woken": [], "tasks": 0}
+    words = " ".join((text or "").split())
+    if not words:
+        return out
+    if work_mode and not is_question(words):
+        try:
+            async with tx.conn.begin_nested():
+                got = await reply(tx, ref, words[:2000])
+            out.update(replied=True, woken=got["woken"])
+            return out  # reply() read the plan already
+        except ApiError:
+            pass  # ended, or nothing open: the talk alone carries it
+    out["tasks"] = await plan_from_owner(tx, ref, words)
+    return out
+
+
+async def owner_said(tx: Tx, conversation_ref: str | None, n: int = OWNER_SAID) -> list[str]:
+    """⟨2026-11-08⟩ audit B1: the owner's last turns in the session, verbatim (newest last), for
+    the holder's run brief: the prose a plan task's title cannot hold (a slogan, a speaker, «every
+    time different»)."""
+    if not conversation_ref:
+        return []
+    rows = await tx.all(
+        """SELECT t.text FROM talk.turns t JOIN talk.conversations c ON c.id = t.conversation_id
+           WHERE c.ref = :r AND t.by_kind = 'owner' AND t.text IS NOT NULL AND t.text <> ''
+           ORDER BY t.n DESC LIMIT :n""",
+        r=conversation_ref,
+        n=n,
+    )
+    return [str(r["text"])[:4000] for r in reversed(rows)]
+
+
+# ------------------------------------------------------------ never a silent stall --
+async def wake_holder(tx: Tx, ref: str, reason: str) -> dict[str, Any]:
+    """⟨1.23⟩ §41.3 the holder's open root work runs again (one queued run per work); answers
+    {run_id, work_ref, why_fa}."""
+    from hq_api.domain import session_activity as SA
+
+    return await SA.wake_holder(tx, ref, reason)
+
+
+async def wake_or_say(tx: Tx, ref: str, reason: str) -> dict[str, Any]:
+    """⟨2026-11-08⟩ audit M11: the holder woken, or a step that says why not («مسئول بیدار نشد:
+    …»: a lock, a closed work, a stopped order) — never a silent NULL. The one helper every cause
+    uses (a hire joined, a child delivered, the pace switched, the session reopened)."""
+    from hq_api.domain import session_activity as SA
+
+    out = await SA.wake_holder(tx, ref, reason)
+    if out["run_id"] is None and out.get("why_fa"):
+        rep = await OR.ensure(tx, ref)
+        if rep is not None:
+            await OR._append_steps(
+                tx, rep["id"], [OR._step(SYSTEM_FA, SA.NOT_WOKEN_FA.format(why=out["why_fa"]))]
+            )
+    return out
+
+
+async def on_child_closed(tx: Tx, work: dict[str, Any], what: str) -> dict[str, Any] | None:
+    """⟨1.23⟩ §41.3 a child work (or a requested work) of an order was delivered or failed: the
+    holder is woken so the order goes on (the holder itself delivering wakes nobody). Answers the
+    wake, or None when the work is a root or belongs to no session."""
+    if work.get("parent_id") is None and work.get("requested_by_work_id") is None:
+        return None
+    ref = await OR.order_of_work(tx, work["id"])
+    if ref is None:
+        return None
+    rep = await OR.ensure(tx, ref)
+    if rep is None or rep.get("ended_at") is not None:
+        return None
+    h = await holder(tx, ref)
+    if h is None or h.get("work_id") is None or h["work_id"] == work["id"]:
+        return None
+    return await wake_or_say(tx, ref, f"child_{what}:{work['ref']}")
 
 
 # -------------------------------------------------------------- the talk --
@@ -483,7 +676,10 @@ async def talk_brief(tx: Tx, order_ref: str) -> dict[str, Any] | None:
     from hq_api.domain import sessions as SE
 
     steps = OR._j(rep["steps"]) or []
-    tasks = await SE.tasks_of(tx, rep["order_id"])
+    tasks = [t for t in await SE.tasks_of(tx, rep["order_id"]) if t["state"] != "dropped"]
+    nxt = next((t for t in tasks if t["state"] == "doing"), None) or next(
+        (t for t in tasks if t["state"] == "todo"), None
+    )
     out = {
         "order": order_ref,
         "text": " ".join(str(order.get("text") or "").split())[:1500],
@@ -491,9 +687,12 @@ async def talk_brief(tx: Tx, order_ref: str) -> dict[str, Any] | None:
         "state": rep["state"],
         "badge": rep.get("badge"),
         "owner_turn": OR._j(rep.get("turn")),
-        "plan": [
-            f"{t['n']}. {t['title_fa']} [{t['state']}]" for t in tasks if t["state"] != "dropped"
-        ],
+        # ⟨1.23⟩ §41.2 the plan: the owner's numbered steps and the holder's `order.ack` steps
+        "plan": [{"n": t["n"], "title": t["title_fa"], "state": t["state"]} for t in tasks],
+        "plan_next": nxt["n"] if nxt else None,
+        "plan_instruction": PLAN_INSTRUCTION,
+        # ⟨2026-11-08⟩ audit B1: the owner's last words in the session, verbatim
+        "owner_said": await owner_said(tx, rep.get("conversation_ref")),
         "steps": [f"{s.get('who_fa')}: {s.get('what_fa')}" for s in steps[-DIALOGUE_STEPS:]],
         "blockers": [b.get("title_fa") for b in OR._j(rep["blockers"]) or []],
         "outputs": [o.get("title_fa") for o in OR._j(rep["outputs"]) or []],

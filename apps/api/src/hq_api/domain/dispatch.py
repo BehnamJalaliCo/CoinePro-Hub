@@ -565,10 +565,11 @@ def preview_line(r: Route, d: dict[str, Any], names: dict[str, dict[str, str]]) 
             dept = r.department if r.department in (names.get(c) or {}) else None
             head += f" + {_co_fa(c, d)}/{_dept_fa(c, dept, names)}"
     out = OUTPUT_FA.get(r.output_kind, "کار")
+    # ⟨2026-11-08⟩ no «بودجه: …» line: an owner's order has no token cap (budget_tokens is the
+    # secretary's estimate of the work, kept for the apps that show it)
     parts = [
         f"→ {head}",
         f"خروجی: {r.count} {out}" if r.count else f"خروجی: {out}",
-        f"بودجه: {r.budget_tokens // 1000} هزار توکن",
     ]
     if r.mode == "council":
         parts.append("با شورا")

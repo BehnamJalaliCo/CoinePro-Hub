@@ -42,9 +42,14 @@ def matches(env: dict[str, Any], topics: set[str], companies: set[str] | None) -
     return any(type_.startswith(prefix) for t in topics for prefix in events.TOPICS[t])
 
 
+# company=*: what the owner's holding-wide stream carries in full (everything else is counters):
+# live activity, and ⟨1.23⟩ §41.1 the sessions' live lines and badges (the owner's own)
+FULL_TYPES = ("activity.changed", "session.activity", "session.updated")
+
+
 def holding_view(env: dict[str, Any]) -> dict[str, Any]:
-    """company=*: counters only, except live activity."""
-    if env.get("type") == "activity.changed":
+    """company=*: counters only, except live activity and the sessions' lines."""
+    if env.get("type") in FULL_TYPES:
         return env
     return {
         "id": env.get("id"),

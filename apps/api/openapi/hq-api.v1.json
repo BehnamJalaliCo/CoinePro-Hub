@@ -404,6 +404,83 @@
         "title": "Activity",
         "type": "object"
       },
+      "ActivityLine": {
+        "description": "§41.1, and ⟨1.24⟩ §42.2 additive: `id` (`<run>:<n>`, 0 the start, `<run>:end` the end;\n`task:<ref>:<n>`, `join:<code>`), `company` (the actor's), `kind`, `state`, `task_n`.",
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "company": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "default": "step",
+            "enum": [
+              "start",
+              "step",
+              "end",
+              "wake",
+              "ask",
+              "join",
+              "task",
+              "memory"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "state": {
+            "default": "done",
+            "enum": [
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "task_n": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task N"
+          },
+          "text_fa": {
+            "title": "Text Fa",
+            "type": "string"
+          },
+          "who_fa": {
+            "title": "Who Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "at",
+          "who_fa",
+          "text_fa"
+        ],
+        "title": "ActivityLine",
+        "type": "object"
+      },
       "Actor": {
         "properties": {
           "code": {
@@ -10538,6 +10615,149 @@
         "title": "ConnectionPatch",
         "type": "object"
       },
+      "ConnectionSetIn": {
+        "additionalProperties": false,
+        "description": "⟨2026-11-08⟩ H2 `connection.set`: a connection's non-secret settings, by an agent.",
+        "properties": {
+          "accounts": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accounts"
+          },
+          "channel_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Id"
+          },
+          "channels": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channels"
+          },
+          "company": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "handle": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Handle"
+          },
+          "kind": {
+            "pattern": "^(search_console|ga4|instagram|telegram|youtube|x|pagespeed|trends|bing|play_console|google_ads|meta_ads)$",
+            "title": "Kind",
+            "type": "string"
+          },
+          "property_id": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Property Id"
+          },
+          "read_command": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read Command"
+          },
+          "server": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server"
+          },
+          "site_url": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Url"
+          },
+          "via": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Via"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "ConnectionSetIn",
+        "type": "object"
+      },
       "ConnectorEntry": {
         "additionalProperties": false,
         "properties": {
@@ -17301,7 +17521,9 @@
               "budget.add",
               "player.auto",
               "connection.guide",
-              "kit.create"
+              "kit.create",
+              "envelope.set",
+              "media.on"
             ],
             "title": "Action",
             "type": "string"
@@ -36636,7 +36858,7 @@
             "type": "string"
           },
           "max_tokens": {
-            "default": 40000,
+            "default": 120000,
             "title": "Max Tokens",
             "type": "integer"
           },
@@ -45983,6 +46205,60 @@
         "title": "Session",
         "type": "object"
       },
+      "SessionActivity": {
+        "properties": {
+          "idle_since": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idle Since"
+          },
+          "last": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityLine"
+            },
+            "title": "Last",
+            "type": "array"
+          },
+          "stuck_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stuck Fa"
+          },
+          "waiting_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waiting Fa"
+          },
+          "working": {
+            "items": {
+              "$ref": "#/components/schemas/Worker"
+            },
+            "title": "Working",
+            "type": "array"
+          }
+        },
+        "title": "SessionActivity",
+        "type": "object"
+      },
       "SessionCard": {
         "properties": {
           "badge": {
@@ -53956,6 +54232,11 @@
             "title": "Chain",
             "type": "array"
           },
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
           "local": {
             "default": false,
             "title": "Local",
@@ -53999,6 +54280,17 @@
               }
             ],
             "title": "Chain"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
           },
           "local": {
             "anyOf": [
@@ -56083,6 +56375,45 @@
           "work_ref"
         ],
         "title": "WorkStopped",
+        "type": "object"
+      },
+      "Worker": {
+        "properties": {
+          "company_fa": {
+            "title": "Company Fa",
+            "type": "string"
+          },
+          "doing_fa": {
+            "title": "Doing Fa",
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "step": {
+            "title": "Step",
+            "type": "integer"
+          },
+          "who_fa": {
+            "title": "Who Fa",
+            "type": "string"
+          },
+          "work_title_fa": {
+            "title": "Work Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "who_fa",
+          "company_fa",
+          "work_title_fa",
+          "started_at",
+          "step",
+          "doing_fa"
+        ],
+        "title": "Worker",
         "type": "object"
       },
       "WorkshopMeta": {
@@ -110468,6 +110799,121 @@
         ]
       }
     },
+    "/api/v1/orders/{ref}/activity": {
+      "get": {
+        "description": "⟨1.23⟩ §41.1 the session's live activity: who is working now (each queued or running run of\nthe order's works, with its current step), the last 30 lines in plain Persian (a run started,\neach step in words, how it ended), and when nobody works: since when (`idle_since`), what the\nowner is asked (`waiting_fa`) or why it is stuck (`stuck_fa`). Never a ref, a tool key or a\ncode in a line.",
+        "operationId": "order_activity",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "idle_since": "2026-10-17T05:42:00Z",
+                  "last": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "company": "TY",
+                      "id": "x",
+                      "kind": "start",
+                      "state": "running",
+                      "task_n": 1,
+                      "text_fa": "x",
+                      "who_fa": "x"
+                    }
+                  ],
+                  "stuck_fa": "x",
+                  "waiting_fa": "x",
+                  "working": [
+                    {
+                      "company_fa": "x",
+                      "doing_fa": "x",
+                      "started_at": "2026-10-17T05:42:00Z",
+                      "step": 1,
+                      "who_fa": "x",
+                      "work_title_fa": "x"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/SessionActivity"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Order Activity",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
     "/api/v1/orders/{ref}/close": {
       "post": {
         "description": "The owner's OK: `ok` — the order `delivered` (`cancelled` when it has no final output),\nits open works cancelled except the permanent structures it set up, the session closed and\narchived (its talk read-only); `cancel` — the same, `cancelled`. ⟨1.22⟩ §40.1 the session's\nmemory is folded once more after the close. Requires `Idempotency-Key`.",
@@ -111709,6 +112155,121 @@
           }
         },
         "summary": "Hide Session",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/orders/{ref}/nudge": {
+      "post": {
+        "description": "⟨1.23⟩ §41.3 «ادامه بده»: the holder is woken now, its brief carrying the plan's next open\ntask; a step «مدیر کل گفت ادامه بده» (and, when nobody could be woken, why). Answers the\nsession's activity. A closed session answers 409. Requires `Idempotency-Key`.",
+        "operationId": "nudge_session",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "idle_since": "2026-10-17T05:42:00Z",
+                  "last": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "company": "TY",
+                      "id": "x",
+                      "kind": "start",
+                      "state": "running",
+                      "task_n": 1,
+                      "text_fa": "x",
+                      "who_fa": "x"
+                    }
+                  ],
+                  "stuck_fa": "x",
+                  "waiting_fa": "x",
+                  "working": [
+                    {
+                      "company_fa": "x",
+                      "doing_fa": "x",
+                      "started_at": "2026-10-17T05:42:00Z",
+                      "step": 1,
+                      "who_fa": "x",
+                      "work_title_fa": "x"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/SessionActivity"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Nudge Session",
         "tags": [
           "orders"
         ]
@@ -118337,6 +118898,7 @@
                     "chain": [
                       "x"
                     ],
+                    "enabled": false,
                     "local": false,
                     "month_cap_usd": 1.0,
                     "warn_at": 1.0
@@ -118427,6 +118989,7 @@
                   "chain": [
                     "x"
                   ],
+                  "enabled": false,
                   "local": false,
                   "month_cap_usd": 0.0,
                   "warn_at": 1.0
@@ -118483,6 +119046,7 @@
                     "chain": [
                       "x"
                     ],
+                    "enabled": false,
                     "local": false,
                     "month_cap_usd": 1.0,
                     "warn_at": 1.0
@@ -148498,6 +149062,144 @@
           }
         },
         "summary": "Agent Connections",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/connections/set": {
+      "post": {
+        "description": "⟨2026-11-08⟩ H2 connection.set (A2): a company's CEO, media director or technical role\nregisters a connection's non-secret settings — Instagram's account names and that they are\nread through IG-Hub (`via: ig_hub`, `server`), a read-only `read_command` (the same check the\ndaily read applies), Telegram channels, a site's address, a YouTube channel id. Another\ncompany's connection by its technical role under the linked rule (H1). Never a secret (the\nowner's `make growth-secret`): refused with the field named. Audited; the state recomputed;\na step in the order's session when the run belongs to one.",
+        "operationId": "agent_connection_set",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "accounts": [
+                  "x"
+                ],
+                "channel_id": "x",
+                "channels": [
+                  {}
+                ],
+                "company": "TY",
+                "handle": "x",
+                "kind": "one_off",
+                "property_id": "x",
+                "read_command": "x",
+                "server": {},
+                "site_url": "x",
+                "via": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ConnectionSetIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "company": "TY",
+                  "config": {},
+                  "daily": [
+                    {
+                      "day": "2026-10-17",
+                      "key": "x",
+                      "subject": "x",
+                      "value": 1.0
+                    }
+                  ],
+                  "kind": "search_console",
+                  "label_fa": "x",
+                  "last_error_fa": "x",
+                  "last_read_at": "2026-10-17T05:42:00Z",
+                  "missing_fa": [
+                    "x"
+                  ],
+                  "reader": false,
+                  "secret": "set",
+                  "secret_needed": false,
+                  "state": "not_connected"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/hq_api__domain__connections__Connection"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Agent Connection Set",
         "tags": [
           "internal"
         ]

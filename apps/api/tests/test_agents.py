@@ -14,6 +14,7 @@ from typing import Any
 import httpx
 import pytest
 
+from hq_api.domain import work as W
 from hq_api.security import agent_tokens
 from hq_common import charters
 
@@ -603,9 +604,11 @@ async def test_daily_cap_refuses_runs(
     # The day's spend counts everything the model read or wrote: through the
     # subscription most input arrives as cache writes and reads.
     # It is read call by call from the ledger: a run that started before
-    # midnight (UTC) still counts what it spends today.
-    today = """SELECT COALESCE(sum(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)
-                       + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0)), 0)
+    # midnight (UTC) still counts what it spends today. ⟨2026-11-08⟩ audit B5: a cache read
+    # counts at its share of the price (work.CACHE_READ_SHARE), as the budgets do.
+    today = f"""SELECT COALESCE(sum(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)
+                       + round(COALESCE(cache_read_tokens, 0) * {W.CACHE_READ_SHARE})
+                       + COALESCE(cache_write_tokens, 0)), 0)
                FROM llm.calls WHERE started_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
                  AND meta ? 'run_id'"""
     async with agents.runner.hub.db.tx(await agents.runner.hub.companies.ids()) as tx:
@@ -627,7 +630,10 @@ async def test_daily_cap_refuses_runs(
         str(late),
     )
     async with agents.runner.hub.db.tx(await agents.runner.hub.companies.ids()) as tx:
-        assert await agents.runner._spent_today(tx) == before + 460
+        # 100 + 20 + 40 in full, the 300 cache reads at their share (B5)
+        assert await agents.runner._spent_today(tx) == before + 160 + round(
+            300 * W.CACHE_READ_SHARE
+        )
 
 
 async def test_bad_output_and_router_refusals(

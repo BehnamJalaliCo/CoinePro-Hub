@@ -30,6 +30,7 @@ from hq_api.db import Tx
 from hq_api.domain import humanize as HZ
 from hq_api.domain import notify
 from hq_api.domain import order_report as OR
+from hq_api.domain import session_activity as SA
 from hq_api.domain.session_shapes import (
     Badge,
     Brief,
@@ -97,8 +98,11 @@ def badge_of(
     *,
     decision_pending: bool,
     now: datetime | None = None,
+    pulse: SA.Pulse | None = None,
 ) -> tuple[str, str]:
-    """(badge, reason_fa) by code (contract §35.2)."""
+    """(badge, reason_fa) by code (contract §35.2). ⟨1.23⟩ §41.3 with the session's `pulse`:
+    `moving` only while a run is queued or running now; idle for two thresholds → `stuck` with the
+    cause; idle for less → still `moving`, saying since when nobody works."""
     now = now or datetime.now(UTC)
     if rep.get("closed_at") is not None or rep.get("ended_at") is not None:
         head = {"delivered": "تحویل شد و بسته شد", "cancelled": "لغو شد و بسته شد"}.get(
@@ -129,10 +133,22 @@ def badge_of(
         return "stuck", "گیر کرد: کارمندها چند بار کار کردند و خروجی ندادند"
     if stuck:
         return "stuck", str(stuck[0]["title_fa"])[:300]
+    steps = OR._j(rep.get("steps")) or []
+    if pulse is not None:
+        if pulse.live:
+            doing = pulse.doing_fa or (
+                f"{steps[-1].get('who_fa')}: {steps[-1].get('what_fa')}" if steps else None
+            )
+            return "moving", f"در حال کار: {doing}"[:300] if doing else "در حال کار"
+        if pulse.stuck_fa:
+            return "stuck", pulse.stuck_fa[:300]
     last = _last_at(rep)
     if roots and now - last >= timedelta(hours=PROGRESS_HOURS):
         return "stuck", f"از {PROGRESS_HOURS} ساعت پیش قدمی برداشته نشده"
-    steps = OR._j(rep.get("steps")) or []
+    if pulse is not None and roots:
+        minutes = int(pulse.idle.total_seconds() // 60)
+        if minutes >= 1:
+            return "moving", f"از {minutes} دقیقه پیش کسی کار نمیکند؛ مسئول بیدار میشود"[:300]
     if steps:
         s = steps[-1]
         return "moving", f"{s.get('who_fa')}: {s.get('what_fa')}"[:300]
@@ -339,18 +355,26 @@ async def agent_tasks(
     return added
 
 
-async def tick_tasks(tx: Tx, rep: dict[str, Any], done: list[int]) -> int:
-    """`order.progress` with `done`: those task numbers are done."""
+async def tick_tasks(
+    tx: Tx, rep: dict[str, Any], done: list[int], *, who_fa: str | None = None,
+    company: str | None = None,
+) -> int:  # fmt: skip
+    """`order.progress` with `done`: those task numbers are done (⟨1.24⟩ §42.2 each one a `task`
+    line on the session's stream)."""
     if not done:
         return 0
-    n = await tx.scalar(
-        """WITH t AS (UPDATE owner.session_tasks SET state = 'done', updated_at = now()
-                     WHERE order_id = :o AND n = ANY(:ns) AND state <> 'done' RETURNING 1)
-           SELECT count(*) FROM t""",
+    rows = await tx.all(
+        """UPDATE owner.session_tasks SET state = 'done', updated_at = now()
+           WHERE order_id = :o AND n = ANY(:ns) AND state <> 'done' RETURNING n, title_fa""",
         o=rep["order_id"],
         ns=[int(x) for x in done[:50]],
     )
-    return int(n or 0)
+    for t in rows:
+        await SA.emit_safe(tx, str(rep["ref"]), SA.make_line(
+            f"task:{rep['ref']}:{t['n']}", who_fa or "مسئول", f"کار {t['n']} انجام شد: {t['title_fa']}",
+            kind="task", state="done", company=company, task_n=int(t["n"]),
+        ))  # fmt: skip
+    return len(rows)
 
 
 # ------------------------------------------------------------ participants --
@@ -441,7 +465,10 @@ async def view(
     works = await OR.tree(tx, OR.root_refs(order)) if works is None else works
     blockers = OR._j(rep.get("blockers")) or []
     pending = await decisions_pending(tx, [w["id"] for w in works])
-    badge, reason = badge_of(rep, rep["state"], works, blockers, decision_pending=pending)
+    pulse = await SA.read_pulse(tx, rep, works)
+    badge, reason = badge_of(
+        rep, rep["state"], works, blockers, decision_pending=pending, pulse=pulse
+    )
     tasks = await tasks_of(tx, rep["order_id"])
     holder = await OT.holder(tx, rep["ref"])
     brief = brief_of(badge, reason, rep, OR._j(rep.get("outputs")) or [], tasks)
@@ -665,6 +692,15 @@ async def join_hired(
         if rep is not None:
             await OR._append_steps(tx, rep["id"], [OR._step(OWNER_FA, line)])
             await remember(tx, rep["id"], line)  # ⟨1.22⟩ §40.1
+            await SA.emit_safe(tx, str(r["order_ref"]), SA.make_line(
+                f"join:{employee_code}", title_fa, line, kind="join", state="done",
+                company=company_code,
+            ))  # fmt: skip  # ⟨1.24⟩ §42.2
+            # ⟨1.23⟩ §41.3 the holder is woken: the newcomer is here, the work goes on (or a
+            # step says why not — audit M11)
+            from hq_api.domain import order_turns as OT
+
+            await OT.wake_or_say(tx, str(r["order_ref"]), f"joined:{employee_code}")
         joined.append(str(r["ref"]))
     return joined
 
@@ -800,7 +836,14 @@ async def reopen(tx: Tx, ref: str) -> dict[str, Any]:
             )
             if rid is not None:
                 woken.append(str(w["ref"]))
-    await OR._append_steps(tx, rep["id"], [OR._step(OWNER_FA, "جلسه دوباره باز شد")])
+    steps = [OR._step(OWNER_FA, "جلسه دوباره باز شد")]
+    reopened = [w for w in works if w["is_root"] and w["status"] == "cancelled"]
+    if reopened and not woken:  # ⟨2026-11-08⟩ audit M11: never a silent NULL
+        from hq_api.domain import order_turns as OT
+
+        why = await OT._why_not_woken(tx, {**reopened[0], "status": "in_progress"})
+        steps.append(OR._step(SA.SYSTEM_FA, SA.NOT_WOKEN_FA.format(why=why)))
+    await OR._append_steps(tx, rep["id"], steps)
     await OR.refresh(tx, ref)
     return {"woken": woken}
 
@@ -858,7 +901,15 @@ async def set_pace(tx: Tx, ref: str, pace: str) -> dict[str, Any]:
             )
             if rid is not None:
                 woken.append(str(w["ref"]))
-    await OR._append_steps(tx, rep["id"], [OR._step(OWNER_FA, PACE_FA[pace])])
+    steps = [OR._step(OWNER_FA, PACE_FA[pace])]
+    if not woken and any(w["is_root"] and w["status"] in OR.OPEN for w in works):
+        # ⟨2026-11-08⟩ audit M11: never a silent NULL
+        from hq_api.domain import order_turns as OT
+
+        root = next(w for w in works if w["is_root"] and w["status"] in OR.OPEN)
+        why = await OT._why_not_woken(tx, root)
+        steps.append(OR._step(SA.SYSTEM_FA, SA.NOT_WOKEN_FA.format(why=why)))
+    await OR._append_steps(tx, rep["id"], steps)
     await tx.exec(
         "UPDATE owner.order_reports SET last_step_at = now(), updated_at = now() WHERE id = :id",
         id=rep["id"],

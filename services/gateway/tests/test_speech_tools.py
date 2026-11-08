@@ -1,6 +1,7 @@
-"""⟨2026-11-06⟩ speech.make through the gateway (agents/tools.md): live, held by the five media roles
-only, A1; `{text_fa, voice?, style?}` starts a voice (redacted text, an Idempotency-Key), `{job}`
-asks for its answer; anything else never reaches the api; a refusal comes back in Persian."""
+"""⟨2026-11-06⟩ speech.make through the gateway (agents/tools.md): live, A1; `{text_fa, voice?,
+style?}` starts a voice (redacted text, an Idempotency-Key), `{job}` asks for its answer; anything
+else never reaches the api; a refusal comes back in Persian. ⟨2026-11-08⟩ the owner: voice is off
+for the sessions; only the voice producer of a production line still holds the tool."""
 
 from __future__ import annotations
 
@@ -21,7 +22,7 @@ from hq_gateway.gateway import Gateway, Opa
 PRODUCER = gate(employee="TY-MEDIA-04", kind="employee", role="voice_producer", department="MEDIA")
 PUBLISHER = gate(employee="TY-MEDIA-06", kind="employee", role="publisher", department="MEDIA")
 JOB = "0193e7a1-0000-7000-8000-0000000000aa"
-ROLES = {"media_director", "voice_producer", "video_director", "motion_designer", "scriptwriter"}
+ROLES = {"voice_producer"}
 
 
 @pytest.fixture

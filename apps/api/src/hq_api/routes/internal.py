@@ -363,6 +363,7 @@ OP_CLASS: dict[str, str] = {
     "group.plan": "A1",
     "experiment.write": "A1",
     "connection.read": "A0",
+    "connection.set": "A2",  # ⟨2026-11-08⟩ H2
     # ⟨1.11⟩ prompt 21 part 1 (routing.rego): every order answered, the
     # delegation budget, the destructive cards a CTO decides
     "order.ack": "A1",
@@ -567,7 +568,8 @@ async def delegate_work(
             brief=body.brief,
             priority=body.priority,
             due_at=body.due_at,
-            budget=body.budget,
+            # ⟨2026-11-08⟩ under an owner's order nothing is capped (the parent has no budget)
+            budget=None if w.get("budget_tokens") is None else body.budget,
             key_result=body.key_result,
         )
         await _audit_work(
@@ -613,6 +615,49 @@ async def _run_ledger(tx: Tx, actor: str, run_id: str) -> tuple[UsageIn, dict[st
 
 # The urgent cap is per company per (rolling) hour: try again after a while.
 URGENT_RETRY_AFTER_S = 600
+
+
+HUB_OPEN_DEPTS = (
+    "AIOPS",
+    "LEGAL",
+)  # ⟨2026-11-08⟩ audit B4: the holding's departments any role may ask
+
+
+async def _session_companies(ctx: Ctx, origin: UUID | None) -> set[str]:
+    """⟨2026-11-08⟩ audit B4: the companies present in the session of the order the requesting
+    work serves (the holder's, and every `role@CODE` the owner brought in): the owner put them in
+    one room, so a work of that order may ask them. The run's own work when none is named."""
+    from hq_api.domain import order_report as OR
+
+    work_id = origin
+    async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as all_tx:
+        if work_id is None and ctx.who.run_id is not None:
+            work_id = await all_tx.scalar(
+                "SELECT work_id FROM agents.runs WHERE id = CAST(:r AS uuid)", r=ctx.who.run_id
+            )
+        if work_id is None:
+            return set()
+        ref = await OR.order_of_work(all_tx, work_id)
+        if ref is None:
+            return set()
+        row = await all_tx.first(
+            """SELECT c.present, c.holder FROM owner.order_reports r
+               JOIN talk.conversations c ON c.ref = r.conversation_ref WHERE r.ref = :r""",
+            r=ref,
+        )
+    if row is None:
+        return set()
+    keys = [*(row["present"] or []), row["holder"] or ""]
+    return {k.partition("@")[2] for k in keys if isinstance(k, str) and "@" in k}
+
+
+async def _of_owner_order(ctx: Ctx, work_id: UUID) -> bool:
+    """Whether the work belongs to an owner's order (its report is the holding's row: read across
+    companies, in a transaction of its own)."""
+    from hq_api.domain import order_report as OR
+
+    async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as all_tx:
+        return await OR.order_of_work(all_tx, work_id) is not None
 
 
 async def _request_budget(
@@ -663,6 +708,10 @@ async def _request_budget(
             )
         if left is not None:
             cap = max(0, min(cap, int(left["left"])))
+        elif body.kind != "recurring" and await _of_owner_order(ctx, origin):
+            # ⟨2026-11-08⟩ a request made under an owner's order: no token budget on it either
+            # (the chain bound above still holds two managers from waking each other for ever)
+            return origin, None
     if body.kind == "recurring":  # bounded by its escrow, approved by a decision
         return origin, body.budget
     if cap <= 0:  # nothing left to hand on: no work with a zero budget
@@ -798,6 +847,7 @@ async def deliver_work(
         )
         if idem:
             await idem.store(tx, 200, result.model_dump(mode="json"))
+    await _wake_order_holder(ctx, w, "delivered")  # ⟨1.23⟩ §41.3 the order's holder goes on
     # ⟨1.5⟩ prompt 11 §2.6: a `rule` red line in a deliverable is a finding (PR-115)
     from hq_api.domain import charter as CH
 
@@ -831,7 +881,25 @@ async def fail_work(id: UUID, body: Fail, ctx: Ctx = Depends(internal_ctx)) -> W
         await SP.after_part(tx, w["id"])  # ⟨1.15⟩ §33.7: a failed part is reported, never hidden
         await SP.after_parent(tx, w["id"])
         await ctx.emit(tx, w["company"], "work.updated", w["ref"], {"status": status})
-        return W.render(await W.load(tx, id))
+        out = W.render(await W.load(tx, id))
+    await _wake_order_holder(ctx, w, status)
+    return out
+
+
+async def _wake_order_holder(ctx: Ctx, w: dict[str, Any], what: str) -> None:
+    """⟨1.23⟩ §41.3 a child (or requested) work of an owner's order was delivered or failed: the
+    order's holder is woken so the session goes on. The order's report is the holding's row: read
+    across companies in a transaction of its own (never nested in the agent's scoped one); a
+    failure here never fails the delivery."""
+    from hq_api.domain import order_turns as OT
+
+    if w.get("parent_id") is None and w.get("requested_by_work_id") is None:
+        return
+    try:
+        async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
+            await OT.on_child_closed(tx, w, what)
+    except Exception:  # noqa: BLE001
+        log.warning("the order's holder could not be woken", extra={"work": str(w.get("ref"))})
 
 
 @router.post("/work", response_model=WorkCreated, status_code=201, responses=E)
@@ -856,21 +924,33 @@ async def request_work(
         # ⟨1.6⟩ a CEO asks the holding's legal counsel (contract §22.4): the
         # holding's LEGAL department, never a named employee there.
         to_legal = cross and company_code == holding_code and body.department == "LEGAL"
+        # ⟨2026-11-08⟩ audit B4: any role may ask the holding's AIOPS (the hub's technical hand:
+        # n8n, the hub's services) or LEGAL department — the manager of it, never a named person
+        to_hub_dept = cross and company_code == holding_code and body.department in HUB_OPEN_DEPTS
         # The policy decides BEFORE anything outside the agent's company is
         # looked up, so a refusal never tells whether a code exists elsewhere.
-        # ⟨1.17⟩ §35.6: with `owner.settings.links_enforced` on, a request along an `on` link
-        # between the two companies goes to the policy as `linked` (looked up here without
-        # telling the caller anything: a missing company is simply not linked).
+        # ⟨1.17⟩ §35.6: a request along an `on` link between the two companies goes to the policy
+        # as `linked` (looked up here without telling the caller anything: a missing company is
+        # simply not linked). ⟨2026-11-08⟩ audit B4, the same rule as linked.read: while the owner
+        # does not enforce links ANY active company counts as linked; and a company whose person
+        # sits in the session of the order this work serves counts as linked for that order.
         linked = False
-        if cross and not to_legal and await LK.enforced(tx):
+        if cross and not to_legal and not to_hub_dept:
             other = await ctx.hub.companies.find(company_code)
-            linked = other is not None and await LK.linked(tx, ctx.who.company_id, other.id)
+            if other is not None and other.kind == "company" and other.status == "active":
+                linked = (
+                    not await LK.enforced(tx)
+                    or await LK.linked(tx, ctx.who.company_id, other.id)
+                    or other.code in await _session_companies(ctx, body.requested_by_work_id)
+                )
         if cross:
             # CEO to CEO only; along a link also a named department's manager (never a named person)
-            if body.to or (body.department and not to_legal and not linked):
+            if body.to or (body.department and not to_legal and not to_hub_dept and not linked):
                 raise ApiError(403, "policy_denied", "work.create_not_permitted")
             to_role: str | None = "employee" if to_legal else "ceo"
             to_dept: str | None = "LEGAL" if to_legal else None
+            if to_hub_dept and not to_legal:
+                to_role, to_dept = "manager", body.department
             if linked and body.department:
                 to_role, to_dept = "manager", body.department
         else:

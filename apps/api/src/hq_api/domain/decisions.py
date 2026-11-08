@@ -42,9 +42,10 @@ from hq_api.schemas import Actor, Model, actor
 from hq_api.workshop import domain as workshop
 
 log = logging.getLogger("hq_api.decisions")
-# ⟨2026-11-07⟩ a card's «decide» item reads the card and answers: a small budget (a hire decision
-# took ~155 000 tokens before, a third of all use)
-DECIDE_TOKENS = 60_000
+# ⟨2026-11-07⟩ a card's «decide» item reads the card and answers with the lean brief
+# (agents/runner.py: no holding map, no helpers); ⟨2026-11-08⟩ it carries no token budget of its
+# own (the owner: «سقفشو بردار … روشم میزنم عمل نمیکنه»): a decision never stops on budget, the
+# charter's per-run limit alone bounds each run.
 
 KINDS = (
     "hire",
@@ -1328,16 +1329,19 @@ async def propose(
             ref=payload["lesson"],
             co=company_id,
         )
-    if (
-        approver
-        and body.kind == "hire"
-        and approver == who.code
-        and await hiring.mode(tx) == "auto"
-    ):
+    if approver and body.kind == "hire" and await hiring.mode(tx) == "auto":
         # ⟨21⟩ §29.10: a CEO's own hire inside the month envelope is approved by
         # code (no card for anyone); over the envelope it is refused
         # (409 envelope_exceeded, nothing made) and the order shows a budget blocker.
-        return await hiring.approve_by_code(tx, d, charters)
+        # ⟨2026-11-08⟩ audit M1: in `auto` mode ANY agent's hire that fits the envelope is approved
+        # by code at once (a manager's card no longer costs a CEO model run); only one that does
+        # not fit (or has no envelope) goes to the CEO's card below.
+        try:
+            async with tx.conn.begin_nested():
+                return await hiring.approve_by_code(tx, d, charters)
+        except ApiError as exc:
+            if approver == who.code or exc.code not in ("envelope_exceeded", "envelope_required"):
+                raise
     if approver and body.kind == "server_destructive":
         await W.create(
             tx,
@@ -1352,7 +1356,6 @@ async def propose(
                 "تو، کار اجرا نمیشود."
             ),
             kind="one_off",
-            budget=W.BudgetIn(tokens=DECIDE_TOKENS),
             priority="P1",
             assignee_code=approver,
         )
@@ -1372,7 +1375,6 @@ async def propose(
                 "است؟ تا تصمیم تو، کاری انجام نمیشود."
             ),
             kind="one_off",
-            budget=W.BudgetIn(tokens=DECIDE_TOKENS),
             priority="P2",
             assignee_code=approver,
         )
@@ -1391,7 +1393,6 @@ async def propose(
                 "تصمیم بگیر؛ تا تصمیم تو، خط جلو نمیرود."
             ),
             kind="one_off",
-            budget=W.BudgetIn(tokens=DECIDE_TOKENS),
             priority="P2",
             assignee_code=approver,
         )
@@ -1412,7 +1413,6 @@ async def propose(
                 "برآورد ماهانه و مدل انتخاب‌شده را بسنج (مدل قوی‌تر از نیاز کار، کارایی را کم میکند)."
             ),
             kind="one_off",
-            budget=W.BudgetIn(tokens=DECIDE_TOKENS),
             priority="P2",
             assignee_code=approver,
         )

@@ -113,10 +113,15 @@ async def test_another_companys_server(mock: respx.MockRouter, gw: Gateway) -> N
         return httpx.Response(201, json=job())
 
     route = mock.post(f"{API}/internal/v1/servers/jobs").mock(side_effect=handle)
-    # A company agent without a work item to cite: refused before the api.
-    Stub(mock, gate(work_ref=None))
+    # A non-technical agent without a work item to cite: refused before the api.
+    Stub(mock, {**ANALYST, "work_ref": None})
     out = await call(gw, "server.read", {"server": "ig", "company": "FX", "path": "/etc/hosts"})
     assert (out["outcome"], out["code"]) == ("denied", "other_company") and not route.called
+    # ⟨2026-11-08⟩ H1: a technical role (TECH) names another company's server without a work
+    # item: the api decides (via: linked); nothing is refused here
+    Stub(mock, gate(work_ref=None))
+    out = await call(gw, "server.read", {"server": "ig", "company": "FX", "path": "/etc/hosts"})
+    assert out["outcome"] == "ok" and "via_work" not in seen[-1] and seen[-1]["company"] == "FX"
     # With its work item (the cross-company request it made): the api checks the CEO's acceptance.
     Stub(mock, CTO)
     out = await call(gw, "server.read", {"server": "ig", "company": "FX", "path": "/etc/hosts"})

@@ -46,12 +46,15 @@ async def test_the_capability_brief_names_every_helper_and_how(
     players = {p["player"]: p for p in b["outside_players"]}
     assert {"gpt", "gemini", "deepseek"} <= set(players)
     assert players["gpt"]["name"] == "ChatGPT" and "creative" in players["gpt"]["seats"]
-    assert {"outside_model", "cover_image_video", "automation", "hire", "delegate", "owner"} <= set(
-        b["how"]
-    )
-    assert "substitute.call" in b["how"]["cover_image_video"]
-    assert "creatives screen" in b["how"]["cover_image_video"]
-    assert "a3_action" in b["how"]["cover_image_video"]  # a one-off publish is the owner's
+    assert {"outside_model", "cover_image", "video", "instagram", "automation", "hire", "delegate",
+            "owner"} <= set(b["how"])  # fmt: skip
+    assert "substitute.call" in b["how"]["cover_image"]
+    assert "creatives screen" in b["how"]["cover_image"]
+    assert "a3_action" in b["how"]["cover_image"]  # a one-off publish is the owner's
+    # ⟨2026-11-08⟩ the owner: no video tool (the «بسته‌ی ساخت ویدیو» is the deliverable), voice off
+    assert "بسته‌ی ساخت ویدیو" in b["how"]["video"] and "no video tool" in b["how"]["video"]
+    assert "voice" not in b["how"] and "voice" not in b
+    assert "IG-Hub" in b["how"]["instagram"] and "connection.set" in b["how"]["instagram"]
     assert "automation.propose" in b["how"]["automation"]
     assert "an employee asks its manager" in b["how"]["automation"]
     assert "kind: proposal" in b["how"]["automation"]  # a brand-new n8n workflow
@@ -343,9 +346,8 @@ async def test_the_brief_maps_the_whole_holding_and_ig_hubs_accounts(
     assert {a["code"], b["code"]} <= set(by_code)
     ig = next(c for c in by_code[b["code"]]["channels"] if c["kind"] == "instagram")
     assert ig["accounts"] == ["pro.chart"] and ig["via"] == {"server": "IG-Hub", "company": "IG"}
-    assert brief["voice"]["aistudio"] in {"signed_in", "signed_out", "unknown"}
+    assert "voice" not in brief  # ⟨2026-11-08⟩ voice is off and never mentioned
     assert "linked.read" in brief["how"]["other_companies"]
-    assert "speech.make" in brief["how"]["voice"]
 
 
 def test_the_brief_is_never_cut_by_a_long_context() -> None:

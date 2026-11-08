@@ -54,6 +54,7 @@ from hq_api.domain import meeting_flow as MF
 from hq_api.domain import order_report as OR
 from hq_api.domain import oversight as O
 from hq_api.domain import role_drafts as RD
+from hq_api.domain import session_activity as SA
 from hq_api.domain import skills as SK
 from hq_api.domain import work as W
 from hq_api.errors import sqlstate_of
@@ -132,6 +133,11 @@ LEAN_TRIGGERS = ("alert", "schedule")
 
 
 DECIDE_PREFIX = "تصمیم درباره‌ی "  # hiring.DECIDE_TITLE's start: a card's decide item
+# ⟨2026-11-08⟩ audit B5: a call's tokens as every cap counts them (work.effective_tokens in SQL)
+EFFECTIVE_SQL = (
+    "COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0) + COALESCE(cache_write_tokens, 0)"
+    f" + round(COALESCE(cache_read_tokens, 0) * {W.CACHE_READ_SHARE})"
+)
 
 
 def caps_scope(trigger: str, charter_kind: str) -> str:
@@ -372,6 +378,7 @@ class Runner:
                     "charter": f"{charter.role}@{charter.version}",
                 },
             )
+            await SA.on_run(tx, run, emp, "started")  # ⟨1.23⟩ §41.1 the session sees it start
         return Claim("running")
 
     async def _work_refusal(self, tx: Tx, work_id: UUID) -> str | None:
@@ -404,11 +411,12 @@ class Runner:
             # a run that started before midnight still counts what it spends after.
             # Everything the model read or wrote: through the subscription most of
             # the input arrives as cache writes and reads, not as input_tokens.
-            """SELECT COALESCE(sum(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)
-                                   + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0)), 0)
+            # ⟨2026-11-08⟩ audit B5: one token everywhere — the day counts what a run's cap counts
+            # (work.effective_tokens: a cache read at a tenth), not the ledger in full
+            f"""SELECT COALESCE(sum({EFFECTIVE_SQL}), 0)
                FROM llm.calls
                WHERE started_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
-                 AND meta ? 'run_id'"""
+                 AND meta ? 'run_id'"""  # noqa: S608 - a constant expression
         )
         return int(n or 0)
 
@@ -662,7 +670,10 @@ class Runner:
             for i, action in enumerate(step.actions):
                 self.heartbeat()
                 out = await self.gateway.call(rc.token, n, i, action.tool, action.args)
-                results.append({"tool": action.tool, **out})
+                # ⟨1.23⟩ §41.1 what of the arguments the owner may read beside the verb (a site,
+                # a player, a company): stored with the step, shown in the session's activity
+                hint = SA.hint_of(action.tool, action.args)
+                results.append({"tool": action.tool, **out, **({"hint": hint} if hint else {})})
                 await self._after_action(rc, action, out, live_thread)
             await self._record_step(rc, n, summary, results, call)
             # "done" next to an action refused for its arguments is not done: the
@@ -737,12 +748,11 @@ class Runner:
         if cap <= 0:
             return False
         n = await tx.scalar(
-            """SELECT COALESCE(sum(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)
-                                   + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0)), 0)
+            f"""SELECT COALESCE(sum({EFFECTIVE_SQL}), 0)
                FROM llm.calls
                WHERE company_id = :co
                  AND started_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
-                 AND meta ? 'run_id'""",
+                 AND meta ? 'run_id'""",  # noqa: S608 - a constant expression
             co=company_id,
         )
         return int(n or 0) >= cap
@@ -1010,7 +1020,11 @@ class Runner:
 
     async def _budget_stop(self, rc: RunCtx, work_ref: str) -> None:
         """The work waits (`waiting`, a `budget` blocker in its order) and its
-        company's CEO gets one small work item to add budget (work.budget)."""
+        company's CEO gets one small work item to add budget (work.budget).
+        ⟨2026-11-08⟩ Never for a work of an owner's order (the owner: «همش برای
+        یه کاری باید کار بخوابه»): it has no budget of its own, the run merely
+        reached its per-run cap; the work stays open and the session's sweep
+        wakes its holder (§41.3)."""
         async with await self._tx() as tx:
             w = await tx.first(
                 """SELECT w.id, w.ref, w.status, w.company_id, w.budget_tokens, w.tokens_used,
@@ -1021,6 +1035,8 @@ class Runner:
             )
             if w is None or w["status"] not in W.OPEN:
                 return
+            if w["budget_tokens"] is None or await OR.order_of_work(tx, w["id"]) is not None:
+                return
             await tx.exec("UPDATE work.work SET status = 'waiting' WHERE id = :id", id=w["id"])
             ceo = await tx.first(
                 """SELECT code FROM core.employees WHERE company_id = :co AND kind = 'ceo'
@@ -1029,6 +1045,27 @@ class Runner:
             )
             limits = rc.charter.limits
             add = max(limits.tokens_per_run, W.FLOOR_STEPS * limits.tokens_per_step)
+            # ⟨2026-11-08⟩ audit M7: what fits the company's month envelope is added by code,
+            # audited; only what does not fit asks the CEO
+            from hq_api.domain import hiring
+
+            env = next((e for e in await hiring.envelopes(tx) if e.company == w["company"]), None)
+            if env is not None and env.tokens_month and env.used_month + add <= env.tokens_month:
+                await tx.exec(
+                    "UPDATE work.work SET status = 'in_progress' WHERE id = :id", id=w["id"]
+                )
+                new = await W.add_budget(tx, w, add, OR.SERVICE)
+                await audit.record(
+                    tx,
+                    audit.SYSTEM,
+                    company_id=w["company_id"],
+                    action="work.budget",
+                    action_class="A2",
+                    target_kind="work",
+                    target_ref=work_ref,
+                    summary=f"+{add} tokens by code within the month envelope (budget {new})",
+                )
+                return
             title = f"بودجه کم است، +{add:,} بدهم؟ ({work_ref})"
             if (
                 ceo is None
@@ -1510,6 +1547,7 @@ class Runner:
                 "outcome": r.get("outcome"),
                 **({"ref": str(r["ref"])[:80]} if r.get("ref") else {}),
                 **({"code": str(r["code"])[:60]} if r.get("code") else {}),
+                **({"hint": str(r["hint"])[:60]} if r.get("hint") else {}),
             }
             for r in results
         ]
@@ -1546,6 +1584,8 @@ class Runner:
                 str(rc.run["id"]),
                 {"employee": rc.emp["code"], "n": n, "actions": [a["tool"] for a in actions]},
             )
+            # ⟨1.23⟩ §41.1 the session sees the step as it happens
+            await SA.on_run(tx, rc.run, rc.emp, "step", n=n, summary=summary, actions=actions)
 
     async def _activity(self, tx: Tx, emp: dict[str, Any], activity: str, note: str | None) -> None:
         await tx.exec(
@@ -1626,6 +1666,8 @@ class Runner:
             str(run["id"]),
             {"employee": emp["code"], "state": state, "code": code, "partial": partial},
         )
+        # ⟨1.23⟩ §41.1 the session sees how the run ended (a refusal before a start too)
+        await SA.on_run(tx, run, emp, "finished", state=state, code=code, partial=partial)
         if run["trigger"] == "meeting":
             # ⟨1.5⟩ the meeting books the turn's tokens and queues the next (prompt 11 §1.4)
             await MF.turn_finished(tx, run)

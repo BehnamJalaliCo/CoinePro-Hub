@@ -27,6 +27,8 @@
 >
 > **v1.23 (۲۰۲۶-۱۱-۰۸):** جلسه کارش را زنده نشان میدهد و هیچ‌وقت بی‌صدا نمیماند (§۴۱): فعالیت زنده، مرحله‌های مالک برنامه‌ی جلسه، بیدار شدن مسئول، «ادامه بده».
 >
+> **v1.23 (۲۰۲۶-۱۱-۰۸، آن‌طور که ساخته شد، W11):** حرف مالک در جلسه‌ی کاری حرفِ فرمان است؛ هیچ سقف توکنی فرمان مالک را نمیخواباند؛ یک قاعده برای رسیدن شرکت‌ها به هم (کار، سرور، اتصال)؛ `connection.set`؛ حساب اینستاگرام روی IG-Hub است (§۴۱، یادداشت‌های as built).
+>
 > **v1.21 (۲۰۲۶-۱۱-۰۷):** جلسه کار را همان‌جا تمام میکند (§۳۹، W9): نقش در خودکارسازی هرگز رد نمیشود، هیچ کارتی از داخل جلسه فرمان تازه نمیسازد، مسئول کارت خراب خودش را درست میکند، داستان فرمان بی‌رسید و بی‌تکرار، و هر اجرا فقط آنچه لازم دارد را حمل میکند.
 >
 > **v1.17 (۲۰۲۶-۱۱-۰۶):** هر فرمان یک جلسه (§۳۵، پرامپت ۲۵): جلسه‌ی همیشه‌صاحب‌دار با حاضران و بازیکن‌ها، فهرست کارها، کارها در همان‌جا، بستن و بایگانی و باز کردن دوباره؛ دفتر مدیر کل؛ پیوند شرکت‌ها و بوم.
@@ -4182,6 +4184,74 @@ of a session, made visible and continuous.
   later → the badge is `stuck`, a step and one owner notification say why in plain words (the last refusal, a blocker, an empty
   seat, a sign-in or key the work needs) and what fixes it. `moving` means a run is queued or running now.
 - `POST /orders/{ref}/nudge` (owner; Idempotency-Key) → «ادامه بده»: the holder is woken now with the plan's next task.
+- ⟨1.23, as built (W11, 2026-11-08)⟩ additive:
+  - `SessionActivity.last` holds, beside each step, a run's start («شروع کرد: …») and how it ended («این دور کارش را تمام کرد»،
+    «کار متوقف شد: …»); a run of no consequence (`work_closed`) leaves no line. `Worker.started_at` is the queue time of a run not
+    yet started (`doing_fa` «در صف اجرا»). A step's `actions` carry a readable `hint` (a site's name, a player's name, a company
+    or an employee code resolved to a title) so the owner reads «سایت pro-chart را خواند», never a key. Stream topic `orders`
+    carries `session.*` (the apps missed `session.updated` before); the holding-wide stream (`company=*`) passes
+    `session.activity` and `session.updated` in full.
+  - The badge: `moving` only while a run of the order's works is queued or running («در حال کار: …»); idle for less than two
+    thresholds it stays `moving` and says since when («از N دقیقه پیش کسی کار نمیکند؛ مسئول بیدار میشود»); idle for two thresholds
+    (`SESSION_IDLE_MINUTES`, default 10) it is `stuck` with the cause in `reason_fa` and `stuck_fa` (the last refused or failed
+    run, a blocker, a tool's missing sign-in or key, an empty seat, else «نمیدانیم چرا؛ «ادامه بده» را بزنید»). Nothing is stored
+    for it: the wake is the run it queued (reason `session_idle:<ref>`), the stuck line its step and one notification.
+  - The holder's brief (`order` in a run, «The order you hold» in the talk) carries `plan: [{n, title, state}]`, `plan_next`,
+    `plan_instruction` and `owner_said` (the owner's last three turns in the session, verbatim). In a working session every owner
+    turn that is not a question is the order's word by code (`reply`: the step «مدیر کل: …», the holder woken) — no card to tap;
+    a question or a consult-mode turn feeds the plan only. The wakes (a hire that joined, a hire card decided, a child delivered or
+    failed, the owner's reply, the idle sweep, «ادامه بده», a lifted cap) never count toward the talk-without-output stop, which
+    counts only runs that produced nothing, starts again at every step and is at least 3 per plan task; a wake that returns
+    nothing writes a step saying why («مسئول بیدار نشد: …»).
+  - `POST /orders/{ref}/nudge` answers `SessionActivity` (200), 409 on a closed session; the step «مدیر کل گفت ادامه بده» and the
+    owner's line in the talk.
+  - Budgets (the owner, 2026-11-08: «کلا بودجه رو سقفشو بردار»): a work of an owner's order, its collaborators' works and the children
+    delegated or requested under it carry no `budget_tokens` (the preview's `budget_tokens` is the secretary's estimate, never a cap);
+    no `budget` blocker for a token stop; `POST /orders/{ref}/fix {action: budget.add}` without `tokens` lifts the work's cap for good
+    (200, the step «سقف مصرف این کار برداشته شد؛ کار ادامه دارد», the work woken); the «تصمیم درباره‌ی D-…» items carry no budget.
+    The `budget` blocker stays for a hire the month envelope refuses (`envelope_required`, `envelope_exceeded`), now with the fix
+    `envelope.set` (target the company code); `FixIn.action` adds `envelope.set` and `media.on` (the app's own pages). A tool's
+    missing account names the tool in words with a real fix or none (`speech.make`, `media.render` → `media.on`,
+    `substitute.call`); an Instagram one reads «حساب روی IG-Hub است؛ تیم فنی آن را به هاب معرفی میکند» (never «not connected»).
+  - Reach across companies, one rule (the owner: «همه شرکت‌ها به هم راه داشته باشند»): while `links_enforced` is off any active
+    company counts as linked; while on, an `on` link or a company present in the session of the order the work serves. It governs
+    `work.request` (a manager to another company's CEO; any role to the holding's AIOPS or LEGAL manager), `server.*` for a
+    technical role (the TECH department's charters: `via: linked`, `server.map` lists those servers, the job audited on both
+    companies, destructive commands still sealed) and `connection.set`.
+  - Agent tool `connection.set {company?, kind, accounts?, via?: "ig_hub", server?, read_command?, channels?, site_url?,
+    channel_id?, handle?, property_id?}` (A2; the company's CEO, media director and technical roles; a technical role for another
+    company within reach) → `/internal/v1/connections/set` → `Connection`: a connection's non-secret settings, the state recomputed,
+    audited on both companies, a step in the order's session; a secret-looking value or a command that is not read-only is refused
+    (422 with the field). The capability brief says of an Instagram connection not connected here that the account lives on IG-Hub
+    (the `ig_hub` setting of `seed/channels.yaml`: company and server) and who registers it.
+  - ⟨1.24⟩ §42.2, the line's additive shape (`ActivityLine`, on `GET /orders/{ref}/activity` and in `session.activity` alike):
+    `id` (`<run>:<n>`, 0 the start, `<run>:end` the end; `task:<ref>:<n>` a ticked plan task; `join:<code>` a hire that joined),
+    `company` (the actor's code), `kind: start|step|end|wake|ask|join|task`, `state: running|done|failed`, `task_n`. The
+    stream also carries the wakes (`wake`, id `<run>:0` of the run queued), the asks («سؤال از شما: …»), the joins and the ticked
+    tasks («کار N انجام شد: …»); `GET /activity` merges by `id` (the later line wins) and keeps the last 30.
+  - The delegate card of the talk takes `company` (the asked person's company; a full employee code resolves both); a named company
+    or server in the owner's words («از تریدیار», «سرور CoineProFx») picks that company; a server of the session's memory alone
+    counts for servers, never for a person of another company (M3).
+  - **The owner's three decisions (2026-11-08)**, as built:
+    1. *Voice is off.* `OwnerSettings.voice` gains `enabled` (additive, default `false`; `PUT /owner/settings {voice: {enabled}}`): the
+       talk answers in text alone (no `say`, no `audio` event), no «صدا در دسترس نیست» line ever, no `voice` block and no `voice` entry
+       in the capability brief, no sign-in as a blocker, readiness item or owner's step. The voice code stays and runs only while
+       `enabled` is on.
+    2. *Instagram = IG-Hub, for every company.* The `connection_missing` blocker for Instagram is gone: a run that meets it makes the
+       holding's technical work by code, once per company (IG-Hub's company's CTO, else the holding's AIOPS manager; `run_meta.ig_setup`
+       = the company code; under the order's work so the session sees it and its delivery wakes the holder), and the session reads one
+       step «تیم فنی حساب‌های اینستاگرام را از راه IG-Hub به هاب معرفی میکند». The daily read (`read_due`, result `ig_setup`) makes the
+       same work for a company whose read path is not registered. Readiness: `channels` is always ok (Instagram through IG-Hub, the
+       accounts the technical team's), `connection:instagram` is always ok with «از راه IG-Hub خوانده و منتشر میشود (N حساب)» or the
+       technical team's line, never a `connection.guide` fix for it; a `group` check that fails for want of membership carries no fix
+       (a failed check may carry no fix when the step is the technical team's). The brief's `how.instagram` and the charters say
+       plainly: Instagram, for all companies, is read and published through IG-Hub.
+    3. *No video tool.* Readiness has no `media_tools` check; a refusal of `speech.make`, `media.render`, `media.item` or `media.on` is
+       never a blocker (`FixIn` still accepts `media.on`). The brief's `how.cover_image` (image only) and `how.video` and the holder's
+       plan instruction say: the video step of a plan is done when the media team delivers the «بسته‌ی ساخت ویدیو» (script, shot list,
+       on-screen text, voice text, caption, hashtags, cover prompt); the owner makes the video and drops the file into the session (§36);
+       publishing goes on through IG-Hub. Charters: `_common` v10, `media_director` v8, `scriptwriter` v5, `video_director` v3,
+       `motion_designer` v4 (the «A voice from Google AI Studio» sections gone, `speech.make` only the voice producer's).
 
 ## 42. The holding live: one stream the whole app moves with ⟨1.24⟩ (2026-11-08, W12)
 The owner, 2026-11-08: «بهترین و حرفه ای ترین و تخصصی ترین انیمیشنا و استریم هارو … نقشه نشون بده کدوم شرکت به کدوم وصل شد قطع شد

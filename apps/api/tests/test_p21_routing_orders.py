@@ -844,7 +844,8 @@ async def test_blockers_and_their_fixes(
     ref, w = o["ref"], o["work"]
     await set_hiring(su, "closed", None)
     await _blocked_run(su, company, w["id"], "hiring_closed")
-    await _blocked_run(su, company, w["id"], "channel_not_configured", tool="web.browse")
+    # ⟨2026-11-08⟩ audit M10: a guide only for a connection kind (a tool with no page gets no fix)
+    await _blocked_run(su, company, w["id"], "channel_not_configured", tool="telegram")
     await _blocked_run(su, company, w["id"], "budget")
     await su.execute("UPDATE work.work SET player = 'gemini' WHERE id = $1", w["id"])
     gemini = await su.fetchval("SELECT status FROM substitutes.players WHERE player = 'gemini'")
@@ -858,15 +859,16 @@ async def test_blockers_and_their_fixes(
     rep = await report(client, h, ref)
     kinds = {b["kind"]: b for b in rep["blockers"]}
     assert rep["state"] == "blocked"
-    assert set(kinds) >= {"hiring_closed", "connection_missing", "budget", "player_down", "locked",
+    assert set(kinds) >= {"hiring_closed", "connection_missing", "player_down", "locked",
                           "no_employee"}  # fmt: skip
+    # ⟨2026-11-08⟩ an owner's order has no token cap: a run that stopped on a budget is no blocker
+    assert "budget" not in kinds
     assert kinds["no_employee"]["fix"] == {
         "action": "hire",
         "label_fa": "استخدام کن",
         "target": f"{co}:motion_designer",
     }
     assert kinds["locked"]["fix"]["target"] == f"company:{co}"
-    assert kinds["budget"]["fix"]["target"] == w["ref"]
     for text in owner_strings(rep):
         clean(text)
 
@@ -1043,12 +1045,18 @@ async def test_a_ceos_hire_in_the_envelope_is_approved_by_code(
         "/internal/v1/decisions", headers={**ceo, **idem()}, json=_hire(co, 9_000_000)
     )
     assert r.status_code == 409 and r.json()["code"] == "envelope_exceeded", r.text
-    # a manager's hire is its CEO's card (as delegated)
+    # ⟨2026-11-08⟩ audit M1: in `auto` mode a manager's hire that fits the envelope is approved by
+    # code at once too (no CEO model run); only one that does not fit is the CEO's card
     mgr = await agent_headers(f"{co}-MEDIA-MGR")
     r = await client.post(
         "/internal/v1/decisions", headers={**mgr, **idem()}, json=_hire(co, 1_000_000)
     )
-    assert r.status_code == 201 and r.json()["status"] == "pending"
+    assert r.status_code == 201 and r.json()["status"] == "approved", r.text
+    assert r.json()["decided_by"]["kind"] == "service"
+    r = await client.post(
+        "/internal/v1/decisions", headers={**mgr, **idem()}, json=_hire(co, 9_000_000)
+    )
+    assert r.status_code == 201 and r.json()["status"] == "pending", r.text
     assert r.json()["approver"]["code"] == f"{co}-CEO" and not r.json()["owner_visible"]
     for code in (f"{co}-CEO", f"{co}-MEDIA-MGR"):
         await end_runs(su, code)

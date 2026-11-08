@@ -646,10 +646,18 @@ async def _record_run(
 
 
 async def run_routine(
-    tx: Tx, grow: dict[str, Any], m: dict[str, Any], r: Routine, occurrence: datetime
+    tx: Tx,
+    grow: dict[str, Any],
+    m: dict[str, Any],
+    r: Routine,
+    occurrence: datetime,
+    *,
+    charters: Any = None,
 ) -> str | None:
     """One occurrence of a routine for one member: a work item for the seat's
-    employee, or a skipped run that says why. None when it ran already."""
+    employee, or a skipped run that says why. None when it ran already.
+    ⟨2026-11-08⟩ audit M5: the work's budget is never below the seat's role floor
+    (work.raise_to_floor; three real steps), whatever `max_tokens` says."""
     from hq_api.domain import work as W
 
     g = render(grow)
@@ -685,6 +693,8 @@ async def run_routine(
                 assignee_code=emp,
                 budget=W.BudgetIn(tokens=r.max_tokens),
             )
+            if charters is not None and await W.raise_to_floor(tx, w, charters):
+                w = await W.load(tx, w["id"])
     except ApiError as exc:
         await tx.exec(
             "UPDATE growth.routine_runs SET state = 'failed', note_fa = :n WHERE id = :id",
@@ -768,7 +778,7 @@ async def tick(
                 for m in ms:
                     if await gate.automation_lock(tx, m["company_id"]) is not None:
                         continue
-                    got = await run_routine(tx, grow, m, r, occ)
+                    got = await run_routine(tx, grow, m, r, occ, charters=hub.charters)
                     if got == "queued":
                         out["queued"] += 1
                     elif got == "skipped":

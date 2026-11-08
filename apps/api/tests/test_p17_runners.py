@@ -819,8 +819,14 @@ async def test_runners_and_agents_stay_in_their_company(
         )
         assert await tx.scalar("SELECT count(*) FROM infra.servers WHERE id = :s",
                                s=uuid.UUID(rb["server"]["id"])) == 0  # fmt: skip
-    # An agent of A on B's server: refused without an accepted request.
+    # An agent of A on B's server: ⟨2026-11-08⟩ H1 a technical role (the CTO) reaches it by the
+    # linked rule while the owner does not enforce links (the job is its own, audited on both);
+    # a non-technical role still needs an accepted request.
     r = await agent_job(client, f"{a['code']}-TECH-MGR",
+                        {"kind": "exec", "server": "srv", "company": b["code"], "args": {"cmd": "ls"}})  # fmt: skip
+    assert r.status_code == 201, r.text
+    assert r.json()["job"]["server"] == rb["server"]["id"]
+    r = await agent_job(client, f"{a['code']}-MEDIA-MGR",
                         {"kind": "exec", "server": "srv", "company": b["code"], "args": {"cmd": "ls"}})  # fmt: skip
     assert r.status_code == 403 and "other_company" in r.text
     r = await client.get(
@@ -844,7 +850,9 @@ async def test_cross_company_through_an_accepted_request(
 ) -> None:
     a, b = await new_company(), await new_company()
     rb = await pair(client, hub, owner_session, b, "ig")
-    me = f"{a['code']}-TECH-MGR"
+    # (⟨2026-11-08⟩ H1: a technical role reaches the server by the linked rule; the accepted
+    # request stays the way of a role that is not technical, here the media director)
+    me = f"{a['code']}-MEDIA-MGR"
     mine = await su.fetchrow(
         """INSERT INTO work.work (company_id, kind, title, created_by_kind, created_by_code, assignee_id,
                status, accepted_at)

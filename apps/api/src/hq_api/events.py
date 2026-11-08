@@ -46,7 +46,8 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "files": ("file.",),
     # ⟨1.3⟩ the Code Workshop (workshop.session, workshop.approval) and voice orders
     "workshop": ("workshop.",),
-    "orders": ("order.",),
+    # ⟨1.17⟩ §35.7 session.updated (the badge); ⟨1.23⟩ §41.1 session.activity (a live line)
+    "orders": ("order.", "session."),
     # ⟨1.4⟩ the hourly backup: backup.done, backup.failed (contract §18.10)
     "backups": ("backup.",),
     # ⟨1.4⟩ formal inquiries (inquiry.answered, inquiry.late) and the assistant's

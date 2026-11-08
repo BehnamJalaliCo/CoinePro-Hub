@@ -42,8 +42,9 @@ from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
-from hq_api import idempotency, pagination
+from hq_api import audit, idempotency, pagination
 from hq_api.context import Ctx, internal_ctx, owner_ctx
+from hq_api.domain import links as LK
 from hq_api.domain import servers as SV
 from hq_api.domain import workspace as WS
 from hq_api.errors import ApiError, responses
@@ -1009,6 +1010,66 @@ def _holding_power(who: Principal) -> bool:
     return who.scope == "holding" and who.charter in HOLDING_SERVER_ROLES
 
 
+TECH_DEPARTMENT = "TECH"
+
+
+def _technical(lib: Any, charter: str | None) -> bool:
+    """⟨2026-11-08⟩ H1: a company's technical role, read from the charters (the TECH department's:
+    cto, devops_engineer, sre, lead_developer), never a hardcoded company."""
+    c = lib.get(charter) if lib is not None and charter else None
+    return c is not None and c.department == TECH_DEPARTMENT and c.scope == "company"
+
+
+async def _reachable(ctx: Ctx, tx: Any, who: Principal, company_id: UUID) -> bool:
+    """⟨2026-11-08⟩ H1 (the owner: «مگه نگفتم همه شرکت‌ها به هم راه داشته باشند»): another
+    company's servers are within a technical role's reach by the rule of linked.read and
+    work.create (audit B4): while the owner does not enforce links, any active operating company;
+    while he does, one sharing an `on` link, or one present in the session of the run's order."""
+    from hq_api.routes.internal import _session_companies
+
+    co = await tx.first("SELECT code, kind, status FROM core.companies WHERE id = :c", c=company_id)
+    if co is None or co["kind"] != "company" or co["status"] != "active":
+        return False
+    if not await LK.enforced(tx):
+        return True
+    assert who.company_id is not None
+    if await LK.linked(tx, who.company_id, company_id):
+        return True
+    return str(co["code"]) in await _session_companies(ctx, None)
+
+
+async def _reach_ids(ctx: Ctx, tx: Any, who: Principal) -> list[UUID]:
+    """The companies whose servers `server.map` lists for this agent (H1)."""
+    assert who.company_id is not None
+    ids: list[UUID] = [who.company_id]
+    if not _technical(ctx.hub.charters, who.charter):
+        return ids
+    if not await LK.enforced(tx):
+        rows = await tx.all(
+            "SELECT id FROM core.companies WHERE kind = 'company' AND status = 'active'"
+        )
+        return list({*ids, *(r["id"] for r in rows)})
+    linked = await LK.links_of(tx, who.company_id)
+    codes = {str(x["company"]) for x in linked} | await _session_companies_safe(ctx)
+    if codes:
+        rows = await tx.all(
+            """SELECT id FROM core.companies WHERE code = ANY(:c) AND kind = 'company'
+                 AND status = 'active'""",
+            c=sorted(codes),
+        )
+        ids += [r["id"] for r in rows]
+    return list(dict.fromkeys(ids))
+
+
+async def _session_companies_safe(ctx: Ctx) -> set[str]:
+    from hq_api.routes.internal import _session_companies
+
+    try:
+        return await _session_companies(ctx, None)
+    except Exception:  # noqa: BLE001 - a listing never fails on the session lookup
+        return set()
+
+
 async def _authorize(ctx: Ctx, tx: Any, server: dict[str, Any], kind: str,
                      via_work: str | None) -> tuple[str, str, str | None, str]:  # fmt: skip
     """Who the job runs as (kind, code), on whose behalf, and how it is
@@ -1028,6 +1089,10 @@ async def _authorize(ctx: Ctx, tx: Any, server: dict[str, Any], kind: str,
         return "agent", who.code, None, "own"
     if _holding_power(who):
         return "agent", who.code, None, "holding"
+    if _technical(lib, who.charter) and await _reachable(ctx, tx, who, server["company_id"]):
+        # ⟨2026-11-08⟩ H1: a technical role on another company's server, as on its own (the
+        # destructive classification and the owner's seal unchanged; the job audited on both)
+        return "agent", who.code, None, "linked"
     if not via_work:
         raise ApiError(403, "policy_denied", "other_company: a cross-company request first")
     row = await tx.first(
@@ -1097,7 +1162,11 @@ async def agent_servers(
     who = _agent(ctx)
     await allow(ctx, "server.read", {"company": company or who.company, "charter": who.charter,
                                      "via": None})  # fmt: skip
-    async with ctx.hub.db.tx(await _agent_scope(ctx)) as tx:
+    # ⟨2026-11-08⟩ H1: a technical role sees the other companies' servers it may work on too
+    wide = await ctx.hub.companies.ids()
+    async with ctx.hub.db.tx(wide) as tx:
+        scope = wide if _holding_power(who) else await _reach_ids(ctx, tx, who)
+    async with ctx.hub.db.tx(scope) as tx:
         rows = await tx.all(
             SV.SERVER_SQL
             + " WHERE s.state IS NOT NULL AND (CAST(:co AS text) IS NULL OR c.code = :co) ORDER BY c.code, s.name",
@@ -1159,6 +1228,19 @@ async def agent_job(body: AgentJobIn, request: Request, ctx: Ctx = Depends(inter
                 timeout_s=int(args.get("timeout_s") or 600),
                 request_id=ctx.request_id,
             )
+        if via == "linked":
+            # ⟨2026-11-08⟩ H1: the job on both companies' trails (the server's row holds it)
+            for co_id in scope:
+                await audit.record(
+                    tx,
+                    who,
+                    company_id=co_id,
+                    action=f"server.{body.kind}",
+                    action_class="A0" if body.kind in ("map", "read") else "A2",
+                    target_kind="server",
+                    target_ref=f"{server['company']}:{server['name']}",
+                    summary=f"{who.code} on {server['company']}'s server via linked, job {j['id']}",
+                )
         if idem:
             await idem.store(tx, 201, {"job": {"id": str(j["id"])}, "replayed": True})
     return await _agent_wait(ctx, scope, j["id"], body.wait_s)
@@ -1189,7 +1271,7 @@ async def agent_get_job(
     if j is None or not (
         j["company_id"] == who.company_id
         or j["on_behalf_code"] == who.code
-        or j["actor_code"] == who.code
+        or j["actor_code"] == who.code  # H1: a technical role's own job on another company's server
         or _holding_power(who)
     ):
         raise ApiError(403, "policy_denied", "server.read_not_permitted")

@@ -585,6 +585,30 @@ async def add_budget(
 RESUME = "resume"  # a work event: wake the assignee once (the worker's tick)
 
 
+async def uncap(tx: Tx, w: dict[str, Any], who: Principal | None = None) -> str | None:
+    """⟨2026-11-08⟩ the owner lifts a work's token cap for good (budget_tokens NULL; the dollar
+    budget stays): a `waiting` work is `in_progress` again and its assignee runs at once
+    (work.wake_assignee). Answers the run queued."""
+    row = await tx.one(
+        "SELECT id, ref, status, assignee_id, priority, company_id FROM work.work WHERE id = :id FOR UPDATE",
+        id=w["id"],
+    )
+    await tx.exec("UPDATE work.work SET budget_tokens = NULL WHERE id = :id", id=row["id"])
+    if row["status"] not in OPEN:
+        return None
+    if row["status"] == "waiting":
+        await tx.exec("UPDATE work.work SET status = 'in_progress' WHERE id = :id", id=row["id"])
+    actor = who or Principal(kind="service", code="orders", role="service")
+    await event(tx, dict(row), "uncapped", actor, {"budget_tokens": None})
+    await events.emit(tx, await tx.scalar("SELECT code FROM core.companies WHERE id = :c",
+                                          c=row["company_id"]),
+                      "work.updated", row["ref"], {"budget_tokens": None})  # fmt: skip
+    run = await tx.scalar(
+        "SELECT work.wake_assignee(:w, :r)", w=row["id"], r=f"uncapped:{row['ref']}"
+    )
+    return str(run) if run is not None else None
+
+
 async def resume_waiting(tx: Tx) -> list[str]:
     """The worker's side of a `resume` event (budget added, the player set
     back to auto): the open work's assignee gets one run, unless a run of

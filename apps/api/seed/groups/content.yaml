@@ -40,7 +40,7 @@ routines:
     title_fa: عددهای دیروز
     seat: content_analyst
     schedule: FREQ=DAILY;BYHOUR=7;BYMINUTE=30
-    max_tokens: 60000
+    max_tokens: 80000
     brief_md: |
       Yesterday's numbers for {company_name} (the content working group's 07:30 routine, docs/MANAGEMENT_REVIEW_2026-11.md §4.2).
       Read the connected accounts with `connection.read` (Instagram through IG-Hub, the Telegram channels, and where they exist
@@ -66,7 +66,7 @@ routines:
     title_fa: بازبینی ساعت ۱۴
     seat: media_director
     schedule: FREQ=DAILY;BYHOUR=14;BYMINUTE=0
-    max_tokens: 80000
+    max_tokens: 120000
     task_class: media_review
     brief_md: |
       The 14:00 review of {company_name}'s items (the content working group). Review every item waiting in `review` with
@@ -76,7 +76,7 @@ routines:
     title_fa: انتشار و سنجش زنده
     seat: publisher
     schedule: FREQ=DAILY;BYHOUR=14,20;BYMINUTE=30
-    max_tokens: 40000
+    max_tokens: 60000
     needs: sealed_series
     brief_md: |
       The publishing check of {company_name} (the content working group; per sealed series). See the reviewed items of today's
@@ -88,7 +88,7 @@ routines:
     title_fa: یک خط برای مدیر کل
     seat: media_director
     schedule: FREQ=DAILY;BYHOUR=20;BYMINUTE=0
-    max_tokens: 30000
+    max_tokens: 120000
     brief_md: |
       The evening line of {company_name}'s content working group: ONE plain Persian line for the owner in your deliverable —
       what went out today (by channel), yesterday's best item and its figure, and only what only the owner can do (a series to
@@ -107,7 +107,7 @@ routines:
     title_fa: برنامه‌ی هفته و آزمایش تازه
     seat: media_director
     schedule: FREQ=WEEKLY;BYDAY=SA;BYHOUR=10;BYMINUTE=0
-    max_tokens: 100000
+    max_tokens: 120000
     brief_md: |
       The week's plan of {company_name}'s content working group (Saturday, after the analyst's review). Write the week's plan and
       ONE deliberate experiment with `experiment.write` (hypothesis, the metric, the figure to beat), e.g. «ریلز ۱۵ ثانیه‌ای در برابر

@@ -280,7 +280,10 @@ async def _work(
         "due_at": due,
         "player": player,
         "mode": mode,
-        "budget": W.BudgetIn(tokens=budget) if budget else None,
+        # ⟨2026-11-08⟩ the owner: «کلا بودجه رو سقفشو بردار … همش برای یه کاری باید کار بخوابه»:
+        # no token budget on a work of an owner's order (`budget` is the secretary's estimate for
+        # the preview, never a cap; the charters' per-run limits still bound each run)
+        "budget": None,
         "requested_by_work_id": requested_by,
     }
     try:
@@ -547,15 +550,13 @@ async def carry_out(
         )
         return [root]
     out = [root]
-    child_budget = D.base_budget(rt.output_kind)
     for c in dict.fromkeys([*rt.companies[1:], *rt.collaborators]):
         if c == first:
             continue
         cdept = rt.department if rt.department in (s.sc.names.get(c) or {}) else None
         child = O.Route(c, d["companies"][c]["ceo"] or "", "work", department=cdept)
         await _work(ctx, tx, child, ref, text, f"همکاری با {co['name_fa'] or first}: {title}"[:300],
-                    budget=child_budget, player=rt.player, mode="single",
-                    requested_by=w["id"])  # fmt: skip
+                    player=rt.player, mode="single", requested_by=w["id"])  # fmt: skip
         out.append(child)
     return out
 
