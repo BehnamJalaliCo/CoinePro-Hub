@@ -277,6 +277,10 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
 
     private fun open() = sessions.filter { it.closedAt == null && !it.hidden && it.listed }
 
+    /** ⟨1.24⟩ §42.3 for [V42Demo]'s summary: each open session's badge and its holder's company. */
+    @Synchronized
+    fun liveBadges(): List<Pair<String, String?>> = open().map { it.badge to it.holder.third }
+
     // -------------------------------------------------------------- routes --
     @Synchronized
     fun handle(method: String, path: String, query: Map<String, String?>, body: JsonObject?): Pair<Int, JsonElement>? {
@@ -442,9 +446,17 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
     // F-0104 is at work (its CEO and his SEO specialist, each at a step; a new line about every two seconds on the stream, in a loop);
     // F-0101 waits for the owner; F-0103 is stuck (why, and what fixes it); the others are quiet since their last move. «ادامه بده» wakes
     // the holder with the plan's next task: he works a few steps on the stream, then the session is quiet again.
-    private class Live(val workers: MutableList<JsonObject> = mutableListOf(), val lines: MutableList<JsonObject> = mutableListOf(), var idleSince: String? = null, val script: ArrayDeque<Pair<String, String>> = ArrayDeque(), val loop: Boolean = false)
+    private class Live(
+        val workers: MutableList<JsonObject> = mutableListOf(), val lines: MutableList<JsonObject> = mutableListOf(), var idleSince: String? = null,
+        val script: ArrayDeque<Pair<String, String>> = ArrayDeque(), val loop: Boolean = false,
+        /** ⟨1.24⟩ §42.2 the step in progress (its line's id): its end is sent as the same line, done, before the next one begins. */
+        var running: String? = null, var steps: Int = 0,
+    )
 
-    private fun line(at: String, who: String, text: String) = jo("at" to at, "who_fa" to who, "text_fa" to text)
+    /** A line of the work; ⟨1.24⟩ with [id] and [state] the hub's additive fields (a step's end updates its own line). */
+    private fun line(at: String, who: String, text: String, id: String? = null, state: String? = null) =
+        if (id == null) jo("at" to at, "who_fa" to who, "text_fa" to text)
+        else jo("at" to at, "who_fa" to who, "text_fa" to text, "id" to id, "kind" to "step", "state" to state)
     private fun worker(who: String, company: String?, work: String, startedMin: Long, step: Int, doing: String) =
         jo("who_fa" to who, "company_fa" to company, "work_title_fa" to work, "started_at" to at(startedMin), "step" to step, "doing_fa" to doing)
 
@@ -454,18 +466,20 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
                 worker("مدیرعامل پرو-چارت", "پرو-چارت", "سئوی سایت پرو-چارت", 14, 6, "فهرست صفحه‌هایی که باید بهتر شوند را مرتب میکند"),
                 worker("کارشناس سئوی پرو-چارت", "پرو-چارت", "بررسی سه رقیب اول «چارت طلا»", 4, 3, "صفحه‌ی اول tradingview.com را میخواند"),
             ),
+            // ⟨1.24⟩ F-0104 speaks the additive line: each step done (a tick) and the one in progress running (an arc).
             lines = mutableListOf(
-                line(at(14), "مدیرعامل پرو-چارت", "کار «سئوی سایت پرو-چارت» را شروع کرد"),
-                line(at(13), "مدیرعامل پرو-چارت", "سایت pro-chart.com را خواند"),
-                line(at(12), "مدیرعامل پرو-چارت", "از ChatGPT پرسید کدام صفحه‌ها کمتر دیده میشوند"),
-                line(at(10), "مدیرعامل پرو-چارت", "سه رقیب اول را در جستجوی «چارت طلا» پیدا کرد"),
-                line(at(8), "مدیرعامل پرو-چارت", "بررسی رقبا را به کارشناس سئو سپرد"),
-                line(at(4), "کارشناس سئوی پرو-چارت", "کار «بررسی سه رقیب اول» را شروع کرد"),
-                line(at(3), "کارشناس سئوی پرو-چارت", "صفحه‌ی اول investing.com را خواند"),
-                line(at(2), "مدیرعامل پرو-چارت", "عنوان هشت صفحه‌ی سایت را خواند"),
-                line(at(1), "کارشناس سئوی پرو-چارت", "از Gemini پرسید کدام کلیدواژه‌ها جا مانده‌اند"),
-                line(now.minusSeconds(20).toString(), "مدیرعامل پرو-چارت", "فهرست صفحه‌هایی که باید بهتر شوند را مرتب میکند"),
+                line(at(14), "مدیرعامل پرو-چارت", "کار «سئوی سایت پرو-چارت» را شروع کرد", "F-0104-1", "done"),
+                line(at(13), "مدیرعامل پرو-چارت", "سایت pro-chart.com را خواند", "F-0104-2", "done"),
+                line(at(12), "مدیرعامل پرو-چارت", "از ChatGPT پرسید کدام صفحه‌ها کمتر دیده میشوند", "F-0104-3", "done"),
+                line(at(10), "مدیرعامل پرو-چارت", "سه رقیب اول را در جستجوی «چارت طلا» پیدا کرد", "F-0104-4", "done"),
+                line(at(8), "مدیرعامل پرو-چارت", "بررسی رقبا را به کارشناس سئو سپرد", "F-0104-5", "done"),
+                line(at(4), "کارشناس سئوی پرو-چارت", "کار «بررسی سه رقیب اول» را شروع کرد", "F-0104-6", "done"),
+                line(at(3), "کارشناس سئوی پرو-چارت", "صفحه‌ی اول investing.com را خواند", "F-0104-7", "done"),
+                line(at(2), "مدیرعامل پرو-چارت", "عنوان هشت صفحه‌ی سایت را خواند", "F-0104-8", "done"),
+                line(at(1), "کارشناس سئوی پرو-چارت", "از Gemini پرسید کدام کلیدواژه‌ها جا مانده‌اند", "F-0104-9", "done"),
+                line(now.minusSeconds(20).toString(), "مدیرعامل پرو-چارت", "فهرست صفحه‌هایی که باید بهتر شوند را مرتب میکند", "F-0104-10", "running"),
             ),
+            running = "F-0104-10", steps = 10,
             script = ArrayDeque(listOf(
                 "کارشناس سئوی پرو-چارت" to "صفحه‌ی اول tradingview.com را خواند",
                 "مدیرعامل پرو-چارت" to "توضیح متای سه صفحه را دوباره نوشت",
@@ -548,7 +562,15 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
             }
             if (l.loop) l.script.addLast(step)
             val (who, text) = step
-            val ln = line(nowIso, who, text)
+            // ⟨1.24⟩ the step in progress ends first (the same line, done), then the next begins (running).
+            l.running?.let { id ->
+                val i = l.lines.indexOfFirst { it.str("id") == id }
+                if (i >= 0) {
+                    l.lines[i] = JsonObject(l.lines[i] + ("state" to JsonPrimitive("done")))
+                    out += activityEvent(s, l.lines[i], l.workers.size)
+                }
+            }
+            val ln = if (l.running != null) line(nowIso, who, text, "$ref-${++l.steps}", "running").also { l.running = "$ref-${l.steps}" } else line(nowIso, who, text)
             l.lines += ln
             while (l.lines.size > 30) l.lines.removeAt(0)
             val i = l.workers.indexOfFirst { it.str("who_fa") == who }
