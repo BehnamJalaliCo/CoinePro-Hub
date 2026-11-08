@@ -37,6 +37,7 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "deliverables": ("deliverable.",),
     "messages": ("message.",),
     "notifications": ("notification.",),
+    # ⟨1.24⟩ §42.2 employee.state (the §29.14 state) and llm.tick route under these two
     "activity": ("activity.", "employee."),
     "llm": ("llm.", "budget."),
     "control": ("control.", "presence.", "hiring."),
@@ -46,7 +47,7 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "files": ("file.",),
     # ⟨1.3⟩ the Code Workshop (workshop.session, workshop.approval) and voice orders
     "workshop": ("workshop.",),
-    # ⟨1.17⟩ §35.7 session.updated (the badge); ⟨1.23⟩ §41.1 session.activity (a live line)
+    # ⟨1.24⟩ §42.1: session.updated (§35.7) and session.activity (§41.1) reach the apps
     "orders": ("order.", "session."),
     # ⟨1.4⟩ the hourly backup: backup.done, backup.failed (contract §18.10)
     "backups": ("backup.",),
@@ -119,7 +120,8 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "archive": ("record.", "reminder.", "hold.", "fixity.", "schema."),
     # ⟨1.8⟩ prompt 17 (contract §26.4): server.state, server.call (one per job
     # start and end, and per command inside a claude job), server.awaiting_seal
-    "servers": ("server.",),
+    # ⟨1.24⟩ §42.2 network.link (a measured link changed)
+    "servers": ("server.", "network."),
     # ⟨1.11⟩ prompt 21 part 3 (contract §29.16): the owner's home (home.updated,
     # suggestion.updated); the working groups' runs and the connections'
     # reads (group.run, connection.updated)
@@ -135,7 +137,8 @@ TOPICS: dict[str, tuple[str, ...]] = {
     # lead.updated, usage.report, journey.stage
     "money": ("payment.", "lead.", "usage.", "journey."),
     # ⟨1.17⟩ §35.7 topic `holding`: links.updated (a company link or a canvas node changed)
-    "holding": ("links.",),
+    # ⟨1.24⟩ §42.2 holding.flow (what crosses the hub between companies)
+    "holding": ("links.", "holding."),
     # ⟨1.20⟩ §38 topic `hub`: hub.job (a hub operation's state changed)
     "hub": ("hub.",),
 }
@@ -200,6 +203,33 @@ async def emit(
         subject=subject(company_code, type_),
         payload=json.dumps(env, default=str),
     )
+    # ⟨1.24⟩ §42.2: an event that says an employee's run, activity or server job moved also
+    # re-derives that employee's §29.14 state, in the same transaction (employee.state, coalesced
+    # in domain/live.py); no writer calls it by hand.
+    code = moved_employee(type_, ref, data)
+    if code is not None:
+        from hq_api.domain import live
+
+        await live.employee_moved(tx, code)
+
+
+# The events after which an employee's §29.14 state may have changed, and where they name him
+# (the rest of its causes, a card decided or a lock, are caught by domain/live.reconcile).
+MOVED = ("run.started", "run.finished", "activity.changed", "server.call")
+
+
+def moved_employee(type_: str, ref: str | None, data: dict[str, Any]) -> str | None:
+    """The employee code an event of MOVED is about (an agent's server job only), else None."""
+    if type_ not in MOVED:
+        return None
+    if type_ == "activity.changed":
+        code: Any = ref
+    elif type_.startswith("run."):
+        code = data.get("employee")
+    else:
+        who = data.get("actor")
+        code = who.get("code") if isinstance(who, dict) and who.get("kind") == "agent" else None
+    return code if isinstance(code, str) and code else None
 
 
 class Bus:

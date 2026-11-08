@@ -379,8 +379,8 @@ async def test_exec_job_lifecycle_and_sse_shape(
     )
     assert [a["action"] for a in audits][:1] == ["server.job"] and len(audits) >= 2
     assert "exit 0" in audits[-1]["summary"] and "sha256:" in audits[-1]["summary"]
-    # The stream topic: servers carries server.* only.
-    assert events.TOPICS["servers"] == ("server.",)
+    # The stream topic: servers carries server.* and ⟨1.24⟩ §42.1 network.* only.
+    assert events.TOPICS["servers"] == ("server.", "network.")
     calls = await su.fetch(
         """SELECT payload FROM core.outbox WHERE subject = $1 ORDER BY id DESC LIMIT 20""",
         f"hq.core.{co['code']}.server.call",

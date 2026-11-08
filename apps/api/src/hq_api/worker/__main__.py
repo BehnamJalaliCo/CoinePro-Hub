@@ -3,8 +3,8 @@
 Connects as the database role hq_worker, to NATS (live stream + bridge),
 to Temporal (task queue `hq-core`) and to OpenBao for the push channels'
 credentials (missing credentials only switch the channels off). Ensures
-the schedules on start, then runs the worker, the bridge and a file
-heartbeat until SIGTERM.
+the schedules on start, then runs the worker, the bridge, the live loop
+(⟨1.24⟩ employee.state) and a file heartbeat until SIGTERM.
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ from hq_api.agents.dispatch import Dispatcher
 from hq_api.companies import Companies
 from hq_api.config import Settings
 from hq_api.db import Database
+from hq_api.domain import live
 from hq_api.events import Bus
 from hq_api.hub import Hub
 from hq_api.policy import Policy
@@ -137,6 +138,8 @@ async def main(stop: asyncio.Event | None = None) -> None:
             Dispatcher(hub, client, s.task_queue, s.agent_dispatch_interval_s).run(),
             name="dispatch",
         ),
+        # ⟨1.24⟩ §42.2 employee.state: the changes that waited for their window, the reconcile
+        asyncio.create_task(live.loop(hub), name="live"),
         asyncio.create_task(heartbeat.run(health(hub, client)), name="heartbeat"),
         asyncio.create_task(refresh_secrets(hub, bao), name="secrets"),
     ]

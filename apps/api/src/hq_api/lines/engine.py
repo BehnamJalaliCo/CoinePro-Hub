@@ -707,6 +707,9 @@ async def _done(
     )
     if published:
         await learning.record_features(tx, run, await owner_tz(tx))
+        from hq_api.domain import live
+
+        await live.publish_flow(tx, run, published)  # ⟨1.24⟩ §42.2 to the world, on the map
     card: dict[str, Any] | None = None
     if held:  # §33.9 the owner's card, with the objections; the run waits for his seal
         steps = await store.step_rows(tx, run["id"])

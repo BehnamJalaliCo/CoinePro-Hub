@@ -26654,6 +26654,297 @@
         "title": "ListingOut",
         "type": "object"
       },
+      "LiveCompany": {
+        "description": "One operating company (the holding is the hub, not a row). `working`: its people thinking\nor working now; `sessions_open`: the open sessions it holds; `last_event_at`: its newest event\non the stream, null when none is recent; `state`: locked, else stuck (someone is), else busy\n(someone works), else ok.",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "last_event_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Event At"
+          },
+          "name_fa": {
+            "title": "Name Fa",
+            "type": "string"
+          },
+          "servers_online": {
+            "title": "Servers Online",
+            "type": "integer"
+          },
+          "servers_total": {
+            "title": "Servers Total",
+            "type": "integer"
+          },
+          "sessions_open": {
+            "title": "Sessions Open",
+            "type": "integer"
+          },
+          "spend_today_usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Spend Today Usd",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "ok",
+              "busy",
+              "stuck",
+              "locked"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "working": {
+            "title": "Working",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "name_fa",
+          "working",
+          "total",
+          "sessions_open",
+          "servers_online",
+          "servers_total",
+          "spend_today_usd",
+          "last_event_at",
+          "state"
+        ],
+        "title": "LiveCompany",
+        "type": "object"
+      },
+      "LiveControl": {
+        "description": "The kill switches engaged: the holding's, and the companies'.",
+        "properties": {
+          "companies_locked": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Companies Locked",
+            "type": "array"
+          },
+          "holding": {
+            "title": "Holding",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "holding",
+          "companies_locked"
+        ],
+        "title": "LiveControl",
+        "type": "object"
+      },
+      "LivePeople": {
+        "description": "Active employees by their §29.14 state (idle and done are the rest of `total`).",
+        "properties": {
+          "stuck": {
+            "title": "Stuck",
+            "type": "integer"
+          },
+          "thinking": {
+            "title": "Thinking",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "waiting": {
+            "title": "Waiting",
+            "type": "integer"
+          },
+          "working": {
+            "title": "Working",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "working",
+          "thinking",
+          "waiting",
+          "stuck",
+          "total"
+        ],
+        "title": "LivePeople",
+        "type": "object"
+      },
+      "LiveServers": {
+        "description": "Servers with a runner, not revoked (`total` counts the pending ones too).",
+        "properties": {
+          "offline": {
+            "title": "Offline",
+            "type": "integer"
+          },
+          "online": {
+            "title": "Online",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "online",
+          "offline",
+          "total"
+        ],
+        "title": "LiveServers",
+        "type": "object"
+      },
+      "LiveSessions": {
+        "description": "Open sessions (not closed, not hidden) by badge.",
+        "properties": {
+          "moving": {
+            "title": "Moving",
+            "type": "integer"
+          },
+          "ready": {
+            "title": "Ready",
+            "type": "integer"
+          },
+          "stuck": {
+            "title": "Stuck",
+            "type": "integer"
+          },
+          "your_turn": {
+            "title": "Your Turn",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "moving",
+          "your_turn",
+          "stuck",
+          "ready"
+        ],
+        "title": "LiveSessions",
+        "type": "object"
+      },
+      "LiveSummary": {
+        "description": "§42.3 the seed of the live views (null where nothing is known, never a made-up zero).\n`seq`: the stream's last sequence when read (null only while the event bus is down).",
+        "properties": {
+          "approvals": {
+            "title": "Approvals",
+            "type": "integer"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "companies": {
+            "items": {
+              "$ref": "#/components/schemas/LiveCompany"
+            },
+            "title": "Companies",
+            "type": "array"
+          },
+          "control": {
+            "$ref": "#/components/schemas/LiveControl"
+          },
+          "people": {
+            "$ref": "#/components/schemas/LivePeople"
+          },
+          "seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seq"
+          },
+          "servers": {
+            "$ref": "#/components/schemas/LiveServers"
+          },
+          "sessions": {
+            "$ref": "#/components/schemas/LiveSessions"
+          },
+          "tokens": {
+            "$ref": "#/components/schemas/LiveTokens"
+          },
+          "urgent_unread": {
+            "title": "Urgent Unread",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "seq",
+          "at",
+          "people",
+          "sessions",
+          "approvals",
+          "urgent_unread",
+          "servers",
+          "tokens",
+          "control",
+          "companies"
+        ],
+        "title": "LiveSummary",
+        "type": "object"
+      },
+      "LiveTokens": {
+        "description": "Today (the Token Treasury's UTC day): every token; with a cache read at a tenth; those of\nthe calls that finished in the last minute; real plus equivalent dollars; the holding's daily\ndollar budget, or null.",
+        "properties": {
+          "budget_usd": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Usd"
+          },
+          "effective_today": {
+            "title": "Effective Today",
+            "type": "integer"
+          },
+          "equiv_usd_today": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Equiv Usd Today",
+            "type": "string"
+          },
+          "per_min": {
+            "title": "Per Min",
+            "type": "integer"
+          },
+          "today": {
+            "title": "Today",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "today",
+          "effective_today",
+          "per_min",
+          "equiv_usd_today",
+          "budget_usd"
+        ],
+        "title": "LiveTokens",
+        "type": "object"
+      },
       "LogEntryIn": {
         "additionalProperties": false,
         "properties": {
@@ -102636,6 +102927,101 @@
         "summary": "Change Link",
         "tags": [
           "links"
+        ]
+      }
+    },
+    "/api/v1/live/summary": {
+      "get": {
+        "description": "The seed of every live view (K-2 of design/LIVE_VIEWS.md): a fixed handful of aggregate\nqueries whatever the number of companies; `seq` to resume the stream right after it.",
+        "operationId": "live_summary",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "approvals": 1,
+                  "at": "2026-10-17T05:42:00Z",
+                  "companies": [
+                    {
+                      "code": "TY",
+                      "last_event_at": "2026-10-17T05:42:00Z",
+                      "name_fa": "تریدیار",
+                      "servers_online": 1,
+                      "servers_total": 1,
+                      "sessions_open": 1,
+                      "spend_today_usd": "2.410000",
+                      "state": "ok",
+                      "total": 1,
+                      "working": 1
+                    }
+                  ],
+                  "control": {
+                    "companies_locked": [
+                      "x"
+                    ],
+                    "holding": false
+                  },
+                  "people": {
+                    "stuck": 1,
+                    "thinking": 1,
+                    "total": 1,
+                    "waiting": 1,
+                    "working": 1
+                  },
+                  "seq": 1,
+                  "servers": {
+                    "offline": 1,
+                    "online": 1,
+                    "total": 1
+                  },
+                  "sessions": {
+                    "moving": 1,
+                    "ready": 1,
+                    "stuck": 1,
+                    "your_turn": 1
+                  },
+                  "tokens": {
+                    "budget_usd": "2.410000",
+                    "effective_today": 1,
+                    "equiv_usd_today": "x",
+                    "per_min": 1,
+                    "today": 1
+                  },
+                  "urgent_unread": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/LiveSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Live Summary",
+        "tags": [
+          "live"
         ]
       }
     },

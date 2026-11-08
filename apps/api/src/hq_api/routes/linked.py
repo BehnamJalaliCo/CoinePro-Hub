@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, Query
 from hq_api.context import Ctx, internal_ctx
 from hq_api.domain import linked as LD
 from hq_api.domain import links as LK
+from hq_api.domain import live as LV
 from hq_api.errors import ApiError, responses
 from hq_api.routes.internal import allow
 from hq_api.schemas import CODE
@@ -111,7 +112,7 @@ async def linked_read(
             f"no output {ref} of {company}",
             message_fa=f"خروجی {ref} از آنِ {company} نیست یا خواندنی نیست.",
         )
-    async with ctx.hub.db.tx([target.id]) as tx:
+    async with ctx.hub.db.tx([target.id, who.company_id]) as tx:
         await ctx.audit(
             tx,
             company_id=target.id,
@@ -121,4 +122,14 @@ async def linked_read(
             target_ref=f"{company}:{what}" + (f":{ref}" if ref else ""),
             summary=f"{who.company} read {what} of {company} ({via})",
         )
+        if via != "own":  # ⟨1.24⟩ §42.2 the data travels: its company → hub → the reader's
+            rw = await LV.run_work(tx, who.run_id)
+            await LV.read_flow(
+                tx,
+                owner=company,
+                reader=str(who.company),
+                ref=rw["ref"] if rw else who.code,
+                root_ref=rw["root_ref"] if rw else None,
+                what_fa=LV.READ_FA[what],
+            )
     return out

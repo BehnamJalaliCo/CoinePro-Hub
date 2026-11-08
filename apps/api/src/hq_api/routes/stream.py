@@ -5,8 +5,8 @@ stream HQ_CORE (`hq.core.<company>.<type>`).
   (within the 30-day retention).
 - Filters: `topics` (work, decisions, deliverables, messages, notifications,
   activity, llm, control, runs) and `company` (repeatable). `company=*` is
-  the holding view for 40+ companies: only counters and `activity.changed`,
-  never full payloads.
+  the holding view for 40+ companies: only counters, never full payloads,
+  but for `activity.changed` and ⟨1.24⟩ §42.1 the live events of HOLDING_FULL.
 - ⟨1.4.2⟩ Unknown topics are ignored, not refused (a client may name topics a
   newer server adds); the first comment lists the topics served
   (`: topics work,decisions,...`). Only a malformed `topics` is 422.
@@ -42,14 +42,26 @@ def matches(env: dict[str, Any], topics: set[str], companies: set[str] | None) -
     return any(type_.startswith(prefix) for t in topics for prefix in events.TOPICS[t])
 
 
-# company=*: what the owner's holding-wide stream carries in full (everything else is counters):
-# live activity, and ⟨1.23⟩ §41.1 the sessions' live lines and badges (the owner's own)
-FULL_TYPES = ("activity.changed", "session.activity", "session.updated")
+# ⟨1.24⟩ §42.1: the small, text-free events the holding's live views draw from pass in full
+HOLDING_FULL = frozenset(
+    {
+        "activity.changed",
+        "server.state",
+        "network.link",
+        "holding.flow",
+        "employee.state",
+        "llm.tick",
+        "session.updated",
+        "session.activity",
+        "control.changed",
+        "links.updated",
+    }
+)
 
 
 def holding_view(env: dict[str, Any]) -> dict[str, Any]:
-    """company=*: counters only, except live activity and the sessions' lines."""
-    if env.get("type") in FULL_TYPES:
+    """company=*: counters only, except the live events of HOLDING_FULL."""
+    if env.get("type") in HOLDING_FULL:
         return env
     return {
         "id": env.get("id"),

@@ -93,6 +93,17 @@ TOKEN_PREFIX = "hqr1_"  # noqa: S105 - the prefix of a runner credential, not on
 USER_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 NETCHECK_SERVER_PORTS = (22, 443, 80)
 NETCHECK_HUB_PORT = 443
+# ⟨1.24⟩ §42.2: a round trip (the runner's to the hub, a measured link) at least this long is slow
+SLOW_MS = 300.0
+LINK_WINDOW_S = 60  # at most one network.link per link in this window (but during an owner's check)
+REASON_FA = {
+    "no_poll": "runner این سرور دیگر به هاب سر نمیزند؛ هنوز معلوم نیست چرا",
+    "runner_stopped": "سرور روشن است و در دسترس، ولی runner روی آن ایستاده است",
+    "server_unreachable": "هیچ سروری به این سرور نمیرسد؛ خاموش است یا از شبکه جدا شده",
+    "revoked": "این سرور از هلدینگ جدا شده است",
+    "fallback_public": "شبکه‌ی خصوصی جواب نمیدهد؛ از راه اینترنت وصل است",
+    "slow": "ارتباط این سرور با هاب کند است",
+}
 SERVICE = Principal(kind="service", code="servers", role="service")
 TOOL_OF = {k: f"server.{k}" for k in JOB_KINDS}
 SESSION_TYPES = (
@@ -429,7 +440,66 @@ async def seal_required(tx: Tx) -> list[str]:
 
 
 # ---------------------------------------------------------------- events --
-async def emit_state(tx: Tx, s: dict[str, Any]) -> None:
+def rtt_tier(ms: Any) -> str | None:
+    """⟨1.24⟩ §42.2 a round trip's tier: normal or slow (None when not measured)."""
+    if ms is None:
+        return None
+    return "slow" if float(ms) >= SLOW_MS else "normal"
+
+
+async def reason_of(tx: Tx, s: dict[str, Any]) -> str | None:
+    """⟨1.24⟩ §42.2 why a server is as it is, inferred by the hub (a client never infers offline
+    from silence): offline and another server reached its ports since its runner went silent →
+    `runner_stopped`; measured since and nobody reached it → `server_unreachable`; not measured
+    since → `no_poll`. Online over the public fallback → `fallback_public`; a slow round trip →
+    `slow`; revoked → `revoked`; else None."""
+    st = state_of(s)
+    if st == "revoked":
+        return "revoked"
+    if st == "offline":
+        row = await tx.first(
+            """SELECT count(*) AS n, bool_or(ok) AS reached FROM infra.network_links
+               WHERE to_key = :k AND from_server_id <> :id
+                 AND (CAST(:since AS timestamptz) IS NULL OR at >= CAST(:since AS timestamptz))""",
+            k=str(s["id"]),
+            id=s["id"],
+            since=s.get("last_seen_at"),
+        )
+        if row is None or not row["n"]:
+            return "no_poll"
+        return "runner_stopped" if row["reached"] else "server_unreachable"
+    if st == "online":
+        if s.get("via") == "public":
+            return "fallback_public"
+        if rtt_tier(s.get("hub_rtt_ms")) == "slow":
+            return "slow"
+    return None
+
+
+def state_since(s: dict[str, Any]) -> datetime | None:
+    """When the server's state began (rows from before 0059 without it: their last contact
+    when offline, else the row's last change)."""
+    since: datetime | None = s.get("state_since")
+    if since is None:
+        since = s.get("last_seen_at") if state_of(s) == "offline" else s.get("updated_at")
+    return since
+
+
+async def emit_state(tx: Tx, s: dict[str, Any], *, prev: str | None = None) -> None:
+    """`server.state` (§26.4) with ⟨1.24⟩ §42.2's additive fields: the state before (`prev`, the
+    same state when only the route or the round trip changed), since when, why (and in plain
+    words), the round trip and the open jobs. The reason said is kept on the server."""
+    reason = await reason_of(tx, s)
+    open_jobs = await tx.scalar(
+        "SELECT count(*) FROM infra.server_jobs WHERE server_id = :s AND state = ANY(:open)",
+        s=s["id"],
+        open=list(OPEN),
+    )
+    if reason != s.get("state_reason"):
+        await tx.exec(
+            "UPDATE infra.servers SET state_reason = :r WHERE id = :id", r=reason, id=s["id"]
+        )
+    since = state_since(s)
     await events.emit(
         tx,
         s["company"],
@@ -442,6 +512,12 @@ async def emit_state(tx: Tx, s: dict[str, Any]) -> None:
             "state": state_of(s),
             "via": s["via"],
             "last_seen_at": s["last_seen_at"].isoformat() if s["last_seen_at"] else None,
+            "prev_state": prev,
+            "since": since.isoformat() if since else None,
+            "reason": reason,
+            "reason_fa": REASON_FA.get(reason) if reason else None,
+            "hub_rtt_ms": float(s["hub_rtt_ms"]) if s.get("hub_rtt_ms") is not None else None,
+            "open_jobs": int(open_jobs or 0),
         },
     )
 
@@ -538,6 +614,7 @@ async def approve(tx: Tx, who: Principal, p: dict[str, Any], step_up_id: UUID) -
         co=p["company_id"],
         n=name,
     )
+    prev = None
     if existing is not None:
         live = await tx.scalar(
             "SELECT 1 FROM infra.runners WHERE server_id = :s AND revoked_at IS NULL",
@@ -548,10 +625,11 @@ async def approve(tx: Tx, who: Principal, p: dict[str, Any], step_up_id: UUID) -
                 409, "validation_failed", fields={"name": f"{name} already has a runner"}
             )
         sid = existing["id"]
+        prev = state_of(existing)
         await tx.exec(
             """UPDATE infra.servers SET state = 'pending', hostname = :h, os = :os,
                    runner_version = :v, private_ip = COALESCE(:ip, private_ip), work_user = :u,
-                   via = NULL, updated_at = now()
+                   via = NULL, updated_at = now(), state_since = now()
                WHERE id = :id""",
             id=sid,
             h=info.get("hostname"),
@@ -563,8 +641,8 @@ async def approve(tx: Tx, who: Principal, p: dict[str, Any], step_up_id: UUID) -
     else:
         sid = await tx.scalar(
             """INSERT INTO infra.servers (company_id, origin, name, hostname, os, runner_version,
-                   private_ip, work_user, state)
-               VALUES (:co, 'attached', :n, :h, :os, :v, :ip, :u, 'pending') RETURNING id""",
+                   private_ip, work_user, state, state_since)
+               VALUES (:co, 'attached', :n, :h, :os, :v, :ip, :u, 'pending', now()) RETURNING id""",
             co=p["company_id"],
             n=name,
             h=info.get("hostname"),
@@ -595,7 +673,7 @@ async def approve(tx: Tx, who: Principal, p: dict[str, Any], step_up_id: UUID) -
         f"runner {info.get('runner_version') or '-'}; pending its token",
         step_up=True,
     )
-    await emit_state(tx, s)
+    await emit_state(tx, s, prev=prev)
     return s
 
 
@@ -633,8 +711,11 @@ async def claim_token(tx: Tx, device_code: str) -> dict[str, Any]:
         "UPDATE infra.runner_pairings SET state = 'claimed', claimed_at = now() WHERE id = :id",
         id=p["id"],
     )
+    prev = state_of(await load_server(tx, p["server_id"]))
     await tx.exec(
-        "UPDATE infra.servers SET state = 'online', last_seen_at = now(), updated_at = now() WHERE id = :id",
+        """UPDATE infra.servers SET state = 'online', last_seen_at = now(), updated_at = now(),
+               state_since = now()
+           WHERE id = :id""",
         id=p["server_id"],
     )
     s = await load_server(tx, p["server_id"])
@@ -648,7 +729,7 @@ async def claim_token(tx: Tx, device_code: str) -> dict[str, Any]:
         target_ref=f"{s['company']}:{s['name']}",
         summary="the runner took its credential",
     )
-    await emit_state(tx, s)
+    await emit_state(tx, s, prev=prev)
     return {"runner_token": token, "server_id": str(p["server_id"]), "rotate_after_s": 86400}
 
 
@@ -703,22 +784,26 @@ async def rotate(tx: Tx, runner: dict[str, Any]) -> dict[str, Any]:
 
 async def seen(tx: Tx, runner: dict[str, Any], via: str | None, rtt: float | None,
                version: str | None = None) -> None:  # fmt: skip
-    """A poll: the server is online, its route and its round trip to the hub."""
+    """A poll: the server is online, its route and its round trip to the hub. `server.state`
+    when it comes online, its route changes or ⟨1.24⟩ its round trip changes tier."""
     s = await load_server(tx, runner["server_id"], lock=True)
     was = state_of(s)
     await tx.exec(
         """UPDATE infra.servers SET last_seen_at = now(), state = 'online',
                via = COALESCE(:via, via), hub_rtt_ms = COALESCE(:rtt, hub_rtt_ms),
-               runner_version = COALESCE(:v, runner_version)
+               runner_version = COALESCE(:v, runner_version),
+               state_since = CASE WHEN CAST(:back AS boolean) THEN now() ELSE state_since END
            WHERE id = :id""",
         id=s["id"],
         via=via,
         rtt=rtt,
         v=version,
+        back=was != "online",
     )
     await tx.exec("UPDATE infra.runners SET last_used_at = now() WHERE id = :id", id=runner["id"])
-    if was != "online" or (via and via != s["via"]):
-        await emit_state(tx, await load_server(tx, s["id"]))
+    tier = rtt is not None and rtt_tier(rtt) != rtt_tier(s.get("hub_rtt_ms"))
+    if was != "online" or (via and via != s["via"]) or tier:
+        await emit_state(tx, await load_server(tx, s["id"]), prev=was)
 
 
 async def detach(tx: Tx, who: Principal, s: dict[str, Any], step_up_id: UUID) -> dict[str, Any]:
@@ -731,8 +816,11 @@ async def detach(tx: Tx, who: Principal, s: dict[str, Any], step_up_id: UUID) ->
         k=who.kind,
         c=who.code,
     )
+    prev = state_of(s)
     await tx.exec(
-        "UPDATE infra.servers SET state = 'revoked', updated_at = now() WHERE id = :id", id=s["id"]
+        """UPDATE infra.servers SET state = 'revoked', updated_at = now(), state_since = now()
+           WHERE id = :id""",
+        id=s["id"],
     )
     for j in await tx.all(
         JOB_SQL + " WHERE j.server_id = :s AND j.state = ANY(:open) FOR UPDATE OF j",
@@ -752,7 +840,7 @@ async def detach(tx: Tx, who: Principal, s: dict[str, Any], step_up_id: UUID) ->
         step_up=step_up_id is not None,
     )
     s = await load_server(tx, s["id"])
-    await emit_state(tx, s)
+    await emit_state(tx, s, prev=prev)
     return s
 
 
@@ -1563,8 +1651,12 @@ async def sweep(tx: Tx) -> int:
                   OR s.last_seen_at < now() - make_interval(secs => :o)) FOR UPDATE OF s""",
         o=ONLINE_S,
     ):
-        await tx.exec("UPDATE infra.servers SET state = 'offline' WHERE id = :id", id=s["id"])
-        await emit_state(tx, await load_server(tx, s["id"]))
+        # ⟨1.24⟩ offline since its last contact
+        await tx.exec(
+            "UPDATE infra.servers SET state = 'offline', state_since = last_seen_at WHERE id = :id",
+            id=s["id"],
+        )
+        await emit_state(tx, await load_server(tx, s["id"]), prev="online")
         n += 1
     for j in await tx.all(
         JOB_SQL
@@ -1663,14 +1755,41 @@ async def store_links(tx: Tx, j: dict[str, Any], links: list[Any]) -> list[dict[
             else None
         )
         error = None if ok else str(item.get("error") or "unreachable")[:120]
-        await tx.exec(
+        # ⟨1.24⟩ §42.2 network.link: when `ok` changes or the link crosses the slow line, at
+        # most once a minute; every result of the owner's own check (POST /infra/network/check)
+        old = await tx.first(
+            """SELECT emitted_ok, emitted_slow,
+                      emitted_at > now() - make_interval(secs => :w) AS recent
+               FROM infra.network_links WHERE from_server_id = :f AND to_key = :to AND port = :p
+               FOR UPDATE""",
+            f=j["server_id"],
+            to=to,
+            p=port,
+            w=LINK_WINDOW_S,
+        )
+        slow = ok and ms is not None and ms >= SLOW_MS
+        told = None if old is None else (old["emitted_ok"], bool(old["emitted_slow"]))
+        changed = told is None or told[0] is None or told != (ok, slow)
+        tell = j["actor_kind"] == "owner" or (changed and not (old is not None and old["recent"]))
+        row = await tx.one(
             """INSERT INTO infra.network_links (company_id, from_server_id, to_key, to_ip, port, ok,
-                   ms, error, at, last_ok_at, job_id)
-               VALUES (:co, :f, :to, :ip, :p, :ok, :ms, :e, now(), CASE WHEN :ok THEN now() END, :j)
+                   ms, error, at, last_ok_at, job_id, since, emitted_at, emitted_ok, emitted_slow)
+               VALUES (:co, :f, :to, :ip, :p, :ok, :ms, :e, now(), CASE WHEN :ok THEN now() END, :j,
+                       now(), CASE WHEN CAST(:tell AS boolean) THEN now() END,
+                       CASE WHEN CAST(:tell AS boolean) THEN CAST(:ok AS boolean) END,
+                       CASE WHEN CAST(:tell AS boolean) THEN CAST(:slow AS boolean) END)
                ON CONFLICT (from_server_id, to_key, port) DO UPDATE SET to_ip = EXCLUDED.to_ip,
                    ok = EXCLUDED.ok, ms = EXCLUDED.ms, error = EXCLUDED.error, at = EXCLUDED.at,
                    last_ok_at = CASE WHEN EXCLUDED.ok THEN EXCLUDED.at ELSE infra.network_links.last_ok_at END,
-                   job_id = EXCLUDED.job_id""",
+                   job_id = EXCLUDED.job_id,
+                   since = CASE WHEN infra.network_links.ok = EXCLUDED.ok
+                                THEN infra.network_links.since ELSE EXCLUDED.since END,
+                   emitted_at = COALESCE(EXCLUDED.emitted_at, infra.network_links.emitted_at),
+                   emitted_ok = CASE WHEN CAST(:tell AS boolean) THEN EXCLUDED.emitted_ok
+                                     ELSE infra.network_links.emitted_ok END,
+                   emitted_slow = CASE WHEN CAST(:tell AS boolean) THEN EXCLUDED.emitted_slow
+                                       ELSE infra.network_links.emitted_slow END
+               RETURNING since, last_ok_at""",
             co=j["company_id"],
             f=j["server_id"],
             to=to,
@@ -1680,9 +1799,76 @@ async def store_links(tx: Tx, j: dict[str, Any], links: list[Any]) -> list[dict[
             ms=ms,
             e=error,
             j=j["id"],
+            tell=tell,
+            slow=slow,
         )
+        if tell:
+            await emit_link(tx, j, to, port, ok, ms, error, row["since"], row["last_ok_at"])
         stored.append({"to": to, "port": port, "ok": ok, "ms": ms, "error": error})
     return stored
+
+
+LINK_ERROR_FA = (
+    ("timeout", "در زمانش جواب نداد"),
+    ("timed out", "در زمانش جواب نداد"),
+    ("refused", "درگاه بسته است؛ اتصال را رد کرد"),
+    ("no route", "راهی به آن نیست"),
+    ("unreachable", "در دسترس نیست"),
+    ("reset", "اتصال را قطع کرد"),
+)
+
+
+def link_error_fa(ok: bool, error: str | None) -> str | None:
+    """A failed link's error in plain Persian (never the runner's own words: no address)."""
+    if ok:
+        return None
+    e = (error or "").lower()
+    return next((fa for key, fa in LINK_ERROR_FA if key in e), "وصل نشد")
+
+
+async def emit_link(tx: Tx, j: dict[str, Any], to: str, port: int, ok: bool, ms: float | None,
+                    error: str | None, since: datetime, last_ok_at: datetime | None) -> None:  # fmt: skip
+    """⟨1.24⟩ §42.2 `network.link` (topic `servers`): the measuring server, the hub or the other
+    server by id, the port; never an address."""
+    await events.emit(
+        tx,
+        j["company"],
+        "network.link",
+        f"{j['server_id']}:{to}:{port}",
+        {
+            "from": str(j["server_id"]),
+            "to": to,
+            "port": port,
+            "ok": ok,
+            "ms": ms,
+            "error_fa": link_error_fa(ok, error),
+            "since": since.isoformat(),
+            "last_ok_at": last_ok_at.isoformat() if last_ok_at else None,
+        },
+    )
+
+
+async def after_netcheck(hub: Any, j: dict[str, Any]) -> int:
+    """⟨1.24⟩ §42.2 after a netcheck's result (in every company's view: the servers it measured
+    belong to any company): an offline server whose reason the new measures change is told again."""
+    targets = [
+        str(t.get("to"))
+        for t in (j.get("args") or {}).get("targets") or []
+        if t.get("to") and t.get("to") != "hub"
+    ]
+    if not targets:
+        return 0
+    n = 0
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        for s in await tx.all(
+            SERVER_SQL + " WHERE s.id = ANY(CAST(:ids AS uuid[])) FOR UPDATE OF s",
+            ids=sorted(set(targets)),
+        ):
+            if state_of(s) != "offline" or await reason_of(tx, s) == s.get("state_reason"):
+                continue
+            await emit_state(tx, s, prev="offline")
+            n += 1
+    return n
 
 
 async def network(tx: Tx, hub_ip: str, holding: str) -> dict[str, Any]:

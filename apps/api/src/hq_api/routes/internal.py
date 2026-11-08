@@ -38,6 +38,7 @@ from hq_api.domain import (
 from hq_api.domain import decisions as D
 from hq_api.domain import files as F
 from hq_api.domain import links as LK
+from hq_api.domain import live as LV
 from hq_api.domain import split as SP
 from hq_api.domain import work as W
 from hq_api.errors import ApiError, responses
@@ -509,7 +510,22 @@ async def accept_work(id: UUID, ctx: Ctx = Depends(internal_ctx)) -> W.Work:
         await W.event(tx, w, "accepted", ctx.who)
         await _audit_work(ctx, tx, w, "work.accept")
         await ctx.emit(tx, w["company"], "work.updated", w["ref"], {"status": "in_progress"})
+        if w["accepted_at"] is None:  # ⟨1.24⟩ §42.2 the first time only
+            await _cross_flow(ctx, tx, w, "accept")
         return W.render(await W.load(tx, id))
+
+
+async def _cross_flow(
+    ctx: Ctx, tx: Tx, w: dict[str, Any], kind: Literal["accept", "deliver"]
+) -> None:
+    """⟨1.24⟩ §42.2 a work another company asked for, accepted or delivered back: B → hub → A on
+    the holding's map. The asker is read in every company's view (the agent sees only its own)."""
+    if w.get("requested_by_work_id") is None:
+        return
+    async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as all_tx:
+        asker = await LV.requester(all_tx, w["requested_by_work_id"])
+    if asker is not None:
+        await LV.work_flow(tx, kind, w, asker)
 
 
 @router.post("/work/{id}/progress", response_model=W.Work, responses=E)
@@ -826,6 +842,8 @@ async def deliver_work(
             {"work": w["ref"], "producer": ctx.who.code},
         )
         await ctx.emit(tx, w["company"], "work.updated", w["ref"], {"status": status})
+        if status == "delivered":
+            await _cross_flow(ctx, tx, w, "deliver")
         if w["parent_id"] is None:
             await notify.raise_notification(
                 tx,

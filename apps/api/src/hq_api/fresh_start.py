@@ -52,7 +52,9 @@ WIPE: tuple[str, ...] = (
     "archive.record_versions", "archive.records", "archive.reminders", "archive.tombstones",
     "audit.entries",
     "cartable.decisions", "cartable.deliverables", "cartable.ratings", "cartable.resolutions",
-    "core.counters", "core.employee_memory", "core.employee_scores", "core.foundings",
+    # ⟨1.24⟩ §42.2 the employees' live state is derived from the runs (it follows them)
+    "core.counters", "core.employee_live", "core.employee_memory", "core.employee_scores",
+    "core.foundings",
     "core.idempotency_keys",
     "dceo.predictions",
     "feedback.items", "feedback.signals",
