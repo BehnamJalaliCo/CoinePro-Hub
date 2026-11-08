@@ -35,7 +35,7 @@ import os
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlsplit
 from uuid import UUID
 
@@ -136,10 +136,22 @@ _CO_CODE = re.compile(r"^[A-Z][A-Z0-9]{1,9}$")
 
 
 # ------------------------------------------------------------------ shapes --
+LineKind = Literal["start", "step", "end", "wake", "ask", "join", "task", "memory"]
+LineState = Literal["running", "done", "failed"]
+
+
 class ActivityLine(BaseModel):
+    """§41.1, and ⟨1.24⟩ §42.2 additive: `id` (`<run>:<n>`, 0 the start, `<run>:end` the end;
+    `task:<ref>:<n>`, `join:<code>`), `company` (the actor's), `kind`, `state`, `task_n`."""
+
+    id: str
     at: datetime
     who_fa: str
+    company: str | None = None
     text_fa: str
+    kind: LineKind = "step"
+    state: LineState = "done"
+    task_n: int | None = None
 
 
 class Worker(BaseModel):
@@ -282,7 +294,8 @@ async def _names(tx: Tx, hints: set[str]) -> dict[str, str]:
 # ---------------------------------------------------------------- reading --
 RUNS_SQL = """
 SELECT r.id, r.state, r.error_code, r.partial, r.queued_at, r.started_at, r.finished_at, r.steps,
-       r.reason, w.ref AS work_ref, w.title AS work_title, e.title_fa, c.name_fa AS company_fa
+       r.reason, w.ref AS work_ref, w.title AS work_title, e.title_fa, c.name_fa AS company_fa,
+       c.code AS company
 FROM agents.runs r JOIN work.work w ON w.id = r.work_id
 JOIN core.employees e ON e.id = r.employee_id JOIN core.companies c ON c.id = w.company_id
 WHERE r.work_id = ANY(:ids) AND r.trigger <> 'talk'
@@ -322,17 +335,40 @@ async def activity(
                 if isinstance(a, dict) and a.get("hint"):
                     hints.add(str(a["hint"]))
     names = await _names(tx, hints) if hints else {}
-    lines: list[tuple[datetime, str, str]] = []
+    lines: list[ActivityLine] = []
     working: list[Worker] = []
     for r in runs:
         who = OR.who_fa(r["title_fa"], r["company_fa"])
         title = title_text(r["work_title"])
         own = steps.get(r["id"]) or []
+        live = r["state"] in ("queued", "running")
+        final: LineState = "running" if live else ("done" if r["state"] == "done" else "failed")
+        rid = str(r["id"])
         if r["started_at"] is not None:
-            lines.append((r["started_at"], who, STARTED_FA.format(title=title)))
+            lines.append(
+                ActivityLine(
+                    id=line_id(rid, 0),
+                    at=r["started_at"],
+                    who_fa=who,
+                    company=r["company"],
+                    text_fa=STARTED_FA.format(title=title),
+                    kind="start",
+                    state="running" if live else final,
+                )
+            )
         for s in own:
-            lines.append((s["at"], who, step_text(s["summary_fa"], s["actions"], names)))
-        if r["state"] in ("queued", "running"):
+            lines.append(
+                ActivityLine(
+                    id=line_id(rid, int(s["n"])),
+                    at=s["at"],
+                    who_fa=who,
+                    company=r["company"],
+                    text_fa=step_text(s["summary_fa"], s["actions"], names),
+                    kind="step",
+                    state="running" if live else final,
+                )
+            )
+        if live:
             if own:
                 doing = step_text(own[-1]["summary_fa"], own[-1]["actions"], names)
             else:
@@ -350,9 +386,23 @@ async def activity(
         elif r["finished_at"] is not None:
             end = end_text(str(r["state"]), r["error_code"], bool(r.get("partial")))
             if end:
-                lines.append((r["finished_at"], who, end))
-    lines.sort(key=lambda x: x[0])
-    last = [ActivityLine(at=at, who_fa=who, text_fa=text) for at, who, text in lines[-LAST_LINES:]]
+                lines.append(
+                    ActivityLine(
+                        id=end_id(rid),
+                        at=r["finished_at"],
+                        who_fa=who,
+                        company=r["company"],
+                        text_fa=end,
+                        kind="end",
+                        state=final,
+                    )
+                )
+    lines.sort(key=lambda x: x.at)
+    merged: dict[str, ActivityLine] = {}
+    for ln in lines:  # the later line of an id wins
+        merged.pop(ln.id, None)
+        merged[ln.id] = ln
+    last = list(merged.values())[-LAST_LINES:]
     working.sort(key=lambda w: w.started_at)
     pulse = pulse or await read_pulse(tx, rep, works)
     turn = OR._j(rep.get("turn")) or {}
@@ -362,7 +412,7 @@ async def activity(
         waiting = _cut(HZ.humanize(f"{who} میپرسد: {turn.get('question_fa') or ''}"), 300)
     idle_since = None
     if not working:
-        idle_since = max([pulse.clock, *[x[0] for x in lines]]) if lines else pulse.clock
+        idle_since = max([pulse.clock, *[x.at for x in lines]]) if lines else pulse.clock
     return SessionActivity(
         working=working,
         last=last,
@@ -515,10 +565,66 @@ async def stuck_cause(
 
 
 # ------------------------------------------------------------------ the stream --
-async def emit(tx: Tx, order: str, line: dict[str, Any], working: int) -> None:
+def line_id(run_id: str, n: int) -> str:
+    """§42.2 a run's line: its id and the step number (0 the start)."""
+    return f"{run_id}:{n}"
+
+
+def end_id(run_id: str) -> str:
+    """§42.2 the run's end: a line of its own, so no step's text is lost."""
+    return f"{run_id}:end"
+
+
+def make_line(
+    id_: str,
+    who_fa: str,
+    text_fa: str,
+    *,
+    kind: str,
+    state: str,
+    company: str | None = None,
+    task_n: int | None = None,
+    at: datetime | None = None,
+) -> dict[str, Any]:
+    return {
+        "id": id_,
+        "at": (at or datetime.now(UTC)).isoformat(),
+        "who_fa": who_fa,
+        "company": company,
+        "text_fa": text_fa,
+        "kind": kind,
+        "state": state,
+        "task_n": task_n,
+    }
+
+
+async def working_count(tx: Tx, ref: str) -> int:
+    n = await tx.scalar(
+        """SELECT count(*) FROM agents.runs r
+           WHERE r.state IN ('queued', 'running') AND r.trigger <> 'talk' AND r.work_id IN (
+               SELECT w.id FROM work.work w JOIN owner.order_reports o ON o.ref = :r
+               WHERE w.ref = ANY(o.work_refs))""",
+        r=ref,
+    )
+    return int(n or 0)
+
+
+async def emit(tx: Tx, order: str, line: dict[str, Any], working: int | None = None) -> None:
+    """`session.activity {order, working, line}` on the holding's stream (topic `orders`)."""
     holding = await OR._holding(tx)
+    if working is None:
+        working = await working_count(tx, order)
     await events.emit(tx, holding["code"], "session.activity", order,
                       {"order": order, "line": line, "working": working})  # fmt: skip
+
+
+async def emit_safe(tx: Tx, order: str, line: dict[str, Any]) -> None:
+    """A line that never fails its caller (a hire joining, a task ticked, an ask)."""
+    try:
+        async with tx.conn.begin_nested():
+            await emit(tx, order, line)
+    except Exception:  # noqa: BLE001 - the stream never fails the writer
+        log.warning("session.activity could not be emitted", extra={"order": order})
 
 
 async def on_run(
@@ -545,30 +651,27 @@ async def on_run(
             ref = await OR.order_of_work(tx, work_id)
             if ref is None:
                 return
+            rid = str(run.get("id"))
             if kind == "started":
                 title = await tx.scalar("SELECT title FROM work.work WHERE id = :w", w=work_id)
                 text: str | None = STARTED_FA.format(title=title_text(title))
+                lid, lkind, lstate = line_id(rid, 0), "start", "running"
             elif kind == "step":
                 text = step_text(summary, actions or [])
+                lid, lkind, lstate = line_id(rid, int(n or 0)), "step", "running"
             else:
                 text = end_text(state or "done", code, partial)
+                lid, lkind = end_id(rid), "end"
+                lstate = "done" if state == "done" else "failed"
             if text is None:
                 return
-            who = OR.who_fa(
-                emp.get("title_fa"),
-                await tx.scalar(
-                    "SELECT name_fa FROM core.companies WHERE id = :c", c=run["company_id"]
-                ),
+            co = await tx.first(
+                "SELECT code, name_fa FROM core.companies WHERE id = :c", c=run["company_id"]
             )
-            working = await tx.scalar(
-                """SELECT count(*) FROM agents.runs r
-                   WHERE r.state IN ('queued', 'running') AND r.trigger <> 'talk' AND r.work_id IN (
-                       SELECT w.id FROM work.work w JOIN owner.order_reports o ON o.ref = :r
-                       WHERE w.ref = ANY(o.work_refs))""",
-                r=ref,
-            )
-            line = {"at": datetime.now(UTC).isoformat(), "who_fa": who, "text_fa": text}
-            await emit(tx, ref, line, int(working or 0))
+            who = OR.who_fa(emp.get("title_fa"), co["name_fa"] if co else None)
+            line = make_line(lid, who, text, kind=lkind, state=lstate,
+                             company=str(co["code"]) if co else None)  # fmt: skip
+            await emit(tx, ref, line, await working_count(tx, ref))
     except Exception:  # noqa: BLE001 - the stream never fails a run
         log.warning("session.activity could not be emitted", extra={"run": str(run.get("id"))})
 
@@ -608,6 +711,11 @@ async def wake_holder(
         out["work_ref"] = str(h["work_ref"])
         if run_id is not None:
             out["run_id"] = str(run_id)
+            # §42.2 the wake as a line: the queued run's start updates it when it begins
+            await emit_safe(tx, ref, make_line(
+                line_id(str(run_id), 0), OR.who_fa(h["title_fa"], h["company_fa"]),
+                WOKEN_NO_TASK_FA, kind="wake", state="running", company=str(h["company"]),
+            ))  # fmt: skip
         else:
             lock = await tx.scalar("SELECT control.lock_state(:co)", co=await tx.scalar(
                 "SELECT company_id FROM work.work WHERE id = :w", w=h["work_id"]))  # fmt: skip

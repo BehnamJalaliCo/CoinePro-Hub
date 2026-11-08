@@ -355,18 +355,26 @@ async def agent_tasks(
     return added
 
 
-async def tick_tasks(tx: Tx, rep: dict[str, Any], done: list[int]) -> int:
-    """`order.progress` with `done`: those task numbers are done."""
+async def tick_tasks(
+    tx: Tx, rep: dict[str, Any], done: list[int], *, who_fa: str | None = None,
+    company: str | None = None,
+) -> int:  # fmt: skip
+    """`order.progress` with `done`: those task numbers are done (⟨1.24⟩ §42.2 each one a `task`
+    line on the session's stream)."""
     if not done:
         return 0
-    n = await tx.scalar(
-        """WITH t AS (UPDATE owner.session_tasks SET state = 'done', updated_at = now()
-                     WHERE order_id = :o AND n = ANY(:ns) AND state <> 'done' RETURNING 1)
-           SELECT count(*) FROM t""",
+    rows = await tx.all(
+        """UPDATE owner.session_tasks SET state = 'done', updated_at = now()
+           WHERE order_id = :o AND n = ANY(:ns) AND state <> 'done' RETURNING n, title_fa""",
         o=rep["order_id"],
         ns=[int(x) for x in done[:50]],
     )
-    return int(n or 0)
+    for t in rows:
+        await SA.emit_safe(tx, str(rep["ref"]), SA.make_line(
+            f"task:{rep['ref']}:{t['n']}", who_fa or "مسئول", f"کار {t['n']} انجام شد: {t['title_fa']}",
+            kind="task", state="done", company=company, task_n=int(t["n"]),
+        ))  # fmt: skip
+    return len(rows)
 
 
 # ------------------------------------------------------------ participants --
@@ -684,6 +692,10 @@ async def join_hired(
         if rep is not None:
             await OR._append_steps(tx, rep["id"], [OR._step(OWNER_FA, line)])
             await remember(tx, rep["id"], line)  # ⟨1.22⟩ §40.1
+            await SA.emit_safe(tx, str(r["order_ref"]), SA.make_line(
+                f"join:{employee_code}", title_fa, line, kind="join", state="done",
+                company=company_code,
+            ))  # fmt: skip  # ⟨1.24⟩ §42.2
             # ⟨1.23⟩ §41.3 the holder is woken: the newcomer is here, the work goes on (or a
             # step says why not — audit M11)
             from hq_api.domain import order_turns as OT

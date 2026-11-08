@@ -112,3 +112,82 @@ async def test_the_asked_person_is_the_one_named_and_knows_the_session(
     sent = talk["router"].text_sent()
     assert MEMORY_LINE in sent and "## The order you hold" in sent
     assert json.dumps(holder_key) in json.dumps(sent) or holder_key in sent
+
+
+async def test_delegate_takes_a_company_and_a_named_server_points_at_its_company(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+    talk: dict[str, Any],  # noqa: F811
+    new_company: Callable[..., Any],
+) -> None:
+    """Audit M3: `delegate` leaves the holder's company when the card names one, like `ask`; and
+    both resolve a server or a company the words name (the text, then the session's memory)
+    before falling back to the holder's company — the owner who writes «IG-Hub» means IG's CTO."""
+    co = (await new_company())["code"]
+    other = await new_company()
+    oc = other["code"]
+    srv = f"Box-{oc}"  # (the seed's own IG-Hub exists already: a server name of this test's own)
+    await su.execute(
+        """INSERT INTO infra.servers (company_id, origin, name, state, last_seen_at)
+           VALUES ($1, 'attached', $2, 'online', now())""",
+        other["id"],
+        srv,
+    )
+    out = await post_order(client, owner, WORK_TEXT.format(co=co, w=words()))
+    ref, conv = out["ref"], out["talk_ref"]
+    root_ref = out["routes"][0]["work_ref"]
+    await refuse_queued(su, root_ref)
+    cards = [
+        {"kind": "delegate", "title_fa": "به مدیر فنی آن شرکت بسپار", "body_fa": "",
+         "payload": {"to": "cto", "company": oc, "text": "حساب را ثبت کن"}},
+        {"kind": "ask", "title_fa": "از مدیر فنی سرور", "body_fa": "",
+         "payload": {"to": "cto", "text": f"حساب را روی سرور {srv} ثبت کن"}},
+        {"kind": "delegate", "title_fa": "به نام شرکت", "body_fa": "",
+         "payload": {"to": "cto", "text": f"دستور خواندن را روی شرکت آزمایشی {oc} بگذار"}},
+    ]  # fmt: skip
+    talk["router"].answers = [answer("سه کارت.", cards=cards)]
+    said = await say(client, owner, conv, "به مدیر فنی سرور بگو حساب را ثبت کند")
+    by_title = {c["title_fa"]: c for c in said["answer"]["cards"]}
+    # delegate with `company`: a work requested by the root in that company, for its CTO
+    r = await run_card(client, owner, by_title[cards[0]["title_fa"]])
+    assert r.status_code == 200, r.text
+    [w1] = r.json()["made"]
+    row = await su.fetchrow(
+        """SELECT e.code, q.ref AS requested_by, w.parent_id FROM work.work w
+           JOIN core.employees e ON e.id = w.assignee_id
+           LEFT JOIN work.work q ON q.id = w.requested_by_work_id WHERE w.ref = $1""",
+        w1,
+    )
+    assert row["code"] == f"{oc}-TECH-MGR" and row["requested_by"] == root_ref
+    assert row["parent_id"] is None
+    # a server named in the words: its company's CTO, no `company` written
+    r = await run_card(client, owner, by_title[cards[1]["title_fa"]])
+    assert r.status_code == 200, r.text
+    [w2] = r.json()["made"]
+    assert (await assignee_of(su, w2))["code"] == f"{oc}-TECH-MGR"
+    # a company named by its name: the same
+    r = await run_card(client, owner, by_title[cards[2]["title_fa"]])
+    assert r.status_code == 200, r.text
+    [w3] = r.json()["made"]
+    assert (await assignee_of(su, w3))["code"] == f"{oc}-TECH-MGR"
+    # the session's memory names the server: a plain ask for «the CTO» goes there too
+    async with await all_tx(hub) as tx:
+        rep = await OR.ensure(tx, ref)
+        assert rep is not None
+        await SE.remember(tx, rep["id"], f"حساب روی سرور {srv} است")
+    plain_ask = {"kind": "ask", "title_fa": "از مدیر فنی", "body_fa": "",
+                 "payload": {"to": "cto", "text": "آمار دیروز را بده"}}  # fmt: skip
+    talk["router"].answers = [answer("میپرسم.", cards=[plain_ask])]
+    said = await say(client, owner, conv, "از مدیر فنی آمار را بگیر")
+    (c4,) = said["answer"]["cards"]
+    r = await run_card(client, owner, c4)
+    assert r.status_code == 200, r.text
+    [w4] = r.json()["made"]
+    assert (await assignee_of(su, w4))["code"] == f"{oc}-TECH-MGR"
+    # the people joined this session; no new order anywhere
+    rep_out = await report(client, owner, ref)
+    assert f"cto@{oc}" in {p["key"] for p in rep_out["participants"]}
+    assert await su.fetchval("SELECT count(*) FROM owner.orders WHERE ref > $1", ref) == 0

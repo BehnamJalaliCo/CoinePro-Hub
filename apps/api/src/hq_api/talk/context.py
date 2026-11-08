@@ -67,8 +67,10 @@ CARD_HELP = {
     "invite": 'invite: suggest calling a manager in; payload {"role", "company"}',
     # ⟨1.17⟩ §35.4 the cards of a session (an order's talk)
     "delegate": (
-        "delegate: a child work of this order's root for someone of the holder's company; payload "
-        '{"to": an employee code | a department code | a charter role, "text": what to do}'
+        'delegate: a child work of this order for someone; payload {"to": an employee code | a '
+        'department code | a charter role, "text": what to do, "company"?: that person\'s company '
+        "when it is not the holder's (a server named in the text, e.g. IG-Hub, points at its "
+        "company by itself)}"
     ),
     "budget": 'budget: more tokens for this order\'s work; payload {"tokens": a whole number}',
     "group": 'group: the company joins a working group; payload {"company": code, "group": the group key}',

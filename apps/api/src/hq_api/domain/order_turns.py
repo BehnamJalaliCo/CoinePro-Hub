@@ -245,6 +245,12 @@ async def ask(tx: Tx, who: Principal, ref: str, question_fa: str) -> dict[str, A
     )
     await OR._append_steps(tx, rep["id"], [OR._step(who_name, "سؤال از شما: " + question)])
     await OR._close_nudges(tx, ref, "مسئول از مدیر کل پرسید (order.ask)")
+    from hq_api.domain import session_activity as SA
+
+    await SA.emit_safe(tx, ref, SA.make_line(
+        f"ask:{ref}:{len(asks)}", who_name, "سؤال از شما: " + question, kind="ask",
+        state="running", company=who.company,
+    ))  # fmt: skip  # ⟨1.24⟩ §42.2
     talked = await to_talk(tx, rep, who.code, question, ask=True)
     order = await OR.load_order(tx, ref)
     text = " ".join(((order or {}).get("text") or "").split())[:80]

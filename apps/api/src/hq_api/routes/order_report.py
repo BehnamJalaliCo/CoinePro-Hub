@@ -404,7 +404,16 @@ async def order_progress(
         if body.done:
             from hq_api.domain import sessions as SE
 
-            await SE.tick_tasks(tx, rep, body.done)
+            emp = await tx.first(
+                """SELECT e.title_fa, c.name_fa, c.code FROM core.employees e
+                   JOIN core.companies c ON c.id = e.company_id WHERE e.code = :c""",
+                c=ctx.who.code,
+            )
+            await SE.tick_tasks(
+                tx, rep, body.done,
+                who_fa=OR.who_fa(emp["title_fa"], emp["name_fa"]) if emp else None,
+                company=str(emp["code"]) if emp else None,
+            )  # fmt: skip
         await ctx.audit(
             tx,
             company_id=ctx.who.company_id,  # type: ignore[arg-type]

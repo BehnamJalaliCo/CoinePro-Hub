@@ -243,11 +243,31 @@ async def test_the_activity_shows_who_works_and_the_last_lines_in_plain_persian(
         bad = {**run, "work_id": "not-a-uuid"}
         await SA.on_run(tx, bad, emp, "step", n=1, summary="x", actions=[])  # swallowed, logged
     evs = await stream(su, ref, "session.activity")
-    assert len(evs) == 2, evs
-    assert evs[0]["data"]["order"] == ref and evs[0]["data"]["line"]["text_fa"] == "موضوع پیدا شد"
-    assert isinstance(evs[0]["data"]["working"], int) and evs[0]["data"]["line"]["who_fa"]
-    assert evs[1]["data"]["line"]["text_fa"].startswith("کار متوقف شد")
-    assert ref not in evs[0]["data"]["line"]["text_fa"]
+    # (the asks of this test emitted `ask` lines too: the run's are the last two)
+    runs_only = [e for e in evs if e["data"]["line"]["kind"] in ("start", "step", "end")]
+    assert len(runs_only) == 2, evs
+    first, second = runs_only[0]["data"], runs_only[1]["data"]
+    assert first["order"] == ref and first["line"]["text_fa"] == "موضوع پیدا شد"
+    assert isinstance(first["working"], int) and first["line"]["who_fa"]
+    # ⟨1.24⟩ §42.2 the additive shape: id = run id + step n, the actor's company, kind, state
+    assert first["line"]["id"] == f"{run_id}:1" and first["line"]["kind"] == "step"
+    assert first["line"]["state"] == "running" and first["line"]["company"] == co
+    assert first["line"]["task_n"] is None
+    assert second["line"]["text_fa"].startswith("کار متوقف شد")
+    assert second["line"]["kind"] == "end" and second["line"]["state"] == "failed"
+    assert second["line"]["id"] == f"{run_id}:end"
+    assert ref not in first["line"]["text_fa"]
+    asks = [e for e in evs if e["data"]["line"]["kind"] == "ask"]
+    assert asks and asks[-1]["data"]["line"]["text_fa"].startswith("سؤال از شما")
+    # GET /activity carries the same fields
+    act = (await client.get(f"/api/v1/orders/{ref}/activity", headers=owner)).json()
+    kinds = {ln["kind"] for ln in act["last"]}
+    assert {"start", "step", "end"} <= kinds
+    fields = {"id", "at", "who_fa", "company", "text_fa", "kind", "state", "task_n"}
+    assert all(fields <= set(ln) for ln in act["last"])
+    assert all(ln["state"] in ("running", "done", "failed") for ln in act["last"])
+    ids = [ln["id"] for ln in act["last"]]
+    assert len(ids) == len(set(ids))  # every line of its own: no step's text is lost
 
 
 # ============================================= B. the owner's steps are the plan ==
@@ -337,6 +357,13 @@ async def test_the_holder_is_woken_on_a_join_a_hire_decision_and_a_childs_delive
     woken = await runs_with_reason(su, root_ref, "joined:")
     assert len(woken) == 1 and woken[0]["state"] == "queued"
     assert woken[0]["reason"] == f"joined:{co}-SCRIPT"
+    # ⟨1.24⟩ §42.2 the join and the wake are lines on the stream
+    kinds = [
+        (e["data"]["line"]["kind"], e["data"]["line"]["id"])
+        for e in await stream(su, ref, "session.activity")
+    ]
+    assert ("join", f"join:{co}-SCRIPT") in kinds
+    assert any(k == "wake" and i == f"{woken[0]['id']}:0" for k, i in kinds), kinds
     await refuse_queued(su, root_ref)
     # a hire card decided later (decisions.apply_effect → join_hired by the card's decision)
     card = {"kind": "hire", "title_fa": "استخدام مسئول انتشار", "body_fa": "",
@@ -426,6 +453,10 @@ async def test_the_sweep_wakes_an_idle_holder_once_then_marks_it_stuck_with_the_
     assert r.status_code == 200
     r = await client.post(f"/internal/v1/orders/{ref}/progress", headers=h,
                           json={"step_fa": "اول شد", "done": [1]})  # fmt: skip
+    tasks = [e["data"]["line"] for e in await stream(su, ref, "session.activity")
+             if e["data"]["line"]["kind"] == "task"]  # fmt: skip
+    assert tasks and tasks[-1]["task_n"] == 1 and tasks[-1]["id"] == f"task:{ref}:1"
+    assert tasks[-1]["text_fa"] == "کار 1 انجام شد: اول" and tasks[-1]["state"] == "done"
     await su.execute(
         """UPDATE owner.order_reports SET last_step_at = now() - interval '11 minutes',
                acked_at = now() - interval '11 minutes' WHERE ref = $1""",
@@ -579,3 +610,74 @@ def test_the_badge_moves_only_with_a_live_run() -> None:
         "moving",
         "مدیرعامل: برنامه",
     )
+
+
+# ================================================== the stream reaches the apps ==
+async def test_a_session_activity_line_reaches_the_orders_topic_and_the_holding_wide_stream(
+    app: Any,
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+    new_company: Callable[..., Any],
+    relay: None,
+) -> None:
+    """The design study, 2026-11-08: `session.*` events never reached the apps (topic `orders`
+    matched `order.` alone) and the holding-wide stream (`company=*`) stripped every event to a
+    counter. A `session.activity` line now reaches a subscriber of `orders`, company-scoped and
+    holding-wide, in full, in the §42.2 shape."""
+    import asyncio
+    import json
+
+    from .test_control_treasury_stream import serve
+
+    async def until(url: str, params: dict[str, Any]) -> dict[str, Any]:
+        """The first `session.activity` on the stream (other events of the order may precede)."""
+        async with (
+            httpx.AsyncClient(base_url=url, timeout=20) as c,
+            c.stream("GET", "/api/v1/stream", headers=owner, params=params) as resp,
+        ):
+            assert resp.status_code == 200, resp.status_code
+            current: dict[str, Any] = {}
+            async for raw in resp.aiter_lines():
+                if raw.startswith("event: "):
+                    current["event"] = raw[7:]
+                elif raw.startswith("data: "):
+                    current["data"] = json.loads(raw[6:])
+                elif raw == "" and "data" in current:
+                    if current.get("event") == "session.activity":
+                        return current
+                    current = {}
+        raise AssertionError("stream closed")
+
+    co = (await new_company())["code"]
+    out = await post_order(client, owner, WORK_TEXT.format(co=co, w=words()))
+    ref = out["ref"]
+    holding = await hub.companies.holding()
+    [route] = out["routes"]
+    wid = await su.fetchval("SELECT id FROM work.work WHERE ref = $1", route["work_ref"])
+    run_id = await su.fetchval(
+        "SELECT id FROM agents.runs WHERE work_id = $1 ORDER BY queued_at LIMIT 1", wid
+    )
+
+    async def emit_line() -> None:
+        async with await all_tx(hub) as tx:
+            run = dict(await tx.one("SELECT * FROM agents.runs WHERE id = :id", id=run_id))
+            emp = dict(await tx.one("SELECT code, title_fa FROM core.employees WHERE code = :c",
+                                    c=route["to"]))  # fmt: skip
+            await SA.on_run(tx, run, emp, "step", n=1, summary="موضوع پیدا شد", actions=[])
+
+    async with serve(app) as url:
+        scoped = asyncio.create_task(until(url, {"topics": "orders", "company": holding.code}))
+        wide = asyncio.create_task(until(url, {"topics": "orders", "company": "*"}))
+        await asyncio.sleep(0.5)
+        await emit_line()
+        got = await asyncio.wait_for(scoped, 20)
+        line = got["data"]["data"]["line"]
+        assert got["data"]["ref"] == ref and line["text_fa"] == "موضوع پیدا شد"
+        assert line["kind"] == "step" and line["id"] == f"{run_id}:1" and line["company"] == co
+        assert line["state"] == "running" and line["task_n"] is None
+        summary = await asyncio.wait_for(wide, 20)
+        assert summary["data"]["data"]["line"]["text_fa"] == "موضوع پیدا شد"  # in full
+        assert summary["data"]["data"]["order"] == ref

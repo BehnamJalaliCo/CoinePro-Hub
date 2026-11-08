@@ -4222,3 +4222,11 @@ of a session, made visible and continuous.
     audited on both companies, a step in the order's session; a secret-looking value or a command that is not read-only is refused
     (422 with the field). The capability brief says of an Instagram connection not connected here that the account lives on IG-Hub
     (the `ig_hub` setting of `seed/channels.yaml`: company and server) and who registers it.
+  - ⟨1.24⟩ §42.2, the line's additive shape (`ActivityLine`, on `GET /orders/{ref}/activity` and in `session.activity` alike):
+    `id` (`<run>:<n>`, 0 the start, `<run>:end` the end; `task:<ref>:<n>` a ticked plan task; `join:<code>` a hire that joined),
+    `company` (the actor's code), `kind: start|step|end|wake|ask|join|task`, `state: running|done|failed`, `task_n`. The
+    stream also carries the wakes (`wake`, id `<run>:0` of the run queued), the asks («سؤال از شما: …»), the joins and the ticked
+    tasks («کار N انجام شد: …»); `GET /activity` merges by `id` (the later line wins) and keeps the last 30.
+  - The delegate card of the talk takes `company` (the asked person's company; a full employee code resolves both); a named company
+    or server in the owner's words («از تریدیار», «سرور CoineProFx») picks that company; a server of the session's memory alone
+    counts for servers, never for a person of another company (M3).

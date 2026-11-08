@@ -431,8 +431,55 @@ async def _employee_row(tx: Tx, code: str) -> dict[str, Any]:
     )
 
 
+async def _named_company(
+    ctx: Ctx, tx: Tx, parent: dict[str, Any], text: str, memory: str | None
+) -> str | None:
+    """⟨2026-11-08⟩ audit M3 (the owner met Pro-Chart's CTO when he meant IG-Hub's): the company
+    a card's words point at when none is named — a company of the holding by code or name, or a
+    paired server's name (its company) — in the card's text first, then in the session's memory
+    («تا اینجا»). None when nothing points elsewhere (the holder's company then)."""
+    from hq_api.domain import orders as O
+
+    d = await O.directory(tx)
+    servers = await tx.all(
+        """SELECT s.name, c.code FROM infra.servers s JOIN core.companies c ON c.id = s.company_id
+           WHERE c.kind = 'company' AND c.status = 'active' AND (s.state IS NULL OR s.state <> 'revoked')
+           ORDER BY length(s.name) DESC"""
+    )
+    for source, companies_too in ((text, True), (memory or "", False)):
+        # (the memory names every company whose person joined: only a server named there points
+        # anywhere; the card's own words may name a company)
+        if not source:
+            continue
+        if companies_too:
+            norm = O.normalise(source)
+            named = [c for c in O.companies_named(norm, d) if not d["companies"][c].get("holding")]
+            named = [c for c in named if c != parent["company"]]
+            if len(named) == 1:
+                return str(named[0])
+        low = source.lower()
+        hits = [
+            str(s["code"])
+            for s in servers
+            if re.search(
+                rf"(?<![A-Za-z0-9_.-]){re.escape(str(s['name']).lower())}(?![A-Za-z0-9_.-])", low
+            )
+        ]
+        hits = [h for h in dict.fromkeys(hits) if h != parent["company"]]
+        if len(hits) == 1:
+            return hits[0]
+    return None
+
+
 async def _asked(
-    ctx: Ctx, tx: Tx, parent: dict[str, Any], to: str, company: str | None
+    ctx: Ctx,
+    tx: Tx,
+    parent: dict[str, Any],
+    to: str,
+    company: str | None,
+    *,
+    text: str = "",
+    memory: str | None = None,
 ) -> dict[str, Any]:
     """Who a session's `ask` is for: a fixed persona of the holding by name; a person of another
     company named (`company`: an employee code, a department's manager, a role, else its CEO); a
@@ -461,6 +508,8 @@ async def _asked(
                     "payload.company",
                 )
             return await _employee_row(tx, str(row["code"]))
+    if not company and (text or memory):
+        company = await _named_company(ctx, tx, parent, text, memory)
     if company and company != parent["company"]:
         co = await ctx.hub.companies.find(company)
         if co is None or co.kind == "holding":
@@ -578,13 +627,17 @@ async def _session_ask(
     company = payload.get("company") if isinstance(payload.get("company"), str) else None
     async with ctx.tx() as tx:
         ref, parent = await _root_work(ctx, tx, conv)
-        emp = await _asked(ctx, tx, parent, to, company)
+        rep = await OR.ensure(tx, ref)
+        order = await OR.load_order(tx, ref)
+        emp = await _asked(
+            ctx, tx, parent, to, company,
+            text=f"{question} {(card or {}).get('body_fa') or ''}",
+            memory=(rep or {}).get("memory_md"),
+        )  # fmt: skip
         key = await _join(ctx, tx, ref, conv, emp)
         who = OR.who_fa(
             emp["title_fa"], None if emp["company_kind"] == "holding" else emp["company_fa"]
         )
-        rep = await OR.ensure(tx, ref)
-        order = await OR.load_order(tx, ref)
         why = clean(" ".join(str((card or {}).get("body_fa") or "").split()))[0][:600] or None
         child = await _child_of_order(
             ctx,
@@ -727,32 +780,41 @@ async def _session_card(
 ) -> tuple[list[str], list[Any]]:
     kind = card["kind"]
     if kind == "delegate":
+        from hq_api.domain import order_report as OR
         from hq_api.domain import sessions as SE
         from hq_api.domain import work as W
 
         to = str(payload.get("to") or "").strip()
         what = clean(" ".join(str(payload.get("text") or text).split()))[0]
+        company = payload.get("company") if isinstance(payload.get("company"), str) else None
         if not to or len(what) < 2:
             raise _fail("به کی و چه کاری؟ هر دو لازم است.", "payload")
         async with ctx.tx() as tx:
             ref, parent = await _root_work(ctx, tx, conv)
-            code = await _delegate_target(tx, parent["company_id"], to)
-            child = await W.delegate(
+            rep = await OR.ensure(tx, ref)
+            # ⟨2026-11-08⟩ audit M3: `company` like `ask`; a company or a server the words name
+            # (the text, then the session's memory) resolves the person before the holder's company
+            emp = await _asked(
+                ctx, tx, parent, to, company,
+                text=f"{what} {card.get('body_fa') or ''}", memory=(rep or {}).get("memory_md"),
+            )  # fmt: skip
+            code = str(emp["code"])
+            if emp["company_id"] != parent["company_id"]:
+                await _join(ctx, tx, ref, conv, emp)  # the person comes into this session
+            child = await _child_of_order(
+                ctx,
                 tx,
-                ctx.who,
                 parent,
-                to_code=code,
+                emp,
                 title=what[:300],
                 brief=f"{what}\n\n(فرمان {ref} مدیر کل؛ از جلسه‌ی فرمان سپرده شد)",
-                priority=None,
-                due_at=None,
-                budget=None,
             )
-            from hq_api.domain import order_report as OR
-
-            rep = await OR.ensure(tx, ref)
             if rep is not None:
-                await SE.add_task(tx, rep, title_fa=what, by="owner", work_ref=str(child["ref"]))
+                who = OR.who_fa(
+                    emp["title_fa"], None if emp["company_kind"] == "holding" else emp["company_fa"]
+                )
+                await SE.add_task(tx, rep, title_fa=what, by="owner", who_fa=who, who_code=code,
+                                  work_ref=str(child["ref"]))  # fmt: skip
             await ctx.audit(tx, company_id=parent["company_id"], action="work.delegate",
                             action_class="A2", target_kind="work", target_ref=child["ref"],
                             summary=f"from session {conv['ref']} to {code}")  # fmt: skip
