@@ -434,11 +434,14 @@ fun reduceFlows(s: LiveState, e: StreamEvent, now: Long, quiet: Boolean): LiveSt
     return out
 }
 
-/** GL-2: a kill switch moved (`control.changed`, ref = its scope: `holding` or `company:<CODE>`). */
+/**
+ * GL-2: a kill switch moved (`control.changed`, ref = its scope: `holding` or `company:<CODE>`). The hub says it in `kill_switch`
+ * (`engaged` | `released`); a freeze or a new company is a `control.changed` too, with neither, and leaves the band alone.
+ */
 fun reduceControl(s: LiveState, e: StreamEvent): LiveState {
     if (e.type != "control.changed") return s
     val scope = e.data["scope"].text()?.ifBlank { null } ?: e.ref?.ifBlank { null } ?: return s
-    val state = e.data["state"].text() ?: return s
+    val state = (e.data["kill_switch"].text() ?: e.data["state"].text())?.takeIf { it == "engaged" || it == "released" } ?: return s
     val on = state == "engaged"
     val by = e.data["by"].text()
     return if (scope == "holding") s.copy(control = s.control.copy(holding = on, holdingSince = if (on) e.at else null, holdingBy = if (on) by else null))

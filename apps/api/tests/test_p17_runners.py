@@ -397,6 +397,7 @@ async def test_map_netcheck_and_network(
     hub: Hub,
     owner_session: dict[str, Any],
     new_company: Callable[..., Any],
+    su: Any,
 ) -> None:
     co = await new_company()
     a = await pair(client, hub, owner_session, co, "a", "10.10.9.1")
@@ -411,8 +412,10 @@ async def test_map_netcheck_and_network(
     targets = job["args"]["targets"]
     assert targets[0] == {"to": "hub", "host": "10.10.1.4", "port": 443}
     assert {(t["to"], t["port"]) for t in targets[1:]} >= {
-        (b["server"]["id"], p) for p in (22, 443, 80)
+        (b["server"]["id"], p) for p in (443, 80)
     }
+    # SSH between two servers is not a path of the work: never measured, never shown as cut
+    assert not [t for t in targets if t["port"] == 22]
     results = [
         {
             "to": "hub",
@@ -426,7 +429,7 @@ async def test_map_netcheck_and_network(
         {
             "to": b["server"]["id"],
             "ip": "10.10.9.2",
-            "port": 22,
+            "port": 443,
             "ok": True,
             "ms": 0.4,
             "error": None,
@@ -467,9 +470,18 @@ async def test_map_netcheck_and_network(
     assert node["via"] == "private" and node["hub_rtt_ms"] == 1.7  # its last request's header
     links = [x for x in net["links"] if x["from"] == a["server"]["id"]]
     assert {(x["to"], x["port"], x["ok"]) for x in links} == {
-        ("hub", 443, True), (b["server"]["id"], 22, True), (b["server"]["id"], 80, False),
+        ("hub", 443, True), (b["server"]["id"], 443, True), (b["server"]["id"], 80, False),
     }  # fmt: skip
     assert set(links[0]) == {"from", "to", "port", "ok", "ms", "error", "at"}
+    # a port-22 link measured before 2026-11-08 stays in the table but out of the map
+    await su.execute(
+        """INSERT INTO infra.network_links (company_id, from_server_id, to_key, to_ip, port, ok, at)
+           SELECT company_id, id, $2, '10.10.9.2', 22, false, now() FROM infra.servers WHERE id = $1""",
+        uuid.UUID(a["server"]["id"]),
+        b["server"]["id"],
+    )
+    net = (await client.get("/api/v1/infra/network", headers=h)).json()
+    assert not [x for x in net["links"] if x["port"] == 22]
     # The map: queued by the owner, answered by the runner.
     r = await client.post(f"/api/v1/infra/servers/{b['server']['id']}/map", headers=h)
     assert r.status_code == 202 and r.json()["job"]["kind"] == "map"

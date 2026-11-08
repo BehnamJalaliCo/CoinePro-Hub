@@ -335,7 +335,7 @@ async def test_network_link_on_change_once_a_minute_and_every_owner_result(
     r = await client.post("/api/v1/infra/network/check", headers=owner_session["headers"])
     assert r.status_code == 202
     await _netcheck(client, hub, a, None, [
-        _row("hub", 443, True, 0.8), _row(bid, 22, True), _row(bid, 80, False, None, "Connection refused"),
+        _row("hub", 443, True, 0.8), _row(bid, 443, True), _row(bid, 80, False, None, "Connection refused"),
     ])  # fmt: skip
     got = await links()
     assert len(got) == 3
@@ -349,13 +349,13 @@ async def test_network_link_on_change_once_a_minute_and_every_owner_result(
     assert hub443["ok"] and hub443["last_ok_at"] and hub443["since"]
     # Not the owner's: the same results say nothing.
     await _netcheck(client, hub, a, oversight, [
-        _row("hub", 443, True, 0.9), _row(bid, 22, True), _row(bid, 80, False, None, "timeout"),
+        _row("hub", 443, True, 0.9), _row(bid, 443, True), _row(bid, 80, False, None, "timeout"),
     ])  # fmt: skip
     assert len(await links()) == 3
     # A change within the minute waits; after it, it goes out (once).
     fails = [
         _row("hub", 443, True, 0.9),
-        _row(bid, 22, False, None, "timeout"),
+        _row(bid, 443, False, None, "timeout"),
         _row(bid, 80, False, None, "x"),
     ]
     await _netcheck(client, hub, a, oversight, fails)
@@ -366,10 +366,10 @@ async def test_network_link_on_change_once_a_minute_and_every_owner_result(
     )
     await _netcheck(client, hub, a, oversight, fails)
     got = await links()
-    assert len(got) == 4 and (got[-1]["data"]["port"], got[-1]["data"]["ok"]) == (22, False)
+    assert len(got) == 4 and (got[-1]["data"]["port"], got[-1]["data"]["ok"]) == (443, False)
     assert got[-1]["data"]["error_fa"] == "در زمانش جواب نداد"
     since = await su.fetchval(
-        "SELECT since FROM infra.network_links WHERE from_server_id = $1 AND port = 22",
+        "SELECT since FROM infra.network_links WHERE from_server_id = $1 AND to_key <> 'hub' AND port = 443",
         uuid.UUID(aid),
     )
     assert got[-1]["data"]["since"] == since.isoformat()
@@ -445,11 +445,11 @@ async def test_server_state_says_since_why_and_how_far(
     assert datetime.fromisoformat(off["since"]) == seen
     # a still reaches b's ports: the runner stopped, the server is up.
     await _netcheck(client, hub, a, Principal(kind="service", code="oversight", role="service"),
-                    [_row("hub", 443, True), _row(bid, 22, True), _row(bid, 443, False, None, "timeout")])  # fmt: skip
+                    [_row("hub", 443, True), _row(bid, 80, True), _row(bid, 443, False, None, "timeout")])  # fmt: skip
     off = (await states(bid))[-1]
     assert off["reason"] == "runner_stopped" and off["prev_state"] == "offline"
     # nobody reaches it any more: unreachable (told once, not again for the same reason).
-    bad = [_row("hub", 443, True), _row(bid, 22, False, None, "timeout"), _row(bid, 443, False, None, "timeout"),
+    bad = [_row("hub", 443, True), _row(bid, 443, False, None, "timeout"),
            _row(bid, 80, False, None, "timeout")]  # fmt: skip
     for _ in range(2):
         await _netcheck(

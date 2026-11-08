@@ -558,7 +558,9 @@ export const serverError = (e: unknown) => {
 export const HUB = 'hub';
 export const HUB_IP = '10.10.1.4';
 /** The ports every runner tries on every other server (§26.6); the hub is tried on 443. */
-export const NET_PORTS = [22, 80, 443] as const;
+// Not 22 (2026-11-08): SSH between two companies' servers is closed by their firewalls on purpose and no path of the work;
+// it showed as «۱۲ مسیر قطع است». The hub no longer measures it.
+export const NET_PORTS = [80, 443] as const;
 /** Slower than this (ms) is amber on the map. */
 export const SLOW_MS = 150;
 /** A check is followed every few seconds, for at most a minute. */
@@ -637,7 +639,7 @@ export function netSummary(m: NetworkMap): NetSummary {
   const failed: NetPath[] = lines.filter((l) => l.health === 'fail').map((l) => ({ from: l.node, to: hub, ports: [443], error: l.error, toHub: true }));
   const byId = new Map(servers.map((n) => [n.id, n]));
   const groups = new Map<string, NetLink[]>();
-  for (const l of m.links) if (l.ok === false && l.to !== HUB && l.from !== HUB) groups.set(`${l.from}\u0000${l.to}`, [...(groups.get(`${l.from}\u0000${l.to}`) ?? []), l]);
+  for (const l of m.links) if (l.ok === false && l.to !== HUB && l.from !== HUB && (NET_PORTS as readonly number[]).includes(l.port)) groups.set(`${l.from}\u0000${l.to}`, [...(groups.get(`${l.from}\u0000${l.to}`) ?? []), l]);
   for (const [k, ls] of groups) {
     const [a, b] = k.split('\u0000') as [string, string];
     const from = byId.get(a); const to = byId.get(b);

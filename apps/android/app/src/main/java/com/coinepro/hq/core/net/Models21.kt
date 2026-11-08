@@ -818,8 +818,11 @@ data class NetworkMap(val at: String? = null, val nodes: List<NetNode> = emptyLi
     companion object {
         const val HUB = "hub"
         const val HUB_IP = "10.10.1.4"
-        /** The ports every runner tries on every other server (§26.6); the hub is tried on 443. */
-        val PORTS = listOf(22, 80, 443)
+        /**
+         * The ports every runner tries on every other server (§26.6); the hub is tried on 443. Not 22 (2026-11-08): SSH between two
+         * companies' servers is closed by their firewalls on purpose and no path of the work; it showed as «۱۲ مسیر قطع است».
+         */
+        val PORTS = listOf(80, 443)
     }
 }
 
@@ -908,7 +911,7 @@ object Network {
         val hub = m.all.first()
         for (l in lines) if (l.health == LinkHealth.FAIL) failed += NetPath(l.node, hub, listOf(443), l.error, toHub = true)
         val byId = servers.associateBy { it.id }
-        m.links.filter { it.ok == false && it.to != NetworkMap.HUB && it.from != NetworkMap.HUB }
+        m.links.filter { it.ok == false && it.to != NetworkMap.HUB && it.from != NetworkMap.HUB && it.port in NetworkMap.PORTS }
             .groupBy { it.from to it.to }
             .forEach { (k, ls) ->
                 val from = byId[k.first] ?: return@forEach

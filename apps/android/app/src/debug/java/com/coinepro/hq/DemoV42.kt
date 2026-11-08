@@ -139,7 +139,7 @@ internal class V42Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
             18 -> if (!quiet("FX", "TY")) out += flow("TY", "FX", "deliver", "W-000141", "سیگنال طلا در کانال منتشر شد")
             20 -> if (!quiet("TY")) out += person("TY-GROWTH-01", "done")
             22 -> out += serverState("srv-fx-1", "FX", "online", "offline", null, null, openJobs = 0)
-            24 -> out += networkLink("srv-pc-1", "srv-fx-1", 22, ok = false, error = "پورت بسته است")
+            24 -> out += networkLink("srv-pc-1", "srv-fx-1", 80, ok = false, error = "پورت بسته است")
             26 -> out += llmTick("FX", calls = 1, inFlight = 0, input = 1_500, output = 400, cacheRead = 600, cacheWrite = 0, thinking = 0, usd = 0.04)
             28 -> if (!quiet("TY")) out += flow("TY", "outside", "publish", "W-000140", "ریلز آموزشی طلا")
             30 -> if (!quiet("FX")) out += person("FX-SUPPORT-01", "working", work = "W-000143")

@@ -2787,7 +2787,7 @@ Agent tools (Tool Gateway, recorded like every tool call) create jobs and wait f
   {at, nodes: [{id, company, name, private_ip, via, state, hub_rtt_ms}], links: [{from, to, port, ok, ms, error, at}]}
   ```
   - The hub is node `hub` at `10.10.1.4`.
-- **`POST /infra/network/check`** (owner): queues a `netcheck` on every online runner. Its targets are the hub (443) and every other attached server's private IP (22, 80, 443).
+- **`POST /infra/network/check`** (owner): queues a `netcheck` on every online runner. Its targets are the hub (443) and every other attached server's private IP (80, 443). ⟨2026-11-08⟩ Not 22: SSH between two companies' servers is closed by their firewalls on purpose and is no path of the work (every request goes over HTTPS through the hub); a port-22 link stored before is left out of `GET /infra/network` and of `server.state` reasons.
 - **A daily protocol runs it:** the overseer raises a finding when a link that worked now fails.
 - **Cross-company work:** a `server.*` tool on another company's server is allowed in only two cases:
   - **Holding-wide roles:** for the holding's platform SRE and the overseer.

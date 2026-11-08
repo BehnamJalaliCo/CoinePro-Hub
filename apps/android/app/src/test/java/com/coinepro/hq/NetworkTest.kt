@@ -50,7 +50,7 @@ class NetworkTest {
     private fun ok(from: String, to: String, port: Int, ms: Double = 0.6, at: String = "2026-10-30T06:00:00Z") = NetLink(from, to, port, true, ms, null, at)
     private fun bad(from: String, to: String, port: Int, error: String = "timeout", at: String = "2026-10-30T06:00:00Z") = NetLink(from, to, port, false, null, error, at)
 
-    /** Every runner reaches the hub on 443 and every other private address on 22, 80 and 443. */
+    /** Every runner reaches the hub on 443 and every other private address on 80 and 443 (not SSH: no path of the work). */
     private fun mesh(nodes: List<NetNode>, at: String = "2026-10-30T06:00:00Z", broken: (NetNode, NetNode, Int) -> String? = { _, _, _ -> null }): List<NetLink> =
         nodes.flatMap { f ->
             listOf(ok(f.id, "hub", 443, at = at)) + nodes.filter { it.id != f.id && !it.privateIp.isNullOrBlank() }.flatMap { t ->
@@ -69,7 +69,7 @@ class NetworkTest {
     /** The demo's network: PC cannot open FX's SSH port, IG-Hub is not on the private network. */
     private val demo = NetworkMap(
         "2026-10-30T08:00:00Z", listOf(hub, fx, ty, pc, ig),
-        mesh(listOf(fx, ty, pc, ig)) { f, t, p -> if (f.id == "srv-pc-1" && t.id == "srv-fx-1" && p == 22) "connection refused" else null },
+        mesh(listOf(fx, ty, pc, ig)) { f, t, p -> if (f.id == "srv-pc-1" && t.id == "srv-fx-1" && p == 80) "connection refused" else null },
     )
 
     // ------------------------------------------------------------------ health --
@@ -163,7 +163,7 @@ class NetworkTest {
         assertEquals(4, s.servers)
         // IG-Hub's nine timeouts towards private addresses are one issue (join the network), not nine broken roads.
         assertEquals(listOf("srv-pc-1" to "srv-fx-1"), s.failed.map { it.from.id to it.to.id })
-        assertEquals(listOf(22), s.failed.single().ports)
+        assertEquals(listOf(80), s.failed.single().ports)
         assertEquals("connection refused", s.failed.single().error)
         assertFalse(s.failed.single().toHub)
         assertTrue(s.hubOk)
@@ -189,8 +189,8 @@ class NetworkTest {
 
     @Test
     fun aPortThatAnsweredSinceIsNotBroken() {
-        val m = NetworkMap(nodes = listOf(hub, fx, pc), links = mesh(listOf(fx, pc)) { f, _, p -> if (f.id == "srv-pc-1" && p == 22) "timeout" else null } +
-            ok("srv-pc-1", "srv-fx-1", 22, at = "2026-10-30T07:00:00Z"))
+        val m = NetworkMap(nodes = listOf(hub, fx, pc), links = mesh(listOf(fx, pc)) { f, _, p -> if (f.id == "srv-pc-1" && p == 80) "timeout" else null } +
+            ok("srv-pc-1", "srv-fx-1", 80, at = "2026-10-30T07:00:00Z"))
         assertTrue(Network.summary(m).failed.isEmpty())
     }
 

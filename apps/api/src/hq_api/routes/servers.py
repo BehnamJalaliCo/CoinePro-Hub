@@ -924,7 +924,7 @@ async def infra_network(ctx: Ctx = Depends(owner_ctx)) -> Any:
     nodes (the hub and every paired server, with its route and round trip
     to the hub) and the latest result of each link a `netcheck` measured:
     from a server to the hub (443) and to each other server's private
-    address (22, 443, 80)."""
+    address (443, 80; SSH between servers is not a path of the work)."""
     holding = await ctx.hub.companies.holding()
     async with ctx.tx() as tx:
         out = await SV.network(tx, SV.hub_ip(), holding.code)

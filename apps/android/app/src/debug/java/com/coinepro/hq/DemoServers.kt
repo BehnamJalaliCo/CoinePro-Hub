@@ -522,10 +522,10 @@ internal class ServersDemo(private val store: MutableMap<String, Pair<Int, JsonE
                     add(link(r.id, "hub", 443, true, rtt(r) + 0.6, null, at))
                     for (t in NET) {
                         if (t.id == r.id || t.ip == null) continue
-                        for (port in listOf(22, 80, 443)) when {
+                        for (port in com.coinepro.hq.core.net.NetworkMap.PORTS) when {
                             // Outside the private network, the others' private addresses do not answer at all.
                             r.ip == null -> add(link(r.id, t.id, port, false, null, "timeout", at))
-                            r.id == "srv-pc-1" && t.id == "srv-fx-1" && port == 22 -> add(link(r.id, t.id, port, false, null, "connection refused", at))
+                            r.id == "srv-pc-1" && t.id == "srv-fx-1" && port == 80 -> add(link(r.id, t.id, port, false, null, "connection refused", at))
                             else -> add(link(r.id, t.id, port, true, 0.4 + ((r.id.length * 7 + t.id.length * 3 + port + (roundOf[r.id] ?: 0)) % 6) / 10.0, null, at))
                         }
                     }

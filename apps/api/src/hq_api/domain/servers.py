@@ -91,7 +91,10 @@ OVERFLOW_TEXT_MAX = (
 MAX_READ_INLINE = 64 * 1024  # a read's content kept inline in the result (the rest: the file)
 TOKEN_PREFIX = "hqr1_"  # noqa: S105 - the prefix of a runner credential, not one
 USER_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-NETCHECK_SERVER_PORTS = (22, 443, 80)
+# ⟨2026-11-08⟩ the owner: «۱۲ مسیر قطع است» was port 22 alone — SSH between two companies' servers, closed by their
+# firewalls on purpose and never a path of the holding's work (runners and every request go over HTTPS through the hub).
+# It is no longer measured nor shown; a link stored for it before is left out of the map and of the reasons.
+NETCHECK_SERVER_PORTS = (443, 80)
 NETCHECK_HUB_PORT = 443
 # ⟨1.24⟩ §42.2: a round trip (the runner's to the hub, a measured link) at least this long is slow
 SLOW_MS = 300.0
@@ -459,10 +462,11 @@ async def reason_of(tx: Tx, s: dict[str, Any]) -> str | None:
     if st == "offline":
         row = await tx.first(
             """SELECT count(*) AS n, bool_or(ok) AS reached FROM infra.network_links
-               WHERE to_key = :k AND from_server_id <> :id
+               WHERE to_key = :k AND from_server_id <> :id AND port = ANY(CAST(:ports AS int[]))
                  AND (CAST(:since AS timestamptz) IS NULL OR at >= CAST(:since AS timestamptz))""",
             k=str(s["id"]),
             id=s["id"],
+            ports=list(NETCHECK_SERVER_PORTS),
             since=s.get("last_seen_at"),
         )
         if row is None or not row["n"]:
@@ -1681,7 +1685,7 @@ async def sweep(tx: Tx) -> int:
 
 # ---------------------------------------------------------------- network --
 async def netcheck_targets(tx: Tx, hub_ip: str, server_id: UUID) -> list[dict[str, Any]]:
-    """The hub (443) and every other attached server's private address (22, 443, 80)."""
+    """The hub (443) and every other attached server's private address (443, 80)."""
     targets: list[dict[str, Any]] = [{"to": "hub", "host": hub_ip, "port": NETCHECK_HUB_PORT}]
     for o in await tx.all(
         """SELECT id, private_ip FROM infra.servers
@@ -1900,7 +1904,10 @@ async def network(tx: Tx, hub_ip: str, holding: str) -> dict[str, Any]:
     ]
     links = await tx.all(
         """SELECT l.* FROM infra.network_links l JOIN infra.servers s ON s.id = l.from_server_id
-           WHERE s.origin = 'attached' ORDER BY l.from_server_id, l.to_key, l.port"""
+           WHERE s.origin = 'attached'
+             AND (l.to_key = 'hub' OR l.port = ANY(CAST(:ports AS int[])))
+           ORDER BY l.from_server_id, l.to_key, l.port""",
+        ports=list(NETCHECK_SERVER_PORTS),
     )
     at = max((r["at"] for r in links), default=None)
     return {

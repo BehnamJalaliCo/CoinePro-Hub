@@ -384,10 +384,10 @@ function networkJson() {
     links.push(link(r.id, 'hub', 443, true, rtt(r) + 0.6, null, at));
     for (const t of NET) {
       if (t.id === r.id || !t.ip) continue;
-      for (const port of [22, 80, 443]) {
+      for (const port of [80, 443]) {
         // Outside the private network, the others' private addresses do not answer at all.
         if (!r.ip) links.push(link(r.id, t.id, port, false, null, 'timeout', at));
-        else if (r.id === 'srv-pc-1' && t.id === 'srv-fx-1' && port === 22) links.push(link(r.id, t.id, port, false, null, 'connection refused', at));
+        else if (r.id === 'srv-pc-1' && t.id === 'srv-fx-1' && port === 80) links.push(link(r.id, t.id, port, false, null, 'connection refused', at));
         else links.push(link(r.id, t.id, port, true, 0.4 + ((r.id.length * 7 + t.id.length * 3 + port + (roundOf.get(r.id) ?? 0)) % 6) / 10, null, at));
       }
     }
