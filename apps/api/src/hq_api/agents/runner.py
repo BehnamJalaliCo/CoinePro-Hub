@@ -133,6 +133,11 @@ LEAN_TRIGGERS = ("alert", "schedule")
 
 
 DECIDE_PREFIX = "تصمیم درباره‌ی "  # hiring.DECIDE_TITLE's start: a card's decide item
+# ⟨2026-11-08⟩ audit B5: a call's tokens as every cap counts them (work.effective_tokens in SQL)
+EFFECTIVE_SQL = (
+    "COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0) + COALESCE(cache_write_tokens, 0)"
+    f" + round(COALESCE(cache_read_tokens, 0) * {W.CACHE_READ_SHARE})"
+)
 
 
 def caps_scope(trigger: str, charter_kind: str) -> str:
@@ -406,11 +411,12 @@ class Runner:
             # a run that started before midnight still counts what it spends after.
             # Everything the model read or wrote: through the subscription most of
             # the input arrives as cache writes and reads, not as input_tokens.
-            """SELECT COALESCE(sum(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)
-                                   + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0)), 0)
+            # ⟨2026-11-08⟩ audit B5: one token everywhere — the day counts what a run's cap counts
+            # (work.effective_tokens: a cache read at a tenth), not the ledger in full
+            f"""SELECT COALESCE(sum({EFFECTIVE_SQL}), 0)
                FROM llm.calls
                WHERE started_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
-                 AND meta ? 'run_id'"""
+                 AND meta ? 'run_id'"""  # noqa: S608 - a constant expression
         )
         return int(n or 0)
 
@@ -742,12 +748,11 @@ class Runner:
         if cap <= 0:
             return False
         n = await tx.scalar(
-            """SELECT COALESCE(sum(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)
-                                   + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0)), 0)
+            f"""SELECT COALESCE(sum({EFFECTIVE_SQL}), 0)
                FROM llm.calls
                WHERE company_id = :co
                  AND started_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
-                 AND meta ? 'run_id'""",
+                 AND meta ? 'run_id'""",  # noqa: S608 - a constant expression
             co=company_id,
         )
         return int(n or 0) >= cap
@@ -1040,6 +1045,27 @@ class Runner:
             )
             limits = rc.charter.limits
             add = max(limits.tokens_per_run, W.FLOOR_STEPS * limits.tokens_per_step)
+            # ⟨2026-11-08⟩ audit M7: what fits the company's month envelope is added by code,
+            # audited; only what does not fit asks the CEO
+            from hq_api.domain import hiring
+
+            env = next((e for e in await hiring.envelopes(tx) if e.company == w["company"]), None)
+            if env is not None and env.tokens_month and env.used_month + add <= env.tokens_month:
+                await tx.exec(
+                    "UPDATE work.work SET status = 'in_progress' WHERE id = :id", id=w["id"]
+                )
+                new = await W.add_budget(tx, w, add, OR.SERVICE)
+                await audit.record(
+                    tx,
+                    audit.SYSTEM,
+                    company_id=w["company_id"],
+                    action="work.budget",
+                    action_class="A2",
+                    target_kind="work",
+                    target_ref=work_ref,
+                    summary=f"+{add} tokens by code within the month envelope (budget {new})",
+                )
+                return
             title = f"بودجه کم است، +{add:,} بدهم؟ ({work_ref})"
             if (
                 ceo is None

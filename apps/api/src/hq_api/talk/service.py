@@ -178,8 +178,12 @@ async def add_turns(
                 # ⟨1.18⟩ §36.3 in a session the owner's files go with the order
                 await OT.add_files(tx, str(conv["order_ref"]), sent, owner_id)
             if clean_text and not had_key:
-                # ⟨1.23⟩ §41.2 the owner's numbered steps are the session's plan (by code)
-                await OT.plan_from_owner(tx, str(conv["order_ref"]), clean_text)
+                # ⟨1.23⟩ §41.2 the owner's numbered steps are the session's plan (by code);
+                # ⟨2026-11-08⟩ audit B1: in work mode a word that is not a question is the order's
+                # word (a step, the holder woken) — the owner never has to tap a card for it
+                await OT.owner_word(
+                    tx, str(conv["order_ref"]), clean_text, work_mode=conv["mode"] == "work"
+                )
         if intent.remember and not had_key:
             await store.remember(tx, holding.id, clean(intent.remember)[0], owner_id)
     who = (

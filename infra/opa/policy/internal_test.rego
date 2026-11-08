@@ -146,6 +146,18 @@ test_cross_company_without_a_link_stays_as_it_was if {
 	reasons(f.ty_growth_mgr, "work.create", {"company": "FX", "to_role": "ceo", "linked": false}) == {"work.create_not_permitted"}
 }
 
+# ⟨2026-11-08⟩ audit B4: the holding's AIOPS and LEGAL departments are open to every agent (their
+# manager, never a named person or an employee), from any company, whatever the links.
+test_any_agent_asks_the_holdings_aiops_or_legal_department if {
+	allowed(f.ty_growth_mgr, "work.create", {"company": "HQ", "to_role": "manager", "to_department": "AIOPS", "to_holding": true})
+	allowed(f.ty_growth_01, "work.create", {"company": "HQ", "to_role": "manager", "to_department": "LEGAL", "to_holding": true})
+	allowed(f.ty_ceo, "work.create", {"company": "HQ", "to_role": "manager", "to_department": "AIOPS", "to_holding": true, "linked": false})
+	not allowed(f.ty_growth_mgr, "work.create", {"company": "HQ", "to_role": "manager", "to_department": "OVS", "to_holding": true})
+	not allowed(f.ty_growth_mgr, "work.create", {"company": "HQ", "to_role": "employee", "to_department": "AIOPS", "to_holding": true})
+	not allowed(f.ty_growth_mgr, "work.create", {"company": "FX", "to_role": "manager", "to_department": "AIOPS", "to_holding": false})
+	not allowed(f.svc, "work.create", {"company": "HQ", "to_role": "manager", "to_department": "AIOPS", "to_holding": true})
+}
+
 test_a_link_opens_no_more_than_ceo_or_manager if {
 	not allowed(f.ty_growth_01, "work.create", {"company": "FX", "to_role": "ceo", "linked": true})
 	not allowed(f.ty_ceo, "work.create", {"company": "FX", "to_role": "employee", "to_department": "TECH", "linked": true})

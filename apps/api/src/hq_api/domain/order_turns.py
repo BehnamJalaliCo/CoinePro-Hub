@@ -61,6 +61,14 @@ NUM_ITEM = re.compile(r"^\s*[(\[]?([0-9۰-۹٠-٩]{1,2})\s*[-.)\]:،–—]\s*(.
 INLINE_ITEM = re.compile(r"(?:(?<=\s)|^)([0-9۰-۹٠-٩]{1,2})\s*[-.)،:]\s+")
 PLAN_STEP_FA = "برنامه: {n} کار از حرف مدیر کل"
 MAX_PLAN_ITEMS = 30
+# ⟨2026-11-08⟩ audit B1: in a working session the owner's word is the order's word by code; a
+# question is answered by the talk alone
+QUESTION_MARKS = ("؟", "?")
+QUESTION_WORDS = (
+    "چرا", "چه", "چی", "چیه", "چیست", "کی", "کجا", "کجاست", "آیا", "چطور", "چطوری", "چگونه", "کدام",
+    "کدوم", "چند", "چندتا", "مگه", "مگر", "یعنی",
+)  # fmt: skip
+OWNER_SAID = 3
 FIXED_PERSONAS = ("advisor", "overseer", "assistant")
 RESTARTED_FA = "فرمان با پاسخ مدیر کل دوباره راه افتاد"
 REVISION_FA = "کار تحویل‌شده با حرف تازه‌ی مدیر کل دوباره باز شد"
@@ -463,6 +471,56 @@ async def plan_from_owner(tx: Tx, ref: str, text: str) -> int:
     return added
 
 
+def is_question(text: str) -> bool:
+    """Whether the owner's word is a question (a mark, or a question word first)."""
+    one = " ".join((text or "").split())
+    if not one:
+        return False
+    if any(m in one for m in QUESTION_MARKS):
+        return True
+    first = one.split()[0].strip("«»\"'،,")
+    return first in QUESTION_WORDS
+
+
+async def owner_word(tx: Tx, ref: str, text: str, *, work_mode: bool) -> dict[str, Any]:
+    """⟨2026-11-08⟩ audit B1 (the owner: his nine steps reached nobody): in a working session every
+    owner turn that is not a question is the order's word by code — `reply` (the step «مدیر کل:
+    …», the open turn cleared, the holder woken with the dialogue in its brief) — and a numbered
+    list in it is the plan (§41.2). A question, or a consult-mode talk, feeds the plan only. An
+    order with nothing to wake (ended, nothing open or delivered) is left to the talk. Answers
+    {replied, woken, tasks}."""
+    out: dict[str, Any] = {"replied": False, "woken": [], "tasks": 0}
+    words = " ".join((text or "").split())
+    if not words:
+        return out
+    if work_mode and not is_question(words):
+        try:
+            async with tx.conn.begin_nested():
+                got = await reply(tx, ref, words[:2000])
+            out.update(replied=True, woken=got["woken"])
+            return out  # reply() read the plan already
+        except ApiError:
+            pass  # ended, or nothing open: the talk alone carries it
+    out["tasks"] = await plan_from_owner(tx, ref, words)
+    return out
+
+
+async def owner_said(tx: Tx, conversation_ref: str | None, n: int = OWNER_SAID) -> list[str]:
+    """⟨2026-11-08⟩ audit B1: the owner's last turns in the session, verbatim (newest last), for
+    the holder's run brief: the prose a plan task's title cannot hold (a slogan, a speaker, «every
+    time different»)."""
+    if not conversation_ref:
+        return []
+    rows = await tx.all(
+        """SELECT t.text FROM talk.turns t JOIN talk.conversations c ON c.id = t.conversation_id
+           WHERE c.ref = :r AND t.by_kind = 'owner' AND t.text IS NOT NULL AND t.text <> ''
+           ORDER BY t.n DESC LIMIT :n""",
+        r=conversation_ref,
+        n=n,
+    )
+    return [str(r["text"])[:4000] for r in reversed(rows)]
+
+
 # ------------------------------------------------------------ never a silent stall --
 async def wake_holder(tx: Tx, ref: str, reason: str) -> dict[str, Any]:
     """⟨1.23⟩ §41.3 the holder's open root work runs again (one queued run per work); answers
@@ -470,6 +528,22 @@ async def wake_holder(tx: Tx, ref: str, reason: str) -> dict[str, Any]:
     from hq_api.domain import session_activity as SA
 
     return await SA.wake_holder(tx, ref, reason)
+
+
+async def wake_or_say(tx: Tx, ref: str, reason: str) -> dict[str, Any]:
+    """⟨2026-11-08⟩ audit M11: the holder woken, or a step that says why not («مسئول بیدار نشد:
+    …»: a lock, a closed work, a stopped order) — never a silent NULL. The one helper every cause
+    uses (a hire joined, a child delivered, the pace switched, the session reopened)."""
+    from hq_api.domain import session_activity as SA
+
+    out = await SA.wake_holder(tx, ref, reason)
+    if out["run_id"] is None and out.get("why_fa"):
+        rep = await OR.ensure(tx, ref)
+        if rep is not None:
+            await OR._append_steps(
+                tx, rep["id"], [OR._step(SYSTEM_FA, SA.NOT_WOKEN_FA.format(why=out["why_fa"]))]
+            )
+    return out
 
 
 async def on_child_closed(tx: Tx, work: dict[str, Any], what: str) -> dict[str, Any] | None:
@@ -487,7 +561,7 @@ async def on_child_closed(tx: Tx, work: dict[str, Any], what: str) -> dict[str, 
     h = await holder(tx, ref)
     if h is None or h.get("work_id") is None or h["work_id"] == work["id"]:
         return None
-    return await wake_holder(tx, ref, f"child_{what}:{work['ref']}")
+    return await wake_or_say(tx, ref, f"child_{what}:{work['ref']}")
 
 
 # -------------------------------------------------------------- the talk --
@@ -607,6 +681,8 @@ async def talk_brief(tx: Tx, order_ref: str) -> dict[str, Any] | None:
         "plan": [{"n": t["n"], "title": t["title_fa"], "state": t["state"]} for t in tasks],
         "plan_next": nxt["n"] if nxt else None,
         "plan_instruction": PLAN_INSTRUCTION,
+        # ⟨2026-11-08⟩ audit B1: the owner's last words in the session, verbatim
+        "owner_said": await owner_said(tx, rep.get("conversation_ref")),
         "steps": [f"{s.get('who_fa')}: {s.get('what_fa')}" for s in steps[-DIALOGUE_STEPS:]],
         "blockers": [b.get("title_fa") for b in OR._j(rep["blockers"]) or []],
         "outputs": [o.get("title_fa") for o in OR._j(rep["outputs"]) or []],

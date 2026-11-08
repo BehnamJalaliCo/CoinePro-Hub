@@ -631,9 +631,11 @@ work_create_ok if {
 	tv("to_role") == "ceo"
 }
 
-# ⟨1.17⟩ §35.6 ... or along an `on` link between the two companies, while the owner has turned
-# `links_enforced` on (the api sends `linked: true` only then): a CEO or a manager asks the other
-# company's CEO, or the manager of a department there. Never a named person, never an employee.
+# ⟨1.17⟩ §35.6 ... or along an `on` link between the two companies (the api sends `linked: true`;
+# ⟨2026-11-08⟩ audit B4: also while the owner does not enforce links at all, the same rule as
+# linked.read, and for a company whose person sits in the session of the order the work serves):
+# a CEO or a manager asks the other company's CEO, or the manager of a department there. Never a
+# named person, never an employee.
 work_create_ok if {
 	p.role in {"ceo", "manager"}
 	p.company != null
@@ -641,6 +643,19 @@ work_create_ok if {
 	tv("company") != p.company
 	tv("linked") == true
 	tv("to_role") in {"ceo", "manager"}
+}
+
+# ⟨2026-11-08⟩ audit B4: any agent asks the holding's AIOPS (the hub's technical hand) or LEGAL
+# department: its manager, never a named person (the counsel's own path is in legal_voice.rego).
+hub_open_departments := {"AIOPS", "LEGAL"}
+
+work_create_ok if {
+	agent
+	p.company != null
+	tv("company") != p.company
+	tv("to_holding") == true
+	tv("to_department") in hub_open_departments
+	tv("to_role") == "manager"
 }
 
 propose_ok if {

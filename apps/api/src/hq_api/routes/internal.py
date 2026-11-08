@@ -616,6 +616,40 @@ async def _run_ledger(tx: Tx, actor: str, run_id: str) -> tuple[UsageIn, dict[st
 URGENT_RETRY_AFTER_S = 600
 
 
+HUB_OPEN_DEPTS = (
+    "AIOPS",
+    "LEGAL",
+)  # ⟨2026-11-08⟩ audit B4: the holding's departments any role may ask
+
+
+async def _session_companies(ctx: Ctx, origin: UUID | None) -> set[str]:
+    """⟨2026-11-08⟩ audit B4: the companies present in the session of the order the requesting
+    work serves (the holder's, and every `role@CODE` the owner brought in): the owner put them in
+    one room, so a work of that order may ask them. The run's own work when none is named."""
+    from hq_api.domain import order_report as OR
+
+    work_id = origin
+    async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as all_tx:
+        if work_id is None and ctx.who.run_id is not None:
+            work_id = await all_tx.scalar(
+                "SELECT work_id FROM agents.runs WHERE id = CAST(:r AS uuid)", r=ctx.who.run_id
+            )
+        if work_id is None:
+            return set()
+        ref = await OR.order_of_work(all_tx, work_id)
+        if ref is None:
+            return set()
+        row = await all_tx.first(
+            """SELECT c.present, c.holder FROM owner.order_reports r
+               JOIN talk.conversations c ON c.ref = r.conversation_ref WHERE r.ref = :r""",
+            r=ref,
+        )
+    if row is None:
+        return set()
+    keys = [*(row["present"] or []), row["holder"] or ""]
+    return {k.partition("@")[2] for k in keys if isinstance(k, str) and "@" in k}
+
+
 async def _of_owner_order(ctx: Ctx, work_id: UUID) -> bool:
     """Whether the work belongs to an owner's order (its report is the holding's row: read across
     companies, in a transaction of its own)."""
@@ -889,21 +923,33 @@ async def request_work(
         # ⟨1.6⟩ a CEO asks the holding's legal counsel (contract §22.4): the
         # holding's LEGAL department, never a named employee there.
         to_legal = cross and company_code == holding_code and body.department == "LEGAL"
+        # ⟨2026-11-08⟩ audit B4: any role may ask the holding's AIOPS (the hub's technical hand:
+        # n8n, the hub's services) or LEGAL department — the manager of it, never a named person
+        to_hub_dept = cross and company_code == holding_code and body.department in HUB_OPEN_DEPTS
         # The policy decides BEFORE anything outside the agent's company is
         # looked up, so a refusal never tells whether a code exists elsewhere.
-        # ⟨1.17⟩ §35.6: with `owner.settings.links_enforced` on, a request along an `on` link
-        # between the two companies goes to the policy as `linked` (looked up here without
-        # telling the caller anything: a missing company is simply not linked).
+        # ⟨1.17⟩ §35.6: a request along an `on` link between the two companies goes to the policy
+        # as `linked` (looked up here without telling the caller anything: a missing company is
+        # simply not linked). ⟨2026-11-08⟩ audit B4, the same rule as linked.read: while the owner
+        # does not enforce links ANY active company counts as linked; and a company whose person
+        # sits in the session of the order this work serves counts as linked for that order.
         linked = False
-        if cross and not to_legal and await LK.enforced(tx):
+        if cross and not to_legal and not to_hub_dept:
             other = await ctx.hub.companies.find(company_code)
-            linked = other is not None and await LK.linked(tx, ctx.who.company_id, other.id)
+            if other is not None and other.kind == "company" and other.status == "active":
+                linked = (
+                    not await LK.enforced(tx)
+                    or await LK.linked(tx, ctx.who.company_id, other.id)
+                    or other.code in await _session_companies(ctx, body.requested_by_work_id)
+                )
         if cross:
             # CEO to CEO only; along a link also a named department's manager (never a named person)
-            if body.to or (body.department and not to_legal and not linked):
+            if body.to or (body.department and not to_legal and not to_hub_dept and not linked):
                 raise ApiError(403, "policy_denied", "work.create_not_permitted")
             to_role: str | None = "employee" if to_legal else "ceo"
             to_dept: str | None = "LEGAL" if to_legal else None
+            if to_hub_dept and not to_legal:
+                to_role, to_dept = "manager", body.department
             if linked and body.department:
                 to_role, to_dept = "manager", body.department
         else:

@@ -62,7 +62,9 @@ SEAT_KINDS = ("employee", "manager", "ceo")
 STATES = ("draft", "sealed", "retired")
 KEY = re.compile(r"^[a-z][a-z0-9_]{1,40}$")
 REF = re.compile(r"^PB-[0-9]{4,}$")
-DEFAULT_TOKENS = 40_000
+# ⟨2026-11-08⟩ audit M5: a routine's default budget is a media director's floor (three real
+# steps of 40 000), never below a seat's floor (work.raise_to_floor at each run)
+DEFAULT_TOKENS = 120_000
 MAX_SEATS, MAX_ROUTINES, MAX_KPIS, MAX_RULES, MAX_CONNECTIONS = 12, 12, 12, 20, 10
 LAST_TURNS = 30
 TURN_CHARS = 1_200

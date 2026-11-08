@@ -599,6 +599,19 @@ class TurnRun:
             "failed", line, line, cards=cards, reason="مغز در دسترس نبود", code_card=True
         )
 
+    async def _told_before(self, notice: str) -> bool:
+        """Whether an earlier turn of this conversation already carried the notice."""
+        async with self.tx() as tx:
+            return bool(
+                await tx.scalar(
+                    """SELECT 1 FROM talk.turns WHERE conversation_id = :c AND id <> :t
+                         AND show_md LIKE '%' || :n || '%' LIMIT 1""",
+                    c=self.conv["id"],
+                    t=self.turn_id,
+                    n=notice,
+                )
+            )
+
     # ------------------------------------------------------------- finish --
     async def _finish(
         self,
@@ -620,7 +633,10 @@ class TurnRun:
         if state == "stopped":
             show = self.sent_md
             say = ""
-        extra = "\n\n".join(f"_{n}_" for n in dict.fromkeys(self.notices))
+        # ⟨2026-11-08⟩ audit m1: «صدا الان در دسترس نیست» once per conversation, not under
+        # every answer (the header's light says the rest)
+        notices = [n for n in dict.fromkeys(self.notices) if not await self._told_before(n)]
+        extra = "\n\n".join(f"_{n}_" for n in notices)
         if extra:
             await self.emit("text", {"delta": ("\n\n" if self.sent_md else "") + extra})
             show = (show + "\n\n" + extra).strip()

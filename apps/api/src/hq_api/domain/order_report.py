@@ -83,6 +83,28 @@ FIX_LABEL_FA = {
     "player.auto": "بازیکن خودکار شود",
     "connection.guide": "راهنمای اتصال",
     "kit.create": "شرکت را بساز",
+    # ⟨2026-11-08⟩ audit M4, M10: the month envelope (readiness §29.9 has it), the media tools
+    "envelope.set": "پاکت ماه را تعیین کن",
+    "media.on": "ابزار رسانه را روشن کن",
+}
+# ⟨2026-11-08⟩ audit M10: a tool's refusal for a missing account, in words, and what fixes it
+# (never a guide that does not exist: a sign-in or a player's account has no page of its own yet)
+_MEDIA_OFF = ("ابزار ویدیو روشن نیست", "ساخت ویدیو به ابزار رسانه‌ی هاب نیاز دارد که خاموش است.")
+TOOL_CONNECTION_FA: dict[str, tuple[str, str, str | None, str | None]] = {
+    "speech.make": (
+        "صدا (Google AI Studio) وارد نشده",
+        "ساخت صدا به ورود به Google AI Studio روی هاب نیاز دارد.",
+        None,
+        None,
+    ),
+    "media.render": (*_MEDIA_OFF, "media.on", "media"),
+    "media.item": (*_MEDIA_OFF, "media.on", "media"),
+    "substitute.call": (
+        "بازیکن بیرونی وارد حسابش نیست",
+        "ChatGPT، Gemini یا DeepSeek باید در صفحه‌ی بازیکن‌ها وارد شود.",
+        None,
+        None,
+    ),
 }
 MAX_STEPS = 30
 OPEN = W.OPEN
@@ -99,6 +121,15 @@ OUTPUT_WORDS = {
     "post": ("پست", "کاروسل"),
 }
 NUDGE = "فرمان {ref}: "  # the title of the CEO's small work items of an order
+from hq_api.domain.connections import KINDS as CN_KINDS  # noqa: E402 - the connection kinds
+
+
+def route_company(rep: dict[str, Any]) -> str | None:
+    route = _j(rep.get("route")) or {}
+    cos = route.get("companies") or []
+    return str(cos[0]) if cos else None
+
+
 UNCAPPED_FA = "سقف مصرف این کار برداشته شد؛ کار ادامه دارد"  # ⟨2026-11-08⟩ budget.add, no figure
 
 
@@ -551,9 +582,11 @@ def _blocker(
     detail_fa: str,
     since: datetime | str,
     target: str | None = None,
+    action: str | None = None,
 ) -> dict[str, Any]:
-    """A blocker and its one-tap fix (none without a target to act on)."""
-    action = FIX_OF.get(kind)
+    """A blocker and its one-tap fix (none without a target to act on); `action` overrides the
+    kind's default fix (⟨2026-11-08⟩ `envelope.set`, `media.on`)."""
+    action = action or FIX_OF.get(kind)
     fix = (
         {"action": action, "label_fa": FIX_LABEL_FA[action], "target": target}
         if action and target
@@ -573,14 +606,23 @@ async def detect(
 ) -> list[dict[str, Any]]:
     """Every blocker of an open order, by code (contract §29.2's table)."""
     now = datetime.now(UTC)
-    since_of = {b["kind"] + str((b.get("fix") or {}).get("target")): b["since"]
+    since_of = {b["kind"] + str(b.get("title_fa")) + str((b.get("fix") or {}).get("target")): b["since"]
                 for b in _j(rep["blockers"]) or []}  # fmt: skip
     out: list[dict[str, Any]] = []
 
-    def add(kind: str, title: str, detail: str, target: str | None = None) -> None:
-        since = since_of.get(kind + str(target), now)
-        b = _blocker(kind, title, detail, since, target)
-        if all(x["kind"] != kind or (x["fix"] or {}).get("target") != target for x in out):
+    def add(
+        kind: str, title: str, detail: str, target: str | None = None, action: str | None = None
+    ) -> None:
+        # one blocker per kind, wording and target (⟨2026-11-08⟩ two tools' missing accounts of the
+        # same kind are two lines, each with its own fix or none)
+        b = _blocker(kind, title, detail, now, target, action)
+        b["since"] = since_of.get(kind + b["title_fa"] + str(target), b["since"])
+        if all(
+            x["kind"] != kind
+            or x["title_fa"] != b["title_fa"]
+            or (x["fix"] or {}).get("target") != target
+            for x in out
+        ):
             out.append(b)
 
     draft = kit_of(order)
@@ -621,16 +663,32 @@ async def detect(
         since=order["created_at"],
     )
     hiring_state = await tx.scalar("SELECT core.hiring_state()")
+    company_of = {w["id"]: w["company"] for w in works}
     for c in codes:
         if c["code"] == "hiring_closed" and hiring_state != "open":
             add("hiring_closed", "استخدام بسته است", "یک کارمند خواست کسی را استخدام کند و نشد.",
                 "holding")  # fmt: skip
-        elif c["code"] == "envelope_exceeded":
-            add("budget", "پاکت ماه شرکت پر است",
-                "استخدام تازه در پاکت ماه این شرکت جا نشد.", None)  # fmt: skip
+        elif c["code"] in ("envelope_exceeded", "envelope_required"):
+            # ⟨2026-11-08⟩ audit M4: both are the month envelope's, with its one-tap fix
+            co = company_of.get(c["work_id"]) or route_company(rep)
+            full = c["code"] == "envelope_exceeded"
+            add("budget",
+                "پاکت ماه شرکت پر است" if full else "پاکت ماه شرکت تعیین نشده",
+                "استخدام تازه در پاکت ماه این شرکت جا نشد." if full
+                else "تا پاکت ماه شرکت تعیین نشود، استخدامی انجام نمیشود.",
+                co, "envelope.set")  # fmt: skip
         elif c["code"] in CONNECTION_CODES:
-            add("connection_missing", "یک اتصال وصل نیست",
-                "کار به حسابی نیاز دارد که هنوز وصل نشده است.", str(c["tool"] or ""))  # fmt: skip
+            # ⟨2026-11-08⟩ audit M10: the tool in words; a fix only where a page for it exists
+            tool = str(c["tool"] or "")
+            if tool in TOOL_CONNECTION_FA:
+                title, detail, action, target = TOOL_CONNECTION_FA[tool]
+                add("connection_missing", title, detail, target, action)
+            elif tool in CN_KINDS:
+                add("connection_missing", "یک اتصال وصل نیست",
+                    "کار به حسابی نیاز دارد که هنوز وصل نشده است.", tool)  # fmt: skip
+            else:
+                add("connection_missing", "یک اتصال وصل نیست",
+                    "کار به حسابی نیاز دارد که هنوز وصل نشده است.", None)  # fmt: skip
     # ⟨2026-11-08⟩ the owner: «کلا بودجه رو سقفشو بردار»: a work of an owner's order has no token
     # budget (routes/orders), so no `budget` blocker is raised for it; a run that reached its own
     # per-run cap delivered what it had and the session's sweep wakes the holder (§41.3)
@@ -1126,21 +1184,71 @@ async def timers(tx: Tx, s: Any, ref: str) -> list[str]:
         )
         fired.append("owner")
     if rep["talk_stopped_at"] is None:
-        runs = await tx.scalar(
-            """SELECT count(*) FROM agents.runs r
-               WHERE r.work_id = ANY(:ids) AND r.state IN ('running', 'done', 'failed')
-                 AND r.created_at > COALESCE(
-                     (SELECT max(d.created_at) FROM cartable.deliverables d
-                       WHERE d.work_id = ANY(:ids) AND NOT starts_with(d.title, :partial)),
-                     :since)""",
-            ids=[w["id"] for w in works],
-            partial=W.PARTIAL_PREFIX,
-            since=created,
-        )
-        if int(runs or 0) > s.order_talk_limit:
-            await stop_talk(tx, rep, works, int(runs))
+        runs = await idle_runs(tx, rep, works, created)
+        limit = await talk_limit(tx, rep, s.order_talk_limit)
+        if runs > limit:
+            await stop_talk(tx, rep, works, runs)
             fired.append("talk_loop")
     return fired
+
+
+# ⟨2026-11-08⟩ audit B3: the runs that count as «talk without output». A run that produced
+# anything — a deliverable, an `order.progress`/`order.ack`, a child work, a hand-over — is work;
+# a wake the hub itself queued (the idle sweep, the owner's reply, a child's delivery, a hire that
+# joined, «ادامه بده», a lifted cap, the pace, a reopen) is never counted; the count starts again
+# at the last step of the story (any progress).
+WAKE_REASONS = (
+    "session_idle:%", "owner_reply:%", "child_delivered:%", "child_failed:%", "joined:%",
+    "nudge:%", "uncapped:%", "resume:%", "pace:%", "session_reopened:%",
+)  # fmt: skip
+PRODUCTIVE_TOOLS = (
+    "order.progress", "order.ack", "deliver", "work.delegate", "work.request", "work.split",
+    "order.ask", "propose", "hire.decide",
+)  # fmt: skip
+TALK_LIMIT_PER_TASK = 3
+
+
+async def idle_runs(
+    tx: Tx, rep: dict[str, Any], works: list[dict[str, Any]], created: datetime
+) -> int:
+    """How many runs of the order's works produced nothing at all since the last complete
+    deliverable and the last step of the story."""
+    n = await tx.scalar(
+        """SELECT count(*) FROM agents.runs r
+           WHERE r.work_id = ANY(:ids) AND r.state IN ('running', 'done', 'failed')
+             AND r.trigger <> 'talk'
+             AND r.created_at > COALESCE(
+                 (SELECT max(d.created_at) FROM cartable.deliverables d
+                   WHERE d.work_id = ANY(:ids) AND NOT starts_with(d.title, :partial)),
+                 :since)
+             AND r.created_at > COALESCE(CAST(:last AS timestamptz), :since)
+             AND NOT (r.reason LIKE ANY(CAST(:wakes AS text[])))
+             AND NOT EXISTS (
+                 SELECT 1 FROM agents.steps s CROSS JOIN LATERAL jsonb_array_elements(s.actions) a
+                 WHERE s.run_id = r.id AND a ->> 'outcome' = 'ok'
+                   AND a ->> 'tool' = ANY(CAST(:tools AS text[])))
+             AND NOT EXISTS (
+                 SELECT 1 FROM work.work c
+                 WHERE (c.parent_id = r.work_id OR c.requested_by_work_id = r.work_id)
+                   AND c.created_at >= r.created_at
+                   AND c.created_at <= COALESCE(r.finished_at, now()))""",
+        ids=[w["id"] for w in works],
+        partial=W.PARTIAL_PREFIX,
+        since=created,
+        last=rep.get("last_step_at"),
+        wakes=list(WAKE_REASONS),
+        tools=list(PRODUCTIVE_TOOLS),
+    )
+    return int(n or 0)
+
+
+async def talk_limit(tx: Tx, rep: dict[str, Any], base: int) -> int:
+    """The limit: the setting, and never below TALK_LIMIT_PER_TASK runs per plan task."""
+    tasks = await tx.scalar(
+        """SELECT count(*) FROM owner.session_tasks WHERE order_id = :o AND state <> 'dropped'""",
+        o=rep["order_id"],
+    )
+    return max(int(base), TALK_LIMIT_PER_TASK * int(tasks or 0))
 
 
 async def _remind_turn(

@@ -309,7 +309,7 @@ async def _carry_out(
     note = [] if note is None else note
     if conv.get("order_ref") and kind == "ask":
         # ⟨2026-11-07⟩ W9 B: never a new order from inside a session
-        return await _session_ask(ctx, conv, p, payload, text, note)
+        return await _session_ask(ctx, conv, p, payload, text, note, card=card)
     if conv.get("order_ref") and kind == "minutes":
         return await _session_minutes(ctx, conv, payload, note)
     if kind == "order" and conv.get("order_ref"):
@@ -436,12 +436,31 @@ async def _asked(
 ) -> dict[str, Any]:
     """Who a session's `ask` is for: a fixed persona of the holding by name; a person of another
     company named (`company`: an employee code, a department's manager, a role, else its CEO); a
-    person of the holder's company (code, department, role); nobody named: the holding's advisor."""
-    if to in HOLDING_FIXED or (not to and not company):
-        row = await _holding_fixed(tx, to or "advisor")
+    person of the holder's company (code, department, role); nobody named: the holding's advisor.
+    ⟨2026-11-08⟩ (the owner: «رفت یکی رو از یه شرکت دیگه آورد که اصلا نمیدونست توی شرکتش چه خبره»)
+    a full employee code (`IG-CTO`) names that very person and so their company, whatever company
+    the card says — a card that names a different company is refused in one line, never answered
+    by the wrong company's person; a role is matched whatever its case (`CTO`, `cto`)."""
+    to = (to or "").strip()
+    if to.lower() in HOLDING_FIXED or (not to and not company):
+        row = await _holding_fixed(tx, to.lower() or "advisor")
         if row is None:
             raise _fail("مشاور کل در هلدینگ نیست.", "payload.to")
         return dict(row)
+    if re.fullmatch(EMP, to):
+        row = await tx.first(
+            """SELECT e.code, c.code AS company FROM core.employees e
+               JOIN core.companies c ON c.id = e.company_id
+               WHERE e.code = :c AND e.status = 'active' AND e.kind <> 'system'""",
+            c=to,
+        )
+        if row is not None:
+            if company and company != row["company"]:
+                raise _fail(
+                    f"{to} در شرکت {row['company']} است، نه {company}؛ یکی از این دو را بگویید.",
+                    "payload.company",
+                )
+            return await _employee_row(tx, str(row["code"]))
     if company and company != parent["company"]:
         co = await ctx.hub.companies.find(company)
         if co is None or co.kind == "holding":
@@ -498,6 +517,43 @@ async def _join(ctx: Ctx, tx: Tx, ref: str, conv: dict[str, Any], emp: dict[str,
     return key
 
 
+ASK_BRIEF_MEMORY_CHARS = 4000
+
+
+def ask_brief(
+    question: str,
+    *,
+    ref: str,
+    title_fa: str,
+    holder_fa: str,
+    why_fa: str | None,
+    memory_md: str | None,
+    plan: list[dict[str, Any]],
+) -> str:
+    """⟨2026-11-08⟩ what the asked person's work carries, so they know what is going on: the
+    question, which session (its title and order), who asks and why (the card's own words), the
+    session's memory («تا اینجا», §40.1) and its plan; and how the answer comes back."""
+    lines = [
+        question,
+        "",
+        f"## جلسه: {title_fa}",
+        f"فرمان {ref} مدیر کل؛ {holder_fa} شما را به این جلسه آورد و این را میپرسد.",
+    ]
+    if why_fa:
+        lines.append(f"چرا: {why_fa}")
+    if memory_md:
+        lines += ["", "## تا اینجا (حافظه‌ی جلسه)", memory_md[:ASK_BRIEF_MEMORY_CHARS]]
+    if plan:
+        lines += ["", "## برنامه‌ی جلسه"]
+        lines += [f"{t['n']}. {t['title_fa']} [{t['state']}]" for t in plan[:30]]
+    lines += [
+        "",
+        "(جواب را با deliver بده: به همان جلسه برمیگردد و شما در آن حاضر هستید. کسی را به فرمان "
+        "تازه حواله نکن.)",
+    ]
+    return "\n".join(lines)
+
+
 async def _session_ask(
     ctx: Ctx,
     conv: dict[str, Any],
@@ -505,9 +561,13 @@ async def _session_ask(
     payload: dict[str, Any],
     text: str,
     note: list[str],
+    *,
+    card: dict[str, Any] | None = None,
 ) -> tuple[list[str], list[Any]]:
     """⟨2026-11-07⟩ W9 B: a question for someone else, answered IN THIS session: they join, the
-    question is a work of this order assigned to them, and the answer is their turn here."""
+    question is a work of this order assigned to them, and the answer is their turn here.
+    ⟨2026-11-08⟩ the person is the one the card names (its company, or a full code), and their
+    work carries the session's title, memory and plan and the holder's words."""
     from hq_api.domain import order_report as OR
     from hq_api.domain import sessions as SE
 
@@ -523,18 +583,25 @@ async def _session_ask(
         who = OR.who_fa(
             emp["title_fa"], None if emp["company_kind"] == "holding" else emp["company_fa"]
         )
+        rep = await OR.ensure(tx, ref)
+        order = await OR.load_order(tx, ref)
+        why = clean(" ".join(str((card or {}).get("body_fa") or "").split()))[0][:600] or None
         child = await _child_of_order(
             ctx,
             tx,
             parent,
             emp,
             title=f"پرسش مدیر کل: {question}"[:300],
-            brief=(
-                f"{question}\n\n(پرسش مدیر کل در جلسه‌ی فرمان {ref}؛ جواب را با deliver بده: "
-                "به همان جلسه برمیگردد. کسی را به فرمان تازه حواله نکن.)"
+            brief=ask_brief(
+                question,
+                ref=ref,
+                title_fa=SE._title((order or {}).get("text")),
+                holder_fa=p.title_fa,
+                why_fa=why if why and why != question else None,
+                memory_md=(rep or {}).get("memory_md"),
+                plan=await SE.tasks_of(tx, rep["order_id"]) if rep is not None else [],
             ),
         )
-        rep = await OR.ensure(tx, ref)
         if rep is not None:
             await SE.add_task(tx, rep, title_fa=f"پاسخ به: {question}"[:300], by="owner",
                               who_fa=who, who_code=str(emp["code"]), work_ref=str(child["ref"]))  # fmt: skip
@@ -639,8 +706,8 @@ async def _delegate_target(tx: Tx, company_id: UUID, to: str) -> str:
         if row is not None:
             return str(row["code"])
     row = await tx.first(
-        """SELECT code FROM core.employees WHERE company_id = :co AND role = :r AND status = 'active'
-             AND kind <> 'system' ORDER BY hired_at LIMIT 1""",
+        """SELECT code FROM core.employees WHERE company_id = :co AND lower(role) = lower(:r)
+             AND status = 'active' AND kind <> 'system' ORDER BY hired_at LIMIT 1""",
         co=company_id,
         r=to,
     )

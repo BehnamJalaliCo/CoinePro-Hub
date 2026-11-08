@@ -149,7 +149,7 @@ async def talk_order(ref: str, ctx: Ctx = Depends(owner_ctx)) -> TalkOut:
 class FixIn(Model):
     action: Literal[
         "hire", "hiring.open", "lock.open", "series.seal", "budget.add", "player.auto",
-        "connection.guide", "kit.create",
+        "connection.guide", "kit.create", "envelope.set", "media.on",
     ]  # fmt: skip
     target: str | None = Field(default=None, max_length=120)
     tokens: int | None = Field(default=None, gt=0, le=10_000_000)
@@ -275,6 +275,9 @@ async def _apply_fix(
         # ⟨1.17⟩ W6 j: the kit's fix is the owner's seal of the kit card (POST /kits/{kit}/create
         # with the order): the app opens the card from the report; nothing is made here
         return "kit card (the app seals it)"
+    if body.action in ("envelope.set", "media.on"):
+        # ⟨2026-11-08⟩ audit M4, M10: the app's own pages (the month envelope, the media tools)
+        return f"{body.action} (the app does it)"
     return "guide"  # connection.guide: the app opens /connections/guides/{kind}
 
 

@@ -1044,12 +1044,18 @@ async def test_a_ceos_hire_in_the_envelope_is_approved_by_code(
         "/internal/v1/decisions", headers={**ceo, **idem()}, json=_hire(co, 9_000_000)
     )
     assert r.status_code == 409 and r.json()["code"] == "envelope_exceeded", r.text
-    # a manager's hire is its CEO's card (as delegated)
+    # ⟨2026-11-08⟩ audit M1: in `auto` mode a manager's hire that fits the envelope is approved by
+    # code at once too (no CEO model run); only one that does not fit is the CEO's card
     mgr = await agent_headers(f"{co}-MEDIA-MGR")
     r = await client.post(
         "/internal/v1/decisions", headers={**mgr, **idem()}, json=_hire(co, 1_000_000)
     )
-    assert r.status_code == 201 and r.json()["status"] == "pending"
+    assert r.status_code == 201 and r.json()["status"] == "approved", r.text
+    assert r.json()["decided_by"]["kind"] == "service"
+    r = await client.post(
+        "/internal/v1/decisions", headers={**mgr, **idem()}, json=_hire(co, 9_000_000)
+    )
+    assert r.status_code == 201 and r.json()["status"] == "pending", r.text
     assert r.json()["approver"]["code"] == f"{co}-CEO" and not r.json()["owner_visible"]
     for code in (f"{co}-CEO", f"{co}-MEDIA-MGR"):
         await end_runs(su, code)

@@ -684,8 +684,11 @@ async def join_hired(
         if rep is not None:
             await OR._append_steps(tx, rep["id"], [OR._step(OWNER_FA, line)])
             await remember(tx, rep["id"], line)  # ⟨1.22⟩ §40.1
-            # ⟨1.23⟩ §41.3 the holder is woken: the newcomer is here, the work goes on
-            await SA.wake_holder(tx, str(r["order_ref"]), f"joined:{employee_code}")
+            # ⟨1.23⟩ §41.3 the holder is woken: the newcomer is here, the work goes on (or a
+            # step says why not — audit M11)
+            from hq_api.domain import order_turns as OT
+
+            await OT.wake_or_say(tx, str(r["order_ref"]), f"joined:{employee_code}")
         joined.append(str(r["ref"]))
     return joined
 
@@ -821,7 +824,14 @@ async def reopen(tx: Tx, ref: str) -> dict[str, Any]:
             )
             if rid is not None:
                 woken.append(str(w["ref"]))
-    await OR._append_steps(tx, rep["id"], [OR._step(OWNER_FA, "جلسه دوباره باز شد")])
+    steps = [OR._step(OWNER_FA, "جلسه دوباره باز شد")]
+    reopened = [w for w in works if w["is_root"] and w["status"] == "cancelled"]
+    if reopened and not woken:  # ⟨2026-11-08⟩ audit M11: never a silent NULL
+        from hq_api.domain import order_turns as OT
+
+        why = await OT._why_not_woken(tx, {**reopened[0], "status": "in_progress"})
+        steps.append(OR._step(SA.SYSTEM_FA, SA.NOT_WOKEN_FA.format(why=why)))
+    await OR._append_steps(tx, rep["id"], steps)
     await OR.refresh(tx, ref)
     return {"woken": woken}
 
@@ -879,7 +889,15 @@ async def set_pace(tx: Tx, ref: str, pace: str) -> dict[str, Any]:
             )
             if rid is not None:
                 woken.append(str(w["ref"]))
-    await OR._append_steps(tx, rep["id"], [OR._step(OWNER_FA, PACE_FA[pace])])
+    steps = [OR._step(OWNER_FA, PACE_FA[pace])]
+    if not woken and any(w["is_root"] and w["status"] in OR.OPEN for w in works):
+        # ⟨2026-11-08⟩ audit M11: never a silent NULL
+        from hq_api.domain import order_turns as OT
+
+        root = next(w for w in works if w["is_root"] and w["status"] in OR.OPEN)
+        why = await OT._why_not_woken(tx, root)
+        steps.append(OR._step(SA.SYSTEM_FA, SA.NOT_WOKEN_FA.format(why=why)))
+    await OR._append_steps(tx, rep["id"], steps)
     await tx.exec(
         "UPDATE owner.order_reports SET last_step_at = now(), updated_at = now() WHERE id = :id",
         id=rep["id"],

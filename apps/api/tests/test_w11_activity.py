@@ -27,7 +27,7 @@ from hq_api.domain import sessions as SE
 from hq_api.hub import Hub
 
 from .conftest import agent_headers, idem
-from .test_p21_routing_orders import all_tx, deliver, report
+from .test_p21_routing_orders import all_tx, auto_hiring, deliver, envelope, report  # noqa: F401
 from .test_p21_secretary import no_model, post_order, words  # noqa: F401 - the fixture
 from .test_p23_talk import answer, say, talk  # noqa: F401 - the fixture
 from .test_w7_sessions import WORK_TEXT, refuse_queued, run_card
@@ -317,10 +317,12 @@ async def test_the_holder_is_woken_on_a_join_a_hire_decision_and_a_childs_delive
     su: Any,
     no_model: list[Any],  # noqa: F811
     talk: dict[str, Any],  # noqa: F811
+    auto_hiring: None,  # noqa: F811
     new_company: Callable[..., Any],
 ) -> None:
     company = await new_company()
     co = company["code"]
+    await envelope(su, company)
     out = await post_order(client, owner, WORK_TEXT.format(co=co, w=words()))
     ref, conv = out["ref"], out["talk_ref"]
     [route] = out["routes"]
@@ -395,6 +397,7 @@ async def test_the_holder_is_woken_on_a_join_a_hire_decision_and_a_childs_delive
 async def test_the_sweep_wakes_an_idle_holder_once_then_marks_it_stuck_with_the_cause(
     client: httpx.AsyncClient,
     hub: Hub,
+    wk: dict[str, Any],
     owner: dict[str, str],
     su: Any,
     no_model: list[Any],  # noqa: F811
@@ -526,7 +529,7 @@ async def test_the_sweep_wakes_an_idle_holder_once_then_marks_it_stuck_with_the_
         "UPDATE owner.order_reports SET last_step_at = now() - interval '11 minutes' WHERE ref = $1",
         other["ref"],
     )
-    tick = await OR.tick(hub)
+    tick = await OR.tick(wk["hub"])  # the worker's tick (its role queues the runs)
     assert tick["orders"] >= 2 and tick["fired"].get(other["ref"]) == ["idle_wake"], tick
     assert ref not in tick["fired"]  # this one was woken this period already
     # a closed session: nothing
