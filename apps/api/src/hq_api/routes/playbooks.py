@@ -28,6 +28,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Request
 
 from hq_api import idempotency, workflows_client
 from hq_api.context import Ctx, owner_ctx
+from hq_api.domain import live as LV
 from hq_api.domain import order_report as OR
 from hq_api.domain import playbooks as PB
 from hq_api.domain import sessions as SE
@@ -146,6 +147,7 @@ async def apply_playbook(
             if idem and idem.replay:
                 return idem.replay
             await PB.apply_as_is(tx, ctx.hub, ref, company)
+            await LV.playbook_flow(tx, await PB.row_of(tx, ref), company.code, None)
             await ctx.audit(tx, company_id=company.id, action="playbook.apply", action_class="A2",
                             target_kind="playbook", target_ref=ref, summary=f"as is: {company.code}")  # fmt: skip
             pb = await _out(tx, ref)
@@ -171,6 +173,9 @@ async def apply_playbook(
         out = await record_order(ctx, tx, s, text, later, source="text", hint=company.code,
                                  remember=False)  # fmt: skip
         await PB.mark_source(tx, out.ref, ref)
+        await LV.playbook_flow(
+            tx, row, company.code, out.routes[0].work_ref if out.routes else None
+        )
         rep = await OR.ensure(tx, out.ref)
         if rep is not None and rep.get("conversation_ref"):
             from hq_api.domain import order_turns as OT

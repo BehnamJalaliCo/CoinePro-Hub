@@ -32,6 +32,7 @@ from hq_api.db import Tx
 from hq_api.domain import backups, hiring, oversight
 from hq_api.domain import departments as DM
 from hq_api.domain import files as F
+from hq_api.domain import live as LV
 from hq_api.domain import spend as SPEND
 from hq_api.domain import work as W
 from hq_api.domain.links import links_of
@@ -727,6 +728,14 @@ async def tool_knowledge_search(
         )
         for h in hits[:limit]
     ]
+    if co is not None and co.code != ctx.who.company and ctx.who.company_id is not None:
+        # ⟨1.24⟩ §42.2 another company's knowledge read for a work: its company → hub → reader
+        async with ctx.hub.db.tx([co.id, ctx.who.company_id]) as ftx:
+            rw = await LV.run_work(ftx, ctx.who.run_id)
+            await LV.read_flow(ftx, owner=co.code, reader=str(ctx.who.company),
+                               ref=rw["ref"] if rw else ctx.who.code,
+                               root_ref=rw["root_ref"] if rw else None,
+                               what_fa=LV.READ_FA["knowledge"])  # fmt: skip
     # ⟨1.7⟩ a record it found (within its own clearance) joins as well
     files = [
         {**h, "text": h.get("text") or h.get("body")}
@@ -1196,6 +1205,13 @@ async def tool_file_meta(id: UUID, ctx: Ctx = Depends(internal_ctx)) -> AgentFil
             "SELECT id FROM files.files WHERE parent_id = :id AND variant = 'agent' LIMIT 1", id=id
         )
         text = await tx.scalar("SELECT text FROM files.processing WHERE file_id = :id", id=id)
+        if scope is not None:
+            # ⟨1.24⟩ §42.2 a file the owner gave the order (the holding's), read for its work
+            rw = await LV.run_work(tx, ctx.who.run_id)
+            await LV.read_flow(tx, owner="hub", reader=str(ctx.who.company),
+                               ref=rw["ref"] if rw else ctx.who.code,
+                               root_ref=rw["root_ref"] if rw else None,
+                               what_fa=LV.READ_FA["file"])  # fmt: skip
     ref = F.render(row)
     return AgentFileRef(
         **ref.model_dump(),

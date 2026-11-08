@@ -672,6 +672,12 @@ async def record_order(
             "by": routed_by,
         },
     )
+    if out:  # ⟨1.24⟩ §42.2 the order leaves the hub for its holder's company
+        from hq_api.domain import live as LV
+
+        to = str(out[0]["company"])
+        await LV.flow(tx, src="hub", dst=to, kind="order", ref=ref, root_ref=out[0].get("work_ref"),
+                      label_fa=f"فرمان مدیر کل به {await LV.name_of(tx, to)}")  # fmt: skip
     await ctx.audit(
         tx,
         company_id=holding.id,

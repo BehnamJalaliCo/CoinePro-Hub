@@ -398,6 +398,13 @@ async def create(
         w["ref"],
         {"assignee": target["code"], "kind": kind, "priority": priority, "depth": w["depth"]},
     )
+    if requested_by_work_id is not None:
+        # ⟨1.24⟩ §42.2 a work another company asked for: A → hub → B on the holding's map
+        from hq_api.domain import live
+
+        asker = await live.requester(tx, requested_by_work_id)
+        if asker is not None:
+            await live.work_flow(tx, "request", w, asker)
     return w
 
 

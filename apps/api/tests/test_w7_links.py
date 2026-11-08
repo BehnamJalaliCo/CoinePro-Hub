@@ -171,8 +171,8 @@ async def test_the_owner_places_nodes_on_the_canvas(
         )
         == 2
     )
-    # the stream: topic holding carries links.*
-    assert EV.TOPICS["holding"] == ("links.",)
+    # the stream: topic holding carries links.* and ⟨1.24⟩ §42.1 holding.*
+    assert EV.TOPICS["holding"] == ("links.", "holding.")
     assert (
         await su.fetchval(
             """SELECT count(*) FROM core.outbox WHERE subject LIKE '%.links.updated'
