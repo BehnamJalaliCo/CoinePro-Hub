@@ -42,6 +42,7 @@ from hq_common.charters import IMPLICIT_TOOLS, SHARED_TOOLS, Library
 from hq_common.redact import fit_async, mask_secrets
 from hq_gateway import (
     archive,  # noqa: F401 - prompt 14: archive.search/read/file/link/hold
+    connections,  # noqa: F401 - ⟨2026-11-08⟩ H2: connection.set, a connection's non-secret settings
     erase,  # noqa: F401 - prompt 26 (§37.3): erase.propose
     founding,  # noqa: F401 - registers server.plan (prompt 09)
     governance,  # noqa: F401 - prompt 11 §4-§10: kpi, okr, outcome, risk, calendar, authority

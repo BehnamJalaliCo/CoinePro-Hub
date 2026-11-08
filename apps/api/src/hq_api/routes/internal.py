@@ -363,6 +363,7 @@ OP_CLASS: dict[str, str] = {
     "group.plan": "A1",
     "experiment.write": "A1",
     "connection.read": "A0",
+    "connection.set": "A2",  # ⟨2026-11-08⟩ H2
     # ⟨1.11⟩ prompt 21 part 1 (routing.rego): every order answered, the
     # delegation budget, the destructive cards a CTO decides
     "order.ack": "A1",

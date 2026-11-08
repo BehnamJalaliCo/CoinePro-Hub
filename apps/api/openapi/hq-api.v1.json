@@ -10562,6 +10562,149 @@
         "title": "ConnectionPatch",
         "type": "object"
       },
+      "ConnectionSetIn": {
+        "additionalProperties": false,
+        "description": "⟨2026-11-08⟩ H2 `connection.set`: a connection's non-secret settings, by an agent.",
+        "properties": {
+          "accounts": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accounts"
+          },
+          "channel_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Id"
+          },
+          "channels": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channels"
+          },
+          "company": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "handle": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Handle"
+          },
+          "kind": {
+            "pattern": "^(search_console|ga4|instagram|telegram|youtube|x|pagespeed|trends|bing|play_console|google_ads|meta_ads)$",
+            "title": "Kind",
+            "type": "string"
+          },
+          "property_id": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Property Id"
+          },
+          "read_command": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read Command"
+          },
+          "server": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server"
+          },
+          "site_url": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Url"
+          },
+          "via": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Via"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "ConnectionSetIn",
+        "type": "object"
+      },
       "ConnectorEntry": {
         "additionalProperties": false,
         "properties": {
@@ -17325,7 +17468,9 @@
               "budget.add",
               "player.auto",
               "connection.guide",
-              "kit.create"
+              "kit.create",
+              "envelope.set",
+              "media.on"
             ],
             "title": "Action",
             "type": "string"
@@ -36660,7 +36805,7 @@
             "type": "string"
           },
           "max_tokens": {
-            "default": 40000,
+            "default": 120000,
             "title": "Max Tokens",
             "type": "integer"
           },
@@ -148835,6 +148980,144 @@
           }
         },
         "summary": "Agent Connections",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/connections/set": {
+      "post": {
+        "description": "⟨2026-11-08⟩ H2 connection.set (A2): a company's CEO, media director or technical role\nregisters a connection's non-secret settings — Instagram's account names and that they are\nread through IG-Hub (`via: ig_hub`, `server`), a read-only `read_command` (the same check the\ndaily read applies), Telegram channels, a site's address, a YouTube channel id. Another\ncompany's connection by its technical role under the linked rule (H1). Never a secret (the\nowner's `make growth-secret`): refused with the field named. Audited; the state recomputed;\na step in the order's session when the run belongs to one.",
+        "operationId": "agent_connection_set",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "accounts": [
+                  "x"
+                ],
+                "channel_id": "x",
+                "channels": [
+                  {}
+                ],
+                "company": "TY",
+                "handle": "x",
+                "kind": "one_off",
+                "property_id": "x",
+                "read_command": "x",
+                "server": {},
+                "site_url": "x",
+                "via": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ConnectionSetIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "company": "TY",
+                  "config": {},
+                  "daily": [
+                    {
+                      "day": "2026-10-17",
+                      "key": "x",
+                      "subject": "x",
+                      "value": 1.0
+                    }
+                  ],
+                  "kind": "search_console",
+                  "label_fa": "x",
+                  "last_error_fa": "x",
+                  "last_read_at": "2026-10-17T05:42:00Z",
+                  "missing_fa": [
+                    "x"
+                  ],
+                  "reader": false,
+                  "secret": "set",
+                  "secret_needed": false,
+                  "state": "not_connected"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/hq_api__domain__connections__Connection"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Agent Connection Set",
         "tags": [
           "internal"
         ]

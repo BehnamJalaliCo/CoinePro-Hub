@@ -90,6 +90,24 @@ HOW = {
     ),
 }
 SERVER_TOOLS = ("server.map", "server.read", "server.exec", "server.write", "server.claude")
+TECH_DEPARTMENT = "TECH"
+
+
+async def _tech_roles(tx: Tx) -> set[str]:
+    """The technical charters: the TECH department's company roles (read from the charters the
+    hub loaded, never a hardcoded list)."""
+    from hq_common import charters as CHL
+
+    lib = _CHARTERS.get("lib")
+    if lib is None:
+        lib = CHL.load()
+        _CHARTERS["lib"] = lib
+    return {
+        r for r, c in lib.roles.items() if c.department == TECH_DEPARTMENT and c.scope == "company"
+    }
+
+
+_CHARTERS: dict[str, Any] = {}
 HOLDING_SERVER_ROLES = ("hub_platform_sre", "overseer")  # every paired server (contract §26.6)
 SERVERS_MAX = 30
 
@@ -117,11 +135,23 @@ async def _players(tx: Tx) -> list[dict[str, Any]]:
     return out
 
 
+def connection_entry(c: dict[str, Any], company_code: str | None) -> dict[str, Any]:
+    """One connection as the brief shows it; ⟨2026-11-08⟩ H3 an Instagram account that is not
+    connected here is on IG-Hub: the note says so and who registers it (never «not connected»)."""
+    from hq_api.domain import connections as CN
+
+    out: dict[str, Any] = {"kind": c["kind"], "state": c["state"]}
+    if c["kind"] == "instagram" and c["state"] != "connected":
+        out["note"] = CN.ig_hub_note(company_code)
+    return out
+
+
 async def _company(tx: Tx, company_id: UUID) -> dict[str, Any]:
     conns = await tx.all(
         """SELECT kind, state FROM growth.connections WHERE company_id = :co ORDER BY kind""",
         co=company_id,
     )
+    code = await tx.scalar("SELECT code FROM core.companies WHERE id = :co", co=company_id)
     links = await tx.all(
         "SELECT * FROM core.company_links_of(:co)",
         co=company_id,
@@ -141,7 +171,7 @@ async def _company(tx: Tx, company_id: UUID) -> dict[str, Any]:
         "SELECT count(*) FROM lines.lines WHERE company_id = :co AND state = 'on'", co=company_id
     )
     return {
-        "connections": [{"kind": c["kind"], "state": c["state"]} for c in conns],
+        "connections": [connection_entry(dict(c), code) for c in conns],
         "links": [dict(x) for x in links],
         "working_groups": [
             {"key": g["key"], "title_fa": g["title_fa"], "state": g["state"]} for g in groups
@@ -276,21 +306,45 @@ async def technical(
     held = [t for t in SERVER_TOOLS if t in tools]
     servers: list[str] = []
     if held:
+        from hq_api.domain import links as LKS
+
         wide = scope == "holding" and role in HOLDING_SERVER_ROLES
+        # ⟨2026-11-08⟩ H1: a company's technical role (the TECH department's charters) reaches
+        # the other companies' servers by the rule of linked.read: every active company while
+        # the owner does not enforce links, else those sharing an `on` link
+        technical = scope == "company" and role in await _tech_roles(tx)
+        codes: list[str] = []
+        if technical and not wide and company_id is not None:
+            if not await LKS.enforced(tx):
+                wide = True
+            else:
+                codes = [str(x["company"]) for x in await LKS.links_of(tx, company_id)]
         rows = await tx.all(
             """SELECT c.code, s.name FROM infra.servers s JOIN core.companies c ON c.id = s.company_id
                WHERE s.state IS NOT NULL AND s.state <> 'revoked'
-                 AND (CAST(:wide AS boolean) OR s.company_id = CAST(:co AS uuid))
-               ORDER BY c.code, s.name LIMIT :l""",
+                 AND (CAST(:wide AS boolean) OR s.company_id = CAST(:co AS uuid)
+                      OR c.code = ANY(CAST(:codes AS text[])))
+               ORDER BY (s.company_id = CAST(:co AS uuid)) DESC, c.code, s.name LIMIT :l""",
             wide=wide,
             co=str(company_id) if company_id else None,
+            codes=codes,
             l=SERVERS_MAX,
         )
         servers = [f"{r['code']} · {r['name']}" for r in rows]
+        if technical:
+            out_reach = (
+                "every company's servers while the owner does not enforce links; else those of "
+                "a linked company or one present in your session (server.map lists them; a "
+                "destructive command still waits for the owner's seal)"
+            )
+        else:
+            out_reach = "your company's servers"
     who = Principal(kind="agent", code="-", role="employee", company_id=company_id,
                     charter=role, scope=scope)  # fmt: skip
     hub_ops = "hub.ops" in tools and HO.is_technical(who, holding_id=holding_id)
     out: dict[str, Any] = {"server_tools": held, "servers": servers, "hub_ops": hub_ops}
+    if held:
+        out["reach"] = out_reach
     if hub_ops:
         out["hub"] = (
             "hub.ops: the hub itself (status, logs, stats, restart, a profile, n8n, backup)"

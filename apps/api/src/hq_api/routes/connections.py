@@ -19,6 +19,7 @@ GET  /connections/guides/{kind}                  the one-page Persian guide
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from datetime import timedelta
 from typing import Any
@@ -33,6 +34,7 @@ from hq_api.routes.internal import allow
 from hq_api.schemas import Model
 from hq_api.security import stepup
 
+log = logging.getLogger("hq_api.routes.connections")
 router = APIRouter(tags=["connections"])
 internal_router = APIRouter(tags=["internal"])
 E = responses(401, 403, 404, 409, 422, 423)
@@ -242,6 +244,111 @@ async def get_guide(kind: str = Path(pattern=KIND), ctx: Ctx = Depends(owner_ctx
     permission, what to paste (seed/connection_guides/<kind>.md)."""
     del ctx
     return CN.guide(kind)
+
+
+class ConnectionSetIn(Model):
+    """⟨2026-11-08⟩ H2 `connection.set`: a connection's non-secret settings, by an agent."""
+
+    company: str | None = Field(default=None, pattern=CODE)
+    kind: str = Field(pattern=KIND)
+    accounts: list[str] | None = Field(default=None, max_length=20)
+    via: str | None = Field(default=None, max_length=20)
+    server: dict[str, Any] | None = None
+    read_command: str | None = Field(default=None, max_length=500)
+    channels: list[dict[str, Any]] | None = Field(default=None, max_length=20)
+    site_url: str | None = Field(default=None, max_length=300)
+    channel_id: str | None = Field(default=None, max_length=64)
+    handle: str | None = Field(default=None, max_length=64)
+    property_id: str | None = Field(default=None, max_length=32)
+
+
+SET_ROLES = ("ceo", "media_director")  # with the technical charters (TECH), see connections.rego
+
+
+@internal_router.post("/connections/set", response_model=CN.Connection, responses=E)
+async def agent_connection_set(
+    body: ConnectionSetIn, ctx: Ctx = Depends(internal_ctx)
+) -> CN.Connection:
+    """⟨2026-11-08⟩ H2 connection.set (A2): a company's CEO, media director or technical role
+    registers a connection's non-secret settings — Instagram's account names and that they are
+    read through IG-Hub (`via: ig_hub`, `server`), a read-only `read_command` (the same check the
+    daily read applies), Telegram channels, a site's address, a YouTube channel id. Another
+    company's connection by its technical role under the linked rule (H1). Never a secret (the
+    owner's `make growth-secret`): refused with the field named. Audited; the state recomputed;
+    a step in the order's session when the run belongs to one."""
+    from hq_api.domain import links as LK
+    from hq_api.domain import order_report as OR
+    from hq_api.domain import sessions as SE
+    from hq_api.routes.servers import _reachable, _technical
+
+    who = ctx.who
+    if not who.is_agent or who.company_id is None:
+        raise ApiError(403, "policy_denied", "agents only")
+    code = body.company or str(who.company)
+    company = await ctx.hub.companies.find(code)
+    lib = ctx.hub.charters
+    technical = _technical(lib, who.charter)
+    linked = False
+    if company is not None and company.id != who.company_id and technical:
+        async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
+            linked = await _reachable(ctx, tx, who, company.id)
+    await allow(
+        ctx,
+        "connection.set",
+        {"company": code, "charter": who.charter, "technical": technical, "linked": linked},
+    )
+    if company is None:
+        raise ApiError(404, "not_found", f"company {code}", message_fa=f"شرکتی با کد {code} نیست.")
+    fields = body.model_dump(exclude_none=True, exclude={"company", "kind"})
+    async with ctx.hub.db.tx(list({who.company_id, company.id})) as tx:
+        cur = await tx.first(
+            "SELECT config FROM growth.connections WHERE company_id = :co AND kind = :k FOR UPDATE",
+            co=company.id,
+            k=body.kind,
+        )
+        raw = cur["config"] if cur is not None else {}
+        current = json.loads(raw) if isinstance(raw, str) else dict(raw or {})
+        config = CN.agent_config(body.kind, current, fields)
+        await CN.set_config(tx, company, body.kind, config, None)
+        keys = ", ".join(sorted(fields))
+        for co_id in {who.company_id, company.id}:
+            await ctx.audit(
+                tx,
+                company_id=co_id,
+                action="connection.set",
+                action_class="A2",
+                target_kind="connection",
+                target_ref=f"{code}:{body.kind}",
+                summary=f"{who.code} set {keys}" + (" (linked)" if linked else ""),
+            )
+        await ctx.emit(tx, code, "connection.updated", None, {"kind": body.kind, "config": True})
+        out = await CN.one_for(tx, company, body.kind)
+    del LK
+    # the order's session hears it (the run's work, when it belongs to an order)
+    if who.run_id is not None:
+        try:
+            async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
+                work_id = await tx.scalar(
+                    "SELECT work_id FROM agents.runs WHERE id = CAST(:r AS uuid)", r=who.run_id
+                )
+                ref = await OR.order_of_work(tx, work_id) if work_id is not None else None
+                if ref is not None:
+                    emp = await tx.first(
+                        """SELECT e.title_fa, c.name_fa FROM core.employees e
+                           JOIN core.companies c ON c.id = e.company_id WHERE e.code = :c""",
+                        c=who.code,
+                    )
+                    who_fa = OR.who_fa(emp["title_fa"], emp["name_fa"]) if emp else "کارمند"
+                    # (the handles stay in the connection itself: a dotted name reads as a tool
+                    # key to the owner's plain-language filter)
+                    accounts = out.config.get("accounts") or []
+                    line = f"اتصال {CN.LABEL_FA[body.kind]} {company.name_fa} ثبت شد"
+                    if accounts:
+                        line += f": {len(accounts)} حساب"
+                    await SE.step(tx, ref, who_fa, line, remember_line=line)
+        except Exception:  # noqa: BLE001 - the session's line never fails the setting
+            log.warning("connection.set: the session's step failed", extra={"company": code})
+    return out
 
 
 @internal_router.get("/connections", response_model=list[CN.Connection], responses=E)

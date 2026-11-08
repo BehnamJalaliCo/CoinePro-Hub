@@ -150,6 +150,7 @@ GATEWAY_TOOLS: frozenset[str] = frozenset(
         "group.plan",
         "experiment.write",
         "connection.read",
+        "connection.set",  # ⟨2026-11-08⟩ H2: a connection's non-secret settings by an agent
         # ⟨2026-11-06⟩ a company's data along an owner's `on` link (contract §35.6)
         "linked.read",
         # ⟨2026-11-06⟩ a voice from Google AI Studio for the media roles

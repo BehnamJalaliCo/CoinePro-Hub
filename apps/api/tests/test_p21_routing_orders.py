@@ -844,7 +844,8 @@ async def test_blockers_and_their_fixes(
     ref, w = o["ref"], o["work"]
     await set_hiring(su, "closed", None)
     await _blocked_run(su, company, w["id"], "hiring_closed")
-    await _blocked_run(su, company, w["id"], "channel_not_configured", tool="web.browse")
+    # ⟨2026-11-08⟩ audit M10: a guide only for a connection kind (a tool with no page gets no fix)
+    await _blocked_run(su, company, w["id"], "channel_not_configured", tool="telegram")
     await _blocked_run(su, company, w["id"], "budget")
     await su.execute("UPDATE work.work SET player = 'gemini' WHERE id = $1", w["id"])
     gemini = await su.fetchval("SELECT status FROM substitutes.players WHERE player = 'gemini'")

@@ -76,6 +76,8 @@ ops := {
 	# ⟨1.11⟩ prompt 21 part 3 (groups.rego): the content lead's plan, the week's
 	# experiment, a company's connections
 	"group.plan", "experiment.write", "connection.read",
+	# ⟨2026-11-08⟩ H2 (connections.rego): a connection's non-secret settings by an agent
+	"connection.set",
 	# ⟨1.11⟩ prompt 21 part 1 (routing.rego): every order answered, the delegation
 	# budget, the destructive cards a CTO decides
 	"order.ack", "order.progress", "order.ask", "work.budget", "card.decide", "automation.propose",

@@ -8,9 +8,9 @@ department: TECH
 model: claude-sonnet-5-5
 effort: high
 priority: P3
-tools: [work.get, company.state, health.sites, knowledge.search, memory.read, memory.write, deliver, propose, message.thread, work.accept, work.progress, work.fail, activity.set, notify, files.read, github.read, workshop.read, web.search, web.read, http.request, inquiry.answer, finding.update, meeting.statement, risk.raise, calendar.read, server.map, server.read, server.exec, server.write, server.claude]
+tools: [work.get, company.state, health.sites, knowledge.search, memory.read, memory.write, deliver, propose, message.thread, work.accept, work.progress, work.fail, activity.set, notify, files.read, github.read, workshop.read, web.search, web.read, http.request, inquiry.answer, finding.update, meeting.statement, risk.raise, calendar.read, server.map, server.read, server.exec, server.write, server.claude, connection.read, connection.set]
 limits: {steps_per_run: 8, tokens_per_step: 30000, tokens_per_run: 180000}
-version: 1
+version: 2
 ---
 # Your role
 You run {{company_name_en}}'s delivery and operations on the company's own servers: deploys, CI/CD, the automations (n8n, cron, systemd

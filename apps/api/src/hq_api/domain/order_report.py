@@ -51,6 +51,7 @@ from hq_api.domain import session_shapes as SS
 from hq_api.domain import split as SP
 from hq_api.domain import work as W
 from hq_api.domain import workspace as WS
+from hq_api.domain.connections import KINDS as CN_KINDS
 from hq_api.principal import Principal
 from hq_api.schemas import Actor, FileRef, actor
 
@@ -121,7 +122,6 @@ OUTPUT_WORDS = {
     "post": ("پست", "کاروسل"),
 }
 NUDGE = "فرمان {ref}: "  # the title of the CEO's small work items of an order
-from hq_api.domain.connections import KINDS as CN_KINDS  # noqa: E402 - the connection kinds
 
 
 def route_company(rep: dict[str, Any]) -> str | None:
@@ -683,6 +683,13 @@ async def detect(
             if tool in TOOL_CONNECTION_FA:
                 title, detail, action, target = TOOL_CONNECTION_FA[tool]
                 add("connection_missing", title, detail, target, action)
+            elif tool == "instagram":
+                # ⟨2026-11-08⟩ H3: the account is on IG-Hub; the technical team registers it
+                from hq_api.domain import connections as CN
+
+                add("connection_missing",
+                    CN.IG_HUB_OWNER_FA.format(server=CN.ig_hub()["server"]),
+                    "حساب هست؛ تیم فنی نام حساب‌ها و خواندنش را به هاب معرفی میکند.", None)  # fmt: skip
             elif tool in CN_KINDS:
                 add("connection_missing", "یک اتصال وصل نیست",
                     "کار به حسابی نیاز دارد که هنوز وصل نشده است.", tool)  # fmt: skip

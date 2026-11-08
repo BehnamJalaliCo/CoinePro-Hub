@@ -32,6 +32,29 @@ test_accepted_request_allowed if {
 	}
 }
 
+test_a_technical_role_on_a_linked_companys_server if {
+	internal.allow with input as {
+		"principal": agent_of("PC-TECH-MGR", "PC", "company"),
+		"op": "server.run",
+		"target": {"company": "IG", "charter": "cto", "via": "linked"},
+	}
+	internal.allow with input as {
+		"principal": agent_of("PC-TECH-01", "PC", "company"),
+		"op": "server.read",
+		"target": {"company": "IG", "charter": "devops_engineer", "via": "linked"},
+	}
+	not internal.allow with input as {
+		"principal": agent_of("PC-TECH-MGR", "PC", "company"),
+		"op": "server.run",
+		"target": {"company": null, "charter": "cto", "via": "linked"},
+	}
+	not internal.allow with input as {
+		"principal": agent_of("PC-TECH-MGR", "PC", "company"),
+		"op": "server.run",
+		"target": {"company": "IG", "charter": "cto", "via": "maybe"},
+	}
+}
+
 test_holding_sre_every_server if {
 	internal.allow with input as {
 		"principal": agent_of("HQ-SRE-1", "HQ", "holding"),

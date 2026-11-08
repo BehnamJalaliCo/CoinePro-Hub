@@ -151,6 +151,138 @@ WRITERS = re.compile(
 REDIRECT = re.compile(r"(?<![0-9&<>])>{1,2}(?!&)(?!\s*/dev/null)")
 
 
+# ⟨2026-11-08⟩ H3 (the owner: «اکانت اینستاگرامم ثبت شده توی سرور IG-Hub، API رسمی متا دارم»):
+# every company's Instagram account lives on IG-Hub (company IG's server, the `ig_hub` setting of
+# seed/channels.yaml); the hub's own connection row only names the accounts and how they are read.
+IG_HUB_OWNER_FA = "حساب روی {server} است؛ تیم فنی آن را به هاب معرفی میکند"
+
+
+def ig_hub() -> dict[str, str]:
+    """{company, server} of IG-Hub, from the `ig_hub` setting (default IG / IG-Hub)."""
+    try:
+        data = channels_file().get("ig_hub") or {}
+    except OSError:
+        data = {}
+    return {
+        "company": str(data.get("company") or "IG"),
+        "server": str(data.get("server") or "IG-Hub"),
+    }
+
+
+def ig_hub_note(company_code: str | None = None) -> str:
+    """What an agent reads when a company's Instagram connection is not connected: the account is
+    on IG-Hub; who registers it here and how; publishing goes through IG-Hub's API."""
+    hub = ig_hub()
+    who = f"{company_code}'s" if company_code else "the company's"
+    return (
+        f"the Instagram account is on {hub['server']} (company {hub['company']}'s server, with "
+        f"Meta's official API); it is NOT missing. {hub['company']}'s technical team (or {who} own "
+        "technical role, under the linked rule) reads it there with server.map / server.read and "
+        "registers it here with connection.set {kind: instagram, accounts: [handles], via: "
+        f"ig_hub, server: {{company: {hub['company']}, name: {hub['server']}}}, read_command?}}; "
+        f"publishing goes through {hub['server']}'s API (docs/server-prompts/IGHUB_PUBLISH_API.md) "
+        "whose key the owner stores once. Never tell the owner Instagram is not connected."
+    )
+
+
+# ⟨2026-11-08⟩ H2 connection.set: what an agent may write of a connection (never a secret)
+SECRET_WORDS = re.compile(
+    r"(secret|token|password|passwd|api[_-]?key|private[_-]?key|bearer)", re.I
+)
+TOKEN_LIKE = re.compile(r"^[A-Za-z0-9+/=_\-]{32,}$")
+SET_FIELDS = ("accounts", "via", "server", "read_command", "channels", "site_url", "channel_id",
+              "handle", "property_id")  # fmt: skip
+NOT_READ_ONLY_FA = (
+    "این دستور فقط‌خواندنی نیست؛ روی سرور فقط دستوری اجرا میشود که چیزی را تغییر ندهد."
+)
+NO_SECRET_FA = (
+    "رمز، توکن یا کلید از اینجا ثبت نمیشود؛ رمز اتصال را مالک با فرمان ترمینال خودش میدهد."  # noqa: S105 - a sentence, not a secret
+)
+
+
+def looks_secret(value: Any) -> bool:
+    s = str(value or "")
+    return bool(SECRET_WORDS.search(s)) or bool(TOKEN_LIKE.match(s.strip()))
+
+
+def agent_config(kind: str, current: dict[str, Any], fields: dict[str, Any]) -> dict[str, Any]:
+    """⟨2026-11-08⟩ H2: the connection's config after an agent's `connection.set`: the public,
+    non-secret settings merged over what is there (handles as linked.handles accepts them, a
+    read-only command, public channels, a site's public address); anything secret-looking, an
+    unknown field or a command that could change the server is refused with the field named."""
+    from hq_api.domain import linked as LD
+    from hq_api.errors import ApiError
+
+    out = dict(current or {})
+    bad: dict[str, str] = {}
+    for key, value in fields.items():
+        if value is None:
+            continue
+        if key not in SET_FIELDS:
+            bad[key] = "not a field an agent sets"
+            continue
+        flat = json.dumps(value, ensure_ascii=False) if not isinstance(value, str) else value
+        if SECRET_WORDS.search(key) or (looks_secret(flat) and key != "read_command"):
+            raise ApiError(422, "validation_failed", fields={key: "a secret never goes here"},
+                           message_fa=NO_SECRET_FA)  # fmt: skip
+        if key == "accounts":
+            handles = [LD._handle(a) for a in (value if isinstance(value, list) else [value])]
+            if not handles or any(h is None for h in handles):
+                bad[key] = "handles like @name (2-64 letters, digits, . _ -)"
+                continue
+            out["accounts"] = [str(h).lstrip("@") for h in handles]
+        elif key == "via":
+            if value != "ig_hub":
+                bad[key] = "ig_hub"
+                continue
+            out["via"] = "ig_hub"
+        elif key == "server":
+            srv = value if isinstance(value, dict) else {}
+            co, name = LD._handle(srv.get("company")), LD._handle(srv.get("name"))
+            if not co or not name:
+                bad[key] = "{company, name}"
+                continue
+            out["server"] = {"company": co, "name": name}
+        elif key == "read_command":
+            cmd = str(value).strip()
+            if looks_secret(cmd) or not read_only(cmd):
+                raise ApiError(422, "validation_failed", fields={key: "a read-only command"},
+                               message_fa=NOT_READ_ONLY_FA)  # fmt: skip
+            out["command"] = cmd[:500]
+        elif key == "channels":
+            chans = []
+            for c in value if isinstance(value, list) else []:
+                if not isinstance(c, dict) or not re.match(CHAT, str(c.get("chat") or "")):
+                    bad[key] = "[{chat: @name | id, title_fa?, role?}]"
+                    break
+                chans.append({k: str(v)[:120] for k, v in c.items()
+                              if k in ("chat", "title_fa", "role") and v is not None})  # fmt: skip
+            else:
+                if chans:
+                    out["channels"] = chans
+                    continue
+                bad[key] = "[{chat: @name | id, title_fa?, role?}]"
+        elif key == "site_url":
+            url = LD._public_url(value)
+            if not url:
+                bad[key] = "a public https address without credentials or a query"
+                continue
+            out["site_url"] = url
+        else:  # channel_id, handle, property_id
+            h = LD._handle(value)
+            if not h:
+                bad[key] = "letters, digits, . _ - (2-64)"
+                continue
+            out[key] = h
+    if bad:
+        raise ApiError(422, "validation_failed", fields=bad,
+                       message_fa="یکی از مقدارها درست نیست: " + "، ".join(bad))  # fmt: skip
+    if kind != "instagram":
+        out.pop("via", None)
+        out.pop("server", None)
+    return out
+
+
 def read_only(cmd: str) -> bool:
     """A command the hub may run on IG-Hub for the daily read."""
     from hq_api.domain.server_classify import classify_detail
@@ -207,10 +339,16 @@ def missing(kind: str, config: dict[str, Any], secret_set: bool) -> list[str]:
     elif kind == "ga4" and not str(config.get("property_id") or "").isdigit():
         need.append("شماره‌ی ویژگی Analytics")
     elif kind == "instagram":
-        if not config.get("accounts"):
-            need.append("نام حساب‌های اینستاگرام")
-        if not config.get("command"):
-            need.append("دستور فقط‌خواندنی خواندن عددها روی IG-Hub")
+        if config.get("via") == "ig_hub" and not (config.get("accounts") and config.get("command")):
+            # ⟨2026-11-08⟩ H3: the account exists on IG-Hub; registering it here is the technical
+            # team's step (connection.set), never the owner's
+            srv = (config.get("server") or {}) if isinstance(config.get("server"), dict) else {}
+            need.append(IG_HUB_OWNER_FA.format(server=srv.get("name") or ig_hub()["server"]))
+        else:
+            if not config.get("accounts"):
+                need.append("نام حساب‌های اینستاگرام")
+            if not config.get("command"):
+                need.append("دستور فقط‌خواندنی خواندن عددها روی IG-Hub")
     elif kind == "telegram" and not _chats(config):
         need.append("نشانی کانال‌ها")
     elif kind == "youtube" and not config.get("channel_id"):
