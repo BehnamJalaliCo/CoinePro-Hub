@@ -87,7 +87,7 @@ def a_draft(co: str) -> dict[str, Any]:
             {"seat": "topic_finder", "role": "سناریست", "title_fa": "موضوع‌یاب",
              "duties_fa": "موضوع روزانه را با ChatGPT پیدا میکند", "helpers": ["gpt", "bing"],
              "model": None},
-            {"seat": "writer", "role": "نویسنده", "title_fa": "نویسنده", "duties_fa": "",
+            {"seat": "pilot", "role": "خلبان", "title_fa": "خلبان", "duties_fa": "",
              "helpers": []},
         ],
         "routines": [
@@ -280,7 +280,7 @@ async def test_the_holder_drafts_a_playbook_the_owner_edits_and_seals_it(
     assert pb["source"] == {"order": ref, "company": co, "conversation": conv}
     assert pb["members"] == [] and pb["parent"] is None and pb["sealed_at"] is None
     note = pb["note_fa"]
-    assert "«نویسنده»" in note and "روال خراب" in note and "RRULE" in note and "tiktok" in note
+    assert "«خلبان»" in note and "روال خراب" in note and "RRULE" in note and "tiktok" in note
     assert "روال بی‌جایگاه" in note and HZ.check(note) == [], note
     # what the holder read: its task class, the session's people and the company's real roles
     assert len(seen) == 1 and seen[0]["task_class"] == PB.TASK_CLASS
@@ -340,7 +340,7 @@ async def test_the_holder_drafts_a_playbook_the_owner_edits_and_seals_it(
     pb = r.json()
     assert pb["version"] == 2 and pb["title_fa"] == "موضوع‌یاب روزانه"
     assert [x["key"] for x in pb["routines"]] == ["daily_topic", "weekly"]
-    assert "بی‌زمان" in pb["note_fa"] and "«نویسنده»" not in pb["note_fa"]
+    assert "بی‌زمان" in pb["note_fa"] and "«خلبان»" not in pb["note_fa"]
     # … or in words: the holder offers the full new draft as a `playbook` card
     draft = {**a_draft(co), "title_fa": "موضوع‌یاب روزانه (نسخه‌ی مدیر)", "platform": "youtube",
              "routines": pb["routines"]}  # fmt: skip
