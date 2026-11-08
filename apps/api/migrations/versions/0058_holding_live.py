@@ -12,15 +12,15 @@ v1.24; the owner, 2026-11-08: «نقشه نشون بده کدوم شرکت به 
 
 Additive only; nothing is deleted.
 
-Revision ID: 0059
-Revises: 0057 (0058 is the session wave's; at the merge this revision sits on 0058)
+Revision ID: 0058
+Revises: 0057
 """
 
 from __future__ import annotations
 
 from hq_api.migration_sql import execute_script
 
-revision = "0059"
+revision = "0058"
 down_revision = "0057"
 branch_labels = None
 depends_on = None

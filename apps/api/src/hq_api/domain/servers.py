@@ -477,7 +477,7 @@ async def reason_of(tx: Tx, s: dict[str, Any]) -> str | None:
 
 
 def state_since(s: dict[str, Any]) -> datetime | None:
-    """When the server's state began (rows from before 0059 without it: their last contact
+    """When the server's state began (rows from before 0058 without it: their last contact
     when offline, else the row's last change)."""
     since: datetime | None = s.get("state_since")
     if since is None:

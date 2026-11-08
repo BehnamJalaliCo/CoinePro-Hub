@@ -4299,7 +4299,7 @@ decision toast · the kill-switch band. Reduced motion turns every motion into a
 on return, applies the state at once («n رویداد در نبودت» past 20).
 
 ### 42.5 As built (W12, hub)
-Where the build is more precise than §42.1–§42.3, this list is the contract. Migration 0059.
+Where the build is more precise than §42.1–§42.3, this list is the contract. Migration 0058.
 - **Money** stays a decimal string of 6 places (§1): `llm.tick` `equiv_usd`, `day.equiv_usd`, `day.budget_usd`; `LiveSummary`
   `tokens.equiv_usd_today`, `tokens.budget_usd`, `companies[].spend_today_usd`. `pct` is a number (1 decimal).
 - **`holding.flow`:** the envelope's `company` is the holding's code (the map is the holding's); the ends are in `data`, the holding
