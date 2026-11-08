@@ -325,7 +325,15 @@ class HoldingStream(
                         else -> t?.let { it::class.simpleName } ?: "no answer"
                     },
                 )
-                dropped(code, if (response == null) "no answer" else "refused", t?.let { it::class.simpleName })
+                dropped(
+                    code,
+                    when {
+                        response == null -> "no answer"
+                        code != null && code in 200..299 -> "cut" // it was open, then the line broke
+                        else -> "refused"
+                    },
+                    t?.let { it::class.simpleName },
+                )
                 response?.close()
                 onClosed()
             }
@@ -341,7 +349,13 @@ class HoldingStream(
         }
         log?.record(
             com.coinepro.hq.core.net.ApiFailure(
-                "stream", "GET", "/api/v1/stream", status, if (status == null || status in 502..504) "hub_unreachable" else "stream_refused", title, detail = cause,
+                "stream", "GET", "/api/v1/stream", status,
+                when {
+                    status == null || status in 502..504 -> "hub_unreachable"
+                    status in 200..299 -> "stream_cut" // opened, then cut: not a refusal
+                    else -> "stream_refused"
+                },
+                title, detail = cause,
             ),
         )
     }

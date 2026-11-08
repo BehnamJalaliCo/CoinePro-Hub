@@ -12,3 +12,7 @@
 -dontwarn org.conscrypt.**
 -dontwarn org.bouncycastle.**
 -dontwarn org.openjsse.**
+
+# The error log names a failure by its class (e.g. a broken stream): keep exception class names
+# readable in release builds instead of R8's short names («jk6» in the 0.18.0 log).
+-keepnames class * extends java.lang.Throwable
