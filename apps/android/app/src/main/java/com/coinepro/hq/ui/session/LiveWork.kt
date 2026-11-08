@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -214,7 +215,7 @@ private fun PanelLine(l: ActivityLine, lead: String?, newest: Boolean, now: Long
 private fun StateRow(icon: DivanIcon, bg: Color, ink: Color, lead: String, body: String, onOpen: () -> Unit, action: @Composable () -> Unit = {}) {
     val c = Divan.colors
     Row(
-        Modifier.fillMaxWidth().testTag("live-work").clip(RoundedCornerShape(14.dp)).background(bg)
+        Modifier.fillMaxWidth().testTag("live-work").semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite }.clip(RoundedCornerShape(14.dp)).background(bg)
             .clickable(role = Role.Button, onClickLabel = "همه‌ی کار زنده", onClick = onOpen).padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {

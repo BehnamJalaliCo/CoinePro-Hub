@@ -28,6 +28,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -79,7 +81,7 @@ fun BadgePill(badge: String, modifier: Modifier = Modifier) {
         glint.animateTo(1f, androidx.compose.animation.core.tween(com.coinepro.hq.designsystem.Grammar.GLINT * 2 / 5, easing = com.coinepro.hq.designsystem.Motion.Standard))
         glint.animateTo(0f, androidx.compose.animation.core.tween(com.coinepro.hq.designsystem.Grammar.GLINT * 3 / 5, easing = com.coinepro.hq.designsystem.Motion.Standard))
     }
-    com.coinepro.hq.designsystem.Crossfading(badge, modifier.then(if (glint.value > 0f) Modifier.border(1.dp, c.goldInk.copy(alpha = glint.value), CircleShape) else Modifier)) { b ->
+    com.coinepro.hq.designsystem.Crossfading(badge, modifier.semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite }.then(if (glint.value > 0f) Modifier.border(1.dp, c.goldInk.copy(alpha = glint.value), CircleShape) else Modifier)) { b ->
         Pill(badgeFa(b), badgeTone(b), dot = b != "moving", live = b == "moving")
     }
 }
