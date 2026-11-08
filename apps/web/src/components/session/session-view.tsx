@@ -33,6 +33,8 @@ import { cx, jDateTime, jTime } from '@/lib/format';
 import { plain } from '@/lib/plain';
 import { FromPlaybook, MakePlaybook, MemoryCard } from '@/components/v40/playbook';
 import { useDraftPlaybook } from '@/lib/api/v40';
+import { LiveWork, PaceChip, PlanProgress } from './live-work';
+import { SysRow } from './system-group';
 import { ConversationPane, Face, playerName, type PaneApi } from './conversation-pane';
 
 const FIXED: Array<{ key: string; fa: string }> = [{ key: 'advisor', fa: 'مشاور کل' }, { key: 'overseer', fa: 'ناظر کل' }, { key: 'assistant', fa: 'دستیار شخصی' }, { key: 'secretary', fa: 'منشی هلدینگ' }];
@@ -88,14 +90,13 @@ function Session({ refId, r }: { refId: string; r: Full }) {
   const [wide, setWide] = useState(false);
   const askClose = () => { setDetails(false); setClosing(true); };
   const ready = r.session.badge === 'ready' && !closed;
+  // ⟨1.23⟩ §41.2 the pace switch is back in the header; «کار n از m» opens the drawer at the plan.
+  const setPace = (v: Pace) => act.pace.mutate(v, { onSuccess: () => toast({ tone: 'ok', text: v === 'step' ? 'از این به بعد قدم‌به‌قدم با تو.' : 'از این به بعد خودش تا آخر میرود.' }), onError: (e) => failed(e, 'عوض نشد؛ دوباره بزن.') });
+  const openPlan = () => { setDetails(true); setTimeout(() => document.getElementById('session-plan')?.scrollIntoView({ block: 'start' }), 250); };
 
   // The talk is the body: the order's system steps sit in it as small grey lines at their time, and what was delivered as compact cards at its end.
-  const timeline = r.steps.map((s, i) => ({ key: `step-${s.at}-${i}`, at: s.at, node: <StepLine s={s} /> }));
-  const tail = r.outputs.length ? (
-    <div className="flex flex-col items-start gap-1.5" aria-label="نتیجه‌های رسیده">
-      {r.outputs.map((o) => <OutputChip key={o.ref} o={o} />)}
-    </div>
-  ) : null;
+  const timeline = r.steps.map((s, i) => ({ key: `step-${s.at}-${i}`, at: s.at, node: <SysRow at={s.at} who={s.who_fa} text={s.what_fa} />, sys: { who: s.who_fa, text: s.what_fa } }));
+  const tail = r.outputs.length ? <OutputsCard outputs={r.outputs} /> : null;
 
   return (
     <div className="mx-auto flex w-full max-w-[58rem] flex-col gap-3">
@@ -113,21 +114,19 @@ function Session({ refId, r }: { refId: string; r: Full }) {
           {closed ? <Button size="sm" variant="primary" icon="refresh" loading={act.reopen.isPending} onClick={() => act.reopen.mutate(undefined, { onError: (e) => failed(e, 'باز نشد.') })}>دوباره باز کن</Button> : null}
           <Button size="sm" icon="more" aria-haspopup="dialog" onClick={() => setDetails(true)}>جزئیات</Button>
         </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          {closed ? null : <PaceChip pace={r.pace ?? 'auto'} onChange={setPace} busy={act.pace.isPending} />}
+          <PlanProgress tasks={r.tasks} onOpen={openPlan} />
+        </div>
       </header>
 
       {r.turn && !closed ? <OpenTurn r={r} onReply={(text) => act.reply.mutate(text, { onSuccess: () => toast({ tone: 'ok', text: 'جوابت رفت.' }), onError: (e) => failed(e, 'جوابت نرفت؛ دوباره بزن.') })} busy={act.reply.isPending} /> : null}
 
-      {r.blockers.length && !closed ? (
-        <Card className="flex flex-col gap-3 p-4 ring-1 ring-[var(--hq-neg-line)]" aria-label="گیرها">
-          <SectionTitle title="کجا گیر کرده" note="هر گیر با دکمه‌ی رفعش؛ یک ضربه کافی است" />
-          <ul className="flex flex-col gap-2">{r.blockers.map((b, i) => <BlockerRow key={`${b.kind}-${i}`} b={b} company={company} run={runFix} />)}</ul>
-        </Card>
-      ) : null}
 
       <Room r={r} closed={closed} to={target} onTo={setTo} />
       {talk ? (
         <ConversationPane
-          conversationRef={talk} face={holder?.key ?? 'secretary'} to={target || null} titleOf={titleOf} readOnly={closed || !!conv.data?.closed_at} onApi={bindPane}
+          conversationRef={talk} face={holder?.key ?? 'secretary'} to={target || null} titleOf={titleOf} readOnly={closed || !!conv.data?.closed_at} onApi={bindPane} above={<><BlockerBanner blockers={closed ? [] : r.blockers} company={company} run={runFix} /><LiveWork refId={refId} closed={closed} /></>}
           talkHeight="h-[calc(100dvh-20rem)]" timeline={timeline} tail={tail} placeholder="به مسئول بگو چه بکند، یا از همین‌جا بسپار، استخدام کن، گروه و خط تولید راه بینداز…"
           emptyTitle="هنوز حرفی زده نشده" emptyBody="هر چه بگویی همین‌جا به مسئول فرمان میرسد؛ هر کاری که از دل گفتگو بیرون بیاید فقط با کارتی که تو میزنی انجام میشود." />
       ) : (
@@ -154,7 +153,7 @@ function Session({ refId, r }: { refId: string; r: Full }) {
               <Segmented<Pace>
                 label="روش کار"
                 value={r.pace ?? 'auto'}
-                onChange={(v) => act.pace.mutate(v, { onSuccess: () => toast({ tone: 'ok', text: v === 'step' ? 'از این به بعد قدم‌به‌قدم با تو.' : 'از این به بعد خودش تا آخر میرود.' }), onError: (e) => failed(e, 'عوض نشد؛ دوباره بزن.') })}
+                onChange={setPace}
                 options={[{ value: 'step', label: PACE_FA.step }, { value: 'auto', label: PACE_FA.auto }]}
               />
             )}
@@ -188,24 +187,48 @@ function Session({ refId, r }: { refId: string; r: Full }) {
   );
 }
 
-/** A system step, small and grey and centred on one line, in the talk at its time. */
-function StepLine({ s }: { s: SessionReport['steps'][number] }) {
+/** What was delivered, one compact card in the talk: a single output or several that arrived together, each with «باز کن». */
+function OutputsCard({ outputs }: { outputs: SessionReport['outputs'] }) {
+  const n = outputs.length;
   return (
-    <div className="mx-auto flex max-w-full items-center justify-center gap-1.5 px-2 py-0.5 text-[11px] leading-5 text-muted" data-step title={`${s.who_fa}: ${plain(s.what_fa)}`}>
-      <span className="fig flex-none">{jTime(s.at)}</span>
-      <span className="min-w-0 truncate">{s.who_fa}: <FaText text={s.what_fa} /></span>
-    </div>
+    <section className="flex w-full max-w-[46rem] flex-col gap-2 self-start rounded-[12px] border border-div bg-tile p-3" aria-label="نتیجه‌های رسیده" data-outputs={n}>
+      <h3 className="flex items-center gap-2 text-[12px] font-semibold text-pos"><Icon name="seal" size={14} />{n > 1 ? `${n.toLocaleString('fa-IR')} خروجی تحویل شد` : 'خروجی تحویل شد'}</h3>
+      <ul className="flex flex-col gap-2">
+        {outputs.map((o) => (
+          <li key={o.ref} data-output className="flex items-center gap-2 text-[13px]">
+            <Icon name={o.kind === 'reel' ? 'video' : o.kind === 'post' || o.kind === 'story' ? 'image' : 'deliverable'} size={16} className="flex-none text-silver-ink" />
+            <span className="min-w-0 flex-1 break-words"><PlainText text={o.title_fa} /></span>
+            <span className="flex-none text-[11px] text-muted">{OUTPUT_KIND_FA[o.kind as OutputKind] ?? 'خروجی'}</span>
+            <Link href={`/outputs?ref=${o.ref}&tab=all`} className="flex-none rounded-full px-2.5 py-1 text-[12px] font-semibold text-gold-ink hover:bg-hover">باز کن</Link>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
-/** A delivered output, a compact card in the talk. */
-function OutputChip({ o }: { o: SessionReport['outputs'][number] }) {
+/** Where it is stuck, never in the chat: one compact banner pinned above the composer, each with its one-tap fix; several fold under the first. */
+function BlockerBanner({ blockers, company, run }: { blockers: Full['blockers']; company: string | null; run: (f: NonNullable<Full['blockers'][number]['fix']>) => Promise<unknown> }) {
+  const [open, setOpen] = useState(false);
+  if (!blockers.length) return null;
+  const shown = open ? blockers : blockers.slice(0, 1);
   return (
-    <Link href={`/outputs?ref=${o.ref}&tab=all`} data-output className="flex max-w-full items-center gap-2 rounded-[12px] border border-div bg-tile px-3 py-2 text-[13px] hover:bg-hover">
-      <Icon name={o.kind === 'reel' ? 'video' : o.kind === 'post' || o.kind === 'story' ? 'image' : 'deliverable'} size={16} className="flex-none text-silver-ink" />
-      <span className="min-w-0 truncate"><PlainText text={o.title_fa} /></span>
-      <span className="flex-none text-[11px] text-muted">{OUTPUT_KIND_FA[o.kind as OutputKind] ?? 'خروجی'}</span>
-    </Link>
+    <Card as="section" className="flex flex-col gap-2 p-3 ring-1 ring-[var(--hq-neg-line)]" aria-label="گیرها" data-testid="blockers" data-count={blockers.length}>
+      <ul className="flex flex-col gap-2">
+        {shown.map((b, i) => (
+          <li key={`${b.kind}-${i}`} className="flex flex-wrap items-center gap-2 text-[13px]" data-blocker>
+            <Icon name="bell" size={16} className="flex-none text-neg" />
+            <span className="min-w-0 flex-[1_1_12rem] break-words font-semibold"><PlainText text={b.title_fa} /></span>
+            {b.fix ? <FixButton fix={b.fix} company={company} run={run} /> : null}
+          </li>
+        ))}
+      </ul>
+      {blockers.length > 1 ? (
+        <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="self-start text-[12px] text-muted hover:text-ink">
+          {open ? 'کمتر' : `و ${(blockers.length - 1).toLocaleString('fa-IR')} گیر دیگر`}
+        </button>
+      ) : null}
+    </Card>
   );
 }
 
@@ -335,7 +358,7 @@ function Tasks({ r, closed }: { r: Full; closed: boolean }) {
   const done = live.filter((t) => t.state === 'done').length;
   const fail = (e: unknown) => toast({ tone: 'error', text: errText(e, 'نشد.') });
   return (
-    <Card className="flex flex-col gap-3 p-5" aria-label="کارها">
+    <Card id="session-plan" className="flex flex-col gap-3 p-5" aria-label="کارها">
       <SectionTitle title="کارها" note={live.length ? `${done} از ${live.length} انجام شد` : 'کارهای این جلسه، قدم به قدم'} />
       {live.length ? (
         <ul className="flex flex-col gap-1">

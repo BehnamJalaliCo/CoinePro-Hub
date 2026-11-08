@@ -302,9 +302,9 @@ const streams = new Map<string, ReturnType<typeof answer>>();
 
 // ============================================================================== ⟨1.17⟩ §35 a session's conversation ==
 /** The session module (./mock-v34) makes, reads and closes the conversation of an order here. */
-export function sessionConversation(persona: string, title_fa: string, order_ref: string, lines: Array<[string, string]>, at = '2026-11-05T09:00:00Z') {
+export function sessionConversation(persona: string, title_fa: string, order_ref: string, lines: Array<[string, string, string?]>, at = '2026-11-05T09:00:00Z') {
   const c: any = newConv(persona, title_fa, { mode: 'work', order_ref, started_at: at, closed_at: null });
-  for (const [by, md] of lines) addTurn(c, by, by === 'owner' ? md : '', by === 'owner' ? { at } : { show_md: md, at });
+  for (const [by, md, when] of lines) addTurn(c, by, by === 'owner' ? md : '', by === 'owner' ? { at: when ?? at } : { show_md: md, at: when ?? at });
   return c;
 }
 export const conversationOf = (ref: string): any => convs.find((x) => x.ref === ref);

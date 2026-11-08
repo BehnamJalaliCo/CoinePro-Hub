@@ -129,6 +129,8 @@ export type StreamState = 'connecting' | 'live' | 'offline';
 
 /** The query keys an event refreshes (a prefix each). */
 export function keysFor(type: string): Array<readonly string[]> {
+  // ⟨1.23⟩ §41 `session.activity` is a line for the live panel (it folds it in itself); it moves nothing else, so it refreshes no query.
+  if (type === 'session.activity') return [];
   const out: Array<readonly string[]> = [];
   for (const [prefix, keys] of INVALIDATE) if (type.startsWith(prefix)) for (const k of keys) out.push(typeof k === 'string' ? [k] : k);
   return out;

@@ -30,7 +30,7 @@ const task = (n: number, title_fa: string, state: Task['state'], by: Task['by'] 
 const T = (day: string, hm: string) => `${day}T${hm}:00Z`;
 
 function seed() {
-  const mk = (o: Partial<S> & Pick<S, 'ref' | 'text_fa' | 'persona' | 'holder' | 'participants'>, lines: Array<[string, string]>) => {
+  const mk = (o: Partial<S> & Pick<S, 'ref' | 'text_fa' | 'persona' | 'holder' | 'participants'>, lines: Array<[string, string, string?]>) => {
     const conv = sessionConversation(o.persona, o.text_fa, o.ref, lines, o.opened_at ?? T('2026-11-05', '08:00'));
     for (const p of o.participants.slice(1)) presentAdd(conv.ref, p.key);
     sessions.set(o.ref, { conv: conv.ref, pace: 'auto', hidden: false, opened_at: T('2026-11-05', '08:00'), closed_at: null, verdict: null, tasks: [], turn: null, last_at: T('2026-11-05', '10:00'), ...o });
@@ -81,8 +81,57 @@ function seed() {
     ['advisor', 'تبلیغات اکتبر 220 دلار شد؛ بیشترین سهم با تریدیار بود. گزارش کامل ضمیمه است.'],
   ]);
   conversationClosed(sessions.get('F-0004')!.conv, T('2026-10-28', '15:30'));
+  // ⟨1.23⟩ a dense session: many system steps (two runs of them between real turns), two outputs, two blockers, a long answer.
+  mk({
+    ref: 'F-0009', text_fa: 'برای پرو-چارت یک کمپین یک‌هفته‌ای آموزشی راه بینداز', persona: 'media_director@PC', opened_at: T('2026-11-07', '08:00'), last_at: T('2026-11-07', '09:25'),
+    holder: { code: 'PC-MEDIA-MGR', title_fa: 'مدیر رسانه', company: 'PC', company_fa: 'پرو-چارت' },
+    participants: [holderP('مدیر رسانه پرو-چارت', 'PC', 'media_director@PC')],
+    tasks: [task(1, 'برنامه‌ی هفته', 'done'), task(2, 'ساخت دو ریلز', 'done'), task(3, 'مُهر سری انتشار', 'todo', 'owner'), task(4, 'استخدام مسئول انتشار', 'todo', 'owner')],
+  }, [
+    ['owner', 'برای پرو-چارت یک کمپین یک‌هفته‌ای آموزشی راه بینداز.', T('2026-11-07', '08:00')],
+    ['media_director@PC', 'فرمانت را گرفتم. اول برنامه‌ی هفته را میچینم و بعد ریلزها را میسازم.', T('2026-11-07', '08:05')],
+    ['owner', 'خوب است؛ فقط حتماً هر شب یک گزارش کوتاه بده.', T('2026-11-07', '08:40')],
+    ['media_director@PC', 'برنامه‌ی هفته به این شکل شد:\n\n1. شنبه: معرفی ابزار خط روند با یک ریلز کوتاه و یک پست ثابت\n2. یکشنبه: آموزش هشدار قیمت، از ساختن اولین هشدار تا دریافت آن روی تلگرام\n3. دوشنبه: پرسش و پاسخ زنده با کاربران درباره‌ی اشتباه‌های رایج در تحلیل تکنیکال\n4. سه‌شنبه: مقایسه‌ی دو روش ترسیم حمایت و مقاومت، با نمونه‌ی واقعی\n5. چهارشنبه: ریلز بلند درباره‌ی مدیریت ریسک و حد ضرر\n\nبرای هر روز یک متن، یک تصویر و یک ریلز آماده میکنم و هر شب گزارش کوتاهی برایت مینویسم. دو ریلز اول ساخته شده و پایین همین صفحه است؛ برای انتشار منظم دو چیز از تو لازم است: مُهر سری انتشار و یک مسئول انتشار.', T('2026-11-07', '09:00')],
+  ]);
 }
 seed();
+
+// -------------------------------------------------------------------------------------- ⟨1.23⟩ §41 live activity
+type Line41 = { at: string; who_fa: string; text_fa: string };
+type Work41 = { who_fa: string; company_fa: string; work_title_fa: string; started_at: string; step: number; doing_fa: string };
+type Act41 = { working: Work41[]; last: Line41[]; idle_since: string | null; waiting_fa: string | null; stuck_fa: string | null };
+const activity = new Map<string, Act41>();
+let actSeq = 0;
+const SAYS = ['سایت pro-chart.com را خواند', 'از ChatGPT پرسید', 'پیش‌نویس سناریوی ریلز را نوشت', 'صدای گوینده را ساخت', 'تصویر کاور را انتخاب کرد', 'خروجی را برای بازبینی تحویل داد'];
+const ago41 = (sec: number) => new Date(Date.now() - sec * 1000).toISOString();
+/** The activity of a session, made on first look: F-0007 is working (its lines stream with the mock stream), F-0005 is stuck, F-0008 waits for the owner, the rest are quiet. */
+function actOf(s: S): Act41 {
+  let a = activity.get(s.ref);
+  if (a) return a;
+  const who = s.holder ? `${s.holder.title_fa} ${s.holder.company_fa}` : 'مشاور کل';
+  const lines = (n: number): Line41[] => SAYS.slice(0, n).map((t, i) => ({ at: ago41((n - i) * 40), who_fa: who, text_fa: t }));
+  if (s.ref === 'F-0007') a = { working: [{ who_fa: who, company_fa: s.holder?.company_fa ?? '', work_title_fa: 'ساخت سه ریلز', started_at: ago41(95), step: 3, doing_fa: SAYS[2]! }], last: lines(3), idle_since: null, waiting_fa: null, stuck_fa: null };
+  else if (s.ref === 'F-0005') a = { working: [], last: lines(2), idle_since: ago41(1500), waiting_fa: null, stuck_fa: 'بودجه‌ی پست سوم تمام شده؛ بودجه را اضافه کن یا بگو ادامه بدهم.' };
+  else if (s.ref === 'F-0008') a = { working: [], last: lines(1), idle_since: ago41(300), waiting_fa: 'انتخاب یکی از سه عنوان', stuck_fa: null };
+  else a = { working: [], last: s.closed_at ? [] : lines(1), idle_since: ago41(600), waiting_fa: null, stuck_fa: null };
+  activity.set(s.ref, a);
+  return a;
+}
+/** One tick of the demo's stream: every working session says its next step (`session.activity` {order, line, working}). */
+export function tickActivity(): Array<{ id: string; type: string; at: string; company: string | null; ref: string | null; data: Record<string, unknown> }> {
+  const out = [];
+  for (const s of sessions.values()) {
+    const a = actOf(s);
+    const w = a.working[0];
+    if (!w || s.closed_at) continue;
+    w.step += 1;
+    w.doing_fa = SAYS[w.step % SAYS.length]!;
+    const line = { at: NOW(), who_fa: w.who_fa, text_fa: w.doing_fa };
+    a.last = [...a.last, line].slice(-30);
+    out.push({ id: `d34-${++actSeq}`, type: 'session.activity', at: line.at, company: s.holder?.company ?? null, ref: s.ref, data: { order: s.ref, line, working: a.working.length } });
+  }
+  return out;
+}
 
 // ---------------------------------------------------------------------------------------------------- the report
 function badgeOf(s: S, rep: any): { badge: 'your_turn' | 'ready' | 'stuck' | 'moving' | 'closed'; reason_fa: string } {
@@ -112,6 +161,24 @@ const LOCAL: Record<string, any> = {
     route: { companies: ['TY'], department: null, collaborators: [], output_kind: 'answer', budget_tokens: 60_000, mode: 'single', player: 'auto' },
     steps: [{ at: T('2026-11-05', '08:00'), who_fa: 'منشی هلدینگ', what_fa: 'فرمان را به مدیرعامل تریدیار سپرد.' }, { at: T('2026-11-06', '06:10'), who_fa: 'مدیرعامل تریدیار', what_fa: 'سه عنوان نوشت و از شما سؤال کرد.' }],
     blockers: [], outputs: [], summary: null, updated_at: T('2026-11-06', '06:10'),
+  },
+  'F-0009': {
+    ref: 'F-0009', text_fa: 'برای پرو-چارت یک کمپین یک‌هفته‌ای آموزشی راه بینداز', at: T('2026-11-07', '08:00'), state: 'in_progress',
+    ack: { at: T('2026-11-07', '08:01'), by: { kind: 'employee', code: 'PC-MEDIA-MGR', display_fa: 'مدیر رسانه پرو-چارت' }, plan_fa: 'مدیر رسانه برنامه‌ی پنج روزه میچیند، ریلزها را میسازد و برای انتشار مُهر تو را میخواهد.', assigned: [{ company: 'PC', code: 'PC-MEDIA-MGR', title_fa: 'مدیر رسانه' }], due_at: null },
+    route: { companies: ['PC'], department: 'MEDIA', collaborators: [], output_kind: 'reel', budget_tokens: 300_000, mode: 'single', player: 'auto' },
+    steps: [{ at: T('2026-11-07', '08:00'), who_fa: 'منشی هلدینگ', what_fa: 'فرمان را به رسانه‌ی پرو-چارت سپرد. (F-0009)' },
+      { at: T('2026-11-07', '08:10'), who_fa: 'مدیر رسانه', what_fa: 'برنامه‌ی پنج روزه را نوشت. (W-000201)' },
+      { at: T('2026-11-07', '08:12'), who_fa: 'مدیر رسانه', what_fa: 'سایت pro-chart.com را خواند.' },
+      { at: T('2026-11-07', '08:15'), who_fa: 'مدیر رسانه', what_fa: 'از ChatGPT پرسید. (O-000071)' },
+      { at: T('2026-11-07', '08:20'), who_fa: 'نویسنده', what_fa: 'متن ریلز اول را نوشت و برای بازبینی گذاشت، با سه خط توضیح درباره‌ی لحن، طول و کلمه‌های کلیدی که باید در زیرنویس بیاید.' },
+      { at: T('2026-11-07', '08:30'), who_fa: 'سازنده‌ی ریلز', what_fa: 'صدای گوینده را ساخت.' },
+      { at: T('2026-11-07', '09:10'), who_fa: 'سازنده‌ی ریلز', what_fa: 'ریلز اول را ساخت و تحویل داد. (O-000071)' },
+      { at: T('2026-11-07', '09:15'), who_fa: 'سازنده‌ی ریلز', what_fa: 'ریلز دوم را ساخت و تحویل داد. (D-000090)' },
+      { at: T('2026-11-07', '09:25'), who_fa: 'مدیر رسانه', what_fa: 'انتشار منتظر ماند: سری انتشار هنوز مُهر نشده و مسئول انتشار نیست.' }],
+    blockers: [{ kind: 'series_unsealed', title_fa: 'سری انتشار مُهر نشده', detail_fa: 'ریلزها آماده است، ولی سری هنوز مُهر شما را ندارد.', since: T('2026-11-07', '09:25'), fix: { action: 'series.seal', label_fa: 'مُهر سری انتشار', target: 'SR-0013' } },
+      { kind: 'no_employee', title_fa: 'مسئول انتشار نیست', detail_fa: 'جایگاه مسئول انتشار پرو-چارت خالی است.', since: T('2026-11-07', '09:25'), fix: { action: 'hire', label_fa: 'استخدام مسئول انتشار', target: 'PC/publisher' } }],
+    outputs: [{ ref: 'O-000071', title_fa: 'ریلز ۱: معرفی ابزار خط روند', kind: 'reel' }, { ref: 'O-000072', title_fa: 'ریلز ۲: ساختن اولین هشدار قیمت', kind: 'reel' }],
+    summary: null, updated_at: T('2026-11-07', '09:25'),
   },
   'F-0004': {
     ref: 'F-0004', text_fa: 'گزارش هزینه‌ی تبلیغات اکتبر', at: T('2026-10-28', '14:00'), state: 'delivered',
@@ -295,6 +362,19 @@ export async function handle34(req: Request, p: string, q: URLSearchParams, next
     const rep = await reportOf(s.ref);
     if (!rep) return problem(404, 'not_found', 'گزارش این فرمان پیدا نشد.');
     return json(decorate(rep, s));
+  }
+  if (act === 'activity' && m === 'GET') return json(actOf(s));
+  if (act === 'nudge' && m === 'POST') {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(req.headers.get('Idempotency-Key') ?? '')) return problem(422, 'validation_failed', 'کلید یکتا باید UUID باشد.');
+    if (s.closed_at) return problem(409, 'session_closed', 'این جلسه بسته شده است.');
+    const a = actOf(s);
+    const who = s.holder ? `${s.holder.title_fa} ${s.holder.company_fa}` : 'مشاور کل';
+    const line = { at: NOW(), who_fa: who, text_fa: 'برنامه را از کار بعدی ادامه داد' };
+    a.stuck_fa = null; a.waiting_fa = null; a.idle_since = null;
+    if (!a.working.length) a.working = [{ who_fa: who, company_fa: s.holder?.company_fa ?? '', work_title_fa: s.tasks.find((t) => t.state !== 'done')?.title_fa ?? 'ادامه‌ی برنامه', started_at: line.at, step: 1, doing_fa: line.text_fa }];
+    a.last = [...a.last, line].slice(-30);
+    touch();
+    return json(a);
   }
   if (act === 'talk' && m === 'POST') return json({ conversation_ref: s.conv }, 201);
   if (act === 'reply' && m === 'POST') {

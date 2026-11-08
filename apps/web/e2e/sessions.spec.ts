@@ -375,8 +375,8 @@ test('a session opens scrolled to its last turn; scrolled up it offers «↓» t
     expect(await talk.evaluate((el) => el.scrollHeight - el.clientHeight), 'the talk must overflow for this to mean anything').toBeGreaterThan(40);
     await expect.poll(gap).toBeLessThan(4);
     await expect(page.getByRole('button', { name: /^برو به آخر گفتگو/ })).toHaveCount(0);
-    // The system steps are small lines inside the talk, not a card.
-    await expect(talk.locator('[data-step]').first()).toBeAttached();
+    // The system steps are small lines inside the talk (a run of them folds into one quiet row), not a card.
+    await expect(talk.locator('[data-step], [data-sys-group]').first()).toBeAttached();
     // Scrolled up: the round button shows; one tap and he is at the end again.
     await talk.evaluate((el) => el.scrollTo({ top: 0 }));
     const jump = page.getByRole('button', { name: /^برو به آخر گفتگو/ });

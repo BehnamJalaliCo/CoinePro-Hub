@@ -26,7 +26,7 @@ import { handle30 } from './mock-v30';
 import { handle31 } from './mock-v31';
 import { handle32 } from './mock-v32';
 import { handle33 } from './mock-v33';
-import { handle34 } from './mock-v34';
+import { handle34, tickActivity } from './mock-v34';
 import { handle38 } from './mock-v38';
 import { handle40 } from './mock-v40';
 import { openFromPlaybook, playbookOrder, postPlaybookCard } from './mock-v34';
@@ -500,6 +500,8 @@ export function tick21(): Ev[] {
   const due = beats.filter(([t]) => t <= tickNo);
   for (const d of due) { beats.splice(beats.indexOf(d), 1); out.push(...d[1]()); }
   if (tickNo % 2 === 0) out.push(...scriptBeat());
+  // ⟨1.23⟩ §41 the working sessions say their next step.
+  out.push(...tickActivity());
   // Two lines an older hub sends with an id where a ref belongs: the feed resolves the first and names the second's topic.
   if (tickNo === 2) out.push(ev('FX', 'work.updated', idOf(2), { status: 'in_progress' }));
   if (tickNo === 3) out.push(ev('HQ', 'file.ready', '01a187f8-e3e9-7b4f-8dd2-3c4e5f607182'));
