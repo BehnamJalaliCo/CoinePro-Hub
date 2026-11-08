@@ -189,6 +189,13 @@ Every library is free and open source and pinned to an exact version (`gradle/li
 - **Live** — `/api/v1/stream`, one connection per lane of topics (the hub takes at most 200 characters of `topics`;
   `core/data/StreamTopics.kt`); events refresh the screens that show the touched data (the same invalidation map as the web). The first
   lane is the alert lane (`work,decisions,deliverables,notifications,control`); the others open only while the app is on screen.
+- **The holding live** ⟨1.24⟩ (contract §42, `design/LIVE_VIEWS.md`'s twelve P0 views) — `core/data/LiveStore.kt` seeds from
+  `GET /live/summary` and applies every event after its sequence once (one reducer per view); `ui/live/`: the heartbeat in the top bar
+  and each live panel («زنده» · «در حال وصل» · «قدیمی»), the kill switch's band on every screen, the urgent banner and the decision
+  toast, the office's pulse, the token meter (70/90/100, four kinds), each company's live card, a person's state by shape and word, and
+  the holding's network map on «شبکه‌ی هلدینگ» (hub, companies and servers from data, flows as particles, disconnects red with when, why
+  and the fix, a table of everything); in a session the stall watch and each step's state. The motion grammar M1–M13 and the one particle
+  layer per screen are in `designsystem/Motion.kt` and `Particles.kt`.
 - **Alerts with the app closed** (the background link; owner's decision: no FCM, no Google, no second app) — a foreground service
   (`device/HubLinkService`, type `specialUse` with its reason in the manifest; `dataSync` is capped at six hours a day from Android 15)
   keeps the process in the foreground so the stream's alert lane stays open: the same connection the app uses, never a second one. One

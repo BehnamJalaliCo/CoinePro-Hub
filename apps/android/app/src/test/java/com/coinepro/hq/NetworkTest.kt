@@ -76,8 +76,9 @@ class NetworkTest {
     @Test
     fun aRoadIsGreenAmberRedOrGrey() {
         assertEquals(LinkHealth.OK, Network.health(true, 3.0))
-        assertEquals(LinkHealth.OK, Network.health(true, 150.0))
-        assertEquals("slower than 150 ms is amber", LinkHealth.SLOW, Network.health(true, 150.1))
+        // ⟨1.24⟩ §42.5: slow is 300 ms or more (the hub's tier and network.link's line).
+        assertEquals(LinkHealth.OK, Network.health(true, 299.9))
+        assertEquals("300 ms or more is amber", LinkHealth.SLOW, Network.health(true, 300.0))
         assertEquals(LinkHealth.OK, Network.health(true, null))
         assertEquals(LinkHealth.FAIL, Network.health(false, null))
         assertEquals(LinkHealth.FAIL, Network.health(false, 12.0))
@@ -90,7 +91,7 @@ class NetworkTest {
         assertEquals(3.0, Network.hubLine(demo, fx).rttMs!!, 0.0)
         assertEquals("private", Network.hubLine(demo, fx).via)
         assertEquals("public", Network.hubLine(demo, ig).via)
-        val slow = node("s", "FX", "10.10.1.9", rtt = 220.0)
+        val slow = node("s", "FX", "10.10.1.9", rtt = 320.0)
         assertEquals(LinkHealth.SLOW, Network.hubLine(NetworkMap(nodes = listOf(hub, slow)), slow).health)
         val off = node("o", "FX", "10.10.1.9", state = "offline")
         assertEquals(LinkHealth.FAIL, Network.hubLine(NetworkMap(nodes = listOf(hub, off)), off).health)
@@ -196,7 +197,7 @@ class NetworkTest {
     @Test
     fun anOfflineRunnerIsABrokenRoadToTheHubAndASlowOneIsNamed() {
         val off = node("srv-fx-2", "FX", "10.10.1.12", state = "offline", rtt = null)
-        val slow = node("srv-ty-1", "TY", "10.10.1.3", rtt = 230.0)
+        val slow = node("srv-ty-1", "TY", "10.10.1.3", rtt = 330.0)
         val fell = node("srv-pc-1", "PC", "10.10.1.1", via = "public", rtt = 40.0)
         val m = NetworkMap(nodes = listOf(hub, off, slow, fell), links = mesh(listOf(slow, fell)))
         val s = Network.summary(m)

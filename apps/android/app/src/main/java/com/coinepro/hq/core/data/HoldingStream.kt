@@ -6,6 +6,8 @@ import com.coinepro.hq.core.link.Connectivity
 import com.coinepro.hq.core.link.LinkStore
 import com.coinepro.hq.core.net.Api
 import com.coinepro.hq.core.net.StreamEvent
+import com.coinepro.hq.core.net.gated
+import com.coinepro.hq.core.format.HqClock
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -71,6 +73,15 @@ class HoldingStream(
     val events: SharedFlow<StreamEvent> = eventsFlow.asSharedFlow()
     /** Who is working right now, per company, and each company's recent events (the companies' live indicators and feeds). */
     val activity = LiveActivity()
+    /** ⟨1.24⟩ §42 the live store (design/LIVE_VIEWS.md K-2): seeded from `GET /live/summary`, then every event after its sequence, once. */
+    val live = LiveStore()
+    private val downFlow = MutableStateFlow<Long?>(HqClock.millis())
+    /** GL-1: since when the stream has not been live (null while it is): older than [LiveRules.STALE_MS] and the views say «قدیمی». */
+    val downSince: StateFlow<Long?> = downFlow.asStateFlow()
+    /** GL-1: whether the phone has a network at all («بی‌اتصال» when not). */
+    val online: StateFlow<Boolean> get() = net.online
+    private val seeding = java.util.concurrent.atomic.AtomicBoolean(false)
+    private var reseedJob: Job? = null
 
     private val modeFlow = MutableStateFlow(StreamMode.OFF)
     override val mode: StateFlow<StreamMode> = modeFlow.asStateFlow()
@@ -119,6 +130,10 @@ class HoldingStream(
         val before = modeFlow.value
         if (m == before) { if (m != StreamMode.OFF) nudge(); return }
         modeFlow.value = m
+        // Rule 7 of the live views: what arrives while the app is away is applied and counted, never replayed as motion.
+        live.foreground(m == StreamMode.FULL)
+        reseedJob?.cancel()
+        reseedJob = if (m == StreamMode.FULL) scope.launch { reseedLoop() } else null
         if (demo) {
             if (m == StreamMode.OFF) { demoJob?.cancel(); demoJob = null; alertFlow.value = LaneStatus(LinkPhase.OFF) }
             else {
@@ -127,6 +142,7 @@ class HoldingStream(
                 if (m == StreamMode.ALERTS) com.coinepro.hq.Demo.background()
             }
             stateFlow.value = if (m == StreamMode.OFF) StreamState.OFFLINE else StreamState.LIVE
+            downFlow.value = if (m == StreamMode.OFF) HqClock.millis() else null
             return
         }
         for (lane in lanes) {
@@ -161,6 +177,9 @@ class HoldingStream(
             val saved = store?.lastEventId
             if (saved != null && System.currentTimeMillis() - (store?.lastEventAt ?: 0L) < LinkStore.RESUME_MS) lane.lastId = saved
         }
+        // ⟨1.24⟩ §42.3 the live views seed from the summary and the lane resumes exactly after its sequence: nothing between the two is
+        // lost, and nothing is counted twice (the store drops what the seed already holds).
+        if (!lane.alert && lane.lastId == null) withTimeoutOrNull(SEED_WAIT_MS) { seedLive() }?.let { lane.lastId = it.toString() }
         var attempt = 0
         while (isActive && !lane.refused) {
             if (!net.online.value) {
@@ -217,6 +236,40 @@ class HoldingStream(
             asked.all { it.state == StreamState.LIVE } -> StreamState.LIVE
             asked.any { it.state == StreamState.OFFLINE } -> StreamState.OFFLINE
             else -> StreamState.CONNECTING
+        }
+        // GL-1: since when it has not been live (kept from the first moment it was not, through every retry).
+        if (stateFlow.value == StreamState.LIVE) downFlow.value = null else if (downFlow.value == null) downFlow.value = HqClock.millis()
+    }
+
+    /**
+     * ⟨1.24⟩ §42.3 the live store seeded from `GET /live/summary` (and today's treasury totals, the meter's four kinds); the summary's
+     * sequence, or null when this hub has no summary yet or it could not be read. One at a time.
+     */
+    suspend fun seedLive(): Long? {
+        if (!seeding.compareAndSet(false, true)) return null
+        return try {
+            val s = api.gated(com.coinepro.hq.core.net.HubFeature.LIVE) { liveSummary() } ?: return null
+            val day = try { api.treasury("day").totals } catch (e: com.coinepro.hq.core.net.ApiException) { null }
+            live.seed(s, day)
+            s.seq
+        } catch (e: com.coinepro.hq.core.net.ApiException) {
+            null
+        } finally {
+            seeding.set(false)
+        }
+    }
+
+    /** A live view on screen before the stream seeded the store (or without the stream at all): it is seeded now, once. */
+    fun ensureSeeded() {
+        if (live.state.value.seeded || seeding.get() || !api.gaps.has(com.coinepro.hq.core.net.HubFeature.LIVE)) return
+        scope.launch { seedLive() }
+    }
+
+    /** While the app is on screen the store is seeded again now and then, so counts built from deltas never drift for long. */
+    private suspend fun reseedLoop() {
+        while (true) {
+            delay(LiveRules.RESEED_MS)
+            seedLive()
         }
     }
 
@@ -299,8 +352,9 @@ class HoldingStream(
         val tags = INVALIDATE.firstOrNull { e.type.startsWith(it.first) }?.second
         // Coalesced: a burst of events (agents at work, every model call) refetches each tag once per window, not once per event; the
         // treasury (every `llm.*`) once in fifteen seconds.
-        if (tags != null) cache.invalidateSoon(*tags, windowMs = if (e.type.startsWith("llm.")) TREASURY_WINDOW_MS else WINDOW_MS)
+        if (!tags.isNullOrEmpty()) cache.invalidateSoon(*tags, windowMs = if (e.type.startsWith("llm.")) TREASURY_WINDOW_MS else WINDOW_MS)
         activity.on(e)
+        live.on(e)
         eventsFlow.tryEmit(e)
     }
 
@@ -313,7 +367,33 @@ class HoldingStream(
         if (!demo) return
         modeFlow.value = StreamMode.FULL
         stateFlow.value = StreamState.LIVE
+        downFlow.value = null
+        live.foreground(true)
         for (t in 0 until ticks) for (e in com.coinepro.hq.Demo.next(t)) dispatch(e)
+    }
+
+    /** The screenshot tests' live views: the store seeded from the demo's summary now (blocking), then the demo's beats [from] until [to]
+     *  played at once (the live script's order flow, cross-company request, a server dropping and back, the token ticks). */
+    fun demoLive(from: Int, to: Int) {
+        if (!demo) return
+        modeFlow.value = StreamMode.FULL
+        stateFlow.value = StreamState.LIVE
+        downFlow.value = null
+        live.foreground(true)
+        kotlinx.coroutines.runBlocking { seedLive() }
+        for (t in from until to) for (e in com.coinepro.hq.Demo.next(t)) dispatch(e)
+    }
+
+    /** The screenshot tests' frozen stream: not live since [downMs] ago (GL-1 «قدیمی», the map's particles stopped). */
+    fun demoDown(downMs: Long) {
+        if (!demo) return
+        stateFlow.value = StreamState.OFFLINE
+        downFlow.value = HqClock.millis() - downMs
+    }
+
+    /** The screenshot tests' one event, as if the hub sent it now (the demo only). */
+    fun demoDispatch(e: StreamEvent) {
+        if (demo) dispatch(e)
     }
 
     /** The demo holding's stream (debug builds): the demo's own script of runs, outputs and cards, and what the owner's actions
@@ -336,6 +416,8 @@ class HoldingStream(
         /** A stream event's refetch waits this long for the rest of its burst. */
         const val WINDOW_MS = 2_000L
         const val TREASURY_WINDOW_MS = 15_000L
+        /** How long a fresh lane waits for the live summary before it connects without it (it resumes from its own last event then). */
+        const val SEED_WAIT_MS = 6_000L
 
         // Event type prefix -> query tags to refresh (mirrors apps/web/src/lib/stream.ts).
         private val INVALIDATE: List<Pair<String, Array<String>>> = listOf(
@@ -349,6 +431,11 @@ class HoldingStream(
             "message." to arrayOf("threads", "messages", "inbox"),
             "notification." to arrayOf("notifications", "inbox"),
             "control." to arrayOf("control", "companies"),
+            // ⟨1.24⟩ §42.2 a person's state (up to one every two seconds each), the holding's flows: the live store carries them, nothing
+            // is fetched again for them. A measured road: the network map reads again.
+            "employee.state" to emptyArray<String>(),
+            "holding." to emptyArray<String>(),
+            "network." to arrayOf("network"),
             "employee." to arrayOf("employees", "companies"),
             "presence." to arrayOf("presence", "inbox"),
             "budget." to arrayOf("treasury"),
@@ -360,7 +447,10 @@ class HoldingStream(
             // ⟨1.11⟩ §29.16: an order's report changed (its page, the home's orders), before the rest of `order.`.
             "order.report" to arrayOf("order-report", "orders", "home", "sessions", "office"),
             // ⟨1.17⟩ §35.7: a session moved (its badge), on `orders`; the companies' links changed, on `holding`.
-            "session." to arrayOf("sessions", "office", "order-report"),
+            // ⟨1.23⟩ §41.1 a step of a session's work (every run start, step and end): its live panel only, never the lists or the report
+            // (they move on `session.updated` and `order.report`), before the rest of `session.`.
+            "session.activity" to arrayOf("session-activity"),
+            "session." to arrayOf("sessions", "office", "order-report", "session-activity"),
             "links." to arrayOf("links", "office"),
             "order." to arrayOf("orders", "planner", "work"),
             // ⟨1.11⟩ §29.16: the home and its suggestions, a group's routine run, a connection read or changed, a rule's report.

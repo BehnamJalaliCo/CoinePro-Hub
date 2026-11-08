@@ -422,6 +422,8 @@ fun CompanyControlCard(co: Company, d: ControlData, ui: ControlUi, holdingName: 
                 StateLine(s, d, holdingName)
             }
         }
+        // ⟨1.24⟩ CO-1: its servers, people at work, sessions, today's spend against its cap and its last event, live.
+        if (com.coinepro.hq.ui.v29.served(com.coinepro.hq.core.net.HubFeature.LIVE)) com.coinepro.hq.ui.live.CompanyLiveStrip(co.code, Modifier.padding(top = Space.sm))
         Spacer(Modifier.height(Space.sm))
         Figures(d.spendOf(co.code), co.counts.workOpen, co.counts.decisionsPending, co.counts.employeesActive, count = true)
         Spacer(Modifier.height(Space.sm))

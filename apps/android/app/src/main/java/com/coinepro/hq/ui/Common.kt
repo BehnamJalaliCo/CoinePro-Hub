@@ -40,6 +40,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -164,7 +165,8 @@ fun rememberAction(): ActionRunner {
 fun activity(): Activity = requireNotNull(LocalActivity.current) { "no Activity" }
 
 // --------------------------------------------------------------- toasts --
-enum class ToastTone { OK, INFO, ERROR }
+/** ⟨1.24⟩ NO-1 [DECISION]: a card waiting for the owner's seal, with the gold hairline on its start edge. */
+enum class ToastTone { OK, INFO, ERROR, DECISION }
 /** One toast; [action] is a short label and what it opens (an order's page, its output). */
 data class Toast(val id: Long, val tone: ToastTone, val text: String, val action: Pair<String, () -> Unit>? = null)
 
@@ -176,6 +178,8 @@ class Toasts {
     fun ok(text: String, action: String? = null, onAction: (() -> Unit)? = null) = push(ToastTone.OK, text, action, onAction)
     fun info(text: String, action: String? = null, onAction: (() -> Unit)? = null) = push(ToastTone.INFO, text, action, onAction)
     fun error(text: String, action: String? = null, onAction: (() -> Unit)? = null) = push(ToastTone.ERROR, text, action, onAction)
+    /** NO-1 🟡: a decision arrived (the gold hairline; the cartable's badge counts it too). */
+    fun decision(text: String, action: String? = null, onAction: (() -> Unit)? = null) = push(ToastTone.DECISION, text, action, onAction)
     private fun push(tone: ToastTone, text: String, action: String?, onAction: (() -> Unit)?) {
         items.add(Toast(++seq, tone, text, if (action != null && onAction != null) action to onAction else null))
         // «خطاخوان»: what the owner was told goes into the breadcrumbs (an error's words help trace it).
@@ -203,9 +207,12 @@ fun BoxScope.ToastHost(toasts: Toasts, modifier: Modifier = Modifier) {
                     ToastTone.OK -> DivanIcon.SEAL to c.positive
                     ToastTone.INFO -> DivanIcon.INFO to c.lapis
                     ToastTone.ERROR -> DivanIcon.URGENT to c.negative
+                    ToastTone.DECISION -> DivanIcon.SEAL to c.goldInk
                 }
                 Row(
-                    Modifier.widthIn(max = 520.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.raised).padding(horizontal = 14.dp, vertical = 12.dp),
+                    Modifier.widthIn(max = 520.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.raised)
+                        .then(if (t.tone == ToastTone.DECISION) Modifier.drawBehind { drawRect(c.goldFill, size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height), topLeft = androidx.compose.ui.geometry.Offset(if (layoutDirection == androidx.compose.ui.unit.LayoutDirection.Rtl) size.width - 3.dp.toPx() else 0f, 0f)) } else Modifier)
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {

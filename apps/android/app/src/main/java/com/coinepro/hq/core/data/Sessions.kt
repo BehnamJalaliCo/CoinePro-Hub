@@ -235,6 +235,79 @@ fun sessionTimeline(turns: List<TalkTurn>, report: OrderReport?, hasTalk: Boolea
     return out
 }
 
+// ---------------------------------------------------------- the chat, tidy --
+// ⟨0.19.0⟩ The owner, 2026-11-08: «ببین چقدر همه چیز بهم ریختس». Nothing is taken away; it is put in order. The steps between two turns
+// are one quiet row («۳ رویداد · 05:34–05:40») that opens to every line whole; the results that arrive together are one card; what
+// blocks the work is over the composer, not in the chat; no ref is ever a word.
+
+/** A ref in parentheses, with the hub's trailing hyphen too («جواب آمد (O-000122-): …»): it goes, with the space before it. */
+private val REF_PAREN = Regex("[ \\t]*[(（][ \\t]*[A-Z]{1,3}-\\d{3,10}-?[ \\t]*[)）]")
+/** A bare ref with a trailing hyphen («O-000122-»): read as the ref. */
+private val REF_HYPHEN = Regex("(?<![A-Za-z0-9-])([A-Z]{1,3}-\\d{3,10})-(?![A-Za-z0-9])")
+
+/** A line of the work as the owner reads it: in one line, no markdown, no ref (one in parentheses goes, any other becomes its word). */
+fun quietLine(text: String): String = withoutRefs(oneLine(text).replace(REF_PAREN, "").replace(REF_HYPHEN, "$1")).trim()
+
+/** One row of the session's chat as drawn. */
+sealed interface ChatRow {
+    val key: String
+
+    /** A turn of the talk, a bubble. */
+    data class Turn(val said: SessionEntry.Said) : ChatRow {
+        override val key: String get() = said.key
+    }
+
+    /** The steps between two turns: one quiet row («۳ رویداد · 05:34–05:40»), or the line itself when it is one. */
+    data class Events(val steps: List<SessionEntry.Step>) : ChatRow {
+        override val key: String get() = "ev-" + steps.first().key
+    }
+
+    /** The results delivered between two turns: one card. */
+    data class Outputs(val outputs: List<SessionEntry.Output>) : ChatRow {
+        override val key: String get() = "og-" + outputs.first().key
+    }
+}
+
+/** The chat in rows: each turn; between two turns, its steps as one row and its results as one card, each where its first one fell. */
+fun chatRows(entries: List<SessionEntry>): List<ChatRow> {
+    val out = ArrayList<ChatRow>()
+    val steps = ArrayList<SessionEntry.Step>()
+    val outputs = ArrayList<SessionEntry.Output>()
+    var stepsFirst = true
+    fun flush() {
+        val ev = if (steps.isEmpty()) null else ChatRow.Events(steps.toList())
+        val og = if (outputs.isEmpty()) null else ChatRow.Outputs(outputs.toList())
+        if (stepsFirst) { ev?.let(out::add); og?.let(out::add) } else { og?.let(out::add); ev?.let(out::add) }
+        steps.clear(); outputs.clear(); stepsFirst = true
+    }
+    for (e in entries) when (e) {
+        is SessionEntry.Said -> { flush(); out += ChatRow.Turn(e) }
+        is SessionEntry.Step -> { if (steps.isEmpty() && outputs.isEmpty()) stepsFirst = true; steps += e }
+        is SessionEntry.Output -> { if (steps.isEmpty() && outputs.isEmpty()) stepsFirst = false; outputs += e }
+    }
+    flush()
+    return out
+}
+
+/** «۳ رویداد» (Persian digits: a prose count). */
+fun eventsCountFa(n: Int): String = "${faNum(n)} رویداد"
+
+/** The clock range of a row of steps, «05:34–05:40» (one time when they share it; empty without times), from [clock] (the owner's zone). */
+fun eventsSpan(steps: List<SessionEntry.Step>, clock: (String) -> String): String {
+    val times = steps.map { it.at }.filter { it.isNotBlank() }
+    if (times.isEmpty()) return ""
+    val a = clock(times.first())
+    val b = clock(times.last())
+    return if (a == b) a else "$a–$b"
+}
+
+/** «۲ خروجی تحویل شد»; one: «<its kind> تحویل شد». */
+fun outputsFa(outputs: List<ReportOutput>): String =
+    if (outputs.size == 1) "${outputKindFa(outputs.first().kind)} تحویل شد" else "${faNum(outputs.size)} خروجی تحویل شد"
+
+/** «۲ گیر» (Persian digits). */
+fun blockersFa(n: Int): String = "${faNum(n)} گیر"
+
 // --------------------------------------------------------------- the office --
 /** The office from a hub before ⟨1.17⟩ (no `/office`): its orders as sessions, the pending cards, the critical items and suggestions. */
 fun officeFallback(home: Home?, pending: List<Decision>, companies: List<Company>): Office = Office(

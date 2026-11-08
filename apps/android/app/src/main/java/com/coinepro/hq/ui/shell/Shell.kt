@@ -325,14 +325,26 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
     // While the app is on screen the alerts speak here, as a toast with a way in, and not on the phone's notifications too
     // (core/link/AlertCenter): an urgent notification, a card waiting for the seal, a kill switch someone else moved, an order's stage.
     val toasts = com.coinepro.hq.ui.LocalToasts.current
+    // ⟨1.24⟩ NO-1: 🔴 urgent settles as a banner that stays until «دیدم», with one low bell (a haptic when animations are removed);
+    // 🟡 a card for the seal is a toast with the gold hairline; the hub's reports go quietly into the list. The owner's orders keep
+    // their toasts (their stages are his own work moving).
+    var urgent by remember { mutableStateOf<com.coinepro.hq.ui.live.UrgentNow?>(null) }
+    val reducedNow = androidx.compose.runtime.rememberUpdatedState(com.coinepro.hq.designsystem.LocalReducedMotion.current)
+    val haptics = com.coinepro.hq.designsystem.rememberHaptics()
     LaunchedEffect(env) {
         env.alerts.inApp.collect { a ->
             val go = { a.route?.let(navApi::go) ?: Unit }
             val text = if (a.channel == com.coinepro.hq.core.link.AlertChannel.ORDERS) a.text else "${a.title}؛ ${a.text}"
-            when (a.tone) {
-                com.coinepro.hq.core.link.AlertTone.ERROR -> toasts.error(text, a.action) { go() }
-                com.coinepro.hq.core.link.AlertTone.OK -> toasts.ok(text, a.action) { go() }
-                com.coinepro.hq.core.link.AlertTone.INFO -> toasts.info(text, a.action) { go() }
+            when {
+                a.channel == com.coinepro.hq.core.link.AlertChannel.URGENT && a.tone == com.coinepro.hq.core.link.AlertTone.ERROR -> {
+                    urgent = com.coinepro.hq.ui.live.UrgentNow(a.title, a.text, a.route)
+                    if (reducedNow.value) haptics.firm() else com.coinepro.hq.ui.live.lowBell(ctx)
+                }
+                a.channel == com.coinepro.hq.core.link.AlertChannel.CARTABLE -> toasts.decision(text, a.action) { go() }
+                a.channel == com.coinepro.hq.core.link.AlertChannel.OUTPUTS -> Unit
+                a.tone == com.coinepro.hq.core.link.AlertTone.ERROR -> toasts.error(text, a.action) { go() }
+                a.tone == com.coinepro.hq.core.link.AlertTone.OK -> toasts.ok(text, a.action) { go() }
+                else -> toasts.info(text, a.action) { go() }
             }
         }
     }
@@ -374,6 +386,10 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                 onMore = { tools = true; graph.errors.crumb("sheet tools") },
                 onDemo = { com.coinepro.hq.Demo.simulateRestart() },
             )
+            // ⟨1.24⟩ GL-2: a kill switch on — the band says why everything is still, on every screen.
+            com.coinepro.hq.ui.live.KillBand()
+            // ⟨1.24⟩ NO-1 🔴: until the owner says «دیدم».
+            com.coinepro.hq.ui.live.UrgentBanner(urgent, onSeen = { urgent = null }, onOpen = { r -> urgent = null; navApi.go(r) })
             // A restart of the hub (a deploy): one calm line, the screens keep what they had and reconnect on their own.
             androidx.compose.animation.AnimatedVisibility(hubState == com.coinepro.hq.core.net.HubState.RESTARTING, enter = com.coinepro.hq.designsystem.expandIn(), exit = com.coinepro.hq.designsystem.collapseOut()) {
                 HubBanner()
@@ -605,7 +621,9 @@ private fun TopBar(back: Boolean, onBack: () -> Unit, demo: Boolean, urgent: Int
                 }
             }
             Spacer(Modifier.weight(1f))
-            // ⟨1.17⟩ one way to speak: the gold button below. No stream light, no second microphone.
+            // ⟨1.17⟩ one way to speak: the gold button below, no second microphone. ⟨1.24⟩ GL-1: whether what the app shows is live
+            // (the owner approved the live views: a frozen screen must never look calm).
+            com.coinepro.hq.ui.live.LiveBeat(Modifier.padding(end = 4.dp))
             IconBtn(DivanIcon.BELL, "اعلان‌ها", onBell, badge = urgent)
             IconBtn(DivanIcon.MORE, "ابزارها", onMore)
         }

@@ -111,6 +111,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             val b = if (!isJson) null else req.body?.let { rb -> Buffer().also { rb.writeTo(it) }.readUtf8() }?.takeIf { it.isNotBlank() }
                 ?.let { runCatching { Api.json.parseToJsonElement(it) as? JsonObject }.getOrNull() }
             val q = req.url.queryParameterNames.associateWith { req.url.queryParameter(it) }
+            // ⟨1.24⟩ §42.3 the holding live's seed.
+            v42.handle(req.method, path)?.let { Thread.sleep(60); return respond(req, it) }
             // ⟨1.20⟩ §38.3 the hub's services and their jobs.
             v38.handle(req.method, path, b)?.let { Thread.sleep(60); return respond(req, it) }
             // ⟨1.22⟩ §40 the playbooks, a session's draft and the playbook cards in its talk, before the sessions' own routes.
@@ -312,6 +314,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     private val v38 = V38Demo()
     /** ⟨1.22⟩ §40 a session becomes a working group: the library, the drafts in the sessions' talk, a session opened from one. */
     private val v40 = V40Demo(v35)
+    /** ⟨1.24⟩ §42 the holding live: `/live/summary` and the live views' script on the stream. */
+    private val v42 = V42Demo(store)
     /** ⟨1.8⟩ before [scripts]: wakes on the first look at a server, so other screens see the holding as before. */
     private val servers = ServersDemo(store)
 

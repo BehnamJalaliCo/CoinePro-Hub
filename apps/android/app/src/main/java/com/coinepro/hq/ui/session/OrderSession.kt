@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
@@ -37,9 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -48,34 +48,41 @@ import com.coinepro.hq.core.data.PACE_FA
 import com.coinepro.hq.core.data.PACE_HINT_FA
 import com.coinepro.hq.core.data.PLAYER_FA
 import com.coinepro.hq.core.data.PlayerOption
+import com.coinepro.hq.core.data.ChatRow
 import com.coinepro.hq.core.data.SessionEntry
+import com.coinepro.hq.core.data.chatRows
+import com.coinepro.hq.core.data.StreamState
+import com.coinepro.hq.core.data.activityEventOf
+import com.coinepro.hq.core.data.activityFromReport
 import com.coinepro.hq.core.data.addresseeFa
+import com.coinepro.hq.core.data.applyActivity
+import com.coinepro.hq.core.data.mergeFetched
+import com.coinepro.hq.core.data.paceToastFa
+import com.coinepro.hq.core.data.planProgress
+import com.coinepro.hq.core.data.taskInHand
 import com.coinepro.hq.core.data.briefOf
 import com.coinepro.hq.core.data.isPlayer
 import com.coinepro.hq.core.data.keyPatterns
 import com.coinepro.hq.core.data.orderParticipants
 import com.coinepro.hq.core.data.orderedTasks
-import com.coinepro.hq.core.data.outputKindFa
 import com.coinepro.hq.core.data.participantTitle
 import com.coinepro.hq.core.data.playersToAdd
 import com.coinepro.hq.core.data.sessionBadge
 import com.coinepro.hq.core.data.sessionClosed
 import com.coinepro.hq.core.data.sessionStatusLine
 import com.coinepro.hq.core.data.sessionTimeline
-import com.coinepro.hq.core.data.stepWithSpeaker
 import com.coinepro.hq.core.data.personaIdTitle
 import com.coinepro.hq.core.data.taskProgress
 import com.coinepro.hq.core.data.tickedState
 import com.coinepro.hq.core.format.ago
 import com.coinepro.hq.core.format.jDateTime
-import com.coinepro.hq.core.format.jTime
 import com.coinepro.hq.core.media.FilePolicy
 import com.coinepro.hq.core.net.Api
 import com.coinepro.hq.core.net.ApiException
 import com.coinepro.hq.core.net.FileRef
 import com.coinepro.hq.core.net.HubFeature
 import com.coinepro.hq.core.net.OrderReport
-import com.coinepro.hq.core.net.ReportOutput
+import com.coinepro.hq.core.net.SessionActivity
 import com.coinepro.hq.core.net.SessionParticipant
 import com.coinepro.hq.core.net.SessionTask
 import com.coinepro.hq.core.net.TalkCard
@@ -97,7 +104,6 @@ import com.coinepro.hq.designsystem.SectionTitle
 import com.coinepro.hq.designsystem.Skeleton
 import com.coinepro.hq.designsystem.generated.DivanIcon
 import com.coinepro.hq.designsystem.smoothSize
-import com.coinepro.hq.designsystem.timesFig
 import com.coinepro.hq.ui.LocalEnv
 import com.coinepro.hq.ui.LocalNav
 import com.coinepro.hq.ui.LocalToasts
@@ -107,7 +113,7 @@ import com.coinepro.hq.ui.media.MessageMedia
 import com.coinepro.hq.ui.media.rememberAttachments
 import com.coinepro.hq.ui.media.rememberPickers
 import com.coinepro.hq.ui.rememberAction
-import com.coinepro.hq.ui.v29.BlockerRow
+import com.coinepro.hq.ui.rememberQuery
 import com.coinepro.hq.ui.v29.OutputsCard
 import com.coinepro.hq.ui.v29.Para
 import com.coinepro.hq.ui.v29.plain
@@ -123,7 +129,9 @@ import com.coinepro.hq.ui.v32.TalkSession
 import com.coinepro.hq.ui.v32.faCount
 import com.coinepro.hq.ui.v32.rememberChatFollow
 import com.coinepro.hq.ui.v32.rememberHandsFree
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.util.UUID
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 
@@ -134,7 +142,7 @@ import kotlinx.serialization.json.JsonObject
 // the pace, the plan, the results and files, close, cancel, hide and erase) is in the «جزئیات» sheet; «تأیید و بستن» is also a pill in
 // the head once the work is ready. Nothing technical and no ref is shown: the ref is the key only.
 
-private enum class SessionSheet { NONE, DETAILS, PERSON, MODEL, CLOSE, LINE, KEY, PARTICIPANT, ERASE }
+private enum class SessionSheet { NONE, DETAILS, PLAN, LIVE, PERSON, MODEL, CLOSE, LINE, KEY, PARTICIPANT, ERASE }
 
 @Composable
 fun OrderSessionScreen(ref: String) {
@@ -169,14 +177,28 @@ fun OrderSessionScreen(ref: String) {
         }
         if (r != null && r != talk.conv?.ref) { cv = r; talk.open(r) }
     }
-    // The stream: a turn or card changed (the conversation), the session moved (its report).
+    // ⟨1.23⟩ §41.1 the work, live: the hub's `/activity` on open and on each of its stream events (refetched by the tag, at most once in
+    // two seconds), each `session.activity` line appended the moment it arrives; a hub without it, the panel read from the report.
+    val liveOn = served(HubFeature.SESSION_ACTIVITY)
+    val aq = rememberQuery("session-activity:$ref", "session-activity", maxAgeMs = 5_000) { gated(HubFeature.SESSION_ACTIVITY) { sessionActivity(ref) } }
+    var held by remember(ref) { mutableStateOf<SessionActivity?>(null) }
+    LaunchedEffect(aq.data) { aq.data?.let { held = mergeFetched(it, held) } }
+    // The stream: a turn or card changed (the conversation), the session moved (its report), a step of its work (the live panel).
     LaunchedEffect(env, ref) {
         env.stream.events.collect { e ->
             when {
                 e.type.startsWith("talk.") && !talk.busy -> talk.reload()
+                e.type == "session.activity" -> activityEventOf(e)?.takeIf { it.order == ref }?.let { ev -> held = applyActivity(held ?: aq.data ?: SessionActivity(), ev) }
                 (e.type == "session.updated" || e.type == "order.report") && e.ref == ref -> q.refresh()
             }
         }
+    }
+    // Without the stream (the phone between networks, a hub restarting) the panel asks again on its own: often while someone works.
+    val streamState by env.stream.state.collectAsStateWithLifecycle()
+    val workingNow = held?.working?.isNotEmpty() == true
+    LaunchedEffect(ref, liveOn, streamState, workingNow) {
+        if (!liveOn || streamState == StreamState.LIVE) return@LaunchedEffect
+        while (true) { delay(if (workingNow) 10_000 else 30_000); aq.refresh() }
     }
 
     val closed = o?.let(::sessionClosed) == true
@@ -227,6 +249,29 @@ fun OrderSessionScreen(ref: String) {
         try { q.set(env.api.reopenSession(ref)); env.cache.invalidate("sessions", "office", "orders"); toasts.ok("دوباره باز شد؛ مسئول خبر دارد."); talk.reload() }
         catch (e: ApiException) { toasts.error(e.messageFa) }
     }
+    // §34.1, §41.2 the pace, from the head or the details: shown at once, the hub's report when it answers (back as it was if it refuses).
+    var paceAsked by remember(ref) { mutableStateOf<String?>(null) }
+    fun setPace(p: String) = scope.launch {
+        paceAsked = p
+        try {
+            q.set(env.api.setPace(ref, p))
+            env.cache.invalidate("sessions", "office")
+            toasts.ok(paceToastFa(p))
+        } catch (e: ApiException) { toasts.error(e.messageFa) }
+        finally { paceAsked = null }
+    }
+    // §41.3 «ادامه بده»: the holder woken now with the plan's next task. One key per press, kept across a retry of the same press.
+    val nudge = rememberAction()
+    var nudgeKey by remember(ref) { mutableStateOf(UUID.randomUUID().toString()) }
+    fun nudgeNow() = nudge.run {
+        val out = env.api.nudgeSession(ref, nudgeKey)
+        nudgeKey = UUID.randomUUID().toString()
+        held = mergeFetched(out, held)
+        aq.set(out)
+        toasts.ok("${o?.let { r -> r.participants.firstOrNull { it.kind == "holder" }?.let(::participantTitle) } ?: "مسئول"} دوباره دست به کار شد.")
+        q.refresh()
+        env.cache.invalidate("sessions", "office")
+    }
 
     if (!has) {
         Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) { Empty("جلسه‌ی فرمان با به‌روزرسانی بعدی هاب میاید", icon = DivanIcon.MEETING) }
@@ -235,6 +280,7 @@ fun OrderSessionScreen(ref: String) {
 
     // The chat in time order; drawn bottom-up, so it opens at its newest word.
     val entries = sessionTimeline(talk.turns.toList(), o, hasTalk = cv != null)
+    val rows = remember(entries) { chatRows(entries) }
     val newest = entries.lastOrNull()
     val list = rememberLazyListState()
     val follow = rememberChatFollow(list, entries.size, newest?.key, (newest as? SessionEntry.Said)?.turn?.owner == true)
@@ -249,9 +295,21 @@ fun OrderSessionScreen(ref: String) {
     }
     val live = talk.phase != Phase.IDLE || talk.liveText.isNotBlank() || talk.liveFailed != null
 
+    // ⟨1.23⟩ §41 what the live panel shows: the hub's activity, else (a hub before it) the report read as one.
+    val shown = when {
+        o == null || closed -> null
+        liveOn -> held
+        else -> activityFromReport(o)
+    }
+
     Column(Modifier.fillMaxSize().imePadding()) {
         when {
-            o != null -> SessionHead(o, closed, sessionsOn, onDetails = { sheet = SessionSheet.DETAILS }, onClose = { sheet = SessionSheet.CLOSE })
+            o != null -> SessionHead(
+                o, closed, sessionsOn, pace = paceAsked ?: o.pace,
+                onDetails = { sheet = SessionSheet.DETAILS }, onClose = { sheet = SessionSheet.CLOSE },
+                onPace = { p -> setPace(p) }, onPlan = { sheet = SessionSheet.PLAN },
+                lastStepAt = shown?.last?.lastOrNull()?.at?.ifBlank { null } ?: shown?.idleSince,
+            )
             q.error != null -> Box(Modifier.fillMaxWidth().padding(16.dp)) { ErrorBlock(q.error, { q.refresh() }) }
             else -> Skeleton(Modifier.fillMaxWidth().padding(16.dp).height(58.dp), radius = 12.dp)
         }
@@ -262,43 +320,51 @@ fun OrderSessionScreen(ref: String) {
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.Bottom),
             ) {
-                // The foot of the chat: what blocks the work now, each with its fix (or a hair of space).
-                item(key = CHAT_TAIL) {
-                    val blockers = o?.blockers.orEmpty().takeIf { !closed }.orEmpty()
-                    if (blockers.isEmpty()) Spacer(Modifier.height(2.dp))
-                    else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { for (b in blockers) BlockerRow(b, company, o?.ref, o?.route?.budgetTokens) }
-                }
+                // The foot of the chat (a hair of space): ⟨0.19.0⟩ what blocks the work is over the composer now, never in the chat.
+                item(key = CHAT_TAIL) { Spacer(Modifier.height(2.dp)) }
                 if (live) item(key = "live") {
                     LiveBubble(talk.phase, talk.liveText, talk.liveFailed, faces.firstOrNull { it.id == (talk.addressee?.takeIf { a -> a != "all" } ?: talk.conv?.persona) }, talk.liveCards.toList(), talk.speaking, ::runCard, ::dismissCard)
                 }
-                items(entries.asReversed(), key = { it.key }) { e ->
-                    when (e) {
-                        is SessionEntry.Said -> {
-                            val t = e.turn
+                // ⟨0.19.0⟩ in order: each turn a bubble; between two turns, the steps as one quiet row and the results as one card.
+                items(rows.asReversed(), key = { it.key }) { r ->
+                    when (r) {
+                        is ChatRow.Turn -> {
+                            val t = r.said.turn
                             TalkBubble(
-                                t, faces.firstOrNull { it.id == t.by }, faces + talk.personas, named[e.key] == true,
+                                t, faces.firstOrNull { it.id == t.by }, faces + talk.personas, named[r.key] == true,
                                 onReplay = if (t.audio.isEmpty()) null else ({ t.audio.sortedBy { a -> a.seq }.forEach(talk::play) }),
-                                onRun = ::runCard, onDismiss = ::dismissCard,
+                                onRun = ::runCard, onDismiss = ::dismissCard, timeAtEnd = true,
                             )
                         }
-                        is SessionEntry.Step -> StepLine(stepWithSpeaker(e.text, e.by?.let { b -> personaIdTitle(b, faces + talk.personas) }), e.at)
-                        is SessionEntry.Output -> OutputLine(e.output, e.at)
+                        is ChatRow.Events -> EventsRow(r) { by -> personaIdTitle(by, faces + talk.personas) }
+                        is ChatRow.Outputs -> OutputsCard(r.outputs)
                     }
                 }
                 if (talk.loading && talk.turns.isEmpty() && cv != null) items(2, key = { "tsk-$it" }) { i -> Skeleton(Modifier.fillMaxWidth(if (i == 0) 0.5f else 0.7f).height(56.dp), radius = 16.dp) }
                 // The top of the chat: when the session began, and a word when its talk is not open yet.
                 if (o != null) item(key = "start") {
-                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        if (o.at.isNotBlank()) StepLine("جلسه باز شد ${jDateTime(o.at)}", "")
-                        if (cv == null && !closed) StepLine("گفتگوی این فرمان هنوز باز نشده؛ جوابت مستقیم به فرمان میرود.", "")
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (o.at.isNotBlank()) QuietRow("جلسه باز شد", o.at, date = true)
+                        if (cv == null && !closed) QuietRow("گفتگوی این فرمان هنوز باز نشده؛ جوابت مستقیم به فرمان میرود.", "")
                     }
                 }
             }
             JumpToEnd(follow)
         }
         // Who answers, and the composer (typing, holding to talk, hands-free); a closed session, its way back.
-        if (o != null && !closed) Column(Modifier.fillMaxWidth().background(c.page).padding(horizontal = 12.dp).padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (o != null && !closed) Column(Modifier.fillMaxWidth().background(c.page).padding(horizontal = 16.dp).padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             HorizontalDivider(color = c.lineDivider)
+            // ⟨1.23⟩ §41 the work, live, pinned over the composer: it takes its own room and never covers the chat's last word.
+            shown?.let { a ->
+                LiveWorkPanel(
+                    a, ready = sessionBadge(o) == "ready", canNudge = liveOn && sessionsOn, nudging = nudge.busy,
+                    onNudge = { nudgeNow() }, onOpen = { sheet = SessionSheet.LIVE },
+                    // A blocker's fix is the one gold action then; «ادامه بده» steps back beside it.
+                    nudgeFirst = o.blockers.isEmpty(),
+                )
+            }
+            // ⟨0.19.0⟩ what blocks the work: one compact banner with its fix (several: «۲ گیر», opened to each).
+            if (o.blockers.isNotEmpty()) BlockersBanner(o.blockers, company, o.ref, o.route?.budgetTokens)
             if (turnOpen) Text(plain("جوابت به «${o.turn?.whoFa?.ifBlank { null } ?: addresseeFa(null, participants)}» میرود"), style = Divan.type.micro, color = c.goldInk, modifier = Modifier.padding(horizontal = 4.dp))
             else if (cv != null && participants.size > 1) AddresseeRow(participants, talk.addressee) { talk.addressee = it }
             // The paperclip once the session's talk is open (files go with a turn of it) and the hub takes them.
@@ -312,21 +378,21 @@ fun OrderSessionScreen(ref: String) {
 
     when (sheet) {
         SessionSheet.NONE -> Unit
-        SessionSheet.DETAILS -> o?.let { r ->
+        SessionSheet.LIVE -> shown?.let { a ->
+            com.coinepro.hq.ui.v14.HqSheet({ sheet = SessionSheet.NONE }, "کار زنده", sub = "هر قدم کار این جلسه، همان لحظه که برداشته میشود.") {
+                LiveWorkSheetBody(a, ready = o?.let(::sessionBadge) == "ready", canNudge = liveOn && sessionsOn, nudging = nudge.busy, onNudge = { nudgeNow() })
+            }
+        }
+        // ⟨1.23⟩ §41.2 «کار ۳ از ۹» in the head opens the details at the plan.
+        SessionSheet.DETAILS, SessionSheet.PLAN -> o?.let { r ->
             com.coinepro.hq.ui.v14.HqSheet({ sheet = SessionSheet.NONE }, "جزئیات جلسه") {
                 SessionDetailsBody(
                     r, closed, sessionsOn, participants, talk.addressee,
                     onPick = { p -> if (p.kind == "holder") { talk.addressee = null; sheet = SessionSheet.NONE } else { picked = p; sheet = SessionSheet.PARTICIPANT } },
                     onAddPerson = { sheet = SessionSheet.PERSON }, onAddModel = { sheet = SessionSheet.MODEL },
-                    onPace = { p ->
-                        scope.launch {
-                            try {
-                                q.set(env.api.setPace(ref, p))
-                                env.cache.invalidate("sessions", "office")
-                                toasts.ok(if (p == "step") "از این به بعد قدم‌به‌قدم با تو." else "از این به بعد خودش تا آخر میرود.")
-                            } catch (e: ApiException) { toasts.error(e.messageFa) }
-                        }
-                    },
+                    onPace = { p -> setPace(p) },
+                    pace = paceAsked ?: r.pace,
+                    focusPlan = sheet == SessionSheet.PLAN,
                     onTasksChanged = { q.refresh() },
                     onClose = { sheet = SessionSheet.CLOSE },
                     onReopen = { sheet = SessionSheet.NONE; reopen() },
@@ -428,14 +494,29 @@ internal fun sessionFaces(known: List<TalkPersona>, participants: List<SessionPa
 
 // ------------------------------------------------------------------ head --
 /** ⟨0.17.0⟩ The head, compact: the order's words in at most two lines (a tap opens them all), the badge and one line of what is
- *  happening, «جزئیات» for everything else; «تأیید و بستن» beside the badge once the work is ready. */
+ *  happening, «جزئیات» for everything else; «تأیید و بستن» beside the badge once the work is ready. ⟨0.19.0⟩ §41.2 the pace back beside
+ *  the line («با من | خودکار»), and the plan's progress under it («کار ۳ از ۹», a thin bar; a tap opens the details at the plan). */
 @Composable
-private fun SessionHead(o: OrderReport, closed: Boolean, sessionsOn: Boolean, onDetails: () -> Unit, onClose: () -> Unit) {
+internal fun SessionHead(
+    o: OrderReport,
+    closed: Boolean,
+    sessionsOn: Boolean,
+    onDetails: () -> Unit,
+    onClose: () -> Unit,
+    pace: String = o.pace,
+    onPace: (String) -> Unit = {},
+    onPlan: () -> Unit = {},
+    /** ⟨1.24⟩ SS-1: when the work last took a step (the live panel's last line, else the hub's idle time, else the report's update). */
+    lastStepAt: String? = null,
+) {
     val c = Divan.colors
     val badge = sessionBadge(o)
     val line = sessionStatusLine(o)
+    val plan = planProgress(o.tasks)
     var open by rememberSaveable(o.ref) { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().background(c.page).padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        // ⟨1.24⟩ SS-1: the work band (M5) runs only while the session is moving (a run queued or running), never at rest.
+        if (!closed) com.coinepro.hq.designsystem.WorkBand(badge == "moving", c.silverInk, Modifier.fillMaxWidth().padding(end = 8.dp), height = 3.dp)
         // ⟨1.22⟩ §40.3 a session opened to adapt a playbook says so, small; a tap opens the playbook.
         o.session?.source?.takeIf { it.isNotBlank() }?.let { com.coinepro.hq.ui.playbook.SourceChip(it, Modifier.padding(top = 4.dp, end = 8.dp)) }
         Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -454,52 +535,11 @@ private fun SessionHead(o: OrderReport, closed: Boolean, sessionsOn: Boolean, on
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
             )
             if (badge == "ready" && !closed && sessionsOn) HqButton("تأیید و بستن", onClose, variant = BtnVariant.PRIMARY, size = BtnSize.SM, icon = DivanIcon.SEAL)
+            else if (!closed && sessionsOn) PaceChip(pace, enabled = true, onPace = onPace)
         }
-    }
-}
-
-// --------------------------------------------------------------- the chat --
-/** A step of the work in the chat: one quiet, centred line, its time always in view; a tap shows the whole of it. */
-@Composable
-private fun StepLine(text: String, at: String) {
-    val c = Divan.colors
-    var open by remember { mutableStateOf(false) }
-    Box(Modifier.fillMaxWidth().padding(horizontal = 20.dp), contentAlignment = Alignment.Center) {
-        Row(
-            Modifier.clip(RoundedCornerShape(10.dp)).background(c.tile.copy(alpha = 0.6f))
-                .clickable(role = Role.Button, onClickLabel = if (open) "کوتاه کن" else "همه‌ی این خط") { open = !open }
-                .padding(horizontal = 10.dp, vertical = 3.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Text(
-                plain(text), style = Divan.type.micro.copy(textAlign = TextAlign.Center), color = c.textMuted,
-                maxLines = if (open) Int.MAX_VALUE else 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
-            )
-            if (at.isNotBlank()) Text(timesFig(jTime(at)), style = Divan.type.micro, color = c.textMuted, maxLines = 1)
-        }
-    }
-}
-
-/** A result delivered, in the chat at its time: one compact card, its title and «باز کن». */
-@Composable
-private fun OutputLine(x: ReportOutput, at: String) {
-    val c = Divan.colors
-    val nav = LocalNav.current
-    val shape = RoundedCornerShape(14.dp)
-    Row(
-        Modifier.fillMaxWidth().clip(shape).background(c.card).border(1.dp, c.lineTahrir, shape)
-            .clickable(role = Role.Button, onClickLabel = "باز کردن") { nav.go("outputs/${x.ref}") }.padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Box(Modifier.size(34.dp).clip(CircleShape).background(c.softGold), contentAlignment = Alignment.Center) { DIcon(DivanIcon.DELIVERABLE, size = 18.dp, tint = c.goldInk) }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            Text(plain(x.titleFa.ifBlank { outputKindFa(x.kind) }), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                buildAnnotatedString { append("${outputKindFa(x.kind)} تحویل شد"); if (at.isNotBlank()) { append("  ·  "); append(timesFig(jTime(at))) } },
-                style = Divan.type.micro, color = c.textMuted, maxLines = 1,
-            )
-        }
-        HqButton("باز کن", { nav.go("outputs/${x.ref}") }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.NEXT)
+        // ⟨1.24⟩ SS-1: «آخرین قدم ۷ دقیقه پیش» and the ring toward the hub's ten-minute sweep, while it is moving.
+        if (!closed) StallWatch(badge, lastStepAt ?: o.updatedAt.ifBlank { null })
+        plan?.let { p -> PlanProgressRow(p, taskInHand(o.tasks)?.titleFa, onPlan) }
     }
 }
 
@@ -537,9 +577,14 @@ internal fun SessionDetailsBody(
     onHide: () -> Unit,
     onErase: () -> Unit,
     onDrafted: (com.coinepro.hq.core.net.Playbook) -> Unit = {},
+    pace: String = o.pace,
+    focusPlan: Boolean = false,
 ) {
     val c = Divan.colors
     val brief = briefOf(o)
+    // ⟨1.23⟩ opened from «کار ۳ از ۹» in the head: the plan is brought into view.
+    val planAt = remember { BringIntoViewRequester() }
+    LaunchedEffect(focusPlan) { if (focusPlan) { kotlinx.coroutines.delay(350); planAt.bringIntoView() } }
     val playbooksOn = served(HubFeature.PLAYBOOKS)
     val ready = sessionBadge(o) == "ready"
     val eraseOn = served(HubFeature.ERASE)
@@ -563,8 +608,8 @@ internal fun SessionDetailsBody(
     o.memoryMd?.takeIf { it.isNotBlank() }?.let { com.coinepro.hq.ui.playbook.MemoryCard(it) }
     if (playbooksOn) com.coinepro.hq.ui.playbook.SessionPlaybooks(o.ref, onDrafted)
     PeopleBar(participants, open = !closed && sessionsOn, addressee = addressee, onPick = onPick, onAddPerson = onAddPerson, onAddModel = onAddModel)
-    PaceRow(o.pace, enabled = !closed && sessionsOn, onPace = onPace)
-    if (o.tasks.isNotEmpty() || (sessionsOn && !closed)) TasksCard(o.ref, o.tasks, editable = sessionsOn && !closed, onChanged = onTasksChanged)
+    PaceRow(pace, enabled = !closed && sessionsOn, onPace = onPace)
+    if (o.tasks.isNotEmpty() || (sessionsOn && !closed)) TasksCard(o.ref, o.tasks, editable = sessionsOn && !closed, onChanged = onTasksChanged, modifier = Modifier.bringIntoViewRequester(planAt))
     if (o.outputs.isNotEmpty()) OutputsCard(o)
     if (o.files.any { it.id.isNotBlank() }) FilesCard(o.files.filter { it.id.isNotBlank() })
     if (sessionsOn) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -696,7 +741,7 @@ private fun PaceRow(pace: String, enabled: Boolean, onPace: (String) -> Unit) {
 // ------------------------------------------------------------------ tasks --
 /** The plan, like a Claude Code task list: the holder writes it and ticks it; the owner adds, ticks and drops. */
 @Composable
-private fun TasksCard(ref: String, tasks: List<SessionTask>, editable: Boolean, onChanged: () -> Unit) {
+private fun TasksCard(ref: String, tasks: List<SessionTask>, editable: Boolean, onChanged: () -> Unit, modifier: Modifier = Modifier) {
     val env = LocalEnv.current
     val c = Divan.colors
     val toasts = LocalToasts.current
@@ -704,7 +749,7 @@ private fun TasksCard(ref: String, tasks: List<SessionTask>, editable: Boolean, 
     val add = rememberAction()
     var draft by rememberSaveable(ref) { mutableStateOf("") }
     val (done, total) = taskProgress(tasks)
-    HqCard(Modifier.fillMaxWidth()) {
+    HqCard(modifier.fillMaxWidth()) {
         SectionTitle("برنامه", note = if (total == 0) "مسئول برنامه را مینویسد" else "$done از $total کار", icon = DivanIcon.TASK)
         Column(Modifier.padding(top = 8.dp)) {
             for (t in orderedTasks(tasks)) {
