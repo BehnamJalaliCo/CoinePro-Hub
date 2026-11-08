@@ -12,6 +12,12 @@ Durable pull consumers on llm-router's JetStream streams:
 Only allow-listed metadata keys are forwarded; no text field ever crosses.
 Nats-Msg-Id = <source stream>:<sequence>, so redeliveries are de-duplicated.
 New consumers start at new messages (old retained events are not replayed).
+
+⟨1.24⟩ §42.2 `llm.tick` (topic `llm`): the call events of each company summed in 5 s windows
+(aligned to the clock), one tick per company that had a call in the window, nothing when idle;
+its `day` (the Token Treasury's UTC day: tokens, effective tokens with a cache read at a tenth,
+dollars, the company's daily budget and its share) and `in_flight` read from the ledger.
+Nats-Msg-Id = llm.tick:<company>:<window start>.
 """
 
 from __future__ import annotations
@@ -21,6 +27,10 @@ import contextlib
 import json
 import logging
 import re
+import time
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from nats.js.api import AckPolicy, ConsumerConfig, DeliverPolicy
@@ -121,12 +131,128 @@ def call_data(payload: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
+# ------------------------------------------------------------------ llm.tick --
+TICK_S = 5
+TOKEN_KINDS = (
+    ("input", "input_tokens"),
+    ("output", "output_tokens"),
+    ("cache_read", "cache_read_tokens"),
+    ("cache_write", "cache_write_tokens"),
+    ("thinking", "thinking_tokens"),
+)
+
+
+def _usd(v: Any) -> Decimal:
+    try:
+        return Decimal(str(v)) if v not in (None, "") else Decimal(0)
+    except InvalidOperation:
+        return Decimal(0)
+
+
+@dataclass
+class Window:
+    """One company's calls in one 5 s window: the calls that finished (they carry the tokens)."""
+
+    start: int
+    calls: int = 0
+    tokens: dict[str, int] = field(default_factory=lambda: {k: 0 for k, _ in TOKEN_KINDS})
+    usd: Decimal = Decimal(0)
+
+
+class Ticks:
+    """The 5 s windows of the router's call events, per company (contract §42.2 llm.tick)."""
+
+    def __init__(self, window_s: int = TICK_S) -> None:
+        self.window_s = window_s
+        self._open: dict[tuple[str, int], Window] = {}
+
+    def add(self, company: str, kind: str, data: dict[str, Any], now: float | None = None) -> None:
+        start = int((time.time() if now is None else now) // self.window_s) * self.window_s
+        w = self._open.setdefault((company, start), Window(start))
+        if kind != "finished":
+            return  # a call that started only opens the window (in_flight is read from the ledger)
+        w.calls += 1
+        raw = data.get("usage")
+        usage: dict[str, Any] = raw if isinstance(raw, dict) else {}
+        for key, src in TOKEN_KINDS:
+            n = usage.get(src)
+            w.tokens[key] += int(n) if isinstance(n, int) and n > 0 else 0
+        w.usd += _usd(data.get("cost_usd")) + _usd(data.get("equiv_cost_usd"))
+
+    def due(self, now: float | None = None) -> list[tuple[str, Window]]:
+        """The windows that ended (taken out)."""
+        t = time.time() if now is None else now
+        keys = [k for k, w in self._open.items() if w.start + self.window_s <= t]
+        return [(k[0], self._open.pop(k)) for k in sorted(keys, key=lambda k: (k[1], k[0]))]
+
+
+DAY_SQL = """
+    SELECT c.code AS company,
+           COALESCE(sum(COALESCE(l.input_tokens, 0) + COALESCE(l.output_tokens, 0)
+                        + COALESCE(l.cache_read_tokens, 0) + COALESCE(l.cache_write_tokens, 0)), 0) AS tokens,
+           COALESCE(sum(COALESCE(l.cache_read_tokens, 0)), 0) AS cache_read,
+           COALESCE(sum(COALESCE(l.cost_usd, 0) + COALESCE(l.equiv_cost_usd, 0)), 0) AS usd,
+           count(*) FILTER (WHERE l.status = 'running'
+                              AND l.started_at > now() - interval '30 minutes') AS in_flight,
+           (SELECT b.usd_limit FROM llm.budgets b
+             WHERE b.company_id = c.id AND b.scope_type = 'company' AND b.scope_ref = c.code
+               AND b.period = 'day' AND b.enabled) AS budget_usd
+    FROM core.companies c LEFT JOIN llm.calls l ON l.company_id = c.id AND l.started_at >= :day
+    WHERE c.code = ANY(:codes)
+    GROUP BY c.id, c.code
+"""
+
+
+def tick_data(company: str, w: Window, day: dict[str, Any] | None, window_s: int) -> dict[str, Any]:
+    """The `llm.tick` event's data (§42.2): the window's calls and tokens by kind, and the day.
+    Money as §1 has it: decimal strings of 6 places."""
+    from hq_api.domain.live import effective, usd
+
+    d = day or {}
+    tokens, cache = int(d.get("tokens") or 0), int(d.get("cache_read") or 0)
+    spent = usd(d.get("usd"))
+    budget = usd(d["budget_usd"]) if d.get("budget_usd") is not None else None
+    return {
+        "company": company,
+        "window_s": window_s,
+        "calls": w.calls,
+        "in_flight": int(d.get("in_flight") or 0),
+        "tokens": dict(w.tokens),
+        "equiv_usd": str(usd(w.usd)),
+        "day": {
+            "tokens": tokens,
+            "effective_tokens": effective(tokens, cache),
+            "equiv_usd": str(spent),
+            "budget_usd": str(budget) if budget is not None else None,
+            "pct": round(float(100 * spent / budget), 1) if budget else None,
+        },
+    }
+
+
 class Bridge:
     def __init__(self, hub: Hub, *, batch: int = 50, idle_s: float = 2.0) -> None:
         self.hub = hub
         self.batch = batch
         self.idle_s = idle_s
         self._subs: dict[str, Any] = {}
+        self.ticks = Ticks()
+
+    async def flush_ticks(self, now: float | None = None) -> int:
+        """`llm.tick` for each company whose window ended; returns how many went out."""
+        due = self.ticks.due(now)
+        bus = self.hub.bus
+        if not due or bus is None or not bus.connected:
+            return 0
+        day = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        async with self.hub.db.tx(await self.hub.companies.ids()) as tx:
+            rows = await tx.all(DAY_SQL, day=day, codes=sorted({c for c, _ in due}))
+        days = {r["company"]: dict(r) for r in rows}
+        for code, w in due:
+            env = events.envelope(
+                code, "llm.tick", None, tick_data(code, w, days.get(code), self.ticks.window_s)
+            )
+            await bus.publish(f"hq.core.{code}.llm.tick", env, msg_id=f"llm.tick:{code}:{w.start}")
+        return len(due)
 
     async def subscribe(self) -> int:
         """Bind the durable consumers whose streams exist; returns how many are bound."""
@@ -176,7 +302,9 @@ class Bridge:
             try:
                 if len(self._subs) < len(SOURCES):
                     await self.subscribe()
-                if await self.drain_once() == 0:
+                drained = await self.drain_once()
+                await self.flush_ticks()
+                if drained == 0:
                     await asyncio.sleep(self.idle_s)
             except asyncio.CancelledError:
                 raise
@@ -216,6 +344,7 @@ class Bridge:
             await self.hub.bus.publish(
                 f"hq.core.{company.code}.llm.call_{parts[4]}", env, msg_id=msg_id
             )
+            self.ticks.add(company.code, parts[4], data)  # ⟨1.24⟩ §42.2 its 5 s window
             return
         if stream != "HQ_ALERTS":
             return
