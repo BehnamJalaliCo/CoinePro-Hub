@@ -148,12 +148,14 @@
 }
 
 @keyframes hq-spin { to { transform: rotate(360deg); } }
-@keyframes hq-breath { 0%, 100% { transform: scale(1); opacity: .92; } 50% { transform: scale(1.04); opacity: 1; } }
+/* ⟨1.24⟩ hq-breath, hq-ring and hq-flow take their ends from custom properties (defaults: what they always did), so the motion grammar
+   below reuses them instead of forking: M6 is a breath without the scale, M3 and M10 are rings of their own size, M5 a flow of its own dash. */
+@keyframes hq-breath { 0%, 100% { transform: scale(1); opacity: var(--hq-breath-low, .92); } 50% { transform: scale(var(--hq-breath-scale, 1.04)); opacity: 1; } }
 @keyframes hq-live { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 @keyframes hq-shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
 @keyframes hq-wave { 0%, 100% { transform: scaleY(.35); } 50% { transform: scaleY(1); } }
-@keyframes hq-ring { 0% { transform: scale(1); opacity: .55; } 100% { transform: scale(1.5); opacity: 0; } }
-@keyframes hq-flow { to { stroke-dashoffset: -32; } }
+@keyframes hq-ring { 0% { transform: scale(1); opacity: var(--hq-ring-from, .55); } 100% { transform: scale(var(--hq-ring-to, 1.5)); opacity: 0; } }
+@keyframes hq-flow { to { stroke-dashoffset: var(--hq-flow-to, -32); } }
 @keyframes hq-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 /* 0.4.0: the tools sheet's tiles arrive with a spring, one after another. */
 @keyframes hq-tile { from { opacity: 0; transform: translateY(10px) scale(.96); } 70% { transform: translateY(-1px) scale(1.01); } to { opacity: 1; transform: none; } }
@@ -169,6 +171,48 @@
 @keyframes hq-settle { from { opacity: 0; } to { opacity: 1; } }
 .hq-draw { stroke-dasharray: 1; animation: hq-draw 900ms cubic-bezier(.05, .7, .1, 1) both; }
 .hq-settle { animation: hq-settle 300ms var(--hq-ease-standard) 650ms both; }
+
+/* ⟨1.24⟩ K-1, the motion grammar of the live views (design/LIVE_VIEWS.md §2, contract §42): one language, built once, every view composes
+   it. Each class is one primitive; every motion maps to one event (or the real clock), nothing moves at rest, loops live only as long as
+   the process they show. JS-driven motion (M4 particles, the M9 gap, M11 FLIP) lives in components/live/motion.tsx and lib/live/particles.ts.
+   The three durations the grammar proposes, until the token file carries them. */
+:root { --hq-dur-travel: 900ms; --hq-dur-ripple: 600ms; --hq-dur-loop: 1600ms; }
+@keyframes hq-glint { 0% { opacity: .3; } 40% { opacity: 1; } 100% { opacity: .3; } }
+/* M1 settle «نشستن»: a new thing arrives (rows faster). */
+.hq-m1 { animation: hq-rise var(--hq-dur-transition) var(--hq-ease-standard) both; }
+.hq-m1-row { animation: hq-rise var(--hq-dur-state) var(--hq-ease-standard) both; }
+/* M2 crossfade «تغییر حال»: a state, a colour, a label or a figure changes (figures never count up). */
+.hq-m2 { transition: color var(--hq-dur-state) var(--hq-ease-standard), background-color var(--hq-dur-state) var(--hq-ease-standard), border-color var(--hq-dur-state) var(--hq-ease-standard), fill var(--hq-dur-state) var(--hq-ease-standard), stroke var(--hq-dur-state) var(--hq-ease-standard), opacity var(--hq-dur-state) var(--hq-ease-standard); }
+.hq-m2-in { animation: hq-settle var(--hq-dur-state) var(--hq-ease-standard) both; }
+/* M3 ripple «موج»: one ring 1 → 1.5×, once, when a node changed state. */
+.hq-m3 { transform-box: fill-box; transform-origin: center; animation: hq-ring var(--hq-dur-ripple) var(--hq-ease-standard) 1 both; }
+/* M5 work band «نوار کار»: only while a run is queued or running. */
+.hq-m5 { --hq-flow-to: -32; stroke-dasharray: 12 20; animation: hq-flow var(--hq-dur-loop) linear infinite; }
+/* M6 breath «دم»: only while a model call is in flight. */
+.hq-m6 { --hq-breath-low: .55; --hq-breath-scale: 1; animation: hq-breath var(--hq-dur-loop) ease-in-out infinite; }
+/* GL-1: one breath per byte from the hub, at most one every 2 s. */
+.hq-m6-once { --hq-breath-low: .4; --hq-breath-scale: 1; animation: hq-breath var(--hq-dur-ripple) var(--hq-ease-standard) 1; }
+/* M7 arc «چرخه»: only while a step or a job runs. */
+.hq-m7 { transform-box: fill-box; transform-origin: center; animation: hq-spin 1s linear infinite; }
+/* M8 draw «ترسیم»: a tick, a new hop (320 ms); a new node or edge (480 ms). Paths carry pathLength 1. */
+.hq-m8 { stroke-dasharray: 1; animation: hq-draw var(--hq-dur-transition) var(--hq-ease-standard) both; }
+.hq-m8-ceremony { stroke-dasharray: 1; animation: hq-draw var(--hq-dur-ceremony) var(--hq-ease-ceremony) both; }
+/* M9 break «گسست»: the edge's gap opens over 320 ms (its dash pattern moves), and closes the same way on reconnect. */
+.hq-m9 { transition: stroke-dasharray var(--hq-dur-transition) var(--hq-ease-standard), stroke var(--hq-dur-state) var(--hq-ease-standard); }
+/* M10 ceremony «آیین»: the owner acts only; one gold ring expands. */
+.hq-m10 { --hq-ring-from: .75; --hq-ring-to: 1.9; transform-box: fill-box; transform-origin: center; animation: hq-ring var(--hq-dur-ceremony) var(--hq-ease-ceremony) 1 both; }
+/* M11 reorder «جابه‌جایی»: a laid-out node moves to its new place. */
+.hq-m11 { transition: transform var(--hq-dur-transition) var(--hq-ease-standard), left var(--hq-dur-transition) var(--hq-ease-standard), top var(--hq-dur-transition) var(--hq-ease-standard); }
+/* M12 fill «پر شدن»: a meter's real value changed. */
+.hq-m12 { transition: width var(--hq-dur-ripple) var(--hq-ease-standard), flex-grow var(--hq-dur-ripple) var(--hq-ease-standard), stroke-dasharray var(--hq-dur-ripple) var(--hq-ease-standard), inset-inline-start var(--hq-dur-ripple) var(--hq-ease-standard), background-color var(--hq-dur-state) var(--hq-ease-standard); }
+/* M13 glint «برق تحریر»: the tahrir under a headline figure, once (gold: the owner's; silver: the agents'). */
+.hq-m13 { animation: hq-glint var(--hq-dur-ripple) var(--hq-ease-standard) 1 both; }
+/* GL-2 and the map: a locked company is hatched at 45°. */
+.hq-hatch { background-image: repeating-linear-gradient(45deg, transparent 0 6px, var(--hq-soft-negative) 6px 8px); }
+/* Rule 8: under reduced motion a particle is a 1.5 s tint on its edge (lib/live/particles.ts sets data-tint). */
+[data-tint="gold"] { stroke: var(--hq-gold-ink) !important; stroke-width: 2.2px; }
+[data-tint="silver"] { stroke: var(--hq-silver-ink) !important; stroke-width: 2.2px; }
+[data-tint="lapis"] { stroke: var(--hq-lapis) !important; stroke-width: 2.2px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
