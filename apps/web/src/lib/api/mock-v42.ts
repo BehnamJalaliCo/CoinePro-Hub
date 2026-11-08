@@ -170,6 +170,8 @@ export function drive42(what: string, ctx: Ctx42): Ev[] {
   if (what === 'order') return [flow({ from: 'hub', to: 'TY', kind: 'order', ref: 'F-0007', label_fa: 'ریلز آخر هفته' })];
   if (what === 'request') return [flow({ from: 'TY', to: 'FX', kind: 'request', ref: 'W-000399', label_fa: 'سیگنال‌های امروز' })];
   if (what === 'stuck') { const p = people.get('TY-GROWTH-01')!; return [setState(p, 'stuck')]; }
+  // A quiet session starts moving (its badge on the stream; the work band runs under it).
+  if (what === 'moving') return [ev(null, 'session.updated', 'F-0006', { ref: 'F-0006', badge: 'moving' })];
   if (what === 'work') { const p = people.get('TY-SUPPORT-01')!; return [setState(p, 'working')]; }
   if (what === 'tokens') { const t = tokenTick('TY', 40); return t ? [t] : []; }
   // Many events at once (a burst): people flicker in the companies that run.

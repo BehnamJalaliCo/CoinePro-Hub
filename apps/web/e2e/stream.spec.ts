@@ -46,8 +46,26 @@ test('shows the stream offline while the hub refuses it, and live again when it 
   await page.addInitScript(() => window.localStorage.setItem('hq.e2e.stream', '1'));
   await page.route('**/api/v1/stream**', (route) => (refuse ? route.fulfill({ status: 503, body: '' }) : route.fulfill(sse(ev(7, 'work.updated', 'W-000210', { status: 'in_progress' })))));
   await page.goto('/');
-  await expect(page.getByTitle('قطع؛ دوباره وصل میشود')).toBeVisible();
+  // ⟨1.24⟩ GL-1: while it retries the beacon says «در حال وصل» (an arc turns); past 45 s it would say «قدیمی · n».
+  await expect(page.getByTitle('در حال وصل')).toBeVisible();
   refuse = false;
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
   await expect(page.getByTitle('زنده')).toBeVisible({ timeout: 15_000 });
+});
+
+// ⟨1.24⟩ Contract §42.3: the panel seeds from `GET /live/summary` and resumes the stream exactly after its sequence; nothing the seed
+// already counted is taken again (the demo's summary answers the sequence `hq.e2e.seq` sets).
+test('seeds from the live summary and resumes after its sequence; an event at or below it is dropped', async ({ page }) => {
+  const seen: Array<string | null> = [];
+  await page.addInitScript(() => { window.localStorage.setItem('hq.e2e.stream', '1'); window.localStorage.setItem('hq.e2e.seq', '500'); });
+  await page.route('**/api/v1/stream**', async (route: Route, req: Request) => {
+    const lastId = req.headers()['last-event-id'] ?? null;
+    seen.push(lastId);
+    return route.fulfill(lastId === '500' ? sse(ev(499, 'work.council', 'W-000499', { state: 'done' }) + ev(501, 'work.council', 'W-000501', { state: 'done' })) : sse(''));
+  });
+  await page.goto('/companies');
+  const feed = page.getByRole('list', { name: 'آخرین رویدادها' });
+  await expect(feed.getByText(/W-000501/).first()).toBeVisible({ timeout: 30_000 });
+  await expect(feed.getByText(/W-000499/)).toHaveCount(0);
+  expect(seen[0]).toBe('500');
 });
