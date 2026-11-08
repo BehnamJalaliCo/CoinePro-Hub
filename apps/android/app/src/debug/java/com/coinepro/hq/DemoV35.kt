@@ -385,9 +385,129 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
             }
             action == "hide" && method == "POST" -> { s.hidden = true; return 200 to report(s) }
             action == "unhide" && method == "POST" -> { s.hidden = false; return 200 to report(s) }
+            // ⟨1.23⟩ §41 the work, live, and «ادامه بده».
+            action == "activity" && method == "GET" -> return 200 to activity(s)
+            action == "nudge" && method == "POST" -> {
+                if (s.closedAt != null) return 409 to problem(409, "order_ended", "این جلسه بسته است؛ اول بازش کن.")
+                nudge(s)
+                return 200 to activity(s)
+            }
         }
         return null
     }
+
+    // ------------------------------------------------- ⟨1.23⟩ §41 the work, live --
+    // F-0104 is at work (its CEO and his SEO specialist, each at a step; a new line about every two seconds on the stream, in a loop);
+    // F-0101 waits for the owner; F-0103 is stuck (why, and what fixes it); the others are quiet since their last move. «ادامه بده» wakes
+    // the holder with the plan's next task: he works a few steps on the stream, then the session is quiet again.
+    private class Live(val workers: MutableList<JsonObject> = mutableListOf(), val lines: MutableList<JsonObject> = mutableListOf(), var idleSince: String? = null, val script: ArrayDeque<Pair<String, String>> = ArrayDeque(), val loop: Boolean = false)
+
+    private fun line(at: String, who: String, text: String) = jo("at" to at, "who_fa" to who, "text_fa" to text)
+    private fun worker(who: String, company: String?, work: String, startedMin: Long, step: Int, doing: String) =
+        jo("who_fa" to who, "company_fa" to company, "work_title_fa" to work, "started_at" to at(startedMin), "step" to step, "doing_fa" to doing)
+
+    private val live: MutableMap<String, Live> = mutableMapOf(
+        "F-0104" to Live(
+            workers = mutableListOf(
+                worker("مدیرعامل پرو-چارت", "پرو-چارت", "سئوی سایت پرو-چارت", 14, 6, "فهرست صفحه‌هایی که باید بهتر شوند را مرتب میکند"),
+                worker("کارشناس سئوی پرو-چارت", "پرو-چارت", "بررسی سه رقیب اول «چارت طلا»", 4, 3, "صفحه‌ی اول tradingview.com را میخواند"),
+            ),
+            lines = mutableListOf(
+                line(at(14), "مدیرعامل پرو-چارت", "کار «سئوی سایت پرو-چارت» را شروع کرد"),
+                line(at(13), "مدیرعامل پرو-چارت", "سایت pro-chart.com را خواند"),
+                line(at(12), "مدیرعامل پرو-چارت", "از ChatGPT پرسید کدام صفحه‌ها کمتر دیده میشوند"),
+                line(at(10), "مدیرعامل پرو-چارت", "سه رقیب اول را در جستجوی «چارت طلا» پیدا کرد"),
+                line(at(8), "مدیرعامل پرو-چارت", "بررسی رقبا را به کارشناس سئو سپرد"),
+                line(at(4), "کارشناس سئوی پرو-چارت", "کار «بررسی سه رقیب اول» را شروع کرد"),
+                line(at(3), "کارشناس سئوی پرو-چارت", "صفحه‌ی اول investing.com را خواند"),
+                line(at(2), "مدیرعامل پرو-چارت", "عنوان هشت صفحه‌ی سایت را خواند"),
+                line(at(1), "کارشناس سئوی پرو-چارت", "از Gemini پرسید کدام کلیدواژه‌ها جا مانده‌اند"),
+                line(now.minusSeconds(20).toString(), "مدیرعامل پرو-چارت", "فهرست صفحه‌هایی که باید بهتر شوند را مرتب میکند"),
+            ),
+            script = ArrayDeque(listOf(
+                "کارشناس سئوی پرو-چارت" to "صفحه‌ی اول tradingview.com را خواند",
+                "مدیرعامل پرو-چارت" to "توضیح متای سه صفحه را دوباره نوشت",
+                "کارشناس سئوی پرو-چارت" to "جدول مقایسه‌ی سه رقیب را ساخت",
+                "مدیرعامل پرو-چارت" to "از DeepSeek پرسید عنوان‌ها طبیعی‌اند یا نه",
+                "کارشناس سئوی پرو-چارت" to "خروجی «مقایسه‌ی رقبا» را تحویل داد",
+                "مدیرعامل پرو-چارت" to "صفحه‌ی «چارت طلا» را برای نوشتن دوباره علامت زد",
+            )),
+            loop = true,
+        ),
+    )
+
+    private fun liveOf(s: S): Live = live.getOrPut(s.ref) {
+        // The quiet ones: their report's steps as the lines (the hub's own, «سامانه», are not a step of anyone's work).
+        Live(
+            lines = s.steps.filter { it.str("who_fa") != "سامانه" }.map { line(it.str("at").orEmpty(), it.str("who_fa").orEmpty(), it.str("what_fa").orEmpty()) }.toMutableList(),
+            idleSince = s.closedAt ?: at(s.last),
+        )
+    }
+
+    private fun activity(s: S): JsonObject {
+        val l = liveOf(s)
+        val working = s.closedAt == null && l.workers.isNotEmpty()
+        return jo(
+            "working" to JsonArray(if (working) l.workers else emptyList()),
+            "last" to JsonArray(l.lines.takeLast(30)),
+            "idle_since" to (if (working) null else l.idleSince),
+            "waiting_fa" to (if (!working && s.closedAt == null) s.turn?.str("question_fa") else null),
+            "stuck_fa" to (if (!working && s.closedAt == null && s.turn == null && s.badge == "stuck") STUCK_FA[s.ref] ?: s.reason else null),
+        )
+    }
+
+    /** «ادامه بده»: the holder takes the plan's next task now; a few steps follow on the stream. */
+    private fun nudge(s: S) {
+        val l = liveOf(s)
+        if (l.workers.isNotEmpty()) return
+        val next = s.tasks.firstOrNull { it.str("state") == "doing" } ?: s.tasks.firstOrNull { it.str("state") == "todo" }
+        val task = next?.str("title_fa") ?: "قدم بعد"
+        l.workers += worker(s.holder.second, companyFa(s.holder.third), s.text.take(60), 0, 1, "کار بعدی برنامه: $task")
+        l.lines += line(now.toString(), s.holder.second, "دوباره دست به کار شد: $task")
+        l.idleSince = null
+        l.script.addAll(listOf(s.holder.second to "برنامه را از «$task» ادامه داد", s.holder.second to "یک قدم از «$task» را برداشت"))
+        s.badge = "moving"; s.reason = "${s.holder.second} دوباره دست به کار شد."; s.last = 0
+    }
+
+    private var liveSeq = 0
+
+    /** The stream's `session.activity` lines (from [DemoLive], about every two seconds): each working session's next scripted step. */
+    @Synchronized
+    fun tick(tick: Int): List<com.coinepro.hq.core.net.StreamEvent> {
+        if (tick % 3 != 0) return emptyList()
+        val out = mutableListOf<com.coinepro.hq.core.net.StreamEvent>()
+        for ((ref, l) in live) {
+            val s = sessions.firstOrNull { it.ref == ref && it.closedAt == null } ?: continue
+            val nowIso = HqClock.now().toString()
+            val step = l.script.removeFirstOrNull()
+            if (step == null) {
+                if (l.workers.isEmpty()) continue
+                l.workers.clear(); l.idleSince = nowIso
+                out += activityEvent(s, line(nowIso, s.holder.second, "این قدم تمام شد؛ منتظر کار بعدی است"), 0)
+                l.lines += line(nowIso, s.holder.second, "این قدم تمام شد؛ منتظر کار بعدی است")
+                continue
+            }
+            if (l.loop) l.script.addLast(step)
+            val (who, text) = step
+            val ln = line(nowIso, who, text)
+            l.lines += ln
+            while (l.lines.size > 30) l.lines.removeAt(0)
+            val i = l.workers.indexOfFirst { it.str("who_fa") == who }
+            if (i >= 0) {
+                val n = ((l.workers[i]["step"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0) + 1
+                l.workers[i] = JsonObject(l.workers[i] + mapOf("step" to JsonPrimitive(n), "doing_fa" to JsonPrimitive(text)))
+            }
+            out += activityEvent(s, ln, l.workers.size)
+        }
+        return out
+    }
+
+    private fun activityEvent(s: S, ln: JsonObject, working: Int) = com.coinepro.hq.core.net.StreamEvent(
+        "demo-sa-${++liveSeq}", "session.activity", HqClock.now().toString(), s.holder.third, s.ref,
+        jo("order" to s.ref, "line" to ln, "working" to working),
+    )
+
+    init { DemoLive.sessions = this }
 
     // ------------------------------------------------- ⟨1.22⟩ §40 for [V40Demo] --
     /** What the playbooks' demo reads of a session: its words, company, holder and talk. */
@@ -449,6 +569,11 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
 
     // ------------------------------------------------------------- helpers --
     companion object {
+        /** ⟨1.23⟩ §41.3 why a stuck session is stuck, in plain words, and what fixes it (as the hub's sweep writes it). */
+        val STUCK_FA = mapOf(
+            "F-0103" to "کسی برای پشتیبان تلگرام نیست و استخدام در کوینه‌پرو FX بسته است؛ استخدام را باز کن تا منشی ادامه دهد.",
+        )
+
         /** ⟨1.22⟩ §40.1 what F-0101 remembers, as the hub's small model writes it (its headings; a ref kept, the app hides it). */
         const val TY_MEMORY = "## تصمیم‌ها\n" +
             "- هفته‌ی آموزش طلا: سه ریلز، دو پست کانال و یک مقاله.\n" +

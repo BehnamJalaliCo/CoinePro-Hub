@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
@@ -49,7 +51,15 @@ import com.coinepro.hq.core.data.PACE_HINT_FA
 import com.coinepro.hq.core.data.PLAYER_FA
 import com.coinepro.hq.core.data.PlayerOption
 import com.coinepro.hq.core.data.SessionEntry
+import com.coinepro.hq.core.data.StreamState
+import com.coinepro.hq.core.data.activityEventOf
+import com.coinepro.hq.core.data.activityFromReport
 import com.coinepro.hq.core.data.addresseeFa
+import com.coinepro.hq.core.data.applyActivity
+import com.coinepro.hq.core.data.mergeFetched
+import com.coinepro.hq.core.data.paceToastFa
+import com.coinepro.hq.core.data.planProgress
+import com.coinepro.hq.core.data.taskInHand
 import com.coinepro.hq.core.data.briefOf
 import com.coinepro.hq.core.data.isPlayer
 import com.coinepro.hq.core.data.keyPatterns
@@ -76,6 +86,7 @@ import com.coinepro.hq.core.net.FileRef
 import com.coinepro.hq.core.net.HubFeature
 import com.coinepro.hq.core.net.OrderReport
 import com.coinepro.hq.core.net.ReportOutput
+import com.coinepro.hq.core.net.SessionActivity
 import com.coinepro.hq.core.net.SessionParticipant
 import com.coinepro.hq.core.net.SessionTask
 import com.coinepro.hq.core.net.TalkCard
@@ -107,6 +118,7 @@ import com.coinepro.hq.ui.media.MessageMedia
 import com.coinepro.hq.ui.media.rememberAttachments
 import com.coinepro.hq.ui.media.rememberPickers
 import com.coinepro.hq.ui.rememberAction
+import com.coinepro.hq.ui.rememberQuery
 import com.coinepro.hq.ui.v29.BlockerRow
 import com.coinepro.hq.ui.v29.OutputsCard
 import com.coinepro.hq.ui.v29.Para
@@ -123,7 +135,9 @@ import com.coinepro.hq.ui.v32.TalkSession
 import com.coinepro.hq.ui.v32.faCount
 import com.coinepro.hq.ui.v32.rememberChatFollow
 import com.coinepro.hq.ui.v32.rememberHandsFree
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.util.UUID
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 
@@ -134,7 +148,7 @@ import kotlinx.serialization.json.JsonObject
 // the pace, the plan, the results and files, close, cancel, hide and erase) is in the «جزئیات» sheet; «تأیید و بستن» is also a pill in
 // the head once the work is ready. Nothing technical and no ref is shown: the ref is the key only.
 
-private enum class SessionSheet { NONE, DETAILS, PERSON, MODEL, CLOSE, LINE, KEY, PARTICIPANT, ERASE }
+private enum class SessionSheet { NONE, DETAILS, PLAN, LIVE, PERSON, MODEL, CLOSE, LINE, KEY, PARTICIPANT, ERASE }
 
 @Composable
 fun OrderSessionScreen(ref: String) {
@@ -169,14 +183,28 @@ fun OrderSessionScreen(ref: String) {
         }
         if (r != null && r != talk.conv?.ref) { cv = r; talk.open(r) }
     }
-    // The stream: a turn or card changed (the conversation), the session moved (its report).
+    // ⟨1.23⟩ §41.1 the work, live: the hub's `/activity` on open and on each of its stream events (refetched by the tag, at most once in
+    // two seconds), each `session.activity` line appended the moment it arrives; a hub without it, the panel read from the report.
+    val liveOn = served(HubFeature.SESSION_ACTIVITY)
+    val aq = rememberQuery("session-activity:$ref", "session-activity", maxAgeMs = 5_000) { gated(HubFeature.SESSION_ACTIVITY) { sessionActivity(ref) } }
+    var held by remember(ref) { mutableStateOf<SessionActivity?>(null) }
+    LaunchedEffect(aq.data) { aq.data?.let { held = mergeFetched(it, held) } }
+    // The stream: a turn or card changed (the conversation), the session moved (its report), a step of its work (the live panel).
     LaunchedEffect(env, ref) {
         env.stream.events.collect { e ->
             when {
                 e.type.startsWith("talk.") && !talk.busy -> talk.reload()
+                e.type == "session.activity" -> activityEventOf(e)?.takeIf { it.order == ref }?.let { ev -> held = applyActivity(held ?: aq.data ?: SessionActivity(), ev) }
                 (e.type == "session.updated" || e.type == "order.report") && e.ref == ref -> q.refresh()
             }
         }
+    }
+    // Without the stream (the phone between networks, a hub restarting) the panel asks again on its own: often while someone works.
+    val streamState by env.stream.state.collectAsStateWithLifecycle()
+    val workingNow = held?.working?.isNotEmpty() == true
+    LaunchedEffect(ref, liveOn, streamState, workingNow) {
+        if (!liveOn || streamState == StreamState.LIVE) return@LaunchedEffect
+        while (true) { delay(if (workingNow) 10_000 else 30_000); aq.refresh() }
     }
 
     val closed = o?.let(::sessionClosed) == true
@@ -227,6 +255,29 @@ fun OrderSessionScreen(ref: String) {
         try { q.set(env.api.reopenSession(ref)); env.cache.invalidate("sessions", "office", "orders"); toasts.ok("دوباره باز شد؛ مسئول خبر دارد."); talk.reload() }
         catch (e: ApiException) { toasts.error(e.messageFa) }
     }
+    // §34.1, §41.2 the pace, from the head or the details: shown at once, the hub's report when it answers (back as it was if it refuses).
+    var paceAsked by remember(ref) { mutableStateOf<String?>(null) }
+    fun setPace(p: String) = scope.launch {
+        paceAsked = p
+        try {
+            q.set(env.api.setPace(ref, p))
+            env.cache.invalidate("sessions", "office")
+            toasts.ok(paceToastFa(p))
+        } catch (e: ApiException) { toasts.error(e.messageFa) }
+        finally { paceAsked = null }
+    }
+    // §41.3 «ادامه بده»: the holder woken now with the plan's next task. One key per press, kept across a retry of the same press.
+    val nudge = rememberAction()
+    var nudgeKey by remember(ref) { mutableStateOf(UUID.randomUUID().toString()) }
+    fun nudgeNow() = nudge.run {
+        val out = env.api.nudgeSession(ref, nudgeKey)
+        nudgeKey = UUID.randomUUID().toString()
+        held = mergeFetched(out, held)
+        aq.set(out)
+        toasts.ok("${o?.let { r -> r.participants.firstOrNull { it.kind == "holder" }?.let(::participantTitle) } ?: "مسئول"} دوباره دست به کار شد.")
+        q.refresh()
+        env.cache.invalidate("sessions", "office")
+    }
 
     if (!has) {
         Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) { Empty("جلسه‌ی فرمان با به‌روزرسانی بعدی هاب میاید", icon = DivanIcon.MEETING) }
@@ -249,9 +300,20 @@ fun OrderSessionScreen(ref: String) {
     }
     val live = talk.phase != Phase.IDLE || talk.liveText.isNotBlank() || talk.liveFailed != null
 
+    // ⟨1.23⟩ §41 what the live panel shows: the hub's activity, else (a hub before it) the report read as one.
+    val shown = when {
+        o == null || closed -> null
+        liveOn -> held
+        else -> activityFromReport(o)
+    }
+
     Column(Modifier.fillMaxSize().imePadding()) {
         when {
-            o != null -> SessionHead(o, closed, sessionsOn, onDetails = { sheet = SessionSheet.DETAILS }, onClose = { sheet = SessionSheet.CLOSE })
+            o != null -> SessionHead(
+                o, closed, sessionsOn, pace = paceAsked ?: o.pace,
+                onDetails = { sheet = SessionSheet.DETAILS }, onClose = { sheet = SessionSheet.CLOSE },
+                onPace = { p -> setPace(p) }, onPlan = { sheet = SessionSheet.PLAN },
+            )
             q.error != null -> Box(Modifier.fillMaxWidth().padding(16.dp)) { ErrorBlock(q.error, { q.refresh() }) }
             else -> Skeleton(Modifier.fillMaxWidth().padding(16.dp).height(58.dp), radius = 12.dp)
         }
@@ -299,6 +361,13 @@ fun OrderSessionScreen(ref: String) {
         // Who answers, and the composer (typing, holding to talk, hands-free); a closed session, its way back.
         if (o != null && !closed) Column(Modifier.fillMaxWidth().background(c.page).padding(horizontal = 12.dp).padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             HorizontalDivider(color = c.lineDivider)
+            // ⟨1.23⟩ §41 the work, live, pinned over the composer: it takes its own room and never covers the chat's last word.
+            shown?.let { a ->
+                LiveWorkPanel(
+                    a, ready = sessionBadge(o) == "ready", canNudge = liveOn && sessionsOn, nudging = nudge.busy,
+                    onNudge = { nudgeNow() }, onOpen = { sheet = SessionSheet.LIVE },
+                )
+            }
             if (turnOpen) Text(plain("جوابت به «${o.turn?.whoFa?.ifBlank { null } ?: addresseeFa(null, participants)}» میرود"), style = Divan.type.micro, color = c.goldInk, modifier = Modifier.padding(horizontal = 4.dp))
             else if (cv != null && participants.size > 1) AddresseeRow(participants, talk.addressee) { talk.addressee = it }
             // The paperclip once the session's talk is open (files go with a turn of it) and the hub takes them.
@@ -312,21 +381,21 @@ fun OrderSessionScreen(ref: String) {
 
     when (sheet) {
         SessionSheet.NONE -> Unit
-        SessionSheet.DETAILS -> o?.let { r ->
+        SessionSheet.LIVE -> shown?.let { a ->
+            com.coinepro.hq.ui.v14.HqSheet({ sheet = SessionSheet.NONE }, "کار زنده", sub = "هر قدم کار این جلسه، همان لحظه که برداشته میشود.") {
+                LiveWorkSheetBody(a, ready = o?.let(::sessionBadge) == "ready", canNudge = liveOn && sessionsOn, nudging = nudge.busy, onNudge = { nudgeNow() })
+            }
+        }
+        // ⟨1.23⟩ §41.2 «کار ۳ از ۹» in the head opens the details at the plan.
+        SessionSheet.DETAILS, SessionSheet.PLAN -> o?.let { r ->
             com.coinepro.hq.ui.v14.HqSheet({ sheet = SessionSheet.NONE }, "جزئیات جلسه") {
                 SessionDetailsBody(
                     r, closed, sessionsOn, participants, talk.addressee,
                     onPick = { p -> if (p.kind == "holder") { talk.addressee = null; sheet = SessionSheet.NONE } else { picked = p; sheet = SessionSheet.PARTICIPANT } },
                     onAddPerson = { sheet = SessionSheet.PERSON }, onAddModel = { sheet = SessionSheet.MODEL },
-                    onPace = { p ->
-                        scope.launch {
-                            try {
-                                q.set(env.api.setPace(ref, p))
-                                env.cache.invalidate("sessions", "office")
-                                toasts.ok(if (p == "step") "از این به بعد قدم‌به‌قدم با تو." else "از این به بعد خودش تا آخر میرود.")
-                            } catch (e: ApiException) { toasts.error(e.messageFa) }
-                        }
-                    },
+                    onPace = { p -> setPace(p) },
+                    pace = paceAsked ?: r.pace,
+                    focusPlan = sheet == SessionSheet.PLAN,
                     onTasksChanged = { q.refresh() },
                     onClose = { sheet = SessionSheet.CLOSE },
                     onReopen = { sheet = SessionSheet.NONE; reopen() },
@@ -428,12 +497,23 @@ internal fun sessionFaces(known: List<TalkPersona>, participants: List<SessionPa
 
 // ------------------------------------------------------------------ head --
 /** ⟨0.17.0⟩ The head, compact: the order's words in at most two lines (a tap opens them all), the badge and one line of what is
- *  happening, «جزئیات» for everything else; «تأیید و بستن» beside the badge once the work is ready. */
+ *  happening, «جزئیات» for everything else; «تأیید و بستن» beside the badge once the work is ready. ⟨0.19.0⟩ §41.2 the pace back beside
+ *  the line («با من | خودکار»), and the plan's progress under it («کار ۳ از ۹», a thin bar; a tap opens the details at the plan). */
 @Composable
-private fun SessionHead(o: OrderReport, closed: Boolean, sessionsOn: Boolean, onDetails: () -> Unit, onClose: () -> Unit) {
+internal fun SessionHead(
+    o: OrderReport,
+    closed: Boolean,
+    sessionsOn: Boolean,
+    onDetails: () -> Unit,
+    onClose: () -> Unit,
+    pace: String = o.pace,
+    onPace: (String) -> Unit = {},
+    onPlan: () -> Unit = {},
+) {
     val c = Divan.colors
     val badge = sessionBadge(o)
     val line = sessionStatusLine(o)
+    val plan = planProgress(o.tasks)
     var open by rememberSaveable(o.ref) { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().background(c.page).padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         // ⟨1.22⟩ §40.3 a session opened to adapt a playbook says so, small; a tap opens the playbook.
@@ -454,7 +534,9 @@ private fun SessionHead(o: OrderReport, closed: Boolean, sessionsOn: Boolean, on
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
             )
             if (badge == "ready" && !closed && sessionsOn) HqButton("تأیید و بستن", onClose, variant = BtnVariant.PRIMARY, size = BtnSize.SM, icon = DivanIcon.SEAL)
+            else if (!closed && sessionsOn) PaceChip(pace, enabled = true, onPace = onPace)
         }
+        plan?.let { p -> PlanProgressRow(p, taskInHand(o.tasks)?.titleFa, onPlan) }
     }
 }
 
@@ -537,9 +619,14 @@ internal fun SessionDetailsBody(
     onHide: () -> Unit,
     onErase: () -> Unit,
     onDrafted: (com.coinepro.hq.core.net.Playbook) -> Unit = {},
+    pace: String = o.pace,
+    focusPlan: Boolean = false,
 ) {
     val c = Divan.colors
     val brief = briefOf(o)
+    // ⟨1.23⟩ opened from «کار ۳ از ۹» in the head: the plan is brought into view.
+    val planAt = remember { BringIntoViewRequester() }
+    LaunchedEffect(focusPlan) { if (focusPlan) { kotlinx.coroutines.delay(350); planAt.bringIntoView() } }
     val playbooksOn = served(HubFeature.PLAYBOOKS)
     val ready = sessionBadge(o) == "ready"
     val eraseOn = served(HubFeature.ERASE)
@@ -563,8 +650,8 @@ internal fun SessionDetailsBody(
     o.memoryMd?.takeIf { it.isNotBlank() }?.let { com.coinepro.hq.ui.playbook.MemoryCard(it) }
     if (playbooksOn) com.coinepro.hq.ui.playbook.SessionPlaybooks(o.ref, onDrafted)
     PeopleBar(participants, open = !closed && sessionsOn, addressee = addressee, onPick = onPick, onAddPerson = onAddPerson, onAddModel = onAddModel)
-    PaceRow(o.pace, enabled = !closed && sessionsOn, onPace = onPace)
-    if (o.tasks.isNotEmpty() || (sessionsOn && !closed)) TasksCard(o.ref, o.tasks, editable = sessionsOn && !closed, onChanged = onTasksChanged)
+    PaceRow(pace, enabled = !closed && sessionsOn, onPace = onPace)
+    if (o.tasks.isNotEmpty() || (sessionsOn && !closed)) TasksCard(o.ref, o.tasks, editable = sessionsOn && !closed, onChanged = onTasksChanged, modifier = Modifier.bringIntoViewRequester(planAt))
     if (o.outputs.isNotEmpty()) OutputsCard(o)
     if (o.files.any { it.id.isNotBlank() }) FilesCard(o.files.filter { it.id.isNotBlank() })
     if (sessionsOn) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -696,7 +783,7 @@ private fun PaceRow(pace: String, enabled: Boolean, onPace: (String) -> Unit) {
 // ------------------------------------------------------------------ tasks --
 /** The plan, like a Claude Code task list: the holder writes it and ticks it; the owner adds, ticks and drops. */
 @Composable
-private fun TasksCard(ref: String, tasks: List<SessionTask>, editable: Boolean, onChanged: () -> Unit) {
+private fun TasksCard(ref: String, tasks: List<SessionTask>, editable: Boolean, onChanged: () -> Unit, modifier: Modifier = Modifier) {
     val env = LocalEnv.current
     val c = Divan.colors
     val toasts = LocalToasts.current
@@ -704,7 +791,7 @@ private fun TasksCard(ref: String, tasks: List<SessionTask>, editable: Boolean, 
     val add = rememberAction()
     var draft by rememberSaveable(ref) { mutableStateOf("") }
     val (done, total) = taskProgress(tasks)
-    HqCard(Modifier.fillMaxWidth()) {
+    HqCard(modifier.fillMaxWidth()) {
         SectionTitle("برنامه", note = if (total == 0) "مسئول برنامه را مینویسد" else "$done از $total کار", icon = DivanIcon.TASK)
         Column(Modifier.padding(top = 8.dp)) {
             for (t in orderedTasks(tasks)) {

@@ -1824,6 +1824,13 @@ class Api(
     suspend fun hideSession(ref: String): OrderReport = post("/orders/${seg(ref)}/hide", JsonObject(emptyMap()))
     suspend fun unhideSession(ref: String): OrderReport = post("/orders/${seg(ref)}/unhide", JsonObject(emptyMap()))
 
+    // ----------------------------------------------- ⟨1.23⟩ §41 the session's work, live --
+    /** §41.1 who works on the order's tree now, its last lines (≤ 30, newest last), and why nobody does when nobody does. */
+    suspend fun sessionActivity(ref: String): SessionActivity = get("/orders/${seg(ref)}/activity")
+    /** §41.3 «ادامه بده»: the holder is woken now with the plan's next task. [key] is the press's own UUID (a retry sends the same). */
+    suspend fun nudgeSession(ref: String, key: String): SessionActivity =
+        call(write("POST", "/orders/${seg(ref)}/nudge", JsonObject(emptyMap()), null, key), serializer())
+
     // ------------------------------------------------------- ⟨1.19⟩ §37 erase --
     // Each erase is shown first (`…/erase/preview`: nothing changes), then sealed with a fresh passkey on the ref (🔏 `session.erase`,
     // `archive.erase`, `output.erase`) and sent with the press's own Idempotency-Key ([key], a UUID kept across a retry of one press).

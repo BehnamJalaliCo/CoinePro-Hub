@@ -55,6 +55,9 @@ enum class HubFeature {
     HUB_SERVICES,
     /** ⟨1.22⟩ §40 `/playbooks…` and `POST /orders/{ref}/playbook`; without them «کارگروه از این جلسه بساز» and the library are hidden. */
     PLAYBOOKS,
+    /** ⟨1.23⟩ §41 `GET /orders/{ref}/activity` and `POST /orders/{ref}/nudge`; without them the session's live panel is read from its
+     *  report (who it waits for, why it is stuck, when it last moved) and «ادامه بده» is hidden. */
+    SESSION_ACTIVITY,
 }
 
 /**
