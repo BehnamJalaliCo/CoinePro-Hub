@@ -451,6 +451,8 @@ async def runner_result(
         j["kind"] == "claude" and (j.get("args") or {}).get("workspace") and j["state"] in SV.FINAL
     ):
         await WS.after_job(hub, j["id"])  # ⟨1.15⟩ §33.10 a workspace's turn, after the commit
+    elif j["kind"] == "netcheck" and j["state"] == "done":
+        await SV.after_netcheck(hub, j)  # ⟨1.24⟩ §42.2 an offline server's reason, measured again
     return {"state": j["state"]}
 
 
