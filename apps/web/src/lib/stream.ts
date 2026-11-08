@@ -3,8 +3,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { isMock } from './api/client';
+import { createDedupe } from './live/model';
+import { liveStore } from './live/store';
 
-export type StreamEvent = { id: string; type: string; at: string; company: string | null; ref: string | null; data: Record<string, unknown> };
+/** The hub's envelope (§7), and ⟨1.24⟩ its stream sequence (the SSE `id`, which `Last-Event-ID` resumes from) when it has one. */
+export type StreamEvent = { id: string; type: string; at: string; company: string | null; ref: string | null; data: Record<string, unknown>; seq?: number | null };
 
 // ⟨0.9.1⟩ One connection for every topic (`topics=all`, the hub accepts it from ⟨1.7.5⟩), read with fetch rather than EventSource: every
 // named event reaches the panel (EventSource gives a named event only to a listener of that exact name, so a type the panel did not list
@@ -36,6 +39,10 @@ const INVALIDATE: Array<[string, Array<string | readonly string[]>]> = [
   // ⟨1.17⟩ §35.7 topic `orders`: `session.updated {ref, badge}`; topic `holding`: `links.updated`.
   ['session.', ['orders', 'office', 'home']],
   ['links.', ['office', 'links']],
+  // ⟨1.24⟩ §42.1: `holding.flow` (topic `holding`) moves the map (the live store draws it) and the office's canvas; `network.link`
+  // (topic `servers`) the network map; `employee.state` is covered by `employee.` below.
+  ['holding.', ['links']],
+  ['network.', ['network']],
   // ⟨1.11⟩ §29.16
   ['home.', ['home']],
   ['suggestion.', ['home']],
@@ -130,7 +137,9 @@ export type StreamState = 'connecting' | 'live' | 'offline';
 /** The query keys an event refreshes (a prefix each). */
 export function keysFor(type: string): Array<readonly string[]> {
   // ⟨1.23⟩ §41 `session.activity` is a line for the live panel (it folds it in itself); it moves nothing else, so it refreshes no query.
-  if (type === 'session.activity') return [];
+  // ⟨1.24⟩ §42.2 `llm.tick` comes every 5 s per busy company: the live store folds it into the meter, the pulse and the company cards;
+  // reading the treasury again on each would be a request every few seconds for nothing (`llm.call.*` still refreshes it).
+  if (type === 'session.activity' || type === 'llm.tick') return [];
   const out: Array<readonly string[]> = [];
   for (const [prefix, keys] of INVALIDATE) if (type.startsWith(prefix)) for (const k of keys) out.push(typeof k === 'string' ? [k] : k);
   return out;
@@ -143,7 +152,8 @@ export function eventOf(m: { event: string | null; data: string; id: string | nu
   try { o = JSON.parse(m.data) as Partial<StreamEvent>; } catch { return null; }
   const type = o.type ?? m.event;
   if (!type || type === 'message') return null;
-  return { id: String(o.id ?? m.id ?? ''), type, at: o.at ?? new Date().toISOString(), company: o.company ?? null, ref: o.ref ?? null, data: o.data ?? {} };
+  const seq = m.id && /^\d+$/.test(m.id) ? Number(m.id) : null;
+  return { id: String(o.id ?? m.id ?? ''), type, at: o.at ?? new Date().toISOString(), company: o.company ?? null, ref: o.ref ?? null, data: o.data ?? {}, seq };
 }
 
 type Line = { event: string | null; data: string; id: string | null };
@@ -170,9 +180,11 @@ class Reader {
 /**
  * Keeps one connection to the hub's stream for as long as [signal] lives: reconnects with a growing pause (1 s doubling to 32 s, a little
  * jitter, at once when the browser comes back online) and resumes from the last event id it saw. [onState] hears live and offline.
+ * ⟨1.24⟩ [o.lastId]: the first connection resumes after it (the seed's sequence, §42.3); [o.onByte] hears every byte, the hub's
+ * heartbeat comments too (the live beacon breathes on them).
  */
-export function runStream(onEvent: (e: StreamEvent) => void, onState: (s: StreamState) => void, signal: AbortSignal, url: string = STREAM_PATH) {
-  let lastId: string | null = null;
+export function runStream(onEvent: (e: StreamEvent) => void, onState: (s: StreamState) => void, signal: AbortSignal, url: string = STREAM_PATH, o: { lastId?: string | null; onByte?: () => void } = {}) {
+  let lastId: string | null = o.lastId ?? null;
   let failures = 0;
   let wake: (() => void) | null = null;
   const online = () => wake?.();
@@ -202,6 +214,7 @@ export function runStream(onEvent: (e: StreamEvent) => void, onState: (s: Stream
           const { value, done } = await reader.read();
           if (done) break;
           quiet();
+          o.onByte?.();
           sse.push(value, (m) => {
             if (m.id) lastId = m.id;
             const e = eventOf(m);
@@ -235,7 +248,9 @@ function coalescer(run: (key: readonly string[]) => void, ms = 1000) {
 /** Whether the demo should read the real stream (the e2e checks of the stream code set it; the demo's own beat stops then). */
 const realStreamInMock = () => { try { return isMock && typeof window !== 'undefined' && window.localStorage.getItem('hq.e2e.stream') === '1'; } catch { return false; } };
 
-/** The app's one SSE connection (every topic), resuming with Last-Event-ID; each event refreshes its queries, coalesced. */
+/** The app's one SSE connection (every topic), resuming with Last-Event-ID; each event refreshes its queries, coalesced. ⟨1.24⟩ The first
+ *  connection waits a moment for the live summary's sequence and resumes after it; every event passes one door (once by its id, and none
+ *  the seed already counted) and then the live store (lib/live/store.ts), the queries and [onEvent]. */
 export function useHoldingStream(onEvent?: (e: StreamEvent) => void): StreamState {
   const qc = useQueryClient();
   const [state, setState] = useState<StreamState>(isMock ? 'live' : 'connecting');
@@ -244,23 +259,44 @@ export function useHoldingStream(onEvent?: (e: StreamEvent) => void): StreamStat
 
   useEffect(() => {
     const refresh = coalescer((key) => void qc.invalidateQueries({ queryKey: key }));
-    const handle = (e: StreamEvent) => { refresh(keysFor(e.type)); cb.current?.(e); };
+    const door = createDedupe();
+    const handle = (e: StreamEvent) => {
+      if (!door.accept(e)) return;
+      liveStore.push(e);
+      refresh(keysFor(e.type));
+      cb.current?.(e);
+    };
+    const onState = (s: StreamState) => { setState(s); liveStore.streamState(s); };
     if (isMock && !realStreamInMock()) {
+      liveStore.streamState('live');
       let n = 0;
       const t = setInterval(() => {
         n += 1;
+        liveStore.byte();
         cb.current?.({ id: String(n), type: 'activity.changed', at: new Date().toISOString(), company: ['TY', 'FX', 'PC'][n % 3] ?? null, ref: null, data: { pulse: n } });
         // ⟨1.8⟩ the demo's `servers` topic: what the owner's calls caused, the agents' calls, the runners' answers to a network check.
         if (process.env.NEXT_PUBLIC_HQ_MOCK === '1') {
           void import('@/lib/api/mock').then((m) => { for (const e of m.drainServerEvents() as StreamEvent[]) handle(e); });
           // 0.3.0–0.6.0: the demo holding's runs, outputs and cards, the owner's orders moving on, and (with the tab hidden) its alerts.
           void import('@/lib/api/mock-v21').then((m) => { for (const e of m.tick21() as StreamEvent[]) handle(e); });
+          // ⟨1.24⟩ §42: the holding live (flows, a server dropping and coming back, people's states, token ticks), through mock-v21 so that
+          // a production build (where mock-v21 is a stand-in) carries none of it.
+          void import('@/lib/api/mock-v21').then((m) => { for (const e of m.tick42() as StreamEvent[]) handle(e); });
         }
       }, 2400);
-      return () => clearInterval(t);
+      // ⟨1.24⟩ The e2e checks drive the demo's live script by hand (a drop, an urgent alert, a lock) instead of waiting for it.
+      let off = () => {};
+      if (process.env.NEXT_PUBLIC_HQ_MOCK === '1') {
+        void import('@/lib/api/mock-v21').then((m) => { off = m.exposeDriver((e) => handle(e as StreamEvent)); });
+      }
+      return () => { clearInterval(t); off(); };
     }
     const ctl = new AbortController();
-    runStream(handle, setState, ctl.signal);
+    void liveStore.whenSeeded().then((seq) => {
+      if (ctl.signal.aborted) return;
+      door.floor(seq);
+      runStream(handle, onState, ctl.signal, STREAM_PATH, { lastId: seq != null ? String(seq) : null, onByte: () => liveStore.byte() });
+    });
     return () => ctl.abort();
   }, [qc]);
 
