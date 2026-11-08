@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { OfficeCanvas } from '@/components/canvas/office-canvas';
+import { LiveCompanies, OfficePulse, TokenMeter } from '@/components/live/office';
 import { CompanyMark } from '@/components/brand/marks';
 import { needsStepUp } from '@/components/cartable/decision-detail';
 import { SessionRow } from '@/components/session/session-row';
@@ -199,16 +200,22 @@ export function OfficeSkeleton() {
 export function OfficeBody({ o }: { o: Office }) {
   return (
     <>
+      {/* ⟨1.24⟩ OF-1: is the holding working, and is anything waiting for the owner? */}
+      <OfficePulse />
       <CommandBar />
       <CriticalCard items={o.critical} />
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-4">
           <OfficeSessions sessions={o.sessions} />
+          {/* ⟨1.24⟩ CO-1: one live card per company, the busiest first. */}
+          <LiveCompanies />
           <OfficeCanvas canvas={o.canvas} sessions={o.sessions} />
         </div>
         <div className="flex min-w-0 flex-col gap-4">
           <OfficeApprovals items={o.approvals} total={o.approvals_total} />
           <MoneyLine money={o.money} />
+          {/* ⟨1.24⟩ MO-1: today's spend against the daily budget, as it is spent. */}
+          <TokenMeter />
           <UsageHomeCard />
           <OfficeSuggestions items={o.suggestions} />
         </div>

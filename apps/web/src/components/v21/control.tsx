@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Icon } from '@/components/icon';
+import { CompanyLiveStrip } from '@/components/live/office';
 import { CompanyMark, Monogram } from '@/components/brand/marks';
 import { Button, IconButton } from '@/components/ui/button';
 import { Sheet } from '@/components/ui/overlay';
@@ -229,7 +230,7 @@ export function CompanyControlCard({ co, d, ui, holdingName }: { co: Company; d:
   const s = d.state(co.code, false, co);
   const t: CoTarget = { code: co.code, nameFa: co.name_fa ?? co.code, holding: false };
   return (
-    <Card className="hq-rise relative flex flex-col gap-3 overflow-hidden p-4 transition-colors hover:bg-[color-mix(in_srgb,var(--hq-surface-card)_88%,var(--hq-surface-hover))]"
+    <Card className={cx('hq-rise relative flex flex-col gap-3 overflow-hidden p-4 transition-colors hover:bg-[color-mix(in_srgb,var(--hq-surface-card)_88%,var(--hq-surface-hover))]', !s.running && 'hq-hatch')}
       onContextMenu={(e) => { e.preventDefault(); ui.open('actions', t); }}>
       {/* A thin bar of the state's colour on the card's start edge, so a long list reads at a glance. */}
       <span aria-hidden className="absolute inset-y-5 start-0 w-[3px] rounded-full transition-colors duration-300" style={{ background: lampOf(s) }} />
@@ -245,6 +246,8 @@ export function CompanyControlCard({ co, d, ui, holdingName }: { co: Company; d:
           <StateLine s={s} d={d} holdingName={holdingName} />
         </span>
       </button>
+      {/* ⟨1.24⟩ CO-1: its people by state, servers, sessions, today's spend against its cap and its last event, live. */}
+      <CompanyLiveStrip code={co.code} />
       <Figures spend={d.spendLoaded ? d.spendOf(co.code) : null} work={co.counts.work_open} pending={co.counts.decisions_pending} staff={co.counts.employees_active} />
       <Switches s={s} t={t} ui={ui} />
     </Card>

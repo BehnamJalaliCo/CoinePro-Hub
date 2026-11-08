@@ -26,6 +26,7 @@ import {
 } from '@/lib/api/v32';
 import type { MediaRef } from '@/lib/api/v13';
 import { PLAYERS } from '@/lib/api/v34';
+import { SystemGroup } from './system-group';
 import { cx } from '@/lib/format';
 import { LONG_VOICE_ERROR, recognizer, useLongVoice } from '@/lib/long-voice';
 import { useAudioQueue } from '@/lib/talk-audio';
@@ -52,6 +53,9 @@ export function Face({ k, size = 44, state = 'idle' }: { k: string; size?: numbe
 
 // What the pane keeps about the turn that is being answered right now.
 type Live = { owner: string; files: MediaRef[]; id: string | null; answer: string; cards: TalkCard[]; error: string | null; streaming: boolean };
+
+/** A system line (a step of the order): consecutive ones between two real turns fold into one quiet row. */
+export type SysLine = { who: string; text: string };
 
 /** What a page can ask of the pane from outside. */
 export type PaneApi = { send: (text: string) => Promise<void> };
@@ -121,9 +125,11 @@ export type PaneProps = {
   talkHeight?: string;
   placeholder?: string;
   /** Small things that belong in the timeline at their time (a session's system steps): shown between the turns by `at`. */
-  timeline?: Array<{ key: string; at: string; node: ReactNode }>;
+  timeline?: Array<{ key: string; at: string; node: ReactNode; sys?: SysLine }>;
   /** What is shown after the last turn and before the live answer (a session's delivered outputs). */
   tail?: ReactNode;
+  /** What sits just above the composer (a session's live work panel). */
+  above?: ReactNode;
 };
 
 /** The composer's textarea grows to this many lines, then scrolls. */
@@ -132,7 +138,7 @@ const LINE_PX = 24;
 /** How near the end counts as «at the end» (px). */
 const END_SLACK = 80;
 
-export function ConversationPane({ conversationRef: ref, face, ensure, to, titleOf, readOnly, onBusy, onMeter, onApi, emptyTitle, emptyBody, talkHeight = 'max-h-[calc(100dvh-22rem)]', placeholder, timeline, tail }: PaneProps) {
+export function ConversationPane({ conversationRef: ref, face, ensure, to, titleOf, readOnly, onBusy, onMeter, onApi, emptyTitle, emptyBody, talkHeight = 'max-h-[calc(100dvh-22rem)]', placeholder, timeline, tail, above }: PaneProps) {
   const qc = useQueryClient();
   const toast = useToast();
   const act = useTalkActions();
@@ -203,10 +209,19 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
 
   const items = (() => {
     const all = [
-      ...turns.map((t, i) => ({ key: t.id, at: Date.parse(t.at), i, node: <TurnView t={t} persona={personaOf(t.by)} title={titleOf?.(t.by)} /> })),
-      ...(timeline ?? []).map((x, i) => ({ key: x.key, at: Date.parse(x.at), i: turns.length + i, node: x.node })),
-    ];
-    return all.sort((a, b) => (Number.isNaN(a.at) || Number.isNaN(b.at) ? a.i - b.i : a.at - b.at || a.i - b.i));
+      ...turns.map((t, i) => ({ key: t.id, at: Date.parse(t.at), i, node: <TurnView t={t} persona={personaOf(t.by)} title={titleOf?.(t.by)} />, sys: undefined as (SysLine & { iso: string }) | undefined })),
+      ...(timeline ?? []).map((x, i) => ({ key: x.key, at: Date.parse(x.at), i: turns.length + i, node: x.node, sys: x.sys ? { ...x.sys, iso: x.at } : undefined })),
+    ].sort((a, b) => (Number.isNaN(a.at) || Number.isNaN(b.at) ? a.i - b.i : a.at - b.at || a.i - b.i));
+    // Consecutive system lines between two real turns fold into one row (a lone one stays as it is).
+    const out: Array<{ key: string; node: ReactNode }> = [];
+    for (let k = 0; k < all.length; k++) {
+      const x = all[k]!;
+      if (!x.sys) { out.push({ key: x.key, node: x.node }); continue; }
+      const run = [x];
+      while (all[k + 1]?.sys) run.push(all[++k]!);
+      out.push(run.length === 1 ? { key: x.key, node: x.node } : { key: `sys-${x.key}`, node: <SystemGroup lines={run.map((r) => ({ at: r.sys!.iso, who: r.sys!.who, text: r.sys!.text }))} /> });
+    }
+    return out;
   })();
 
   /** Barge-in: what is playing stops, what is waiting is not played, and the generation ends (so unspoken sentences are not billed). */
@@ -327,6 +342,8 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
           </button>
         ) : null}
       </div>
+
+      {above}
 
       {readOnly ? (
         <Card as="section" className="p-3 text-[13px] text-sec" aria-label="نوشتن">این جلسه بسته شده و فقط خواندنی است؛ برای ادامه، دوباره بازش کن.</Card>

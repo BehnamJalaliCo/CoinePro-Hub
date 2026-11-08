@@ -13,7 +13,7 @@ import { HrCard } from '@/components/v18/people';
 import { useEmployee } from '@/lib/api/hooks';
 import { useRuns } from '@/lib/api/v15';
 import { EMPLOYEE_KIND, WORK_STATUS } from '@/lib/labels';
-import { EmployeeStateChip, StuckLine, ringOf } from '@/components/v29/bits';
+import { EmployeeStateChip, LiveMedal, StuckLine, ringOf } from '@/components/v29/bits';
 import { stuckOf, useEmployeeFix, type Stuck } from '@/lib/api/v29';
 import { ago, jDate, modelLabel } from '@/lib/format';
 
@@ -43,12 +43,12 @@ export default function EmployeePage({ params }: { params: Promise<{ code: strin
   return (
     <>
       <div className="flex flex-wrap items-center gap-5">
-        <Avatar kind={e.kind} dept={e.department} state={ringOf(st)} size={88} number={e.code.split('-').at(-1)} />
+        <LiveMedal code={e.code} e={st} size={18}>{(x) => <Avatar kind={e.kind} dept={e.department} state={ringOf(x)} size={88} number={e.code.split('-').at(-1)} />}</LiveMedal>
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <PageHeader eyebrow={<Link href={`/companies/${e.company}`} className="inline-flex items-center gap-1.5 hover:text-ink"><CompanyMark code={e.company} height={12} mono />{e.department ?? EMPLOYEE_KIND[e.kind]}</Link>} title={e.display_name ?? e.title_fa} actions={<EmployeeActions e={e} />} />
           <div className="flex flex-wrap items-center gap-2">
             <span className="fig text-[13px] text-sec">{e.code}</span>
-            <EmployeeStateChip e={st} className="h-6 text-[12px]" />
+            <EmployeeStateChip code={e.code} e={st} className="h-6 text-[12px]" />
             {e.model ? <Pill tone="silver"><span className="fig">{modelLabel(String(e.model.model ?? ''))} · {e.model.effort}</span></Pill> : null}
             {e.status !== 'active' ? <Pill tone={e.status === 'dismissed' ? 'neg' : 'warn'}>{EMPLOYEE_STATUS[e.status] ?? e.status}</Pill> : null}
           </div>

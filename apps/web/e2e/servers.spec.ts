@@ -125,7 +125,9 @@ test('the network map names what is broken and checks every road again', async (
     await expect(page.getByRole('heading', { name: 'شبکه‌ی هلدینگ' })).toBeVisible();
     await expect(page.getByText('۱ مسیر قطع است').or(page.getByText('1 مسیر قطع است'))).toBeVisible();
     await expect(page.getByText('IG-Hub از راه عمومی به هاب وصل است')).toBeVisible();
-    await page.getByRole('button', { name: 'راه‌های پرو-چارت' }).click();
+    // ⟨1.24⟩ The map is the holding live: a server's sheet leads to its roads, port by port.
+    await page.locator('[data-server="srv-pc-1"]').click();
+    await page.getByRole('dialog').getByRole('button', { name: 'راه‌های این سرور، پورت به پورت' }).click();
     const detail = page.getByLabel('راه‌های پرو-چارت').last();
     await expect(detail.getByText('از این سرور به سرورهای دیگر')).toBeVisible();
     await expect(detail.getByLabel('پورت بسته است')).toBeVisible();

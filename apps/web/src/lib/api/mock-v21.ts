@@ -26,10 +26,11 @@ import { handle30 } from './mock-v30';
 import { handle31 } from './mock-v31';
 import { handle32 } from './mock-v32';
 import { handle33 } from './mock-v33';
-import { handle34 } from './mock-v34';
+import { handle34, tickActivity } from './mock-v34';
 import { handle38 } from './mock-v38';
 import { handle40 } from './mock-v40';
 import { openFromPlaybook, playbookOrder, postPlaybookCard } from './mock-v34';
+import { drive42, handle42, tick42 as beat42 } from './mock-v42';
 
 const json = (body: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const problem = (status: number, code: string, message_fa: string) => json({ code, message_fa, status, title: code, type: 'about:blank' }, status);
@@ -500,6 +501,8 @@ export function tick21(): Ev[] {
   const due = beats.filter(([t]) => t <= tickNo);
   for (const d of due) { beats.splice(beats.indexOf(d), 1); out.push(...d[1]()); }
   if (tickNo % 2 === 0) out.push(...scriptBeat());
+  // ⟨1.23⟩ §41 the working sessions say their next step.
+  out.push(...tickActivity());
   // Two lines an older hub sends with an id where a ref belongs: the feed resolves the first and names the second's topic.
   if (tickNo === 2) out.push(ev('FX', 'work.updated', idOf(2), { status: 'in_progress' }));
   if (tickNo === 3) out.push(ev('HQ', 'file.ready', '01a187f8-e3e9-7b4f-8dd2-3c4e5f607182'));
@@ -513,9 +516,47 @@ export function tick21(): Ev[] {
   return out;
 }
 
+// ============================================================================================ ⟨1.24⟩ §42 live ==
+/** One beat of the holding live (./mock-v42): nothing moves in a stopped company. */
+export function tick42(): Ev[] { return beat42({ stopped: stoppedAll() }); }
+const stoppedAll = () => { const s = stopped(); if (control.holding.state === 'engaged') s.add('HQ'); return s; };
+/**
+ * The e2e checks' hand on the demo (`window.__hqLive.drive(what)`): an urgent alert, a card for the seal, or a step of ./mock-v42's script
+ * (a server dropping, an order, a burst…), handed to the panel's stream at once. Answers how many events it sent.
+ */
+export function exposeDriver(handle: (e: unknown) => void): () => void {
+  if (typeof window === 'undefined') return () => {};
+  const w = window as unknown as { __hqLive?: { drive: (what: string) => Promise<number> } };
+  w.__hqLive = {
+    drive: async (what: string) => {
+      if (!notes) await notifications(new Request(new URL('/api/v1/notifications', window.location.origin)));
+      const out = what === 'urgent' ? [raise('urgent', 'HQ', 'دیسک سرور هاب از ۹۵٪ گذشت', 'پایش ساعتی: ۹۵٫۲٪ پر؛ پشتیبان ساعتی در خطر است. مسئول: مهندس پلتفرم هلدینگ.', null, null)]
+        : what === 'decision' ? [raise('decision', 'FX', 'تصمیم تازه D-000085: ایمیل دوم به پشتیبانی تجاری اینستاگرام', 'پیشنهاد HQ-LGL · ریسک medium · برگشت‌ناپذیر', 'decision', 'D-000085')]
+        : what === 'lock' || what === 'release' ? [lockHolding(what === 'lock')]
+        : drive42(what, { stopped: stoppedAll() });
+      for (const e of out) handle(e);
+      return out.length;
+    },
+  };
+  return () => { delete w.__hqLive; };
+}
+function lockHolding(on: boolean): Ev {
+  Object.assign(control.holding, { state: on ? 'engaged' : 'released', changed_at: nowIso(), changed_by: 'owner', reason: on ? 'آزمایش کلید توقف' : '' });
+  return ev('HQ', 'control.changed', 'holding', { state: on ? 'engaged' : 'released', kill_switch: on ? 'engaged' : 'released', scope: 'holding', by: 'owner' });
+}
+
 // ================================================================================================== handler ==
-/** ⟨1.11⟩ §29 first (./mock-v29), which hands on what is not its own and decorates the employees with their state. */
+/** ⟨1.24⟩ §42 first (./mock-v42: the live summary, and a dropped server wherever a server is read), then the rest. */
 export async function handle(req: Request): Promise<Response> {
+  if (Date.now() >= restartUntil) {
+    const v42 = await handle42(req, new URL(req.url).pathname.replace(/^\/api\/v1/, ''), handleRest);
+    if (v42) return v42;
+  }
+  return handleRest(req);
+}
+
+/** ⟨1.11⟩ §29 first (./mock-v29), which hands on what is not its own and decorates the employees with their state. */
+async function handleRest(req: Request): Promise<Response> {
   const u = new URL(req.url);
   if (Date.now() >= restartUntil) {
     const path = u.pathname.replace(/^\/api\/v1/, '');

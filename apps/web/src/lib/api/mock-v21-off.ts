@@ -4,3 +4,5 @@ export async function handle(): Promise<Response> {
 }
 export function tick21(): never[] { return []; }
 export function simulateRestart(): void {}
+export function tick42(): never[] { return []; }
+export function exposeDriver(_handle: (e: unknown) => void): () => void { return () => {}; }
