@@ -124,6 +124,8 @@ export type PaneProps = {
   timeline?: Array<{ key: string; at: string; node: ReactNode }>;
   /** What is shown after the last turn and before the live answer (a session's delivered outputs). */
   tail?: ReactNode;
+  /** What sits just above the composer (a session's live work panel). */
+  above?: ReactNode;
 };
 
 /** The composer's textarea grows to this many lines, then scrolls. */
@@ -132,7 +134,7 @@ const LINE_PX = 24;
 /** How near the end counts as «at the end» (px). */
 const END_SLACK = 80;
 
-export function ConversationPane({ conversationRef: ref, face, ensure, to, titleOf, readOnly, onBusy, onMeter, onApi, emptyTitle, emptyBody, talkHeight = 'max-h-[calc(100dvh-22rem)]', placeholder, timeline, tail }: PaneProps) {
+export function ConversationPane({ conversationRef: ref, face, ensure, to, titleOf, readOnly, onBusy, onMeter, onApi, emptyTitle, emptyBody, talkHeight = 'max-h-[calc(100dvh-22rem)]', placeholder, timeline, tail, above }: PaneProps) {
   const qc = useQueryClient();
   const toast = useToast();
   const act = useTalkActions();
@@ -327,6 +329,8 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
           </button>
         ) : null}
       </div>
+
+      {above}
 
       {readOnly ? (
         <Card as="section" className="p-3 text-[13px] text-sec" aria-label="نوشتن">این جلسه بسته شده و فقط خواندنی است؛ برای ادامه، دوباره بازش کن.</Card>
