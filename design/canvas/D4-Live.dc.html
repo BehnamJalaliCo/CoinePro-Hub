@@ -1,0 +1,1508 @@
+<!doctype html>
+<html lang="fa" dir="rtl" data-theme="night">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>D4 · نماهای زنده</title>
+<meta name="description" content="CoinePro HQ — live views study (design/LIVE_VIEWS.md): the P0 views animated with fake data. Divan tokens, night and day, reduced motion honoured.">
+<style>
+/* IRANYekanX Pro from the repository (design/fonts/); Tahoma when opened elsewhere. */
+@font-face{font-family:"IRANYekanXVF";src:url("../fonts/variable/IRANYekanXVF.woff2") format("woff2");font-weight:100 1000;font-display:swap}
+@font-face{font-family:"IRANYekanXFaNumVF";src:url("../fonts/variable/IRANYekanXVFaNumVF.woff2") format("woff2");font-weight:100 1000;font-display:swap}
+
+/* Divan tokens (design/tokens/divan.tokens.json 1.2.0-d3). */
+html[data-theme="night"]{color-scheme:dark;
+  --page:#0B0D14;--card:#10131C;--tile:#161A25;--raised:#1E2330;--overlay:#1A1F2B;--hover:#232938;
+  --text:#F2EEE4;--text2:#B9B4A6;--muted:#888275;
+  --hair:rgba(216,168,72,.12);--divider:rgba(242,238,228,.10);--strong:rgba(242,238,228,.18);--tahrir:rgba(216,168,72,.30);
+  --gold:#D8A848;--gold-ink:#D8A848;--gold-hi:#F0CC60;--silver:#DBDBDB;--silver-ink:#AEB8C7;
+  --lapis:#6E95FF;--pos:#22AB94;--neg:#F6465D;--warn:#F0B90B;
+  --soft-gold:rgba(216,168,72,.14);--soft-pos:rgba(34,171,148,.12);--soft-neg:rgba(246,70,93,.12);--soft-warn:rgba(240,185,11,.12);--soft-lapis:rgba(110,149,255,.12);
+  --c1:#6591E1;--c2:#A97416;--c3:#00AB8E;--c4:#AB517F;--c5:#00A2CE;--c6:#B3543C;--c7:#9F7ED6;--c8:#668F33;--c0:#857F72;
+  --gem:#121A33;--gem-hi:#2C4290;--on-gold:#0B0D14;--shadow:0 8px 24px rgba(0,0,0,.35);
+  --spoke:rgba(216,168,72,.28);--runner:rgba(110,149,255,.45);--chord:rgba(216,168,72,.42)}
+html[data-theme="day"]{color-scheme:light;
+  --page:#F3EEE3;--card:#FAF7F0;--tile:#EFE9DC;--raised:#E6DFCF;--overlay:#ECE5D6;--hover:#E9E2D2;
+  --text:#1C1A17;--text2:#5A554B;--muted:#6F695C;
+  --hair:rgba(138,99,24,.16);--divider:rgba(28,26,23,.10);--strong:rgba(28,26,23,.20);--tahrir:rgba(138,99,24,.35);
+  --gold:#D8A848;--gold-ink:#896217;--gold-hi:#F0CC60;--silver:#5A5F66;--silver-ink:#5A5F66;
+  --lapis:#2E4A9E;--pos:#0E7765;--neg:#C52F3C;--warn:#8F6000;
+  --soft-gold:rgba(138,99,24,.10);--soft-pos:rgba(14,119,101,.09);--soft-neg:rgba(197,47,60,.09);--soft-warn:rgba(143,96,0,.09);--soft-lapis:rgba(46,74,158,.08);
+  --c1:#3B63AF;--c2:#9C6800;--c3:#00775C;--c4:#AE5382;--c5:#007CA7;--c6:#C4634B;--c7:#7251A4;--c8:#6A9438;--c0:#857F72;
+  --gem:#1B2752;--gem-hi:#3552A8;--on-gold:#1C1A17;--shadow:0 8px 24px rgba(28,26,23,.14);
+  --spoke:rgba(138,99,24,.34);--runner:rgba(46,74,158,.42);--chord:rgba(138,99,24,.50)}
+
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--page);color:var(--text)}
+body{font-family:"IRANYekanXFaNumVF","IRANYekanXVF",Tahoma,sans-serif;font-size:15px;line-height:24px;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+button{font:inherit;color:inherit}
+.fig{font-family:"IRANYekanXVF","IRANYekanXFaNumVF",Tahoma,sans-serif;font-feature-settings:"tnum" 1;direction:ltr;unicode-bidi:isolate;display:inline-block}
+.muted{color:var(--muted)} .t2{color:var(--text2)} .small{font-size:12px;line-height:18px} .micro{font-size:11px;line-height:16px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* Motion grammar (LIVE_VIEWS.md §2): 120 / 200 / 320 / 480 ms; standard .2,0,0,1; ceremony .3,0,.1,1. */
+@keyframes kBreath{0%,100%{opacity:1}50%{opacity:.55}}
+@keyframes kSpin{to{transform:rotate(360deg)}}
+@keyframes kBand{0%{background-position:200% 0}100%{background-position:0 0}}
+@keyframes kSettle{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes kGlint{0%{opacity:.35}40%{opacity:1}100%{opacity:.35}}
+@keyframes kTint{0%{background:var(--soft-gold)}100%{background:transparent}}
+.rm *,.rm *::before,.rm *::after{animation:none!important;transition:none!important}
+
+.wrap{max-width:1440px;margin:0 auto;padding:20px 28px 40px}
+@media (max-width:760px){.wrap{padding:12px 16px 32px}}
+
+/* GL-2 kill band */
+.killband{position:sticky;top:0;z-index:30;height:0;overflow:hidden;background:var(--neg);color:#fff;font-size:13px;line-height:28px;text-align:center;transition:height 320ms cubic-bezier(.2,0,0,1)}
+.killband.on{height:28px}
+
+header.top{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px 24px;margin-bottom:12px}
+.brandline h1{margin:0;font-size:24px;line-height:32px;font-weight:600}
+.brandline p{margin:4px 0 0;color:var(--text2);font-size:13px;line-height:20px;max-width:760px}
+.tahrir{height:1px;background:var(--tahrir);margin:10px 0 14px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--strong);border-radius:10px;overflow:hidden;background:var(--card)}
+.seg button{border:0;background:transparent;padding:4px 10px;font-size:12px;line-height:22px;cursor:pointer;color:var(--text2);min-height:32px}
+.seg button[aria-pressed="true"]{background:var(--raised);color:var(--text);font-weight:600}
+.btn{border:1px solid var(--strong);background:var(--card);border-radius:10px;padding:4px 12px;font-size:12px;line-height:22px;cursor:pointer;min-height:32px;color:var(--text)}
+.btn:hover{background:var(--hover)}
+.btn.gold{background:var(--gold);border-color:var(--gold);color:var(--on-gold);font-weight:600}
+.btn.neg{border-color:var(--neg);color:var(--neg)}
+.btn:focus-visible,.seg button:focus-visible{outline:2px solid var(--gold-hi);outline-offset:1px}
+.ctl-label{font-size:11px;color:var(--muted);margin-inline-end:-2px}
+
+/* GL-1 live indicator */
+.live{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--strong);border-radius:999px;padding:3px 12px 3px 10px;background:var(--card);font-size:12px;line-height:22px;white-space:nowrap}
+.live .dot{width:8px;height:8px;border-radius:50%;background:var(--pos);transition:background 200ms}
+.live .dot.beat{animation:kBreath 600ms cubic-bezier(.2,0,0,1) 1}
+.live.reconnecting .dot{background:transparent;border:1.5px solid var(--warn);border-inline-end-color:transparent;animation:kSpin 1.6s linear infinite}
+.live.stale .dot{background:var(--warn)}
+.live.stale{color:var(--warn)}
+
+/* NO-1 banners and toasts */
+.urgent{display:none;align-items:center;gap:12px;border:1px solid var(--neg);background:var(--soft-neg);border-radius:14px;padding:10px 14px;margin-bottom:12px;animation:kSettle 320ms cubic-bezier(.2,0,0,1)}
+.urgent.on{display:flex}
+.urgent .lvl{flex:none;width:10px;height:10px;border-radius:50%;background:var(--neg)}
+.urgent .txt{flex:1;font-size:14px}
+.toasts{position:fixed;bottom:20px;inset-inline-start:20px;z-index:40;display:flex;flex-direction:column;gap:8px;max-width:min(380px,calc(100vw - 32px))}
+.toast{background:var(--raised);border:1px solid var(--strong);border-inline-start:3px solid var(--gold);border-radius:12px;padding:10px 14px;font-size:13px;line-height:20px;box-shadow:var(--shadow);animation:kSettle 320ms cubic-bezier(.2,0,0,1)}
+.toast.out{opacity:0;transform:translateY(6px);transition:opacity 320ms,transform 320ms}
+.toast b{font-weight:600}
+
+/* Layout */
+.grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(320px,1fr);gap:16px;align-items:start}
+.span2{grid-column:1 / -1}
+@media (max-width:980px){.grid{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--card);border:1px solid var(--divider);border-radius:20px;padding:16px 18px}
+.card h2{margin:0;font-size:17px;line-height:26px;font-weight:600}
+.card .cap{font-size:12px;line-height:18px;color:var(--muted)}
+.cardhead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.src{font-size:11px;color:var(--muted);margin-top:8px}
+
+/* OF-1 pulse */
+.pulse{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+@media (max-width:760px){.pulse{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.tile{background:var(--card);border:1px solid var(--divider);border-radius:14px;padding:12px 14px}
+.tile .k{font-size:12px;color:var(--text2)}
+.tile .v{font-size:26px;line-height:34px;font-weight:700;margin-top:2px;transition:opacity 200ms}
+.tile .v small{font-size:13px;font-weight:500;color:var(--muted)}
+.tile .tz{height:1px;background:var(--tahrir);margin:6px 0 4px;opacity:.35}
+.tile .tz.g-gold{background:var(--gold-ink);animation:kGlint 600ms cubic-bezier(.2,0,0,1) 1}
+.tile .tz.g-silver{background:var(--silver-ink);animation:kGlint 600ms cubic-bezier(.2,0,0,1) 1}
+.tile .s{font-size:11px;color:var(--muted)}
+.swap{opacity:.25!important}
+.tile .v,.tile .v .fig{transition:opacity 200ms}
+.mono-c{fill:var(--mono-c,#DBDBDB)} .mono-p{fill:var(--mono-p,#D8A848)}
+
+/* HM map */
+.mapwrap{position:relative}
+#map{width:100%;height:auto;display:block;touch-action:manipulation}
+#map text{font-family:"IRANYekanXFaNumVF","IRANYekanXVF",Tahoma,sans-serif}
+.halo{paint-order:stroke;stroke:var(--card);stroke-width:4px;stroke-linejoin:round}
+.spoke{stroke:var(--spoke);stroke-width:1.3;fill:none}
+.spoke.locked{stroke:var(--neg);stroke-dasharray:2 4;opacity:.6}
+.runner{stroke:var(--runner);stroke-width:1.1;fill:none;transition:stroke 200ms}
+.runner.public{stroke-dasharray:5 4}
+.runner.off{stroke:var(--neg);stroke-width:1.6}
+.runner.ok{stroke:var(--pos);stroke-width:1.6}
+.runner.hot{stroke:var(--lapis);stroke-width:2}
+.spoke.hot{stroke:var(--gold-ink);stroke-width:2.2}
+.spoke.hot-s{stroke:var(--silver-ink);stroke-width:2.2}
+.chord{fill:none;stroke:var(--chord);stroke-width:1.2;transition:stroke 200ms,stroke-width 200ms,opacity 200ms}
+.chord.offl{stroke:var(--muted);stroke-dasharray:1 5;opacity:.7}
+.chord.glow{stroke:var(--silver-ink);stroke-width:2.4}
+.hit{stroke:transparent;stroke-width:16;fill:none;cursor:pointer}
+.oct{fill:var(--tile);stroke:var(--strong);stroke-width:1}
+.oct.sel,.srv.sel rect{stroke:var(--gold-hi);stroke-width:2}
+.oct.locked{fill:url(#hatch)}
+.arcbg{fill:none;stroke:var(--divider);stroke-width:3}
+.arc{fill:none;stroke-width:3;stroke-linecap:round;transition:stroke-dasharray 600ms cubic-bezier(.2,0,0,1)}
+.coname{font-size:calc(13px * var(--k, 1));font-weight:600;fill:var(--text);text-anchor:middle}
+.cosub{font-size:10.5px;fill:var(--text2);text-anchor:middle}
+#map.narrow .cosub{display:none}
+.srv rect{fill:var(--tile);stroke:var(--pos);stroke-width:1.6;transition:stroke 200ms}
+.srv.offline rect{stroke:var(--neg)}
+.srv.pending rect{stroke:var(--warn);stroke-dasharray:3 2}
+.srv .x{stroke:var(--neg);stroke-width:1.6;opacity:0;transition:opacity 200ms}
+.srv.offline .x{opacity:1}
+.srv .glb{fill:none;stroke:var(--warn);stroke-width:1;opacity:0;transition:opacity 200ms}
+.srv.public .glb{opacity:1}
+.srv .work{fill:none;stroke:var(--lapis);stroke-width:1.6;stroke-dasharray:10 30;opacity:0;transform-box:fill-box;transform-origin:center}
+.srv.busy .work{opacity:1;animation:kSpin 1s linear infinite}
+.srvlbl{font-size:calc(10px * var(--k, 1));fill:var(--muted);text-anchor:middle}
+.node{cursor:pointer}
+.node:focus{outline:none}
+.node:focus-visible .oct,.node:focus-visible rect{stroke:var(--gold-hi);stroke-width:2}
+.hubrim{fill:var(--gold);opacity:.85;transition:opacity 200ms}
+.hubrim.pass{opacity:1}
+.gem{fill:var(--gem);transition:fill 480ms cubic-bezier(.3,0,.1,1)}
+.gem.lit{fill:var(--gem-hi)}
+.gemring{fill:none;stroke:var(--gold);stroke-opacity:.55}
+.p-gold{fill:var(--gold-ink)} .p-silver{fill:var(--silver-ink)} .p-lapis{fill:var(--lapis)}
+.ring-gold{fill:none;stroke:var(--gold-ink);stroke-width:2}
+.ring-pos{fill:none;stroke:var(--pos);stroke-width:2} .ring-neg{fill:none;stroke:var(--neg);stroke-width:2} .ring-warn{fill:none;stroke:var(--warn);stroke-width:2}
+.chip rect{fill:var(--raised);stroke:var(--strong)}
+.chip text{font-size:10.5px;fill:var(--text);text-anchor:middle}
+.chip.neg rect{fill:var(--soft-neg);stroke:var(--neg)} .chip.neg text{fill:var(--neg);font-weight:600}
+.chip.warn rect{stroke:var(--warn)} .chip.warn text{fill:var(--warn)}
+.stalechip{position:absolute;top:8px;inset-inline-end:8px;display:none;background:var(--soft-warn);border:1px solid var(--warn);color:var(--warn);border-radius:999px;padding:0 10px;font-size:12px;line-height:24px}
+.stalechip.on{display:block}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:11.5px;color:var(--text2);margin-top:6px}
+.legend i{display:inline-block;vertical-align:middle;margin-inline-end:6px}
+.lg-dot{width:8px;height:8px;border-radius:50%}
+.lg-line{width:22px;height:0;border-top:1.5px solid}
+
+/* HM-8 table */
+table.live-t{width:100%;border-collapse:collapse;font-size:13px}
+.live-t th{font-weight:500;color:var(--muted);text-align:start;font-size:11.5px;padding:6px 8px;border-bottom:1px solid var(--divider)}
+.live-t td{padding:8px;border-bottom:1px solid var(--divider)}
+.live-t tr.flash td{animation:kTint 600ms cubic-bezier(.2,0,0,1) 1}
+
+/* Detail sheet (HM-3/HM-4) */
+.detail{display:none}
+.detail.on{display:block;animation:kSettle 320ms cubic-bezier(.2,0,0,1)}
+.detail dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:8px 0 0;font-size:13px;line-height:20px}
+.detail dt{color:var(--muted)} .detail dd{margin:0}
+.detail .x{border:0;background:transparent;cursor:pointer;color:var(--muted);font-size:18px;line-height:1;min-width:32px;min-height:32px}
+.statechip{display:inline-block;border-radius:999px;padding:0 10px;font-size:12px;line-height:22px;border:1px solid}
+.st-ok{color:var(--pos);border-color:var(--pos);background:var(--soft-pos)}
+.st-off{color:var(--neg);border-color:var(--neg);background:var(--soft-neg)}
+.st-warn{color:var(--warn);border-color:var(--warn);background:var(--soft-warn)}
+.st-gold{color:var(--gold-ink);border-color:var(--gold-ink);background:var(--soft-gold)}
+.st-mute{color:var(--muted);border-color:var(--strong)}
+@media (max-width:980px){
+  .detail.on{position:fixed;inset-inline:0;bottom:0;z-index:35;border-radius:20px 20px 0 0;max-height:70vh;overflow:auto;box-shadow:var(--shadow)}
+}
+
+/* MO-1 meter */
+.meter-fig{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.meter-fig .big{font-size:28px;line-height:36px;font-weight:700}
+.track{position:relative;height:14px;border-radius:7px;background:var(--tile);margin:14px 0 22px;overflow:visible}
+.fill{position:absolute;inset-block:0;inset-inline-start:0;display:flex;gap:2px;transition:width 600ms cubic-bezier(.2,0,0,1);border-radius:7px;overflow:hidden}
+.fill span{display:block;height:100%;transition:flex-grow 600ms cubic-bezier(.2,0,0,1)}
+.fill span:first-child{border-start-start-radius:7px;border-end-start-radius:7px}
+.lead{position:absolute;inset-block-end:-6px;height:3px;width:44px;border-radius:2px;background:linear-gradient(90deg,transparent,var(--gold-ink) 50%,transparent);background-size:200% 100%;animation:kBand 1.6s linear infinite;opacity:0;transition:opacity 200ms;transform:translateX(50%)}
+.lead.on{opacity:1}
+.mark{position:absolute;top:-4px;bottom:-4px;width:0;border-inline-start:1.5px solid var(--strong)}
+.mark span{position:absolute;top:20px;transform:translateX(50%);font-size:10.5px;color:var(--muted);white-space:nowrap}
+.mark.hit70{border-color:var(--warn)} .mark.hit70 span{color:var(--warn)}
+.mark.hit100{border-color:var(--neg)}
+.meter-state{font-size:12px}
+.keys{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 16px;font-size:12px}
+.keys div{display:flex;align-items:center;gap:6px}
+.keys i{width:10px;height:10px;border-radius:3px;flex:none}
+.keys .fig{margin-inline-start:auto;color:var(--text2)}
+
+/* Feed (NO-2) */
+.feed{list-style:none;margin:0;padding:0;max-height:330px;overflow:auto}
+.feed li{display:grid;grid-template-columns:16px auto 1fr;gap:8px;align-items:start;padding:7px 4px;border-bottom:1px solid var(--divider);font-size:13px;line-height:20px;cursor:pointer;border-radius:6px}
+.feed li:hover{background:var(--hover)}
+.feed li.new{animation:kSettle 200ms cubic-bezier(.2,0,0,1)}
+.feed .tm{color:var(--muted);font-size:11.5px;white-space:nowrap}
+.gl{width:12px;height:12px;margin-top:4px}
+.missed{display:none;margin:0 0 8px;font-size:12px;border:1px solid var(--strong);border-radius:999px;padding:0 10px;width:max-content}
+.missed.on{display:block;animation:kSettle 320ms cubic-bezier(.2,0,0,1)}
+
+/* Session (SE-1, SS-1, SE-2) */
+.sess-head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.eyebrow{font-size:11.5px;color:var(--muted)}
+.badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:0 12px;font-size:12.5px;line-height:26px;border:1px solid;transition:color 200ms,border-color 200ms,background 200ms}
+.b-moving{color:var(--silver-ink);border-color:var(--strong)}
+.b-turn{color:var(--gold-ink);border-color:var(--gold-ink);background:var(--soft-gold)}
+.b-stuck{color:var(--neg);border-color:var(--neg);background:var(--soft-neg)}
+.b-ready{color:var(--pos);border-color:var(--pos);background:var(--soft-pos)}
+.b-locked{color:var(--neg);border-color:var(--neg)}
+.sess-state{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.wband{height:4px;border-radius:2px;margin:10px 0 2px;background:linear-gradient(90deg,transparent,var(--silver-ink) 50%,transparent);background-size:200% 100%;animation:kBand 1.6s linear infinite;opacity:0;transition:opacity 200ms}
+.wband.on{opacity:.9}
+.wband.gold{background-image:linear-gradient(90deg,transparent,var(--gold-ink) 50%,transparent)}
+.idle{display:flex;align-items:center;gap:12px;margin:8px 0 10px;flex-wrap:wrap}
+.idle svg{flex:none}
+.idle .ringbg{fill:none;stroke:var(--divider);stroke-width:3}
+.idle .ring{fill:none;stroke:var(--silver-ink);stroke-width:3;stroke-linecap:round;transition:stroke-dasharray 200ms,stroke 200ms}
+.idle .ring.warn{stroke:var(--warn)} .idle .ring.neg{stroke:var(--neg)}
+.idle .txt{flex:1;min-width:200px}
+.workers{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.worker{display:flex;align-items:center;gap:8px;background:var(--tile);border-radius:12px;padding:6px 10px;font-size:12.5px;line-height:18px;animation:kSettle 320ms cubic-bezier(.2,0,0,1)}
+.medal{position:relative;width:28px;height:28px;flex:none}
+.medal .m{width:28px;height:28px;border-radius:50%;border:1.5px solid var(--silver-ink);display:flex;align-items:center;justify-content:center;font-size:10.5px;color:var(--silver-ink);font-weight:600}
+.medal svg{position:absolute;bottom:-3px;inset-inline-start:-3px;width:14px;height:14px;background:var(--tile);border-radius:50%}
+.sess-body{display:grid;grid-template-columns:220px minmax(0,1fr);gap:16px}
+@media (max-width:760px){.sess-body{grid-template-columns:minmax(0,1fr)}.lines-wrap{order:-1}.plan{display:flex;flex-wrap:wrap;gap:2px 14px;border:0}.plan li{padding:0 14px 0 0}.plan li::before{inset-inline-start:0;top:6px}}
+.plan{list-style:none;margin:0;padding:0;border-inline-start:1px solid var(--divider)}
+.plan li{position:relative;padding:3px 22px 3px 0;font-size:12.5px;line-height:20px;color:var(--text2)}
+.plan li::before{content:"";position:absolute;inset-inline-start:-5px;top:8px;width:9px;height:9px;border-radius:50%;background:var(--card);border:1.5px solid var(--strong);transition:all 200ms}
+.plan li.doing{color:var(--text);font-weight:600}
+.plan li.doing::before{border-color:var(--gold-ink);background:var(--gold-ink)}
+.plan li.done{color:var(--muted)}
+.plan li.done::before{border-color:var(--pos);background:var(--pos)}
+.plan li.wait::before{border-color:var(--gold-ink);background:var(--soft-gold)}
+.plan .n{display:inline-block;min-width:18px;color:var(--muted)}
+.lines-wrap{position:relative}
+.lines{list-style:none;margin:0;padding:0;height:300px;overflow:auto;border:1px solid var(--divider);border-radius:14px;background:var(--page)}
+.lines li{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:8px;align-items:start;padding:7px 12px;font-size:13px;line-height:20px;border-bottom:1px solid var(--divider)}
+.lines li.new{animation:kSettle 200ms cubic-bezier(.2,0,0,1)}
+.lines .who{color:var(--silver-ink);font-weight:600;margin-inline-end:6px}
+.lines .tm{color:var(--muted);font-size:11.5px;white-space:nowrap}
+.lines li.fail .what{color:var(--neg)}
+.lines li.gold .who{color:var(--gold-ink)}
+.lines li.sys .who{color:var(--muted)}
+.st{width:16px;height:16px;margin-top:2px}
+.st .spin{fill:none;stroke:var(--silver-ink);stroke-width:2;stroke-dasharray:14 30;transform-box:fill-box;transform-origin:center;animation:kSpin 1s linear infinite}
+.st .tick{fill:none;stroke:var(--pos);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:14;stroke-dashoffset:0;transition:stroke-dashoffset 320ms}
+.st .tick.draw{stroke-dashoffset:14}
+.rmtxt{display:none;font-size:11px;color:var(--muted)}
+.rm .rmtxt{display:inline}
+.newpill{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:none;border:1px solid var(--strong);background:var(--raised);border-radius:999px;padding:0 12px;font-size:12px;line-height:26px;cursor:pointer}
+.newpill.on{display:block}
+
+/* CO-1 company cards */
+.cos{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+.co{background:var(--tile);border-radius:14px;padding:10px 12px;display:grid;grid-template-columns:48px minmax(0,1fr);gap:4px 12px;cursor:pointer;border:1px solid transparent}
+.co:hover{border-color:var(--strong)}
+.co.locked{background-image:repeating-linear-gradient(45deg,transparent 0 6px,var(--soft-neg) 6px 8px)}
+.co .nm{font-weight:600;font-size:14px;line-height:20px}
+.co .row{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;line-height:18px;color:var(--text2);align-items:center}
+.dots{display:flex;flex-wrap:wrap;gap:2px;align-items:center}
+.dots svg{width:14px;height:14px}
+.sp{height:4px;border-radius:2px;background:var(--card);overflow:hidden;margin-top:4px;flex:1;min-width:80px}
+.sp i{display:block;height:100%;background:var(--silver-ink);transition:width 600ms cubic-bezier(.2,0,0,1);margin-inline-start:0}
+.sv{display:inline-flex;gap:3px;align-items:center}
+.sv b{width:9px;height:9px;border-radius:2px;border:1.5px solid var(--pos);display:inline-block}
+.sv b.off{border-color:var(--neg);background:var(--soft-neg)}
+.age{margin-inline-start:auto;color:var(--muted);font-size:11.5px}
+
+/* PE-1 state glyphs */
+.g-think{fill:var(--silver-ink);animation:kBreath 1.6s ease-in-out infinite}
+.g-work{fill:none;stroke:var(--silver-ink);stroke-width:1.6;stroke-dasharray:16 12;transform-box:fill-box;transform-origin:center;animation:kSpin 2s linear infinite}
+.g-workc{fill:var(--silver-ink)}
+.g-wait{fill:none;stroke:var(--lapis);stroke-width:1.6}
+.g-stuck{fill:var(--neg)} .g-stuckx{stroke:var(--card);stroke-width:1.6;stroke-linecap:round}
+.g-done{fill:none;stroke:var(--pos);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.g-idle{fill:var(--muted);opacity:.6}
+
+/* Motion grammar legend */
+.grammar{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;margin-top:8px}
+.grammar div{background:var(--tile);border-radius:10px;padding:8px 10px;font-size:12px;line-height:18px}
+.grammar b{font-weight:600}
+.statelegend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--text2);margin-top:6px}
+.statelegend span{display:inline-flex;align-items:center;gap:6px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="mk-ty" viewBox="377 452 171 164"><path style="fill:var(--logo-ink, #030B26)" fill-rule="evenodd" d="M484.8 611.3C483.4 609.9 483.0 609.4 483.0 609.0C483.0 608.7 482.8 608.3 482.5 608.0L482.0 607.5L482.0 577.5L482.0 547.5L476.0 541.5C471.3 536.8 470.0 535.4 470.0 535.0C470.0 534.6 469.0 533.5 465.5 530.0C462.0 526.5 461.0 525.4 461.0 525.0C461.0 524.6 460.4 523.9 458.5 522.0L456.0 519.5L456.0 516.0C456.0 512.5 456.0 512.5 456.5 512.0C456.8 511.8 457.0 511.3 457.0 510.9C457.1 510.4 457.2 510.3 457.9 510.0C458.3 509.9 459.1 509.4 459.6 508.9L460.6 508.0L463.0 508.0C465.2 508.0 465.4 508.0 466.0 508.5C466.4 508.8 466.9 509.0 467.1 509.0C467.7 509.0 473.0 514.4 473.0 515.0C473.0 515.4 474.1 516.6 478.0 520.5C481.9 524.4 483.0 525.6 483.0 526.0C483.0 526.4 484.1 527.6 488.0 531.5C491.9 535.4 493.0 536.6 493.0 537.0C493.0 537.4 493.6 538.1 495.5 540.0L498.0 542.5L498.0 575.5L498.0 608.5L497.0 609.5C496.3 610.2 496.0 610.7 496.0 611.1C495.9 611.6 495.8 611.7 495.1 612.0C494.7 612.1 494.1 612.4 493.9 612.6C493.4 613.0 493.0 613.0 489.9 613.0L486.5 613.0L484.8 611.3ZM433.3 578.8L431.0 576.5L431.0 524.5C431.0 473.2 431.0 472.4 430.6 472.2C430.4 472.1 423.1 472.0 408.5 472.0L386.7 472.0L386.0 471.5C385.6 471.2 385.1 471.0 384.9 471.0C384.7 471.0 383.8 470.2 382.8 469.3L381.0 467.5L381.0 464.0L381.0 460.5L383.3 458.2L385.5 456.0L447.4 456.0L509.3 456.0L510.0 456.5C510.4 456.8 510.8 457.0 511.1 457.0C511.3 457.0 512.0 457.6 512.7 458.2C514.0 459.4 514.0 459.5 514.0 460.5C514.0 461.3 514.1 461.6 514.5 462.0C515.2 462.7 515.2 464.3 514.5 465.0C514.1 465.4 514.0 465.7 514.0 466.5L514.0 467.5L512.2 469.3C511.2 470.2 510.3 471.0 510.1 471.0C509.9 471.0 509.4 471.2 509.0 471.5L508.3 472.0L478.0 472.0C457.6 472.0 447.6 472.1 447.4 472.2C447.0 472.4 447.0 473.2 447.0 524.0L447.0 575.5L446.5 576.0C446.2 576.3 446.0 576.7 446.0 577.0C446.0 577.6 443.7 580.0 443.1 580.0C442.8 580.0 442.4 580.2 442.0 580.5C441.4 581.0 441.2 581.0 438.4 581.0L435.5 581.0L433.3 578.8Z"/> <path style="fill:var(--logo-accent, #0FB5AE)" fill-rule="evenodd" d="M501.0 523.5C500.6 523.2 500.1 523.0 499.9 523.0C499.7 523.0 498.8 522.2 497.8 521.3L496.0 519.5L496.0 516.0L496.0 512.5L497.0 511.5C497.7 510.8 498.0 510.4 498.0 510.0C498.0 509.6 499.5 508.0 505.0 502.5C510.5 497.0 512.0 495.4 512.0 495.0C512.0 494.6 513.7 492.8 520.0 486.5C526.4 480.1 528.0 478.4 528.0 478.0C528.0 477.4 532.3 473.0 532.9 473.0C533.1 473.0 533.6 472.8 534.0 472.5C535.0 471.8 538.0 471.8 539.0 472.5C539.4 472.8 539.9 473.0 540.1 473.0C540.3 473.0 541.2 473.8 542.2 474.7L544.0 476.5L544.0 477.5C544.0 478.3 544.1 478.6 544.5 479.0C544.9 479.4 545.0 479.7 545.0 480.5C545.0 481.3 544.9 481.6 544.5 482.0C544.2 482.3 544.0 482.7 544.0 483.0C544.0 483.4 543.7 483.8 543.0 484.5C542.3 485.2 542.0 485.6 542.0 486.0C542.0 486.4 540.3 488.2 534.0 494.5C527.7 500.8 526.0 502.6 526.0 503.0C526.0 503.7 522.0 507.7 520.9 508.0C520.2 508.3 520.1 508.4 520.0 508.9C520.0 509.4 518.8 510.7 513.2 516.3L506.5 523.0L505.6 523.0C504.9 523.0 504.5 523.1 504.0 523.5C503.5 523.8 503.1 524.0 502.5 524.0C501.9 524.0 501.5 523.8 501.0 523.5Z"/></symbol>
+<symbol id="mk-fx" viewBox="366 260 562 723"><path style="fill:var(--logo-ink, #FEFEFE)" fill-rule="evenodd" d="M610.0 813.8L610.0 647.0L704.2 646.8L798.5 646.5L805.5 644.2C860.6 625.7 884.1 566.2 855.9 516.3C850.0 505.9 836.1 491.9 826.3 486.5C822.3 484.3 819.0 482.3 819.0 482.0C819.0 481.7 828.2 472.3 839.4 461.1C862.6 437.9 859.3 439.2 871.0 448.5C917.2 485.5 935.3 544.8 918.0 602.9C905.3 645.6 869.0 683.1 827.0 697.0C807.5 703.5 809.9 703.3 734.8 703.7L666.0 704.1L666.0 729.6L666.0 755.0L758.7 755.0L851.5 755.0L823.0 783.5L794.5 812.0L730.3 812.0L666.0 812.0L666.0 868.3L666.0 924.5L638.0 952.5L610.0 980.5L610.0 813.8ZM524.0 763.0L524.0 617.0L521.1 617.0C510.2 617.0 482.4 608.6 466.7 600.6C385.4 558.9 348.7 462.0 382.2 377.5C402.8 325.5 446.5 285.4 500.0 269.6C519.2 263.9 515.8 264.0 662.5 264.0L797.5 264.0L768.0 293.5L738.5 323.0L637.5 323.0C575.3 323.0 533.8 323.4 529.5 324.0C440.2 336.8 396.9 439.8 449.8 513.3C465.8 535.6 496.0 555.5 519.8 559.5L524.0 560.2L524.1 541.3C524.1 531.0 524.2 501.1 524.3 475.0L524.5 427.5L674.4 427.2L824.2 427.0L806.4 445.7C788.7 464.3 774.7 479.2 749.5 506.5C742.3 514.2 719.9 538.3 699.5 560.0C679.2 581.6 658.7 603.6 654.0 608.7L645.5 617.9L613.2 618.0L581.0 618.0L581.0 735.8L581.0 853.5L553.2 881.3C538.0 896.5 525.2 909.0 524.7 909.0C524.3 909.0 524.0 843.3 524.0 763.0ZM605.5 584.0C617.0 571.6 641.0 545.8 659.0 526.5C677.0 507.2 693.1 489.8 694.9 487.8L698.2 484.0L639.6 484.0L581.0 484.0L581.0 547.2C581.0 608.9 581.0 610.4 582.9 608.5C583.9 607.4 594.1 596.4 605.5 584.0Z"/> <path style="fill:var(--logo-accent, #FD990D)" fill-rule="evenodd" d="M768.0 399.1C768.0 398.6 771.1 395.3 774.9 391.8C778.7 388.3 797.8 370.1 817.3 351.2L852.8 317.0L888.4 317.0C908.0 317.0 924.0 317.3 924.0 317.8C924.0 318.5 916.5 326.6 873.0 372.9L847.6 400.0L807.8 400.0C784.3 400.0 768.0 399.6 768.0 399.1Z"/></symbol>
+<symbol id="mk-pc" viewBox="320 229 696 763"><path style="fill:var(--logo-ink, #111216)" fill-rule="evenodd" d="M328.2 985.6L324.5 982.2L324.5 917.8C324.5 855.4 324.6 853.4 326.5 849.8C328.3 846.5 433.8 739.4 566.9 605.7C624.0 548.5 625.7 547.0 634.8 547.0C644.8 547.0 648.3 549.3 669.0 569.4C681.7 581.8 685.6 585.0 687.8 585.0C689.8 585.0 818.6 456.5 819.4 453.8C820.4 449.7 805.8 426.0 792.2 409.9C763.8 376.1 723.3 350.2 680.5 338.5C644.5 328.7 602.0 328.7 565.2 338.5C506.6 354.2 448.4 399.4 423.7 448.5C416.5 462.9 417.0 452.9 416.9 589.4C416.9 680.6 416.5 713.5 415.7 716.2C414.4 720.1 330.2 806.0 327.6 806.0C326.9 806.0 325.9 805.5 325.2 804.8C323.7 803.3 323.4 437.4 325.0 428.9C330.1 400.8 381.6 335.4 426.0 300.9C582.7 178.9 808.9 226.7 906.7 402.4C918.9 424.4 921.2 432.5 917.7 441.5C916.3 445.0 715.2 645.5 696.3 662.2C682.2 674.7 676.8 673.2 653.5 650.6C644.1 641.5 635.7 634.0 634.7 634.0C632.1 634.0 619.4 646.3 553.4 713.0C419.8 848.0 422.6 845.1 419.1 852.3C417.0 856.6 417.0 857.6 417.0 917.3C417.0 984.3 417.1 983.1 410.8 987.0C407.6 988.9 405.8 989.0 369.7 989.0L332.0 989.0L328.2 985.6ZM621.0 945.9C565.2 941.3 511.6 920.9 466.3 887.2C451.7 876.4 449.5 868.8 458.3 859.8C467.0 850.9 512.4 808.4 513.9 807.8C517.8 806.2 522.7 807.0 526.6 810.0C585.2 855.3 669.9 861.6 741.9 825.9C780.7 806.7 812.7 777.9 842.6 735.1C846.1 730.2 847.8 730.0 893.6 730.0C940.0 730.0 940.3 730.0 942.9 735.7C945.2 740.8 944.2 744.6 935.1 762.7C873.8 885.1 750.9 956.8 621.0 945.9ZM677.7 775.5C676.7 774.6 676.0 773.1 676.0 772.2C676.0 771.3 730.2 716.0 796.5 649.5C862.7 583.0 917.0 528.2 917.0 527.8C917.0 527.4 910.7 522.1 903.0 516.0C888.8 504.7 886.8 502.0 890.2 499.2C890.9 498.7 903.9 494.4 919.0 489.7C934.1 484.9 960.0 476.8 976.4 471.5C992.9 466.3 1006.9 462.0 1007.6 462.0C1009.9 462.0 1013.0 467.0 1012.4 469.8C1012.2 471.3 1009.5 486.2 1006.4 503.0C989.7 595.0 991.0 589.0 986.5 589.0C985.1 589.0 980.0 585.0 971.9 577.5C965.0 571.1 958.6 566.1 957.5 566.0C956.2 566.0 920.5 601.0 851.0 670.4C767.0 754.4 745.8 775.0 743.1 775.7C735.9 777.5 679.5 777.4 677.7 775.5Z"/></symbol>
+<symbol id="mk-cp" viewBox="168 183 477 525"><path class="mono-c" fill-rule="evenodd" d="M292.5 571.1C283.2 569.1 270.5 564.0 259.3 557.7C232.4 542.6 224.2 537.0 213.7 526.7C205.2 518.3 199.9 510.6 195.2 499.8C188.5 484.3 188.5 483.8 188.5 420.0C188.5 378.1 188.9 360.6 189.8 355.5C193.1 337.3 201.1 320.8 213.2 307.2C222.4 296.9 227.0 293.3 246.1 281.1C266.7 268.0 329.2 230.2 346.5 220.3C375.4 203.8 398.0 199.8 427.5 205.9C445.2 209.5 458.4 216.4 492.0 239.6C511.5 253.0 518.8 259.3 517.2 261.3C513.4 265.8 456.5 300.0 452.7 300.0C451.8 300.0 447.6 297.6 443.3 294.7C423.9 281.5 413.1 277.1 397.5 276.3C379.6 275.4 369.2 279.1 337.0 298.2C289.2 326.5 278.9 334.4 270.7 349.1C263.9 361.5 262.9 368.6 262.3 409.6C261.7 450.6 262.2 456.2 267.7 467.0C276.0 483.7 297.7 496.3 320.6 497.7C331.4 498.4 340.5 497.0 350.4 493.0C357.0 490.4 388.4 473.9 426.5 453.0C475.7 426.0 537.9 394.0 541.2 394.0C545.9 394.0 540.9 403.9 529.6 416.9C526.5 420.5 524.0 423.6 524.0 424.0C524.0 424.3 519.2 428.6 513.4 433.6C507.5 438.5 499.0 445.9 494.6 450.0C490.1 454.1 482.2 460.9 477.0 465.0C471.8 469.1 465.3 474.5 462.5 477.0C459.6 479.5 454.9 483.3 452.0 485.5C449.1 487.7 445.3 490.9 443.5 492.6C441.8 494.3 438.1 497.0 435.4 498.5C432.7 500.1 428.9 502.7 426.9 504.4C419.7 510.4 415.5 513.7 413.0 515.0C411.6 515.7 406.2 519.8 401.0 524.0C395.8 528.2 389.9 532.7 388.0 534.0C386.1 535.3 382.8 537.9 380.7 539.7C378.6 541.6 374.3 544.7 371.2 546.7C368.1 548.7 363.7 551.9 361.5 553.9C355.0 559.7 335.3 568.8 323.3 571.4C314.1 573.4 302.7 573.3 292.5 571.1Z"></path><path class="mono-p" fill-rule="evenodd" d="M353.3 684.4C353.0 683.6 352.7 680.1 352.8 676.7C352.8 673.3 352.7 656.8 352.6 640.0C352.3 574.5 352.4 572.7 354.1 569.5C355.1 567.8 358.3 564.7 361.5 562.5C364.6 560.3 370.4 555.9 374.3 552.6C378.2 549.4 383.9 545.2 387.0 543.2C390.0 541.3 394.7 537.7 397.4 535.3C400.2 532.9 403.7 530.2 405.3 529.3C406.9 528.5 409.8 526.4 411.7 524.7C416.4 520.4 425.0 514.0 426.1 514.0C426.6 514.0 427.6 515.0 428.4 516.2C429.6 518.1 429.9 526.0 430.0 563.1C430.1 619.1 429.5 623.5 420.5 636.9C412.8 648.3 408.8 652.0 392.5 662.3C387.1 665.8 371.3 676.2 360.7 683.2C356.0 686.4 354.2 686.7 353.3 684.4ZM441.2 575.1C440.3 574.6 439.9 568.5 439.8 553.4C439.7 535.7 439.9 531.8 441.4 528.0C444.7 519.4 442.4 521.2 491.5 489.2C506.3 479.6 511.0 476.4 524.9 466.2C529.6 462.8 534.1 460.2 534.9 460.5C535.7 460.8 537.3 460.4 538.6 459.5C541.4 457.7 555.7 438.7 557.5 434.5C558.9 431.1 560.5 412.8 560.2 403.0C559.8 390.0 554.4 378.1 545.5 370.2C536.8 362.6 534.1 361.3 523.2 359.5C513.7 357.9 512.3 357.9 504.2 359.4C491.3 361.7 479.7 366.7 460.5 378.2C455.1 381.5 449.5 384.6 448.1 385.1C446.8 385.6 442.5 388.1 438.6 390.6C423.8 400.0 410.6 408.0 409.8 408.0C409.3 408.0 407.4 409.1 405.6 410.5C403.8 411.9 402.0 413.0 401.6 413.0C401.2 413.0 398.8 414.4 396.2 416.2C393.7 417.9 388.6 421.0 385.0 423.0C373.9 429.2 371.7 430.6 365.0 435.2C361.4 437.7 355.1 441.4 351.0 443.5C346.9 445.5 341.0 448.9 338.0 450.9C335.0 453.0 329.8 456.1 326.5 458.0C323.2 459.8 319.8 461.9 319.0 462.6C318.2 463.3 316.3 464.0 314.9 464.2C313.5 464.4 310.0 466.6 307.3 469.0C301.9 473.8 291.0 479.2 289.0 478.0C287.3 476.9 286.6 460.0 287.9 448.4C289.5 433.5 294.2 422.2 303.9 410.2C305.8 407.8 308.5 405.3 309.9 404.5C311.4 403.8 314.3 401.5 316.5 399.5C321.3 395.1 328.5 390.3 340.0 383.9C344.7 381.3 351.6 377.4 355.5 375.3C369.9 367.1 417.2 340.9 425.0 336.8C429.4 334.4 436.1 330.8 439.8 328.8C443.5 326.8 448.0 324.4 449.8 323.6C451.6 322.7 454.3 321.2 455.8 320.1C459.3 317.7 486.1 303.0 501.6 295.1C528.6 281.2 553.2 279.7 576.4 290.4C595.7 299.3 608.7 313.1 617.1 333.6C623.9 350.2 625.1 357.0 625.7 385.5C626.5 419.7 624.6 435.1 617.3 454.7C612.6 467.3 594.6 488.8 581.4 497.6C576.0 501.1 568.4 505.4 553.5 513.1C550.2 514.8 546.6 517.0 545.5 518.0C544.4 519.0 538.5 522.3 532.5 525.4C521.9 530.9 518.4 532.9 510.9 537.7C509.0 539.0 506.9 540.0 506.2 540.0C504.6 540.0 497.5 543.9 490.4 548.6C487.6 550.5 485.0 552.0 484.6 552.0C484.2 552.0 480.5 554.0 476.4 556.5C472.4 559.0 468.4 561.0 467.6 561.0C466.9 561.0 463.4 563.1 460.0 565.6C456.5 568.1 452.3 570.7 450.6 571.3C448.9 571.8 446.4 573.1 444.9 574.1C443.5 575.1 441.8 575.5 441.2 575.1Z"></path></symbol>
+    <pattern id="hatch" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+      <rect width="6" height="6" style="fill:var(--tile)"></rect>
+      <line x1="0" y1="0" x2="0" y2="6" style="stroke:var(--neg);stroke-width:1.5;opacity:.55"></line>
+    </pattern>
+  </defs>
+</svg>
+
+<div class="killband" id="killband" role="status"></div>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brandline">
+      <h1><span class="fig">D4</span> · نماهای زنده</h1>
+      <p>دوازده نمای ضروری از <span class="fig">design/LIVE_VIEWS.md</span>، با داده‌ی ساختگی: نقشه‌ی شبکه، کار زنده‌ی سشن، نبض دفتر، کنتور توکن و کارت شرکت‌ها. هیچ حرکتی بدون رویداد نیست. شرکت‌ها داده‌اند؛ تعدادشان را عوض کن.</p>
+    </div>
+    <div class="live" id="live" role="status" aria-live="polite"><span class="dot" id="livedot"></span><span id="livetxt">زنده</span></div>
+  </header>
+
+  <div class="controls" role="group" aria-label="کنترل نمونه">
+    <span class="ctl-label">تم</span>
+    <div class="seg" id="segTheme"><button data-v="night" aria-pressed="true">شب</button><button data-v="day" aria-pressed="false">روز</button></div>
+    <span class="ctl-label">حرکت</span>
+    <div class="seg" id="segMotion"><button data-v="full" aria-pressed="true">کامل</button><button data-v="rm" aria-pressed="false">کم</button></div>
+    <span class="ctl-label">شرکت‌ها</span>
+    <div class="seg" id="segN"><button data-v="3" aria-pressed="true">۳</button><button data-v="6" aria-pressed="false">۶</button><button data-v="12" aria-pressed="false">۱۲</button></div>
+    <button class="btn" id="bOrder">فرمان تازه</button>
+    <button class="btn" id="bBreak">قطع یک سرور</button>
+    <button class="btn" id="bStream">قطع استریم</button>
+    <button class="btn" id="bStall">توقف ساختگی سشن</button>
+    <button class="btn" id="bSpike">جهش مصرف</button>
+    <button class="btn neg" id="bKill">کلید توقف هلدینگ</button>
+    <button class="btn" id="bPause" aria-pressed="false">مکث نمونه</button>
+  </div>
+  <div class="tahrir"></div>
+
+  <div class="urgent" id="urgent" role="alert"><span class="lvl" aria-hidden="true"></span><span class="txt" id="urgentTxt"></span><button class="btn" id="urgentOk">دیدم</button></div>
+
+  <main class="grid">
+    <!-- OF-1 -->
+    <section class="span2" aria-label="نبض دفتر">
+      <div class="pulse" id="pulse">
+        <div class="tile"><div class="k">الان کار میکنند</div><div class="v" id="pvWork">—</div><div class="tz" id="pzWork"></div><div class="s">کارمندهایی که مدلی فکر میکند یا ابزاری کار میکند</div></div>
+        <div class="tile"><div class="k">سشن در جریان</div><div class="v" id="pvSess">—</div><div class="tz" id="pzSess"></div><div class="s">کاری که الان قدمی دارد</div></div>
+        <div class="tile"><div class="k">منتظر تو</div><div class="v" id="pvWait">—</div><div class="tz" id="pzWait"></div><div class="s">تصمیم برای مُهر و سشن در نوبت تو</div></div>
+        <div class="tile"><div class="k">توکن در دقیقه</div><div class="v"><span class="fig" id="pvTok">—</span></div><div class="tz" id="pzTok"></div><div class="s">خزانه‌ی توکن · زنده</div></div>
+      </div>
+    </section>
+
+    <!-- HM-1..3 -->
+    <section class="card" aria-label="نقشه‌ی شبکه‌ی هلدینگ">
+      <div class="cardhead">
+        <div><h2>نقشه‌ی شبکه‌ی هلدینگ</h2><div class="cap">هاب در مرکز؛ شرکت‌ها و سرورهایشان از داده. هر ذره یک رویداد است؛ هر چیزی را لمس کن.</div></div>
+        <div class="seg" id="segView"><button data-v="map" aria-pressed="true">نقشه</button><button data-v="table" aria-pressed="false">جدول</button></div>
+      </div>
+      <div class="mapwrap">
+        <svg id="map" viewBox="0 0 800 640" role="img" aria-label="نقشه‌ی زنده‌ی شبکه: هاب، شرکت‌ها، سرورها و پیوندها">
+          <g id="gChords"></g><g id="gSpokes"></g><g id="gRunners"></g><g id="gParts"></g><g id="gNodes"></g><g id="gHub"></g><g id="gFx"></g><g id="gChips"></g>
+        </svg>
+        <div id="tableView" hidden></div>
+        <div class="stalechip" id="stale"></div>
+      </div>
+      <div class="legend">
+        <span><i class="lg-dot" style="background:var(--gold-ink)"></i>فرمان تو</span>
+        <span><i class="lg-dot" style="background:var(--silver-ink)"></i>کار ایجنت‌ها</span>
+        <span><i class="lg-dot" style="background:var(--lapis)"></i>خواندن داده · کار روی سرور</span>
+        <span><i class="lg-line" style="border-color:var(--runner)"></i>runner · شبکه‌ی خصوصی</span>
+        <span><i class="lg-line" style="border-color:var(--warn);border-top-style:dashed"></i>راه عمومی</span>
+        <span><i class="lg-line" style="border-color:var(--neg)"></i>قطع</span>
+        <span><i class="lg-line" style="border-color:var(--chord)"></i>پیوند دو شرکت</span>
+      </div>
+    </section>
+
+    <aside style="display:flex;flex-direction:column;gap:16px;min-width:0">
+      <section class="card detail" id="detail" aria-live="polite"></section>
+
+      <!-- MO-1 -->
+      <section class="card" aria-label="کنتور توکن">
+        <div class="cardhead"><h2>کنتور توکن · امروز</h2><span class="meter-state" id="mState"></span></div>
+        <div class="meter-fig"><span class="big fig" id="mUsd">—</span><span class="t2 small">از سقف روزانه‌ی <span class="fig" id="mBudget">—</span></span><span class="muted small" style="margin-inline-start:auto"><span class="fig" id="mTok">—</span> توکن</span></div>
+        <div class="track" id="track" role="meter" aria-label="مصرف امروز از سقف" aria-valuemin="0" aria-valuemax="100">
+          <div class="fill" id="fill"><span id="sIn" style="background:var(--c1)"></span><span id="sOut" style="background:var(--c2)"></span><span id="sCache" style="background:var(--c3)"></span><span id="sThink" style="background:var(--c4)"></span></div>
+          <div class="lead" id="lead"></div>
+          <div class="mark" id="m70" style="inset-inline-start:70%"><span>۷۰٪</span></div>
+          <div class="mark" id="m90" style="inset-inline-start:90%"><span>۹۰٪</span></div>
+          <div class="mark" id="m100" style="inset-inline-start:calc(100% - 1.5px)"><span>۱۰۰٪</span></div>
+        </div>
+        <div class="keys" id="keys">
+          <div><i style="background:var(--c1)"></i>ورودی<span class="fig" id="kIn"></span></div>
+          <div><i style="background:var(--c2)"></i>خروجی<span class="fig" id="kOut"></span></div>
+          <div><i style="background:var(--c3)"></i>کش<span class="fig" id="kCache"></span></div>
+          <div><i style="background:var(--c4)"></i>فکر<span class="fig" id="kThink"></span></div>
+        </div>
+        <div class="src">منبع: خزانه‌ی توکن، رویداد <span class="fig">llm.tick</span> هر ۵ ثانیه (در این نمونه هر ثانیه)</div>
+      </section>
+
+      <!-- NO-2 feed -->
+      <section class="card" aria-label="رویدادها">
+        <div class="cardhead"><h2>رویدادها</h2><span class="cap">فقط متادیتا؛ هر سطر را لمس کن تا ببینی چه چیزی حرکت کرد</span></div>
+        <div class="missed" id="missed"></div>
+        <ul class="feed" id="feed"></ul>
+      </section>
+    </aside>
+
+    <!-- SE-1, SS-1, SE-2 -->
+    <section class="card" id="sess" aria-label="سشن زنده">
+      <div class="sess-head">
+        <div>
+          <div class="eyebrow">سشن · پرو-چارت</div>
+          <h2>ریلز روزانه‌ی پرو-چارت</h2>
+          <div class="small t2">صاحب کار: مدیر رسانه و طراحی · نُه مرحله از تو</div>
+        </div>
+        <div class="sess-state">
+          <span class="badge b-moving" id="badge">در جریان</span>
+          <div class="seg" id="segPace"><button data-v="auto" aria-pressed="true">خودکار</button><button data-v="step" aria-pressed="false">با من</button></div>
+        </div>
+      </div>
+      <div class="wband on" id="wband" aria-hidden="true"></div>
+      <div class="idle">
+        <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><circle class="ringbg" cx="17" cy="17" r="13"></circle><circle class="ring" id="idleRing" cx="17" cy="17" r="13" transform="rotate(-90 17 17)" stroke-dasharray="0 82"></circle></svg>
+        <div class="txt"><div id="idleTxt">آخرین قدم همین الان</div><div class="micro muted" id="idleSub">اگر ۱۰ دقیقه قدمی برداشته نشود، هاب صاحب کار را بیدار میکند (در این نمونه هر ثانیه یک دقیقه است)</div></div>
+        <button class="btn gold" id="bNudge" hidden>ادامه بده</button>
+      </div>
+      <div class="workers" id="workers"></div>
+      <div class="sess-body">
+        <ol class="plan" id="plan" aria-label="مراحل"></ol>
+        <div class="lines-wrap">
+          <ol class="lines" id="lines" aria-label="کار زنده"></ol>
+          <button class="newpill" id="newpill">خط تازه ↓</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- CO-1 -->
+    <section class="card" aria-label="شرکت‌ها">
+      <div class="cardhead"><h2>شرکت‌ها · زنده</h2><span class="cap" id="coCap"></span></div>
+      <div class="cos" id="cos"></div>
+      <div class="statelegend" aria-label="راهنمای چراغ هر نفر">
+        <span><svg width="14" height="14" viewBox="0 0 14 14"><circle class="g-think" cx="7" cy="7" r="3.5"/></svg>فکر میکند</span>
+        <span><svg width="14" height="14" viewBox="0 0 14 14"><circle class="g-work" cx="7" cy="7" r="5"/><circle class="g-workc" cx="7" cy="7" r="1.6"/></svg>کار میکند</span>
+        <span><svg width="14" height="14" viewBox="0 0 14 14"><circle class="g-wait" cx="7" cy="7" r="5"/></svg>منتظر</span>
+        <span><svg width="14" height="14" viewBox="0 0 14 14"><circle class="g-stuck" cx="7" cy="7" r="6"/><line class="g-stuckx" x1="7" y1="3.6" x2="7" y2="7.6"/><line class="g-stuckx" x1="7" y1="10" x2="7" y2="10.2"/></svg>گیر کرده</span>
+        <span><svg width="14" height="14" viewBox="0 0 14 14"><path class="g-done" d="M3 7.4l2.6 2.6L11 4.4"/></svg>تمام کرد</span>
+        <span><svg width="14" height="14" viewBox="0 0 14 14"><circle class="g-idle" cx="7" cy="7" r="2.4"/></svg>بیکار</span>
+      </div>
+    </section>
+
+    <section class="card span2" aria-label="دستور زبان حرکت">
+      <div class="cardhead"><h2>دستور زبان حرکت</h2><span class="cap">هر حرکت یک رویداد واقعی است؛ «حرکت کم» همه را به تغییر لحظه‌ای تبدیل میکند</span></div>
+      <div class="grammar">
+        <div><b>نشستن</b> · <span class="fig">320ms</span><br><span class="t2">چیزی تازه رسید</span></div>
+        <div><b>تغییر حال</b> · <span class="fig">200ms</span><br><span class="t2">رنگ، برچسب یا عدد عوض شد؛ هرگز شمارش</span></div>
+        <div><b>موج یک‌باره</b> · <span class="fig">600ms</span><br><span class="t2">حال یک گره عوض شد</span></div>
+        <div><b>ذره</b> · <span class="fig">900ms</span><br><span class="t2">یک رویداد از یک خط گذشت؛ بیش از ۳ = «×n»</span></div>
+        <div><b>نوار کار در جریان</b> · <span class="fig">1.6s</span><br><span class="t2">فقط تا وقتی کاری واقعاً اجرا میشود</span></div>
+        <div><b>دم</b> · <span class="fig">1.6s</span><br><span class="t2">فقط تا وقتی مدلی فکر میکند</span></div>
+        <div><b>چرخه</b> · <span class="fig">1s</span><br><span class="t2">فقط تا وقتی قدمی یا کاری روی سرور اجراست</span></div>
+        <div><b>گسست</b> · <span class="fig">320ms</span><br><span class="t2">خطی قطع شد؛ برگشتش همان را برعکس</span></div>
+        <div><b>آیین</b> · <span class="fig">480ms</span><br><span class="t2">فقط برای کار مالک: رسیدن فرمان، مُهر</span></div>
+        <div><b>پر شدن</b> · <span class="fig">600ms</span><br><span class="t2">کنتور یا کمان با مقدار واقعی جلو رفت</span></div>
+        <div><b>برق تحریر</b> · <span class="fig">600ms</span><br><span class="t2">عدد سرتیتر عوض شد؛ طلایی = مربوط به تو</span></div>
+        <div><b>جابه‌جایی</b> · <span class="fig">320ms</span><br><span class="t2">ترتیب یک فهرست عوض شد</span></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<div class="sr" id="sr" aria-live="polite"></div>
+<div class="sr" id="sr2" aria-live="assertive"></div>
+
+<script>
+(() => {
+'use strict';
+/* ---------------------------------------------------------------- utils */
+const $ = (s, r = document) => r.querySelector(s);
+const NS = 'http://www.w3.org/2000/svg';
+const FA = '۰۱۲۳۴۵۶۷۸۹';
+const fa = v => String(v).replace(/\d/g, d => FA[d]);
+const rnd = (a, b) => a + Math.random() * (b - a);
+const ri = (a, b) => Math.floor(rnd(a, b + 1));
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const now = () => Date.now();
+const pad = n => String(n).padStart(2, '0');
+const clock = t => { const d = new Date(t); return fa(d.getHours() + ':' + pad(d.getMinutes())); };
+const clockS = t => { const d = new Date(t); return fa(d.getHours() + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds())); };
+const ago = ms => { const s = Math.round(ms / 1000); if (s < 5) return 'همین الان'; if (s < 60) return fa(s) + ' ثانیه پیش'; const m = Math.floor(s / 60); if (m < 60) return fa(m) + ' دقیقه پیش'; return fa(Math.floor(m / 60)) + ' ساعت پیش'; };
+const dur = ms => { const s = Math.max(0, Math.round(ms / 1000)); const m = Math.floor(s / 60); return m ? fa(m) + ' دقیقه و ' + fa(s % 60) + ' ثانیه' : fa(s) + ' ثانیه'; };
+const kfmt = n => n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'K' : String(Math.round(n));
+function el(tag, attrs = {}, kids = []) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) { if (k === 'text') e.textContent = v; else if (k === 'html') e.innerHTML = v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v); }
+  for (const k of [].concat(kids)) if (k != null) e.append(k);
+  return e;
+}
+function sv(tag, attrs = {}, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) { if (k === 'text') e.textContent = v; else e.setAttribute(k, v); }
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function bezier(x1, y1, x2, y2) {
+  const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx, cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+  const sx = t => ((ax * t + bx) * t + cx) * t, sy = t => ((ay * t + by) * t + cy) * t, dx = t => (3 * ax * t + 2 * bx) * t + cx;
+  return x => { if (x <= 0) return 0; if (x >= 1) return 1; let t = x; for (let i = 0; i < 8; i++) { const d = dx(t); if (Math.abs(d) < 1e-6) break; t -= (sx(t) - x) / d; } return sy(Math.min(1, Math.max(0, t))); };
+}
+const EASE = bezier(.2, 0, 0, 1), CER = bezier(.3, 0, .1, 1), LIN = x => x;
+const INOUT = bezier(.4, 0, .2, 1);
+
+/* -------------------------------------------- reduced motion (rule 8) */
+const mq = matchMedia('(prefers-reduced-motion: reduce)');
+let RM = mq.matches;
+function setRM(v) { RM = v; document.documentElement.classList.toggle('rm', v); segSet('segMotion', v ? 'rm' : 'full'); if (v) finishAll(); }
+mq.addEventListener && mq.addEventListener('change', e => setRM(e.matches));
+
+/* ----------------------------------- one animation loop (rule 10) */
+const anims = new Set(); let rafId = 0;
+function animate(ms, ease, step, done) {
+  if (RM || document.hidden) { step(1, 1); done && done(); return null; }
+  const a = { t0: performance.now(), ms, ease, step, done }; anims.add(a); kick(); return a;
+}
+function kick() { if (!rafId && !document.hidden && anims.size) rafId = requestAnimationFrame(frame); }
+function frame(t) {
+  rafId = 0;
+  for (const a of [...anims]) { const p = Math.min(1, (t - a.t0) / a.ms); a.step(a.ease(p), p); if (p >= 1) { anims.delete(a); a.done && a.done(); } }
+  kick();
+}
+function finishAll() { for (const a of [...anims]) { anims.delete(a); a.step(1, 1); a.done && a.done(); } }
+
+/* -------------------------------------------------------- data */
+const KIND_FA = { serves: 'خدمت میدهد', publishes: 'منتشر میکند', feeds: 'خوراک میدهد', sells: 'میفروشد', supports: 'پشتیبانی میکند' };
+const ROLES = ['مدیرعامل', 'مدیر فنی', 'مدیر رشد', 'نویسنده', 'تدوینگر', 'طراح', 'تحلیلگر سئو', 'پشتیبان', 'تحلیلگر ریسک', 'بازبین کد', 'کوانت', 'مدیر محصول'];
+const BASE = [
+  { code: 'TY', fa: 'تریدیار', mark: 'mk-ty', slot: 1, cap: 8, staff: 12, servers: [''] },
+  { code: 'FX', fa: 'کوینه‌پرو FX', mark: 'mk-fx', slot: 2, cap: 6, staff: 9, servers: [''] },
+  { code: 'PC', fa: 'پرو-چارت', mark: 'mk-pc', slot: 3, cap: 6, staff: 7, servers: ['اصلی', 'رسانه'] },
+];
+const S = {
+  n: 3, companies: [], servers: [], chords: [], people: [],
+  paused: false, killed: false, killedAt: 0,
+  stream: 'live', streamDownAt: 0, queue: [],
+  view: 'map', sel: null,
+  decisions: 1, orders: 0,
+  tok: { in: 1.02e6, out: 0.19e6, cache: 0.58e6, think: 0.06e6, usd: 11.6, budget: 20, hist: [], spike: 0 },
+  urgentKey: null,
+};
+function buildCompanies(n) {
+  const list = [];
+  for (let i = 0; i < n; i++) {
+    const b = BASE[i] || { code: 'N' + (i + 1), fa: 'نمونه ' + fa(i + 1), mark: 'mk-cp', slot: i + 1 <= 8 ? i + 1 : 0, cap: 4, staff: ri(4, 8), servers: (i + 1) % 4 === 0 ? ['اصلی', 'داده'] : [''] };
+    const c = { ...b, people: [], srv: [], sessions: { moving: ri(0, 2), turn: 0, ready: ri(0, 1), stuck: 0 }, spend: rnd(.6, .5 * b.cap), last: now() - ri(1, 40) * 1000 };
+    if (c.code === 'PC') c.sessions.moving = Math.max(1, c.sessions.moving);
+    for (let k = 0; k < c.staff; k++) {
+      const r = Math.random();
+      const st = r < .18 ? 'thinking' : r < .38 ? 'working' : r < .46 ? 'waiting' : r < .52 ? 'done' : 'idle';
+      c.people.push({ id: c.code + '-' + pad(k + 1), co: c, role: ROLES[k % ROLES.length], state: st, since: now() });
+    }
+    c.servers.forEach((lab, j) => {
+      const name = lab ? c.fa + ' · ' + lab : c.fa;
+      c.srv.push({ id: c.code + ':' + (j + 1), co: c, lab, name, state: 'online', via: 'private', rtt: rnd(0.6, 3.2), since: now() - ri(2, 30) * 3600e3, lastOk: now(), reason: null, jobs: 0, busy: 0 });
+    });
+    list.push(c);
+  }
+  return list;
+}
+function buildChords(cs) {
+  const by = Object.fromEntries(cs.map(c => [c.code, c]));
+  const out = [];
+  const add = (f, t, kind, purpose, on = true) => { if (by[f] && by[t]) out.push({ id: f + '>' + t, from: by[f], to: by[t], kind, purpose, on, works: ri(0, 3), last: 0 }); };
+  add('FX', 'TY', 'publishes', 'سیگنال‌های کوینه‌پرو FX در کانال تریدیار منتشر میشود');
+  add('PC', 'TY', 'feeds', 'نمودارهای پرو-چارت خوراک محتوای تریدیار است');
+  add('PC', 'FX', 'supports', 'پشتیبانی فنی مشترک', false);
+  for (let i = 4; i <= cs.length; i += 2) add('N' + i, pick(['TY', 'FX', 'PC']), pick(['serves', 'feeds', 'sells']), 'پیوند نمونه برای نمایش مقیاس');
+  return out;
+}
+
+/* ------------------------------------------------------ the map */
+const map = $('#map');
+const G = { chords: $('#gChords'), spokes: $('#gSpokes'), runners: $('#gRunners'), parts: $('#gParts'), nodes: $('#gNodes'), hub: $('#gHub'), fx: $('#gFx'), chips: $('#gChips') };
+const HUB = { x: 400, y: 318, r: 56 };
+function octPts(r) { const p = []; for (let k = 0; k < 8; k++) { const a = Math.PI / 8 + k * Math.PI / 4; p.push((r * Math.cos(a)).toFixed(1) + ',' + (r * Math.sin(a)).toFixed(1)); } return p.join(' '); }
+function starPts(cx, cy, ro, rin, n) { const p = []; for (let k = 0; k < n * 2; k++) { const a = -Math.PI / 2 + k * Math.PI / n; const r = k % 2 ? rin : ro; p.push((cx + r * Math.cos(a)).toFixed(2) + ',' + (cy + r * Math.sin(a)).toFixed(2)); } return p.join(' '); }
+function slotVar(c) { return c.slot ? 'var(--c' + c.slot + ')' : 'var(--c0)'; }
+
+function layout() {
+  const n = S.companies.length;
+  const R1 = n <= 4 ? 160 : n <= 8 ? 170 : 178;
+  const R2 = R1 + (n <= 4 ? 94 : 86);
+  const r = n <= 4 ? 30 : n <= 8 ? 25 : 19;
+  S.companies.forEach((c, i) => {
+    const a = -Math.PI / 2 + i * 2 * Math.PI / n;
+    Object.assign(c, { a, x: HUB.x + R1 * Math.cos(a), y: HUB.y + R1 * Math.sin(a), r });
+    const k = c.srv.length, spread = n <= 4 ? 0.2 : 0.11;
+    c.srv.forEach((s, j) => { const b = a + (k === 1 ? 0 : (j - (k - 1) / 2) * spread); Object.assign(s, { x: HUB.x + R2 * Math.cos(b), y: HUB.y + R2 * Math.sin(b) }); });
+  });
+}
+function fitView() {
+  let x0 = HUB.x - 70, x1 = HUB.x + 70, y0 = HUB.y - 70, y1 = HUB.y + 86;
+  const grow = (a, b, c, d) => { x0 = Math.min(x0, a); x1 = Math.max(x1, b); y0 = Math.min(y0, c); y1 = Math.max(y1, d); };
+  for (const c of S.companies) grow(c.x - 52, c.x + 52, c.y - c.r - 10, c.y + c.r + 40);
+  for (const s of S.servers) { const [cx, cy] = chipAt(s); grow(Math.min(s.x - 22, cx - 36), Math.max(s.x + 22, cx + 36), Math.min(s.y - 22, cy - 14), Math.max(s.y + 32, cy + 14)); }
+  const rw = map.getBoundingClientRect().width || 800;
+  const narrow = rw < 600;
+  let w = x1 - x0 + 24, h = y1 - y0 + 24;
+  const mx = (x0 + x1) / 2;
+  if (!narrow && w < 640) w = 640;
+  map.setAttribute('viewBox', `${(mx - w / 2).toFixed(0)} ${(y0 - 12).toFixed(0)} ${w.toFixed(0)} ${h.toFixed(0)}`);
+  S.k = Math.max(1, Math.min(1.9, 11.5 / (13 * rw / w)));
+  map.style.setProperty('--k', S.k.toFixed(3));
+  map.classList.toggle('narrow', S.k > 1.15);
+}
+function chipAt(s) { const dx = s.x - HUB.x, dy = s.y - HUB.y, L = Math.hypot(dx, dy) || 1; return [s.x + dx / L * 54, s.y + dy / L * 54]; }
+function edgePts(x1, y1, x2, y2, r1, r2) { const dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L; return [x1 + ux * r1, y1 + uy * r1, x2 - ux * r2, y2 - uy * r2]; }
+function chordPath(a, b) { const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2; const cx = mx + (HUB.x - mx) * 0.55, cy = my + (HUB.y - my) * 0.55; return 'M' + a.x.toFixed(1) + ' ' + a.y.toFixed(1) + ' Q' + cx.toFixed(1) + ' ' + cy.toFixed(1) + ' ' + b.x.toFixed(1) + ' ' + b.y.toFixed(1); }
+
+function drawRunner(s, gap) {
+  s.gap = gap;
+  const [x1, y1, x2, y2] = s.geo;
+  if (gap <= 0.05) { s.l1.setAttribute('x1', x1); s.l1.setAttribute('y1', y1); s.l1.setAttribute('x2', x2); s.l1.setAttribute('y2', y2); s.l2.setAttribute('visibility', 'hidden'); return; }
+  const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, L = Math.hypot(x2 - x1, y2 - y1), ux = (x2 - x1) / L, uy = (y2 - y1) / L;
+  s.l1.setAttribute('x1', x1); s.l1.setAttribute('y1', y1); s.l1.setAttribute('x2', mx - ux * gap); s.l1.setAttribute('y2', my - uy * gap);
+  s.l2.setAttribute('visibility', 'visible'); s.l2.setAttribute('x1', mx + ux * gap); s.l2.setAttribute('y1', my + uy * gap); s.l2.setAttribute('x2', x2); s.l2.setAttribute('y2', y2);
+}
+function runnerClass(s) { const cls = ['runner']; if (s.via === 'public') cls.push('public'); if (s.state === 'offline') cls.push('off'); if (s.okUntil > now()) cls.push('ok'); if (s.hotUntil > now()) cls.push('hot'); return cls.join(' '); }
+function paintRunner(s) { const c = runnerClass(s); s.l1.setAttribute('class', c); s.l2.setAttribute('class', c); }
+
+function renderMap() {
+  for (const g of Object.values(G)) g.textContent = '';
+  layout();
+  fitView();
+  const k = S.k || 1;
+  const n = S.companies.length;
+  // chords (company links)
+  for (const ch of S.chords) {
+    const d = chordPath(ch.from, ch.to);
+    ch.el = sv('path', { d, class: 'chord' + (ch.on ? '' : ' offl') }, G.chords);
+    const hit = sv('path', { d, class: 'hit', tabindex: '0', role: 'button', 'aria-label': 'پیوند ' + ch.from.fa + ' و ' + ch.to.fa }, G.chords);
+    hit.addEventListener('click', () => select({ kind: 'chord', ch }));
+    ch.path = d;
+  }
+  // spokes and runner links
+  for (const c of S.companies) {
+    const [x1, y1, x2, y2] = edgePts(HUB.x, HUB.y, c.x, c.y, HUB.r, c.r + 7);
+    c.spoke = sv('line', { x1, y1, x2, y2, class: 'spoke' }, G.spokes);
+    for (const s of c.srv) {
+      s.geo = edgePts(HUB.x, HUB.y, s.x, s.y, HUB.r - 2, 11);
+      s.l1 = sv('line', {}, G.runners); s.l2 = sv('line', {}, G.runners);
+      drawRunner(s, s.state === 'offline' ? 7 : 0); paintRunner(s);
+      const hit = sv('line', { x1: s.geo[0], y1: s.geo[1], x2: s.geo[2], y2: s.geo[3], class: 'hit' }, G.runners);
+      hit.addEventListener('click', () => select({ kind: 'srv', s }));
+    }
+  }
+  // company and server nodes
+  for (const c of S.companies) {
+    const g = sv('g', { class: 'node', transform: `translate(${c.x.toFixed(1)} ${c.y.toFixed(1)})`, tabindex: '0', role: 'button', 'aria-label': c.fa }, G.nodes);
+    c.g = g;
+    const circ = 2 * Math.PI * (c.r + 6);
+    sv('circle', { r: c.r + 6, class: 'arcbg' }, g);
+    c.arc = sv('circle', { r: c.r + 6, class: 'arc', transform: 'rotate(-90)', style: 'stroke:' + slotVar(c), 'stroke-dasharray': `0 ${circ}` }, g);
+    c.circ = circ;
+    c.oct = sv('polygon', { points: octPts(c.r), class: 'oct' }, g);
+    const m = c.r * 1.12;
+    const use = sv('use', { href: '#' + c.mark, x: -m / 2, y: -m / 2, width: m, height: m }, g);
+    use.setAttribute('style', c.mark === 'mk-cp' ? '--mono-c:var(--silver-ink);--mono-p:var(--gold-ink)' : '--logo-ink:var(--text)');
+    const ty = c.r + 8 + 12 * k;
+    c.lbl = sv('text', { y: ty, class: 'coname halo' }, g); c.lbl.textContent = c.fa; if (n > 8) c.lbl.style.fontSize = 'calc(11px * var(--k, 1))';
+    c.sub = sv('text', { y: ty + 13, class: 'cosub halo' }, g);
+    if (n > 8) c.sub.style.display = 'none';
+    g.addEventListener('click', () => select({ kind: 'co', c }));
+    g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select({ kind: 'co', c }); } });
+    for (const s of c.srv) {
+      const sg = sv('g', { class: 'node srv', transform: `translate(${s.x.toFixed(1)} ${s.y.toFixed(1)})`, tabindex: '0', role: 'button', 'aria-label': 'سرور ' + s.name }, G.nodes);
+      s.g = sg;
+      sv('circle', { r: 15, class: 'work' }, sg);
+      sv('rect', { x: -8, y: -8, width: 16, height: 16, rx: 4 }, sg);
+      sv('path', { d: 'M-3.5 -3.5L3.5 3.5M3.5 -3.5L-3.5 3.5', class: 'x' }, sg);
+      const glb = sv('g', { class: 'glb', transform: 'translate(12 -12)' }, sg);
+      sv('circle', { r: 5 }, glb); sv('path', { d: 'M-5 0H5M0 -5C-2.4 -2 -2.4 2 0 5M0 -5C2.4 -2 2.4 2 0 5' }, glb);
+      if (s.lab && n <= 8) { const t = sv('text', { y: 14 + 10 * k, class: 'srvlbl halo' }, sg); t.textContent = s.lab; }
+      sg.addEventListener('click', () => select({ kind: 'srv', s }));
+      sg.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select({ kind: 'srv', s }); } });
+      paintServer(s);
+    }
+    paintCompany(c);
+  }
+  // the hub: the holding seal (shamseh rim, lapis gem, monogram)
+  const hg = sv('g', { class: 'node', tabindex: '0', role: 'button', 'aria-label': 'هاب · ستاد' }, G.hub);
+  S.rim = sv('polygon', { points: starPts(HUB.x, HUB.y, 56, 47, 24), class: 'hubrim' }, hg);
+  S.gem = sv('circle', { cx: HUB.x, cy: HUB.y, r: 42, class: 'gem' }, hg);
+  sv('circle', { cx: HUB.x, cy: HUB.y, r: 37, class: 'gemring' }, hg);
+  sv('use', { href: '#mk-cp', x: HUB.x - 21, y: HUB.y - 23, width: 42, height: 46 }, hg);
+  hg.addEventListener('click', () => select({ kind: 'hub' }));
+  hg.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select({ kind: 'hub' }); } });
+  const ht = sv('text', { x: HUB.x, y: HUB.y + 66 + 10 * k, class: 'srvlbl halo' }, G.hub); ht.textContent = 'ستاد · هاب';
+  if (S.killed) paintKill();
+  for (const s of S.servers) if (s.state === 'offline') addBreakChip(s);
+  renderTable();
+}
+function paintCompany(c) {
+  const working = c.people.filter(p => p.state === 'thinking' || p.state === 'working').length;
+  const share = c.people.length ? working / c.people.length : 0;
+  c.arc.setAttribute('stroke-dasharray', `${(share * c.circ).toFixed(1)} ${c.circ.toFixed(1)}`);
+  c.sub.textContent = fa(working) + ' در کار از ' + fa(c.people.length);
+  c.oct.setAttribute('class', 'oct' + (S.sel && S.sel.c === c ? ' sel' : '') + (S.killed ? ' locked' : ''));
+}
+function paintServer(s) {
+  const cls = ['node', 'srv', s.state]; if (s.via === 'public') cls.push('public'); if (s.busy > 0) cls.push('busy'); if (S.sel && S.sel.s === s) cls.push('sel');
+  s.g.setAttribute('class', cls.join(' '));
+}
+
+/* ------------------------------------------------- particles (M4) */
+const inflight = new Map(); const chips = new Map();
+function polyPos(pts, f) {
+  let total = 0; const seg = [];
+  for (let i = 1; i < pts.length; i++) { const L = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); seg.push(L); total += L; }
+  let d = f * total;
+  for (let i = 0; i < seg.length; i++) { if (d <= seg[i] || i === seg.length - 1) { const t = seg[i] ? Math.min(1, d / seg[i]) : 1; return [pts[i][0] + (pts[i + 1][0] - pts[i][0]) * t, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * t]; } d -= seg[i]; }
+  return pts[pts.length - 1];
+}
+function heat(els, cls, ms = 1500) { for (const e of els) { if (!e) continue; e.classList.add(cls); e._h = e._h || {}; clearTimeout(e._h[cls]); e._h[cls] = setTimeout(() => e.classList.remove(cls), ms); } }
+function particle(pts, color, key, hot = []) {
+  if (S.view !== 'map') return;
+  for (const [e, c] of hot) heat([e], c, RM ? 1500 : 1100);
+  if (RM) { countChip(key, pts); return; }
+  const n = inflight.get(key) || 0;
+  if (n >= 3) { countChip(key, pts); return; }
+  inflight.set(key, n + 1);
+  const cls = 'p-' + color;
+  const t2 = sv('circle', { r: 1.6, class: cls, opacity: .3 }, G.parts), t1 = sv('circle', { r: 2.4, class: cls, opacity: .55 }, G.parts), p = sv('circle', { r: 3.8, class: cls }, G.parts);
+  const legs = pts.length - 1;
+  animate(600 + 300 * legs, legs > 1 ? INOUT : EASE, e => {
+    const a = polyPos(pts, e), b = polyPos(pts, Math.max(0, e - 0.035)), c = polyPos(pts, Math.max(0, e - 0.07));
+    p.setAttribute('cx', a[0]); p.setAttribute('cy', a[1]); t1.setAttribute('cx', b[0]); t1.setAttribute('cy', b[1]); t2.setAttribute('cx', c[0]); t2.setAttribute('cy', c[1]);
+    if (legs > 1 && Math.abs(e - 0.5) < 0.03) { S.rim.classList.add('pass'); setTimeout(() => S.rim.classList.remove('pass'), 200); }
+  }, () => { p.remove(); t1.remove(); t2.remove(); inflight.set(key, Math.max(0, (inflight.get(key) || 1) - 1)); });
+}
+function countChip(key, pts) {
+  const mid = polyPos(pts, 0.5);
+  let c = chips.get(key);
+  if (!c) { const g = sv('g', { class: 'chip' }, G.chips); const r = sv('rect', { x: -15, y: -10, width: 30, height: 18, rx: 9 }, g); const t = sv('text', { y: 3.5 }, g); c = { g, t, n: 0 }; chips.set(key, c); }
+  c.n++; c.t.textContent = '×' + fa(c.n + (RM ? 0 : 3));
+  c.g.setAttribute('transform', `translate(${mid[0].toFixed(1)} ${(mid[1] - 12).toFixed(1)})`);
+  clearTimeout(c.to); c.to = setTimeout(() => { c.g.remove(); chips.delete(key); }, 1800);
+}
+function ripple(x, y, cls, r0 = 14) {
+  if (RM) return;
+  const c = sv('circle', { cx: x, cy: y, r: r0, class: cls }, G.fx);
+  animate(600, EASE, e => { c.setAttribute('r', r0 * (1 + .5 * e)); c.setAttribute('opacity', (.55 * (1 - e)).toFixed(3)); }, () => c.remove());
+}
+function hubPulse() {
+  S.gem.classList.add('lit'); setTimeout(() => S.gem.classList.remove('lit'), 520);
+  if (RM) return;
+  const c = sv('circle', { cx: HUB.x, cy: HUB.y, r: 46, class: 'ring-gold' }, G.fx);
+  animate(480, CER, e => { c.setAttribute('r', 46 + 40 * e); c.setAttribute('opacity', (.75 * (1 - e)).toFixed(3)); }, () => c.remove());
+}
+function addBreakChip(s) {
+  removeBreakChip(s);
+  const g = sv('g', { class: 'chip neg' }, G.chips);
+  const txt = 'قطع · ' + clock(s.since);
+  const w = 64;
+  const [cx, cy] = chipAt(s);
+  g.setAttribute('transform', `translate(${cx.toFixed(1)} ${cy.toFixed(1)}) scale(${(S.k || 1).toFixed(3)})`);
+  sv('rect', { x: -w / 2, y: -10, width: w, height: 19, rx: 9.5 }, g);
+  const t = sv('text', { y: 3.6 }, g); t.textContent = txt;
+  g.style.cursor = 'pointer'; g.addEventListener('click', () => select({ kind: 'srv', s }));
+  s.chip = g;
+  if (!RM) { g.setAttribute('opacity', 0); animate(320, EASE, e => g.setAttribute('opacity', e)); }
+}
+function removeBreakChip(s) { if (s.chip) { s.chip.remove(); s.chip = null; } }
+
+/* ------------------------------------------- simulated hub events */
+// Each one mirrors a real or proposed hub event (LIVE_VIEWS.md §3). emit() applies it now, or queues it while the stream is down.
+function emit(ev) {
+  ev.at = ev.at || now();
+  if (S.stream !== 'live') { S.queue.push(ev); return; }
+  apply(ev, false);
+  if (ev.t !== 'tick') beat();
+}
+const co = code => S.companies.find(c => c.code === code);
+function feed(kind, text, ref, silent) {
+  const ul = $('#feed');
+  const li = el('li', { class: silent ? '' : 'new', tabindex: '0' });
+  li.append(glyph(kind), el('span', { class: 'tm', text: clockS(now()) }), el('span', { text }));
+  li.addEventListener('click', () => why(ref));
+  li.addEventListener('keydown', e => { if (e.key === 'Enter') why(ref); });
+  ul.prepend(li);
+  while (ul.children.length > 40) ul.lastChild.remove();
+}
+function glyph(kind) {
+  const s = sv('svg', { class: 'gl', viewBox: '0 0 12 12', 'aria-hidden': 'true' });
+  const col = { order: 'var(--gold-ink)', decision: 'var(--gold-ink)', request: 'var(--silver-ink)', deliver: 'var(--silver-ink)', read: 'var(--lapis)', job: 'var(--lapis)', break: 'var(--neg)', heal: 'var(--pos)', via: 'var(--warn)', wake: 'var(--silver-ink)', lock: 'var(--neg)' }[kind] || 'var(--muted)';
+  if (kind === 'order' || kind === 'decision') sv('path', { d: 'M6 1L11 6L6 11L1 6Z', style: 'fill:' + col }, s);
+  else if (kind === 'read' || kind === 'job') sv('rect', { x: 2, y: 2, width: 8, height: 8, rx: 2, style: 'fill:' + col }, s);
+  else if (kind === 'break' || kind === 'lock') sv('path', { d: 'M2.5 2.5L9.5 9.5M9.5 2.5L2.5 9.5', style: 'stroke:' + col + ';stroke-width:2;stroke-linecap:round' }, s);
+  else if (kind === 'heal') sv('path', { d: 'M2 6.4l2.6 2.6L10 3.4', style: 'fill:none;stroke:' + col + ';stroke-width:2;stroke-linecap:round' }, s);
+  else if (kind === 'via') sv('circle', { cx: 6, cy: 6, r: 4, style: 'fill:none;stroke:' + col + ';stroke-width:1.6;stroke-dasharray:2 2' }, s);
+  else sv('circle', { cx: 6, cy: 6, r: 4, style: 'fill:' + col }, s);
+  return s;
+}
+function why(ref) { if (!ref) return; if (ref.s) select({ kind: 'srv', s: ref.s }); else if (ref.c) select({ kind: 'co', c: ref.c }); else if (ref.ch) select({ kind: 'chord', ch: ref.ch }); else if (ref.hub) select({ kind: 'hub' }); }
+function touch(c) { if (c) { c.last = now(); } }
+
+function apply(ev, silent) {
+  const anim = !silent;
+  switch (ev.t) {
+    case 'order': { // holding.flow kind order
+      const c = co(ev.to); if (!c) return;
+      S.orders++;
+      if (anim) { hubPulse(); setTimeout(() => particle([[HUB.x, HUB.y], [c.x, c.y]], 'gold', 'h>' + c.code, [[c.spoke, 'hot']]), RM ? 0 : 420); }
+      c.sessions.moving++; touch(c); updateCard(c);
+      feed('order', 'فرمان تو به ' + c.fa + ' رسید: ' + ev.label, { c }, silent);
+      announce('فرمان تازه به ' + c.fa + ' رسید');
+      const code = c.code;
+      setTimeout(() => emit({ t: 'sess', code, from: 'moving', to: 'ready', label: ev.label }), ri(22000, 40000));
+      break;
+    }
+    case 'sess': { // session.updated (badge moved)
+      const c = co(ev.code); if (!c) return;
+      if (ev.from) c.sessions[ev.from] = Math.max(0, c.sessions[ev.from] - 1);
+      if (ev.to) c.sessions[ev.to]++;
+      touch(c); updateCard(c);
+      if (ev.to === 'ready') { feed('deliver', 'سشن «' + ev.label + '» در ' + c.fa + ' آماده است؛ منتظر تأیید تو برای بستن', { c }, silent); const code = c.code; setTimeout(() => emit({ t: 'sess', code, from: 'ready', to: null }), ri(25000, 45000)); }
+      break;
+    }
+    case 'tick': { // llm.tick
+      const T = S.tok;
+      T.in += ev.tk * .56; T.out += ev.tk * .1; T.cache += ev.tk * .31; T.think += ev.tk * .03; T.usd = Math.min(T.budget, T.usd + ev.usd);
+      T.hist.push(ev.tk); if (T.hist.length > 60) T.hist.shift();
+      const busy = S.companies.filter(c => c.people.some(p => p.state === 'thinking' || p.state === 'working'));
+      for (const c of busy) c.spend = Math.min(c.cap * 1.05, c.spend + ev.usd / busy.length);
+      paintMeter(ev.inflight);
+      return;
+    }
+    case 'request': case 'deliver': case 'read': { // holding.flow request | deliver | read
+      const a = co(ev.from), b = co(ev.to); if (!a || !b) return;
+      const color = ev.t === 'read' ? 'lapis' : 'silver';
+      const ch = S.chords.find(x => x.on && ((x.from === a && x.to === b) || (x.from === b && x.to === a)));
+      const hot = [[a.spoke, 'hot-s'], [b.spoke, 'hot-s']]; if (ch) hot.push([ch.el, 'glow']);
+      if (anim) particle([[a.x, a.y], [HUB.x, HUB.y], [b.x, b.y]], color, a.code + '>' + b.code, hot);
+      if (ch) ch.last = now();
+      touch(a); touch(b);
+      const txt = ev.t === 'request' ? a.fa + ' از ' + b.fa + ' خواست: ' + ev.label : ev.t === 'deliver' ? a.fa + ' به ' + b.fa + ' تحویل داد: ' + ev.label : b.fa + ' ' + ev.label + ' ' + a.fa + ' را خواند';
+      feed(ev.t === 'read' ? 'read' : ev.t, txt, ch ? { ch } : { c: a }, silent);
+      break;
+    }
+    case 'job': { // server.call running
+      const s = S.servers.find(x => x.id === ev.server); if (!s || s.state !== 'online') return;
+      s.busy++; s.jobs++; s.hotUntil = now() + 1200; paintServer(s); paintRunner(s); setTimeout(() => paintRunner(s), 1250);
+      if (anim) particle([[HUB.x, HUB.y], [s.x, s.y]], 'lapis', 'h>' + s.id);
+      touch(s.co);
+      feed('job', ev.who + ' روی سرور ' + s.name + ': ' + ev.label, { s }, silent);
+      const end = () => { s.busy = Math.max(0, s.busy - 1); s.jobs = Math.max(0, s.jobs - 1); paintServer(s); if (s.state === 'online') { if (!silent) particle([[s.x, s.y], [HUB.x, HUB.y]], 'silver', s.id + '>h'); } };
+      ev.done ? setTimeout(end, ev.done) : end();
+      break;
+    }
+    case 'break': breakServer(S.servers.find(x => x.id === ev.server), ev.reason, silent); break;
+    case 'heal': healServer(S.servers.find(x => x.id === ev.server), silent); break;
+    case 'via': {
+      const s = S.servers.find(x => x.id === ev.server); if (!s || s.state !== 'online') return;
+      s.via = ev.via; paintServer(s); paintRunner(s);
+      feed('via', ev.via === 'public' ? s.name + ' از راه عمومی وصل است؛ راه خصوصی جواب نداد' : s.name + ' به شبکه‌ی خصوصی برگشت', { s }, silent);
+      break;
+    }
+    case 'state': {
+      const p = ev.p; if (!p) return; p.state = ev.state; p.since = now(); touch(p.co); paintCompany(p.co); updateCard(p.co); break;
+    }
+    case 'decision': {
+      S.decisions++;
+      feed('decision', 'تصمیم تازه: ' + ev.label, { hub: 1 }, silent);
+      if (!silent) toast('<b>تصمیم تازه</b> · ' + ev.label);
+      announce('تصمیم تازه برای مُهر تو: ' + ev.label);
+      break;
+    }
+    case 'line': sessApply(ev, silent); break;
+  }
+  updatePulse(); updateTable();
+}
+
+function breakServer(s, reason, silent) {
+  if (!s || s.state !== 'online') return;
+  s.state = 'offline'; s.lastOk = now() - ri(20, 70) * 1000; s.since = now(); s.reason = reason; s.via = 'private';
+  paintServer(s); paintRunner(s);
+  animate(320, EASE, e => drawRunner(s, 7 * e));
+  ripple(s.x, s.y, 'ring-neg', 12);
+  addBreakChip(s);
+  touch(s.co);
+  feed('break', s.name + ' قطع شد: ' + REASONS[reason].short, { s }, silent);
+  announce(s.name + ' قطع شد. ' + REASONS[reason].short, true);
+  updateCard(s.co);
+  if (S.sel && S.sel.s === s) renderDetail();
+  clearTimeout(s.urgT);
+  s.urgT = setTimeout(() => { if (s.state === 'offline') urgent(s.name + ' هنوز قطع است و کار منتظر مانده · از ' + clock(s.since), 'srv:' + s.id, { s }); }, 9000);
+  clearTimeout(s.healT);
+  s.healT = setTimeout(() => emit({ t: 'heal', server: s.id }), ri(15, 21) * 1000);
+}
+function healServer(s, silent) {
+  if (!s || s.state !== 'offline') return;
+  const was = now() - s.since;
+  s.state = 'online'; s.prevDown = was; s.since = now(); s.reason = null; s.okUntil = now() + 2000;
+  paintServer(s); paintRunner(s); setTimeout(() => paintRunner(s), 2050);
+  animate(320, EASE, e => drawRunner(s, 7 * (1 - e)));
+  ripple(s.x, s.y, 'ring-pos', 12);
+  removeBreakChip(s);
+  feed('heal', s.name + ' دوباره وصل شد · ' + dur(was) + ' قطع بود', { s }, silent);
+  announce(s.name + ' دوباره وصل شد');
+  updateCard(s.co);
+  if (S.urgentKey === 'srv:' + s.id) closeUrgent();
+  if (S.sel && S.sel.s === s) renderDetail();
+  sessServerBack(s);
+}
+const REASONS = {
+  runner_stopped: { short: 'runner روی سرور ایستاده', long: 'runner روی سرور ایستاده؛ خود سرور در شبکه هست (سرورهای دیگر هنوز به پورت‌هایش میرسند) ولی سه بار پشت هم به هاب سر نزد.', fix: 'از Claude همین سرور بخواه سرویس hq-runner را ببیند و دوباره راه بیندازد.' },
+  server_unreachable: { short: 'سرور از شبکه در دسترس نیست', long: 'هیچ‌کس به این سرور نمیرسد: نه runner به هاب سر میزند، نه سرورهای دیگر به پورت‌هایش میرسند. سرور خاموش است یا شبکه‌اش قطع.', fix: 'از کنسول هتزنر وضعیت سرور را ببین؛ این تصمیم با توست.' },
+};
+
+/* ------------------------------------------------- detail (HM-3, HM-4) */
+function select(sel) {
+  const prev = S.sel; S.sel = sel;
+  if (prev && prev.c) paintCompany(prev.c); if (prev && prev.s) paintServer(prev.s);
+  if (sel.c) paintCompany(sel.c); if (sel.s) paintServer(sel.s);
+  renderDetail();
+}
+function closeDetail() { const p = S.sel; S.sel = null; if (p && p.c) paintCompany(p.c); if (p && p.s) paintServer(p.s); $('#detail').className = 'card detail'; $('#detail').textContent = ''; }
+function row(k, v) { return [el('dt', { text: k }), el('dd', {}, v)]; }
+function renderDetail() {
+  const d = $('#detail'), sel = S.sel; if (!sel) return;
+  d.className = 'card detail on'; d.textContent = '';
+  const head = el('div', { class: 'cardhead' });
+  const x = el('button', { class: 'x', 'aria-label': 'بستن', text: '×', onclick: closeDetail });
+  const dl = el('dl');
+  if (sel.kind === 'srv') {
+    const s = sel.s, off = s.state === 'offline';
+    head.append(el('div', {}, [el('div', { class: 'eyebrow', text: 'سرور' }), el('h2', { text: s.name })]), x);
+    dl.append(...row('حال', el('span', { class: 'statechip ' + (off ? 'st-off' : s.via === 'public' ? 'st-warn' : 'st-ok'), text: off ? 'قطع' : s.via === 'public' ? 'وصل از راه عمومی' : 'وصل' })));
+    if (off) {
+      dl.append(...row('از کی', clockS(s.since) + ' · ' + dur(now() - s.since)));
+      dl.append(...row('آخرین تماس سالم', clockS(s.lastOk)));
+      dl.append(...row('چرا', REASONS[s.reason].long));
+      const waits = [];
+      if (s.jobs) waits.push(fa(s.jobs) + ' کار در صف این سرور');
+      if (s === sessServer() && SESS.waitOn) waits.push('سشن «ریلز روزانه» منتظر رندر');
+      dl.append(...row('چه چیزی معطل است', waits.length ? waits.join(' · ') : 'کاری در صف نیست'));
+      dl.append(...row('راه حل', REASONS[s.reason].fix));
+    } else {
+      dl.append(...row('وصل از', clockS(s.since) + (s.prevDown ? ' · پیش از آن ' + dur(s.prevDown) + ' قطع بود' : '')));
+      dl.append(...row('راه', s.via === 'public' ? 'عمومی (راه خصوصی جواب نداد)' : 'شبکه‌ی خصوصی هلدینگ'));
+      dl.append(...row('تأخیر تا هاب', el('span', { class: 'fig', text: s.rtt.toFixed(1) + ' ms' })));
+      dl.append(...row('کار در حال اجرا', s.busy ? fa(s.busy) : 'هیچ'));
+    }
+    d.append(head, dl, el('div', { class: 'src', text: 'منبع: server.state و network.link · نام سرور به نام شرکت؛ hostname و نشانی فقط در صفحه‌ی خود سرور' }));
+  } else if (sel.kind === 'co') {
+    const c = sel.c;
+    const w = c.people.filter(p => p.state === 'thinking' || p.state === 'working').length;
+    head.append(el('div', {}, [el('div', { class: 'eyebrow', text: 'شرکت' }), el('h2', { text: c.fa })]), x);
+    dl.append(...row('در کار', fa(w) + ' از ' + fa(c.people.length) + ' نفر'));
+    dl.append(...row('سشن‌های باز', fa(c.sessions.moving + c.sessions.turn + c.sessions.ready + c.sessions.stuck) + ' (در جریان ' + fa(c.sessions.moving) + ')'));
+    dl.append(...row('سرورها', c.srv.map(s => s.name + ' · ' + (s.state === 'offline' ? 'قطع' : 'وصل')).join('، ')));
+    const links = S.chords.filter(ch => ch.from === c || ch.to === c);
+    dl.append(...row('پیوندها', links.length ? links.map(ch => (ch.from === c ? ch.to.fa : ch.from.fa) + ' (' + KIND_FA[ch.kind] + (ch.on ? '' : '، خاموش') + ')').join('، ') : 'فقط با هاب'));
+    dl.append(...row('آخرین رویداد', ago(now() - c.last)));
+    d.append(head, dl);
+  } else if (sel.kind === 'chord') {
+    const ch = sel.ch;
+    head.append(el('div', {}, [el('div', { class: 'eyebrow', text: 'پیوند دو شرکت' }), el('h2', { text: ch.from.fa + ' ← ' + ch.to.fa })]), x);
+    dl.append(...row('نوع', ch.from.fa + ' ' + KIND_FA[ch.kind]));
+    dl.append(...row('کاربرد', ch.purpose));
+    dl.append(...row('حال', el('span', { class: 'statechip ' + (ch.on ? 'st-ok' : 'st-mute'), text: ch.on ? 'روشن' : 'خاموش' })));
+    dl.append(...row('کار باز روی آن', fa(ch.works)));
+    dl.append(...row('آخرین جریان', ch.last ? ago(now() - ch.last) : '—'));
+    d.append(head, dl, el('div', { class: 'src', text: 'کار میان دو شرکت همیشه از هاب میگذرد؛ این خط فقط رابطه را نشان میدهد.' }));
+  } else {
+    head.append(el('div', {}, [el('div', { class: 'eyebrow', text: 'هلدینگ' }), el('h2', { text: 'ستاد · هاب' })]), x);
+    const on = S.servers.filter(s => s.state === 'online').length;
+    dl.append(...row('فرمان‌های امروز', fa(3 + S.orders)));
+    dl.append(...row('سرورهای وصل', fa(on) + ' از ' + fa(S.servers.length)));
+    dl.append(...row('استریم', S.stream === 'live' ? 'زنده' : 'قطع'));
+    dl.append(...row('تصمیم منتظر مُهر', fa(S.decisions)));
+    d.append(head, dl);
+  }
+}
+
+/* ---------------------------------------------- table view (HM-8) */
+function renderTable() {
+  const tv = $('#tableView'); tv.textContent = '';
+  const t = el('table', { class: 'live-t' });
+  t.append(el('thead', {}, el('tr', {}, ['شرکت', 'سرورها', 'در کار', 'سشن باز', 'آخرین رویداد'].map(h => el('th', { text: h })))));
+  const tb = el('tbody'); t.append(tb);
+  for (const c of S.companies) { c.tr = el('tr', { tabindex: '0' }); c.tr.addEventListener('click', () => select({ kind: 'co', c })); tb.append(c.tr); }
+  tv.append(t); updateTable(true);
+}
+function updateTable(force) {
+  for (const c of S.companies) {
+    if (!c.tr) continue;
+    const on = c.srv.filter(s => s.state === 'online').length;
+    const w = c.people.filter(p => p.state === 'thinking' || p.state === 'working').length;
+    const sig = [on, w, c.sessions.moving].join('|');
+    const cells = [c.fa, fa(on) + ' از ' + fa(c.srv.length) + (on < c.srv.length ? ' · قطع' : ''), fa(w) + ' از ' + fa(c.people.length), fa(c.sessions.moving + c.sessions.turn + c.sessions.ready + c.sessions.stuck), ago(now() - c.last)];
+    c.tr.textContent = ''; cells.forEach((v, i) => c.tr.append(el('td', { text: v, style: i === 1 && on < c.srv.length ? 'color:var(--neg)' : '' })));
+    if (!force && c.sig && c.sig !== sig && !RM) { c.tr.classList.remove('flash'); void c.tr.offsetWidth; c.tr.classList.add('flash'); }
+    c.sig = sig;
+  }
+}
+
+/* ------------------------------------------------ company cards (CO-1) */
+function stateGlyph(st) {
+  const s = sv('svg', { viewBox: '0 0 14 14', 'aria-hidden': 'true' });
+  if (st === 'thinking') sv('circle', { cx: 7, cy: 7, r: 3.5, class: 'g-think' }, s);
+  else if (st === 'working') { sv('circle', { cx: 7, cy: 7, r: 5, class: 'g-work' }, s); sv('circle', { cx: 7, cy: 7, r: 1.6, class: 'g-workc' }, s); }
+  else if (st === 'waiting') sv('circle', { cx: 7, cy: 7, r: 5, class: 'g-wait' }, s);
+  else if (st === 'stuck') { sv('circle', { cx: 7, cy: 7, r: 6, class: 'g-stuck' }, s); sv('line', { x1: 7, y1: 3.6, x2: 7, y2: 7.6, class: 'g-stuckx' }, s); sv('line', { x1: 7, y1: 10, x2: 7, y2: 10.2, class: 'g-stuckx' }, s); }
+  else if (st === 'done') sv('path', { d: 'M3 7.4l2.6 2.6L11 4.4', class: 'g-done' }, s);
+  else sv('circle', { cx: 7, cy: 7, r: 2.4, class: 'g-idle' }, s);
+  return s;
+}
+const ST_FA = { thinking: 'فکر میکند', working: 'کار میکند', waiting: 'منتظر', stuck: 'گیر کرده', done: 'تمام کرد', idle: 'بیکار' };
+function renderCards() {
+  const box = $('#cos'); box.textContent = '';
+  $('#coCap').textContent = fa(S.companies.length) + ' شرکت · از داده، بی‌سقف';
+  const busy = c => c.people.filter(p => p.state === 'thinking' || p.state === 'working').length;
+  const shown = [...S.companies].sort((a, b) => busy(b) - busy(a)).slice(0, 6);
+  for (const c of S.companies) c.card = null;
+  for (const c of shown) {
+    const card = el('div', { class: 'co', tabindex: '0', role: 'button', 'aria-label': c.fa });
+    const mk = sv('svg', { width: 48, height: 48, viewBox: '-24 -24 48 48', 'aria-hidden': 'true' });
+    sv('circle', { r: 21, class: 'arcbg' }, mk);
+    c.carc = sv('circle', { r: 21, class: 'arc', transform: 'rotate(-90)', style: 'stroke:' + slotVar(c), 'stroke-dasharray': '0 132' }, mk);
+    sv('polygon', { points: octPts(16), class: 'oct' }, mk);
+    const u = sv('use', { href: '#' + c.mark, x: -9.5, y: -9.5, width: 19, height: 19 }, mk);
+    u.setAttribute('style', c.mark === 'mk-cp' ? '--mono-c:var(--silver-ink);--mono-p:var(--gold-ink)' : '--logo-ink:var(--text)');
+    const body = el('div', { style: 'min-width:0' });
+    c.cName = el('div', { class: 'row' }, [el('span', { class: 'nm', text: c.fa }), c.cSv = el('span', { class: 'sv' }), c.cAge = el('span', { class: 'age' })]);
+    c.cDots = el('div', { class: 'dots', 'aria-label': 'حال کارمندها' });
+    c.cMeta = el('div', { class: 'row' });
+    c.cSp = el('i'); const spw = el('div', { class: 'sp', title: 'خرج امروز از سقف شرکت' }, c.cSp);
+    c.cMoney = el('span', { class: 'fig small t2' });
+    body.append(c.cName, c.cDots, c.cMeta, el('div', { class: 'row' }, [spw, c.cMoney]));
+    card.append(mk, body);
+    card.addEventListener('click', () => select({ kind: 'co', c }));
+    c.card = card; box.append(card);
+    updateCard(c);
+  }
+  const rest = S.companies.length - shown.length;
+  if (rest > 0) box.append(el('button', { class: 'btn', text: '+' + fa(rest) + ' شرکت دیگر · همه در نمای جدول', onclick: () => { document.querySelector('#segView button[data-v="table"]').click(); $('#map').closest('section').scrollIntoView({ behavior: RM ? 'auto' : 'smooth', block: 'start' }); } }));
+}
+function updateCard(c) {
+  if (!c.card) return;
+  const w = c.people.filter(p => p.state === 'thinking' || p.state === 'working').length;
+  const share = c.people.length ? w / c.people.length : 0;
+  c.carc.setAttribute('stroke-dasharray', `${(share * 132).toFixed(1)} 132`);
+  c.cSv.textContent = '';
+  const on = c.srv.filter(s => s.state === 'online').length;
+  c.srv.forEach(s => c.cSv.append(el('b', { class: s.state === 'offline' ? 'off' : '', title: s.name })));
+  c.cSv.append(el('span', { class: on < c.srv.length ? '' : 'muted', style: on < c.srv.length ? 'color:var(--neg)' : '', text: ' ' + fa(on) + ' از ' + fa(c.srv.length) + ' سرور' }));
+  c.cDots.textContent = '';
+  const shown = c.people.slice(0, 12);
+  for (const p of shown) { const g = stateGlyph(p.state); g.setAttribute('aria-label', p.role + ': ' + ST_FA[p.state]); g.setAttribute('role', 'img'); g.removeAttribute('aria-hidden'); c.cDots.append(g); }
+  if (c.people.length > 12) c.cDots.append(el('span', { class: 'micro muted', text: '+' + fa(c.people.length - 12) }));
+  c.cDots.append(el('span', { class: 'micro t2', style: 'margin-inline-start:6px', text: fa(w) + ' در کار' }));
+  const ss = c.sessions;
+  const bits = [];
+  if (ss.moving) bits.push(fa(ss.moving) + ' در جریان'); if (ss.turn) bits.push(fa(ss.turn) + ' نوبت تو'); if (ss.ready) bits.push(fa(ss.ready) + ' آماده'); if (ss.stuck) bits.push(fa(ss.stuck) + ' گیر کرده');
+  c.cMeta.textContent = 'سشن: ' + (bits.join(' · ') || 'هیچ');
+  c.cSp.style.width = Math.min(100, 100 * c.spend / c.cap).toFixed(1) + '%';
+  c.cMoney.textContent = '$' + c.spend.toFixed(2) + ' / $' + c.cap.toFixed(0);
+  c.cAge.textContent = ago(now() - c.last);
+  c.card.classList.toggle('locked', S.killed);
+}
+
+/* ----------------------------------------------- office pulse (OF-1) */
+const last = {};
+function setFig(id, zid, val, tone) {
+  const v = $('#' + id);
+  if (last[id] === val) return;
+  const first = last[id] === undefined; last[id] = val;
+  if (first || RM) { v.textContent = val; return; }
+  v.classList.add('swap');
+  setTimeout(() => { v.textContent = val; v.classList.remove('swap'); }, 100);
+  const z = $('#' + zid); z.className = 'tz'; void z.offsetWidth; z.className = 'tz g-' + tone;
+}
+function updatePulse() {
+  const all = S.companies.flatMap(c => c.people);
+  const w = all.filter(p => p.state === 'thinking' || p.state === 'working').length;
+  const pw = $('#pvWork');
+  const val = fa(w) + '|' + fa(all.length);
+  if (last.pvWork !== val) {
+    const first = last.pvWork === undefined; last.pvWork = val;
+    const put = () => { pw.innerHTML = ''; pw.append(fa(w), el('small', { text: ' از ' + fa(all.length) })); };
+    if (first || RM) put(); else { pw.classList.add('swap'); setTimeout(() => { put(); pw.classList.remove('swap'); }, 100); const z = $('#pzWork'); z.className = 'tz'; void z.offsetWidth; z.className = 'tz g-silver'; }
+  }
+  const moving = S.companies.reduce((a, c) => a + c.sessions.moving, 0);
+  setFig('pvSess', 'pzSess', fa(moving), 'silver');
+  const turn = S.companies.reduce((a, c) => a + c.sessions.turn, 0);
+  setFig('pvWait', 'pzWait', fa(S.decisions + turn), 'gold');
+}
+
+/* ------------------------------------------------- token meter (MO-1) */
+function tokTick() {
+  const T = S.tok;
+  const all = S.companies.flatMap(c => c.people);
+  const thinking = all.filter(p => p.state === 'thinking').length;
+  const working = all.filter(p => p.state === 'working').length;
+  if (S.killed) { emit({ t: 'tick', tk: 0, usd: 0, inflight: 0 }); return; }
+  const spike = T.spike > 0; if (spike) T.spike--;
+  const tk = (thinking * rnd(150, 300) + working * rnd(40, 90)) * (spike ? 8 : 1);
+  const usd = tk * 7e-6 * (spike ? 4 : 1);
+  emit({ t: 'tick', tk, usd, inflight: thinking });
+}
+function paintMeter(inflightN) {
+  const T = S.tok;
+  const pct = Math.min(100, 100 * T.usd / T.budget);
+  const fill = $('#fill');
+  fill.style.width = pct.toFixed(2) + '%';
+  const tot = T.in + T.out + T.cache + T.think;
+  // cost-weighted shares (output and thinking cost more per token)
+  const w = { in: T.in * 1, out: T.out * 5, cache: T.cache * .1, think: T.think * 5 };
+  const wt = w.in + w.out + w.cache + w.think;
+  $('#sIn').style.flexGrow = (w.in / wt).toFixed(4); $('#sOut').style.flexGrow = (w.out / wt).toFixed(4); $('#sCache').style.flexGrow = (w.cache / wt).toFixed(4); $('#sThink').style.flexGrow = (w.think / wt).toFixed(4);
+  $('#kIn').textContent = kfmt(T.in); $('#kOut').textContent = kfmt(T.out); $('#kCache').textContent = kfmt(T.cache); $('#kThink').textContent = kfmt(T.think);
+  $('#mUsd').textContent = '$' + T.usd.toFixed(2);
+  $('#mBudget').textContent = '$' + T.budget.toFixed(2);
+  $('#mTok').textContent = kfmt(tot);
+  $('#track').setAttribute('aria-valuenow', pct.toFixed(0));
+  const lead = $('#lead');
+  lead.style.insetInlineStart = pct.toFixed(2) + '%';
+  lead.classList.toggle('on', inflightN > 0 && pct < 100 && !S.killed);
+  $('#m70').classList.toggle('hit70', pct >= 70);
+  $('#m90').classList.toggle('hit70', pct >= 90);
+  $('#m100').classList.toggle('hit100', pct >= 100);
+  const st = $('#mState');
+  if (pct >= 100) { st.className = 'meter-state statechip st-off'; st.textContent = 'سقف پر شد'; }
+  else if (pct >= 90) { st.className = 'meter-state statechip st-warn'; st.textContent = '۹۰٪ سقف'; }
+  else if (pct >= 70) { st.className = 'meter-state statechip st-warn'; st.textContent = '۷۰٪ سقف'; }
+  else { st.className = 'meter-state statechip st-ok'; st.textContent = 'در محدوده'; }
+  $('#fill').querySelectorAll('span').forEach(s => s.style.opacity = pct >= 90 ? '1' : '.92');
+  if (pct >= 100 && S.urgentKey !== 'budget' && !S.budgetHit) { S.budgetHit = true; urgent('سقف روزانه‌ی توکن پر شد؛ مسیریاب فقط کارهای P0 تا P2 را رد میکند', 'budget'); }
+  const perMin = S.tok.hist.slice(-12).reduce((a, b) => a + b, 0); // 12 windows of 5 s = one minute
+  setFig('pvTok', 'pzTok', kfmt(perMin), 'silver');
+}
+
+/* ------------------------------------------------- session (SE-1, SS-1) */
+const PLAN = [
+  { fa: 'پیدا کردن موضوع روز', who: 'نویسنده', seat: '03', deps: [], lines: [['read', 'سایت pro-chart.com را خواند', 3], ['ask', 'از ChatGPT پرسید: سه موضوع داغ امروز', 4], ['make', 'موضوع را انتخاب کرد: طلا در هفته‌ی فدرال رزرو', 2]] },
+  { fa: 'نوشتن متن ریلز', who: 'نویسنده', seat: '03', deps: [0], lines: [['make', 'متن ۴۵ ثانیه‌ای ریلز را نوشت', 5], ['read', 'با متن‌های قبلی سنجید؛ تکراری نیست', 2]] },
+  { fa: 'ساخت صدا', who: 'تولیدکننده‌ی صدا', seat: '05', deps: [1], lines: [['make', 'صدا را با AI Studio ساخت؛ گوینده‌ی آرام', 5]] },
+  { fa: 'یافتن الگو', who: 'طراح', seat: '04', deps: [1], lines: [['read', 'شش الگو از Pinterest دید', 3], ['make', 'سه الگو را کنار گذاشت', 2]] },
+  { fa: 'انتخاب با شورا', who: 'مدیر رسانه و طراحی', seat: '01', deps: [2, 3], lines: [['ask', 'شورای مدل‌ها الگوی ۳ را انتخاب کرد', 4]] },
+  { fa: 'ساخت و رندر', who: 'تدوینگر', seat: '02', deps: [4], lines: [['make', 'برنامه‌ی تدوین را ساخت', 3], ['job', 'ویدیو را روی سرور رسانه رندر کرد', 6]] },
+  { fa: 'کاور', who: 'طراح', seat: '04', deps: [5], lines: [['make', 'کاور را از پوشه‌ی کاور ساخت', 3]] },
+  { fa: 'کنترل کیفیت', who: 'بازبین', seat: '06', deps: [6], lines: [['read', 'هر عدد منبع دارد و فارسی درست است', 3]] },
+  { fa: 'انتشار', who: 'مدیر رسانه و طراحی', seat: '01', deps: [7], lines: [['seal', 'برای انتشار منتظر مُهر توست', 0], ['send', 'در اینستاگرام منتشر شد', 2]] },
+];
+const SESS = { tasks: [], running: new Map(), lastStep: now(), stalled: false, woke: false, stuck: false, waitOn: null, turn: false, pace: 'auto', lineSeq: 0, atBottom: true, unseen: 0, holdNext: false, resumes: [], badge: 'moving', ending: false, workerEls: new Map() };
+function sessServer() { const pc = co('PC'); return pc && pc.srv.find(s => s.lab === 'رسانه'); }
+function sessReset() {
+  SESS.tasks = PLAN.map(() => ({ state: 'todo' }));
+  const ol = $('#plan'); ol.textContent = '';
+  PLAN.forEach((t, i) => { const li = el('li', {}, [el('span', { class: 'n', text: fa(i + 1) + '.' }), t.fa]); SESS.tasks[i].li = li; ol.append(li); });
+  SESS.running.clear(); renderWorkers();
+}
+const held = () => S.killed || SESS.stalled || SESS.turn;
+function later(fn) { SESS.resumes.push(fn); }
+function resumeAll() { const r = SESS.resumes.splice(0); if (r.length) r.forEach(f => f()); else sessAdvance(); }
+function sessAdvance() {
+  if (held()) return;
+  if (SESS.tasks.every(t => t.state === 'done')) {
+    if (!SESS.ending) {
+      SESS.ending = true; sysLine('همه‌ی نُه کار انجام شد؛ سشن آماده است و منتظر تأیید تو برای بستن'); setBadge('ready');
+      setTimeout(() => { SESS.ending = false; sessReset(); sysLine('نمونه: دور تازه‌ی فردا'); setBadge('moving'); sessAdvance(); }, 8000);
+    }
+    return;
+  }
+  PLAN.forEach((t, i) => {
+    const T = SESS.tasks[i];
+    if (T.state === 'todo' && t.deps.every(d => SESS.tasks[d].state === 'done')) { T.state = 'doing'; T.li.className = 'doing'; runLine(i, 0); }
+  });
+}
+function runLine(i, j) {
+  const t = PLAN[i], L = t.lines[j];
+  if (!L) { taskDone(i); return; }
+  if (held()) { later(() => runLine(i, j)); return; }
+  const [kind, text, secs] = L;
+  const pc = co('PC');
+  if (kind === 'job') {
+    const s = sessServer();
+    if (!s || s.state !== 'online') { SESS.waitOn = { i, j }; emit({ t: 'line', op: 'add', kind: 'wait', who: t.who, seat: t.seat, text: 'سرور رسانه‌ی پرو-چارت در دسترس نیست؛ رندر منتظر ماند', state: 'wait', task: i }); return; }
+    emit({ t: 'job', server: s.id, who: 'تدوینگر پرو-چارت', label: 'رندر ریلز', done: secs * 1000 });
+  }
+  if (kind === 'seal') {
+    emit({ t: 'line', op: 'add', kind: 'seal', who: t.who, seat: t.seat, text, state: 'turn', task: i, gold: true });
+    SESS.turn = true; setBadge('turn'); pc.sessions.turn++; pc.sessions.moving = Math.max(0, pc.sessions.moving - 1); updateCard(pc);
+    emit({ t: 'decision', label: 'انتشار ریلز امروز پرو-چارت' });
+    setTimeout(() => {
+      if (!SESS.turn) return;
+      const p2 = co('PC');
+      SESS.turn = false; S.decisions = Math.max(0, S.decisions - 1); p2.sessions.turn = Math.max(0, p2.sessions.turn - 1); p2.sessions.moving++; updateCard(p2);
+      toast('<b>مُهر شد</b> · انتشار ریلز امروز (از گوشی تو)');
+      emit({ t: 'line', op: 'add', kind: 'sealed', who: 'مدیر کل', seat: '', text: 'مُهر کرد: انتشار ریلز امروز', state: 'done', task: i, gold: true });
+      setBadge(SESS.stuck ? 'stuck' : S.killed ? 'locked' : 'moving');
+      runLine(i, j + 1);
+    }, 7000);
+    return;
+  }
+  const id = 'L' + (++SESS.lineSeq);
+  emit({ t: 'line', op: 'add', id, kind, who: t.who, seat: t.seat, text, state: 'running', task: i });
+  setTimeout(() => {
+    emit({ t: 'line', op: 'end', id, ok: true }); // the step finishes; a lock or a stall stops the next one (§9)
+    runLine(i, j + 1);
+  }, secs * 1000 * rnd(.8, 1.25));
+}
+function taskDone(i) {
+  SESS.tasks[i].state = 'done'; SESS.tasks[i].li.className = 'done';
+  emit({ t: 'line', op: 'add', kind: 'task', who: 'سامانه', seat: '', text: 'کار ' + fa(i + 1) + ' تمام شد: ' + PLAN[i].fa, state: 'done', task: i, sys: true });
+  if (SESS.pace === 'step' && i < PLAN.length - 1 && !SESS.turn) {
+    SESS.turn = true; SESS.holdNext = true; setBadge('turn'); $('#bNudge').hidden = false;
+    const pc = co('PC'); pc.sessions.turn++; pc.sessions.moving = Math.max(0, pc.sessions.moving - 1); updateCard(pc); updatePulse();
+    emit({ t: 'line', op: 'add', kind: 'ask', who: 'مدیر رسانه و طراحی', seat: '01', text: 'کار ' + fa(i + 1) + ' تمام شد؛ برای ادامه منتظر توام («با من»)', state: 'turn', task: i, gold: true });
+    return;
+  }
+  sessAdvance();
+}
+function sessServerBack(s) {
+  if (s !== sessServer() || !SESS.waitOn) return;
+  const { i, j } = SESS.waitOn; SESS.waitOn = null;
+  emit({ t: 'line', op: 'add', kind: 'heal', who: 'سامانه', seat: '', text: 'سرور رسانه برگشت؛ رندر ادامه یافت', state: 'done', task: i, sys: true });
+  if (SESS.tasks[i] && SESS.tasks[i].li) SESS.tasks[i].li.className = 'doing';
+  runLine(i, j);
+}
+const KIND_ICON = { wait: 'M5 3h6M5 13h6M5.5 3c0 3 5 3 5 5s-5 2-5 5M10.5 3c0 3-5 3-5 5' };
+function lineIcon(kind, state, draw) {
+  const s = sv('svg', { class: 'st', viewBox: '0 0 16 16', 'aria-hidden': 'true' });
+  if (state === 'running') { sv('circle', { cx: 8, cy: 8, r: 6, class: 'spin' }, s); return s; }
+  if (state === 'turn' || kind === 'seal' || kind === 'sealed') { sv('circle', { cx: 8, cy: 8, r: 6, style: 'fill:none;stroke:var(--gold-ink);stroke-width:1.6' }, s); sv('circle', { cx: 8, cy: 8, r: 2.6, style: 'fill:var(--gold-ink)' }, s); return s; }
+  if (state === 'wait') { sv('path', { d: KIND_ICON.wait, style: 'fill:none;stroke:var(--lapis);stroke-width:1.4;stroke-linecap:round' }, s); return s; }
+  if (state === 'fail') { sv('path', { d: 'M4 4l8 8M12 4l-8 8', style: 'stroke:var(--neg);stroke-width:2;stroke-linecap:round' }, s); return s; }
+  if (kind === 'wake') { sv('path', { d: 'M8 3a3.5 3.5 0 0 0-3.5 3.5V10L3.5 11.5h9L11.5 10V6.5A3.5 3.5 0 0 0 8 3zM6.8 13h2.4', style: 'fill:none;stroke:var(--silver-ink);stroke-width:1.4;stroke-linejoin:round' }, s); return s; }
+  const tk = sv('path', { d: 'M3 8.4l3.2 3.2L13 4.8', class: 'tick' + (draw ? ' draw' : '') }, s);
+  if (draw) requestAnimationFrame(() => requestAnimationFrame(() => tk.classList.remove('draw')));
+  return s;
+}
+function sessApply(ev, silent) {
+  const ol = $('#lines');
+  const draw = !silent && !RM;
+  if (ev.op === 'add') {
+    const li = el('li', { class: (silent ? '' : 'new') + (ev.gold ? ' gold' : '') + (ev.sys ? ' sys' : '') + (ev.state === 'fail' ? ' fail' : '') });
+    li.dataset.id = ev.id || '';
+    const what = el('span', { class: 'what' }, [el('span', { class: 'who', text: ev.who }), ev.text]);
+    const tm = el('span', { class: 'tm', text: clock(ev.at) });
+    if (ev.state === 'running') { tm.textContent = fa(0) + ' ث'; li._t0 = ev.at; li._tm = tm; what.append(el('span', { class: 'rmtxt', text: ' · در حال انجام' })); }
+    li.append(lineIcon(ev.kind, ev.state, draw), what, tm);
+    ol.append(li);
+    while (ol.children.length > 60) ol.firstChild.remove();
+    if (SESS.atBottom) ol.scrollTop = ol.scrollHeight; else { SESS.unseen++; const p = $('#newpill'); p.textContent = fa(SESS.unseen) + ' خط تازه ↓'; p.classList.add('on'); }
+    if (ev.state === 'running') SESS.running.set(ev.id, { who: ev.who, seat: ev.seat, text: ev.text, kind: ev.kind });
+    if (ev.state === 'wait') SESS.running.set('wait', { who: ev.who, seat: ev.seat, text: 'منتظر سرور رسانه', kind: 'wait', waiting: true });
+    if (ev.kind === 'heal') SESS.running.delete('wait');
+    if (ev.task != null && ev.state === 'wait' && SESS.tasks[ev.task]) SESS.tasks[ev.task].li.className = 'wait';
+  } else if (ev.op === 'end') {
+    const li = ol.querySelector('li[data-id="' + ev.id + '"]');
+    if (li) { li.replaceChild(lineIcon('done', ev.ok ? 'done' : 'fail', draw), li.firstChild); if (li._tm) li._tm.textContent = clock(ev.at); li._tm = null; const r = li.querySelector('.rmtxt'); if (r) r.remove(); }
+    SESS.running.delete(ev.id);
+  }
+  if (!ev.sys) { SESS.lastStep = ev.at; SESS.woke = false; }
+  renderWorkers();
+}
+function renderWorkers() {
+  const box = $('#workers');
+  if (!box._head) { box._head = el('div', { class: 'small t2', style: 'width:100%' }); box.append(box._head); }
+  const ws = [...SESS.running.entries()];
+  const n = ws.filter(([, w]) => !w.waiting).length;
+  box._head.textContent = n ? fa(n) + ' نفر الان کار میکنند' : SESS.turn ? 'کار منتظر توست' : SESS.waitOn ? 'کار منتظر سرور است' : 'کسی الان کار نمیکند';
+  const keep = new Set();
+  for (const [key, w] of ws) {
+    keep.add(key);
+    if (SESS.workerEls.has(key)) continue;
+    const m = el('div', { class: 'medal' }, [el('div', { class: 'm fig', text: w.seat || '—' })]);
+    m.append(stateGlyph(w.waiting ? 'waiting' : w.kind === 'ask' ? 'thinking' : 'working'));
+    const node = el('div', { class: 'worker' }, [m, el('div', {}, [el('div', { style: 'font-weight:600', text: w.who }), el('div', { class: 't2', text: w.text })])]);
+    SESS.workerEls.set(key, node); box.append(node);
+  }
+  for (const [key, node] of SESS.workerEls) if (!keep.has(key)) { node.remove(); SESS.workerEls.delete(key); }
+  $('#wband').classList.toggle('on', n > 0 && !S.killed);
+}
+function setBadge(k) {
+  const b = $('#badge');
+  const m = { moving: ['b-moving', 'در جریان'], turn: ['b-turn', 'نوبت تو'], stuck: ['b-stuck', 'گیر کرده'], ready: ['b-ready', 'آماده'], locked: ['b-locked', 'قفل · کلید توقف'] };
+  b.className = 'badge ' + m[k][0]; b.textContent = m[k][1];
+  SESS.badge = k;
+}
+function sysLine(text, kind = 'task') { emit({ t: 'line', op: 'add', kind, who: 'سامانه', seat: '', text, state: 'done', sys: true }); }
+// The idle watch, §41.3: 10 idle minutes wake the holder; 10 more = stuck with the reason. Here 1 s = 1 minute.
+function idleTick() {
+  const busy = [...SESS.running.values()].some(w => !w.waiting);
+  const mins = busy ? 0 : Math.floor((now() - SESS.lastStep) / 1000);
+  const ring = $('#idleRing'), t = $('#idleTxt'), cir = 81.7;
+  const quiet = SESS.turn || SESS.waitOn || SESS.badge === 'ready' || S.killed;
+  const frac = SESS.stuck ? 1 : quiet ? 0 : Math.min(1, (mins % 10) / 10);
+  ring.setAttribute('stroke-dasharray', (cir * frac).toFixed(1) + ' ' + cir);
+  ring.setAttribute('class', 'ring' + (SESS.stuck ? ' neg' : mins >= 10 && !quiet ? ' warn' : ''));
+  if (S.killed) t.textContent = 'قفل است؛ با رها شدن کلید توقف ادامه میدهد';
+  else if (SESS.badge === 'ready') t.textContent = 'همه‌ی کارها انجام شد؛ منتظر تأیید تو برای بستن';
+  else if (SESS.turn) t.textContent = 'منتظر توست · از ' + clock(SESS.lastStep);
+  else if (SESS.waitOn) t.textContent = 'منتظر سرور رسانه؛ با برگشتن سرور خودش ادامه میدهد';
+  else if (SESS.stuck) t.textContent = 'گیر کرده · آخرین قدم ' + fa(mins) + ' دقیقه پیش';
+  else if (busy) t.textContent = 'آخرین قدم همین الان';
+  else t.textContent = 'آخرین قدم ' + (mins ? fa(mins) + ' دقیقه پیش' : 'همین الان') + ' · بیدارباش در دقیقه‌ی ' + fa(mins < 10 ? 10 : 20);
+  if (!busy && !quiet && SESS.stalled) {
+    if (mins >= 10 && !SESS.woke) { SESS.woke = true; emit({ t: 'line', op: 'add', kind: 'wake', who: 'هاب', seat: '', text: 'صاحب کار را بیدار کرد: ادامه از کار ' + fa(nextTaskN()), state: 'done', sys: true }); }
+    if (mins >= 20 && !SESS.stuck) {
+      SESS.stuck = true; setBadge('stuck');
+      emit({ t: 'line', op: 'add', kind: 'fail', who: 'هاب', seat: '', text: 'گیر کرده: کاور منتظر پوشه‌ی کاور است؛ پوشه را در همین سشن بفرست یا «ادامه بده» را بزن', state: 'fail', sys: true });
+      const pc = co('PC'); pc.sessions.stuck++; pc.sessions.moving = Math.max(0, pc.sessions.moving - 1); updateCard(pc); updatePulse();
+      $('#bNudge').hidden = false;
+      announce('سشن ریلز روزانه گیر کرده است', true);
+    }
+  }
+  document.querySelectorAll('#lines li').forEach(li => { if (li._tm && li._t0) li._tm.textContent = fa(Math.round((now() - li._t0) / 1000)) + ' ث'; });
+}
+function nextTaskN() { const i = SESS.tasks.findIndex(t => t.state !== 'done'); return i < 0 ? PLAN.length : i + 1; }
+function nudge() {
+  $('#bNudge').hidden = true;
+  const pc = co('PC');
+  if (SESS.holdNext) {
+    SESS.holdNext = false; SESS.turn = false; pc.sessions.turn = Math.max(0, pc.sessions.turn - 1); pc.sessions.moving++; updateCard(pc); setBadge('moving');
+    emit({ t: 'line', op: 'add', kind: 'sealed', who: 'مدیر کل', seat: '', text: 'ادامه بده', state: 'done', gold: true });
+    resumeAll(); return;
+  }
+  if (SESS.stuck) { pc.sessions.stuck = Math.max(0, pc.sessions.stuck - 1); pc.sessions.moving++; updateCard(pc); }
+  SESS.stalled = false; SESS.stuck = false; SESS.woke = false; setBadge(S.killed ? 'locked' : 'moving'); $('#bStall').textContent = 'توقف ساختگی سشن';
+  emit({ t: 'line', op: 'add', kind: 'sealed', who: 'مدیر کل', seat: '', text: 'ادامه بده: صاحب کار از کار ' + fa(nextTaskN()) + ' ادامه داد', state: 'done', gold: true });
+  updatePulse();
+  resumeAll();
+}
+
+/* ------------------------------------------------- live heartbeat (GL-1) */
+let lastBeat = 0;
+function beat() {
+  if (S.stream !== 'live') return;
+  const t = performance.now(); if (t - lastBeat < 2000) return; lastBeat = t;
+  const d = $('#livedot'); d.classList.remove('beat'); void d.offsetWidth; d.classList.add('beat');
+}
+function setStream(st) {
+  S.stream = st;
+  const l = $('#live'); l.className = 'live' + (st === 'live' ? '' : ' ' + st);
+  if (st === 'live') $('#livetxt').textContent = 'زنده';
+  if (st === 'reconnecting') $('#livetxt').textContent = 'در حال وصل';
+  $('#stale').classList.toggle('on', st !== 'live');
+}
+function streamTick() {
+  if (S.stream === 'reconnecting' && now() - S.streamDownAt > 5000) setStream('stale');
+  if (S.stream === 'stale') { const txt = 'قدیمی · ' + dur(now() - S.streamDownAt); $('#livetxt').textContent = txt; $('#stale').textContent = 'داده‌ها از ' + clockS(S.streamDownAt) + ' تازه نشده‌اند'; }
+  if (S.stream === 'reconnecting') $('#stale').textContent = 'استریم قطع است؛ در حال وصل';
+}
+function streamToggle() {
+  if (S.stream === 'live') { S.streamDownAt = now(); setStream('reconnecting'); $('#bStream').textContent = 'وصل کن'; announce('استریم قطع شد؛ داده‌ها قدیمی میشوند', true); return; }
+  setStream('live'); $('#bStream').textContent = 'قطع استریم';
+  const q = S.queue.splice(0); let n = 0;
+  for (const ev of q) { apply(ev, true); n++; } // rule 7: applied at once, never replayed
+  const m = $('#missed');
+  if (n) { m.textContent = fa(n) + ' رویداد در نبودت؛ بی‌حرکت اعمال شد'; m.classList.remove('on'); void m.offsetWidth; m.classList.add('on'); setTimeout(() => m.classList.remove('on'), 6000); }
+  announce('استریم دوباره زنده است');
+}
+
+/* ------------------------------------------------- kill switch (GL-2) */
+function paintKill() {
+  const kb = $('#killband');
+  kb.textContent = S.killed ? 'هلدینگ قفل است · از ' + clock(S.killedAt) + ' · به دستور تو · هیچ ایجنتی کار نمیکند' : '';
+  kb.classList.toggle('on', S.killed);
+  for (const c of S.companies) { if (c.spoke) c.spoke.setAttribute('class', 'spoke' + (S.killed ? ' locked' : '')); if (c.oct) paintCompany(c); updateCard(c); }
+  $('#bKill').textContent = S.killed ? 'رها کردن کلید توقف' : 'کلید توقف هلدینگ';
+}
+function killToggle() {
+  S.killed = !S.killed; S.killedAt = now();
+  if (S.killed) {
+    for (const c of S.companies) for (const p of c.people) if (p.state === 'thinking' || p.state === 'working') { p.prev = p.state; p.state = 'idle'; }
+    setBadge('locked'); feed('lock', 'کلید توقف هلدینگ زده شد · به دستور تو', { hub: 1 });
+    announce('هلدینگ قفل شد', true);
+  } else {
+    for (const c of S.companies) for (const p of c.people) if (p.prev) { p.state = p.prev; p.prev = null; }
+    setBadge(SESS.stuck ? 'stuck' : SESS.turn ? 'turn' : 'moving'); feed('heal', 'کلید توقف رها شد', { hub: 1 });
+    announce('کلید توقف رها شد');
+    if (!SESS.stalled && !SESS.turn) resumeAll();
+  }
+  paintKill(); renderWorkers(); updatePulse(); tokTick();
+}
+
+/* ------------------------------------------------- urgent and toasts (NO-1) */
+function urgent(text, key, ref) {
+  S.urgentKey = key;
+  $('#urgentTxt').textContent = text;
+  const u = $('#urgent'); u.classList.remove('on'); void u.offsetWidth; u.classList.add('on');
+  u._ref = ref;
+  $('#sr2').textContent = text;
+}
+function closeUrgent() { $('#urgent').classList.remove('on'); S.urgentKey = null; }
+function toast(html) {
+  const t = el('div', { class: 'toast', html });
+  $('#toasts').append(t);
+  setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 340); }, 5200);
+}
+function announce(text, assertive) { const r = $(assertive ? '#sr2' : '#sr'); r.textContent = ''; setTimeout(() => r.textContent = text, 30); }
+
+/* ------------------------------------------------- the simulation */
+const REQ = [['TY', 'FX', 'سیگنال‌های امروز'], ['TY', 'PC', 'نمودار هفتگی طلا'], ['FX', 'TY', 'انتشار سیگنال در کانال'], ['PC', 'TY', 'متن کپشن'], ['PC', 'FX', 'داده‌ی نوسان'], ['FX', 'PC', 'نمودار جفت‌ارزها']];
+const READS = [['PC', 'TY', 'نمودار هفتگی'], ['FX', 'TY', 'گزارش سیگنال'], ['TY', 'PC', 'آمار صفحه‌ها'], ['TY', 'FX', 'تقویم خبری']];
+const ORDERS = ['ریلز آخر هفته', 'گزارش سئوی فنی', 'بررسی کندی ثبت‌نام', 'خبرنامه‌ی ماه', 'پاسخ تیکت‌های امروز'];
+const JOBS = [['مدیر فنی', 'بررسی لاگ‌ها'], ['SRE', 'سلامت سرویس‌ها'], ['تحلیلگر سئو', 'خواندن نقشه‌ی سایت'], ['بازبین کد', 'اجرای تست‌ها']];
+function pairCodes() {
+  const cs = S.companies;
+  if (cs.length > 3 && Math.random() < .4) { const a = pick(cs), b = pick(cs.filter(x => x !== a)); return [a.code, b.code, pick(['گزارش هفتگی', 'داده‌ی مشترک', 'نمونه‌ی محتوا'])]; }
+  return pick(REQ);
+}
+function simStep() {
+  if (S.paused) return;
+  if (!S.killed) {
+    const r = Math.random();
+    if (r < .2) { const [a, b, l] = pairCodes(); emit({ t: 'request', from: a, to: b, label: l }); if (Math.random() < .6) setTimeout(() => emit({ t: 'deliver', from: b, to: a, label: l }), ri(2500, 5000)); }
+    else if (r < .34) { const [a, b, l] = pick(READS); emit({ t: 'read', from: a, to: b, label: l }); }
+    else if (r < .56) { const on = S.servers.filter(s => s.state === 'online' && s !== sessServer()); if (on.length) { const s = pick(on); const [who, lab] = pick(JOBS); emit({ t: 'job', server: s.id, who: who + ' ' + s.co.fa, label: lab, done: ri(1500, 4500) }); } }
+    else if (r < .95) { // a person's state changes (employee.state)
+      const c = pick(S.companies), p = pick(c.people);
+      const next = { idle: ['thinking', 'working'], thinking: ['working', 'working', 'done', 'waiting'], working: ['thinking', 'done', 'idle', 'waiting'], waiting: ['working', 'idle'], done: ['idle', 'thinking'], stuck: ['working'] }[p.state];
+      let st = pick(next); if (Math.random() < .03) st = 'stuck';
+      emit({ t: 'state', p, state: st });
+    }
+    else if (Math.random() < .5) { const s = pick(S.servers.filter(x => x.state === 'online')); if (s) { emit({ t: 'via', server: s.id, via: 'public' }); setTimeout(() => emit({ t: 'via', server: s.id, via: 'private' }), ri(9000, 14000)); } }
+  }
+  setTimeout(simStep, ri(700, 1700));
+}
+function scheduleOrder() { setTimeout(() => { if (!S.paused && !S.killed) emit({ t: 'order', to: pick(S.companies).code, label: pick(ORDERS) }); scheduleOrder(); }, ri(13000, 19000)); }
+function scheduleBreak() {
+  setTimeout(() => {
+    if (!S.paused && !S.killed && !S.servers.some(s => s.state === 'offline')) { const s = Math.random() < .5 ? sessServer() || pick(S.servers) : pick(S.servers); emit({ t: 'break', server: s.id, reason: Math.random() < .65 ? 'runner_stopped' : 'server_unreachable' }); }
+    scheduleBreak();
+  }, ri(26000, 36000));
+}
+function scheduleDecision() { setTimeout(() => { if (!S.paused && !S.killed && S.decisions < 4) emit({ t: 'decision', label: pick(['استخدام تحلیلگر سئو برای تریدیار', 'deploy نسخه‌ی تازه‌ی کوینه‌پرو FX', 'خط تولید خبرنامه']) }); scheduleDecision(); }, ri(32000, 44000)); }
+
+/* ------------------------------------------------- controls */
+function segSet(id, v) { document.querySelectorAll('#' + id + ' button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === v))); }
+function onSeg(id, fn) { document.querySelectorAll('#' + id + ' button').forEach(b => b.addEventListener('click', () => { segSet(id, b.dataset.v); fn(b.dataset.v); })); }
+onSeg('segTheme', v => { document.documentElement.dataset.theme = v; });
+onSeg('segMotion', v => setRM(v === 'rm'));
+onSeg('segN', v => { setup(+v); });
+onSeg('segView', v => { S.view = v; $('#map').style.display = v === 'map' ? '' : 'none'; $('#tableView').hidden = v !== 'table'; if (v === 'table') updateTable(true); else { finishAll(); renderMap(); } });
+onSeg('segPace', v => { SESS.pace = v; feed('wake', v === 'step' ? 'سشن ریلز روزانه: «با من» — بعد از هر کار منتظر تو' : 'سشن ریلز روزانه: «خودکار»', { c: co('PC') }); });
+$('#bOrder').addEventListener('click', () => emit({ t: 'order', to: pick(S.companies).code, label: pick(ORDERS) }));
+$('#bBreak').addEventListener('click', () => { const on = S.servers.filter(s => s.state === 'online'); if (on.length) { const s = on.includes(sessServer()) ? sessServer() : pick(on); emit({ t: 'break', server: s.id, reason: pick(['runner_stopped', 'server_unreachable']) }); } });
+$('#bStream').addEventListener('click', streamToggle);
+$('#bStall').addEventListener('click', () => {
+  if (SESS.stalled) { nudge(); return; }
+  SESS.stalled = true; $('#bStall').textContent = 'برگرداندن سشن';
+  feed('wake', 'نمونه: صاحب کار سشن ریلز بی‌صدا ایستاد', { c: co('PC') });
+});
+$('#bNudge').addEventListener('click', nudge);
+$('#bSpike').addEventListener('click', () => { if (S.tok.usd >= S.tok.budget - 0.01) { Object.assign(S.tok, { usd: 11.6, spike: 0 }); S.budgetHit = false; if (S.urgentKey === 'budget') closeUrgent(); feed('heal', 'روز تازه؛ کنتور از نو', { hub: 1 }); paintMeter(1); return; } S.tok.spike += 8; feed('job', 'جهش مصرف: یک کار سنگین شروع شد', { hub: 1 }); });
+$('#bKill').addEventListener('click', killToggle);
+$('#bPause').addEventListener('click', e => { S.paused = !S.paused; e.target.setAttribute('aria-pressed', String(S.paused)); e.target.textContent = S.paused ? 'ادامه‌ی نمونه' : 'مکث نمونه'; });
+$('#urgentOk').addEventListener('click', () => { const r = $('#urgent')._ref; closeUrgent(); if (r) why(r); });
+$('#lines').addEventListener('scroll', e => { const o = e.target; SESS.atBottom = o.scrollHeight - o.scrollTop - o.clientHeight < 24; if (SESS.atBottom) { SESS.unseen = 0; $('#newpill').classList.remove('on'); } });
+$('#newpill').addEventListener('click', () => { const o = $('#lines'); o.scrollTop = o.scrollHeight; });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDetail(); });
+let rsT = 0, lastW = innerWidth; addEventListener('resize', () => { clearTimeout(rsT); rsT = setTimeout(() => { if (innerWidth !== lastW && S.view === 'map') { lastW = innerWidth; finishAll(); renderMap(); } }, 200); });
+// rule 7: hidden → nothing animates; back → state at once
+document.addEventListener('visibilitychange', () => { if (document.hidden) { finishAll(); } else kick(); });
+
+/* ------------------------------------------------- setup */
+function setup(n) {
+  S.n = n; finishAll(); inflight.clear(); chips.clear();
+  for (const x of S.servers) { clearTimeout(x.urgT); clearTimeout(x.healT); }
+  if (S.urgentKey && S.urgentKey.startsWith('srv:')) closeUrgent();
+  S.companies = buildCompanies(n);
+  S.servers = S.companies.flatMap(c => c.srv);
+  S.chords = buildChords(S.companies);
+  if (S.sel) closeDetail();
+  renderMap(); renderCards(); updatePulse();
+  segSet('segN', String(n));
+  if (SESS.waitOn) { const ms = sessServer(); if (ms && ms.state === 'online') sessServerBack(ms); }
+}
+setRM(RM);
+setup(3);
+sessReset(); setBadge('moving'); sessAdvance();
+paintMeter(1);
+simStep(); scheduleOrder(); scheduleBreak(); scheduleDecision();
+setInterval(() => { if (!S.paused) tokTick(); }, 1000);
+setInterval(() => { idleTick(); streamTick(); for (const c of S.companies) if (c.cAge) c.cAge.textContent = ago(now() - c.last); if (S.sel && (S.sel.kind === 'srv' || S.sel.kind === 'hub')) renderDetail(); }, 1000);
+setInterval(() => { if (S.stream === 'live' && !S.paused) beat(); }, 5000);
+setInterval(() => updateTable(), 5000);
+})();
+</script>
+</body>
+</html>
