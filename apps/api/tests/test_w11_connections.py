@@ -218,12 +218,12 @@ async def test_the_brief_says_the_account_lives_on_ig_hub_and_the_owner_never_re
         json.dumps([{"tool": "instagram", "outcome": "refused", "code": "channel_not_configured"}]),
     )
     rep = await report(client, owner, ref)
-    [b] = [x for x in rep["blockers"] if x["kind"] == "connection_missing"]
-    assert (
-        b["title_fa"] == "حساب روی IG-Hub است؛ تیم فنی آن را به هاب معرفی میکند"
-        and b["fix"] is None
-    )
-    assert "وصل نیست" not in b["title_fa"]
+    # ⟨2026-11-08⟩ the owner's decision: no Instagram blocker at all — the technical work that
+    # registers the accounts is made by code (test_w11_decisions), the session reads one step
+    assert not [x for x in rep["blockers"] if x["kind"] == "connection_missing"], rep["blockers"]
+    assert not any("وصل نیست" in json.dumps(x, ensure_ascii=False) for x in rep["blockers"])
+    steps = [s["what_fa"] for s in rep["steps"]]
+    assert "تیم فنی حساب‌های اینستاگرام را از راه IG-Hub به هاب معرفی میکند" in steps
 
 
 # ===================================================================== H1 ==
@@ -311,9 +311,11 @@ async def test_a_technical_role_works_on_another_companys_server_by_the_linked_r
         )
         m = await CAP.brief(tx, pc["id"], n8n_up=False, role="media_director", tools=media_c.tools,
                             scope="company")  # fmt: skip
+    # (the brief names at most SERVERS_MAX servers: a test database full of them may cut IG-Hub)
+    assert "every company" in b["technical"]["reach"]
     assert (
         f"{igc} · IG-Hub" in b["technical"]["servers"]
-        and "every company" in b["technical"]["reach"]
+        or len(b["technical"]["servers"]) == CAP.SERVERS_MAX
     )
     assert b["technical"]["servers"][0] == f"{pcc} · pc-web"  # its own first
     assert (

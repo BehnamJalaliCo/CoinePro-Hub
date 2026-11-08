@@ -185,6 +185,117 @@ def ig_hub_note(company_code: str | None = None) -> str:
     )
 
 
+# ⟨2026-11-08⟩ the owner's decision: Instagram, for every company, is read and published through
+# IG-Hub. The owner never reads an Instagram blocker, «وصل نیست» or a step of his own; a company
+# whose accounts are not registered here yet gets the holding's technical work made by code.
+IG_HUB_LINE_FA = "از راه {server} خوانده و منتشر میشود"
+IG_HUB_TEAM_FA = (
+    "اینستاگرام از راه {server} خوانده و منتشر میشود؛ تیم فنی حساب‌ها را به هاب معرفی میکند"
+)
+IG_SETUP_TITLE_FA = "ثبت حساب‌های اینستاگرام {company} روی هاب (از راه {server})"
+IG_SETUP_PRIORITY = "P2"
+
+
+def ig_hub_line(row: dict[str, Any] | None) -> str:
+    """What the owner reads of a company's Instagram: through IG-Hub, with its accounts when they
+    are registered, else the technical team's registration (never «not connected»)."""
+    hub = ig_hub()
+    cfg = (row or {}).get("config") or {}
+    srv = cfg.get("server") if isinstance(cfg.get("server"), dict) else {}
+    server = str((srv or {}).get("name") or hub["server"])
+    accounts = [str(a) for a in cfg.get("accounts") or []] if row is not None else []
+    if accounts and cfg.get("command"):
+        return IG_HUB_LINE_FA.format(server=server) + f" ({len(accounts)} حساب)."
+    return IG_HUB_TEAM_FA.format(server=server) + "."
+
+
+def ig_setup_brief(company_code: str) -> str:
+    hub = ig_hub()
+    return (
+        f"Register {company_code}'s Instagram accounts on the hub. Instagram, for every company, is "
+        f"read and published through {hub['server']} (company {hub['company']}'s server, Meta's "
+        f"official API); the accounts are there already. Steps: (1) server.map, then server.read / "
+        f"server.exec (read-only) on {hub['company']}'s server {hub['server']} to find "
+        f"{company_code}'s account handles and the read-only command that prints their daily "
+        f"figures as JSON ({{accounts: [{{account, followers, reach, views}}]}}); (2) connection.set "
+        f"{{company: {company_code}, kind: instagram, accounts: [handles], via: ig_hub, server: "
+        f"{{company: {hub['company']}, name: {hub['server']}}}, read_command}}; (3) deliver one "
+        f"Persian line: the accounts registered. Publishing goes through {hub['server']}'s API "
+        "(docs/server-prompts/IGHUB_PUBLISH_API.md). Never ask the owner for anything here and "
+        "never say Instagram is not connected: it is, through IG-Hub."
+    )
+
+
+async def ig_setup_assignee(tx: Tx) -> dict[str, Any] | None:
+    """Who registers a company's Instagram here: IG-Hub's company's CTO (the TECH department's
+    manager), else the holding's AIOPS manager; None when neither seat is filled."""
+    hub = ig_hub()
+    sql = """SELECT e.code, e.company_id, c.code AS company FROM core.employees e
+             JOIN core.companies c ON c.id = e.company_id
+             JOIN core.departments d ON d.id = e.department_id
+             WHERE e.status = 'active' AND e.kind = 'manager' AND d.code = :dept AND {where}
+             ORDER BY e.created_at LIMIT 1"""
+    row = await tx.first(sql.format(where="c.code = :c"), dept="TECH", c=hub["company"])
+    if row is None:
+        row = await tx.first(sql.format(where="c.kind = 'holding'"), dept="AIOPS")
+    return dict(row) if row is not None else None
+
+
+async def ig_setup_work(tx: Tx, company_id: UUID) -> str | None:
+    """The open technical work that registers this company's Instagram here, or None."""
+    from hq_api.domain import work as W
+
+    code = await tx.scalar("SELECT code FROM core.companies WHERE id = :c", c=company_id)
+    ref: str | None = await tx.scalar(
+        """SELECT ref FROM work.work WHERE run_meta ->> 'ig_setup' = :code
+             AND status <> ALL(CAST(:closed AS text[])) ORDER BY created_at LIMIT 1""",
+        code=code,
+        closed=list(W.CLOSED),
+    )
+    return ref
+
+
+async def ensure_ig_setup_work(
+    tx: Tx, company_id: UUID, *, requested_by: UUID | None = None
+) -> str | None:
+    """The owner, 2026-11-08: a company whose Instagram accounts are not registered on the hub
+    gets the technical work made by code, once (one open work per company): IG-Hub's CTO (else
+    the holding's AIOPS) reads the accounts on IG-Hub (`server.*` by the linked rule, H1) and
+    registers them with `connection.set` (H2). Under an order's work when `requested_by` names
+    one, so the session sees the step and the holder is woken when it is delivered. The work's
+    ref, or None when nobody can take it."""
+    from hq_api.domain import work as W
+    from hq_api.principal import Principal
+
+    found = await ig_setup_work(tx, company_id)
+    if found is not None:
+        return found
+    co = await tx.first("SELECT code, name_fa FROM core.companies WHERE id = :c", c=company_id)
+    who = await ig_setup_assignee(tx)
+    if co is None or who is None:
+        return None
+    hub = ig_hub()
+    w = await W.create(
+        tx,
+        Principal(kind="service", code="connections", role="service"),
+        company_id=who["company_id"],
+        company_code=str(who["company"]),
+        title=IG_SETUP_TITLE_FA.format(company=co["name_fa"] or co["code"], server=hub["server"]),
+        brief=ig_setup_brief(str(co["code"])),
+        kind="one_off",
+        priority=IG_SETUP_PRIORITY,
+        assignee_code=str(who["code"]),
+        requested_by_work_id=requested_by,
+    )
+    await tx.exec(
+        """UPDATE work.work SET run_meta = COALESCE(run_meta, '{}'::jsonb) || CAST(:m AS jsonb)
+           WHERE id = :id""",
+        id=w["id"],
+        m=json.dumps({"ig_setup": co["code"]}),
+    )
+    return str(w["ref"])
+
+
 # ⟨2026-11-08⟩ H2 connection.set: what an agent may write of a connection (never a secret)
 SECRET_WORDS = re.compile(
     r"(secret|token|password|passwd|api[_-]?key|private[_-]?key|bearer)", re.I
@@ -1226,7 +1337,23 @@ async def read_due(hub: Any, now: datetime | None = None) -> dict[str, Any]:
             hub_n += await store(
                 tx, co["id"], "hub", await hub_figures(tx, co["id"], yesterday, tz)
             )
-    out: dict[str, Any] = {"read": 0, "failed": 0, "waiting": 0, "hub": hub_n}
+        # ⟨2026-11-08⟩ the owner: an Instagram read path not registered here is the technical
+        # team's work, made by code (once per company), never a step of his
+        setup = 0
+        for r in due:
+            cfg = r["config"] or {}
+            if (
+                r["kind"] == "instagram"
+                and cfg.get("via") == "ig_hub"
+                and missing("instagram", cfg, True)
+            ):
+                try:
+                    async with tx.conn.begin_nested():
+                        if await ensure_ig_setup_work(tx, r["company_id"]) is not None:
+                            setup += 1
+                except Exception:  # noqa: BLE001 - never fails the daily read
+                    log.warning("ig setup work could not be made", extra={"company": r["code"]})
+    out: dict[str, Any] = {"read": 0, "failed": 0, "waiting": 0, "hub": hub_n, "ig_setup": setup}
     for r in due:
         if r["lock"] is not None:
             continue

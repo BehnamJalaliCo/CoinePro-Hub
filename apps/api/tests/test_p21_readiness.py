@@ -23,7 +23,9 @@ def checks(r: httpx.Response) -> dict[str, dict[str, Any]]:
     body = r.json()
     for c in body["checks"]:
         assert H.check(c["title_fa"]) == [] and H.check(c["detail_fa"]) == [], c
-        assert (c["fix"] is None) == c["ok"], c  # a fix exactly when it failed
+        # a fix only when it failed; ⟨2026-11-08⟩ a failed check may carry none when the step is
+        # the technical team's (the membership that follows the Instagram registration)
+        assert c["fix"] is None or not c["ok"], c
         if c["fix"]:
             assert H.check(c["fix"]["label_fa"]) == [] and c["fix"]["action"], c
     assert body["ready"] == all(c["ok"] for c in body["checks"])
@@ -53,9 +55,12 @@ async def test_every_check_and_its_fix_for_a_company_without_a_channel(
                              params={"group": "content"})  # fmt: skip
     c = checks(r)
     assert r.json()["ready"] is False and r.json()["group"] == "content"
-    assert c["group"]["fix"]["action"] == "connection.guide"  # no channel: not a member yet
-    assert c["channels"]["fix"] == {"action": "connection.guide",
-                                    "label_fa": "راهنمای افزودن کانال", "target": "instagram"}  # fmt: skip
+    # ⟨2026-11-08⟩ the owner: Instagram is IG-Hub for every company; no step of his for a channel
+    assert c["group"]["ok"] is False and c["group"]["fix"] is None  # not a member yet
+    assert "IG-Hub" in c["group"]["detail_fa"] and "تیم فنی" in c["group"]["detail_fa"]
+    assert c["channels"]["ok"] is True and c["channels"]["fix"] is None
+    assert c["channels"]["detail_fa"].startswith("اینستاگرام از راه IG-Hub")
+    assert "media_tools" not in c  # no video tool, voice off: never a readiness item
     # the lead's seat is the media department's head; the others empty, each with `hire`
     assert c["seat:media_director"]["ok"] is True
     for seat, role in (("scriptwriter", "scriptwriter"), ("publisher", "publisher"),
@@ -71,7 +76,6 @@ async def test_every_check_and_its_fix_for_a_company_without_a_channel(
     assert c["hiring"]["ok"] is True
     assert c["envelope"]["fix"] == {"action": "envelope.set", "label_fa": "تعیین پاکت ماه",
                                     "target": co["code"]}  # fmt: skip
-    assert c["media_tools"]["fix"]["action"] == "media.on"  # render and voice are off here
     assert c["players"]["fix"]["action"] == "lock.open"  # the holding is locked
     assert c["runner"]["ok"] is True  # no server the group reads through
 
@@ -101,6 +105,9 @@ async def test_a_member_with_channels_series_runner_and_envelope(
     assert "IG-Hub" in got["runner"]["detail_fa"]
     # Instagram needs no secret on the hub: with its command and accounts it is connected
     assert got["connection:instagram"]["ok"] is True
+    assert (
+        got["connection:instagram"]["detail_fa"] == "از راه IG-Hub خوانده و منتشر میشود (1 حساب)."
+    )
     assert got["series:instagram"]["fix"] == {"action": "series.propose",
                                               "label_fa": "پیشنهاد سری انتشار",
                                               "target": f"{c}:instagram"}  # fmt: skip
@@ -166,6 +173,8 @@ async def test_a_failed_checks_fix_is_one_tap(
     )
     r = await client.post(f"{url}/fix", headers=owner,
                           json={"group": "content", "action": "connection.guide", "target": "instagram"})  # fmt: skip
-    assert r.status_code == 200 and checks(r)["channels"]["ok"] is False
+    # (an app-side fix answers the readiness unchanged; ⟨2026-11-08⟩ `channels` is ok for every
+    # company: Instagram through IG-Hub)
+    assert r.status_code == 200 and checks(r)["channels"]["ok"] is True
     r = await client.post(f"{url}/fix", headers=owner, json={"action": "delete.everything"})
     assert r.status_code == 422

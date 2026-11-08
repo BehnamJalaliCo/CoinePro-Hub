@@ -90,16 +90,7 @@ FIX_LABEL_FA = {
 }
 # ⟨2026-11-08⟩ audit M10: a tool's refusal for a missing account, in words, and what fixes it
 # (never a guide that does not exist: a sign-in or a player's account has no page of its own yet)
-_MEDIA_OFF = ("ابزار ویدیو روشن نیست", "ساخت ویدیو به ابزار رسانه‌ی هاب نیاز دارد که خاموش است.")
 TOOL_CONNECTION_FA: dict[str, tuple[str, str, str | None, str | None]] = {
-    "speech.make": (
-        "صدا (Google AI Studio) وارد نشده",
-        "ساخت صدا به ورود به Google AI Studio روی هاب نیاز دارد.",
-        None,
-        None,
-    ),
-    "media.render": (*_MEDIA_OFF, "media.on", "media"),
-    "media.item": (*_MEDIA_OFF, "media.on", "media"),
     "substitute.call": (
         "بازیکن بیرونی وارد حسابش نیست",
         "ChatGPT، Gemini یا DeepSeek باید در صفحه‌ی بازیکن‌ها وارد شود.",
@@ -107,6 +98,11 @@ TOOL_CONNECTION_FA: dict[str, tuple[str, str, str | None, str | None]] = {
         None,
     ),
 }
+# ⟨2026-11-08⟩ the owner's decisions: voice is off and the hub has no video tool; a refusal of
+# these tools is never a blocker, a readiness item or a step of the owner's (the video step of a
+# plan is the media team's «بسته‌ی ساخت ویدیو»; the owner makes the video himself)
+SILENT_TOOLS = ("speech.make", "media.render", "media.item", "media.on")
+IG_SETUP_STEP_FA = "تیم فنی حساب‌های اینستاگرام را از راه {server} به هاب معرفی میکند"
 MAX_STEPS = 30
 OPEN = W.OPEN
 CLOSED = W.CLOSED
@@ -601,6 +597,32 @@ def _blocker(
     }
 
 
+async def _ig_setup(
+    tx: Tx, rep: dict[str, Any], work_id: UUID | None, company_code: str | None
+) -> None:
+    """⟨2026-11-08⟩ a run of the order met Instagram not registered here: the holding's technical
+    work (IG-Hub's CTO, else AIOPS) is made once, under the order's work, and the session gets one
+    technical step, once. Never fails the report."""
+    from hq_api.domain import connections as CN
+
+    if company_code is None:
+        return
+    try:
+        async with tx.conn.begin_nested():
+            co_id = await tx.scalar("SELECT id FROM core.companies WHERE code = :c", c=company_code)
+            if co_id is None:
+                return
+            ref = await CN.ensure_ig_setup_work(tx, co_id, requested_by=work_id)
+            if ref is None:
+                return
+            line = IG_SETUP_STEP_FA.format(server=CN.ig_hub()["server"])
+            steps = _j(rep.get("steps")) or []
+            if all(s.get("what_fa") != HZ.humanize(line) for s in steps):
+                await _append_steps(tx, rep["id"], [_step("سامانه", line)])
+    except Exception:  # noqa: BLE001 - the technical work never fails the owner's report
+        log.warning("ig setup work could not be made", extra={"company": company_code})
+
+
 async def detect(
     tx: Tx, rep: dict[str, Any], order: dict[str, Any], works: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
@@ -680,16 +702,16 @@ async def detect(
         elif c["code"] in CONNECTION_CODES:
             # ⟨2026-11-08⟩ audit M10: the tool in words; a fix only where a page for it exists
             tool = str(c["tool"] or "")
+            if tool in SILENT_TOOLS:
+                continue  # voice off, no video tool: never the owner's (the owner, 2026-11-08)
             if tool in TOOL_CONNECTION_FA:
                 title, detail, action, target = TOOL_CONNECTION_FA[tool]
                 add("connection_missing", title, detail, target, action)
             elif tool == "instagram":
-                # ⟨2026-11-08⟩ H3: the account is on IG-Hub; the technical team registers it
-                from hq_api.domain import connections as CN
-
-                add("connection_missing",
-                    CN.IG_HUB_OWNER_FA.format(server=CN.ig_hub()["server"]),
-                    "حساب هست؛ تیم فنی نام حساب‌ها و خواندنش را به هاب معرفی میکند.", None)  # fmt: skip
+                # ⟨2026-11-08⟩ the owner: Instagram is on IG-Hub for every company; no blocker —
+                # the technical work that registers the accounts is made by code, under this
+                # order, and the session reads one technical step
+                await _ig_setup(tx, rep, c["work_id"], company_of.get(c["work_id"]))
             elif tool in CN_KINDS:
                 add("connection_missing", "یک اتصال وصل نیست",
                     "کار به حسابی نیاز دارد که هنوز وصل نشده است.", tool)  # fmt: skip

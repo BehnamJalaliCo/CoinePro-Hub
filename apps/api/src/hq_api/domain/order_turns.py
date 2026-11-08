@@ -53,7 +53,11 @@ PLAN_INSTRUCTION = (
     "with `order.progress` (`done: [n]`, one plain Persian line of what it produced). The moment a "
     "task cannot go on (something only the owner knows, decides or must connect), ask the owner ONE "
     "short question with `order.ask` and finish the run. Never stop silently: a run that ends "
-    "without a step, a question or a deliverable is a stall the owner sees at once."
+    "without a step, a question or a deliverable is a stall the owner sees at once. A video task "
+    "is done when the media team delivers the «بسته‌ی ساخت ویدیو» (script, shot list, on-screen "
+    "text, voice text, caption, hashtags, cover prompt): the hub has no video tool, the owner makes "
+    "the video and drops the file into the session; publishing goes on through IG-Hub. Instagram, "
+    "for every company, is read and published through IG-Hub: never an owner's step for it."
 )
 # ⟨1.23⟩ §41.2 an item of the owner's numbered list: Persian, Arabic-Indic or Latin digits, then
 # «-», «.», «)», «:» or «،»

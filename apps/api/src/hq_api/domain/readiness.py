@@ -9,18 +9,21 @@ failed one with its one-tap fix:
                      automatic hiring, §29.10)
     hiring           hiring open and automatic (fix hiring.open, 🔏)
     envelope         the company's month envelope set (fix envelope.set)
-    channels         at least one publishing channel (fix connection.guide)
-    connection:<k>   each publishing channel connected (fix connection.guide)
+    channels         at least one publishing channel (fix connection.guide);
+                     ⟨2026-11-08⟩ Instagram counts for every company: through
+                     IG-Hub, registered by the technical team, never a step of
+                     the owner's
+    connection:<k>   each publishing channel connected (fix connection.guide);
+                     Instagram is always «through IG-Hub» (no fix, never «not
+                     connected»: the owner's decision, 2026-11-08)
     series:<k>       at least one sealed series per channel (fix series.propose)
-    media_tools      render and voice on the hub (fix media.on: the opt-in
-                     profiles `media` and `tts`; the hub starts STT on demand,
-                     the render and voice workers are switched on by the owner)
     players          Claude can take the work (the holding is not locked); the
                      substitute players that are ready are named
     runner           the servers the group reads through are online (IG-Hub for
                      Instagram; the company's own attached servers) (fix runner.check)
 
-Every text is the owner's plain Persian (§29.7).
+Every text is the owner's plain Persian (§29.7). ⟨2026-11-08⟩ the owner: no `media_tools` check
+any more (the hub has no video tool and voice is off: neither is a readiness item or a step of his).
 """
 
 from __future__ import annotations
@@ -105,6 +108,7 @@ async def check(tx: Tx, hub: Any, company: Any, group_key: str) -> Readiness:
         GR.MEMBER_SQL + " WHERE m.group_id = :g AND m.company_id = :co", g=grow["id"], co=company.id
     )
     on = g.state == "on" and m is not None and m["state"] == "on"
+    ig_server = CN.ig_hub()["server"]
     checks.append(
         _check(
             "group",
@@ -115,11 +119,14 @@ async def check(tx: Tx, hub: Any, company: Any, group_key: str) -> Readiness:
             else (
                 "عضویت شرکت متوقف شده است."
                 if m is not None
-                else "شرکت هنوز عضو نیست؛ با نخستین کانال انتشار خودکار عضو میشود."
+                # ⟨2026-11-08⟩ Instagram through IG-Hub is every company's first channel; the
+                # technical team registers it and the company joins by itself: no step of the owner's
+                else "شرکت هنوز عضو نیست؛ با ثبت حساب اینستاگرام از راه "
+                f"{ig_server} به دست تیم فنی خودکار عضو میشود."
             ),
             Fix(action="group.resume", label_fa="روشن کردن عضویت", target=f"{g.key}:{company.code}")
             if m is not None
-            else Fix(action="connection.guide", label_fa="افزودن کانال انتشار", target="instagram"),
+            else None,
         )
     )
     # seats: each required one filled by an active employee
@@ -170,15 +177,17 @@ async def check(tx: Tx, hub: Any, company: Any, group_key: str) -> Readiness:
     # channels, connections, sealed series
     conns = await CN.rows_of(tx, company.id)
     channels = [k for k in CN.PUBLISHING if k in conns]
+    # ⟨2026-11-08⟩ the owner: Instagram, for every company, is read and published through IG-Hub;
+    # a company without a channel row has it all the same (the technical team registers the
+    # accounts here), so the owner never reads «no channel» or a step of his own for it
     checks.append(
         _check(
             "channels",
-            bool(channels),
+            True,
             "کانال انتشار",
             "، ".join(CN.LABEL_FA[k] for k in channels)
             if channels
-            else "هنوز هیچ کانال انتشاری ثبت نشده است.",
-            Fix(action="connection.guide", label_fa="راهنمای افزودن کانال", target="instagram"),
+            else CN.IG_HUB_TEAM_FA.format(server=ig_server) + ".",
         )
     )
     sealed = await tx.all(
@@ -191,25 +200,32 @@ async def check(tx: Tx, hub: Any, company: Any, group_key: str) -> Readiness:
     for k in channels:
         row = conns[k]
         st = CN.state_of(k, row)
-        need = CN.missing(k, row.get("config") or {}, bool(row.get("secret_set")))
-        detail = (
-            "وصل است."
-            if st == "connected"
-            else (
-                row.get("last_error_fa")
-                if st == "error"
-                else "هنوز لازم است: " + "، ".join(need) + "."
+        if k == "instagram":
+            # ⟨2026-11-08⟩ always through IG-Hub: the accounts when registered, else the technical
+            # team's registration; never «not connected», never a fix for the owner
+            checks.append(
+                _check(f"connection:{k}", True, f"اتصال {CN.LABEL_FA[k]}", CN.ig_hub_line(row))
             )
-        )
-        checks.append(
-            _check(
-                f"connection:{k}",
-                st == "connected",
-                f"اتصال {CN.LABEL_FA[k]}",
-                str(detail or ""),
-                Fix(action="connection.guide", label_fa="راهنمای وصل کردن", target=k),
+        else:
+            need = CN.missing(k, row.get("config") or {}, bool(row.get("secret_set")))
+            detail = (
+                "وصل است."
+                if st == "connected"
+                else (
+                    row.get("last_error_fa")
+                    if st == "error"
+                    else "هنوز لازم است: " + "، ".join(need) + "."
+                )
             )
-        )
+            checks.append(
+                _check(
+                    f"connection:{k}",
+                    st == "connected",
+                    f"اتصال {CN.LABEL_FA[k]}",
+                    str(detail or ""),
+                    Fix(action="connection.guide", label_fa="راهنمای وصل کردن", target=k),
+                )
+            )
         ok = k in sealed_channels or (k == "instagram" and "runner" in sealed_channels)
         checks.append(
             _check(
@@ -224,19 +240,8 @@ async def check(tx: Tx, hub: Any, company: Any, group_key: str) -> Readiness:
                 ),
             )
         )
-    # media tools on the hub (render and voice)
-    s = hub.settings
-    tools_on = bool(s.media and s.tts)
-    off = [x for x, on_ in (("ساخت ویدیو", s.media), ("ساخت صدا", s.tts)) if not on_]
-    checks.append(
-        _check(
-            "media_tools",
-            tools_on,
-            "ابزار ساخت ویدیو و صدا روی هاب",
-            "روشن است." if tools_on else "خاموش است: " + " و ".join(off) + ".",
-            Fix(action="media.on", label_fa="روشن کردن ابزار رسانه", target="media"),
-        )
-    )
+    # (⟨2026-11-08⟩ no `media_tools` check: the hub has no video tool and voice is off, by the
+    # owner's decision; neither is his step)
     # the players: Claude takes the work unless the holding is locked
     lock = await gate.holding_lock(tx)
     ready = []

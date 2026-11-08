@@ -353,7 +353,8 @@ async def test_an_envelope_refusal_is_a_blocker_with_a_fix_and_a_tool_refusal_na
         "label_fa": "پاکت ماه را تعیین کن",
         "target": co,
     }
-    # M10: a tool's missing account, in words; a fix only where a page exists
+    # M10: a tool's missing account, in words; a fix only where a page exists. ⟨2026-11-08⟩ the
+    # owner's decisions: voice off and no video tool — their refusals are never a blocker
     await refused("speech.make", "channel_not_configured")
     await refused("media.render", "channel_not_configured")
     await refused("substitute.call", "channel_not_configured")
@@ -361,10 +362,7 @@ async def test_an_envelope_refusal_is_a_blocker_with_a_fix_and_a_tool_refusal_na
     await refused("some.tool", "channel_not_configured")
     rep = await report(client, owner, ref)
     conn = {x["title_fa"]: x for x in rep["blockers"] if x["kind"] == "connection_missing"}
-    assert conn["صدا (Google AI Studio) وارد نشده"]["fix"] is None
-    assert conn["ابزار ویدیو روشن نیست"]["fix"] == {
-        "action": "media.on", "label_fa": "ابزار رسانه را روشن کن", "target": "media",
-    }  # fmt: skip
+    assert not [t for t in conn if "صدا" in t or "ویدیو" in t], list(conn)
     assert conn["بازیکن بیرونی وارد حسابش نیست"]["fix"] is None
     generic = [x for x in rep["blockers"] if x["title_fa"] == "یک اتصال وصل نیست"]
     assert {(x["fix"] or {}).get("target") for x in generic} == {"telegram", None}
@@ -458,18 +456,19 @@ async def test_a_budget_stop_adds_by_code_within_the_envelope(
 
 
 # ===================================================================== m1 ==
-async def test_the_voice_off_notice_is_said_once_per_conversation(
+async def test_a_voice_layer_down_never_writes_a_notice(
     client: httpx.AsyncClient,
     owner: dict[str, str],
     talk: dict[str, Any],  # noqa: F811
 ) -> None:
+    """m1 as the owner decided it on 2026-11-08: no voice notice, ever (not once, not at all);
+    the answer is text alone (the voice is on here, the layer down)."""
     cv = await open_cv(client, owner)
     talk["voice"].unavailable = True
     talk["router"].answers = [answer("سلام.")]
     out = await say(client, owner, cv["ref"], "سلام")
-    assert out["answer"]["state"] == "done" and "صدا در دسترس نیست" in out["answer"]["show_md"]
+    assert out["answer"]["state"] == "done" and "صدا" not in out["answer"]["show_md"]
     talk["router"].answers = [answer("باز هم سلام.")]
     out = await say(client, owner, cv["ref"], "دوباره")
-    assert out["answer"]["state"] == "done"
-    assert "صدا در دسترس نیست" not in out["answer"]["show_md"], out["answer"]["show_md"]
+    assert out["answer"]["state"] == "done" and "صدا" not in out["answer"]["show_md"]
     talk["voice"].unavailable = False

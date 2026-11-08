@@ -783,6 +783,7 @@ async def test_the_owner_settings_carry_the_voice_cap_and_chain_additively(
 ) -> None:
     got = (await client.get("/api/v1/owner/settings", headers=owner)).json()
     assert got["voice"] == {
+        "enabled": False,  # ⟨2026-11-08⟩ the owner: voice is off until he turns it on
         "month_cap_usd": None,
         "warn_at": 0.8,
         "chain": ["gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts", "piper"],
@@ -794,11 +795,16 @@ async def test_the_owner_settings_carry_the_voice_cap_and_chain_additively(
     assert r.json()["voice"]["warn_at"] == 0.8  # the fields left out keep their value
     r = await set_voice_settings(client, owner, {"chain": [LITE, "piper"], "warn_at": 0.9})
     assert r.json()["voice"] == {
+        "enabled": False,
         "month_cap_usd": 12.5,
         "warn_at": 0.9,
         "chain": [LITE, "piper"],
         "local": True,
     }
+    r = await set_voice_settings(client, owner, {"enabled": True})
+    assert r.status_code == 200 and r.json()["voice"]["enabled"] is True
+    r = await set_voice_settings(client, owner, {"enabled": False})
+    assert r.json()["voice"]["enabled"] is False
     r = await set_voice_settings(client, owner, {"month_cap_usd": None})
     assert r.json()["voice"]["month_cap_usd"] is None  # null on purpose removes the cap
     assert (await set_voice_settings(client, owner, {"chain": ["nope"]})).status_code == 422

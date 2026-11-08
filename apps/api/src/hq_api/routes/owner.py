@@ -168,6 +168,9 @@ class VoiceSettings(BaseModel):
     """⟨1.14⟩ prompt 23 (contract §32.6): the owner's cap and the voice chain. No cap (null) until
     the owner sets one; nothing but the owner raises it."""
 
+    # ⟨additive⟩ the owner, 2026-11-08: voice is off (false) until he turns it on; the talk answers
+    # in text alone and never mentions a voice
+    enabled: bool = False
     month_cap_usd: float | None = None
     warn_at: float = 0.8
     chain: list[str] = Field(default_factory=list)
@@ -178,6 +181,7 @@ class VoiceSettings(BaseModel):
 
 class VoiceSettingsIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    enabled: bool | None = None
     # null removes the cap; a number sets it (0 means no paid voice at all)
     month_cap_usd: float | None = Field(default=None, ge=0, le=100_000)
     warn_at: float | None = Field(default=None, gt=0, le=1)

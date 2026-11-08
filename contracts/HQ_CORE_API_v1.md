@@ -4230,3 +4230,23 @@ of a session, made visible and continuous.
   - The delegate card of the talk takes `company` (the asked person's company; a full employee code resolves both); a named company
     or server in the owner's words («از تریدیار», «سرور CoineProFx») picks that company; a server of the session's memory alone
     counts for servers, never for a person of another company (M3).
+  - **The owner's three decisions (2026-11-08)**, as built:
+    1. *Voice is off.* `OwnerSettings.voice` gains `enabled` (additive, default `false`; `PUT /owner/settings {voice: {enabled}}`): the
+       talk answers in text alone (no `say`, no `audio` event), no «صدا در دسترس نیست» line ever, no `voice` block and no `voice` entry
+       in the capability brief, no sign-in as a blocker, readiness item or owner's step. The voice code stays and runs only while
+       `enabled` is on.
+    2. *Instagram = IG-Hub, for every company.* The `connection_missing` blocker for Instagram is gone: a run that meets it makes the
+       holding's technical work by code, once per company (IG-Hub's company's CTO, else the holding's AIOPS manager; `run_meta.ig_setup`
+       = the company code; under the order's work so the session sees it and its delivery wakes the holder), and the session reads one
+       step «تیم فنی حساب‌های اینستاگرام را از راه IG-Hub به هاب معرفی میکند». The daily read (`read_due`, result `ig_setup`) makes the
+       same work for a company whose read path is not registered. Readiness: `channels` is always ok (Instagram through IG-Hub, the
+       accounts the technical team's), `connection:instagram` is always ok with «از راه IG-Hub خوانده و منتشر میشود (N حساب)» or the
+       technical team's line, never a `connection.guide` fix for it; a `group` check that fails for want of membership carries no fix
+       (a failed check may carry no fix when the step is the technical team's). The brief's `how.instagram` and the charters say
+       plainly: Instagram, for all companies, is read and published through IG-Hub.
+    3. *No video tool.* Readiness has no `media_tools` check; a refusal of `speech.make`, `media.render`, `media.item` or `media.on` is
+       never a blocker (`FixIn` still accepts `media.on`). The brief's `how.cover_image` (image only) and `how.video` and the holder's
+       plan instruction say: the video step of a plan is done when the media team delivers the «بسته‌ی ساخت ویدیو» (script, shot list,
+       on-screen text, voice text, caption, hashtags, cover prompt); the owner makes the video and drops the file into the session (§36);
+       publishing goes on through IG-Hub. Charters: `_common` v10, `media_director` v8, `scriptwriter` v5, `video_director` v3,
+       `motion_designer` v4 (the «A voice from Google AI Studio» sections gone, `speech.make` only the voice producer's).

@@ -18,8 +18,10 @@ for a persona turn the api stored as `streaming`:
             sentence of say_fa as `say` and, once spoken by the voice layer,
             `audio`; then `card`, `invite`, `meter`, `done` (talk.turn_events,
             read by the api's SSE route).
-  speak     hq_api.voice.speaker.speak per sentence, in order; VoiceUnavailable
-            means one plain line and the turn goes on in text.
+  speak     hq_api.voice.speaker.speak per sentence, in order, only while the
+            owner's `voice.enabled` is on (the owner, 2026-11-08: off; the
+            answer is text alone and no line ever mentions a voice);
+            VoiceUnavailable: the turn goes on in text, silently.
   stop      the owner's barge-in (POST /talk/turns/{id}/stop) is seen within
             STOP_POLL_S: the router stream is cancelled and no further
             sentence is synthesised (so none is billed).
@@ -57,6 +59,7 @@ from hq_api.talk import files as TF
 from hq_api.talk.intents import read as read_intents
 from hq_api.talk.personas import Persona
 from hq_api.voice import speaker
+from hq_api.voice import store as voice_store
 from hq_api.voice.base import SpeakRequest, VoiceUnavailable
 from hq_common.injection import injection_flags
 
@@ -77,7 +80,6 @@ SPEECH_WAIT_S = 120.0  # the sentences of one answer, spoken one by one
 RUN_TTL_S = 900
 PRIORITY = 1  # the owner is waiting
 BRAIN_FA = "الان به مغزم دسترسی ندارم؛ تا {wait} صبر کنید یا متن را بفرستم برای {who}."
-VOICE_OFF_FA = "صدا الان در دسترس نیست؛ جواب را بخوانید."
 BAD_FA = "نتوانستم جواب روشنی بسازم؛ لطفاً ساده‌تر بپرسید."
 
 
@@ -184,6 +186,10 @@ class TurnRun:
     async def run(self) -> dict[str, Any]:
         if not await self.load():
             return {"state": self.t.get("state"), "skipped": True}
+        # the owner, 2026-11-08: voice is off (`voice.enabled`, default false): the answer is text
+        # alone, nothing is spoken and no line ever says so
+        async with self.tx() as tx:
+            self.voice_off = not (await voice_store.voice_settings(tx))["enabled"]
         self.speaking = asyncio.create_task(self._speaker())
         try:
             out = await self._turn()
@@ -427,13 +433,13 @@ class TurnRun:
                     ),
                 )
             except VoiceUnavailable as exc:
+                # the owner, 2026-11-08: never a voice notice; the rest of the answer stays text
+                log.info("voice unavailable", extra={"turn": self.turn_id, "why": exc.reason_fa})
                 self.voice_off = True
-                self.notices.append(exc.reason_fa or VOICE_OFF_FA)
                 continue
             except Exception:
                 log.exception("speech failed", extra={"turn": self.turn_id})
                 self.voice_off = True
-                self.notices.append(VOICE_OFF_FA)
                 continue
             item = {
                 "seq": seq,

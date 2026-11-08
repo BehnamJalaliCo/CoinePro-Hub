@@ -405,11 +405,63 @@
         "type": "object"
       },
       "ActivityLine": {
+        "description": "§41.1, and ⟨1.24⟩ §42.2 additive: `id` (`<run>:<n>`, 0 the start, `<run>:end` the end;\n`task:<ref>:<n>`, `join:<code>`), `company` (the actor's), `kind`, `state`, `task_n`.",
         "properties": {
           "at": {
             "format": "date-time",
             "title": "At",
             "type": "string"
+          },
+          "company": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "default": "step",
+            "enum": [
+              "start",
+              "step",
+              "end",
+              "wake",
+              "ask",
+              "join",
+              "task",
+              "memory"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "state": {
+            "default": "done",
+            "enum": [
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "task_n": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task N"
           },
           "text_fa": {
             "title": "Text Fa",
@@ -421,6 +473,7 @@
           }
         },
         "required": [
+          "id",
           "at",
           "who_fa",
           "text_fa"
@@ -54179,6 +54232,11 @@
             "title": "Chain",
             "type": "array"
           },
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
           "local": {
             "default": false,
             "title": "Local",
@@ -54222,6 +54280,17 @@
               }
             ],
             "title": "Chain"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
           },
           "local": {
             "anyOf": [
@@ -110754,6 +110823,11 @@
                   "last": [
                     {
                       "at": "2026-10-17T05:42:00Z",
+                      "company": "TY",
+                      "id": "x",
+                      "kind": "start",
+                      "state": "running",
+                      "task_n": 1,
                       "text_fa": "x",
                       "who_fa": "x"
                     }
@@ -112110,6 +112184,11 @@
                   "last": [
                     {
                       "at": "2026-10-17T05:42:00Z",
+                      "company": "TY",
+                      "id": "x",
+                      "kind": "start",
+                      "state": "running",
+                      "task_n": 1,
                       "text_fa": "x",
                       "who_fa": "x"
                     }
@@ -118819,6 +118898,7 @@
                     "chain": [
                       "x"
                     ],
+                    "enabled": false,
                     "local": false,
                     "month_cap_usd": 1.0,
                     "warn_at": 1.0
@@ -118909,6 +118989,7 @@
                   "chain": [
                     "x"
                   ],
+                  "enabled": false,
                   "local": false,
                   "month_cap_usd": 0.0,
                   "warn_at": 1.0
@@ -118965,6 +119046,7 @@
                     "chain": [
                       "x"
                     ],
+                    "enabled": false,
                     "local": false,
                     "month_cap_usd": 1.0,
                     "warn_at": 1.0

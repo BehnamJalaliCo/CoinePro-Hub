@@ -141,10 +141,16 @@ class FakeSpeaker:
 
 @pytest.fixture
 async def talk(
-    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch, su: Any
 ) -> AsyncIterator[dict[str, Any]]:
     router, gateway, voice = FakeRouter(), FakeGateway(client), FakeSpeaker()
     worker = {"up": True}
+    # the owner, 2026-11-08: voice is off by default (`voice.enabled`); these tests exercise the
+    # voice layer, so they turn it on for their span (test_w11_decisions proves the default)
+    await su.execute(
+        """UPDATE owner.settings SET voice = COALESCE(voice, '{}'::jsonb) || '{"enabled": true}'
+           WHERE id = 1"""
+    )
 
     async def start(hub: Any, turn_id: str) -> bool:
         if not worker["up"]:
@@ -156,6 +162,7 @@ async def talk(
     speaker.OVERRIDE = voice
     yield {"router": router, "gateway": gateway, "voice": voice, "worker": worker}
     speaker.OVERRIDE = None
+    await su.execute("UPDATE owner.settings SET voice = voice - 'enabled' WHERE id = 1")
 
 
 async def open_cv(client: httpx.AsyncClient, owner: dict[str, str], **body: Any) -> dict[str, Any]:
@@ -475,12 +482,13 @@ async def test_the_brain_unavailable_is_a_plain_line(
     talk["worker"]["up"] = False
     out = await say(client, owner, cv["ref"], "سلام")
     assert out["answer"]["state"] == "failed" and out["owner_turn"]["text"] == "سلام"
-    # the voice layer down: the answer in text, one plain line
+    # the voice layer down: the answer in text, and (the owner, 2026-11-08) no voice notice ever
     talk["worker"]["up"] = True
     talk["voice"].unavailable = True
     talk["router"].answers = [answer("سلام.")]
     out = await say(client, owner, cv["ref"], "سلام")
-    assert out["answer"]["state"] == "done" and "صدا در دسترس نیست" in out["answer"]["show_md"]
+    assert out["answer"]["state"] == "done" and "صدا" not in out["answer"]["show_md"]
+    assert out["answer"]["show_md"].strip() == "**همه چیز آرام است.**"
 
 
 async def test_stop_ends_generation_and_speech(

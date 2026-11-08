@@ -67,6 +67,9 @@ def settings_of(block: dict[str, Any] | None) -> dict[str, Any]:
     cap = b.get("month_cap_usd")
     chain = [str(x) for x in (b.get("chain") or catalog.load().default_chain)]
     return {
+        # the owner, 2026-11-08: voice is off; the talk answers in text alone until he turns it on
+        # (the voice code stays, it does not run and is never mentioned)
+        "enabled": bool(b.get("enabled", False)),
         "month_cap_usd": float(cap) if cap is not None else None,
         "warn_at": float(b.get("warn_at") or DEFAULT_WARN_AT),
         "chain": chain,

@@ -5,8 +5,12 @@ every talk persona's, so that nobody claims a capability does not exist or inven
 
     outside players   ChatGPT (gpt), Gemini (gemini), DeepSeek (deepseek): their state and seats;
                       `substitute.call` (drafts, long reads, searches, third opinions, errands) and
-                      the `creative` seat for a cover, an image or a short video (a creative that
-                      waits for review before anything is published)
+                      the `creative` seat for a cover or an image (a creative that waits for
+                      review before anything is published)
+    video             ⟨2026-11-08⟩ the hub has no video tool: a plan's video step is done when the
+                      media team delivers the «بسته‌ی ساخت ویدیو»; the owner makes the video
+    instagram         ⟨2026-11-08⟩ every company's Instagram is read and published through IG-Hub;
+                      accounts not registered here are the technical team's `connection.set`
     automations       the holding's rule engine (`automation.propose`: one Persian sentence; the
                       owner seals it), which can also start an n8n workflow (`n8n.run`) when n8n is up
     the company       its connections (Instagram, Telegram, Search Console…: connected or not), its
@@ -16,7 +20,6 @@ every talk persona's, so that nobody claims a capability does not exist or inven
                       channels and accounts with what they are read through, e.g. Instagram via
                       IG-Hub of company IG, its servers by name, its lines and groups): nobody asks
                       «IG کدام شرکت است» again; the full profile and figures are `linked.read`
-    voice             Google AI Studio's state for `speech.make` (the media roles)
     technical         ⟨1.20⟩ §38.2 for this role: the server tools it holds and the servers it may use
                       (names only), whether it holds `hub.ops` (the hub itself), and for a role with
                       neither the one way: work.request to its company's CTO or the holding's AIOPS
@@ -49,13 +52,28 @@ HOW = {
         "assistant_errand, player?: gpt | gemini | deepseek, input_md}: masked input only; the "
         "answer is labelled and is a helper's view, never evidence"
     ),
-    "cover_image_video": (
-        "substitute.call {seat: creative, kind: image | video, player?: gpt | gemini, input_md: the "
+    "cover_image": (
+        "substitute.call {seat: creative, kind: image, player?: gpt | gemini, input_md: the "
         "brief, placement: instagram_post | instagram_story | telegram_post | …, overlay?: the "
         "Persian words}: a creative CR-… that waits for review; deliver its ref with your work; "
         "the owner accepts it on the creatives screen. Publishing it once is the owner's: propose "
         "{kind: a3_action, payload: {action: publish, target: 'CR-… → the channel', preview}} (A3); "
         "nothing is published by itself"
+    ),
+    "video": (
+        "the hub has no video tool (the owner, 2026-11-08): no render, no ffmpeg, no voice, and "
+        "none of them is ever a blocker, a readiness item or a step of the owner's. The video step "
+        "of any plan is done when the media team delivers the «بسته‌ی ساخت ویدیو» with `deliver`: "
+        "script, shot list, on-screen text, voice text (what the narrator reads), caption, "
+        "hashtags, cover prompt. The owner makes the video and drops the file into the session "
+        "(files); publishing goes on through IG-Hub"
+    ),
+    "instagram": (
+        "Instagram, for every company, is read and published through IG-Hub (company IG's server, "
+        "Meta's official API): the figures with connection.read; a reviewed item goes out as a "
+        "media_publish card or by the publisher through IG-Hub's API; a company whose accounts are "
+        "not registered here yet is the technical team's connection.set on IG-Hub, made by code — "
+        "never the owner's step, never «not connected»"
     ),
     "automation": (
         "a CEO or a manager only (an employee asks its manager): automation.propose {sentence_fa}: "
@@ -76,10 +94,6 @@ HOW = {
         "or its figures, read it: linked.read {company: CODE, what: profile | kpis | outputs | "
         "catalogue | connections | links, ref?} (connections: Instagram accounts as IG-Hub reads "
         "them); then ask it for work with work.request"
-    ),
-    "voice": (
-        "the media roles: speech.make {text_fa, voice?, style?}: a Google AI Studio voice (file of "
-        "your company); the first answer is running with a job, call again with {job} until done"
     ),
     "owner": "order.ask only when you truly cannot go on; report steps with order.progress",
     "hub": (
@@ -397,11 +411,7 @@ async def brief(
             },
             "how": HOW,
         }
-        from hq_api.domain import speech_make as SM
-
-        voice = await _safe(tx, SM.speech_state)
-        if voice is not None:
-            out["voice"] = voice
+        # (⟨2026-11-08⟩ no `voice` block: voice is off by the owner's decision and never mentioned)
         if company_id is not None:
             company = await _safe(tx, _company, company_id)
             if company is not None:
