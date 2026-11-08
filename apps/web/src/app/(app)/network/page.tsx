@@ -1,13 +1,16 @@
 'use client';
 
-// ⟨1.8⟩ «شبکه‌ی هلدینگ» (contract §26.6): what is broken in words first, then the map, then the selected server's roads to every other
-// server. «بررسی دوباره» queues a `netcheck` on every online runner and follows the answers (Android: Network.kt NetworkScreen).
+// ⟨1.8⟩ «شبکه‌ی هلدینگ» (contract §26.6): what is broken in words, the map, then the selected server's roads to every other server.
+// «بررسی دوباره» queues a `netcheck` on every online runner and follows the answers (Android: Network.kt NetworkScreen).
+// ⟨1.24⟩ The map is the holding live (design/LIVE_VIEWS.md §5, contract §42): companies and their servers around the hub, the flows, the
+// disconnects with when, why and the fix, and the table of every company.
 
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Card, ErrorState, PageHeader, Skeleton } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
-import { CheckButton, CheckCard, Legend, NetworkMapView, NodeDetail, SummaryCard, useNetNames, type NetCheckRun } from '@/components/v26/network';
+import { CheckButton, CheckCard, NodeDetail, SummaryCard, useNetNames, type NetCheckRun } from '@/components/v26/network';
+import { HoldingMap } from '@/components/live/holding-map';
 import { Iso } from '@/components/v26/bits';
 import {
   checkDone, checkNetwork, checkProgress, isHub, netLastAt, netNode, netSummary, network, serverError, useNetwork, MAX_WAIT_MS, POLL_MS,
@@ -64,20 +67,19 @@ export default function NetworkPage() {
   const last = m ? netLastAt(m) : null;
   return (
     <>
-      <PageHeader eyebrow="هاب و سرورهای شرکت‌ها روی شبکه‌ی خصوصی هتزنر" title="شبکه‌ی هلدینگ" actions={<CheckButton checking={checking} disabled={!m} onClick={() => void check()} />} />
-      {!m ? (q.error ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : <div className="flex flex-col gap-4"><Skeleton className="h-24 rounded-[16px]" /><Skeleton className="h-[380px] rounded-[16px]" /></div>) : (
+      <PageHeader eyebrow="هاب در مرکز؛ شرکت‌ها، سرورهایشان و پیوندها، زنده" title="شبکه‌ی هلدینگ" actions={<CheckButton checking={checking} disabled={!m} onClick={() => void check()} />} />
+      {run ? <CheckCard x={run} names={names} /> : null}
+      {/* ⟨1.24⟩ HM-1…HM-3, HM-8: the holding live — who is connected to whom, what crosses now, what dropped, when and why. */}
+      <Card as="section" className="flex flex-col gap-3 p-4" aria-label="نقشه‌ی زنده‌ی شبکه‌ی هلدینگ">
+        <h2 className="text-h3 font-semibold text-ink">نقشه‌ی زنده</h2>
+        <HoldingMap onRoutes={(id) => setSelected(id)} />
+        {last ? <span className="text-[11px] text-muted">آخرین بررسی راه‌ها <span className="fig">{jTime(last)}</span> · {ago(last)}</span> : null}
+      </Card>
+      {!m ? (q.error ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : <Skeleton className="h-24 rounded-[16px]" />) : (
         <>
-          {run ? <CheckCard x={run} names={names} /> : null}
           <SummaryCard s={netSummary(m)} names={names} />
-          <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-            <Card className="flex flex-col gap-3 p-4">
-              <NetworkMapView m={m} names={names} selected={selected} waiting={checking && run ? new Set([...run.progress.expected].filter((id) => !run.progress.reported.has(id))) : new Set()} onSelect={(id) => setSelected(selected === id ? null : id)} />
-              <Legend />
-              {last ? <span className="text-[11px] text-muted">آخرین بررسی <span className="fig">{jTime(last)}</span> · {ago(last)}</span> : null}
-            </Card>
-            {node && !isHub(node) ? <NodeDetail m={m} n={node} names={names} onClose={() => setSelected(null)} />
-              : <p className="text-[12px] text-muted">روی هر سرور بزن تا ببینی به سرورهای دیگر، پورت به پورت، میرسد یا نه.</p>}
-          </div>
+          {node && !isHub(node) ? <NodeDetail m={m} n={node} names={names} onClose={() => setSelected(null)} />
+            : <p className="text-[12px] text-muted">روی هر سرور بزن تا حالش را ببینی؛ «راه‌های این سرور» نشان میدهد به سرورهای دیگر، پورت به پورت، میرسد یا نه.</p>}
           <p className="text-[11px] leading-5 text-muted"><Iso text="هر runner با HTTPS به هاب وصل میشود؛ هاب به هیچ سروری وارد نمیشود. «بررسی دوباره» از هر runner میخواهد هاب را روی پورت 443 و سرورهای دیگر را روی پورت‌های 22، 80 و 443 بسنجد؛ همین بررسی هر روز خودکار هم انجام میشود و ناظر اگر راهی که کار میکرد قطع شود خبر میدهد." /></p>
         </>
       )}

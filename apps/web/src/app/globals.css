@@ -209,7 +209,9 @@
 .hq-m13 { animation: hq-glint var(--hq-dur-ripple) var(--hq-ease-standard) 1 both; }
 /* HM-8: a table row whose figures changed tints once. */
 @keyframes hq-tint { from { background-color: var(--hq-soft-gold); } to { background-color: transparent; } }
+@keyframes hq-tint-b { from { background-color: var(--hq-soft-gold); } to { background-color: transparent; } }
 .hq-tint { animation: hq-tint var(--hq-dur-ripple) var(--hq-ease-standard) 1; }
+.hq-tint-b { animation: hq-tint-b var(--hq-dur-ripple) var(--hq-ease-standard) 1; }
 /* GL-2 and the map: a locked company is hatched at 45°. */
 .hq-hatch { background-image: repeating-linear-gradient(45deg, transparent 0 6px, var(--hq-soft-negative) 6px 8px); }
 /* Rule 8: under reduced motion a particle is a 1.5 s tint on its edge (lib/live/particles.ts sets data-tint). */

@@ -63,12 +63,14 @@ export function ringLayout(items: RingItem[], width: number): RingLayout {
     return { codes: withRest, x: cx + R * Math.cos(angle), y: cy + R * Math.sin(angle), r: d / 2, angle, ring };
   };
 
+  // A full node is at most 64 px, and no more than half the ring's radius (a phone keeps room between the rings).
+  const dMax = Math.round(Math.max(40, Math.min(NODE_MAX, R1 * 0.5)));
   if (n > 0) {
-    const fitMax = capacity(R1, NODE_MAX);
+    const fitMax = capacity(R1, dMax);
     const fitMin = capacity(R1, NODE_MIN);
     if (n <= fitMin) {
       // One ring: as large as the ring allows, never below the legible minimum (one node alone is full size).
-      const d = n <= fitMax ? NODE_MAX : Math.max(NODE_MIN, Math.min(NODE_MAX, (2 * Math.PI * R1) / n - GAP));
+      const d = n <= fitMax ? dMax : Math.max(NODE_MIN, Math.min(dMax, (2 * Math.PI * R1) / n - GAP));
       place(sorted, R1, 0, d, Math.max(n, 1), null);
     } else {
       const inner = R1 - (NODE_MIN + 22);
