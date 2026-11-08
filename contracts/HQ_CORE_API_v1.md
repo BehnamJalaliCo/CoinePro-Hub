@@ -23,6 +23,8 @@
 >
 > **v1.22 (۲۰۲۶-۱۱-۰۷):** جلسه به کارگروه تبدیل میشود (§۴۰): حافظه‌ی جلسه، کارگروهِ قابل‌تکرار از نتیجه‌ی جلسه، و دادنش به شرکت یا پلتفرم دیگر.
 >
+> **v1.23 (۲۰۲۶-۱۱-۰۸):** جلسه کارش را زنده نشان میدهد و هیچ‌وقت بی‌صدا نمیماند (§۴۱): فعالیت زنده، مرحله‌های مالک برنامه‌ی جلسه، بیدار شدن مسئول، «ادامه بده».
+>
 > **v1.21 (۲۰۲۶-۱۱-۰۷):** جلسه کار را همان‌جا تمام میکند (§۳۹، W9): نقش در خودکارسازی هرگز رد نمیشود، هیچ کارتی از داخل جلسه فرمان تازه نمیسازد، مسئول کارت خراب خودش را درست میکند، داستان فرمان بی‌رسید و بی‌تکرار، و هر اجرا فقط آنچه لازم دارد را حمل میکند.
 >
 > **v1.17 (۲۰۲۶-۱۱-۰۶):** هر فرمان یک جلسه (§۳۵، پرامپت ۲۵): جلسه‌ی همیشه‌صاحب‌دار با حاضران و بازیکن‌ها، فهرست کارها، کارها در همان‌جا، بستن و بایگانی و باز کردن دوباره؛ دفتر مدیر کل؛ پیوند شرکت‌ها و بوم.
@@ -4148,3 +4150,33 @@ session remember, and turns its result into a reusable working group.
   `session_memory` (Haiku-class, every 20 turns in the talk worker and once more after `close`, in the background); the draft
   by `playbook_draft` (Sonnet-class), through the same awaited worker call as the order's routing. Stream: `group.playbook
   {state, version?, group?}` (topic `groups`), the card as `talk.card`.
+
+## 41. The session shows its work live and never stalls ⟨1.23⟩ (2026-11-08, W11)
+The owner, 2026-11-08, on his Pro-Chart reels session (F-0011): he gave a numbered 9-step working group; the media director
+answered with notes and a «test reel» order, the CEO approved two hires, then nothing moved and the session still read «در جریان».
+«جاهایی که کار انجام دادن و ول کردند رفتند نه استریم زنده ای … مراحل کاری که از ۱ شروع شده و هر جای ۱ گیر کردند از من سوالی بپرسند …
+گزینه‌های با من و خودکار برداشته شده … مثل خودت که کلود کدی از کار کردنت آدم میفهمه کار میکنی». Not a redesign: the execution loop
+of a session, made visible and continuous.
+
+### 41.1 Live activity
+- `GET /orders/{ref}/activity` (owner) → `SessionActivity {working: [Worker], last: [ActivityLine] (≤ 30, newest last), idle_since?,
+  waiting_fa?, stuck_fa?}`; `Worker {who_fa, company_fa, work_title_fa, started_at, step: n, doing_fa}`; `ActivityLine {at, who_fa,
+  text_fa}` — each a run's step in plain Persian (§29.7: the step's own summary humanized, or the tools it used in words: «سایت
+  pro-chart.com را خواند»، «از ChatGPT پرسید»، «صدا ساخت»، «خروجی تحویل داد»; never a tool key, ref or code).
+- Stream event `session.activity` {order, line: ActivityLine, working: n} on every run start, step and end of a work of the order
+  (its tree), so the clients show it as it happens.
+
+### 41.2 The owner's steps are the plan
+- When the owner's word in a session holds a numbered list (Persian or Latin digits, «۱ -», «1.», «۱)» …), each item becomes a plan
+  task of the session in that order (code, no model), unless the holder's `order.ack` already wrote those steps; the holder's brief
+  says: work the plan task by task, tick each with `order.progress done`, and ask the owner (`order.ask`) the moment one cannot go on.
+- The holder's pace («با من» / «خودکار») is shown and switched in the session's header again (§34 `POST /orders/{ref}/pace`).
+
+### 41.3 Never a silent stall
+- The holder is woken (once per cause) when someone joins the session by a hire (§39.2), when a hire card of the session is decided,
+  when a child work of the order is delivered or fails, and when the owner answers an `order.ask`.
+- The sweep (every few minutes): a session not ended, not waiting on the owner, with no queued or running run of its works for
+  `SESSION_IDLE_MINUTES` (10) → the holder is woken once with «continue the plan from task N»; still idle `SESSION_IDLE_MINUTES`
+  later → the badge is `stuck`, a step and one owner notification say why in plain words (the last refusal, a blocker, an empty
+  seat, a sign-in or key the work needs) and what fixes it. `moving` means a run is queued or running now.
+- `POST /orders/{ref}/nudge` (owner; Idempotency-Key) → «ادامه بده»: the holder is woken now with the plan's next task.
