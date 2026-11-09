@@ -58,7 +58,9 @@ connections:
     default_model: claude-sonnet-5-5
     pricing: *anthropic_pricing
     limits: {}
-    fallback_priority: 0
+    # 1, not 0: llm.connections CHECK (fallback_priority > 0) refused 0 (prompt 29 deploy). The twin
+    # subscription is picked by its kind, so the number only has to be non-null.
+    fallback_priority: 1
 
   - key: anthropic-api
     kind: api
