@@ -16,6 +16,7 @@ type by the bytes again and refuses what it does not take.
 from __future__ import annotations
 
 import asyncio
+import functools
 import hashlib
 import logging
 from pathlib import Path
@@ -107,8 +108,8 @@ async def send(ctx: Any, folder: Path, ref: str) -> tuple[list[str], list[dict[s
     ids: list[str] = []
     for path, rel, ctype, digest in todo:
         try:
-            ref_ = await with_retry(
-                lambda p=path, r=rel, t=ctype: ctx.hub.upload_file(ctx.id, p, r, t), attempts=3
+            ref_: dict[str, Any] | None = await with_retry(
+                functools.partial(ctx.hub.upload_file, ctx.id, path, rel, ctype), attempts=3
             )
         except JobGone:
             log.warning("job %s ended while its files were being sent", ctx.id)
