@@ -106,7 +106,12 @@
   - **سوییچ خودکار:** وقتی اکانت اصلی به **۹۹٪** پنجره‌اش رسید (`utilization ≥ 0.99`)، یا رد شد (`rejected`)، یا breakerش برای سقف باز است، یا نگهبان سهمیه P3 و P4 را نگه میدارد، فراخوانی به اکانت دوم میرود.
     - این سوییچ برای هر کار و هر اولویتی است، چون مدل‌ها و ارائه‌دهنده یکی‌اند. در ledger، `meta.fallback_from = claude-max` ثبت میشود.
     - اکانت دوم فقط وقتی میگیرد که خودش زیر ۹۹٪ باشد. وقتی پنجره‌ی اکانت اصلی ریست شود، فراخوانی‌ها خودشان برمیگردند.
-  - **سرورهای شرکت‌ها:** api همین توکن را با هر کار `claude` به runner میدهد (قرارداد §۲۶.۲)، پس هیچ شرکتی اشتراک جدا لازم ندارد.
+  - **سرورهای شرکت‌ها:** هیچ شرکتی اشتراک جدا لازم ندارد. api با هر کار `claude`، توکن **همان اکانتی را که هاب الان رویش است** به runner میدهد (قرارداد §۲۶.۲):
+    - اکانت اصلی تا وقتی جا دارد؛
+    - اکانت دوم وقتی اصلی به ۹۹٪ رسید یا رد شد؛
+    - و دوباره اکانت اصلی همین که پنجره‌اش ریست شد، هر حالی که اکانت دوم داشته باشد. ⟨2026-11-09⟩، مالک: «هر وقت سوییچ انجام شد به کلود یک همه چیز بیاد روی یک».
+    - **هر دو پر:** کار `claude` در صف میماند، مثل فراخوانی‌های هاب که منتظر میمانند، و همین که یکی جا داشت شروع میشود. کارهای دیگر سرور ادامه میدهند.
+    - **منبع تصمیم:** `llm.quota_status` که router نوشته است، با همان قاعده‌ی `near_full`.
   - تا توکن ذخیره نشده، `claude-max-2` خاموش (`disabled`) میماند و هیچ‌چیز عوض نمیشود.
 - **کلاس‌های قابل انتقال (seed):** `translate`، `summarize`، `classify`، `extract`، `draft`.
 - **هرگز منتقل نمیشوند:** `advisor`، `coding`، `decision`، `customer_message`، `ops_alert`، `general`.
@@ -164,7 +169,7 @@
 | `kv/llm-router/callers` | llm-router | فراخواننده‌ها (فقط هش توکن)، `rpm` و `max_input_chars` |
 | `kv/llm-connections/<key>` | llm-router | `api_key` هر اتصال API (فعلاً خالی) |
 | `kv/claude-runtime/config` | claude-runtime | هش توکن router و هش توکن metrics |
-| `kv/claude-runtime/oauth` | claude-runtime | `token` = ‏`CLAUDE_CODE_OAUTH_TOKEN` (با `make claude-token`) |
+| `kv/claude-runtime/oauth` | claude-runtime، api (فقط خواندن) | `token` = ‏`CLAUDE_CODE_OAUTH_TOKEN` (با `make claude-token`)؛ api آن را با کارهای `claude` به سرور شرکت‌ها میدهد، وقتی هاب روی اکانت اصلی است |
 | `kv/claude-runtime/oauth-2` | claude-runtime، api (فقط خواندن) | `token` اکانت دوم (با `make claude-token SLOT=2`)؛ api آن را با کارهای `claude` به سرور شرکت‌ها میدهد |
 
 - **AppRole برای هر سرویس:**

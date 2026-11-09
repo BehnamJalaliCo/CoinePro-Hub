@@ -374,8 +374,10 @@ async def runner_next(
             ):
                 raise ApiError(410, "runner_revoked")
             cancels = await SV.cancels_for(tx, r)
-            job = await SV.dispatch(tx, r) if slots > 0 else None
-            out = SV.runner_job(job, hub) if job else None
+            # ⟨2026-11-09⟩ a Claude Code job runs on the hub's account of the moment; both full: it waits
+            token, hold = await SV.runner_claude_account(tx, hub) if slots > 0 else ("", False)
+            job = await SV.dispatch(tx, r, hold_claude=hold) if slots > 0 else None
+            out = SV.runner_job(job, hub, claude_token=token) if job else None
             # ⟨1.15⟩ §33.10 the works closed since, once each: the runner removes their
             # folders 30 days later (only a runner on 0.3.0 has workspaces)
             closed = await WS.closed_for(tx, r["server_id"])

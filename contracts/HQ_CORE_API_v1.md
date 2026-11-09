@@ -2712,6 +2712,9 @@ owner's second subscription (`kv/claude-runtime/oauth-2`, `make claude-token SLO
 more top-level field, `claude_oauth` (that account's token). It is added at pickup only: never in the job's stored `args`, its events, the
 hub's logs or its database. A runner of 0.3.1 sets it as `CLAUDE_CODE_OAUTH_TOKEN` for that one Claude Code process (and masks it in every
 event); an older runner ignores it and runs on the server's own login. No other kind ever carries it.
+⟨2026-11-09⟩ **Which account:** the one the hub itself is on, read from `llm.quota_status` with the router's `near_full` rule — the main
+subscription (`kv/claude-runtime/oauth`) while it has room, the second once the main is at 99% or refused, the main again as soon as its
+window resets. Both full: a queued `claude` job is not handed out (it waits, as the hub's own calls wait) while the server's other jobs go on.
 
 **Charter defaults:**
 - **Each company's CEO, CTO / Lead Developer, DevOps and SRE:** all tools on that company's servers.

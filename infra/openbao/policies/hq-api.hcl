@@ -78,3 +78,10 @@ path "kv/data/hq/voice/*" {
 path "kv/data/claude-runtime/oauth-2" {
   capabilities = ["read"]
 }
+
+# ⟨2026-11-09⟩ the owner: a company server's Claude Code job runs on the same account the hub is on
+# (the main subscription while it has room, the second when it is full), so the api reads the main
+# token too: read only, handed with the job at pickup, never stored nor logged.
+path "kv/data/claude-runtime/oauth" {
+  capabilities = ["read"]
+}

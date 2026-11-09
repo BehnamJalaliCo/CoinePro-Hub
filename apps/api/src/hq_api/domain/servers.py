@@ -1128,16 +1128,22 @@ async def cancel_locked(tx: Tx) -> list[dict[str, Any]]:
     return [await cancel(tx, j, "company_locked", "کلید توقف شرکت: کار لغو شد") for j in rows]
 
 
-async def dispatch(tx: Tx, runner: dict[str, Any]) -> dict[str, Any] | None:
+async def dispatch(
+    tx: Tx, runner: dict[str, Any], *, hold_claude: bool = False
+) -> dict[str, Any] | None:
     """The oldest queued job of the runner's server, now running; None when
-    there is none (or the company is locked: nothing new starts)."""
+    there is none (or the company is locked: nothing new starts).
+    ⟨2026-11-09⟩ `hold_claude`: both Claude accounts are full, so a Claude Code job stays queued
+    (it starts once either has room, as the hub's own calls wait) and the other kinds go on."""
     lock = await tx.scalar("SELECT control.lock_state(:co)", co=runner["company_id"])
     if lock in ("holding", "company"):
         return None
     row = await tx.first(
         """SELECT id FROM infra.server_jobs WHERE server_id = :s AND state = 'queued'
+             AND (NOT CAST(:hold AS boolean) OR kind <> 'claude')
            ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED""",
         s=runner["server_id"],
+        hold=hold_claude,
     )
     if row is None:
         return None
@@ -1170,7 +1176,65 @@ async def cancels_for(tx: Tx, runner: dict[str, Any]) -> list[str]:
     return [str(r["id"]) for r in rows]
 
 
-def runner_job(j: dict[str, Any], hub: Any) -> dict[str, Any]:
+# ⟨2026-11-09⟩ the owner: «هر وقت سوییچ انجام شد به کلود یک همه چیز بیاد روی یک». A company
+# server's Claude Code job runs on the account the hub itself is on: the main subscription while it
+# has room, the second one once the main is at 99% or refused, and the main again once its window
+# resets. Both full: the job waits in the queue (as the hub's calls wait) instead of failing.
+# The same rule as llm-router's QuotaController.near_full, read from what the router persisted.
+RUNNER_ACCOUNTS: tuple[tuple[str, str], ...] = (
+    ("claude-max", "runner_claude_token_main"),
+    ("claude-max-2", "runner_claude_token"),
+)
+ACCOUNT_NEAR_FULL = Decimal("0.99")
+# an older "ok" observation no longer decides (the router's SDK_FRESH)
+ACCOUNT_SDK_FRESH = timedelta(hours=6)
+ACCOUNTS_SQL = """SELECT c.key, c.status AS connection_status, q.status, q.utilization,
+       q.resets_at, q.observed_at
+  FROM llm.connections c LEFT JOIN llm.quota_status q ON q.connection_id = c.id
+ WHERE c.key = ANY(CAST(:keys AS text[]))"""
+
+
+def account_full(row: dict[str, Any] | None, now: datetime) -> bool:
+    """A subscription at 99% of its window or refused, while that window holds."""
+    if row is None or row.get("status") is None:
+        return False
+    resets = row.get("resets_at")
+    if resets is not None and resets <= now:
+        return False  # its window has reset
+    util = row.get("utilization")
+    near = util is not None and Decimal(str(util)) >= ACCOUNT_NEAR_FULL
+    if row["status"] == "limited":
+        return True
+    if row["status"] == "ok":
+        seen = row.get("observed_at")
+        return near and seen is not None and seen > now - ACCOUNT_SDK_FRESH
+    return near
+
+
+async def runner_claude_account(tx: Tx, hub: Any) -> tuple[str, bool]:
+    """(the token a Claude Code job takes now, whether Claude Code jobs wait). No token at all
+    (neither account stored): ("", False), the server's own login. Every stored account full:
+    ("", True), the jobs stay queued until one has room."""
+    sec = getattr(hub, "secrets", None)
+    stored = [(k, str(getattr(sec, attr, "") or "")) for k, attr in RUNNER_ACCOUNTS]
+    stored = [(k, t) for k, t in stored if t]
+    if not stored:
+        return "", False
+    rows = {str(r["key"]): dict(r) for r in await tx.all(ACCOUNTS_SQL, keys=[k for k, _ in stored])}
+    now = await tx.scalar("SELECT now()")
+    full = False
+    for key, token in stored:
+        r = rows.get(key)
+        if r is not None and r["connection_status"] not in ("enabled", "ready"):
+            continue  # switched off on the hub too
+        if account_full(r, now):
+            full = True
+            continue
+        return token, False
+    return "", full
+
+
+def runner_job(j: dict[str, Any], hub: Any, *, claude_token: str = "") -> dict[str, Any]:
     """What the runner gets: the exact arguments (it runs them), the timeout
     and, for a publish, fresh signed hub URLs of the rendered files."""
     args = dict(j["args"] or {})
@@ -1193,12 +1257,12 @@ def runner_job(j: dict[str, Any], hub: Any) -> dict[str, Any]:
         "company": j["company"],
     }
     # ⟨2026-11-09⟩ the owner: the companies have no Claude subscription of their own. A Claude Code
-    # job runs on the hub's second account: its token goes with the job at pickup (over the
-    # runner's HTTPS), only into that process's environment; never in the job's stored args, the
-    # events or a log. Without the token (or for any other kind) the server's own login is used.
-    token = getattr(getattr(hub, "secrets", None), "runner_claude_token", "")
-    if j["kind"] == "claude" and token:
-        out["claude_oauth"] = token
+    # job runs on the hub's account of the moment (runner_claude_account): its token goes with the
+    # job at pickup (over the runner's HTTPS), only into that process's environment; never in the
+    # job's stored args, the events or a log. Without a token (or for any other kind) the server's
+    # own login is used.
+    if j["kind"] == "claude" and claude_token:
+        out["claude_oauth"] = claude_token
     return out
 
 

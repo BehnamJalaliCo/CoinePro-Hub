@@ -54,8 +54,9 @@ unset token
 printf 'Saved in OpenBao (kv/%s). Restarting claude-runtime...\n' "$KV"
 
 "$HQ" restart claude-runtime >/dev/null 2>&1
-# the api hands the second account to the company servers' Claude Code jobs: it reads it at start
-[[ -z "$SLOT" ]] || "$HQ" restart api >/dev/null 2>&1
+# the api hands the account the hub is on (the main one or the second) to the company servers'
+# Claude Code jobs: it reads both tokens at start (2026-11-09)
+"$HQ" restart api >/dev/null 2>&1
 state=""
 for _ in $(seq 1 45); do
   state="$("$HQ" exec -T claude-runtime cat /tmp/hq-health.json 2>/dev/null | jq -r --arg k "$HEALTH_KEY" '.[$k] // empty' 2>/dev/null || true)"

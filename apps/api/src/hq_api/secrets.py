@@ -49,6 +49,9 @@ class Secrets:
     # each Claude Code job a company server's runner picks up, so no company needs its own
     # subscription (contract §26); api only, never stored, never logged
     runner_claude_token: str = field(default="", repr=False)
+    # ⟨2026-11-09⟩ the owner: the company servers follow the hub's own account choice — the main
+    # subscription (kv/claude-runtime/oauth) while it has room, the second one when it is full
+    runner_claude_token_main: str = field(default="", repr=False)
 
     @property
     def runtime_ready(self) -> bool:
@@ -100,6 +103,7 @@ async def load(bao: OpenBaoClient, *, api_config: bool = True, runtime: bool = F
         connector = await _optional(bao, "hq-agents/connector") if runtime else {}
         n8n = await _optional(bao, "hq/n8n")
         claude2 = await _optional(bao, "claude-runtime/oauth-2") if api_config else {}
+        claude1 = await _optional(bao, "claude-runtime/oauth") if api_config else {}
     except OpenBaoError:
         log.warning("openbao unavailable; secrets not (re)loaded")
         raise
@@ -127,6 +131,7 @@ async def load(bao: OpenBaoClient, *, api_config: bool = True, runtime: bool = F
         worker_api_token=str(connector.get("api_token") or ""),
         n8n_secret=str(n8n.get("secret") or ""),
         runner_claude_token=str(claude2.get("token") or ""),
+        runner_claude_token_main=str(claude1.get("token") or ""),
     )
 
 
