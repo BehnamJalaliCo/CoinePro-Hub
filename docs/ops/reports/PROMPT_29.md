@@ -72,3 +72,11 @@ sudo systemctl restart hq-runner@$USER
 - **سرورها:** fx-main، IG-Hub، Pro-Chart و ty-main.
 
 این گزارش را برای Claude سشن مشورت ببر.
+
+## ۶. بعد از قدم مالک (۲۰۲۶-۱۱-۰۹)
+- **health ‏claude-runtime:** `oauth: configured` و **`oauth_2: configured`**. اسکریپت، claude-runtime و api را restart کرد و هر دو healthy بالا آمدند.
+- **اتصال:** `UPDATE llm.connections SET status = 'enabled' WHERE key = 'claude-max-2'` اجرا شد. حالا `claude-max` و `claude-max-2` هر دو `enabled` هستند. llm-router healthy است و registry را هر چند ثانیه دوباره میخواند.
+- **آزمون کوتاه:** `RunRequest` روتر فیلدی برای اجباری کردن یک اتصال ندارد. پس طبق پرامپت فقط health سنجیده شد و هیچ فراخوانی مدلی زده نشد.
+  - اولین سوییچ واقعی، وقتی اکانت اول به ۹۹٪ برسد یا رد شود، در `llm.calls` با `meta.fallback_from = 'claude-max'` دیده میشود.
+- **تلاش اول مالک:** در تلاش اول، توکن دو تکه چسبانده شد و هیچ چیزی ذخیره نشد. تکه‌ی دوم در گفتگو آمده بود، پس مالک توکن تازه ساخت.
+- **kill switch:** خاموش است. هیچ شرکتی `holding` نیست.
