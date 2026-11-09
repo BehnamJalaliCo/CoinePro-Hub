@@ -17,9 +17,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -282,7 +284,7 @@ private class NavImpl(private val nav: NavHostController) : Nav {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit = {}) {
     val env = LocalEnv.current
@@ -581,7 +583,12 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     composable("archive-settings/{tab}/{ref}") { com.coinepro.hq.ui.archive.ArchiveSettingsScreen(tab0 = it.arguments?.getString("tab"), open0 = it.arguments?.getString("ref")) }
                 }
             }
-            BottomBar(route, inbox.data?.decisionsPending ?: 0, yourTurn, listening = voice, onOrder = { voice = true }, onTypedOrder = { order = true }) { navApi.go(it) }
+            // ⟨2026-11-09⟩ the owner could not see what he typed in a session: the screens pad themselves for the keyboard
+            // (imePadding) while the bar's own height stayed under it, so the composer was squeezed to a clipped line. The bar
+            // steps aside while the keyboard is up.
+            if (!WindowInsets.isImeVisible) {
+                BottomBar(route, inbox.data?.decisionsPending ?: 0, yourTurn, listening = voice, onOrder = { voice = true }, onTypedOrder = { order = true }) { navApi.go(it) }
+            }
         }
         if (tools) {
             // Half height first (the first groups), pulled up for the rest.

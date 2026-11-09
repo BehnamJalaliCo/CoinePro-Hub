@@ -151,6 +151,17 @@ def test_a_step_is_said_in_plain_persian_or_by_its_tools() -> None:
     assert SA.end_text("failed", "weird_code") == "کار متوقف شد: جواب آماده نشد."
 
 
+def test_a_run_says_why_it_started() -> None:
+    """⟨2026-11-09⟩ the owner: «شروع کرد: <the session's title>» on every run, even the one his
+    own word woke, left him unsure he was heard."""
+    assert SA.start_text("owner_reply:F-0014", "کارگروه") == "حرف شما را گرفت و دارد فکر میکند"
+    assert SA.start_text("nudge:F-0014", "کارگروه").startswith("گفتید ادامه بده")
+    assert "«با من»" in SA.start_text("pace:step:F-0014", "کارگروه")
+    assert SA.start_text("child_delivered:W-000301", "کارگروه").startswith("بخشی از کار رسید")
+    assert SA.start_text("", "کارگروه") == "شروع کرد: کارگروه"
+    assert SA.start_text(None, "کارگروه") == "شروع کرد: کارگروه"
+
+
 def test_the_owners_numbered_list_is_read_in_any_digits_and_over_lines() -> None:
     items = OT.numbered_items(NINE_STEPS)
     assert len(items) == 9, items

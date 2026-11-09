@@ -73,6 +73,20 @@ PLAYER_FA = {
 }
 DONE_FA = "این دور کارش را تمام کرد"
 STARTED_FA = "شروع کرد: {title}"
+# ⟨2026-11-09⟩ the owner: every run read «شروع کرد: <the session's title>», even the one his own word
+# woke, and he could not tell whether he was heard. A run says why it started (agents.runs.reason, the
+# wake's reason); the first run of a work, or one woken for no named reason, still says what it began.
+START_WHY_FA: tuple[tuple[str, str], ...] = (
+    ("owner_reply:", "حرف شما را گرفت و دارد فکر میکند"),
+    ("nudge:", "گفتید ادامه بده؛ دارد فکر میکند"),
+    ("pace:step:", "روش کار «با من» شد؛ دارد فکر میکند"),
+    ("pace:auto:", "روش کار «خودکار» شد؛ دارد فکر میکند"),
+    ("child_", "بخشی از کار رسید؛ دارد فکر میکند"),
+    ("joined:", "همکار تازه به جلسه آمد؛ دارد فکر میکند"),
+    ("session_reopened:", "جلسه دوباره باز شد؛ دارد فکر میکند"),
+    ("session_idle:", "دوباره سر کار آمد"),
+    ("uncapped:", "سقف مصرف برداشته شد؛ ادامه میدهد"),
+)
 STOPPED_FA = "کار متوقف شد: {why}"
 GENERIC_FA = "کار کرد"
 # How a run ended, in the owner's words (no_silence.RUN_WHY_FA has the refusals of a claim; these
@@ -271,6 +285,15 @@ def title_text(title: str | None) -> str:
     return plain(title) or "کار"
 
 
+def start_text(reason: str | None, title: str) -> str:
+    """The first line of a run: why it started (START_WHY_FA), else what it began."""
+    why = reason or ""
+    for prefix, text in START_WHY_FA:
+        if why.startswith(prefix):
+            return text
+    return STARTED_FA.format(title=title)
+
+
 async def _names(tx: Tx, hints: set[str]) -> dict[str, str]:
     """Employee and company codes among the hints, as the owner names them."""
     out: dict[str, str] = {}
@@ -351,7 +374,7 @@ async def activity(
                     at=r["started_at"],
                     who_fa=who,
                     company=r["company"],
-                    text_fa=STARTED_FA.format(title=title),
+                    text_fa=start_text(r.get("reason"), title),
                     kind="start",
                     state="running" if live else final,
                 )
@@ -372,7 +395,11 @@ async def activity(
             if own:
                 doing = step_text(own[-1]["summary_fa"], own[-1]["actions"], names)
             else:
-                doing = "در صف اجرا" if r["state"] == "queued" else "شروع کرد"
+                doing = (
+                    "در صف اجرا"
+                    if r["state"] == "queued"
+                    else start_text(r.get("reason"), "").removesuffix(": ")
+                )
             working.append(
                 Worker(
                     who_fa=who,
@@ -654,7 +681,7 @@ async def on_run(
             rid = str(run.get("id"))
             if kind == "started":
                 title = await tx.scalar("SELECT title FROM work.work WHERE id = :w", w=work_id)
-                text: str | None = STARTED_FA.format(title=title_text(title))
+                text: str | None = start_text(run.get("reason"), title_text(title))
                 lid, lkind, lstate = line_id(rid, 0), "start", "running"
             elif kind == "step":
                 text = step_text(summary, actions or [])
