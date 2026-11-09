@@ -45,12 +45,18 @@ def default_cwd(server: dict[str, Any]) -> str | None:
     return None
 
 
-async def check_driver(tx: Tx, server: dict[str, Any], driver: str | None) -> None:
+async def check_driver(
+    tx: Tx, server: dict[str, Any], driver: str | None, *, any_company: bool = False
+) -> None:
+    """An active working employee of the server's company; with `any_company` (a holding role on
+    any server, ⟨2026-11-09⟩ any role on the holding's workshop) of any company."""
     if driver and not await tx.scalar(
         """SELECT 1 FROM core.employees
-           WHERE code = :c AND company_id = :co AND status = 'active' AND kind <> 'system'""",
+           WHERE code = :c AND (CAST(:any AS boolean) OR company_id = :co)
+             AND status = 'active' AND kind <> 'system'""",
         c=driver,
         co=server["company_id"],
+        any=any_company,
     ):
         raise ApiError(
             422,
@@ -79,8 +85,9 @@ async def open_session(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """The session and its first `claude` job (423 while the company is
     locked: nothing is made). `actor`: who the job runs as (the driver, or
-    the owner; for a cross-company request, that company's CEO)."""
-    await check_driver(tx, server, driver)
+    the owner; for a cross-company request, that company's CEO). `holding_driver`: the driver
+    may be of another company (a holding role on any server; any role on the workshop)."""
+    await check_driver(tx, server, driver, any_company=holding_driver)
     if SV.state_of(server) == "revoked":
         raise ApiError(409, "validation_failed", fields={"server": "detached (revoked)"})
     await SV.check_lock(tx, server["company_id"], deploy=False)

@@ -5,6 +5,10 @@ brief, in the repository folder `args.cwd`, under that repository's CLAUDE.md.
            [--resume <session_id>] [--model M] [--permission-mode P] [--max-turns N]
            [--allowedTools <tool> ...]
 
+⟨0.3.2⟩ a workspace turn that ended well sends the files it left in `out/` of
+its folder to the hub (outbox.py; contract §43, the holding's workshop) and
+the result names them (`files`, `files_skipped`).
+
 ⟨0.3.0⟩ `args.workspace: "<work-ref>"` (contract §33.10): the session works
 in the work's own persistent folder `~/hq-workspace/<work-ref>` (700, made
 on first use, kept across resumes) instead of `args.cwd`; the hub's close of
@@ -47,6 +51,7 @@ from pathlib import Path
 from typing import Any
 
 import hq_runner
+from hq_runner import outbox
 from hq_runner.config import config_path
 from hq_runner.jobs import JobContext, JobError, JobResult, _cwd, _timeout
 from hq_runner.mask import Masker, StreamMasker
@@ -488,6 +493,15 @@ async def run_claude(ctx: JobContext) -> JobResult:
         output["token_cap_reached"] = capped
     if workspace is not None:
         output["workspace"] = {"ref": workspace, "path": cwd}
+    sent_n = 0
+    if workspace is not None and exit_code == 0 and not ctx.cancel.is_set() and not capped:
+        # ⟨0.3.2⟩ §43 the files the turn left in out/ go to the hub before the result names them
+        files, skipped = await outbox.send(ctx, Path(cwd), str(workspace))
+        sent_n = len(files)
+        if files:
+            output["files"] = files
+        if skipped:
+            output["files_skipped"] = skipped[: outbox.MAX_FILES * 2]
     if capped and not ctx.cancel.is_set():
         summary = f"نشست Claude به سقف {cap} توکن رسید و متوقف شد."
     elif res.reason == "timeout":
@@ -500,4 +514,6 @@ async def run_claude(ctx: JobContext) -> JobResult:
         summary = f"نشست Claude با کد خروج {exit_code} تمام شد."
     if cut:
         summary += f" جواب {len(whole)} نویسه بود و فقط {MAX_ANSWER_CHARS} نویسه‌ی اول آن آمد."
+    if sent_n:
+        summary += f" {sent_n} فایل از out/ به ستاد رفت."
     return JobResult(exit_code, summary, usage=usage, output=output)

@@ -140,6 +140,11 @@ class Prepared:
 async def prepare_upload(ctx: Ctx, up: Upload) -> Prepared:
     """Outside any transaction (prompt 07.1 §1.2): an image is decoded only
     in a child process with hard limits; a refused one is 415."""
+    return await prepare_file(ctx.hub, up)
+
+
+async def prepare_file(hub: Any, up: Upload) -> Prepared:
+    """prepare_upload for any caller (⟨2026-11-09⟩ the workshop's files too, §43)."""
     if up.kind.kind in ("video", "audio"):
         try:
             info = await media.probe(str(up.path))
@@ -156,7 +161,7 @@ async def prepare_upload(ctx: Ctx, up: Upload) -> Prepared:
         return Prepared(info)
     if up.kind.kind == "image":
         try:
-            img = await media.clean_image(up.path, up.mime, ctx.hub.storage.scratch)
+            img = await media.clean_image(up.path, up.mime, hub.storage.scratch)
         except media.ImageRefused as exc:
             raise ApiError(
                 415, "validation_failed", fields={"body": f"not a readable image ({exc})"[:120]}
@@ -178,24 +183,47 @@ async def store_upload(
 ) -> tuple[UUID, str | None]:
     """Stores a prepared upload for the owner (holding), in `tx` -> (file id,
     what follows: "workflow" for video and audio, "text" for a PDF)."""
-    hub = ctx.hub
-    holding = await hub.companies.holding()
+    holding = await ctx.hub.companies.holding()
+    fid, follow = await store_file(
+        ctx.hub, tx, up, name, prep, company_id=holding.id, by=("owner", ctx.who.code),
+        purpose=purpose,
+    )  # fmt: skip
+    await _audit(ctx, tx, holding.id, fid, up)
+    return fid, follow
+
+
+async def store_file(
+    hub: Any,
+    tx: Any,
+    up: Upload,
+    name: str,
+    prep: Prepared,
+    *,
+    company_id: UUID,
+    by: tuple[str, str],
+    purpose: str | None = None,
+    meta: dict[str, Any] | None = None,
+) -> tuple[UUID, str | None]:
+    """A prepared upload stored in `company_id`, made by `by` (kind, code), in `tx` -> (file id,
+    what follows). ⟨2026-11-09⟩ the owner's uploads and the workshop's files (§43, `meta.job`)."""
+    by_kind, by_code = by
     if prep.image is not None:
         img = prep.image
         key, sha, size = await hub.storage.commit(img.original)
         fid = await F.insert(
             tx,
-            company_id=holding.id,
+            company_id=company_id,
             name=name,
             mime=up.mime,
             size=size,
             sha256=sha,
             storage_key=key,
             kind="image",
-            by_kind="owner",
-            by_code=ctx.who.code,
+            by_kind=by_kind,
+            by_code=by_code,
             width=img.width,
             height=img.height,
+            meta=meta,
         )
         for variant, path, vmime in (
             ("thumb", img.thumb, "image/webp"),
@@ -204,7 +232,7 @@ async def store_upload(
             vkey, vsha, vsize = await hub.storage.commit(path)
             await F.insert(
                 tx,
-                company_id=holding.id,
+                company_id=company_id,
                 name=f"{variant}-{name}",
                 mime=vmime,
                 size=vsize,
@@ -216,25 +244,24 @@ async def store_upload(
                 variant=variant,
                 parent_id=fid,
             )
-        await _audit(ctx, tx, holding.id, fid, up)
         return fid, None
     info = prep.info
     key, sha, size = await hub.storage.commit(up.path)
     fid = await F.insert(
         tx,
-        company_id=holding.id,
+        company_id=company_id,
         name=name,
         mime=up.mime,
         size=size,
         sha256=sha,
         storage_key=key,
         kind=up.kind.kind,
-        by_kind="owner",
-        by_code=ctx.who.code,
+        by_kind=by_kind,
+        by_code=by_code,
         width=info.get("width"),
         height=info.get("height"),
         duration_s=info.get("duration_s"),
-        meta=prep.meta or None,
+        meta={**(prep.meta or {}), **(meta or {})} or None,
     )
     follow: str | None = None
     if up.kind.kind in ("video", "audio"):
@@ -242,15 +269,14 @@ async def store_upload(
             """INSERT INTO files.processing (file_id, company_id, stt)
                VALUES (:f, :co, CAST(:stt AS jsonb))""",
             f=fid,
-            co=holding.id,
+            co=company_id,
             stt=json.dumps({"purpose": purpose} if purpose else {}),
         )
         follow = "workflow"
     elif up.mime == "application/pdf" or up.mime in media.TEXT_TYPES:
         # its text for files.read (prompt 07 §3; ⟨1.18⟩ a text or Markdown file's), after the commit
-        await F.document_pending(tx, fid, holding.id)
+        await F.document_pending(tx, fid, company_id)
         follow = "text"
-    await _audit(ctx, tx, holding.id, fid, up)
     return fid, follow
 
 

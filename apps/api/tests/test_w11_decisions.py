@@ -219,8 +219,12 @@ async def test_media_tool_refusals_are_never_blockers_and_the_brief_names_the_vi
         "IG-Hub" in brief["how"]["instagram"]
         and "never the owner's step" in brief["how"]["instagram"]
     )
+    # ⟨2026-11-09⟩ §43 a video made without a camera goes to the workshop, which is in the brief
+    assert "workshop.run" in brief["how"]["video"] and "workshop.run" in brief["how"]["workshop"]
+    assert brief["workshop"]["state"] in ("ready", "not set up yet")
     # the holder's plan instruction says when a video task is done
     assert "بسته‌ی ساخت ویدیو" in OT.PLAN_INSTRUCTION and "IG-Hub" in OT.PLAN_INSTRUCTION
+    assert "workshop.run" in OT.PLAN_INSTRUCTION
 
 
 def test_the_media_charters_and_the_common_rules_carry_the_three_decisions() -> None:
@@ -232,7 +236,10 @@ def test_the_media_charters_and_the_common_rules_carry_the_three_decisions() -> 
         assert "AI Studio" not in c.body, role
         assert "IG-Hub" in c.body, role
         assert "بسته‌ی ساخت ویدیو" in c.body, role
+        # ⟨2026-11-09⟩ §43 a video made without a camera is the workshop's
+        assert "workshop.run" in c.body and "workshop.run" in c.tools, role
     assert "Instagram, for all companies, is read and published through IG-Hub" in lib.common
-    assert "بسته‌ی ساخت ویدیو" in lib.common and "No video tool, no voice" in lib.common
-    assert lib.common_version >= 10
+    assert "بسته‌ی ساخت ویدیو" in lib.common and "The workshop is your hands" in lib.common
+    assert "workshop.run" in lib.common and "No video tool" not in lib.common
+    assert lib.common_version >= 11
     assert lib.problems == []

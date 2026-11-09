@@ -78,3 +78,35 @@ test_services_never if {
 		"target": {"company": "TY", "charter": null, "via": null},
 	}
 }
+
+test_any_working_role_on_the_holdings_workshop if {
+	internal.allow with input as {
+		"principal": object.union(agent_of("PC-MED-02", "PC", "company"), {"department": "MED"}),
+		"op": "server.run",
+		"target": {"company": "HQ", "charter": "scriptwriter", "via": "workshop"},
+	}
+	internal.allow with input as {
+		"principal": object.union(agent_of("TY-CEO", "TY", "company"), {"role": "ceo"}),
+		"op": "server.run",
+		"target": {"company": "HQ", "charter": "ceo", "via": "workshop"},
+	}
+
+	# reading the workshop's files by hand is not part of it
+	not internal.allow with input as {
+		"principal": agent_of("PC-MED-02", "PC", "company"),
+		"op": "server.read",
+		"target": {"company": "HQ", "charter": "scriptwriter", "via": "workshop"},
+	}
+
+	# a system role never, and no company named is no grant
+	not internal.allow with input as {
+		"principal": object.union(agent_of("PC-SYS", "PC", "company"), {"role": "system"}),
+		"op": "server.run",
+		"target": {"company": "HQ", "charter": "dispatcher", "via": "workshop"},
+	}
+	not internal.allow with input as {
+		"principal": agent_of("PC-MED-02", "PC", "company"),
+		"op": "server.run",
+		"target": {"company": null, "charter": "scriptwriter", "via": "workshop"},
+	}
+}

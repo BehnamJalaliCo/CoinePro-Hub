@@ -53,11 +53,16 @@ PLAN_INSTRUCTION = (
     "with `order.progress` (`done: [n]`, one plain Persian line of what it produced). The moment a "
     "task cannot go on (something only the owner knows, decides or must connect), ask the owner ONE "
     "short question with `order.ask` and finish the run. Never stop silently: a run that ends "
-    "without a step, a question or a deliverable is a stall the owner sees at once. A video task "
-    "is done when the media team delivers the «بسته‌ی ساخت ویدیو» (script, shot list, on-screen "
-    "text, voice text, caption, hashtags, cover prompt): the hub has no video tool, the owner makes "
-    "the video and drops the file into the session; publishing goes on through IG-Hub. Instagram, "
-    "for every company, is read and published through IG-Hub: never an owner's step for it."
+    "without a step, a question or a deliverable is a stall the owner sees at once. A task that "
+    "makes something none of your tools makes (a motion graphic or any video made without a "
+    "camera, a site page, a PDF report, a data file, anything) goes to the holding's workshop "
+    "with `workshop.run` (⟨2026-11-09⟩ Claude Code with hands on the hub): write the whole ask and "
+    "finish the run; its files come back into this session and you ask the owner «تأیید یا "
+    "اصلاح؟». Never answer that a tool is missing. A filmed video (a person on camera) is done "
+    "when the media team delivers the «بسته‌ی ساخت ویدیو» (script, shot list, on-screen text, "
+    "voice text, caption, hashtags, cover prompt) for the owner to shoot. Publishing, after the "
+    "owner approves, goes on through IG-Hub. Instagram, for every company, is read and published "
+    "through IG-Hub: never an owner's step for it."
 )
 # ⟨1.23⟩ §41.2 an item of the owner's numbered list: Persian, Arabic-Indic or Latin digits, then
 # «-», «.», «)», «:» or «،»

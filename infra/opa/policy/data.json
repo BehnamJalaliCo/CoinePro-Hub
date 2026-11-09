@@ -47,7 +47,8 @@
           "server.run",
           "work.budget",
           "card.decide",
-          "connection.set"
+          "connection.set",
+          "workshop.run"
         ],
         "manager": [
           "work.delegate",
@@ -78,7 +79,8 @@
           "card.decide",
           "hub.ops",
           "hubops.run",
-          "connection.set"
+          "connection.set",
+          "workshop.run"
         ],
         "inspector": [
           "work.delegate",
@@ -98,7 +100,8 @@
           "protocol.result",
           "oversight.protocol_result",
           "risk.update",
-          "claim.verdict"
+          "claim.verdict",
+          "workshop.run"
         ],
         "employee": [
           "work.accept",
@@ -128,7 +131,8 @@
           "server.run",
           "hub.ops",
           "hubops.run",
-          "connection.set"
+          "connection.set",
+          "workshop.run"
         ],
         "assistant": [
           "errand.step",
@@ -137,7 +141,8 @@
           "planner.add",
           "web.browse",
           "http.request",
-          "mcp.call"
+          "mcp.call",
+          "workshop.run"
         ],
         "overseer": [
           "star.audit",
@@ -170,7 +175,11 @@
           "server.exec",
           "server.write",
           "server.claude",
-          "server.run"
+          "server.run",
+          "workshop.run"
+        ],
+        "advisor": [
+          "workshop.run"
         ]
       },
       "authority_bounds": {

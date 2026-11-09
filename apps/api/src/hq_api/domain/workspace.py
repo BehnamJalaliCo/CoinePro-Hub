@@ -45,6 +45,10 @@ MODE = "on_server"
 ENDED = ("stopped", "failed")
 SKIP_TRIGGERS = ("talk", "meeting")
 FAILED_REASON = "workspace_failed:"
+DONE_REASON = "workshop_done:"  # ⟨2026-11-09⟩ §43 a workshop turn of the order itself ended
+OUT_ONLY_FA = "فایل‌های این نوبت پیوست همین خروجی است."
+WORKSHOP_FA = "کارگاه هلدینگ"
+FILES_MAX = 20  # files a turn may send back (POST /runners/jobs/{id}/files holds it)
 BRIEF_CHARS = 12000
 
 State = Literal["starting", "working", "awaiting_seal", "idle", "delivered", "stopped", "failed"]
@@ -285,27 +289,43 @@ async def after_job(hub: Any, job_id: UUID) -> None:
             await W.add_usage(
                 tx, w, tokens, Decimal(0)
             )  # the server's own login: tokens, no hub money
+        hands = bool((j.get("args") or {}).get("hands"))  # ⟨2026-11-09⟩ §43 the workshop
         if j["state"] == "done":
             answer = (await SV.full_answer(tx, hub, j)).strip() or (j["summary_fa"] or "")
+            # ⟨2026-11-09⟩ the files the turn left in `out/` (runner >= 0.3.2), checked
+            files = await made_files(tx, j, w["company_id"])
+            if files and not answer:
+                answer = OUT_ONLY_FA
             state: State = "idle"
+            # a workshop turn of the order itself leaves it open: its holder shows the owner
+            close = not (hands and w["parent_id"] is None)
             if (w["status"] in W.OPEN or w["status"] == "delivered") and answer:
                 await PL.deliver(  # a long answer goes whole into an attachment
                     tx,
                     w,
-                    title=f"خروجی روی سرور: {w['title']}"[:300],
+                    title=(f"خروجی کارگاه: {w['title']}" if hands
+                           else f"خروجی روی سرور: {w['title']}")[:300],
                     body=answer,
                     produced_with={
-                        "runtime": "company_server",
+                        "runtime": "workshop" if hands else "company_server",
                         "server": j["server_name"],
                         "workspace": w["ref"],
                         "job": str(j["id"]),
                         "session": j.get("session_ref"),
+                        **({"files": len(files)} if files else {}),
                     },
                     hub=hub,
-                )
-                state = "delivered"
-                await SP.after_part(tx, w["id"])
-                await SP.after_parent(tx, w["id"])
+                    attachments=files,
+                    close=close,
+                )  # fmt: skip
+                state = "delivered" if close else "idle"
+                if close:
+                    await SP.after_part(tx, w["id"])
+                    await SP.after_parent(tx, w["id"])
+                else:  # the holder tells the owner what is ready and asks «تأیید یا اصلاح؟»
+                    await tx.scalar(
+                        "SELECT work.wake_assignee(:w, :r)", w=w["id"], r=f"{DONE_REASON}{w['ref']}"
+                    )
             await _set(tx, ws, state, None)
         elif j["state"] == "cancelled":
             await _set(tx, ws, "stopped", HZ.humanize(j["summary_fa"]) or "متوقف شد")
@@ -313,12 +333,36 @@ async def after_job(hub: Any, job_id: UUID) -> None:
             note = HZ.humanize(j["summary_fa"]) or "کار روی سرور به نتیجه نرسید"
             await _set(tx, ws, "failed", note)
             await W.event(
-                tx, w, "workspace_failed", SERVICE, {"job": str(j["id"]), "code": j["error_code"]}
-            )
-            if w["status"] in W.OPEN and w["assignee_id"] is not None:
+                tx, w, "workspace_failed", SERVICE,
+                {"job": str(j["id"]), "code": j["error_code"], "note_fa": note[:500]},
+            )  # fmt: skip
+            if hands:
+                # ⟨2026-11-09⟩ never a silent stop: the holder gets a run now and says why (60
+                # minutes, an error); a fix is the next workshop.run (a fresh session, same folder)
+                await tx.scalar(
+                    "SELECT work.wake_assignee(:w, :r)", w=w["id"], r=f"{FAILED_REASON}{w['ref']}"
+                )
+            elif w["status"] in W.OPEN and w["assignee_id"] is not None:
                 # the next run is on the hub, as today: a `resume` the worker turns into one run
                 await W.event(tx, w, W.RESUME, SERVICE, {"why": f"{FAILED_REASON}{w['ref']}"})
         await events.emit(tx, w["company"], "work.updated", w["ref"], {"workspace": ws["state"]})
+
+
+async def made_files(tx: Tx, j: dict[str, Any], company_id: Any) -> list[str]:
+    """⟨2026-11-09⟩ The files a workspace turn sent from `out/` (its result's `files`), checked:
+    made by this job, in the work's company, originals. Anything else named there is dropped."""
+    raw = (j.get("result") or {}).get("files") or []
+    ids = [str(x) for x in raw if isinstance(x, str) and re.fullmatch(r"[0-9a-f-]{36}", x)]
+    if not ids:
+        return []
+    rows = await tx.all(
+        """SELECT id FROM files.files WHERE id = ANY(CAST(:ids AS uuid[])) AND company_id = :co
+             AND variant = 'original' AND meta->>'job' = :job ORDER BY created_at""",
+        ids=ids[:FILES_MAX],
+        co=company_id,
+        job=str(j["id"]),
+    )
+    return [str(r["id"]) for r in rows]
 
 
 def _usage(u: dict[str, Any]) -> tuple[int, int, int, int]:
@@ -436,6 +480,7 @@ PROGRESS_SQL = """
            (SELECT count(*) FROM infra.servers o WHERE o.company_id = ws.company_id
               AND o.state IS DISTINCT FROM 'revoked') AS servers,
            j.state AS job_state, ses.ref AS session_ref,
+           (SELECT sc.kind FROM core.companies sc WHERE sc.id = s.company_id) AS server_kind,
            (SELECT e.summary_fa FROM workshop.events e WHERE e.session_id = ws.session_id
              ORDER BY e.seq DESC LIMIT 1) AS last_step
     FROM work.workspaces ws JOIN infra.servers s ON s.id = ws.server_id
@@ -464,6 +509,8 @@ def live_state(r: dict[str, Any]) -> State:
 def render(r: dict[str, Any]) -> WorkspaceProgress:
     company = r["company_fa"] or r["company"]
     where = f"{company} · {r['server_name']}" if int(r["servers"] or 0) > 1 else company
+    if r.get("server_kind") == "holding":  # ⟨2026-11-09⟩ §43 the holding's workshop
+        where = WORKSHOP_FA
     return WorkspaceProgress(
         work_ref=r["work_ref"],
         server=r["server_name"],

@@ -1539,6 +1539,17 @@ async def _apply(tx: Tx, hub: Any, j: dict[str, Any], data: dict[str, Any]) -> d
         out = {k: mask_value(data.get(k))
                for k in ("session_id", "files_changed", "answer_chars", "answer_truncated")
                if k in data}  # fmt: skip
+        # ⟨2026-11-09⟩ §43 the files a workspace turn sent from out/ (ids; checked by after_job)
+        # and the ones it could not (name and why)
+        files = data.get("files")
+        if isinstance(files, list):
+            out["files"] = [str(f)[:36] for f in files if isinstance(f, str)][:40]
+        skipped = data.get("files_skipped")
+        if isinstance(skipped, list):
+            out["files_skipped"] = mask_value(
+                [{"name": str(x.get("name"))[:300], "why": str(x.get("why"))[:200]}
+                 for x in skipped if isinstance(x, dict)][:40]
+            )  # fmt: skip
         answer = mask(str(data.get("result_fa") or ""))
         out["result_fa"] = answer
         if len(answer) > INLINE_ANSWER:

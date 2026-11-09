@@ -4,7 +4,8 @@ Claude Code works on that work across every turn (a resume keeps it).
 
     ~/hq-workspace/W-000123/              the work's folder (never shared)
     ~/.config/hq-runner/workspaces.json   mode 600: {ref: {created_at,
-                                          last_used_at, closed_at|null}}
+                                          last_used_at, closed_at|null,
+                                          sent: {out/ name: sha256}}}
 
 The hub tells the runner when a work is closed (`closed` on the long-poll,
 once); the runner records it and logs it. A daily sweep removes a folder 30
@@ -101,6 +102,23 @@ def prepare(ref: str, cfg_path: Path | None = None, now: float | None = None) ->
     entry["last_used_at"] = _iso(t)
     save(state, cfg_path)
     return path
+
+
+def sent_of(ref: str, cfg_path: Path | None = None) -> dict[str, str]:
+    """⟨0.3.2⟩ The files of `out/` already sent to the hub for this work: {name: sha256}."""
+    entry = load(cfg_path).get(check_ref(ref)) or {}
+    sent = entry.get("sent")
+    return {str(k): str(v) for k, v in sent.items()} if isinstance(sent, dict) else {}
+
+
+def mark_sent(ref: str, name: str, digest: str, cfg_path: Path | None = None) -> None:
+    """⟨0.3.2⟩ One file of `out/` sent (its name and its bytes' sha256)."""
+    state = load(cfg_path)
+    entry = state.setdefault(check_ref(ref), {"created_at": None, "closed_at": None})
+    sent = entry.get("sent") if isinstance(entry.get("sent"), dict) else {}
+    sent[name] = digest
+    entry["sent"] = sent
+    save(state, cfg_path)
 
 
 def close(refs: list[Any], cfg_path: Path | None = None, now: float | None = None) -> list[str]:

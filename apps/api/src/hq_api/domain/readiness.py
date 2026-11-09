@@ -23,7 +23,8 @@ failed one with its one-tap fix:
                      Instagram; the company's own attached servers) (fix runner.check)
 
 Every text is the owner's plain Persian (§29.7). ⟨2026-11-08⟩ the owner: no `media_tools` check
-any more (the hub has no video tool and voice is off: neither is a readiness item or a step of his).
+any more (⟨2026-11-09⟩ video is made by the workshop, §43, and voice is off: neither is a readiness
+item or a step of his).
 """
 
 from __future__ import annotations

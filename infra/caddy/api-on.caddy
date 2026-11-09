@@ -111,6 +111,27 @@ handle /public/* {
 # file (base64). /internal stays closed (above). The api authenticates every
 # runner call (the credential's SHA-256, constant-time) and rate-limits the
 # one unauthenticated route (/runners/pair).
+# ⟨2026-11-09⟩ contract §43: a workspace turn's file (the workshop's `out/`, raw body) may be a
+# 200 MB video, like an owner upload: its own route with the media limits. The api checks the
+# runner, the job, the type by its bytes and the size while it streams in.
+@runner_files {
+	path_regexp runner_files ^/api/v1/runners/jobs/[^/]+/files$
+	method POST
+}
+handle @runner_files {
+	request_body {
+		max_size 201MB
+	}
+	reverse_proxy api:8000 {
+		flush_interval -1
+		header_up X-Forwarded-For {remote_host}
+		transport http {
+			read_timeout 600s
+			write_timeout 600s
+		}
+	}
+}
+
 @runners path /api/v1/runners/*
 handle @runners {
 	request_body {

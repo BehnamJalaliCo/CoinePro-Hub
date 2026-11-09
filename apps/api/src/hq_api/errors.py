@@ -69,6 +69,23 @@ CODES: dict[str, tuple[int, str, str]] = {
     "runner_revoked": (410, "Runner revoked", "این سرور از ستاد جدا شده است."),
     "job_cancelled": (409, "Job cancelled", "این کار لغو شده است."),
     "job_finished": (409, "Job finished", "این کار تمام شده است."),
+    # ⟨2026-11-09⟩ contract §43 the workshop (workshop.run)
+    "workshop_unavailable": (
+        409,
+        "Workshop unavailable",
+        "کارگاه هلدینگ هنوز روشن نیست؛ همین را در یک خط بگو و بقیه‌ی کار را انجام بده.",
+    ),
+    "workshop_stopped": (
+        409,
+        "Workshop stopped",
+        "مالک کار کارگاه را برای این کار متوقف کرده است؛ تا خودش نگوید چیزی شروع نمیشود.",
+    ),
+    "workspace_elsewhere": (
+        409,
+        "Workspace elsewhere",
+        "این کار روی سرور خود شرکت در حال انجام است؛ کارگاه برای کار دیگری است.",
+    ),
+    "work_closed": (409, "Work closed", "این کار بسته شده است؛ کار تازه‌ای رویش شروع نمیشود."),
     "deploy_frozen": (
         423,
         "Deploy frozen",

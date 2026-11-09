@@ -47,6 +47,7 @@ from hq_gateway import (
     founding,  # noqa: F401 - registers server.plan (prompt 09)
     governance,  # noqa: F401 - prompt 11 §4-§10: kpi, okr, outcome, risk, calendar, authority
     groups,  # noqa: F401 - prompt 21 part 3: group.plan, experiment.write, connection.read
+    hands,  # noqa: F401 - ⟨2026-11-09⟩ §43: workshop.run, hands for any task
     hubops,  # noqa: F401 - ⟨1.20⟩ §38: hub.ops, the hub run from the app
     inquiries,  # noqa: F401 - inquiries, errands, planner, workshop.read
     knowledge,  # noqa: F401 - prompt 11: knowledge.propose/review/approve

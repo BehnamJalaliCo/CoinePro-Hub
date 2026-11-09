@@ -10,6 +10,8 @@
 > **v1.2 (۲۰۲۶-۱۰-۱۷):** ایجنت‌ها سر کار (§۱۶، پرامپت ۵). **v1.3 (۲۰۲۶-۱۰-۱۷):** عکس و فیلم و صوت در پیام‌ها، تبدیل دقیق صدای فارسی به متن، کارگاه کد و فرمان صوتی (§۱۷، پرامپت ۶). **v1.4 (۲۰۲۶-۱۰-۱۷):** تصمیم‌های دور دوم مالک: ناظر کل، مشاور نسخه‌ی ۲، دستیار شخصی، ستاره‌ها، مهارت‌ها، آکادمی، اینترنت کامل و MCP برای ایجنت‌ها، تأسیس شرکت و ساخت سرور، backup ساعتی (§۱۸، پرامپت‌های ۷ تا ۹). **v1.4.1 (۲۰۲۶-۱۰-۱۷):** آنچه پرامپت ۵ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۶.۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_05_1_FIXES.md`. **v1.4.2 (۲۰۲۶-۱۰-۱۷):** استخدام با شروع خود مالک (§۱۸.۱۱). **v1.4.3 (۲۰۲۶-۱۰-۱۷):** مدیرعامل‌ها با اختیار کامل در پاکت بودجه‌ی ماهانه استخدام میکنند و مدل هر کار را خودشان انتخاب میکنند (§۱۸.۱۱)؛ استوری شرکت‌ها (§۱۸.۱۲)؛ ستاره برای مصرف درست بودجه (§۱۸.۴). **v1.4.4 (۲۰۲۶-۱۰-۱۷):** پروتکل‌هایی که قابلیتشان هنوز ساخته نشده `paused` میمانند و نظارت سهم توکن خودش را دارد (§۱۸.۱)؛ ممیزی دوم در `docs/GAP_ANALYSIS_v2.md`. **v1.4.5 (۲۰۲۶-۱۰-۱۸):** آنچه پرامپت ۷ واقعاً ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۳)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_07_1_FIXES.md`. **v1.4.6 (۲۰۲۶-۱۰-۱۹):** نشان و مُهر هر شرکت از PNG خود مالک ساخته میشود و داده است (§۱۸.۱۴، پرامپت ۹.۱). **v1.4.7 (۲۰۲۶-۱۰-۲۲):** آنچه پرامپت ۸ ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۵)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_08_1_FIXES.md`. **v1.4.8 (۲۰۲۶-۱۰-۲۲):** آنچه پرامپت ۹ ساخت و نتیجه‌ی بازبینی آن (§۱۸.۱۶)؛ اصلاح‌ها در `docs/server-prompts/PROMPT_09_2_FIXES.md`. **v1.6 (۲۰۲۶-۱۰-۲۲):** دپارتمان رسانه و طراحی در هر شرکت با برنامه‌ی انتشار مُهرشده، صدای متن‌باز روی هاب، و مشاور حقوقی هلدینگ با مکاتبه‌ی ایمیلی (§۲۲، پرامپت ۱۳). **v1.5 (۲۰۲۶-۱۰-۱۸):** درآمد و پشتیبانی: رادار درآمد، قیف و نجات رفرال، میز پشتیبانی با حالت آموزش و آزمون سایه، قالب‌ها و قاعده‌های چرخه‌ی عمر، NPS، صندوق بازخورد، نگهبان خروجی (§۱۹، پرامپت ۱۰)؛ حاکمیت: اتاق جلسه، اساسنامه، دانشنامه‌ی چهارلایه، سه کارت و کارت امتیاز، OKR، بازبینی نتیجه‌ی تصمیم، ماتریس اختیار، دفتر ریسک، تقویم تغییرات، مُهر گروهی (§۲۰، پرامپت ۱۱)؛ ابزار مدیریت: مشاور پریمیوم، «از هاب بپرس»، گزارش صوتی، ارزیابی ماهانه، هدررفت، ROI، پیش‌بینی مدیر کل دیجیتال، MCP کانتینری، و ChatGPT و Gemini به‌عنوان «بازیکن ذخیره» (§۲۱، پرامپت ۱۲).
 
 > **v1.24 (۲۰۲۶-۱۱-۰۸):** هلدینگ زنده: یک جریان رویداد برای همه‌ی برنامه، نقشه‌ی شبکه، نبض دفتر، کنتور توکن و حال هر کارمند (§۴۲، W12).
+>
+> **v1.25 (۲۰۲۶-۱۱-۰۹):** کارگاه با دست: هر نقش هر شرکت هر کاری را که ابزارش را ندارد به Claude Code روی سرور هاب میدهد (`workshop.run`)، و فایل‌های `out/` با لینک در جلسه برمیگردند (§۴۳).
 
 > **v1.12 (۲۰۲۶-۱۱-۰۴):** «خط تولید» (§۳۰، پرامپت ۲۲): موتور عمومی تولید و انتشار محتوا برای هر شرکت و هر پلتفرم، از روی قالب، با مرحله‌های قابل ویرایش، کتابخانه، تقویم، n8n برای مرحله‌های قاعده‌ای، و حالت پیش‌نویس تا خودکار.
 >
@@ -4345,3 +4347,75 @@ Where the build is more precise than §42.1–§42.3, this list is the contract.
   `last_event_at` = its newest event among the last 20 000, else null. `servers` counts servers with a runner, not revoked.
   `tokens.budget_usd` is the holding's daily dollar budget, else null; `urgent_unread` counts the owner-visible urgent notices of the
   last 7 days not read (as the home's critical list). Eight queries whatever the number of companies.
+
+## 43. The workshop: hands for any task ⟨1.25⟩ (2026-11-09)
+The owner, 2026-11-09: «اپ یه شاه‌راهه، یه انتقال‌دهنده‌ست و همه‌ی اتفاق‌ها توی سرور رخ میده … قراره صدها کار مختلف اتفاق
+بیفته». The app is only the line to the owner; the hub is a computer and Claude Code on it has hands. Any task no tool of a role
+covers (a reel or a motion graphic, a YouTube video, an X post with images, a site page, an SEO crawl, a PDF report, a scraper,
+a data file, anything) goes to the holding's **workshop**. Nothing below is about one kind of task: no task gets a path of its own.
+Design: `docs/WORKSHOP_HANDS.md`; the review: `docs/ops/reports/WORKSHOP_REVIEW.md`.
+
+### 43.1 The workshop server
+- A locked-down Linux user on the hub host (`studio`: no sudo, no docker group, no access to `/home/Hub` or the secrets, outbound
+  only to the internet, DNS and the hub's own HTTPS) runs its own `hq-runner` (≥ 0.3.2), paired to the **holding** like any server
+  (§26.1): `POST /runners/pair` now takes the holding's code as well as a company's; the owner's seal on `runners/approve`
+  (`server.attach`, `company:<HOLDING>`) is the gate. Every server of the holding is the workshop. Resources: a systemd drop-in caps
+  it (4 GB, 6 of 8 cores); the runner runs at most two jobs at once.
+- Its tools are installed once in the user's home (ffmpeg, Chromium through Playwright, node, python, the IRANYekanX font); anything
+  else a task needs, the session installs in the work's folder.
+
+### 43.2 `workshop.run` (agent tool, A2; `POST /internal/v1/workshop/runs`)
+- Held by **every working role of every company** (`hq_common.charters.SHARED_TOOLS`; `a2_grants` of every role kind, the advisor
+  included); never a system role.
+- Body: `{brief (1..20000), title? (≤ 300), work? (W-ref)}`. The turn is for the run's work item, or `work` when the caller is its
+  assignee (else `403`); a run without a work item and no `work`: `422 fields.work`; a closed work: `409 work_closed`.
+- Policy: `hq.internal` op `server.run` with `via: workshop` and the holding's code (servers.rego): any working agent. Only a `claude`
+  job: `server.exec`, `server.write` and `server.read` on the workshop stay closed to the companies' roles (`403`).
+- The turn is a **workspace turn** (§33.10) of that work on the workshop server: the folder `~/hq-workspace/<W-ref>` and the same
+  Claude session on every later call for the work (the owner's fix is the next call: `--resume`); a session that failed gives way to
+  a fresh one in the same folder. Job args: `{brief, title, cwd, workspace, hands: true, model: "claude-opus-5-5",
+  permission_mode: "acceptEdits", allowed_tools: [Bash, Read, Write, Edit, MultiEdit, NotebookEdit, Glob, Grep, WebFetch,
+  WebSearch, TodoWrite, Task, Agent], timeout_s: 3420}`, **no `token_cap`**; the job's timeout is 3600 s: the session has 57
+  minutes, the last 3 are for sending `out/`, and the hub fails a job 120 s past its timeout if no result came. The PreToolUse hook (§26.3) still classifies every Bash command: a destructive one waits for the owner's seal.
+  The Claude account is the hub's own of the moment (§26.2, prompt 29.1).
+- The brief the workshop reads: the ground rules (a whole computer, install what you need in the folder, **every file to deliver in
+  `out/`**, the deliverable types and sizes, 60 minutes, never publish, pay, message anyone or print a secret, a short Persian
+  answer naming each file), then the agent's ask as written.
+- Answers: `201 WorkshopRun {job, work_ref, state: "starting", turn, path, server}`; `200` with `state: "working"` while a turn of
+  the work still runs (nothing new starts). `409 workshop_unavailable` (no holding server on runner ≥ 0.3.2), `409 workshop_stopped`
+  (the owner stopped the work's workspace: `POST /work/{id}/stop`), `409 workspace_elsewhere` (the work runs on its company's own
+  server, `mode: on_server`). Requires `Idempotency-Key`. Audit `workshop.run` (A2) on the work's company and the holding.
+- The gateway answers the model at once with a hint to finish its run; the output comes back by itself.
+
+### 43.3 Files back: `POST /runners/jobs/{id}/files` (runner, bearer)
+- Any workspace turn (a `claude` job with `args.workspace`, on the holding's workshop or a company's own server) may send the files
+  it left in `out/` of the work's folder, while the job runs (before its result): a raw body as an owner upload (§17.1;
+  `Content-Type`, `X-File-Name` percent-encoded), the type checked by its bytes and the size while it streams: video (mp4, webm,
+  mov ≤ 200 MB and 10 minutes), image (jpeg, png, webp, heic ≤ 20 MB), PDF (30 MB), text, Markdown and ZIP (50 MB), audio (25 MB);
+  a font is not a deliverable (`415`). `201 FileRef`.
+- The file belongs to **the work's company**, made by the job's agent (`created_by_kind: agent`), `meta: {job, workspace}`; a video
+  or audio is processed as an owner upload (poster, key frames, transcript); a PDF or text gets its text for `files.read`. The same
+  bytes twice for one job answer the same file; at most 20 files a job (`429`). `409` once the job ended; `422` for a job that is
+  not a workspace turn of this server; `404` for a job of another server. Audit `file.upload` (A1) on the work's company.
+- Caddy: its own matcher before `/api/v1/runners/*` with the media limits (201 MB, 600 s); every other runner route keeps 32 MB.
+- The runner (0.3.2) sends only a turn that ended well, only regular files under `out/` (no link, nothing hidden), and a file only
+  when its bytes changed since it was last sent for that work (`workspaces.json` keeps `sent`); its result's `data` carries
+  `files: [file ids]` and `files_skipped: [{name, why}]` (the hub keeps both in the job's result).
+
+### 43.4 The output in the session
+- When a workspace turn ends well (`workspace.after_job`), its answer and its files (the result's `files`, checked: originals of
+  this job in the work's company; anything else dropped) become a deliverable of the work with the files as `attachments`
+  (`produced_with.runtime: "workshop"` on the workshop, `"company_server"` on a company's server). The app shows them with
+  «باز کن» and «دانلود» (§36). A turn with files and no answer still delivers (its body says the files are attached).
+- A workshop turn of a **child** work delivers it (the work `delivered`; its parent's holder is woken as for any child). A workshop
+  turn of a **root** work (the order itself) leaves it open: the deliverable is made (`work_events` kind `output`) and its holder is
+  woken at once (`work.wake_assignee`, reason `workshop_done:<W-ref>`) to show the owner what is ready and ask «تأیید یا اصلاح؟»
+  (`order.ask`). After the owner approves, publishing goes the usual way (Instagram through IG-Hub; A3 stays a decision).
+- A workshop turn that fails (its 60 minutes, an error) marks the workspace `failed` with the reason (`note_fa`, and the work event
+  `workspace_failed` carries it) and wakes the holder at once (reason `workspace_failed:<W-ref>`): the session never stalls
+  silently. The activity line of such a run says why it started (§41: «کارگاه کارش را تحویل داد؛ نگاهش میکند», «کار کارگاه به نتیجه
+  نرسید؛ دلیلش را میگوید»); a step that calls the tool reads «کار را به کارگاه داد تا بسازد».
+- `WorkspaceProgress.where_fa` of a workshop turn is «کارگاه هلدینگ».
+
+### 43.5 Error codes (additive)
+`workshop_unavailable` 409 · `workshop_stopped` 409 · `workspace_elsewhere` 409 · `work_closed` 409.

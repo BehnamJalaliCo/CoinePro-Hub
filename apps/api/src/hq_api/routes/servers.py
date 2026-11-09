@@ -12,6 +12,8 @@ connects into a company server):
     POST /runners/jobs/{id}/result  bearer: {exit_code, summary_fa?, usage?, data?, error?}
     POST /runners/classify          bearer: {cmd, job?} -> {category|null, …} (the
                                     Claude Code PreToolUse hook)
+    POST /runners/jobs/{id}/files   bearer: ⟨2026-11-09⟩ a file a workspace turn left in
+                                    `out/` (raw body), an attachment of its output (§43)
 Owner:
     POST   /runners/approve 🔏 server.attach (company:<CODE>)
     DELETE /infra/servers/{id} 🔏 server.detach (<CODE>:<server>)
@@ -20,7 +22,8 @@ Owner:
     GET|PUT /control/server-policy (PUT 🔏 server.policy, SHA-256 of the body)
     GET /infra/network · POST /infra/network/check
 Agents (Tool Gateway, /internal/v1): /servers, /servers/{id}/map,
-    POST /servers/jobs and GET /servers/jobs/{id} (server.map/exec/read/write/claude).
+    POST /servers/jobs and GET /servers/jobs/{id} (server.map/exec/read/write/claude);
+    ⟨2026-11-09⟩ POST /workshop/runs (workshop.run: any role, the holding's workshop, §43).
 
 A runner's requests run in its own company's scope only (RLS): it never
 sees another company's jobs. Its credential is compared by its SHA-256 in
@@ -44,14 +47,17 @@ from pydantic import BaseModel, Field, field_validator
 
 from hq_api import audit, idempotency, pagination
 from hq_api.context import Ctx, internal_ctx, owner_ctx
+from hq_api.domain import files as F
+from hq_api.domain import hands as HANDS
 from hq_api.domain import links as LK
 from hq_api.domain import servers as SV
 from hq_api.domain import workspace as WS
 from hq_api.errors import ApiError, responses
 from hq_api.hub import Hub, get_hub
 from hq_api.principal import Principal
+from hq_api.routes.files import Prepared, Upload, file_name, prepare_file, store_file
 from hq_api.routes.internal import allow
-from hq_api.schemas import Model, Page
+from hq_api.schemas import FileRef, Model, Page
 from hq_api.security import deps, stepup
 from hq_api.workshop import domain as W
 from hq_api.workshop import server_sessions
@@ -275,7 +281,9 @@ async def runner_pair(body: PairIn, request: Request, hub: Hub = Depends(get_hub
     hub.limiter.check(f"runner-pair:{ip}", PAIR_PER_IP)
     hub.limiter.check("runner-pair:*", PAIR_ALL)
     co = await hub.companies.find(body.company)
-    if co is None or co.kind != "company":
+    # ⟨2026-11-09⟩ §43 the holding pairs its workshop (a locked-down user on the hub host): every
+    # holding server is the workshop; the owner's seal on the pairing is the gate, as for any server
+    if co is None or co.kind not in ("company", "holding"):
         raise ApiError(422, "validation_failed", fields={"company": "unknown company"})
     async with hub.db.tx([co.id]) as tx:
         out = await SV.pair(
@@ -457,6 +465,120 @@ async def runner_result(
     elif j["kind"] == "netcheck" and j["state"] == "done":
         await SV.after_netcheck(hub, j)  # ⟨1.24⟩ §42.2 an offline server's reason, measured again
     return {"state": j["state"]}
+
+
+RAW_BODY = {
+    "requestBody": {
+        "required": True,
+        "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}},
+    }
+}
+# ⟨2026-11-09⟩ §43 what a turn may send back: everything the owner may upload but fonts
+RUNNER_FILE_KINDS = {"video", "image", "audio", "document"}
+
+
+@router.post(
+    "/runners/jobs/{id}/files",
+    response_model=FileRef,
+    status_code=201,
+    responses={**ER, **responses(413, 415)},
+    openapi_extra=RAW_BODY,
+)
+async def runner_file(
+    id: UUID,
+    request: Request,
+    r: dict[str, Any] = Depends(runner),
+    hub: Hub = Depends(get_hub),
+) -> Any:
+    """⟨2026-11-09⟩ §43: a file a workspace turn (a `claude` job with `workspace`) left in `out/`
+    of its work's folder, sent while the job still runs (before its result). Raw body as an owner
+    upload (`Content-Type`, `X-File-Name`): the type checked by its bytes, the size while it
+    streams (video ≤ 200 MB and 10 min, image 20 MB, PDF 30 MB, text and ZIP 50 MB, audio 25 MB).
+    The file belongs to the work's company, made by the job's agent (`meta.job`); the job's
+    result names it in `data.files` and it becomes an attachment of the turn's output. The same
+    bytes twice for one job answer the same file. At most 20 files a job (429). `409` once the
+    job ended; `422` for a job that is not a workspace turn of this server."""
+    async with hub.db.tx(_scope(r)) as tx:
+        j = await _runner_job(tx, r, id)
+        _still_running(j)
+    ref = (j.get("args") or {}).get("workspace")
+    if j["kind"] != "claude" or not isinstance(ref, str):
+        raise ApiError(422, "validation_failed", fields={"job": "not a workspace turn"})
+    wide = await hub.companies.ids()
+    async with hub.db.tx(wide) as tx:
+        ws = await tx.first(
+            "SELECT company_id FROM work.workspaces WHERE work_ref = :w AND server_id = :s",
+            w=ref,
+            s=r["server_id"],
+        )
+    if ws is None:
+        raise ApiError(422, "validation_failed", fields={"job": "no workspace of this server"})
+    scope = list(dict.fromkeys([r["company_id"], ws["company_id"]]))
+    name = file_name(request.headers.get("x-file-name"))
+    up = await Upload.receive(request, hub.storage.scratch())
+    prep = Prepared()
+    follow: str | None = None
+    row: dict[str, Any] | None = None
+    try:
+        if up.kind.kind not in RUNNER_FILE_KINDS:
+            raise ApiError(415, "validation_failed", fields={"Content-Type": "not a deliverable"})
+        async with hub.db.tx(scope) as tx:
+            await tx.exec("SELECT 1 FROM infra.server_jobs WHERE id = :j FOR UPDATE", j=id)
+            same = await tx.first(
+                """SELECT id FROM files.files WHERE company_id = :co AND variant = 'original'
+                     AND meta->>'job' = :j AND sha256 = :sha""",
+                co=ws["company_id"],
+                j=str(id),
+                sha=up.sha256,
+            )
+            if same is not None:
+                return F.render(await F.load(tx, same["id"]))
+            n = await tx.scalar(
+                """SELECT count(*) FROM files.files WHERE company_id = :co
+                     AND variant = 'original' AND meta->>'job' = :j""",
+                co=ws["company_id"],
+                j=str(id),
+            )
+            if int(n or 0) >= HANDS.FILES_MAX:
+                raise ApiError(429, "rate_limited", f"at most {HANDS.FILES_MAX} files a job")
+        prep = await prepare_file(hub, up)
+        async with hub.db.tx(scope) as tx:
+            j = await _runner_job(tx, r, id)
+            _still_running(j)
+            fid, follow = await store_file(
+                hub, tx, up, name, prep, company_id=ws["company_id"],
+                by=("agent", str(j["actor_code"])), meta={"job": str(id), "workspace": ref},
+            )  # fmt: skip
+            await audit.record(
+                tx,
+                WS.SERVICE,
+                company_id=ws["company_id"],
+                action="file.upload",
+                action_class="A1",
+                target_kind="file",
+                target_ref=str(fid),
+                summary=f"{up.kind.kind} {up.mime}, {up.size} bytes from {ref}'s turn "
+                f"(job {id}, server {r['server_id']})",
+            )
+            row = await F.load(tx, fid)
+    finally:
+        up.discard()
+        prep.discard()
+    assert row is not None
+    if follow == "text":  # its text for files.read, outside any transaction
+        await asyncio.shield(
+            F.extract_text(
+                lambda: hub.db.tx(scope),
+                row["id"],
+                hub.storage.local_path(row["storage_key"]),
+                mime=row["mime"],
+            )
+        )
+    elif follow == "workflow":
+        from hq_api import workflows_client
+
+        await workflows_client.file_uploaded(hub, str(row["id"]))
+    return F.render(row)
 
 
 @router.post("/runners/classify", responses=ER)
@@ -1280,6 +1402,60 @@ async def agent_get_job(
     ):
         raise ApiError(403, "policy_denied", "server.read_not_permitted")
     return await _agent_wait(ctx, list({who.company_id, j["company_id"]}), id, wait_s)  # type: ignore[arg-type]
+
+
+class WorkshopRunIn(Model):
+    """⟨2026-11-09⟩ workshop.run (contract §43): the ask, for the run's work or `work`."""
+
+    brief: str = Field(min_length=1, max_length=20000)
+    title: str | None = Field(default=None, max_length=300)
+    work: str | None = Field(default=None, pattern=r"^W-[0-9]{6,}$")
+
+
+@internal_router.post(
+    "/workshop/runs",
+    response_model=HANDS.WorkshopRun,
+    status_code=201,
+    responses={**ER, 200: {"description": "a turn still runs (`state: working`)"}},
+)
+async def workshop_run(
+    body: WorkshopRunIn, request: Request, ctx: Ctx = Depends(internal_ctx)
+) -> Any:
+    """⟨2026-11-09⟩ The workshop (contract §43; the owner: «سرور کامپیوتر است»): any working
+    agent of any company hands a task with no tool of its own to Claude Code on the holding's
+    workshop server, for its run's work item (or `work`, assigned to it). Answers at once:
+    `201 {job, work_ref, state: starting, turn, path, server}`; `200` with `state: working` while
+    a turn of that work still runs (nothing new starts). The turn's answer and `out/` files come
+    back as an output of the work. `409 workshop_unavailable` (no paired workshop on runner ≥
+    0.3.2), `409 workshop_stopped` (the owner stopped it), `409 workspace_elsewhere` (the work
+    runs on its company's own server), `409 work_closed`. Requires `Idempotency-Key`."""
+    who = _agent(ctx)
+    if who.role == "system":
+        raise ApiError(403, "policy_denied", "a working role only")
+    wide = await ctx.hub.companies.ids()
+    async with ctx.hub.db.tx(wide) as tx:
+        server = await HANDS.workshop_server(tx)
+        if server is None:
+            raise ApiError(409, "workshop_unavailable")
+        w = await HANDS.the_work(tx, who, body.work)
+    await allow(
+        ctx,
+        "server.run",
+        {"company": server["company"], "charter": who.charter, "via": "workshop"},
+    )
+    scope = list(dict.fromkeys([who.company_id, server["company_id"], w["company_id"]]))
+    async with ctx.hub.db.tx(scope) as tx:
+        idem = await idempotency.claim(tx, request, who, required=True)
+        if idem and idem.replay:
+            return idem.replay
+        server = await SV.load_server(tx, server["id"])
+        out = await HANDS.start(
+            tx, who, server, w, brief=body.brief, title=body.title, request_id=ctx.request_id
+        )
+        status = 200 if out.state == "working" else 201
+        if idem:
+            await idem.store(tx, status, out.model_dump(mode="json"))
+    return JSONResponse(out.model_dump(mode="json"), status_code=status)
 
 
 async def loop(hub: Hub) -> None:

@@ -56731,6 +56731,85 @@
         "title": "WorkshopMeta",
         "type": "object"
       },
+      "WorkshopRun": {
+        "properties": {
+          "job": {
+            "title": "Job",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "server": {
+            "title": "Server",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "turn": {
+            "title": "Turn",
+            "type": "integer"
+          },
+          "work_ref": {
+            "title": "Work Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job",
+          "work_ref",
+          "state",
+          "turn",
+          "path",
+          "server"
+        ],
+        "title": "WorkshopRun",
+        "type": "object"
+      },
+      "WorkshopRunIn": {
+        "additionalProperties": false,
+        "description": "⟨2026-11-09⟩ workshop.run (contract §43): the ask, for the run's work or `work`.",
+        "properties": {
+          "brief": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Brief",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "work": {
+            "anyOf": [
+              {
+                "pattern": "^W-[0-9]{6,}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work"
+          }
+        },
+        "required": [
+          "brief"
+        ],
+        "title": "WorkshopRunIn",
+        "type": "object"
+      },
       "Workspace": {
         "properties": {
           "code": {
@@ -127291,6 +127370,194 @@
         ]
       }
     },
+    "/api/v1/runners/jobs/{id}/files": {
+      "post": {
+        "description": "⟨2026-11-09⟩ §43: a file a workspace turn (a `claude` job with `workspace`) left in `out/`\nof its work's folder, sent while the job still runs (before its result). Raw body as an owner\nupload (`Content-Type`, `X-File-Name`): the type checked by its bytes, the size while it\nstreams (video ≤ 200 MB and 10 min, image 20 MB, PDF 30 MB, text and ZIP 50 MB, audio 25 MB).\nThe file belongs to the work's company, made by the job's agent (`meta.job`); the job's\nresult names it in `data.files` and it becomes an attachment of the turn's output. The same\nbytes twice for one job answer the same file. At most 20 files a job (429). `409` once the\njob ended; `422` for a job that is not a workspace turn of this server.",
+        "operationId": "runner_file",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "duration_s": 1.0,
+                  "height": 1,
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "image",
+                  "meta": {
+                    "family": "x",
+                    "style": "x"
+                  },
+                  "mime": "application/pdf",
+                  "name": "report.pdf",
+                  "sha256": "9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a9f2b5c1a",
+                  "size": 1,
+                  "status": "processing",
+                  "transcript": "x",
+                  "transcript_fa": "x",
+                  "variants": {
+                    "poster": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "thumb": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                  },
+                  "width": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/FileRef"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Runner File",
+        "tags": [
+          "servers"
+        ]
+      }
+    },
     "/api/v1/runners/jobs/{id}/result": {
       "post": {
         "description": "The end of a job: `{exit_code, summary_fa?, usage?, data?, error?}`\n(idempotent). `usage` of a claude job goes into the Token Treasury.",
@@ -170200,6 +170467,153 @@
           }
         },
         "summary": "Work Budget",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/workshop/runs": {
+      "post": {
+        "description": "⟨2026-11-09⟩ The workshop (contract §43; the owner: «سرور کامپیوتر است»): any working\nagent of any company hands a task with no tool of its own to Claude Code on the holding's\nworkshop server, for its run's work item (or `work`, assigned to it). Answers at once:\n`201 {job, work_ref, state: starting, turn, path, server}`; `200` with `state: working` while\na turn of that work still runs (nothing new starts). The turn's answer and `out/` files come\nback as an output of the work. `409 workshop_unavailable` (no paired workshop on runner ≥\n0.3.2), `409 workshop_stopped` (the owner stopped it), `409 workspace_elsewhere` (the work\nruns on its company's own server), `409 work_closed`. Requires `Idempotency-Key`.",
+        "operationId": "workshop_run",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "brief": "x",
+                "title": "گزارش هفتگی رشد",
+                "work": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/WorkshopRunIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "a turn still runs (`state: working`)"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "job": "x",
+                  "path": "x",
+                  "server": "x",
+                  "state": "x",
+                  "turn": 1,
+                  "work_ref": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/WorkshopRun"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Workshop Run",
         "tags": [
           "internal"
         ]

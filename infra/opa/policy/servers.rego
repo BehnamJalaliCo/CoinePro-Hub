@@ -13,6 +13,10 @@
 #                     that CEO), or ⟨2026-11-08⟩ a technical role within reach
 #                     (`via: linked`: links not enforced, an `on` link, or the
 #                     company present in the session)
+#   the workshop      ⟨2026-11-09⟩ any working agent of any company, a Claude Code
+#                     turn on the holding's workshop server (`via: workshop`, which
+#                     the api sets only for a `claude` job of workshop.run on a
+#                     server of the holding; exec and write there stay closed)
 package hq.internal
 
 import rego.v1
@@ -51,4 +55,16 @@ grant if {
 	tv("via") == "linked"
 	is_string(tv("company"))
 	tv("company") != p.company
+}
+
+# ⟨2026-11-09⟩ the workshop (contract §43; the owner: «اپ وسیله‌ی ارتباط است؛ سرور کامپیوتر است»):
+# every working role hands a task with no tool of its own to Claude Code on the holding's workshop
+# server. Only server.run (a `claude` job: the api refuses any other kind with this via), only on
+# the holding's server (the api decides `via` from the database), never a system role.
+grant if {
+	op == "server.run"
+	agent
+	tv("via") == "workshop"
+	is_string(tv("company"))
+	p.role != "system"
 }

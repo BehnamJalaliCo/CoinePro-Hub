@@ -7,8 +7,9 @@ every talk persona's, so that nobody claims a capability does not exist or inven
                       `substitute.call` (drafts, long reads, searches, third opinions, errands) and
                       the `creative` seat for a cover or an image (a creative that waits for
                       review before anything is published)
-    video             ⟨2026-11-08⟩ the hub has no video tool: a plan's video step is done when the
-                      media team delivers the «بسته‌ی ساخت ویدیو»; the owner makes the video
+    workshop          ⟨2026-11-09⟩ §43 hands for any task no tool covers: Claude Code on the hub
+                      (`workshop.run`), its state (ready or not set up yet); a video made without a
+                      camera is made there, a filmed one is the «بسته‌ی ساخت ویدیو» for the owner
     instagram         ⟨2026-11-08⟩ every company's Instagram is read and published through IG-Hub;
                       accounts not registered here are the technical team's `connection.set`
     automations       the holding's rule engine (`automation.propose`: one Persian sentence; the
@@ -60,13 +61,23 @@ HOW = {
         "{kind: a3_action, payload: {action: publish, target: 'CR-… → the channel', preview}} (A3); "
         "nothing is published by itself"
     ),
+    "workshop": (
+        "⟨2026-11-09⟩ any task none of your tools covers (a video, a site page, an SEO crawl, a PDF "
+        "report, a scraper, a data file, anything): workshop.run {brief, title?, work?}: Claude "
+        "Code with a whole computer on the hub (ffmpeg, Chromium, node, python, IRANYekanX, the "
+        "internet), Opus 5.5, no token cap, up to 60 minutes; write the whole ask, then finish your "
+        "run. Every file it puts in out/ comes back into the session as an output of your work "
+        "with open and download; you get a run to show the owner and ask «تأیید یا اصلاح؟»; a "
+        "fix is the next workshop.run on the same work. Never say a tool is missing"
+    ),
     "video": (
-        "the hub has no video tool (the owner, 2026-11-08): no render, no ffmpeg, no voice, and "
-        "none of them is ever a blocker, a readiness item or a step of the owner's. The video step "
-        "of any plan is done when the media team delivers the «بسته‌ی ساخت ویدیو» with `deliver`: "
-        "script, shot list, on-screen text, voice text (what the narrator reads), caption, "
-        "hashtags, cover prompt. The owner makes the video and drops the file into the session "
-        "(files); publishing goes on through IG-Hub"
+        "a video made without a camera (a motion graphic, an animated reel, a chart explainer, a "
+        "slideshow): workshop.run renders it and the MP4 comes back into the session. A filmed "
+        "video (a person on camera): the «بسته‌ی ساخت ویدیو» with `deliver`: script, shot list, "
+        "on-screen text, voice text (what the narrator reads), caption, hashtags, cover prompt, for "
+        "the owner to shoot. No render, ffmpeg or voice is ever a blocker, a readiness item or a "
+        "step of the owner's; voice is off. Publishing, after the owner approves, goes on through "
+        "IG-Hub"
     ),
     "instagram": (
         "Instagram, for every company, is read and published through IG-Hub (company IG's server, "
@@ -383,6 +394,25 @@ async def technical(
 LEAN_HOW = ("owner", "hub", "delegate")  # what a watcher's run still needs of HOW
 
 
+async def _workshop(tx: Tx) -> dict[str, Any]:
+    """⟨2026-11-09⟩ §43 the holding's workshop: ready (a paired holding server on a runner that
+    sends files back, online now or not) or not set up yet."""
+    from hq_api.domain.hands import RUNNER_MIN
+    from hq_api.domain.workspace import version_ok
+
+    rows = await tx.all(
+        """SELECT s.state, s.runner_version FROM infra.servers s
+           JOIN core.companies c ON c.id = s.company_id
+           WHERE c.kind = 'holding' AND s.origin = 'attached' AND s.state IN ('online', 'offline')"""
+    )
+    if any(version_ok(r["runner_version"], RUNNER_MIN) for r in rows):
+        return {"state": "ready", "tool": "workshop.run"}
+    return {
+        "state": "not set up yet",
+        "note": "say so in one line and do the rest of the work; never say a tool is missing",
+    }
+
+
 async def brief(
     tx: Tx,
     company_id: UUID | None,
@@ -410,6 +440,8 @@ async def brief(
                 "n8n": "up" if n8n_up else "not set up",
             },
             "how": HOW,
+            # ⟨2026-11-09⟩ §43 whether the workshop takes work now (never a reason to say «no tool»)
+            "workshop": await _safe(tx, _workshop) or {"state": "not set up yet"},
         }
         # (⟨2026-11-08⟩ no `voice` block: voice is off by the owner's decision and never mentioned)
         if company_id is not None:

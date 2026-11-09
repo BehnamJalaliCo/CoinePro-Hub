@@ -19,7 +19,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import quote, urljoin, urlsplit
 
 import httpx
 
@@ -29,6 +29,7 @@ from hq_runner.net import Route
 log = logging.getLogger("hq_runner.hub")
 
 API = "/api/v1"
+UPLOAD_TIMEOUT_S = 600.0  # ⟨0.3.2⟩ one file of out/ (a 200 MB video over the public path)
 LONG_POLL_S = 30.0
 
 
@@ -245,6 +246,43 @@ class Hub:
         resp = await self.request("POST", "/runners/classify", json={"cmd": cmd}, job_id=job_id)
         cat = resp.json().get("category")
         return str(cat) if cat else None
+
+    async def upload_file(
+        self, job_id: str, path: Path, name: str, content_type: str
+    ) -> dict[str, Any]:
+        """⟨0.3.2⟩ One file of a workspace turn's `out/` to the hub (raw body, streamed): the
+        hub's FileRef. The name goes percent-encoded (X-File-Name)."""
+        client = self.route.client()
+
+        async def body() -> Any:
+            fh = await asyncio.to_thread(path.open, "rb")
+            try:
+                while chunk := await asyncio.to_thread(fh.read, 1 << 16):
+                    yield chunk
+            finally:
+                await asyncio.to_thread(fh.close)
+
+        headers = self.headers(True, job_id) | {
+            "Content-Type": content_type,
+            "X-File-Name": quote(name, safe=""),
+        }
+        try:
+            resp = await client.post(
+                API + f"/runners/jobs/{job_id}/files",
+                content=body(),
+                headers=headers,
+                timeout=httpx.Timeout(UPLOAD_TIMEOUT_S, connect=15.0),
+            )
+        except httpx.ConnectError as exc:
+            await self.route.connect_failed()
+            raise Transient(0, "connect_error", type(exc).__name__) from exc
+        except httpx.TransportError as exc:
+            raise Transient(0, "network_error", type(exc).__name__) from exc
+        err = classify_status(resp, job_scoped=True)
+        if err is not None:
+            raise err
+        out = resp.json()
+        return out if isinstance(out, dict) else {}
 
     def same_origin(self, url: str) -> bool:
         a, b = urlsplit(self.route.hub), urlsplit(urljoin(self.route.hub + "/", url))

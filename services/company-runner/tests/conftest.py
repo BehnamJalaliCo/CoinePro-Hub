@@ -11,6 +11,7 @@ from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote
 
 import httpx
 import pytest
@@ -49,6 +50,9 @@ class FakeHub:
     issued: bool = False
     rotations: int = 0
     gone_jobs: set[str] = field(default_factory=set)
+    # ⟨0.3.2⟩ §43 the files a workspace turn sent from out/: {job: [{name, type, data, id}]}
+    uploads: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    refuse_names: set[str] = field(default_factory=set)
     on_events: Callable[[str, list[dict[str, Any]]], None] | None = None
 
     def transport(self) -> httpx.MockTransport:
@@ -60,6 +64,8 @@ class FakeHub:
 
     async def handle(self, request: httpx.Request) -> httpx.Response:
         path = request.url.path
+        if path.startswith("/api/v1/runners/jobs/") and path.endswith("/files"):
+            return await self.upload(request, path)
         body = json.loads(request.content) if request.content else None
         self.requests.append((request.method, str(request.url), dict(request.headers), body))
         if path == "/api/v1/runners/pair":
@@ -139,6 +145,25 @@ class FakeHub:
                 httpx.Response(200, content=data) if data is not None else problem(404, "not_found")
             )
         return problem(404, "not_found")
+
+    async def upload(self, request: httpx.Request, path: str) -> httpx.Response:
+        """⟨0.3.2⟩ POST /runners/jobs/{id}/files: a raw body, its name percent-encoded."""
+        data = await request.aread()
+        self.requests.append((request.method, str(request.url), dict(request.headers), None))
+        if not self.authed(request):
+            return problem(401, "unauthorized")
+        jid = path.split("/")[5]
+        if jid in self.gone_jobs:
+            return problem(409, "job_finished")
+        name = unquote(request.headers.get("x-file-name", ""))
+        if name in self.refuse_names:
+            return problem(415, "validation_failed")
+        n = sum(len(v) for v in self.uploads.values())
+        fid = f"00000000-0000-4000-8000-{n:012d}"
+        self.uploads.setdefault(jid, []).append(
+            {"name": name, "type": request.headers.get("content-type"), "data": data, "id": fid}
+        )
+        return httpx.Response(201, json={"id": fid, "name": name, "size": len(data)})
 
     def texts(self, jid: str, type_: str = "stdout") -> list[str]:
         return [

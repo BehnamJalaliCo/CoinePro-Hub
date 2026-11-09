@@ -1,0 +1,126 @@
+"""⟨2026-11-09⟩ The workshop (contract §43): `workshop.run`, hands for any task, held by every
+working role; the gateway hands the brief (redacted) to the api and answers at once."""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Iterator
+from typing import Any
+
+import httpx
+import pytest
+import respx
+from test_gateway import API, LIB, OPA, Stub, call, gate
+
+from hq_common import tool_status
+from hq_common.charters import SHARED_TOOLS
+from hq_gateway import hands as H
+from hq_gateway import tools as T
+from hq_gateway.gateway import Gateway, Opa
+
+WRITER = gate(
+    employee="PC-MED-02", company="PC", kind="employee", role="scriptwriter", department="MED",
+    work_ref="W-000501",
+)  # fmt: skip
+
+
+@pytest.fixture
+def mock() -> Iterator[respx.MockRouter]:
+    with respx.mock(assert_all_called=False) as m:
+        yield m
+
+
+@pytest.fixture
+def gw() -> Gateway:
+    return Gateway(LIB, T.Api(API, 5), Opa(OPA), max_result_chars=4000, tool_timeout_s=2)
+
+
+def test_every_working_role_holds_the_workshop() -> None:
+    assert set(H.TOOLS) == {"workshop.run"}
+    assert set(H.TOOLS) <= set(T.TOOLS) and set(H.TOOLS) <= tool_status.GATEWAY_TOOLS
+    assert "workshop.run" in SHARED_TOOLS
+    assert LIB.tools["workshop.run"].cls == "A2"
+    for role, charter in LIB.roles.items():
+        assert ("workshop.run" in charter.tools) == (charter.kind != "system"), role
+
+
+async def test_the_brief_goes_redacted_and_the_run_is_told_to_finish(
+    mock: respx.MockRouter, gw: Gateway
+) -> None:
+    stub = Stub(mock, WRITER)
+    seen: list[httpx.Request] = []
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(
+            201,
+            json={
+                "job": "0193e7a1-0000-7000-8000-0000000000aa",
+                "work_ref": "W-000501",
+                "state": "starting",
+                "turn": 1,
+                "path": "~/hq-workspace/W-000501",
+                "server": "workshop",
+            },
+        )
+
+    mock.post(f"{API}/internal/v1/workshop/runs").mock(side_effect=answer)
+    out = await call(
+        gw,
+        "workshop.run",
+        {"brief": "موشن‌گرافی ATR؛ تماس: ali@example.com", "title": "ATR"},
+    )
+    assert (out["outcome"], out["class"], out["ref"]) == ("ok", "A2", "W-000501"), out
+    assert out["result"] == {
+        "job": "0193e7a1-0000-7000-8000-0000000000aa",
+        "work_ref": "W-000501",
+        "state": "starting",
+        "turn": 1,
+        "path": "~/hq-workspace/W-000501",
+    }
+    assert out["hint_fa"] == H.DONE_FA[: T.HINT_CHARS]
+    [req] = seen
+    body: dict[str, Any] = json.loads(req.content)
+    assert "ali@example.com" not in body["brief"] and "work" not in body
+    assert req.headers.get("authorization") and req.headers.get("idempotency-key")
+    # the gateway's class check: an A2 action of the role, own company
+    [opa] = stub.opa_inputs
+    assert opa["action"] == {"class": "A2", "name": "workshop.run", "company": "PC"}
+
+
+async def test_a_busy_workshop_is_not_an_error(mock: respx.MockRouter, gw: Gateway) -> None:
+    Stub(mock, WRITER)
+    mock.post(f"{API}/internal/v1/workshop/runs").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "job": "0193e7a1-0000-7000-8000-0000000000ab",
+                "work_ref": "W-000501",
+                "state": "working",
+                "turn": 2,
+            },
+        )
+    )
+    out = await call(gw, "workshop.run", {"brief": "اصلاح: رنگ‌ها تیره‌تر", "work": "W-000501"})
+    assert out["outcome"] == "ok" and out["result"]["state"] == "working"
+    assert out["hint_fa"] == H.BUSY_FA[: T.HINT_CHARS]
+
+
+async def test_an_absent_workshop_passes_its_reason(mock: respx.MockRouter, gw: Gateway) -> None:
+    Stub(mock, WRITER)
+    mock.post(f"{API}/internal/v1/workshop/runs").mock(
+        return_value=httpx.Response(
+            409,
+            json={"code": "workshop_unavailable", "message_fa": "کارگاه هنوز روشن نیست."},
+        )
+    )
+    out = await call(gw, "workshop.run", {"brief": "یک گزارش PDF"})
+    assert out["outcome"] != "ok" and out["code"] == "workshop_unavailable", out
+
+
+async def test_a_bad_work_ref_never_reaches_the_api(mock: respx.MockRouter, gw: Gateway) -> None:
+    Stub(mock, WRITER)
+    route = mock.post(f"{API}/internal/v1/workshop/runs")
+    out = await call(gw, "workshop.run", {"brief": "x", "work": "../etc"})
+    assert out["outcome"] == "error" and out["code"] == "invalid_args"
+    assert not route.called

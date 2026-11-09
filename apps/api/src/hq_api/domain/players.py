@@ -351,13 +351,17 @@ async def deliver(
     body: str,
     produced_with: dict[str, Any],
     hub: Any = None,
+    attachments: list[str] | None = None,
+    close: bool = True,
 ) -> dict[str, Any]:
     """A deliverable on the work from its assignee (what a player made, or a
     council's synthesis), the work delivered, its delivered children done. A
-    body longer than the column goes whole into an attachment (with `hub`)."""
+    body longer than the column goes whole into an attachment (with `hub`).
+    ⟨2026-11-09⟩ `attachments`: files already in the work's company (a workshop turn's `out/`);
+    `close=False`: an output on the way (the work stays open, §43)."""
     from hq_api.domain import work as W
 
-    attachments: list[str] = []
+    attachments = [str(a) for a in attachments or []]
     if len(body) > BODY_LIMIT and hub is not None:
         fid = await store_text(tx, hub, w["company_id"], f"{w['ref']}-full.md", body)
         attachments.append(str(fid))
@@ -377,11 +381,14 @@ async def deliver(
         att=attachments,
         pw=json.dumps(produced_with, ensure_ascii=False),
     )
-    await W.set_status(tx, w, "delivered", delivered_at=datetime.now(UTC))
-    closed = await W.close_delivered_children(tx, w, SERVICE)
+    closed: list[Any] | int = []
+    if close:
+        await W.set_status(tx, w, "delivered", delivered_at=datetime.now(UTC))
+        closed = await W.close_delivered_children(tx, w, SERVICE)
     await W.event(
-        tx, w, "delivered", SERVICE, {"deliverable": dl["ref"], "closed_children": closed}
-    )
+        tx, w, "delivered" if close else "output", SERVICE,
+        {"deliverable": dl["ref"], "closed_children": closed},
+    )  # fmt: skip
     await events.emit(
         tx,
         w["company"],
@@ -389,7 +396,13 @@ async def deliver(
         dl["ref"],
         {"work": w["ref"], "producer": "players"},
     )
-    await events.emit(tx, w["company"], "work.updated", w["ref"], {"status": "delivered"})
+    await events.emit(
+        tx,
+        w["company"],
+        "work.updated",
+        w["ref"],
+        {"status": "delivered" if close else w["status"]},
+    )
     if w["parent_id"] is None:
         await notify.raise_notification(
             tx,

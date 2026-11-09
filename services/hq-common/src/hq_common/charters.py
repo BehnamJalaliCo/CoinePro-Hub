@@ -56,12 +56,16 @@ EVERY_ROLE_TOOLS = ("order.ack", "order.progress", "order.ask")
 # proposed automation (a CEO or a manager, by the policy; the owner seals it). And the data of a
 # company the owner linked to one's own (`linked.read`, contract §35.6; the policy decides which),
 # and a proposed erase for good (`erase.propose`, contract §37.3: the owner seals each).
+# ⟨2026-11-09⟩ the owner: «اپ وسیله‌ی ارتباط است؛ سرور کامپیوتر است»: every working role hands any
+# task no tool of its own covers (a video, a site, a report, a scraper, anything) to the holding's
+# workshop, Claude Code with hands on the hub server (`workshop.run`, contract §43).
 SHARED_TOOLS = (
     *EVERY_ROLE_TOOLS,
     "substitute.call",
     "automation.propose",
     "linked.read",
     "erase.propose",
+    "workshop.run",
 )
 
 

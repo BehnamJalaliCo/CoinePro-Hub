@@ -51,8 +51,14 @@ async def test_the_capability_brief_names_every_helper_and_how(
     assert "substitute.call" in b["how"]["cover_image"]
     assert "creatives screen" in b["how"]["cover_image"]
     assert "a3_action" in b["how"]["cover_image"]  # a one-off publish is the owner's
-    # ⟨2026-11-08⟩ the owner: no video tool (the «بسته‌ی ساخت ویدیو» is the deliverable), voice off
-    assert "بسته‌ی ساخت ویدیو" in b["how"]["video"] and "no video tool" in b["how"]["video"]
+    # ⟨2026-11-09⟩ the owner: the workshop makes a video without a camera (and any task no tool
+    # covers); a filmed video stays the «بسته‌ی ساخت ویدیو»; voice off
+    assert "بسته‌ی ساخت ویدیو" in b["how"]["video"] and "workshop.run" in b["how"]["video"]
+    assert (
+        "workshop.run" in b["how"]["workshop"]
+        and "Never say a tool is missing" in b["how"]["workshop"]
+    )
+    assert b["workshop"]["state"] in ("ready", "not set up yet")
     assert "voice" not in b["how"] and "voice" not in b
     assert "IG-Hub" in b["how"]["instagram"] and "connection.set" in b["how"]["instagram"]
     assert "automation.propose" in b["how"]["automation"]
