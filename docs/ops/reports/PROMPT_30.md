@@ -173,3 +173,48 @@ sudo -iu studio hq-runner status    # online
   ```
 
 این گزارش را برای Claude سشن مشورت ببر.
+
+## ۶. گام‌های مالک را Claude سرور زد (دستور مالک در گفتگو، ۲۰۲۶-۱۱-۰۹)
+مالک گفت: «کاربر استودیو و هر کاربری که نیازه خودت بساز». گام‌ها به ترتیب زده شدند و **دیوار شبکه پیش از هر دانلودی** بود.
+
+1. **کاربر `studio`** (uid 1001):
+   - رمز قفل، بی sudo، بی docker، و `DenyUsers studio` در `/etc/ssh/sshd_config.d/60-studio.conf`.
+   - Ubuntu آن را در گروه `users` هم گذاشته بود (گروهی که Hub هم در آن است). از آن گروه بیرون آورده شد.
+2. **دیوار شبکه** (`/usr/local/sbin/studio-firewall.sh` و `studio-firewall.service`، که در هر بوت فعال میشود):
+   - **اصلاح نسبت به دستور گزارش بررسی:** داکر `:443` محلی را به کانتینر Caddy ‏(`172.30.0.5`) DNAT میکند (`nat OUTPUT → DOCKER`). پس قاعده‌ی «فقط ‎10.10.1.4:443» در عمل HTTPS هاب را هم میبست (`healthz` جواب 000 داد).
+   - **جایگزین:** اجازه با **مقصد اصلی** (`-m conntrack --ctorigdst <آدرس‌های خود هاب> --ctorigdstport 443`). آدرس‌ها از `ip -4 addr` خوانده میشوند، بی آدرس‌های 172.
+   - **سنجش از کاربر studio:**
+     - رد شد: `127.0.0.1` روی پورت‌های 7233، 5432، 8200، 6379، 4222، 9090 و 3100؛ کانتینر Caddy مستقیم؛ `:80` عمومی؛ و `169.254.169.254`.
+     - باز است: `https://hq.coinepro.com/healthz` با **200** (از آدرس عمومی و از 10.10.1.4)، و اینترنت با 200.
+     - کاربر Hub دست نخورد.
+   - `runner@studio` به `studio-firewall.service` وابسته است (`Requires` و `After`).
+3. **بسته‌ها:** ffmpeg 6.1.1، fontconfig، python3.12-venv و xz-utils.
+   - needrestart هیچ سرویس هاب و داکر را restart نکرد.
+   - با `playwright install-deps`، این‌ها restart شدند: polkit، packagekit، qemu-guest-agent، و `cloud-init-hotplugd` (که از پیش خراب بود). داکر و کانتینرها دست نخوردند.
+4. **node و Claude Code:** node v22.22.0 (با SHASUMS256 سنجیده شد) و Claude Code 2.1.319 در `~/.local`.
+5. **Playwright و Chromium:** Playwright 1.63.0 با chromium-headless-shell (v1243) در `~/.local/share/studio-py`. وابستگی‌های سیستمی با `install-deps` نصب شد.
+6. **فونت‌ها:** IRANYekanX **Pro**، که مالک فرستاد.
+   - **در ریپو:** `design/fonts/pro/`: ‏static ‏۱۱، FaNum ‏۱۱، NoEn ‏۱۱ و variable ‏۲، با `FontLicense.txt` کنارش (commit ‏`e2ad38e4`).
+   - **برای studio:** در `~/.local/share/fonts/IRANYekanX-Pro/`. خانواده‌ها: `IRANYekanX`، `IRANYekanXFaNum`، `IRANYekanXNoEn`، `IRANYekanXVF` و `IRANYekanXVFaNum`.
+7. **runner ‏0.3.2:** با `git archive` و venv و `requirements.lock` (hash) نصب شد.
+8. **سقف منابع:** `hq-runner@studio`: ‏`MemoryMax=4G`، `MemoryHigh=3500M`، `CPUQuota=600%`، `Nice=10`، `TasksMax=512` و `NoNewPrivileges=yes`. از systemd سنجیده شد.
+9. **جفت کردن:**
+   - کد ۱۵ دقیقه‌ای برای مالک کم بود. مالک ۳ ساعت خواست.
+   - **راه بی تغییر کد:** کلاینت pair با ساعتِ کندشده اجرا شد، و `expires_at` همان یک ردیف در `infra.runner_pairings` بلندتر شد.
+   - **اپ 0.19.4 هلدینگ را در «کدام شرکت» نشان نمیداد** (`Attach.kt`: ‏`filter { it.kind != "holding" }`)، پس دکمه‌ی تأیید روشن نمیشد.
+     - **اپ 0.19.5** (commit ‏`70313951` روی شاخه‌ی اصلی): هلدینگ در فهرست آمد.
+     - CI عکس‌ها را با `record` از نو گرفت (`354b3d34`) و APK را ساخت (`android-latest`).
+   - مالک کد را تأیید کرد. سرویس با `systemctl enable --now hq-runner@studio` روشن شد.
+
+**سنجش‌ها (بند ۵ پرامپت):**
+
+| سنجش | نتیجه |
+|---|---|
+| سرور کارگاه | `workshop`، شرکت **HQ**، `origin: attached`، **online**، runner **0.3.2**، از شبکه‌ی خصوصی (رفت‌وبرگشت 0.5ms) |
+| اولین کار | `map` (نقشه‌ی سرور، خودکار بعد از وصل شدن): `done` |
+| از کاربر `studio` به `127.0.0.1:7233` | رد شد (curl با کد 7) |
+| از کاربر `studio` به `https://hq.coinepro.com/healthz` | **200** |
+
+**اصلاح دستورهای بخش ۴:** `sudo -iu studio bash -c '<چند خط>'` درست کار نمیکند. sudo ‏`-i` خط‌ها را به هم میچسباند و `$V` را خالی میکند. گام‌ها با فایل اسکریپت و `sudo -u studio -H bash <file>` زده شدند.
+
+**قدم بعد:** آزمون اول را مالک در جلسه میدهد (موشن‌گرافی ATR). Claude سرور ردپایش را مینویسد.
