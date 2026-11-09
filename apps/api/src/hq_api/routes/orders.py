@@ -56,6 +56,9 @@ class OrderIn(Model):
     company: str | None = Field(default=None, pattern=r"^[A-Z][A-Z0-9]{1,9}$")
     # ⟨1.11⟩ §29.4 the preview's route, possibly edited by the owner: followed exactly
     route: D.Route | None = None
+    # ⟨2026-11-09⟩ §34.1 the owner's own answer to «با من یا خودکار؟», asked when the session is
+    # made: it wins over the words (`step` «با من», `auto` «خودکار»); absent, the words decide
+    pace: Literal["auto", "step"] | None = None
 
     @model_validator(mode="after")
     def _text_or_audio(self) -> OrderIn:
@@ -166,6 +169,8 @@ class Secretary:
     routed_by: str
     sc: D.Context
     correction: dict[str, Any] | None = None
+    # ⟨2026-11-09⟩ the owner's chosen pace (OrderIn.pace); None: read from the words (O.pace_of)
+    pace: str | None = None
 
 
 async def secretary(
@@ -262,10 +267,12 @@ async def _work(
     mode: str | None = None,
     assignee: str | None = None,
     requested_by: UUID | None = None,
+    pace: str | None = None,
 ) -> dict[str, Any]:
     co = await ctx.hub.companies.by_code(r.company)
-    # ⟨1.16⟩ §34.1 the holder is told how the owner wants it carried out (step by step or to the end)
-    brief = f"{text}\n\n(فرمان {ref} مدیر کل)\n\n{O.pace_brief(ref, O.pace_of(text))}"
+    # ⟨1.16⟩ §34.1 the holder is told how the owner wants it carried out (step by step or to the
+    # end): the owner's own choice when he made the session, else what the words say
+    brief = f"{text}\n\n(فرمان {ref} مدیر کل)\n\n{O.pace_brief(ref, pace or O.pace_of(text))}"
     due = await due_at(tx, text)
     if player is None and mode is None:
         # ⟨1.9⟩ §27.1: «با جی‌پی‌تی / با جمنای / با دیپ‌سیک / شورا» in the order
@@ -373,7 +380,7 @@ async def _code_holder(
     )
     try:
         w = await _work(ctx, tx, hr, ref, note, f"پیگیری کد: {title}"[:300], assignee=code,
-                        player="auto", mode="single")  # fmt: skip
+                        player="auto", mode="single", pace=s.pace)  # fmt: skip
     except ApiError:
         return
     r.refs["work_ref"] = w["ref"]
@@ -522,7 +529,7 @@ async def carry_out(
             raise ApiError(422, "validation_failed", fields={"route": "nobody leads the council"})
         r = O.Route(first, lead, "work")
         await _work(ctx, tx, r, ref, text, title, budget=rt.budget_tokens, player=rt.player,
-                    mode="council", assignee=lead)  # fmt: skip
+                    mode="council", assignee=lead, pace=s.pace)  # fmt: skip
         return [r]
     if rt.kind == "code" and co["workspaces"]:
         ws = str(
@@ -539,7 +546,8 @@ async def carry_out(
     root = O.Route(first, co["ceo"] or "", kind, department=dept)
     try:
         w = await _work(ctx, tx, root, ref, text, title, meeting=kind == "meeting",
-                        budget=rt.budget_tokens, player=rt.player, mode=rt.mode)  # fmt: skip
+                        budget=rt.budget_tokens, player=rt.player, mode=rt.mode,
+                        pace=s.pace)  # fmt: skip
     except ApiError as exc:
         if exc.status != 422 or co["ceo"]:
             raise
@@ -556,7 +564,7 @@ async def carry_out(
         cdept = rt.department if rt.department in (s.sc.names.get(c) or {}) else None
         child = O.Route(c, d["companies"][c]["ceo"] or "", "work", department=cdept)
         await _work(ctx, tx, child, ref, text, f"همکاری با {co['name_fa'] or first}: {title}"[:300],
-                    player=rt.player, mode="single", requested_by=w["id"])  # fmt: skip
+                    player=rt.player, mode="single", requested_by=w["id"], pace=s.pace)  # fmt: skip
         out.append(child)
     return out
 
@@ -596,6 +604,8 @@ async def place_order(
     text = scrub(raw)
     seen = await _seen(ctx, request)
     s = None if seen else await secretary(ctx, text, body.company, body.route)
+    if s is not None:
+        s.pace = body.pace
     later: list[Any] = []
     async with ctx.tx() as tx:
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
@@ -643,7 +653,7 @@ async def record_order(
     holding = await ctx.hub.companies.holding()
     out = [r.out() for r in routes]
     summary = O.summary_of(text, routes, await _names(tx, routes))
-    pace = O.pace_of(text)
+    pace = s.pace or O.pace_of(text)
     await tx.exec(
         """INSERT INTO owner.orders (ref, company_id, text, source, file_id, company_hint,
                routes, routed_by, summary_fa, route, pace)

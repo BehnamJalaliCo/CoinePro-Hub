@@ -3784,6 +3784,11 @@ the owner reply. This section is the base of §35 (every order a session).
 ### 34.1 The pace
 - `owner.orders.pace`: `"step"` when the order says so (rules, data `orders.STEP_WORDS`: «مرحله به مرحله»، «قدم به قدم»، «گام به گام»،
   «با فرمان من»، «با من جلو» …), else `"auto"`. `OrderOut.pace`, `OrderRecord.pace`, `OrderReport.pace` (additive).
+- ⟨2026-11-09⟩ `OrderIn.pace` (`"step"` · `"auto"`, optional, additive): the owner's own answer to «با من یا خودکار؟», which the apps
+  ask before a new session is sent (the office, the order sheet, a council's «اجرا کن»); given, it **wins over the words** for the
+  order's row and every brief its route writes. Absent (a talk card, a playbook, an older app), the words decide as above. A hub
+  before it answers `422 validation_failed` with `fields.pace`; the apps then send the order without it and set the pace at once
+  (`POST /orders/{ref}/pace`).
 - The holder's work brief says how: **step** — record the steps (`order.ack`), do the next one, report it (`order.progress`), ask the owner
   (`order.ask`) and finish the run; **auto** — record the plan, split or delegate, report real steps, deliver; never wait for the owner
   (only an outside commitment is a `propose`).

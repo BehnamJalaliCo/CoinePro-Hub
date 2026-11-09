@@ -292,6 +292,18 @@ class ApiError(Exception):
 
 def problem_response(request: Request, err: ApiError) -> JSONResponse:
     _, title, message_fa = CODES.get(err.code, CODES["internal_error"])
+    if err.status == 422:
+        # ⟨2026-11-09⟩ F-0013: a refused reply read only «اطلاعات ارسال‌شده درست نیست» on the phone and
+        # nothing here; the log now names the fields (never a value sent) against the request id
+        log.warning(
+            "request refused",
+            extra={
+                "code": err.code,
+                "path": request.url.path,
+                "fields": sorted(err.fields or {})[:20],
+                "request_id": getattr(request.state, "request_id", None),
+            },
+        )
     body = Problem(
         type=f"urn:coinepro-hq:problem:{err.code}",
         title=title,
@@ -356,6 +368,17 @@ def install(app: FastAPI) -> None:
         for e in exc.errors()[:20]:
             loc = ".".join(str(p) for p in e.get("loc", ()) if p not in ("body", "query", "path"))
             fields[loc or "request"] = str(e.get("msg", "invalid"))[:200]
+        log.warning(
+            "request body refused",
+            extra={
+                "path": request.url.path,
+                "errors": [
+                    f"{'.'.join(map(str, e.get('loc', ())))}:{e.get('type')}"
+                    for e in exc.errors()[:20]
+                ],
+                "request_id": getattr(request.state, "request_id", None),
+            },
+        )
         return problem_response(request, ApiError(422, "validation_failed", fields=fields))
 
     @app.exception_handler(StarletteHTTPException)

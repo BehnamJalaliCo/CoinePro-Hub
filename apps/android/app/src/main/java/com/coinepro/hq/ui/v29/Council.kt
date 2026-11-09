@@ -28,6 +28,7 @@ import com.coinepro.hq.core.data.figureText
 import com.coinepro.hq.core.format.jDate
 import com.coinepro.hq.core.net.Council
 import com.coinepro.hq.core.net.FactPack
+import com.coinepro.hq.core.net.orderWithPace
 import com.coinepro.hq.designsystem.BtnSize
 import com.coinepro.hq.designsystem.BtnVariant
 import com.coinepro.hq.designsystem.Chevron
@@ -68,6 +69,8 @@ fun CouncilPlan(k: Council) {
     val c = Divan.colors
     val action = rememberAction()
     val plan = k.planMd ?: return
+    // ⟨2026-11-09⟩ «اجرا کن» makes a session too: «با من یا خودکار؟» first, nothing chosen for the owner
+    var pace by rememberSaveable(k.workRef) { mutableStateOf<String?>(null) }
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.tile)).background(c.softGold).border(1.dp, c.lineTahrir, RoundedCornerShape(Radius.tile)).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -80,13 +83,15 @@ fun CouncilPlan(k: Council) {
             }
         }
         Md(plan, color = c.textPrimary)
+        com.coinepro.hq.ui.session.PaceAsk(pace, { pace = it })
         HqButton("اجرا کن", {
+            val chosen = pace ?: return@HqButton
             action.run {
-                val o = env.api.order(plan.trim(), "text", null)
+                val o = env.api.orderWithPace(plan.trim(), "text", null, null, chosen)
                 env.cache.invalidate("orders", "work", "home")
                 toasts.ok("برنامه فرمان شد؛ گزارشش را دنبال کن.", "گزارش") { nav.go("session/${o.ref}") }
             }
-        }, Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, icon = DivanIcon.SEND, loading = action.busy)
+        }, Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, icon = DivanIcon.SEND, enabled = pace != null, loading = action.busy)
     }
 }
 

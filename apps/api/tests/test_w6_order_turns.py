@@ -40,6 +40,38 @@ def test_the_pace_is_read_from_the_owners_words() -> None:
     assert "END" in O.pace_brief("F-0001", "auto") and "F-0001" in O.pace_brief("F-0001", "auto")
 
 
+async def test_the_owners_chosen_pace_wins_over_the_words(
+    client: httpx.AsyncClient,
+    owner: dict[str, str],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+    new_company: Callable[..., Any],
+) -> None:
+    """⟨2026-11-09⟩ the owner (F-0013: «از اول تا آخر» read as `auto`, the holder went to the end
+    before his «با من» landed): the app asks «با من یا خودکار؟» when the session is made and the
+    answer is the pace, whatever the words say; without it the words still decide."""
+    co = (await new_company())["code"]
+    text = f"برای {co} کارگروه تولید محتوا را با همکاری خودم از اول تا آخر راه بینداز {words()}"
+    assert O.pace_of(text) == "auto"
+    out = await post_order(client, owner, text, pace="step")
+    assert out["pace"] == "step", out
+    brief = await su.fetchval(
+        "SELECT brief FROM work.work WHERE ref = $1", out["routes"][0]["work_ref"]
+    )
+    assert "STEP BY STEP" in brief and "to the END" not in brief
+    assert await su.fetchval("SELECT pace FROM owner.orders WHERE ref = $1", out["ref"]) == "step"
+    out = await post_order(client, owner, STEP_TEXT.format(co=co, w=words()), pace="auto")
+    assert out["pace"] == "auto", out
+    brief = await su.fetchval(
+        "SELECT brief FROM work.work WHERE ref = $1", out["routes"][0]["work_ref"]
+    )
+    assert "to the END on your own" in brief
+    r = await client.post(
+        "/api/v1/orders", headers={**owner, **idem()}, json={"text": text, "pace": "fast"}
+    )
+    assert r.status_code == 422
+
+
 async def _turns(su: Any, conv: str) -> list[Any]:
     return list(
         await su.fetch(

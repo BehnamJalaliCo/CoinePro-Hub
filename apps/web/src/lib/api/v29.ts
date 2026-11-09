@@ -143,9 +143,21 @@ export type Route = OrderRouteFields & { count: number | null; preview_fa: strin
 /** One line before an order goes; null on a hub without the secretary (the order then goes as before). */
 export const previewOrder = (text: string, source: 'voice' | 'text') => served(call<Route>('POST', '/orders/preview', { text, source }));
 export type OrderOut29 = { ref: string; summary_fa: string; routes: Array<{ company: string; to: string; kind: 'work' | 'code' | 'meeting' | 'question'; work_ref?: string; session_ref?: string; decision_ref?: string }> };
-/** `POST /orders {text, source, file_id?, route?}`: with the (possibly edited) preview the hub follows it exactly. */
-export const sendOrder29 = (b: { text: string; source: 'voice' | 'text'; file_id?: string | null; route?: Omit<Route, 'preview_fa' | 'confidence' | 'why_fa'> | null }) =>
-  call<OrderOut29>('POST', '/orders', { text: b.text, source: b.source, file_id: b.file_id ?? null, ...(b.route ? { route: b.route } : {}) });
+/** `POST /orders {text, source, file_id?, route?, pace?}`: with the (possibly edited) preview the hub follows it exactly.
+ *  ⟨2026-11-09⟩ `pace` is the owner's answer to «با من یا خودکار؟» when he makes the session; it wins over his words (§34.1). A hub
+ *  before it refuses the field (422 `fields.pace`): the order goes without and the pace is set on its session at once. */
+export async function sendOrder29(b: { text: string; source: 'voice' | 'text'; file_id?: string | null; route?: Omit<Route, 'preview_fa' | 'confidence' | 'why_fa'> | null; pace?: 'auto' | 'step' | null }): Promise<OrderOut29> {
+  const body = { text: b.text, source: b.source, file_id: b.file_id ?? null, ...(b.route ? { route: b.route } : {}) };
+  if (!b.pace) return call<OrderOut29>('POST', '/orders', body);
+  try {
+    return await call<OrderOut29>('POST', '/orders', { ...body, pace: b.pace });
+  } catch (e) {
+    if (!(e instanceof ApiError) || e.status !== 422 || !/extra/i.test(e.fields?.pace ?? '')) throw e;
+  }
+  const o = await call<OrderOut29 & { pace?: string }>('POST', '/orders', body);
+  if (o.pace !== b.pace) await call('POST', `/orders/${encodeURIComponent(o.ref)}/pace`, { pace: b.pace }).catch(() => undefined);
+  return o;
+}
 
 /** «400 هزار», «1.2 میلیون»: a budget in plain words (the owner reads «واحد مصرف», never tokens). Latin digits. */
 export function unitsFa(n: number | null | undefined): string {

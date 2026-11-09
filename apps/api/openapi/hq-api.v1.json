@@ -59305,6 +59305,21 @@
             ],
             "title": "File Id"
           },
+          "pace": {
+            "anyOf": [
+              {
+                "enum": [
+                  "auto",
+                  "step"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pace"
+          },
           "route": {
             "anyOf": [
               {
@@ -94930,7 +94945,7 @@
     },
     "/api/v1/infra/network": {
       "get": {
-        "description": "Can every server reach the hub and the others (contract §26.1a)? The\nnodes (the hub and every paired server, with its route and round trip\nto the hub) and the latest result of each link a `netcheck` measured:\nfrom a server to the hub (443) and to each other server's private\naddress (22, 443, 80).",
+        "description": "Can every server reach the hub and the others (contract §26.1a)? The\nnodes (the hub and every paired server, with its route and round trip\nto the hub) and the latest result of each link a `netcheck` measured:\nfrom a server to the hub (443) and to each other server's private\naddress (443, 80; SSH between servers is not a path of the work).",
         "operationId": "infra_network",
         "responses": {
           "200": {
@@ -110931,6 +110946,7 @@
               "example": {
                 "company": "TY",
                 "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                "pace": "auto",
                 "route": {
                   "budget_tokens": 10000,
                   "collaborators": [

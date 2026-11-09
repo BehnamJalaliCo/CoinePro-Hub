@@ -61,6 +61,9 @@ enum class HubFeature {
     /** ⟨1.24⟩ §42.3 `GET /live/summary`; without it the live views start from what the stream says after the app connects (their figures
      *  read «—» until then) and the stream resumes from its own last event. */
     LIVE,
+    /** ⟨2026-11-09⟩ `POST /orders {pace}`, the owner's «با من / خودکار» given when the session is made; without it the order goes
+     *  without and the pace is set on it at once (`POST /orders/{ref}/pace`). */
+    ORDER_PACE,
 }
 
 /**
@@ -86,6 +89,35 @@ val ApiException.routeMissing: Boolean
  *  own plain answer, not a missing feature. */
 val ApiException.turnFilesUnknown: Boolean
     get() = status == 422 && fields["file_ids"]?.contains("extra", ignoreCase = true) == true
+
+/** A hub before ⟨2026-11-09⟩ refuses an order's `pace` as an unknown field (`422`, `fields.pace` "Extra inputs are not permitted"). */
+val ApiException.orderPaceUnknown: Boolean
+    get() = status == 422 && fields["pace"]?.contains("extra", ignoreCase = true) == true
+
+/**
+ * ⟨2026-11-09⟩ A new session with the pace the owner chose (the owner: F-0013 went to the end on its own before his «با من» landed).
+ * A hub that does not take the pace with the order gets it right after, on the session (`POST /orders/{ref}/pace`), once per app
+ * start learnt; the refusal is taken back out of the error log.
+ */
+suspend fun Api.orderWithPace(text: String, source: String, fileId: String?, route: OrderRoute29?, pace: String): Order {
+    if (gaps.has(HubFeature.ORDER_PACE)) {
+        try {
+            return order(text, source, fileId, route, pace)
+        } catch (e: ApiException) {
+            if (!e.orderPaceUnknown) throw e
+            e.logged?.let { failures?.forget(it) }
+            gaps.mark(HubFeature.ORDER_PACE)
+        }
+    }
+    val o = order(text, source, fileId, route)
+    if (o.pace == pace) return o
+    return try {
+        setPace(o.ref, pace)
+        o.copy(pace = pace)
+    } catch (e: ApiException) {
+        o
+    }
+}
 
 /**
  * Runs a §28 call unless this hub is known not to serve [f]; a missing route marks it (once per app start), takes its entry back out of

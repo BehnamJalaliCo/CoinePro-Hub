@@ -111,6 +111,9 @@ test('the secretary says where an order goes in one line; the owner changes the 
     await line.getByRole('button', { name: 'تغییر' }).click();
     await line.getByRole('button', { name: 'استوری', exact: true }).click();
     await expect(line.getByText(/خروجی:\s*3\s*استوری/)).toBeVisible();
+    // ⟨2026-11-09⟩ «با من یا خودکار؟» is asked first: nothing goes until the owner answers
+    await expect(sheet.getByRole('button', { name: 'بفرست' })).toBeDisabled();
+    await sheet.getByRole('radiogroup', { name: 'این جلسه چطور جلو برود؟' }).getByRole('radio', { name: 'با من' }).click();
     await sheet.getByRole('button', { name: 'بفرست' }).click();
     // ⟨1.17⟩ The order is a session at once and the owner lands in it.
     await expect(page).toHaveURL(/\/s\/F-\d+$/);
