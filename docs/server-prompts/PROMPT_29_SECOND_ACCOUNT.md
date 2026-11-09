@@ -1,4 +1,4 @@
-# پرامپت ۲۹: اکانت دوم Claude برای هاب و سرور شرکت‌ها
+# پرامپت ۲۹: اکانت دوم Claude برای هاب و سرور شرکت‌ها، و پیشنهاد سری رسانه
 
 > Claude سشن مشورت، ۲۰۲۶-۱۱-۰۹.
 > - **پیش‌نیاز:** پرامپت ۲۸.۴ deploy و سبز.
@@ -38,6 +38,15 @@
   - `claude_oauth` را فقط در env همان پروسه‌ی Claude Code میگذارد و در رویدادها mask میکند.
   - **تست:** `test_a_claude_job_runs_on_the_hubs_account_when_it_sends_one`.
 - **`make claude-token SLOT=2`:** در `kv/claude-runtime/oauth-2` مینویسد و claude-runtime و api را restart میکند.
+- **یافته‌ی ۲۸.۴: سه رد پشت سر هم `series.propose` مدیر رسانه:**
+  - **علت:** ردیف این ابزار در `agents/tools.md` فقط نام فیلدها را داشت. عامل شکل checks، RRULE زمان‌بندی، حساب و topics را حدس زد.
+  - **رفع ۱:** ردیف حالا شکل دقیق هر فیلد را دارد، با نمونه‌ی RRULE و نمونه‌ی حساب (`theprochart`، از IG-Hub).
+  - **رفع ۲:** api و gateway شکل‌های رایج را همان‌طور که منظور است میخوانند:
+    - topics به‌صورت فهرست ← `{pool}`
+    - حساب با «@»، فاصله یا حرف بزرگ ← handle ساده
+    - نام check ناشناخته ← هر هفت check (هرگز کمتر)
+  - خطای واقعی، مثل `kind` نادرست یا RRULE نادرست، همچنان با نام فیلد رد میشود.
+  - **تست‌ها:** `apps/api/tests/test_w13_series_shapes.py` و `services/gateway/tests/test_media_tools.py::test_series_shapes_an_agent_writes_are_read_as_meant`.
 
 ## کار
 1. **شاخه و تست:** شاخه را بساز، شاخه‌ی اصلی را merge کن و تست‌های بخش تغییریافته را اجرا کن:
@@ -45,10 +54,12 @@
    - claude-runtime: `tests/test_runtime.py`
    - api: `tests/test_w13_second_account.py`، `tests/test_openapi.py`
    - company-runner: `tests/test_claude.py`
+   - api: `tests/test_w13_series_shapes.py`
+   - gateway: `tests/test_media_tools.py`
    - lint و mypy
 2. **policy:** policy تازه‌ی `hq-api` را به روال همیشه در OpenBao اعمال کن. توکن و رمزی را عوض، باطل یا چاپ نکن.
 3. **seed:** seed روتر را اجرا کن تا ردیف `claude-max-2` ساخته شود. خاموش میماند.
-4. **deploy:** `llm-router`، `claude-runtime`، `api` و `worker`. migration ندارد.
+4. **deploy:** `llm-router`، `claude-runtime`، `gateway`، `api` و `worker`. migration ندارد. `agents/tools.md` با image تازه میرسد.
 5. **قدم مالک** (فقط مالک، طبق قانون ۵؛ تو انجام نده). در گزارش همین را بنویس:
    1. در ترمینال جدا، به‌عنوان کاربر `Hub`، `claude setup-token` را بزن و در مرورگر با **اکانت دوم** وارد شو. از پروفایل دیگر مرورگر استفاده کن، یا اول از اکانت اول خارج شو.
    2. بعد `make claude-token SLOT=2` و توکن را بچسبان.

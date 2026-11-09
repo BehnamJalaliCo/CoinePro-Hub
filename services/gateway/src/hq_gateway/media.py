@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from hq_gateway import tools as T
 
@@ -83,6 +83,34 @@ class MediaReviewIn(T.In):
     note_md: str = Field(default="", max_length=20000)
 
 
+CHECK_NAMES = ("brand", "red_lines", "risk_warning", "facts", "rights", "platform", "qc")
+
+
+def normalise_series(data: Any) -> Any:
+    """⟨2026-11-09⟩ The same rule as the api's routes/media.py. The media director's
+    series.propose was refused three times in a row (F-0014):
+    unknown check names, an account written as the page shows it, topics as a plain list. The
+    shapes an agent naturally writes are read as meant: topics as a list -> {pool}; an account
+    with «@», spaces or capitals -> the bare lowercase handle; check names lowercased, and any
+    unknown name -> all seven checks (never fewer than asked). Anything else stays as sent."""
+    if not isinstance(data, dict):
+        return data
+    d = dict(data)
+    if isinstance(d.get("topics"), list):
+        d["topics"] = {"pool": [str(t) for t in d["topics"]][:200]}
+    if isinstance(d.get("targets"), list):
+        targets = []
+        for t in d["targets"]:
+            if isinstance(t, dict) and isinstance(t.get("account"), str):
+                t = {**t, "account": t["account"].strip().lstrip("@").strip().lower()}
+            targets.append(t)
+        d["targets"] = targets
+    if isinstance(d.get("checks"), list):
+        names = [str(c).strip().lower().replace("-", "_").replace(" ", "_") for c in d["checks"]]
+        d["checks"] = list(CHECK_NAMES) if any(n not in CHECK_NAMES for n in names) else names
+    return d
+
+
 class TargetIn(T.In):
     channel: Literal["telegram", "instagram"]
     account: str = Field(pattern=r"^[a-z0-9][a-z0-9_.-]{1,40}$")
@@ -127,6 +155,11 @@ class SeriesProposeIn(T.In):
     max_per_day: int | None = Field(default=None, ge=1, le=20)
     what_fa: str = Field(default="", max_length=20000)
     why_fa: str = Field(default="", max_length=20000)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _as_meant(cls, data: Any) -> Any:
+        return normalise_series(data)
 
 
 class SpeechMakeIn(T.In):

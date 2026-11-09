@@ -115,3 +115,20 @@ async def test_series_propose_and_render_reach_their_routes(
     )
     out = await call(gw, "media.render", {"ref": "MI-0001"})
     assert (out["outcome"], out["class"]) == ("ok", "A2"), out
+
+
+def test_series_shapes_an_agent_writes_are_read_as_meant() -> None:
+    """⟨2026-11-09⟩ F-0014: three refusals in a row for the shapes people write."""
+    from hq_gateway.media import CHECK_NAMES, SeriesProposeIn
+
+    s = SeriesProposeIn.model_validate(
+        {
+            "company": "PC", "title_fa": "ریلز", "kind": "reel",
+            "targets": [{"channel": "instagram", "account": "@TheProChart", "placement": "instagram_reel"}],
+            "schedule": "FREQ=DAILY;BYHOUR=10;BYMINUTE=0", "format": {"aspect": "9:16"},
+            "topics": ["ATR"], "checks": ["accuracy"],
+        }
+    )  # fmt: skip
+    assert s.targets[0].account == "theprochart"
+    assert s.topics is not None and s.topics.pool == ["ATR"]
+    assert s.checks == list(CHECK_NAMES)
