@@ -19,6 +19,7 @@ Never used in production: only when RUNTIME_CLI_PATH points here.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
@@ -50,6 +51,10 @@ def record() -> None:
         "cwd": os.getcwd(),
         "home": os.environ.get("HOME"),
         "has_oauth_token": bool(os.environ.get("CLAUDE_CODE_OAUTH_TOKEN")),
+        # which account ran it (a digest, never the token)
+        "oauth_sha8": hashlib.sha256(
+            os.environ.get("CLAUDE_CODE_OAUTH_TOKEN", "").encode()
+        ).hexdigest()[:8],
         "max_output_tokens": os.environ.get("CLAUDE_CODE_MAX_OUTPUT_TOKENS"),
         "has_api_key": "ANTHROPIC_API_KEY" in os.environ,
         "system_prompt": open(system_file).read() if system_file else None,  # noqa: SIM115

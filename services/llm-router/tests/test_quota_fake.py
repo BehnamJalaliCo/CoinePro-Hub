@@ -115,6 +115,29 @@ async def test_fake_backend_answers_by_actor_then_default() -> None:
     assert len(fake.calls) == 5  # run x4 + stream
 
 
+async def test_a_subscription_at_99_percent_is_near_full() -> None:
+    """⟨2026-11-09⟩ the owner: «at 99% of the first account, go to the second»."""
+    import time
+
+    q = QuotaController(None, None)
+    assert not q.near_full("c")  # nothing known yet
+    soon = time.time() + 3600
+    await q.observe(
+        "c", "claude-max",
+        {"status": "allowed", "window": "five_hour", "utilization": 0.5, "resets_at": soon},
+    )  # fmt: skip
+    assert not q.near_full("c")
+    await q.observe(
+        "c", "claude-max",
+        {"status": "allowed", "window": "five_hour", "utilization": 0.991, "resets_at": soon},
+    )  # fmt: skip
+    assert q.near_full("c")
+    await q.observe(
+        "d", "claude-max-2", {"status": "rejected", "window": "seven_day", "resets_at": soon}
+    )
+    assert q.near_full("d")
+
+
 async def test_controller_without_a_database() -> None:
     q = QuotaController(None, None)
     q.check("c", "claude_subscription", 4)  # ok: nothing known yet

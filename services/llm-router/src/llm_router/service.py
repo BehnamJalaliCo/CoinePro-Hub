@@ -300,20 +300,41 @@ class RouterService:
         # While the breaker is open and cooling (usage limit hit), the breaker path
         # below decides instead (alternatives, quota_exhausted); a half-open probe
         # is checked like any request (prompt 5.1 §2.4).
+        def move_to(twin: Connection) -> None:
+            nonlocal connection, model
+            row.meta["fallback_from"] = connection.key
+            connection = twin
+            if model not in twin.models and twin.default_model:
+                model = twin.default_model
+            row.connection_id, row.provider, row.model = twin.id, twin.provider, model
+
+        # ⟨2026-11-09⟩ the owner: once the main subscription is at 99% (or refused), every call
+        # goes to the other one while it has room; it comes back by itself when the window resets.
+        if connection.kind == "claude_subscription" and self.quota.near_full(connection.id):
+            twin = self._twin_subscription(snap, connection, req.priority)
+            if twin is not None:
+                move_to(twin)
+
         try:
             if not self.breaker_for(connection).cooling():
                 self.quota.check(connection.id, connection.kind, req.priority)
         except Throttled as exc:
-            self.metrics.queue_rejections.labels(f"P{req.priority}", f"quota_{exc.status}").inc()
-            async with self.db.scoped(rls) as conn:
-                await ledger.record_decision(conn, row, "rate_limited", f"quota_{exc.status}")
-            raise RouterError(
-                429 if req.priority >= 4 else 503,
-                "quota_throttled",
-                f"the subscription quota is {exc.status}: P{req.priority} waits",
-                retry_after=exc.retry_after,
-                call_id=row.id,
-            ) from exc
+            # ⟨2026-11-09⟩ the owner's other subscription takes the call instead of it waiting
+            twin = self._twin_subscription(snap, connection, req.priority)
+            if twin is None:
+                self.metrics.queue_rejections.labels(
+                    f"P{req.priority}", f"quota_{exc.status}"
+                ).inc()
+                async with self.db.scoped(rls) as conn:
+                    await ledger.record_decision(conn, row, "rate_limited", f"quota_{exc.status}")
+                raise RouterError(
+                    429 if req.priority >= 4 else 503,
+                    "quota_throttled",
+                    f"the subscription quota is {exc.status}: P{req.priority} waits",
+                    retry_after=exc.retry_after,
+                    call_id=row.id,
+                ) from exc
+            move_to(twin)
 
         await self._check_budgets(snap, req, company, chain, row, rls, now)
         await self._check_oversight_share(req, company, holding, row, rls, now)
@@ -609,6 +630,25 @@ class RouterService:
         except Exception:
             log.exception("budget alert state not saved", extra={"budget_id": c.budget.id})
 
+    def _twin_subscription(
+        self, snap: Snapshot, connection: Connection, priority: int
+    ) -> Connection | None:
+        """⟨2026-11-09⟩ The owner's other Claude subscription that can take a call now: switched
+        on (a fallback), its breaker closed and its own quota letting this priority through."""
+        if connection.kind != "claude_subscription":
+            return None
+        for alt in snap.fallbacks():
+            if alt.id == connection.id or alt.kind != "claude_subscription":
+                continue
+            if self.breaker_for(alt).cooling() or self.quota.near_full(alt.id):
+                continue
+            try:
+                self.quota.check(alt.id, alt.kind, priority)
+            except Throttled:
+                continue
+            return alt
+        return None
+
     async def _pick_connection(
         self,
         snap: Snapshot,
@@ -655,6 +695,21 @@ class RouterService:
         self._publish_breaker(connection, breaker)
         if permit is not None:
             return plan_for(connection, permit, model, None)
+
+        # ⟨2026-11-09⟩ a subscription out of quota (or failing) hands the call to the owner's
+        # other subscription first: the same models on the same provider, so any task and any
+        # priority may move.
+        if connection.kind == "claude_subscription":
+            for alt in snap.fallbacks():
+                if alt.id == connection.id or alt.kind != "claude_subscription":
+                    continue
+                alt_model = req.model if req.model in alt.models else alt.default_model
+                if not alt_model:
+                    continue
+                alt_breaker = self.breaker_for(alt)
+                alt_permit = alt_breaker.allow()
+                if alt_permit is not None:
+                    return plan_for(alt, alt_permit, alt_model, connection.key)
 
         # Primary unavailable. §1.6: only transferable work, only P0-P3, only
         # to a connection that is switched on.

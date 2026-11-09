@@ -1181,7 +1181,7 @@ def runner_job(j: dict[str, Any], hub: Any) -> dict[str, Any]:
             {**f, "url": P.public_url(hub, UUID(str(f["file_id"])))}
             for f in args.get("files") or []
         ]
-    return {
+    out = {
         "id": str(j["id"]),
         "kind": j["kind"],
         "args": args,
@@ -1192,6 +1192,14 @@ def runner_job(j: dict[str, Any], hub: Any) -> dict[str, Any]:
         "server": str(j["server_id"]),
         "company": j["company"],
     }
+    # ⟨2026-11-09⟩ the owner: the companies have no Claude subscription of their own. A Claude Code
+    # job runs on the hub's second account: its token goes with the job at pickup (over the
+    # runner's HTTPS), only into that process's environment; never in the job's stored args, the
+    # events or a log. Without the token (or for any other kind) the server's own login is used.
+    token = getattr(getattr(hub, "secrets", None), "runner_claude_token", "")
+    if j["kind"] == "claude" and token:
+        out["claude_oauth"] = token
+    return out
 
 
 def _clean_event(type_: str, data: Any) -> dict[str, Any]:

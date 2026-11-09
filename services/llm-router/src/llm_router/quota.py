@@ -45,6 +45,8 @@ SDK, GUARD, LEDGER = "sdk_rate_limit_event", "quota_guard", "ledger_window"
 # Priorities that wait in each state (P0 war room ... P4 background).
 PAUSED = {OK: (), WARNING: (4,), LIMITED: (3, 4)}
 DEFAULT_RETRY_S = 300
+# ⟨2026-11-09⟩ the owner: «at 99% of the first account, go to the second»
+NEAR_FULL = Decimal("0.99")
 SDK_FRESH = timedelta(hours=6)  # an SDK observation older than this no longer decides
 HOLD = timedelta(hours=5)  # how long a state whose end is unknown holds
 WINDOW = re.compile(r"[a-z0-9_]{2,40}")  # the same rule as llm.quota_status.window_kind
@@ -198,6 +200,12 @@ class QuotaController:
         return QuotaState(
             connection_id, OK, source="reset", observed_at=cur.observed_at, changed_at=now
         )
+
+    def near_full(self, connection_id: str) -> bool:
+        """⟨2026-11-09⟩ A subscription at 99% of its window (as the SDK last saw it) or refused:
+        while the owner's other subscription has room, the calls go there."""
+        s = self.state(connection_id)
+        return s.status == LIMITED or (s.utilization is not None and s.utilization >= NEAR_FULL)
 
     def check(self, connection_id: str, kind: str, priority: int) -> None:
         """Admission: raises Throttled when this priority waits in the current state."""

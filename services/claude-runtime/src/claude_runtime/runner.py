@@ -78,6 +78,8 @@ class RunSpec:
     json_schema: dict[str, Any] | None
     timeout_s: int
     max_output_tokens: int | None = None
+    # ⟨2026-11-09⟩ the owner's second subscription ("2"); None: the main account
+    account: str | None = None
 
 
 @dataclass
@@ -167,8 +169,12 @@ class ClaudeRunner:
         *,
         cli_path: str | None = None,
         max_concurrency: int = 4,
+        accounts: Callable[[str], str | None] | None = None,
     ) -> None:
         self._oauth_token = oauth_token
+        # ⟨2026-11-09⟩ another account's token by its slot ("2"); each run has its own HOME, so two
+        # accounts never share a login on this machine
+        self._accounts = accounts
         self._root = Path(workdir_root)
         self._cli_path = cli_path
         self._sem = asyncio.Semaphore(max_concurrency)
@@ -229,7 +235,10 @@ class ClaudeRunner:
     async def stream(
         self, spec: RunSpec, *, partial: bool = True
     ) -> AsyncIterator[Delta | Outcome]:
-        token = self._oauth_token()
+        if spec.account:
+            token = self._accounts(spec.account) if self._accounts else None
+        else:
+            token = self._oauth_token()
         if not token:
             yield Outcome("error", error_class="not_configured", model=spec.model)
             return

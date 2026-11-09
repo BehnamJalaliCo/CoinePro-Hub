@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import AsyncIterator, Callable
 from decimal import Decimal
 from typing import Any
@@ -34,8 +35,20 @@ def _content(m: ChatMessage) -> str | list[dict[str, str]]:
     ]
 
 
+# ⟨2026-11-09⟩ the owner's second subscription: its connection's secret is the runtime's slot
+# (kv/claude-runtime/oauth-2 -> account "2"); the main one (kv/claude-runtime/oauth) sends none
+_ACCOUNT_REF = re.compile(r"^kv/claude-runtime/oauth-([2-9])$")
+
+
+def account_of(secret_ref: str | None) -> str | None:
+    m = _ACCOUNT_REF.match(secret_ref or "")
+    return m.group(1) if m else None
+
+
 def _payload(call: BackendCall) -> dict[str, Any]:
+    account = account_of(call.connection.secret_ref)
     return {
+        **({"account": account} if account else {}),
         "call_id": call.call_id,
         "model": call.model,
         "effort": call.effort,

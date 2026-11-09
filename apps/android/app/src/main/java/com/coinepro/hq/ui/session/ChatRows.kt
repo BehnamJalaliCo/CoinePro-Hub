@@ -1,13 +1,14 @@
 package com.coinepro.hq.ui.session
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -17,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -60,7 +62,6 @@ import com.coinepro.hq.ui.v29.FixButton
 // the work a compact banner over the composer. No ref is ever a word.
 
 private val ROW = RoundedCornerShape(12.dp)
-private val CARD = RoundedCornerShape(16.dp)
 
 /** A clock time (or a range, «05:34–05:40») at the end of a row: small, muted, one Latin figure read left to right (two times set apart
  *  would read backwards in a right-to-left line). A date with its month's name is set as a sentence with its time a figure. */
@@ -133,22 +134,33 @@ internal fun EventsRow(r: ChatRow.Events, whoOf: (String) -> String) {
     }
 }
 
-/** The results delivered between two turns, one card: «۲ خروجی تحویل شد» (or «ریلز تحویل شد») and its time, then each title with «باز کن». */
+/**
+ * The results delivered between two turns: one quiet line, «۲ خروجی تحویل شد» (or «ریلز تحویل شد») and its time, that opens to each title
+ * with «باز کن». ⟨0.19.4⟩ the owner: a card of every output in the middle of the talk crowded the question he had to answer; they are one
+ * line now, and all of them are in «جزئیات» too.
+ */
 @Composable
-internal fun OutputsCard(outputs: List<com.coinepro.hq.core.data.SessionEntry.Output>) {
+internal fun OutputsCard(outputs: List<com.coinepro.hq.core.data.SessionEntry.Output>, key: String = outputs.firstOrNull()?.output?.ref.orEmpty()) {
     val c = Divan.colors
     val nav = LocalNav.current
     val at = outputs.map { it.at }.filter { it.isNotBlank() }
+    var open by rememberSaveable(key) { mutableStateOf(false) }
     Column(
-        Modifier.fillMaxWidth().testTag("chat-outputs").clip(CARD).background(c.card).border(1.dp, c.lineTahrir, CARD).padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+        Modifier.fillMaxWidth().testTag("chat-outputs").clip(ROW).background(c.tile.copy(alpha = 0.55f)).smoothSize(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Row(Modifier.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(Modifier.size(24.dp).clip(CircleShape).background(c.softGold), contentAlignment = Alignment.Center) { DIcon(DivanIcon.DELIVERABLE, size = 14.dp, tint = c.goldInk) }
-            Text(outputsFa(outputs.map { it.output }), style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk, modifier = Modifier.weight(1f))
+        Row(
+            Modifier.fillMaxWidth().clickable(role = Role.Button, onClickLabel = if (open) "ببند" else "دیدن خروجی‌ها") { open = !open }
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            DIcon(DivanIcon.DELIVERABLE, size = 14.dp, tint = c.goldInk)
+            Text(outputsFa(outputs.map { it.output }), style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
+            Chevron(open, size = 12.dp, tint = c.textMuted)
+            Box(Modifier.weight(1f))
             RowTime(if (at.isEmpty()) "" else if (at.size == 1 || jTime(at.first()) == jTime(at.last())) jTime(at.first()) else "${jTime(at.first())}–${jTime(at.last())}")
         }
-        outputs.forEachIndexed { i, e ->
+        if (open) outputs.forEachIndexed { i, e ->
             val x = e.output
             if (i > 0) HorizontalDivider(Modifier.padding(end = 8.dp), color = c.lineDivider)
             Row(
@@ -162,6 +174,7 @@ internal fun OutputsCard(outputs: List<com.coinepro.hq.core.data.SessionEntry.Ou
                 HqButton("باز کن", { nav.go("outputs/${x.ref}") }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.NEXT)
             }
         }
+        if (open) Spacer(Modifier.height(4.dp))
     }
 }
 
@@ -170,14 +183,20 @@ internal fun OutputsCard(outputs: List<com.coinepro.hq.core.data.SessionEntry.Ou
  * when) and its fix. Several: «۲ گیر» and the first, a tap opens each with its fix.
  */
 @Composable
-internal fun BlockersBanner(blockers: List<Blocker>, company: String?, orderRef: String?, budget: Long?) {
+internal fun BlockersBanner(
+    blockers: List<Blocker>, company: String?, orderRef: String?, budget: Long?,
+    /** ⟨0.19.4⟩ opened (read): the owner has been told; [onClosed] once he closes it again, and it is not shown again. */
+    onRead: (Set<String>) -> Unit = {}, onClosed: () -> Unit = {},
+) {
     val c = Divan.colors
     var open by rememberSaveable(orderRef) { mutableStateOf(false) }
     fun budgetOf(b: Blocker): Long? = if (b.fix?.action == "budget.add") maxOf(100_000L, (budget ?: 0L) / 4) else null
     Column(Modifier.fillMaxWidth().testTag("blockers").clip(ROW).background(c.softNegative).smoothSize()) {
         Row(
-            Modifier.fillMaxWidth().clickable(role = Role.Button, onClickLabel = if (open) "ببند" else "همه‌ی آن") { open = !open }
-                .padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+            Modifier.fillMaxWidth().clickable(role = Role.Button, onClickLabel = if (open) "خواندم؛ ببند" else "همه‌ی آن") {
+                open = !open
+                if (open) onRead(blockers.map(::blockerKey).toSet()) else onClosed()
+            }.padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             DIcon(DivanIcon.URGENT, size = 18.dp, tint = c.negative)
@@ -212,6 +231,28 @@ internal fun BlockersBanner(blockers: List<Blocker>, company: String?, orderRef:
             }
         }
     }
+}
+
+/** One blocker, as the phone remembers that the owner read it (its kind and words; a new one shows again). */
+internal fun blockerKey(b: Blocker): String = "${b.kind}|${b.titleFa}"
+
+/**
+ * ⟨0.19.4⟩ The owner's own folds in a session, on this phone only: the head folded to its status and progress, and the blockers he has
+ * opened and read (shown once, then gone; a new blocker is shown again).
+ */
+internal class SessionUiPrefs(context: android.content.Context) {
+    private val sp = context.getSharedPreferences("hq.session.ui", android.content.Context.MODE_PRIVATE)
+    var headFolded: Boolean
+        get() = sp.getBoolean("head_folded", false)
+        set(v) { sp.edit().putBoolean("head_folded", v).apply() }
+    fun readBlockers(ref: String): Set<String> = sp.getStringSet("read_blockers:$ref", emptySet()).orEmpty().toSet()
+    fun markRead(ref: String, keys: Set<String>) { sp.edit().putStringSet("read_blockers:$ref", readBlockers(ref) + keys).apply() }
+}
+
+@Composable
+internal fun rememberSessionUiPrefs(): SessionUiPrefs {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    return remember { SessionUiPrefs(ctx.applicationContext) }
 }
 
 /** Why it blocks, and since when, in one quiet paragraph. */

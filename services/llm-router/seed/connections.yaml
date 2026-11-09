@@ -45,6 +45,21 @@ connections:
     pricing: *anthropic_pricing
     limits: {}
 
+  # ⟨2026-11-09⟩ the owner's second subscription (its token: `make claude-token SLOT=2`). Off until
+  # the token is in OpenBao; then the main account's quota running out moves calls here, and the
+  # company servers' Claude Code sessions run on it (contract §26).
+  - key: claude-max-2
+    kind: claude_subscription
+    provider: anthropic
+    display_name: Claude subscription (second account)
+    status: disabled
+    secret_ref: kv/claude-runtime/oauth-2
+    models: *anthropic_models
+    default_model: claude-sonnet-5-5
+    pricing: *anthropic_pricing
+    limits: {}
+    fallback_priority: 0
+
   - key: anthropic-api
     kind: api
     provider: anthropic

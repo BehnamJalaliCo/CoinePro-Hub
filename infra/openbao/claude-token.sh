@@ -3,8 +3,17 @@
 # and restarts claude-runtime so it loads it.
 #   1. in a separate terminal, as user Hub:   claude setup-token
 #   2. then:                                  make claude-token   (paste; input is hidden)
+# ⟨2026-11-09⟩ the owner's second account: log in to it in step 1 (another browser
+# profile, or log out of the first one there), then `make claude-token SLOT=2`. It
+# goes to kv/claude-runtime/oauth-2: claude-runtime runs on it when the main account
+# is at 99% or out, and the company servers' Claude Code sessions run on it.
 # The token is never printed, never written to disk and never put in argv.
 set -euo pipefail
+
+SLOT="${1:-}"
+[[ -z "$SLOT" || "$SLOT" =~ ^[2-9]$ ]] || { printf 'claude-token: SLOT is 2 (the second account) or empty\n' >&2; exit 1; }
+KV="claude-runtime/oauth${SLOT:+-$SLOT}"
+HEALTH_KEY="oauth${SLOT:+_$SLOT}"
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 HQ="$REPO_DIR/infra/compose/hq.sh"
@@ -39,15 +48,17 @@ trap 'rm -rf "$work"' EXIT
 printf 'X-Vault-Token: %s\n' "$(cat "$ADMIN_FILE")" >"$work/auth"
 code="$(TOK="$token" jq -n '{data: {token: env.TOK}}' |
   curl -sS -o /dev/null -w '%{http_code}' -H @"$work/auth" -H 'Content-Type: application/json' \
-    --data-binary @- "$BAO_ADDR/v1/kv/data/claude-runtime/oauth")"
+    --data-binary @- "$BAO_ADDR/v1/kv/data/$KV")"
 unset token
 [[ "$code" == 200 || "$code" == 204 ]] || die "OpenBao refused the write (HTTP $code); nothing was saved"
-printf 'Saved in OpenBao (kv/claude-runtime/oauth). Restarting claude-runtime...\n'
+printf 'Saved in OpenBao (kv/%s). Restarting claude-runtime...\n' "$KV"
 
 "$HQ" restart claude-runtime >/dev/null 2>&1
+# the api hands the second account to the company servers' Claude Code jobs: it reads it at start
+[[ -z "$SLOT" ]] || "$HQ" restart api >/dev/null 2>&1
 state=""
 for _ in $(seq 1 45); do
-  state="$("$HQ" exec -T claude-runtime cat /tmp/hq-health.json 2>/dev/null | jq -r '.oauth // empty' 2>/dev/null || true)"
+  state="$("$HQ" exec -T claude-runtime cat /tmp/hq-health.json 2>/dev/null | jq -r --arg k "$HEALTH_KEY" '.[$k] // empty' 2>/dev/null || true)"
   [[ "$state" == configured ]] && break
   sleep 2
 done

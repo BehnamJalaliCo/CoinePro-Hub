@@ -402,6 +402,39 @@ async def test_quota_guard_fallback_and_recovery(su: asyncpg.Connection, make_se
     )
 
 
+async def test_the_second_subscription_takes_over_when_the_first_is_out(
+    su: asyncpg.Connection, make_service: Any
+) -> None:
+    """⟨2026-11-09⟩ the owner's second Claude account: once the main subscription is out of quota,
+    any call (not only transferable work, P4 too) goes to the other subscription; switched off,
+    nothing moves."""
+    reset = time.time() + 60
+    sub = FakeBackend(
+        BackendResult(QUOTA, error_class="usage_limit", quota_resets_at=reset),
+        ok_result(text="from the second account"),
+        ok_result(text="P4 too"),
+    )
+    svc = make_service(subscription=sub)
+    await su.execute("UPDATE llm.connections SET status = 'enabled' WHERE key = 'claude-max-2'")
+    try:
+        first = await svc.run(req(), "t", 10_000)
+        assert first.status == "quota_exhausted"
+        moved = await svc.run(req(priority=2), "t", 10_000)  # not transferable: still moves
+        assert moved.connection == "claude-max-2" and moved.text == "from the second account"
+        meta = await su.fetchval("SELECT meta FROM llm.calls WHERE id = $1", moved.call_id)
+        assert "claude-max" in str(meta) and "fallback_from" in str(meta)
+        p4 = await svc.run(req(priority=4), "t", 10_000)
+        assert p4.connection == "claude-max-2"
+    finally:
+        await su.execute(
+            "UPDATE llm.connections SET status = 'disabled' WHERE key = 'claude-max-2'"
+        )
+        await su.execute(
+            "UPDATE llm.connections SET status = 'enabled', quota_reset_at = NULL"
+            " WHERE key = 'claude-max'"
+        )
+
+
 async def test_quota_state_survives_restart(su: asyncpg.Connection, make_service: Any) -> None:
     await su.execute(
         """UPDATE llm.connections SET status = 'quota_exhausted', status_changed_at = now(),

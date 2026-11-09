@@ -255,6 +255,44 @@ def test_the_hubs_allow_list_reaches_claude_code_and_the_hook_stays(
         assert fake_hub.results[jid]["exit_code"] != 0, bad
 
 
+def test_a_claude_job_runs_on_the_hubs_account_when_it_sends_one(
+    fake_hub: FakeHub, cfg: Config, cfg_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """⟨0.3.1⟩ the companies have no Claude subscription: the hub sends its own account's token
+    with the job; it reaches only that Claude Code process, and never an event."""
+    import hashlib
+
+    record = tmp_path / "rec.json"
+    monkeypatch.setenv("FAKE_CLAUDE_RECORD", str(record))
+    monkeypatch.delenv("CLAUDE_CODE_OAUTH_TOKEN", raising=False)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    cfg.claude_bin = str(FAKE_CLAUDE)
+    save(cfg, cfg_path)
+    token = "sk-ant-oat01-" + "z" * 95
+    fake_hub.jobs.append(
+        {"id": "cl21", "kind": "claude", "claude_oauth": token,
+         "args": {"brief": "hello", "cwd": str(repo)}}
+    )  # fmt: skip
+    runner = Runner(cfg, make_route(fake_hub), cfg_path=cfg_path, persist_state=False)
+    run(drive(runner, lambda: "cl21" in fake_hub.results, within=60))
+    assert (
+        json.loads(record.read_text())["oauth_sha8"]
+        == hashlib.sha256(token.encode()).hexdigest()[:8]
+    )
+    assert token not in json.dumps(fake_hub.results["cl21"]) and token not in json.dumps(
+        fake_hub.events
+    )
+    # a job without it (or with something else) runs on the server's own login
+    fake_hub.jobs.append(
+        {"id": "cl22", "kind": "claude", "claude_oauth": "not-a-token",
+         "args": {"brief": "hello", "cwd": str(repo)}}
+    )  # fmt: skip
+    runner = Runner(cfg, make_route(fake_hub), cfg_path=cfg_path, persist_state=False)
+    run(drive(runner, lambda: "cl22" in fake_hub.results, within=60))
+    assert json.loads(record.read_text())["oauth_sha8"] == hashlib.sha256(b"").hexdigest()[:8]
+
+
 def test_without_an_allow_list_nothing_is_widened() -> None:
     s = hook_settings("j1")
     assert "permissions" not in s and s["hooks"]["PreToolUse"][0]["matcher"] == "Bash"

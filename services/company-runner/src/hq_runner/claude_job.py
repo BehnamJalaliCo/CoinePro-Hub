@@ -68,6 +68,8 @@ JSON_LINE_BYTES = 64 * 1024 * 1024  # one stream-json line (the final answer) re
 FILE_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
 ALLOWED_TOOL = re.compile(r"^(?:[A-Z][A-Za-z]{1,30}|Bash\([^()\n\x00]{1,200}\))$")
 MAX_ALLOWED_TOOLS = 200
+# ⟨0.3.1⟩ a Claude subscription token as `claude setup-token` prints it
+OAUTH_RE = re.compile(r"sk-ant-oat[A-Za-z0-9_-]{20,300}")
 EXIT_TOKEN_CAP = 125  # the session passed its token cap and was stopped
 
 
@@ -358,6 +360,13 @@ async def run_claude(ctx: JobContext) -> JobResult:
     if allow:  # last: the option takes every value after it
         argv += ["--allowedTools", *allow]
     env = dict(ctx.env)
+    # ⟨0.3.1⟩ the hub's own Claude account for this session (the companies have no subscription
+    # of their own): only in this process's environment, never written, never logged; without
+    # it, this server's own Claude login
+    oauth = ctx.job.get("claude_oauth")
+    if isinstance(oauth, str) and OAUTH_RE.fullmatch(oauth):
+        env["CLAUDE_CODE_OAUTH_TOKEN"] = oauth
+        ctx.masker.literals = sorted({*ctx.masker.literals, oauth}, key=len, reverse=True)
     env.update(
         {
             "HQ_RUNNER_CONFIG": str((ctx.cfg_path or config_path()).resolve()),

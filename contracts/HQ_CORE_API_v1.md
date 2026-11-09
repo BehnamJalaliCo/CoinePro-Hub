@@ -2707,6 +2707,12 @@ Agent tools (Tool Gateway, recorded like every tool call) create jobs and wait f
 | `server.read` / `server.write` | `read` / `write` | a file (≤ 20 MB); `write` keeps `<file>.hq-bak` |
 | `server.claude` | `claude` | runs the server's own Claude Code on a brief (`claude -p … --output-format stream-json`), in the repository folder named in `args.cwd`, under that repository's CLAUDE.md; events stream as `SessionEvent` into a `CodeSession` with `runtime: "company_server"`; owner messages resume it (`--resume`) |
 
+⟨2026-11-09⟩ **The account a `claude` job runs on (owner: the companies have no Claude subscription of their own).** When the hub holds the
+owner's second subscription (`kv/claude-runtime/oauth-2`, `make claude-token SLOT=2`), `GET /runners/jobs/next` gives a `claude` job one
+more top-level field, `claude_oauth` (that account's token). It is added at pickup only: never in the job's stored `args`, its events, the
+hub's logs or its database. A runner of 0.3.1 sets it as `CLAUDE_CODE_OAUTH_TOKEN` for that one Claude Code process (and masks it in every
+event); an older runner ignores it and runs on the server's own login. No other kind ever carries it.
+
 **Charter defaults:**
 - **Each company's CEO, CTO / Lead Developer, DevOps and SRE:** all tools on that company's servers.
 - **SEO, content and analysts:** `map`, `read` and `exec`.

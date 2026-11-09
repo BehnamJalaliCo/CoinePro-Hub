@@ -55,6 +55,7 @@ mkdir -p ~/.local/bin && ln -sf ~/.local/share/hq-runner/venv/bin/hq-runner ~/.l
 - بعد همان دستور نصب، با `--force`: `pipx install --force …`، یا در venv `pip install --no-deps --force-reinstall .`.
 - بعد `sudo systemctl restart hq-runner@$USER`.
 - جزئیات: `docs/server-prompts/COMPANY_SERVER_ACCESS_SETUP.md`، بخش «به‌روزرسانی runner».
+- **0.3.1:** اگر هاب همراه کار `claude` فیلد `claude_oauth` را بفرستد (اکانت دوم Claude مالک)، Claude Code آن کار با همین اکانت اجرا میشود: فقط در محیط همان پروسه، هرگز روی دیسک یا در رویدادها. بی آن، لاگین خود سرور.
 - **0.3.0:**
   - کار `ledger` و دستور `hq-runner ledger-check` (فایل‌ها، دسترسی ۶۰۰، `SELECT 1`، نقشی که نمیتواند بنویسد، ستون‌های پرس‌وجو و ۲۰ ردیف اول در برابر قرارداد؛ «ok» یا دلیل را چاپ میکند و هیچ رمز یا مقداری را نه).
   - در پرس‌وجو `:since` را این‌طور به کار ببرید: `WHERE (CAST(:since AS timestamptz) IS NULL OR paid_at > CAST(:since AS timestamptz))`.

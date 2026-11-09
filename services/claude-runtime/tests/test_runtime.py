@@ -177,6 +177,32 @@ async def test_timeout_and_missing_token(
     assert (await broken.run(spec())).error_class.startswith("sdk_")
 
 
+async def test_the_second_account_runs_on_its_own_token(tmp_path: Path, fake_cli: str) -> None:
+    """⟨2026-11-09⟩ the owner's second subscription: a call for account "2" runs on that token
+    (its own HOME, like every run); a slot without a token answers not_configured."""
+    import hashlib
+
+    os.environ["CLAUDE_AGENT_SDK_SKIP_VERSION_CHECK"] = "1"
+    accounts = {"2": "oauth-second-account"}
+    two = ClaudeRunner(
+        lambda: "oauth-main-account", tmp_path / "runs", cli_path=fake_cli, accounts=accounts.get
+    )
+    rec = tmp_path / "rec.json"
+    os.environ["FAKE_CLAUDE_RECORD"] = str(rec)
+    try:
+        assert (await two.run(spec(account="2"))).status == "ok"
+        second = json.loads(rec.read_text())["oauth_sha8"]
+        assert (await two.run(spec())).status == "ok"
+        main = json.loads(rec.read_text())["oauth_sha8"]
+    finally:
+        del os.environ["FAKE_CLAUDE_RECORD"]
+    sha8 = lambda t: hashlib.sha256(t.encode()).hexdigest()[:8]  # noqa: E731
+    assert (second, main) == (sha8("oauth-second-account"), sha8("oauth-main-account"))
+    assert (await two.run(spec(account="3"))).error_class == "not_configured"
+    alone = ClaudeRunner(lambda: "oauth-main-account", tmp_path / "r4", cli_path=fake_cli)
+    assert (await alone.run(spec(account="2"))).error_class == "not_configured"
+
+
 def test_quota_classifier_and_render() -> None:
     assert classify(Signals(rejected_resets_at=[None], text="limit|1800000000")).resets_at == 1.8e9
     assert classify(Signals(assistant_errors=["billing_error"])).status == "quota_exhausted"

@@ -365,3 +365,14 @@ async def test_litellm_backend_with_stubbed_completion() -> None:
         model_name(_conn(provider="mystery"), "m")
     no_secret = _conn(secret_ref=None)
     assert (await backend.run(_call(no_secret))).status == "error"
+
+
+def test_the_second_account_is_named_to_the_runtime() -> None:
+    """⟨2026-11-09⟩ the connection's secret path names the runtime's account slot; the main
+    subscription sends none (an older runtime keeps working)."""
+    from llm_router.backends.claude_runtime import account_of
+
+    assert account_of("kv/claude-runtime/oauth-2") == "2"
+    assert account_of("kv/claude-runtime/oauth") is None
+    assert account_of(None) is None
+    assert account_of("kv/llm-connections/anthropic-api") is None

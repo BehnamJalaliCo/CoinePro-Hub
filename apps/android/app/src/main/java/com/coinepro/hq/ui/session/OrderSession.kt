@@ -305,6 +305,13 @@ fun OrderSessionScreen(ref: String) {
         else -> activityFromReport(o)
     }
 
+    // ⟨0.19.4⟩ the owner's folds, on this phone: the head folded, the blockers he has read (told once, then gone)
+    val ui = rememberSessionUiPrefs()
+    var folded by remember { mutableStateOf(ui.headFolded) }
+    var readBlockers by remember(ref) { mutableStateOf(ui.readBlockers(ref)) }
+    var reading by remember(ref) { mutableStateOf(emptySet<String>()) }
+    val blockersShown = o?.blockers.orEmpty().filter { blockerKey(it) !in readBlockers || blockerKey(it) in reading }
+
     Column(Modifier.fillMaxSize().imePadding()) {
         when {
             o != null -> SessionHead(
@@ -312,6 +319,7 @@ fun OrderSessionScreen(ref: String) {
                 onDetails = { sheet = SessionSheet.DETAILS }, onClose = { sheet = SessionSheet.CLOSE },
                 onPace = { p -> setPace(p) }, onPlan = { sheet = SessionSheet.PLAN },
                 lastStepAt = shown?.last?.lastOrNull()?.at?.ifBlank { null } ?: shown?.idleSince,
+                folded = folded, onFold = { f -> folded = f; ui.headFolded = f },
             )
             q.error != null -> Box(Modifier.fillMaxWidth().padding(16.dp)) { ErrorBlock(q.error, { q.refresh() }) }
             else -> Skeleton(Modifier.fillMaxWidth().padding(16.dp).height(58.dp), radius = 12.dp)
@@ -367,7 +375,11 @@ fun OrderSessionScreen(ref: String) {
                 )
             }
             // ⟨0.19.0⟩ what blocks the work: one compact banner with its fix (several: «۲ گیر», opened to each).
-            if (o.blockers.isNotEmpty()) BlockersBanner(o.blockers, company, o.ref, o.route?.budgetTokens)
+            if (blockersShown.isNotEmpty()) BlockersBanner(
+                blockersShown, company, o.ref, o.route?.budgetTokens,
+                onRead = { keys -> reading = reading + keys; readBlockers = readBlockers + keys; ui.markRead(ref, keys) },
+                onClosed = { reading = emptySet() },
+            )
             if (turnOpen) Text(plain("جوابت به «${o.turn?.whoFa?.ifBlank { null } ?: addresseeFa(null, participants)}» میرود"), style = Divan.type.micro, color = c.goldInk, modifier = Modifier.padding(horizontal = 4.dp))
             else if (cv != null && participants.size > 1) AddresseeRow(participants, talk.addressee) { talk.addressee = it }
             // The paperclip once the session's talk is open (files go with a turn of it) and the hub takes them.
@@ -511,6 +523,9 @@ internal fun SessionHead(
     onPlan: () -> Unit = {},
     /** ⟨1.24⟩ SS-1: when the work last took a step (the live panel's last line, else the hub's idle time, else the report's update). */
     lastStepAt: String? = null,
+    /** ⟨0.19.4⟩ the owner: the title folds away; the status, «با من | خودکار» and «کار ۸ از ۱۲» stay (remembered on the phone). */
+    folded: Boolean = false,
+    onFold: (Boolean) -> Unit = {},
 ) {
     val c = Divan.colors
     val badge = sessionBadge(o)
@@ -522,16 +537,17 @@ internal fun SessionHead(
         if (!closed) com.coinepro.hq.designsystem.WorkBand(badge == "moving", c.silverInk, Modifier.fillMaxWidth().padding(end = 8.dp), height = 3.dp)
         // ⟨1.22⟩ §40.3 a session opened to adapt a playbook says so, small; a tap opens the playbook.
         o.session?.source?.takeIf { it.isNotBlank() }?.let { com.coinepro.hq.ui.playbook.SourceChip(it, Modifier.padding(top = 4.dp, end = 8.dp)) }
-        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (!folded) Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 plain(o.textFa.trim()), style = Divan.type.bodyStrong, color = c.textPrimary,
                 maxLines = if (open) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f).padding(top = 6.dp).smoothSize()
                     .clickable(role = Role.Button, onClickLabel = if (open) "کوتاه کن" else "همه‌ی متن فرمان") { open = !open },
             )
+            FoldButton(folded = false) { onFold(true) }
             HqButton("جزئیات", onDetails, variant = BtnVariant.GHOST, size = BtnSize.SM, icon = DivanIcon.MORE, label = "جزئیات جلسه")
         }
-        Row(Modifier.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.padding(end = if (folded) 0.dp else 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             BadgePill(badge)
             Text(
                 plain(line), style = Divan.type.caption, color = if (badge == "stuck") c.negative else c.textSecondary,
@@ -539,11 +555,26 @@ internal fun SessionHead(
             )
             if (badge == "ready" && !closed && sessionsOn) HqButton("تأیید و بستن", onClose, variant = BtnVariant.PRIMARY, size = BtnSize.SM, icon = DivanIcon.SEAL)
             else if (!closed && sessionsOn) PaceChip(pace, enabled = true, onPace = onPace)
+            // Folded: the title comes back with one tap; «جزئیات» stays at hand.
+            if (folded) {
+                FoldButton(folded = true) { onFold(false) }
+                IconBtn(DivanIcon.MORE, "جزئیات جلسه", onDetails, tint = c.textSecondary)
+            }
         }
         // ⟨1.24⟩ SS-1: «آخرین قدم ۷ دقیقه پیش» and the ring toward the hub's ten-minute sweep, while it is moving.
         if (!closed) StallWatch(badge, lastStepAt ?: o.updatedAt.ifBlank { null })
         plan?.let { p -> PlanProgressRow(p, taskInHand(o.tasks)?.titleFa, onPlan) }
     }
+}
+
+/** ⟨0.19.4⟩ Folds the head's title away (an up chevron) or brings it back (down). */
+@Composable
+private fun FoldButton(folded: Boolean, onClick: () -> Unit) {
+    val c = Divan.colors
+    Box(
+        Modifier.size(40.dp).clip(CircleShape).clickable(role = Role.Button, onClickLabel = if (folded) "نشان دادن عنوان" else "جمع کردن عنوان", onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { com.coinepro.hq.designsystem.Chevron(open = !folded, size = 16.dp, tint = c.textMuted) }
 }
 
 /** A closed session's foot, where the composer was: archived, when, and «باز کردن دوباره». */

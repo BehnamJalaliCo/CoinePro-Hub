@@ -71,3 +71,10 @@ path "kv/data/hq/n8n" {
 path "kv/data/hq/voice/*" {
   capabilities = ["create", "update"]
 }
+
+# ⟨2026-11-09⟩ the owner's second Claude subscription (make claude-token SLOT=2): read only,
+# handed with each Claude Code job a company server's runner picks up (contract §26), so no
+# company needs its own subscription; never stored on the server nor in the hub's database.
+path "kv/data/claude-runtime/oauth-2" {
+  capabilities = ["read"]
+}

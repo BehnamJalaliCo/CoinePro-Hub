@@ -314,8 +314,8 @@ hubops-test: ## The hub-ops dispatcher's allow-list and masking, with a fake api
 llm-provision: ## OpenBao: KV, policies, AppRoles, service tokens (idempotent)
 	@infra/openbao/provision.sh
 
-claude-token: ## OWNER: store the token from `claude setup-token` in OpenBao (hidden input)
-	@infra/openbao/claude-token.sh
+claude-token: ## OWNER: store the token from `claude setup-token` in OpenBao (hidden input); SLOT=2 for the second account
+	@infra/openbao/claude-token.sh "$(SLOT)"
 
 mcp-secret: ## OWNER: the secret of one MCP server, KEY=<server key> [FILE=<json key file>] (-> OpenBao)
 	@infra/openbao/mcp-secret.sh "$(KEY)" "$(FILE)"

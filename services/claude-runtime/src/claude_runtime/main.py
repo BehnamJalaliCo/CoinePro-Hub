@@ -3,6 +3,7 @@
 Secrets (OpenBao, read at start; `make claude-token` restarts the service):
     kv/claude-runtime/config  {"router_token_sha256", "metrics_token_sha256"}
     kv/claude-runtime/oauth   {"token"}  (CLAUDE_CODE_OAUTH_TOKEN; may be absent)
+    kv/claude-runtime/oauth-2 {"token"}  (⟨2026-11-09⟩ the owner's second account; may be absent)
 """
 
 from __future__ import annotations
@@ -97,6 +98,10 @@ class RunMessage(BaseModel):
         return Message(self.role, text, parts)
 
 
+# ⟨2026-11-09⟩ the owner's other subscription accounts, by slot (kv/claude-runtime/oauth-<slot>)
+EXTRA_ACCOUNTS = ("2",)
+
+
 class RunBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     call_id: str = Field(pattern=r"^[0-9a-f-]{36}$")
@@ -108,6 +113,8 @@ class RunBody(BaseModel):
     timeout_s: int = Field(ge=1, le=3600)
     # The call's hard output cap (prompt 5.1 §2.6), given to the CLI.
     max_output_tokens: int | None = Field(default=None, ge=1, le=1_000_000)
+    # ⟨2026-11-09⟩ which subscription: "2" the owner's second account; absent, the main one
+    account: str | None = Field(default=None, pattern=r"^[2-9]$")
 
     def spec(self) -> RunSpec:
         return RunSpec(
@@ -119,6 +126,7 @@ class RunBody(BaseModel):
             self.json_schema,
             self.timeout_s,
             self.max_output_tokens,
+            self.account,
         )
 
 
@@ -158,6 +166,8 @@ class State:
     router_token_sha256: str = ""
     metrics_token_sha256: str = ""
     oauth_token: str | None = field(default=None, repr=False)
+    # ⟨2026-11-09⟩ other accounts by slot ("2": kv/claude-runtime/oauth-2)
+    accounts: dict[str, str] = field(default_factory=dict, repr=False)
     runner: ClaudeRunner | None = None
     tasks: list[asyncio.Task[Any]] = field(default_factory=list)
 
@@ -262,6 +272,7 @@ def build_app(state: State) -> FastAPI:
         return {
             "version": __version__,
             "oauth_configured": bool(state.oauth_token),
+            "accounts": sorted(state.accounts),
             "active_runs": r.active,
         }
 
@@ -288,6 +299,15 @@ async def _start(state: State) -> None:
                 )
             except SecretNotFound:
                 state.oauth_token = None
+            for slot in EXTRA_ACCOUNTS:
+                try:
+                    tok = str((await bao.read_kv(f"claude-runtime/oauth-{slot}"))["token"])
+                except SecretNotFound:
+                    tok = ""
+                if tok:
+                    state.accounts[slot] = tok
+                else:
+                    state.accounts.pop(slot, None)
             break
         except Exception as exc:  # noqa: BLE001 - wait for OpenBao
             log.warning("waiting for openbao", extra={"error_type": type(exc).__name__})
@@ -299,9 +319,13 @@ async def _start(state: State) -> None:
         s.workdir_root,
         cli_path=s.cli_path,
         max_concurrency=s.max_concurrency,
+        accounts=state.accounts.get,
     )
     state.metrics.oauth.set(1 if state.oauth_token else 0)
-    log.info("runtime ready", extra={"oauth_configured": bool(state.oauth_token)})
+    log.info(
+        "runtime ready",
+        extra={"oauth_configured": bool(state.oauth_token), "accounts": sorted(state.accounts)},
+    )
 
 
 def create_app(settings: Settings | None = None) -> Any:
@@ -312,6 +336,11 @@ def create_app(settings: Settings | None = None) -> Any:
         return {
             "ok": state.runner is not None,
             "oauth": "configured" if state.oauth_token else "missing",
+            # ⟨2026-11-09⟩ `make claude-token SLOT=2` waits for "oauth_2": "configured"
+            **{
+                f"oauth_{slot}": "configured" if slot in state.accounts else "missing"
+                for slot in EXTRA_ACCOUNTS
+            },
         }
 
     @contextlib.asynccontextmanager

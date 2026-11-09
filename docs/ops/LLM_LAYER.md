@@ -100,6 +100,14 @@
   - P0 تا P3 **فقط** اگر `task_class` قابل انتقال باشد و یک اتصال جایگزین **روشن** باشد به آن میروند. در ledger، `meta.fallback_from` ثبت میشود.
   - در غیر این صورت خطای روشن `quota_exhausted` (`503` + `Retry-After`) برمیگردد.
   - **الان همه‌ی جایگزین‌ها خاموش‌اند.**
+- **اکانت دوم اشتراک (⟨2026-11-09⟩، تصمیم مالک):**
+  - اتصال `claude-max-2` از نوع `claude_subscription` است، با `secret_ref = kv/claude-runtime/oauth-2` (ذخیره با `make claude-token SLOT=2`).
+  - router در هر فراخوانی به claude-runtime فیلد `account: "2"` را میفرستد. runtime همان توکن را فقط به پروسه‌ی CLI آن اجرا میدهد، با HOME جدای هر اجرا؛ پس دو اکانت روی یک سرور با هم قاطی نمیشوند.
+  - **سوییچ خودکار:** وقتی اکانت اصلی به **۹۹٪** پنجره‌اش رسید (`utilization ≥ 0.99`)، یا رد شد (`rejected`)، یا breakerش برای سقف باز است، یا نگهبان سهمیه P3 و P4 را نگه میدارد، فراخوانی به اکانت دوم میرود.
+    - این سوییچ برای هر کار و هر اولویتی است، چون مدل‌ها و ارائه‌دهنده یکی‌اند. در ledger، `meta.fallback_from = claude-max` ثبت میشود.
+    - اکانت دوم فقط وقتی میگیرد که خودش زیر ۹۹٪ باشد. وقتی پنجره‌ی اکانت اصلی ریست شود، فراخوانی‌ها خودشان برمیگردند.
+  - **سرورهای شرکت‌ها:** api همین توکن را با هر کار `claude` به runner میدهد (قرارداد §۲۶.۲)، پس هیچ شرکتی اشتراک جدا لازم ندارد.
+  - تا توکن ذخیره نشده، `claude-max-2` خاموش (`disabled`) میماند و هیچ‌چیز عوض نمیشود.
 - **کلاس‌های قابل انتقال (seed):** `translate`، `summarize`، `classify`، `extract`، `draft`.
 - **هرگز منتقل نمیشوند:** `advisor`، `coding`، `decision`، `customer_message`، `ops_alert`، `general`.
 
@@ -157,6 +165,7 @@
 | `kv/llm-connections/<key>` | llm-router | `api_key` هر اتصال API (فعلاً خالی) |
 | `kv/claude-runtime/config` | claude-runtime | هش توکن router و هش توکن metrics |
 | `kv/claude-runtime/oauth` | claude-runtime | `token` = ‏`CLAUDE_CODE_OAUTH_TOKEN` (با `make claude-token`) |
+| `kv/claude-runtime/oauth-2` | claude-runtime، api (فقط خواندن) | `token` اکانت دوم (با `make claude-token SLOT=2`)؛ api آن را با کارهای `claude` به سرور شرکت‌ها میدهد |
 
 - **AppRole برای هر سرویس:**
   - token TTL یک ساعت و max چهار ساعت

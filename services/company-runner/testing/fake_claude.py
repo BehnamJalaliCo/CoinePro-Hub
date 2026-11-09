@@ -17,6 +17,7 @@ If FAKE_CLAUDE_RECORD is set, argv, cwd and the settings file go to that JSON fi
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -77,7 +78,18 @@ def main() -> int:
     record = os.environ.get("FAKE_CLAUDE_RECORD")
     if record:
         with open(record, "w") as fh:
-            json.dump({"argv": sys.argv[1:], "cwd": os.getcwd(), "settings": settings}, fh)
+            json.dump(
+                {
+                    "argv": sys.argv[1:],
+                    "cwd": os.getcwd(),
+                    "settings": settings,
+                    # which account ran it (a digest, never the token)
+                    "oauth_sha8": hashlib.sha256(
+                        os.environ.get("CLAUDE_CODE_OAUTH_TOKEN", "").encode()
+                    ).hexdigest()[:8],
+                },
+                fh,
+            )
     model = arg("--model") or "claude-sonnet-5-5"
     emit(
         {
