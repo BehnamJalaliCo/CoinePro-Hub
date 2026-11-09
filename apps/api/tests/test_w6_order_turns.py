@@ -249,6 +249,33 @@ async def test_an_ended_order_takes_no_reply(
     assert r.status_code == 404
 
 
+async def test_a_long_reply_is_taken_whole(
+    client: httpx.AsyncClient,
+    owner: dict[str, str],
+    no_model: list[Any],  # noqa: F811
+    new_company: Callable[..., Any],
+) -> None:
+    """⟨2026-11-09⟩ the owner's replies in F-0013 and F-0014 were over 2000 letters and got 422
+    («String should have at most 2000 characters»): a reply is as long as a talk turn, and its
+    step keeps all of it."""
+    co = (await new_company())["code"]
+    out = await post_order(client, owner, f"برای {co} گزارش فروش هفته را آماده کن {words()}")
+    long = "این کارگروه را یک اسکیل کن که در شرکت‌های دیگر هم به کار بیاید. " * 60 + "پایان"
+    assert 3000 < len(long) <= OT.OWNER_WORD_MAX
+    r = await client.post(
+        f"/api/v1/orders/{out['ref']}/reply", headers={**owner, **idem()}, json={"text": long}
+    )
+    assert r.status_code == 200, r.text
+    step = r.json()["steps"][-1]
+    assert step["who_fa"] == "مدیر کل" and step["what_fa"].endswith("پایان")
+    r = await client.post(
+        f"/api/v1/orders/{out['ref']}/reply",
+        headers={**owner, **idem()},
+        json={"text": "ب" * (OT.OWNER_WORD_MAX + 1)},
+    )
+    assert r.status_code == 422 and "text" in r.json()["fields"]
+
+
 @pytest.mark.parametrize("text", ["", "   "])
 async def test_an_empty_reply_is_refused(
     client: httpx.AsyncClient, owner: dict[str, str], text: str

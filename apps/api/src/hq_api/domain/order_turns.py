@@ -73,6 +73,9 @@ QUESTION_WORDS = (
     "کدوم", "چند", "چندتا", "مگه", "مگر", "یعنی",
 )  # fmt: skip
 OWNER_SAID = 3
+# ⟨2026-11-09⟩ the owner's word on an order is as long as a talk turn (TalkTurnIn.text): F-0013 and F-0014's
+# replies were longer than the old 2000 and the hub refused them (422 `text`)
+OWNER_WORD_MAX = 10000
 FIXED_PERSONAS = ("advisor", "overseer", "assistant")
 RESTARTED_FA = "فرمان با پاسخ مدیر کل دوباره راه افتاد"
 REVISION_FA = "کار تحویل‌شده با حرف تازه‌ی مدیر کل دوباره باز شد"
@@ -341,7 +344,7 @@ async def reply(tx: Tx, ref: str, text: str) -> dict[str, Any]:
     work goes back to `in_progress` with the word as its next step and the holder is woken; only an
     order with nothing delivered or open left answers 409."""
     # an empty word is refused first, whatever the order
-    words = " ".join(text.split())[:2000]
+    words = " ".join(text.split())[:OWNER_WORD_MAX]
     if len(words) < 1:
         raise ApiError(422, "validation_failed", fields={"text": "empty"},
                        message_fa="متن پاسخ خالی است.")  # fmt: skip
@@ -506,7 +509,7 @@ async def owner_word(tx: Tx, ref: str, text: str, *, work_mode: bool) -> dict[st
     if work_mode and not is_question(words):
         try:
             async with tx.conn.begin_nested():
-                got = await reply(tx, ref, words[:2000])
+                got = await reply(tx, ref, words[:OWNER_WORD_MAX])
             out.update(replied=True, woken=got["woken"])
             return out  # reply() read the plan already
         except ApiError:

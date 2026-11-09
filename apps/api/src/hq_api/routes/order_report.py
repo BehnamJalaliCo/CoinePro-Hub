@@ -78,7 +78,8 @@ async def order_report(ref: str, ctx: Ctx = Depends(owner_ctx)) -> OR.OrderRepor
 
 
 class ReplyIn(Model):
-    text: str = Field(min_length=1, max_length=2000)
+    # ⟨2026-11-09⟩ as long as a talk turn (the owner's long replies in F-0013 and F-0014 got 422)
+    text: str = Field(min_length=1, max_length=10000)
 
 
 class TalkOut(BaseModel):

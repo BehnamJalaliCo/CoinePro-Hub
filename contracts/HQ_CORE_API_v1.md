@@ -3811,6 +3811,8 @@ the owner reply. This section is the base of §35 (every order a session).
 - `POST /orders/{ref}/reply {text}` (owner, `Idempotency-Key`) → `OrderReport`: a step «مدیر کل: …», the turn cleared, and the asker's open
   work (else the holder's) runs again at once (`work.wake_assignee`, one queued run per work) with the dialogue in its brief
   (`order`: the order, its pace, the owner's open turn, the last 12 steps). An ended order: 409; an unknown one: 404.
+  ⟨2026-11-09⟩ `text` is 1 to 10000 letters, as long as a talk turn (`TalkTurnIn.text`), and the step keeps all of it (it was 2000:
+  the owner's long replies in F-0013 and F-0014 got `422`, `fields.text`).
 
 ### 34.4 Nothing technical to the owner
 - The weekly review's agenda: a card or a finding of a technical domain only when critical (§29.1); a risk only of category `product`,
