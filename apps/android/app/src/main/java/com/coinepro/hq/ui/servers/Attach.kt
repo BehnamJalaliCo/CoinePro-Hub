@@ -106,7 +106,9 @@ private fun PairForm(company0: String?, code0: String, error0: String?, onDone: 
     val act = activity()
     val ctx = LocalContext.current
     val c = Divan.colors
-    val companies = rememberCompanies().filter { it.kind != "holding" && it.status != "archived" }
+    // ⟨0.19.5⟩ the holding too: its servers are the workshop (contract §43, prompt 30); the hub
+    // accepts a holding pairing and the seal's target is `company:HQ` as for any company
+    val companies = rememberCompanies().filter { it.status != "archived" }
     val action = rememberAction()
     var company by rememberSaveable { mutableStateOf(company0) }
     var code by rememberSaveable { mutableStateOf(PairCode.format(code0)) }
