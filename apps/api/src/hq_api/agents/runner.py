@@ -299,6 +299,10 @@ class Runner:
                     refuse = await self._work_refusal(tx, run["work_id"])
                     if refuse is None and await OR.stopped(tx, run["work_id"]):
                         refuse = "talk_loop"  # ⟨21⟩ §29.2: its order talked without output
+                    if refuse is None and await OR.held_for_owner(tx, run):
+                        # ⟨2026-11-09⟩ «با من»: the order waits for the owner's answer; this run
+                        # comes back when he answers (OR.resume_held)
+                        refuse = "owner_turn"
             if refuse is None and await tx.scalar(
                 # a talk run (contract §32) reads beside the employee's work; it never makes it busy (0045)
                 "SELECT 1 FROM agents.runs WHERE employee_id = :e AND state = 'running' AND trigger <> 'talk'",
@@ -620,6 +624,18 @@ class Runner:
                     "refused",
                     "talk_loop",
                     "the order was stopped: too many runs without an output",
+                )
+            waiting = await self._owner_turn(rc)
+            if waiting is not None:
+                # ⟨2026-11-09⟩ «با من»: the session began to wait for the owner during this run.
+                # Whoever asked has finished its step; anyone else stops here and goes on once
+                # he answers (OR.resume_held).
+                if rc.emp["code"] in waiting["askers"]:
+                    break
+                return (
+                    "refused",
+                    "owner_turn",
+                    "the step-by-step order waits for the owner's answer",
                 )
             left = token_cap - rc.used_tokens
             if left < min(per_step, token_cap) // 4 or left <= 0:
@@ -1011,6 +1027,24 @@ class Runner:
             return est - fixed + round(fixed * W.CACHE_READ_SHARE)
         cached = min(rc.last_cache_read, est)
         return est - cached + round(cached * W.CACHE_READ_SHARE)
+
+    async def _owner_turn(self, rc: RunCtx) -> dict[str, Any] | None:
+        """⟨2026-11-09⟩ The run's step-by-step order began to wait for the owner after this run
+        started ({askers, since}); a question already open when it started (the owner's own word
+        started it) does not stop it."""
+        if rc.run.get("trigger") != "work" or rc.run["work_id"] is None:
+            return None
+        async with await self._tx() as tx:
+            waiting = await OR.owner_turn(tx, rc.run["work_id"])
+            started = await tx.scalar(
+                "SELECT started_at FROM agents.runs WHERE id = :id", id=rc.run["id"]
+            )
+        if waiting is None:
+            return None
+        since = waiting.get("since")
+        if since is not None and started is not None and since < started:
+            return None
+        return waiting
 
     async def _talk_stopped(self, rc: RunCtx) -> bool:
         if rc.run["work_id"] is None:

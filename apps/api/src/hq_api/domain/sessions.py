@@ -901,6 +901,8 @@ async def set_pace(tx: Tx, ref: str, pace: str) -> dict[str, Any]:
             )
             if rid is not None:
                 woken.append(str(w["ref"]))
+    if pace == "auto":  # ⟨2026-11-09⟩ nothing waits for the owner any more
+        await OR.resume_held(tx, ref)
     steps = [OR._step(OWNER_FA, PACE_FA[pace])]
     if not woken and any(w["is_root"] and w["status"] in OR.OPEN for w in works):
         # ⟨2026-11-08⟩ audit M11: never a silent NULL

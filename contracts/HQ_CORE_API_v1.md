@@ -3804,6 +3804,17 @@ the owner reply. This section is the base of §35 (every order a session).
   (`order.ask`) and finish the run; **auto** — record the plan, split or delegate, report real steps, deliver; never wait for the owner
   (only an outside commitment is a `propose`).
 
+- ⟨2026-11-09⟩ **A step order holds while it waits for the owner** (the owner: «دکمه با من رو زدم و شروع کرده برای خودش کار
+  رو جلو بردن»). While a `step` order's turn is open (§34.3, the session not ended), nothing of the order runs: a `work` run of any
+  of its works (the holder's or a colleague's it handed a part to) is refused at its claim with `owner_turn`, and a run already
+  under way stops before its next step (the asker itself ends `done`; anyone else `refused`, `owner_turn`). A run the owner's own
+  word started (`owner_reply:`, `nudge:`, `pace:`, `owner_turn_over:`, `session_reopened:`) and a `talk` run are never held.
+  The held runs come back (reason `owner_turn_over:<ref>`) the moment he answers (`reply`), says «ادامه بده» (`nudge`, which now
+  clears the open question too) or makes the order `auto`; the requeue sweep is the net. The activity line of a held run reads
+  «منتظر جواب شما ماند؛ با جواب شما ادامه میدهد.»; its comeback «شما جواب دادید؛ کارش را ادامه میدهد». An `auto` order is
+  never held. The holder's plan instruction says it: in a step order a part handed to a colleague is waited for (its output wakes
+  the holder) before the step is reported and the owner asked.
+
 ### 34.2 The order's live talk
 - `POST /orders/{ref}/talk` (owner) → `{conversation_ref}`: the order's conversation (§32), made once: work mode, the persona of the order's
   holder (`role@CODE` in an operating company; the holding's fixed persona of its role; else the secretary), its first turn the holder's

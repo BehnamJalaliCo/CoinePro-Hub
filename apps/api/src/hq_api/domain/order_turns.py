@@ -62,7 +62,10 @@ PLAN_INSTRUCTION = (
     "when the media team delivers the «بسته‌ی ساخت ویدیو» (script, shot list, on-screen text, "
     "voice text, caption, hashtags, cover prompt) for the owner to shoot. Publishing, after the "
     "owner approves, goes on through IG-Hub. Instagram, for every company, is read and published "
-    "through IG-Hub: never an owner's step for it."
+    "through IG-Hub: never an owner's step for it. ⟨2026-11-09⟩ In a STEP-BY-STEP order («با من»): "
+    "a step you hand to a colleague is done only when its output came back, so hand it over and "
+    "finish the run without asking (its output wakes you), then report the whole step and ask; "
+    "while the owner has not answered, nothing of this order runs, yours or a colleague's."
 )
 # ⟨1.23⟩ §41.2 an item of the owner's numbered list: Persian, Arabic-Indic or Latin digits, then
 # «-», «.», «)», «:» or «،»
@@ -414,6 +417,8 @@ async def reply(tx: Tx, ref: str, text: str) -> dict[str, Any]:
             why = await _why_not_woken(tx, t)
     if not woken and why:
         steps.append(OR._step("سامانه", f"جواب رسید ولی {why}"))
+    # ⟨2026-11-09⟩ «با من»: what waited for this answer (a colleague's part) goes on too
+    await OR.resume_held(tx, ref)
     await OR._append_steps(tx, rep["id"], steps)
     await plan_from_owner(tx, ref, words)  # ⟨1.23⟩ §41.2 a numbered list is the plan
     return {

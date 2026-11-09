@@ -88,6 +88,7 @@ START_WHY_FA: tuple[tuple[str, str], ...] = (
     ("uncapped:", "سقف مصرف برداشته شد؛ ادامه میدهد"),
     # ⟨2026-11-09⟩ §43 the workshop
     ("workshop_done:", "کارگاه کارش را تحویل داد؛ نگاهش میکند"),
+    ("owner_turn_over:", "شما جواب دادید؛ کارش را ادامه میدهد"),
     ("workspace_failed:", "کار کارگاه به نتیجه نرسید؛ دلیلش را میگوید"),
 )
 STOPPED_FA = "کار متوقف شد: {why}"
@@ -103,6 +104,8 @@ END_WHY_FA: dict[str, str] = {
     "company_locked": "کلید توقف شرکت روشن بود.",
     "no_reply": "جوابی نوشته نشد.",
     "player_call": "کار را به بازیکن بیرونی داد.",
+    # ⟨2026-11-09⟩ «با من»: the session waits for the owner's answer
+    "owner_turn": "منتظر جواب شما ماند؛ با جواب شما ادامه میدهد.",
 }
 SKIP_END = ("work_closed", "meeting_gone")
 # (with a hint, without one): the tools of a step in words; «…» never a tool key, a ref or a code.

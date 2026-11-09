@@ -33,6 +33,7 @@ from hq_api.domain import (
     scoring,
 )
 from hq_api.domain import decisions as D
+from hq_api.domain import order_report as OR
 from hq_api.domain import work as W
 from hq_api.errors import ApiError
 from hq_api.hub import Hub
@@ -957,7 +958,16 @@ class Activities:
             )
             for r in rows:
                 capped = r["error_code"] == "daily_cap" and r["state"] in ("refused", "failed")
-                if not capped and (r["state"] != "refused" or r["error_code"] != "locked"):
+                # ⟨2026-11-09⟩ «با من»: a run held for the owner's answer comes back once he answered
+                # (OR.resume_held wakes it at once; this is the net), never while he still has not
+                held = r["state"] == "refused" and r["error_code"] == "owner_turn"
+                if held and await OR.owner_turn(tx, r["work_id"]) is not None:
+                    continue
+                if (
+                    not capped
+                    and not held
+                    and (r["state"] != "refused" or r["error_code"] != "locked")
+                ):
                     continue  # a run the day's cap stopped mid-way (failed) comes back too
                 if r["error_code"] == "daily_cap" and await runner.day_cap_reached(
                     tx, r["company_id"]

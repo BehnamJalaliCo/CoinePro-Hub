@@ -33,6 +33,7 @@ Every text the owner reads passes humanize (§29.7).
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -1228,7 +1229,7 @@ async def timers(tx: Tx, s: Any, ref: str) -> list[str]:
 # at the last step of the story (any progress).
 WAKE_REASONS = (
     "session_idle:%", "owner_reply:%", "child_delivered:%", "child_failed:%", "joined:%",
-    "nudge:%", "uncapped:%", "resume:%", "pace:%", "session_reopened:%",
+    "nudge:%", "uncapped:%", "resume:%", "pace:%", "session_reopened:%", "owner_turn_over:%",
 )  # fmt: skip
 PRODUCTIVE_TOOLS = (
     "order.progress", "order.ack", "deliver", "work.delegate", "work.request", "work.split",
@@ -1362,6 +1363,75 @@ async def order_of_work(tx: Tx, work_id: UUID) -> str | None:
         w=str(work_id),
     )
     return ref
+
+
+# ⟨2026-11-09⟩ «با من» (the owner: «دکمه با من رو زدم و شروع کرده برای خودش کار رو جلو بردن»): while
+# a step-by-step order waits for the owner's answer, nothing of it runs — not its holder, not a
+# colleague it handed a part to. A run the owner's own word started is never held.
+OWNER_WORD_REASONS = ("owner_reply:", "nudge:", "pace:", "owner_turn_over:", "session_reopened:")
+OWNER_TURN_REASON = "owner_turn_over:"
+
+
+async def owner_turn(tx: Tx, work_id: UUID | None) -> dict[str, Any] | None:
+    """`{askers: {codes}, since: datetime}` (the latest ask) when the work's order is step by step
+    («با من») and waits for the owner's answer (`turn` set, the session not ended); else None."""
+    if work_id is None:
+        return None
+    ref = await order_of_work(tx, work_id)
+    if ref is None:
+        return None
+    row = await tx.first(
+        """SELECT r.turn FROM owner.order_reports r JOIN owner.orders o ON o.id = r.order_id
+           WHERE r.ref = :r AND r.turn IS NOT NULL AND r.ended_at IS NULL AND o.pace = 'step'""",
+        r=ref,
+    )
+    if row is None:
+        return None
+    turn = _j(row["turn"]) or {}
+    asks = [a for a in turn.get("asks") or [turn] if isinstance(a, dict)]
+    since = None
+    for a in asks:
+        with contextlib.suppress(TypeError, ValueError):
+            at = datetime.fromisoformat(str(a.get("at")))
+            since = at if since is None or at > since else since
+    return {
+        "askers": {
+            str((a.get("by") or {}).get("code")) for a in asks if (a.get("by") or {}).get("code")
+        },
+        "since": since,
+    }
+
+
+async def held_for_owner(tx: Tx, run: dict[str, Any]) -> bool:
+    """Whether a work run waits for the owner's answer (claim): a `work` run of a step-by-step
+    order that waits for the owner, unless the owner's own word started it."""
+    if run.get("trigger") != "work" or run.get("work_id") is None:
+        return False
+    if str(run.get("reason") or "").startswith(OWNER_WORD_REASONS):
+        return False
+    return await owner_turn(tx, run["work_id"]) is not None
+
+
+async def resume_held(tx: Tx, ref: str) -> list[str]:
+    """The order's open works whose last run was held for the owner's answer run again (the
+    owner answered, said «ادامه بده», or made the order «خودکار»). Answers the refs woken."""
+    rows = await tx.all(
+        """SELECT DISTINCT ON (w.id) w.id, w.ref, r.state, r.error_code
+           FROM work.work w JOIN agents.runs r ON r.work_id = w.id
+           WHERE w.ref = ANY(CAST(:refs AS text[])) AND w.status IN ('queued', 'in_progress', 'waiting')
+             AND r.trigger = 'work'
+           ORDER BY w.id, r.queued_at DESC""",
+        refs=[str(w["ref"]) for w in await tree(tx, root_refs(await load_order(tx, ref) or {}))],
+    )
+    woken: list[str] = []
+    for r in rows:
+        if r["state"] != "refused" or r["error_code"] != "owner_turn":
+            continue
+        if await tx.scalar(
+            "SELECT work.wake_assignee(:w, :r)", w=r["id"], r=f"{OWNER_TURN_REASON}{ref}"
+        ):
+            woken.append(str(r["ref"]))
+    return woken
 
 
 async def stopped(tx: Tx, work_id: UUID | None) -> bool:
