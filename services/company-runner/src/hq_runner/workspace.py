@@ -115,7 +115,8 @@ def mark_sent(ref: str, name: str, digest: str, cfg_path: Path | None = None) ->
     """⟨0.3.2⟩ One file of `out/` sent (its name and its bytes' sha256)."""
     state = load(cfg_path)
     entry = state.setdefault(check_ref(ref), {"created_at": None, "closed_at": None})
-    sent = entry.get("sent") if isinstance(entry.get("sent"), dict) else {}
+    prev = entry.get("sent")
+    sent: dict[str, Any] = dict(prev) if isinstance(prev, dict) else {}
     sent[name] = digest
     entry["sent"] = sent
     save(state, cfg_path)
