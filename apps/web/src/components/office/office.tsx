@@ -24,7 +24,8 @@ import { errText, field } from '@/components/v31/kit';
 import { ApiError, type Schemas } from '@/lib/api/client';
 import { useDecide, usePresence } from '@/lib/api/hooks';
 import { sendOrder29 } from '@/lib/api/v29';
-import { bySessionOrder, type Office, type OfficeMoney } from '@/lib/api/v34';
+import { bySessionOrder, type Office, type OfficeMoney, type Pace } from '@/lib/api/v34';
+import { PaceAsk } from '@/components/session/pace-ask';
 import { stepUp } from '@/lib/auth';
 import { sealTarget } from '@/lib/api/v19';
 import { DECISION_KIND, RISK } from '@/lib/labels';
@@ -61,13 +62,15 @@ export function CommandBar() {
   const voice = useVoiceOrder();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
+  // ⟨2026-11-09⟩ «با من یا خودکار؟» is asked before the session opens; nothing is chosen for the owner
+  const [pace, setPace] = useState<Pace | null>(null);
   const go = async () => {
     const t = text.trim();
-    if (t.length < 3) return;
+    if (t.length < 3 || !pace) return;
     setBusy(true);
     try {
-      const o = await sendOrder29({ text: t, source: 'text' });
-      setText('');
+      const o = await sendOrder29({ text: t, source: 'text', pace });
+      setText(''); setPace(null);
       for (const k of ['orders', 'office', 'home', 'work', 'planner']) void qc.invalidateQueries({ queryKey: [k] });
       toast({ tone: 'ok', text: 'فرمان رسید؛ جلسه‌اش باز شد.' });
       router.push(`/s/${encodeURIComponent(o.ref)}`);
@@ -83,8 +86,9 @@ export function CommandBar() {
         <input value={text} onChange={(e) => setText(e.target.value)} dir="auto" aria-label="فرمان تازه" placeholder="هر چه میخواهی بگو؛ برایش یک جلسه باز میشود…" autoComplete="off"
           className={cx(field, 'h-12 min-w-0 flex-[1_1_18rem] text-[15px]')} />
         <Button type="button" variant="secondary" icon="mic" onClick={() => voice({ text: text.trim() || undefined })} aria-label="فرمان صوتی">صوتی</Button>
-        <Button type="submit" variant="primary" icon="send" disabled={text.trim().length < 3} loading={busy}>بفرست</Button>
+        <Button type="submit" variant="primary" icon="send" disabled={text.trim().length < 3 || !pace} loading={busy}>بفرست</Button>
       </form>
+      {text.trim().length >= 3 ? <PaceAsk pace={pace} onChange={setPace} /> : null}
     </Card>
   );
 }

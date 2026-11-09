@@ -213,8 +213,11 @@ fun OrderSessionScreen(ref: String) {
                 talk.reload()
                 true
             } catch (e: ApiException) {
-                toasts.error(e.messageFa)
-                false
+                // ⟨2026-11-09⟩ F-0013: the hub refused the word (422) and it was lost. With the session's talk open the words go there
+                // as the owner's turn (the hub carries a working session's word to its holder from the talk too); the refusal stays in
+                // the error log with the field the hub named.
+                if (e.status == 422 && talk.conv != null) null
+                else { toasts.error(e.messageFa); false }
             }
         } else null
     }

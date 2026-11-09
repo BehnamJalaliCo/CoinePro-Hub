@@ -23,6 +23,8 @@ import { LONG_VOICE_ERROR, useLongVoice } from '@/lib/long-voice';
 import { clock } from '@/lib/recorder';
 import { applyPlayer, optionOf, optionOfWork, recogniseOption, type PlayerOption } from '@/lib/players';
 import { PlayerPicker } from '@/components/work/player';
+import { PaceAsk } from '@/components/session/pace-ask';
+import type { Pace } from '@/lib/api/v34';
 import { FaText } from '@/components/v29/text';
 import { RouteLine } from '@/components/v29/report';
 import { ago, cx } from '@/lib/format';
@@ -178,6 +180,8 @@ export function VoiceOrder({ open, onOpenChange, initial }: { open: boolean; onO
   // ⟨1.9⟩ §27.1: «با جمنای / با جی‌پی‌تی / شورا» in the words picks the player; the owner sees what was heard and can change it.
   const heard = useMemo(() => recogniseOption(text), [text]);
   const [chosen, setChosen] = useState<PlayerOption | null>(null);
+  // ⟨2026-11-09⟩ «با من یا خودکار؟» before the order goes (every order is a session); nothing is chosen for the owner
+  const [pace, setPace] = useState<Pace | null>(null);
   const source = voice ? 'voice' : 'text';
   const sec = useSecretary(text, source, open && mode === 'order' && phase === 'review');
   const preview = sec.data;
@@ -189,7 +193,7 @@ export function VoiceOrder({ open, onOpenChange, initial }: { open: boolean; onO
   });
   const listening = lv.phase === 'listening' || lv.phase === 'asking';
 
-  const reset = () => { setPhase('ready'); setText(''); setVoice(null); setOut(null); setRule(null); setChosen(null); setEdits({}); };
+  const reset = () => { setPhase('ready'); setText(''); setVoice(null); setOut(null); setRule(null); setChosen(null); setPace(null); setEdits({}); };
   const close = (x: boolean) => { if (!x) { lv.cancel(); reset(); } onOpenChange(x); };
   const name = (code: string) => companies?.find((c) => c.code === code)?.name_fa ?? code;
 
@@ -201,7 +205,7 @@ export function VoiceOrder({ open, onOpenChange, initial }: { open: boolean; onO
         collaborators: edits.collaborators ?? preview.collaborators, output_kind: edits.output_kind ?? preview.output_kind,
         count: edits.count !== undefined ? edits.count : preview.count, budget_tokens: preview.budget_tokens, mode: option.mode, player: option.player,
       } : null;
-      const o = await sendOrder29({ text: text.trim(), source, route });
+      const o = await sendOrder29({ text: text.trim(), source, route, pace });
       // A hub without the secretary read the words itself; where the owner chose otherwise, the works it made follow the owner's choice.
       if (!route) {
         const changed = await applyPlayer(o as OrderOut, option);
@@ -230,7 +234,7 @@ export function VoiceOrder({ open, onOpenChange, initial }: { open: boolean; onO
   const footer = phase === 'review'
     ? mode === 'rule'
       ? <Button variant="primary" icon="seal" className="w-full" disabled={text.trim().length < 3} loading={ruleAct.create.isPending} onClick={sendRule}>بفرست به‌عنوان قانون</Button>
-      : <Button variant="primary" icon="send" className="w-full" disabled={text.trim().length < 3} loading={busy} onClick={sendOrder}>بفرست</Button>
+      : <Button variant="primary" icon="send" className="w-full" disabled={text.trim().length < 3 || !pace} loading={busy} onClick={sendOrder}>بفرست</Button>
     : phase === 'sent'
       ? <Button variant="secondary" icon="mic" className="w-full" onClick={reset}>{mode === 'rule' ? 'قانون بعدی' : 'فرمان بعدی'}</Button>
       : undefined;
@@ -295,6 +299,7 @@ export function VoiceOrder({ open, onOpenChange, initial }: { open: boolean; onO
             {mode === 'order' ? (
               <>
                 <PlayerPicker value={option} onChange={setChosen} heard={heard} />
+                {text.trim().length >= 3 ? <PaceAsk pace={pace} onChange={setPace} /> : null}
                 <SecretaryLine preview={preview} loading={sec.isFetching} edits={edits} onEdits={setEdits} option={option} />
               </>
             ) : null}

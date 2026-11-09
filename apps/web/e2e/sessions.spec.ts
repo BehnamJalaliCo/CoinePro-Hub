@@ -35,6 +35,8 @@ test('a word in the command bar becomes an order and opens its session', async (
   await clean(page, async () => {
     await page.goto('/');
     await page.getByLabel('فرمان تازه', { exact: true }).fill('برای پرو-چارت یک پست درباره‌ی هشدار قیمت بنویس');
+    // ⟨2026-11-09⟩ «با من یا خودکار؟» first
+    await page.getByRole('radiogroup', { name: 'این جلسه چطور جلو برود؟' }).getByRole('radio', { name: 'خودکار' }).click();
     await page.getByRole('button', { name: 'بفرست' }).first().click();
     await expect(page).toHaveURL(/\/s\/F-\d+$/);
     await expect(page.getByRole('heading', { level: 1 })).toContainText('هشدار قیمت');

@@ -76,6 +76,7 @@ import com.coinepro.hq.ui.rememberQuery
 import com.coinepro.hq.core.net.HubFeature
 import com.coinepro.hq.core.net.OrderRoute29
 import com.coinepro.hq.core.net.OwnerRule
+import com.coinepro.hq.core.net.orderWithPace
 import com.coinepro.hq.designsystem.SegOption
 import com.coinepro.hq.designsystem.Segmented
 import com.coinepro.hq.ui.v29.Listening
@@ -176,6 +177,8 @@ fun VoiceOrderBody(
     // ⟨1.9⟩ §27.1: who plays it. Read from the words until the owner picks a chip; the owner's pick stays.
     var player by rememberSaveable { mutableStateOf("auto") }
     var picked by rememberSaveable { mutableStateOf(false) }
+    // ⟨2026-11-09⟩ «با من یا خودکار؟» before the order goes (every order is a session); nothing is chosen for the owner
+    var pace by rememberSaveable { mutableStateOf<String?>(null) }
     var editing by remember { mutableStateOf(false) }
     val heard = remember(text) { recogniseOption(text) }
     LaunchedEffect(heard) { if (!picked) player = heard?.option?.key ?: "auto" }
@@ -272,12 +275,14 @@ fun VoiceOrderBody(
             ) else {
                 PreviewLine(preview, onEdit = { editing = true })
                 PlayerPicker(option, { picked = true; player = it.key }, Modifier.fillMaxWidth(), heard = heard)
+                if (text.trim().length >= 3) com.coinepro.hq.ui.session.PaceAsk(pace, { pace = it })
                 HqButton(
                     "بفرست", {
+                        val chosen = pace ?: return@HqButton
                         action.run {
                             // §29.4: the secretary's route (the owner's edit kept; his player chip wins) is followed exactly.
                             val route = preview.route?.let { r -> if (picked) r.copy(player = option.player, mode = option.mode) else r }
-                            out = env.api.order(text.trim(), source, voice?.fileId, route)
+                            out = env.api.orderWithPace(text.trim(), source, voice?.fileId, route, chosen)
                             // ⟨1.9⟩ §27.1: the hub reads the player from the words; the owner's own choice is set on the works it made.
                             out?.let { env.api.applyPlayer(it, option) }
                             sentWith = option
@@ -287,7 +292,7 @@ fun VoiceOrderBody(
                             if (sessionsOn) out?.let { o -> go("session/${o.ref}") }
                         }
                     },
-                    Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.SEND, enabled = text.trim().length >= 3 && !v.active, loading = action.busy,
+                    Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.SEND, enabled = text.trim().length >= 3 && !v.active && pace != null, loading = action.busy,
                 )
             }
         }
@@ -308,7 +313,7 @@ fun VoiceOrderBody(
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) { for (r in o.routes) RouteChip(r, go) }
                 if (served(HubFeature.ORDER_REPORT)) HqButton("جلسه‌ی فرمان", { go("session/${o.ref}") }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.MEETING)
             }
-            HqButton("فرمان بعدی", { phase = "ready"; text = ""; voice = null; out = null; picked = false; preview.route = null; preview.edited = false; vh.start() }, Modifier.fillMaxWidth(), icon = DivanIcon.MIC)
+            HqButton("فرمان بعدی", { phase = "ready"; text = ""; voice = null; out = null; picked = false; pace = null; preview.route = null; preview.edited = false; vh.start() }, Modifier.fillMaxWidth(), icon = DivanIcon.MIC)
         }
     }
     if (!rule) {

@@ -183,7 +183,8 @@ class TalkSession(private val env: Env, private val scope: CoroutineScope, priva
     var addressee by mutableStateOf<String?>(null)
 
     /** ⟨1.16⟩ §34.3 an order's session with the owner's turn open (or no talk yet): his words go to the order's reply instead. */
-    var interceptor: (suspend (text: String, source: String) -> Boolean)? = null
+    /** Takes the owner's words first: true sent, false not (the draft stays), null not taken (they go as an ordinary turn). */
+    var interceptor: (suspend (text: String, source: String) -> Boolean?)? = null
 
     /** Sends a turn of the owner and follows the answer; false when it could not go (the draft stays with the caller).
      *
@@ -196,12 +197,12 @@ class TalkSession(private val env: Env, private val scope: CoroutineScope, priva
         val sent = files.filter { it.id.isNotBlank() }
         if (body.isEmpty() && sent.isEmpty()) return false
         val reply = interceptor
-        if (sent.isEmpty()) reply?.let { return it(body, source) }
+        if (sent.isEmpty()) reply?.let { r -> r(body, source)?.let { return it } }
         if (sent.isNotEmpty() && reply != null) {
             if (conv == null) { toasts.error("گفتگوی این جلسه هنوز باز نشده؛ فایل را کمی بعد بفرست."); return false }
             if (!turn(FILES_ONLY_TEXT, source, sent)) return false
             onFilesSent()
-            return body.isEmpty() || reply(body, source)
+            return body.isEmpty() || (reply(body, source) ?: turn(body, source, emptyList()))
         }
         val ok = turn(body.ifEmpty { FILES_ONLY_TEXT }, source, sent)
         if (ok && sent.isNotEmpty()) onFilesSent()

@@ -250,14 +250,14 @@ function personOf(key: string): Participant | null {
   return null;
 }
 
-function open(order: { ref: string; text: string; company?: string }): S {
+function open(order: { ref: string; text: string; company?: string; pace?: 'auto' | 'step' }): S {
   const company = order.company ?? 'TY';
   const conv = sessionConversation(`ceo@${company}`, order.text.slice(0, 80), order.ref, [
     ['owner', order.text],
     [`ceo@${company}`, `سلام مدیر کل. فرمانت را گرفتم و کار را شروع میکنم. هر وقت خواستی همین‌جا بگو چه بکنم یا چه را عوض کنم.`],
   ], NOW());
   const s: S = {
-    ref: order.ref, conv: conv.ref, pace: /مرحله به مرحله|قدم به قدم|گام به گام|با فرمان من/.test(order.text) ? 'step' : 'auto', hidden: false, opened_at: NOW(), closed_at: null, verdict: null,
+    ref: order.ref, conv: conv.ref, pace: order.pace ?? (/مرحله به مرحله|قدم به قدم|گام به گام|با فرمان من/.test(order.text) ? 'step' : 'auto'), hidden: false, opened_at: NOW(), closed_at: null, verdict: null,
     participants: [holderP(`مدیرعامل ${NAME[company] ?? company}`, company, `ceo@${company}`)], tasks: [], turn: null,
     holder: { code: `${company}-CEO`, title_fa: 'مدیرعامل', company, company_fa: NAME[company] ?? company }, persona: `ceo@${company}`, text_fa: order.text.slice(0, 80), last_at: NOW(),
   };
@@ -341,7 +341,7 @@ export async function handle34(req: Request, p: string, q: URLSearchParams, next
     const res = await next(req);
     if (!res.ok) return res;
     const out = (await res.clone().json()) as any;
-    const s = sessions.get(out.ref) ?? open({ ref: out.ref, text: String(b.text ?? ''), company: out.routes?.[0]?.company });
+    const s = sessions.get(out.ref) ?? open({ ref: out.ref, text: String(b.text ?? ''), company: out.routes?.[0]?.company, pace: b.pace === 'step' || b.pace === 'auto' ? b.pace : undefined });
     return json({ ...out, talk_ref: s.conv, pace: s.pace }, 201);
   }
   const sg = /^\/home\/suggestions\/([^/]+)$/.exec(p);

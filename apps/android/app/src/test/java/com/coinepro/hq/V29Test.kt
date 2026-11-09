@@ -16,6 +16,8 @@ import com.coinepro.hq.core.data.numberText
 import com.coinepro.hq.core.data.orderEnded
 import com.coinepro.hq.core.data.routeLineFa
 import com.coinepro.hq.core.net.Api
+import com.coinepro.hq.core.net.orderWithPace
+import com.coinepro.hq.core.net.problemFields
 import com.coinepro.hq.core.net.Council
 import com.coinepro.hq.core.net.DayValue
 import com.coinepro.hq.core.net.Fix
@@ -265,6 +267,42 @@ class V29Test {
         server.enqueue(json("""{"ref":"F-0046","summary_fa":"رفت","routes":[]}""", 201))
         api.order("x", "text", null)
         assertNull(Api.json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject["route"])
+    }
+
+    @Test
+    fun theOwnersPaceGoesWithTheNewSessionAndAnOlderHubGetsItRightAfter() = runTest {
+        // ⟨2026-11-09⟩ the owner: «با من یا خودکار؟» is asked when the session is made, and the answer travels with the order.
+        server.enqueue(json("""{"ref":"F-0047","summary_fa":"رفت","routes":[],"pace":"step"}""", 201))
+        val o = api.orderWithPace("کارگروه محتوا از اول تا آخر", "text", null, null, "step")
+        var body = Api.json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject
+        assertEquals("step", (body["pace"] as JsonPrimitive).content)
+        assertEquals("step", o.pace)
+        // A hub before it refuses the field: the order goes without it and the pace is set on the session at once.
+        server.enqueue(json("""{"type":"x","title":"Validation failed","status":422,"code":"validation_failed","message_fa":"اطلاعات ارسال‌شده درست نیست.","fields":{"pace":"Extra inputs are not permitted"}}""", 422))
+        server.enqueue(json("""{"ref":"F-0048","summary_fa":"رفت","routes":[],"pace":"auto"}""", 201))
+        server.enqueue(json("""{"ref":"F-0048","state":"running","pace":"step"}"""))
+        val old = api.orderWithPace("کارگروه محتوا", "text", null, null, "step")
+        server.takeRequest()
+        body = Api.json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject
+        assertNull(body["pace"])
+        val set = server.takeRequest()
+        assertEquals("/api/v1/orders/F-0048/pace", set.url.encodedPath)
+        assertEquals("""{"pace":"step"}""", set.body!!.utf8())
+        assertEquals("step", old.pace)
+        // Learnt once: the next order goes without the field at first.
+        server.enqueue(json("""{"ref":"F-0049","summary_fa":"رفت","routes":[],"pace":"auto"}""", 201))
+        api.orderWithPace("x", "text", null, null, "auto")
+        assertNull(Api.json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject["pace"])
+    }
+
+    @Test
+    fun aRefusalKeepsTheFieldsTheHubNamedForTheErrorLog() {
+        // ⟨2026-11-09⟩ F-0013's refused reply read only «اطلاعات ارسال‌شده درست نیست» in the log: the fields now go with it.
+        val fields = Api.json.parseToJsonElement(
+            """{"text":"String should have at most 2000 characters","Idempotency-Key":"required","items":[{"ref":"D-1"}]}""",
+        ).jsonObject
+        assertEquals("text: String should have at most 2000 characters; Idempotency-Key: required", problemFields(fields))
+        assertNull(problemFields(null))
     }
 
     @Test

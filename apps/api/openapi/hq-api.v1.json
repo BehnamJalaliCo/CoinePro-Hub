@@ -59305,6 +59305,21 @@
             ],
             "title": "File Id"
           },
+          "pace": {
+            "anyOf": [
+              {
+                "enum": [
+                  "auto",
+                  "step"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pace"
+          },
           "route": {
             "anyOf": [
               {
@@ -110931,6 +110946,7 @@
               "example": {
                 "company": "TY",
                 "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                "pace": "auto",
                 "route": {
                   "budget_tokens": 10000,
                   "collaborators": [

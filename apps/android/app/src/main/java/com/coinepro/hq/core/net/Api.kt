@@ -109,6 +109,11 @@ interface FailureSink {
     fun forget(id: Long)
 }
 
+/** A Problem's `fields` as the log keeps them: «name: the hub's reason» for each, the batch `items` list left out. */
+fun problemFields(fields: Map<String, JsonElement>?): String? = fields.orEmpty().filterKeys { it != "items" }.entries
+    .joinToString("; ") { (k, v) -> "$k: " + ((v as? JsonPrimitive)?.takeIf { it.isString }?.content ?: v.toString()).take(120) }
+    .ifBlank { null }
+
 /** A decoder's complaint as the log keeps it: the JSON path and the sentence, never the JSON input the message quotes. */
 @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
 fun decodeFailure(method: String, path: String, status: Int?, e: Throwable, requestId: String? = null): ApiFailure {
@@ -454,11 +459,13 @@ class Api(
     }
 
     // ------------------------------------------------ voice orders ⟨1.3⟩ --
-    /** ⟨1.11⟩ §29.4 with [route] (the secretary's preview, maybe edited by the owner) the hub follows it exactly; without, it decides. */
-    suspend fun order(text: String, source: String, fileId: String?, route: OrderRoute29? = null): Order =
+    /** ⟨1.11⟩ §29.4 with [route] (the secretary's preview, maybe edited by the owner) the hub follows it exactly; without, it decides.
+     *  ⟨2026-11-09⟩ [pace] is the owner's answer to «با من یا خودکار؟» when he makes the session; it wins over his words (§34.1). */
+    suspend fun order(text: String, source: String, fileId: String?, route: OrderRoute29? = null, pace: String? = null): Order =
         post("/orders", buildJsonObject {
             put("text", text); put("source", source); put("file_id", fileId)
             if (route != null) put("route", json.encodeToJsonElement(OrderRoute29.serializer(), route))
+            if (pace != null) put("pace", pace)
         })
     suspend fun orders(): Page<Order> = get("/orders")
 
@@ -1974,6 +1981,10 @@ class Api(
                 "http", r.request.method, r.request.url.encodedPath, r.code, p?.code ?: if (r.code in 502..504) "hub_unreachable" else "unexpected",
                 p?.title ?: r.message.ifBlank { null }, rid, message = p?.detail ?: p?.messageFa, durationMs = elapsed(r),
                 headers = r.headers.toMultimap().mapValues { it.value.joinToString(", ") },
+                // ⟨2026-11-09⟩ a 422 says which field it refused and why (the hub's own reason, never a value sent): F-0013's reply
+                // read only «اطلاعات ارسال‌شده درست نیست» in the log, with nothing to find the field by
+                field = p?.fields?.keys?.filter { it != "items" }?.joinToString(", ")?.ifBlank { null },
+                detail = problemFields(p?.fields),
             ),
         )
         if (p?.messageFa == null) throw ApiException.unexpected(r.code).also { it.logged = logged }

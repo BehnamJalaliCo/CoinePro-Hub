@@ -30,6 +30,7 @@ import com.coinepro.hq.core.net.HubFeature
 import com.coinepro.hq.core.net.Office
 import com.coinepro.hq.core.net.OfficeMoney
 import com.coinepro.hq.core.net.gated
+import com.coinepro.hq.core.net.orderWithPace
 import com.coinepro.hq.designsystem.BtnSize
 import com.coinepro.hq.designsystem.BtnVariant
 import com.coinepro.hq.designsystem.DIcon
@@ -147,6 +148,8 @@ fun CommandBar(text0: String = "", preview0: com.coinepro.hq.core.net.OrderRoute
     var text by rememberSaveable { mutableStateOf(text0) }
     var voice by remember { mutableStateOf<VoiceResult?>(null) }
     var editing by remember { mutableStateOf(false) }
+    // ⟨2026-11-09⟩ «با من یا خودکار؟» is asked before the session opens; nothing is chosen for the owner
+    var pace by rememberSaveable { mutableStateOf<String?>(null) }
     val vh = rememberLongVoice("order") { r -> text = if (text.isBlank()) r.text else "${text.trimEnd()} ${r.text}"; voice = r }
     val v = vh.v
     val source = if (voice != null) "voice" else "text"
@@ -168,16 +171,18 @@ fun CommandBar(text0: String = "", preview0: com.coinepro.hq.core.net.OrderRoute
             if (v.recording || v.partial.isNotBlank()) Text(plain(v.partial.ifBlank { "میشنوم…" }), style = Divan.type.caption, color = c.textSecondary, maxLines = 2)
             v.unavailable?.let { Text(it, style = Divan.type.caption, color = c.warning) }
             PreviewLine(preview, onEdit = { editing = true })
+            if (text.trim().length >= 3) com.coinepro.hq.ui.session.PaceAsk(pace, { pace = it })
             HqButton(
                 "جلسه را باز کن", {
+                    val chosen = pace ?: return@HqButton
                     action.run {
-                        val o = env.api.order(text.trim(), source, voice?.fileId, preview.route)
+                        val o = env.api.orderWithPace(text.trim(), source, voice?.fileId, preview.route, chosen)
                         env.cache.invalidate("orders", "work", "sessions", "office", "home", "decisions", "inbox")
-                        text = ""; voice = null; preview.route = null; preview.edited = false
+                        text = ""; voice = null; pace = null; preview.route = null; preview.edited = false
                         nav.go("session/${o.ref}")
                     }
                 },
-                Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, icon = DivanIcon.SEND, enabled = text.trim().length >= 3 && !v.active, loading = action.busy,
+                Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, icon = DivanIcon.SEND, enabled = text.trim().length >= 3 && !v.active && pace != null, loading = action.busy,
             )
         }
     }
