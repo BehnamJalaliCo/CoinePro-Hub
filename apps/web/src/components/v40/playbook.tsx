@@ -22,6 +22,10 @@ import {
   type Playbook, type PlaybookPatch, type PlaybookPlatform, type PlaybookRoutine, type PlaybookSeat, type PlaybookState,
 } from '@/lib/api/v40';
 import { accountsNamed, clockOf, publishRule, standingFa, useMemberPublish, type MemberPublish } from '@/lib/api/v44';
+import { bestHourOf, useBestHour } from '@/lib/api/v47';
+import { BestHourChoice } from '@/components/v47/best-hour';
+import { LedgerRow } from '@/components/v47/ledger';
+import { NarratorRow } from '@/components/v47/narrator';
 import { ApiError } from '@/lib/api/client';
 import { cx, jDate } from '@/lib/format';
 
@@ -197,7 +201,7 @@ const sealedFa = (out: Playbook, auto: boolean) => (!auto ? 'کارگروه مُ
  * ⟨0.19.9⟩ §45 The owner's standing word, asked where he seals a working group or gives it to a company (his words, 2026-11-10:
  * «به صورت خودکار از روز دوم انجام بشه … نه اینکه هر بار من تایید کنم»). On: each day's package goes out by itself.
  */
-export function StandingChoice({ value, onChange }: { value: MemberPublish; onChange: (v: MemberPublish) => void }) {
+export function StandingChoice({ value, onChange, company }: { value: MemberPublish; onChange: (v: MemberPublish) => void; company?: string | null }) {
   const auto = value.mode === 'auto';
   return (
     <div className="flex flex-col gap-2 rounded-[12px] bg-tile p-3" data-testid="standing">
@@ -218,6 +222,8 @@ export function StandingChoice({ value, onChange }: { value: MemberPublish; onCh
           />
         </div>
       ) : null}
+      {/* ⟨1.0.1⟩ §49 the account's best hour instead of a fixed one; the fixed hour above stays for until the hub knows it */}
+      {auto ? <BestHourChoice company={company} value={value} onChange={onChange} /> : null}
     </div>
   );
 }
@@ -230,6 +236,8 @@ function StandingRow({ group, company, value }: { group: string; company: string
   // ⟨0.20.0⟩ §46 its hour and «استوری هم», changed in place
   const [editing, setEditing] = useState<MemberPublish | null>(null);
   const cur: MemberPublish = value ?? { mode: 'ask' };
+  // ⟨1.0.1⟩ §49 with «بهترین ساعت», the row says the hour once the hub knows it
+  const best = useBestHour(company, cur.account, cur.mode === 'auto' && !!cur.best);
   const say = (next: MemberPublish) => set.mutate({ company, publish: next }, {
     onSuccess: (m) => { setPicking([]); setEditing(null); toast({ tone: 'ok', text: m.publish.mode === 'auto' ? 'از نوبت بعد خودکار منتشر میشود.' : 'از این به بعد هر خروجی منتظر تأیید تو است.' }); },
     onError: (e) => {
@@ -243,7 +251,7 @@ function StandingRow({ group, company, value }: { group: string; company: string
       <div className="flex items-center gap-3">
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="text-[12px] text-sec">انتشار خودکار</span>
-          <span className={cx('truncate text-[11px]', cur.mode === 'auto' ? 'text-gold-ink' : 'text-muted')}>{standingFa(cur)}</span>
+          <span className={cx('truncate text-[11px]', cur.mode === 'auto' ? 'text-gold-ink' : 'text-muted')}>{standingFa(cur, bestHourOf(best.data))}</span>
         </span>
         {cur.mode === 'auto' ? <button type="button" onClick={() => setEditing(editing ? null : cur)} className="h-8 flex-none rounded-[8px] px-2 text-[12px] font-semibold text-gold-ink hover:bg-gold-soft">تنظیم</button> : null}
         <input type="checkbox" checked={cur.mode === 'auto'} disabled={set.isPending} aria-label={`انتشار خودکار ${company}`}
@@ -251,7 +259,7 @@ function StandingRow({ group, company, value }: { group: string; company: string
       </div>
       {editing ? (
         <div className="flex flex-col gap-2">
-          <StandingChoice value={editing} onChange={setEditing} />
+          <StandingChoice value={editing} onChange={setEditing} company={company} />
           {editing.mode === 'auto' && editing.at && !clockOf(editing.at) ? <p className="text-[11px] text-muted">ساعت را به شکل ۱۸:۳۰ بنویسید.</p> : null}
           <Button variant="primary" size="sm" disabled={editing.mode === 'auto' && !!editing.at && !clockOf(editing.at)} loading={set.isPending} onClick={() => say(editing)}>ذخیره</Button>
         </div>
@@ -315,7 +323,7 @@ function ApplyDialog({ pb, open, onOpenChange }: { pb: Playbook; open: boolean; 
         {sealed ? (
           <label className="flex items-center gap-2 text-[13px] text-ink"><input type="checkbox" checked={asIs} onChange={(e) => setAsIs(e.target.checked)} className="size-5 accent-[var(--hq-gold-ink)]" />بدون تغییر</label>
         ) : null}
-        {standing ? <StandingChoice value={word} onChange={setWord} /> : null}
+        {standing ? <StandingChoice value={word} onChange={setWord} company={company || null} /> : null}
         {asIs && sealed
           ? <p className="text-[12px] leading-5 text-muted">همین کارگروه، همان‌طور که هست، عضوی تازه میگیرد؛ جلسه‌ی تازه‌ای باز نمیشود.</p>
           : (
@@ -352,6 +360,9 @@ function Members({ pb }: { pb: Playbook }) {
               </div>
               {/* ⟨0.19.9⟩ §45 his standing word for this company (a sealed working group that publishes) */}
               {pb.group && pb.state === 'sealed' && publishes(pb) ? <StandingRow group={pb.group} company={m.company} value={m.publish} /> : null}
+              {/* ⟨1.0.1⟩ §47, §48 what this company already said in this group, and who speaks for it (nothing on an older hub) */}
+              {pb.group && pb.state === 'sealed' ? <LedgerRow group={pb.group} company={m.company} nameFa={m.name_fa} /> : null}
+              {pb.group && pb.state === 'sealed' ? <NarratorRow company={m.company} nameFa={m.name_fa} className="ps-7" /> : null}
             </li>
           ))}
         </ul>
@@ -424,7 +435,7 @@ function PlaybookView({ pb }: { pb: Playbook }) {
 
       {draft ? (
         <DraftEditor key={pb.version} pb={pb} saving={act.patch.isPending && !sealingNow} sealing={sealingNow} onSave={save} onSeal={seal}
-          standing={publishes(pb) ? <StandingChoice value={word} onChange={setWord} /> : null} />
+          standing={publishes(pb) ? <StandingChoice value={word} onChange={setWord} company={pb.source.company} /> : null} />
       ) : (
         <Card className="p-5" aria-label="کارگروه"><PlaybookBody pb={pb} /></Card>
       )}

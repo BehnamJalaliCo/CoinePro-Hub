@@ -18,6 +18,9 @@ import {
   CAROUSEL_OTHERS, KIND_FA, STATE_FA, commentHalf, commentOf, coverOf, kindsOf, publishOf, publishable, scheduledIso, storyOf, usePublish, usePublishPanel,
   type PublishKind, type PublishPanel, type SessionPublish,
 } from '@/lib/api/v44';
+import { JPEG_FA, goesAsJpeg, panelBest } from '@/lib/api/v47';
+import { publishNote, useCancel } from '@/components/v47/cancel';
+import { FaText } from '@/components/v29/text';
 import { ApiError } from '@/lib/api/client';
 import { faDigits } from '@/lib/alerts';
 import { jTime } from '@/lib/format';
@@ -26,6 +29,9 @@ type FileLite = { id: string; name: string; mime: string };
 
 function Row({ f, p, note, story, onAsk }: { f: FileLite; p: SessionPublish | null; note: string | null; story: SessionPublish | null; onAsk: () => void }) {
   const video = f.mime.startsWith('video/');
+  // ⟨1.0.1⟩ §51 one that is not out yet can be taken back, asked once under the row; the hub's note («در حال لغو») sits there too
+  const cancel = useCancel(p);
+  const hubNote = publishNote(p);
   // the handle is Latin inside a Persian line: isolated left-to-right, so «@» stays in front of it
   const where = p
     ? [
@@ -37,7 +43,8 @@ function Row({ f, p, note, story, onAsk }: { f: FileLite; p: SessionPublish | nu
     ].filter(Boolean).join(' · ')
     : null;
   return (
-    <div className="flex items-center gap-3 py-2.5">
+    <div className="flex flex-col gap-1.5 py-2.5" data-file={f.name} data-publish={p?.state ?? 'none'}>
+    <div className="flex items-center gap-3">
       <span className="flex-none text-sec"><Icon name={video ? 'video' : 'image'} size={20} /></span>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span dir="ltr" className="fig truncate text-right text-[13px] text-ink">{f.name || 'فایل'}</span>
@@ -45,12 +52,13 @@ function Row({ f, p, note, story, onAsk }: { f: FileLite; p: SessionPublish | nu
           : p === null ? <span className="text-[11px] text-muted">{video ? 'ویدیو · آماده‌ی انتشار' : 'تصویر · آماده‌ی انتشار'}</span>
           : p.state === 'failed' ? <span className="text-[11px] text-neg">{[where, p.note_fa].filter(Boolean).join(' · ')}</span>
           : p.state === 'waiting_seal' ? <span className="text-[11px] text-sec">{p.note_fa ?? 'منتظر مُهر شما'}</span>
+          : p.state === 'cancelled' ? <span className="truncate text-[11px] text-muted">{[where, 'لغو شد'].filter(Boolean).join(' · ')}</span>
           : where ? <span className="truncate text-[11px] text-sec">{where}</span> : null}
         {story ? <span className={story.state === 'failed' ? 'text-[11px] text-neg' : 'text-[11px] text-muted'}>استوری: {STATE_FA[story.state] ?? story.state}</span> : null}
       </div>
       {p === null ? <Button variant={note ? 'secondary' : 'primary'} size="sm" icon="send" onClick={onAsk}>{note ? 'دوباره' : 'تأیید و انتشار'}</Button>
-        : p.state === 'publishing' ? <Pill tone="gold" dot live>در حال انتشار</Pill>
-        : p.state === 'scheduled' ? <Pill tone="gold" dot>زمان‌بندی شد</Pill>
+        : p.state === 'publishing' ? <span className="flex flex-none items-center gap-1"><Pill tone="gold" dot live>در حال انتشار</Pill>{cancel.button}</span>
+        : p.state === 'scheduled' ? <span className="flex flex-none items-center gap-1"><Pill tone="gold" dot>زمان‌بندی شد</Pill>{cancel.button}</span>
         : p.state === 'published' ? (
           <span className="flex flex-none items-center gap-1.5">
             <Pill tone="pos" dot>منتشر شد</Pill>
@@ -60,8 +68,14 @@ function Row({ f, p, note, story, onAsk }: { f: FileLite; p: SessionPublish | nu
         : p.state === 'waiting_seal' ? <Pill tone="warn" dot>منتظر مُهر</Pill>
         : <Button variant="secondary" size="sm" icon="refresh" onClick={onAsk}>دوباره</Button>}
     </div>
+      {hubNote ? <span className="text-[11px] leading-5 text-muted" data-publish-note><FaText text={hubNote} /></span> : null}
+      {cancel.under}
+    </div>
   );
 }
+
+/** ⟨1.0.1⟩ §52 one calm line under a picture that is not a JPEG: nothing for him to do, the hub converts it. */
+const JpegNote = () => <p className="text-[11px] leading-5 text-muted" data-testid="jpeg-note">{JPEG_FA}</p>;
 
 const FIELD = 'w-full rounded-[10px] border border-strong bg-tile p-3 text-[14px] leading-7 text-ink outline-none transition-colors focus:border-gold-ink';
 
@@ -80,18 +94,23 @@ function Confirm({ output, f, covers, others, panel, onClose, onDone }: {
   // a reel goes out with its cover: the output's images (the one named `cover…`, else the one there is, chosen already)
   const [cover, setCover] = useState<string | null>(coverOf(covers)?.id ?? null);
   // ⟨0.20.0⟩ §46 the time (now, or today/tomorrow at an hour) and the comment rule of this post (its package's, already in place)
-  const [later, setLater] = useState(false);
+  // ⟨1.0.1⟩ §49 with the account's best hour known, it is one of the times
+  const best = panelBest(panel);
+  const [when, setWhen] = useState<'now' | 'later' | 'best'>('now');
+  const later = when !== 'now';
   const [day, setDay] = useState<0 | 1>(0);
   const [clock, setClock] = useState('');
   const [word, setWord] = useState((panel.comment?.keywords ?? []).join('، '));
   const [reply, setReply] = useState(panel.comment?.reply ?? '');
   const [link, setLink] = useState(panel.comment?.link ?? '');
-  const whenIso = later ? scheduledIso(day, clock) : null;
+  const whenIso = when === 'later' ? scheduledIso(day, clock) : when === 'best' ? best?.at ?? null : null;
   // one key for one press: a different kind or time is another publish
-  const stamp = `${kind}|${later ? `${day}|${clock}` : 'now'}`;
+  const stamp = `${kind}|${when === 'later' ? `${day}|${clock}` : when}`;
   const [keys, setKeys] = useState<Record<string, string>>({});
   const pick = panel.accounts.length > 1 && account === null;
   const noHour = later && whenIso === null;
+  // ⟨1.0.1⟩ §52 a picture that goes out (this file, or the reel's cover) and is not a JPEG
+  const coverFile = kind === 'reel' ? covers.find((x) => x.id === cover) ?? null : null;
   const half = kind !== 'story' && commentHalf(word, reply, link);
   const go = async () => {
     const key = keys[stamp] ?? crypto.randomUUID();
@@ -134,6 +153,7 @@ function Confirm({ output, f, covers, others, panel, onClose, onDone }: {
           <span className="text-gold-ink"><Icon name={f.mime.startsWith('video/') ? 'video' : 'image'} size={18} /></span>
           <span dir="ltr" className="fig truncate text-[13px] text-ink">{f.name || 'فایل'}</span>
         </div>
+        {goesAsJpeg(f) ? <JpegNote /> : null}
         <div className="flex flex-col gap-2">
           <span className="text-[12px] font-semibold text-sec">حساب</span>
           {panel.accounts.length === 0 ? <p className="text-[13px] text-sec">حساب این شرکت هنوز به هاب معرفی نشده؛ با تأیید شما تیم فنی هلدینگ همین حالا وصلش میکند.</p>
@@ -151,6 +171,7 @@ function Confirm({ output, f, covers, others, panel, onClose, onDone }: {
               {covers.map((x) => <FilterChip key={x.id} selected={cover === x.id} onClick={() => setCover(x.id)}><bdi className="fig">{x.name || 'تصویر'}</bdi></FilterChip>)}
               <FilterChip selected={cover === null} onClick={() => setCover(null)}>بدون کاور</FilterChip>
             </div>
+            {goesAsJpeg(coverFile) ? <JpegNote /> : null}
           </div>
         ) : null}
         {kind !== 'story' ? (
@@ -162,10 +183,12 @@ function Confirm({ output, f, covers, others, panel, onClose, onDone }: {
         <div className="flex flex-col gap-2" data-testid="publish-time">
           <span className="text-[12px] font-semibold text-sec">زمان</span>
           <div className="flex flex-wrap gap-2">
-            <FilterChip selected={!later} onClick={() => setLater(false)}>الان</FilterChip>
-            <FilterChip selected={later} onClick={() => setLater(true)}>ساعت مشخص</FilterChip>
+            <FilterChip selected={when === 'now'} onClick={() => setWhen('now')}>الان</FilterChip>
+            <FilterChip selected={when === 'later'} onClick={() => setWhen('later')}>ساعت مشخص</FilterChip>
+            {best ? <FilterChip selected={when === 'best'} onClick={() => setWhen('best')}>بهترین ساعت ({best.hour})</FilterChip> : null}
           </div>
-          {later ? (
+          {when === 'best' && best?.note_fa ? <p className="text-[11px] leading-5 text-muted"><FaText text={best.note_fa} /></p> : null}
+          {when === 'later' ? (
             <div className="flex flex-wrap items-center gap-2">
               <FilterChip selected={day === 0} onClick={() => setDay(0)}>امروز</FilterChip>
               <FilterChip selected={day === 1} onClick={() => setDay(1)}>فردا</FilterChip>

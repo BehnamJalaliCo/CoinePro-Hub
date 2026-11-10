@@ -33,6 +33,9 @@ import { cx, jDateTime, jTime } from '@/lib/format';
 import { plain } from '@/lib/plain';
 import { FromPlaybook, MakePlaybook, MemoryCard } from '@/components/v40/playbook';
 import { useDraftPlaybook } from '@/lib/api/v40';
+import type { OrderGaps } from '@/lib/api/v47';
+import { Routines } from '@/components/v47/routines';
+import { SessionPublishes } from '@/components/v47/session-publishes';
 import { LiveWork, PaceChip, PlanProgress } from './live-work';
 import { LiveBadge, SessionBand, StallWatch, useLastStep, useLiveBadge } from '@/components/live/session-pulse';
 import { useSessionActivity } from '@/lib/api/v41';
@@ -167,6 +170,8 @@ function Session({ refId, r }: { refId: string; r: Full }) {
           <Brief r={r} />
           <MemoryCard md={r.memory_md} />
           <MakePlaybook order={refId} onDone={() => setDetails(false)} />
+          {/* ⟨1.0.1⟩ §50 a standing routine from one sentence, and this session's routines */}
+          <Routines order={refId} routines={(r as OrderGaps).routines} closed={closed} />
           <Card className="flex flex-col gap-2 p-4" aria-label="وضعیت و روش کار">
             <div className="flex flex-wrap items-center gap-2"><BadgePill badge={r.session.badge} /><OrderStatePill state={r.state} />{closed && r.session.closed_at ? <span className="text-[12px] text-muted">بسته شد {jDateTime(r.session.closed_at)}</span> : null}</div>
             {closed ? (
@@ -184,6 +189,8 @@ function Session({ refId, r }: { refId: string; r: Full }) {
           <Tasks r={r} closed={closed} />
           <Plan r={r} />
           <Results r={r} closed={closed} />
+          {/* ⟨1.0.1⟩ §44.5, §51 what went out from this session and what is set to go, each cancellable until it is out */}
+          <SessionPublishes publishes={(r as OrderGaps).publishes} />
           <FilesCard r={r} />
           <Card className="flex flex-col gap-2 p-4" aria-label="بستن و پنهان کردن">
             <SectionTitle title="پایان جلسه" />

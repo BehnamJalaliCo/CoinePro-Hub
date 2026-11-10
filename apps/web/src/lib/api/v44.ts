@@ -6,9 +6,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { call } from './v13';
 import { served } from './v33';
 import { OWNER_TZ } from '@/lib/format';
+import type { BestHour } from './v47';
 
 export type PublishKind = 'reel' | 'post' | 'story' | 'carousel';
-export type PublishState = 'publishing' | 'scheduled' | 'published' | 'failed' | 'waiting_seal' | 'waiting_setup';
+/** ⟨1.0.1⟩ §51 `cancelled`: taken back before it went out; a tap on the same file after it is a new publication. */
+export type PublishState = 'publishing' | 'scheduled' | 'published' | 'failed' | 'waiting_seal' | 'waiting_setup' | 'cancelled';
 /** One publish of a session: the job on IG-Hub's server and where it stands (`waiting_setup`: no job yet). */
 export type SessionPublish = {
   job: string | null; output: string | null; file_id: string; file_name: string | null; cover_name?: string | null; channel: 'instagram'; kind: PublishKind;
@@ -34,24 +36,43 @@ export type PublishPanel = {
   tap?: boolean; caption?: string | null; group?: string | null; group_fa?: string | null; mode?: 'ask' | 'auto' | null;
   /** ⟨0.20.0⟩ §46 the comment rule its package carries (`comment.txt`): the sheet opens with it. */
   comment?: PublishComment | null;
+  /** ⟨1.0.1⟩ §49 the account's best hour, only once the hub has enough posts to say it: one of the sheet's times. */
+  best?: BestHour | null;
 };
 /** ⟨0.19.9⟩ §45 the owner's standing word for one company in one working group. */
-export type MemberPublish = { mode: 'ask' | 'auto'; account?: string | null; story?: boolean; since?: string | null; /** ⟨0.20.0⟩ §46 «HH:MM», his zone */ at?: string | null };
+export type MemberPublish = {
+  mode: 'ask' | 'auto'; account?: string | null; story?: boolean; since?: string | null; /** ⟨0.20.0⟩ §46 «HH:MM», his zone */ at?: string | null;
+  /** ⟨1.0.1⟩ §49 each day's package goes out at the account's best hour; the fixed hour stays as what is used until the hub knows it. */
+  best?: boolean;
+};
 /** «HH:MM» as the hub takes it, from what he typed (Persian or Latin digits; «9:5» is not one); null when it is no hour. */
 export const clockOf = (raw: string | null | undefined): string | null => {
   const t = (raw ?? '').trim().replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0)).replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660));
   const m = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(t);
   return m ? `${m[1]!.padStart(2, '0')}:${m[2]}` : null;
 };
-/** The word as the hub takes it: the account only when he named one, `story` and the hour only on `auto`. */
+/**
+ * The word as the hub takes it: the account only when he named one, `story` and the hour only on `auto`. ⟨1.0.1⟩ §49 `best` goes only
+ * when it is on (left out is off), so a hub before §49 is never sent a key it does not know.
+ */
 export const publishRule = (p: MemberPublish) => (p.mode === 'auto'
-  ? { mode: 'auto' as const, ...(p.account ? { account: p.account.replace(/^@/, '') } : {}), ...(p.story ? { story: true } : {}), ...(clockOf(p.at) ? { at: clockOf(p.at)! } : {}) }
+  ? {
+    mode: 'auto' as const, ...(p.account ? { account: p.account.replace(/^@/, '') } : {}), ...(p.story ? { story: true } : {}), ...(clockOf(p.at) ? { at: clockOf(p.at)! } : {}),
+    ...(p.best ? { best: true } : {}),
+  }
   : { mode: 'ask' as const });
 /** The accounts a refusal names («one of: @a, @b»): the company has several and he picks one. */
 export const accountsNamed = (field: string | null | undefined) => [...new Set([...(field ?? '').matchAll(/@([A-Za-z0-9._]+)/g)].map((m) => m[1]!.replace(/\.+$/, '')))];
-/** A member's standing word in one line. */
-export const standingFa = (p: MemberPublish | null | undefined) => (p?.mode === 'auto'
-  ? ['خودکار', clockOf(p.at) ? `ساعت ${clockOf(p.at)}` : null, p.account ? `\u2066@${p.account}\u2069` : null, p.story ? 'استوری هم' : null].filter(Boolean).join(' · ')
+/**
+ * A member's standing word in one line. ⟨1.0.1⟩ §49 with `best`: «خودکار · بهترین ساعت», with the hour once the hub knows it
+ * (`bestHour`); until then the fixed hour, when he set one, is said after it.
+ */
+export const standingFa = (p: MemberPublish | null | undefined, bestHour?: string | null) => (p?.mode === 'auto'
+  ? [
+    'خودکار', p.best ? (bestHour ? `بهترین ساعت ${bestHour}` : 'بهترین ساعت') : null,
+    clockOf(p.at) && !(p.best && bestHour) ? `${p.best ? 'تا آن وقت ساعت' : 'ساعت'} ${clockOf(p.at)}` : null,
+    p.account ? `\u2066@${p.account}\u2069` : null, p.story ? 'استوری هم' : null,
+  ].filter(Boolean).join(' · ')
   : 'هر بار بپرس');
 
 export const KIND_FA: Record<PublishKind, string> = { reel: 'ریلز', post: 'پست', story: 'استوری', carousel: 'اسلاید' };
@@ -94,7 +115,7 @@ export const storyOf = (p: PublishPanel, fileId: string) => {
   const s = p.publishes.find((x) => x.file_id === fileId && x.kind === 'story') ?? null;
   return s && publishOf(p, fileId)?.kind !== 'story' ? s : null;
 };
-export const STATE_FA: Record<string, string> = { publishing: 'در حال انتشار', scheduled: 'زمان‌بندی شد', published: 'منتشر شد', failed: 'انجام نشد', waiting_seal: 'منتظر مُهر' };
+export const STATE_FA: Record<string, string> = { publishing: 'در حال انتشار', scheduled: 'زمان‌بندی شد', published: 'منتشر شد', failed: 'انجام نشد', waiting_seal: 'منتظر مُهر', cancelled: 'لغو شد' };
 /** The image chosen as a reel's cover before he touches anything: the one named `cover…`, else the only one. */
 export const coverOf = <T extends { name: string }>(images: ReadonlyArray<T>): T | null =>
   images.find((x) => x.name.toLowerCase().startsWith('cover')) ?? (images.length === 1 ? images[0]! : null);

@@ -31,6 +31,7 @@ import { handle38 } from './mock-v38';
 import { handle40 } from './mock-v40';
 import { openFromPlaybook, playbookOrder, postPlaybookCard } from './mock-v34';
 import { drive42, handle42, tick42 as beat42 } from './mock-v42';
+import { handle47 } from './mock-v47';
 
 const json = (body: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const problem = (status: number, code: string, message_fa: string) => json({ code, message_fa, status, title: code, type: 'about:blank' }, status);
@@ -429,8 +430,15 @@ const nrow = (id: string, level: string, co: string, title: string, body: string
   id, level, company: co, title_fa: title, body_fa: body, link: kind ? { kind, ref } : null, created_at: when, read_at: read, choices: null, answer: null,
   state: read ? 'read' : 'delivered', delivered: { in_app: true, web_push: false, fcm: false, telegram: false },
 });
-async function notifications(req: Request) {
-  if (notes) return notes;
+/** The list is built once: two first readers at the same moment (the page's own calls, the e2e driver) share it. Each building its own
+ *  made the later one replace the earlier, and an alert raised in between was lost from the list. */
+let notesBuilding: Promise<any[]> | null = null;
+function notifications(req: Request): Promise<any[]> {
+  if (notes) return Promise.resolve(notes);
+  notesBuilding ??= buildNotifications(req).finally(() => { notesBuilding = null; });
+  return notesBuilding;
+}
+async function buildNotifications(req: Request) {
   const finding = 'یافته‌ی جدی ناظر کل: سلامت خود هاب — down: otel-collector, tempo; disk 90.4%';
   const body = 'پایش ساعتی سلامت هاب: دو سرویس پایش پایین‌اند و دیسک از ۹۰٪ گذشته. مسئول: مهندس پلتفرم هلدینگ.';
   const rows: any[] = [];
@@ -567,13 +575,20 @@ async function handleRest(req: Request): Promise<Response> {
     };
     // ⟨1.17⟩ §34–§35 the order as a session, the owner's office and the canvas (./mock-v34); it reads the rest through [below].
     // ⟨1.22⟩ §40 playbooks (./mock-v40): the session's talk and orders come through the hooks.
-    const v40 = await handle40(req, path, { order: playbookOrder, postCard: postPlaybookCard, openSession: openFromPlaybook });
-    if (v40) return v40;
-    const v38 = await handle38(req, path);
-    if (v38) return v38;
-    const v34 = await handle34(req, path, u.searchParams, below);
-    if (v34) return v34;
-    return below(req);
+    const sessions = async (r: Request): Promise<Response> => {
+      const rp = new URL(r.url).pathname.replace(/^\/api\/v1/, '');
+      const v40 = await handle40(r, rp, { order: playbookOrder, postCard: postPlaybookCard, openSession: openFromPlaybook });
+      if (v40) return v40;
+      const v38 = await handle38(r, rp);
+      if (v38) return v38;
+      const v34 = await handle34(r, rp, new URL(r.url).searchParams, below);
+      if (v34) return v34;
+      return below(r);
+    };
+    // ⟨1.0.1⟩ §47 to §53 the gaps of the reels order (./mock-v47): its own routes, and what it adds to a session's report and outputs.
+    const v47 = await handle47(req, path, sessions);
+    if (v47) return v47;
+    return sessions(req);
   }
   return handleBelow(req);
 }

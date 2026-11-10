@@ -16,6 +16,7 @@ import { RANGES, UndoBar, dayFa, inputCls, ownerDay, span, type Undo } from '@/c
 import { EraseButton } from '@/components/erase/erase-button';
 import { MessageMedia } from '@/components/media/attachments';
 import { PublishSection } from '@/components/v44/publish';
+import { MadeWith, saysHow } from '@/components/v47/effort';
 import type { FileKind, MediaRef } from '@/lib/api/v13';
 import { DeleteDialog, DeleteOne, RowCheck, SelectAll, SelectionBar, useCleanup, useSelection } from '@/components/v28/outputs';
 import { ApiError } from '@/lib/api/client';
@@ -23,7 +24,7 @@ import { handled } from '@/lib/api/observe';
 import { useCompanies, useInbox, useRate } from '@/lib/api/hooks';
 import { activeFilters, categoryOf, useLocalSeen, useOutput, useOutputActions, useOutputs, type Category, type Inbox21, type Output, type OutputQuery } from '@/lib/api/v21';
 import { useScope } from '@/lib/scope';
-import { cx, jDateTime, jTime, modelLabel, tokens, usd } from '@/lib/format';
+import { cx, jDateTime, jTime, tokens, usd } from '@/lib/format';
 import { leaks, plain } from '@/lib/plain';
 
 // Outputs (0.3.0, contract §5.2 ⟨1.7.3⟩): what the agents and the hub's own reporting delivered. The owner reads one and marks it seen (the
@@ -92,8 +93,8 @@ function Detail({ refId, onSeen, onGone }: { refId: string; onSeen: (refs: strin
   if (!d?.ref) return <Empty icon="deliverable" title="این خروجی پیدا نشد" />;
   const seenAt = d.seen_at ?? local[d.ref] ?? null;
   const cat = categoryOf(d);
-  const pw = (d.produced_with ?? {}) as Record<string, string>;
-  const model = pw.label_fa ?? (pw.model ? `${modelLabel(pw.model)}${pw.effort ? ` · ${pw.effort}` : ''}` : null);
+  // ⟨1.0.1⟩ §53 the model and how hard it thought, in Persian
+  const model = saysHow(d.produced_with);
   const { used, cost } = usageOf(d);
   const file = async () => {
     try {
@@ -147,7 +148,7 @@ function Detail({ refId, onSeen, onGone }: { refId: string; onSeen: (refs: strin
       <Md text={d.body} />
       {model || used ? (
         <div className="flex flex-wrap gap-6 rounded-[12px] bg-tile p-3">
-          {model ? <div className="flex flex-col"><span className="text-[11px] text-muted">ساخته‌شده با</span><span className={cx('text-[13px] font-semibold', !/[؀-ۿ]/.test(model) && 'fig')}>{model}</span></div> : null}
+          {model ? <MadeWith pw={d.produced_with} /> : null}
           {used ? <div className="flex flex-col"><span className="text-[11px] text-muted">مصرف</span><span className="fig text-[13px] font-semibold">{tokens(used)} tok · {usd(cost)}</span></div> : null}
         </div>
       ) : null}

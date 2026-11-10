@@ -20,7 +20,7 @@ export const memoryOf = (order: string): string | null => memory.get(order) ?? n
 export const sourceOf = (order: string): string | null => source.get(order) ?? null;
 export const setSource = (order: string, pb: string) => { source.set(order, pb); };
 export const setMemory = (order: string, md: string) => { memory.set(order, md); };
-let seq = 2;
+let seq = 3;
 
 memory.set('F-0007', '**تا اینجا**\n\n- هدف: برای تریدیار هر روز یک ریلز کوتاه آموزشی بسازیم و منظم منتشر کنیم.\n- نویسنده موضوع روز را با ChatGPT پیدا میکند و متن را مینویسد.\n- سازنده‌ی ریلز با جمنای تصویر و با ای‌آی استودیو صدا را میسازد.\n- سه ریلز اول ساخته و بازبینی شد.\n\n**کی چه میکند**\n\n- مدیر رسانه تریدیار: مسئول جلسه\n- نویسنده: موضوع و متن\n- سازنده‌ی ریلز: ساخت ویدیو\n\n**باز مانده**\n\n- مُهر سری انتشار\n- استخدام مسئول انتشار');
 memory.set('F-0006', '- مقاله‌ی سئو برای FX نوشته و در وبلاگ منتشر شد.\n- نویسنده با جی‌پی‌تی کلیدواژه‌ها را پیدا میکند.\n- جلسه آماده‌ی تأیید است.');
@@ -62,6 +62,23 @@ seed({
   source: { order: 'F-0006', company: 'FX', conversation: null },
   members: [{ company: 'FX', name_fa: NAME.FX!, state: 'on', order: 'F-0006', publish: { mode: 'ask', account: null, story: false, since: null } }],
 });
+// ⟨1.0.1⟩ §47 to §49 a sealed reels group with two members: Pro-Chart publishes by itself at its best hour (its ledger and its narrator
+// are in ./mock-v47), CoinePro FX still waits for his tap each time.
+seed({
+  ref: 'PB-0003', title_fa: 'موشن‌گرافی روزانه‌ی پرو-چارت', platform: 'instagram', state: 'sealed', version: 3, created_at: '2026-09-28T08:00:00Z', sealed_at: '2026-09-29T09:30:00Z', group: 'pb_3',
+  purpose_fa: 'هر روز یک موشن‌گرافی کوتاه آموزشی با موضوعی که پیش‌تر گفته نشده، ساخته و در بهترین ساعت صفحه منتشر میشود.',
+  seats: [
+    { seat: 'writer', role: 'content_writer', title_fa: 'نویسنده‌ی رسانه', duties_fa: 'موضوع تازه‌ی روز را در دفتر ثبت میکند و متن را مینویسد.', helpers: ['gpt'], model: null },
+    { seat: 'maker', role: 'reel_maker', title_fa: 'سازنده‌ی موشن‌گرافی', duties_fa: 'از متن، ویدیوی کوتاه با صدای گوینده‌ی شرکت میسازد.', helpers: ['aistudio'], model: null },
+  ],
+  routines: [{ key: 'daily', title_fa: 'موشن‌گرافی روز', seat: 'maker', schedule: 'FREQ=DAILY;BYHOUR=7;BYMINUTE=0', brief_md: 'موضوع امروز را در دفتر ثبت کن، متن و ویدیو را بساز و بسته را تحویل بده.', max_tokens: 60000 }],
+  kpis: [], connections: ['instagram'], rules_fa: ['هیچ موضوع و هیچ نمونه‌ای دو بار ساخته نمیشود.'],
+  source: { order: 'F-0009', company: 'PC', conversation: null },
+  members: [
+    { company: 'PC', name_fa: NAME.PC!, state: 'on', order: 'F-0009', publish: { mode: 'auto', account: 'pro.chart', story: false, since: '2026-09-29T09:30:00Z', at: '18:30', best: true } },
+    { company: 'FX', name_fa: NAME.FX!, state: 'on', order: null, publish: { mode: 'ask', account: null, story: false, since: null } },
+  ],
+});
 
 const playbookMd = (pb: Pb): string => [
   `# ${pb.title_fa}`, '', pb.purpose_fa, '', `پلتفرم: ${PLATFORM_FA[pb.platform] ?? pb.platform}`, '', '## جایگاه‌ها',
@@ -88,7 +105,7 @@ function wordOf(company: string, b: any): Record<string, unknown> | string | nul
   const mine = ACCOUNTS[company] ?? [];
   const asked = b.account ? String(b.account).replace(/^@/, '') : mine.length === 1 ? mine[0]! : null;
   if (mine.length && (!asked || !mine.includes(asked))) return `one of: ${mine.map((a) => `@${a}`).join(', ')}`;
-  return { mode: 'auto', account: asked, story: !!b.story, since: NOW(), at: typeof b.at === 'string' && /^\d\d:\d\d$/.test(b.at) ? b.at : null };
+  return { mode: 'auto', account: asked, story: !!b.story, since: NOW(), at: typeof b.at === 'string' && /^\d\d:\d\d$/.test(b.at) ? b.at : null, best: b.best === true };
 }
 const pick = (accounts: string) => new Response(JSON.stringify({ type: 'about:blank', title: 'validation_failed', status: 422, code: 'validation_failed', message_fa: 'این شرکت چند حساب دارد؛ یکی را انتخاب کنید.', fields: { account: accounts } }), { status: 422, headers: { 'Content-Type': 'application/problem+json' } });
 

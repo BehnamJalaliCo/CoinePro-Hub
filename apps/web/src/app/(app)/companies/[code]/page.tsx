@@ -24,6 +24,7 @@ import { stuckOf, useEmployeeFix, type Stuck } from '@/lib/api/v29';
 import { DEPT_ICON, WORK_STATUS } from '@/lib/labels';
 import { ago, cx, jDate, modelLabel, until } from '@/lib/format';
 import type { Schemas } from '@/lib/api/client';
+import { NarratorCard } from '@/components/v47/narrator';
 
 type Node = Schemas['ChartNode'];
 
@@ -168,7 +169,11 @@ function CompanyInner({ code }: { code: string }) {
       ) : tab === 'connections' ? (
         <CompanyConnections code={code} />
       ) : tab === 'brand' && c ? (
-        <Card className="p-4"><BrandBlock code={c.code} nameFa={c.name_fa ?? c.code} nameEn={c.name_en ?? c.code} /></Card>
+        <>
+          <Card className="p-4"><BrandBlock code={c.code} nameFa={c.name_fa ?? c.code} nameEn={c.name_en ?? c.code} /></Card>
+          {/* ⟨1.0.1⟩ §48 the company's voice beside its mark: the narrator of its reels and videos (nothing on an older hub) */}
+          <NarratorCard company={c.code} nameFa={c.name_fa ?? c.code} />
+        </>
       ) : tab === 'people' ? (
         <>
         {/* ⟨1.6⟩ §22.5: roles a department's manager wrote beyond the template. */}
