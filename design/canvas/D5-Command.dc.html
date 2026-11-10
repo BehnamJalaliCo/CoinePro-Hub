@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>اتاق فرمان · D5</title>
+<style>
+/* IRANYekanX Pro from the repository (design/fonts/); Tahoma when opened elsewhere. */
+@font-face{font-family:"IRANYekanXVF";src:url("../fonts/variable/IRANYekanXVF.woff2") format("woff2");font-weight:100 1000;font-display:swap}
+@font-face{font-family:"IRANYekanXFaNumVF";src:url("../fonts/variable/IRANYekanXVFaNumVF.woff2") format("woff2");font-weight:100 1000;font-display:swap}
+/* Layout: a wall of phone frames, one surface each; every motion is M1–M21 of the Divan grammar. */
+:root{color-scheme:dark;
+  --page:#0B0D14;--card:#10131C;--tile:#161A25;--raised:#1E2330;--hover:#232938;
+  --text:#F2EEE4;--text2:#B9B4A6;--muted:#888275;
+  --hair:rgba(216,168,72,.14);--divider:rgba(242,238,228,.10);--strong:rgba(242,238,228,.20);
+  --gold:#D8A848;--gold-ink:#D8A848;--gold-hi:#F0CC60;--silver:#AEB8C7;--lapis:#6E95FF;
+  --pos:#22AB94;--neg:#F6465D;--warn:#F0B90B;
+  --soft-gold:rgba(216,168,72,.14);--soft-pos:rgba(34,171,148,.14);--soft-lapis:rgba(110,149,255,.14);--soft-neg:rgba(246,70,93,.14);
+  --on-gold:#0B0D14;--scrim:rgba(5,6,10,.55);--shadow:0 10px 30px rgba(0,0,0,.45);
+  --d1:120ms;--d2:200ms;--d3:320ms;--d4:480ms;--d6:600ms;
+  --std:cubic-bezier(.2,0,0,1);--spring:cubic-bezier(.2,.85,.25,1);
+  --f:"IRANYekanXFaNumVF","IRANYekanXVF",Tahoma,sans-serif;--fl:"IRANYekanXVF","IRANYekanXFaNumVF",Tahoma,sans-serif}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){color-scheme:light;
+  --page:#F3EEE3;--card:#FAF7F0;--tile:#EFE9DC;--raised:#E6DFCF;--hover:#E9E2D2;
+  --text:#1C1A17;--text2:#5A554B;--muted:#6F695C;
+  --hair:rgba(138,99,24,.20);--divider:rgba(28,26,23,.10);--strong:rgba(28,26,23,.22);
+  --gold:#D8A848;--gold-ink:#896217;--gold-hi:#C0902C;--silver:#5A5F66;--lapis:#2E4A9E;
+  --pos:#0E7765;--neg:#C52F3C;--warn:#8F6000;
+  --soft-gold:rgba(138,99,24,.12);--soft-pos:rgba(14,119,101,.11);--soft-lapis:rgba(46,74,158,.10);--soft-neg:rgba(197,47,60,.10);
+  --on-gold:#1C1A17;--scrim:rgba(28,26,23,.30);--shadow:0 10px 30px rgba(28,26,23,.16)}}
+:root[data-theme="light"]{color-scheme:light;
+  --page:#F3EEE3;--card:#FAF7F0;--tile:#EFE9DC;--raised:#E6DFCF;--hover:#E9E2D2;
+  --text:#1C1A17;--text2:#5A554B;--muted:#6F695C;
+  --hair:rgba(138,99,24,.20);--divider:rgba(28,26,23,.10);--strong:rgba(28,26,23,.22);
+  --gold:#D8A848;--gold-ink:#896217;--gold-hi:#C0902C;--silver:#5A5F66;--lapis:#2E4A9E;
+  --pos:#0E7765;--neg:#C52F3C;--warn:#8F6000;
+  --soft-gold:rgba(138,99,24,.12);--soft-pos:rgba(14,119,101,.11);--soft-lapis:rgba(46,74,158,.10);--soft-neg:rgba(197,47,60,.10);
+  --on-gold:#1C1A17;--scrim:rgba(28,26,23,.30);--shadow:0 10px 30px rgba(28,26,23,.16)}
+body{background:var(--page);color:var(--text);font-family:var(--f);font-size:15px;line-height:1.7;-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible{outline:2px solid var(--gold-ink);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;padding-block:28px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.fig{font-family:var(--fl);direction:ltr;unicode-bidi:isolate;display:inline-block;font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}.t2{color:var(--text2)}.sm{font-size:12.5px;line-height:1.6}.xs{font-size:11.5px;line-height:1.5}
+h1{margin:0;font-size:30px;line-height:1.35;font-weight:650;text-wrap:balance}
+h2{margin:0;font-size:17px;font-weight:650}
+.lede{margin:8px 0 0;color:var(--text2);max-width:60ch}
+.tahrir{height:1px;background:linear-gradient(90deg,transparent,var(--gold) 20%,var(--gold) 80%,transparent);opacity:.55;margin:20px 0 22px}
+.tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:16px}
+.btn{border:1px solid var(--strong);background:transparent;border-radius:999px;padding:7px 16px;min-height:40px;transition:transform var(--d1) var(--std),background var(--d2) var(--std)}
+.btn:active{transform:scale(.97)}
+.btn.gold{background:var(--gold);border-color:var(--gold);color:var(--on-gold);font-weight:650}
+.stage{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:34px 28px;align-items:start}
+.unit{display:flex;flex-direction:column;gap:12px;min-width:0}
+.cap{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.keys{display:flex;flex-wrap:wrap;gap:6px}
+.key{font-family:var(--fl);font-size:11px;border:1px solid var(--hair);color:var(--gold-ink);border-radius:6px;padding:1px 6px;direction:ltr}
+.phone{position:relative;height:620px;max-width:360px;width:100%;margin:0 auto;border-radius:30px;background:var(--card);border:1px solid var(--hair);box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column}
+.top{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:16px 18px 10px}
+.top .ttl{font-weight:650}
+.live{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);border:1px solid var(--divider);border-radius:999px;padding:2px 10px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--pos)}
+.body{flex:1;min-height:0;padding:4px 16px 16px;display:flex;flex-direction:column;gap:12px;overflow:hidden}
+.tilebox{background:var(--tile);border:1px solid var(--divider);border-radius:16px;padding:12px 14px}
+.row{display:flex;align-items:center;gap:10px}
+.sp{flex:1;min-width:0}
+.chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 11px;font-size:12px;border:1px solid var(--divider);background:transparent;min-height:30px;white-space:nowrap;transition:background var(--d2) var(--std),border-color var(--d2) var(--std),color var(--d2) var(--std),transform var(--d1) var(--std)}
+button.chip:active{transform:scale(.96)}
+.chip.on{background:var(--soft-gold);border-color:var(--gold);color:var(--gold-ink)}
+.chip.pos{background:var(--soft-pos);border-color:transparent;color:var(--pos)}
+.chip.lap{background:var(--soft-lapis);border-color:transparent;color:var(--lapis)}
+.seal{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-family:var(--fl);font-size:12px;font-weight:700;border:1.5px solid var(--strong);background:var(--raised);color:var(--text2);transition:border-color var(--d2) var(--std),transform var(--d1) var(--std),box-shadow var(--d2) var(--std)}
+.seal.on{border-color:var(--gold);color:var(--gold-ink);box-shadow:0 0 0 3px var(--soft-gold)}
+button.seal:active{transform:scale(.94)}
+@keyframes kSettle{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes kBreath{0%,100%{opacity:1}50%{opacity:.45}}
+@keyframes kSpin{to{transform:rotate(360deg)}}
+@keyframes kBand{from{background-position:0 0}to{background-position:-48px 0}}
+@keyframes kGlint{0%{opacity:.3}40%{opacity:1}100%{opacity:.3}}
+@keyframes kRing{from{transform:scale(1);opacity:.6}to{transform:scale(1.9);opacity:0}}
+.settle{animation:kSettle var(--d3) var(--std) both}
+.breath{animation:kBreath 1.6s ease-in-out infinite}
+.arc{width:14px;height:14px;border-radius:50%;border:2px solid var(--divider);border-top-color:var(--silver);animation:kSpin 1s linear infinite;flex:none}
+.rm *, .rm *::before, .rm *::after{animation-duration:1ms!important;animation-iteration-count:1!important;transition-duration:1ms!important}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:1ms!important;animation-iteration-count:1!important;transition-duration:1ms!important}}
+
+/* 1 · command sheet */
+.office{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pulse b{display:block;font-family:var(--fl);font-size:22px;font-weight:650}
+.sess{position:relative;overflow:hidden}
+.band{position:absolute;inset:auto 0 0 0;height:3px;background:repeating-linear-gradient(90deg,var(--silver) 0 12px,transparent 12px 24px);background-size:48px 3px;opacity:.5;animation:kBand 1.6s linear infinite}
+.newcard{transform-origin:50% 100%;transition:transform var(--d3) var(--spring),opacity var(--d2) var(--std);transform:translateY(190px) scale(.86);opacity:0;border-color:var(--gold)}
+.sent .newcard{transform:none;opacity:1}
+.fab{position:absolute;inset-inline-end:18px;bottom:18px;width:58px;height:58px;border-radius:50%;border:none;background:var(--gold);color:var(--on-gold);display:grid;place-items:center;box-shadow:var(--shadow);transition:transform var(--d1) var(--std),opacity var(--d2) var(--std)}
+.fab:active{transform:scale(.94)}
+.open .fab{opacity:0;pointer-events:none}
+.scrim{position:absolute;inset:0;background:var(--scrim);opacity:0;pointer-events:none;transition:opacity var(--d3) var(--std)}
+.open .scrim{opacity:1}
+.sheet{position:absolute;inset:auto 0 0 0;background:var(--card);border-top:1px solid var(--hair);border-radius:24px 24px 0 0;padding:10px 16px 18px;display:flex;flex-direction:column;gap:12px;transform:translateY(105%);transition:transform var(--d4) var(--spring);box-shadow:var(--shadow)}
+.open .sheet{transform:none}
+.grab{width:44px;height:4px;border-radius:2px;background:var(--strong);margin:0 auto 2px}
+.field{border:1px solid var(--strong);border-radius:14px;padding:10px 12px;min-height:48px;background:var(--tile)}
+.field.has{border-color:var(--gold)}
+.wraprow{display:flex;flex-wrap:wrap;gap:7px}
+.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--tile);border-radius:12px;padding:3px;border:1px solid var(--divider)}
+.seg button{border:none;background:transparent;border-radius:9px;min-height:40px;transition:background var(--d2) var(--std)}
+.seg button.on{background:var(--raised);font-weight:650;box-shadow:inset 0 0 0 1px var(--hair)}
+.go{border:none;border-radius:14px;min-height:50px;background:var(--gold);color:var(--on-gold);font-weight:700;transition:transform var(--d1) var(--std),opacity var(--d2) var(--std)}
+.go:active{transform:scale(.98)}
+.go[disabled]{opacity:.4}
+
+/* 2 · workshop */
+.ringbox{display:flex;align-items:center;gap:14px}
+.ring{width:92px;height:92px;flex:none;position:relative}
+.ring svg{width:92px;height:92px;transform:rotate(-90deg)}
+.ring circle{fill:none;stroke-width:6}
+.ring .bg{stroke:var(--divider)}
+.ring .fg{stroke:var(--silver);stroke-linecap:round;stroke-dasharray:251.3;stroke-dashoffset:251.3;transition:stroke-dashoffset 900ms var(--std),stroke var(--d2) var(--std)}
+.ring .mid{position:absolute;inset:0;display:grid;place-items:center;text-align:center;line-height:1.25}
+.ring .mid b{font-family:var(--fl);font-size:20px}
+.strip{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.file{background:var(--tile);border:1px solid var(--divider);border-radius:12px;padding:10px 8px;text-align:center;opacity:0}
+.file.in{animation:kSettle var(--d2) var(--std) both}
+.file svg{display:block;margin:0 auto 4px}
+.player{flex:1;min-height:0;border-radius:16px;background:var(--raised);border:1px solid var(--divider);position:relative;overflow:hidden;display:flex;align-items:flex-end}
+.poster{position:absolute;inset:0;display:grid;place-items:center}
+.candles{display:flex;align-items:flex-end;gap:6px;height:70px}
+.candles i{width:9px;border-radius:2px;background:var(--pos)}
+.candles i.d{background:var(--neg)}
+.atr{position:absolute;inset:auto 14px 46px 14px;height:2px;background:var(--gold);opacity:.8}
+.tl{position:relative;width:100%;padding:10px 12px;background:var(--scrim)}
+.track{height:4px;border-radius:2px;background:var(--strong);position:relative}
+.track i{position:absolute;inset:0 62% 0 0;background:var(--gold);border-radius:2px}
+.pin{position:absolute;top:-28px;right:36%;background:var(--card);border:1px solid var(--gold);color:var(--gold-ink);border-radius:8px;padding:1px 8px;font-size:11.5px;white-space:nowrap}
+
+/* 3 · publish and seal */
+.insta{border:1px solid var(--divider);border-radius:18px;overflow:hidden;background:var(--tile)}
+.insta .ph{height:150px;background:var(--raised);display:grid;place-items:center;position:relative}
+.insta .cx{padding:10px 12px}
+.sealwrap{display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:auto}
+.sealbtn{position:relative;width:96px;height:96px;border-radius:50%;border:none;background:var(--raised);display:grid;place-items:center;touch-action:none;-webkit-user-select:none;user-select:none;transition:transform var(--d1) var(--std),background var(--d3) var(--std)}
+.sealbtn:active{transform:scale(.97)}
+.sealbtn svg.r{position:absolute;inset:0;width:96px;height:96px;transform:rotate(-90deg)}
+.sealbtn .r circle{fill:none;stroke-width:4}
+.sealbtn .r .bg{stroke:var(--divider)}
+.sealbtn .r .fg{stroke:var(--gold);stroke-linecap:round;stroke-dasharray:276.5;stroke-dashoffset:276.5}
+.sealbtn .oct{width:54px;height:54px;color:var(--gold-ink);transition:transform var(--d4) cubic-bezier(.3,0,.1,1)}
+.sealed .sealbtn{background:var(--soft-gold)}
+.sealed .sealbtn .oct{transform:rotate(45deg) scale(1.08)}
+.sealed .sealbtn::after{content:"";position:absolute;inset:0;border-radius:50%;border:2px solid var(--gold);animation:kRing var(--d6) var(--std) 1 both}
+.after{opacity:0;transform:translateY(6px);transition:opacity var(--d3) var(--std),transform var(--d3) var(--std)}
+.sealed .after{opacity:1;transform:none}
+.sealed .before{display:none}
+
+/* 4 · the 24-hour watch */
+.dialbox{display:grid;place-items:center;position:relative}
+.dial{width:200px;height:200px}
+.dial .tick{stroke:var(--strong);stroke-width:1}
+.dial .tick.h6{stroke:var(--text2);stroke-width:1.5}
+.dial .run{fill:var(--silver);opacity:0;transform-box:fill-box;transform-origin:center}
+.dial .run.f{fill:var(--gold)}
+.dial .run.in{animation:kSettle var(--d2) var(--std) both}
+.dial .hand{stroke:var(--gold);stroke-width:1.5;stroke-linecap:round}
+.dial text{fill:var(--muted);font-family:var(--fl);font-size:9px}
+.dialmid{position:absolute;text-align:center;line-height:1.3}
+.dialmid b{font-family:var(--fl);font-size:24px;font-weight:650}
+.find{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--divider)}
+.sev{width:8px;height:8px;border-radius:2px;background:var(--warn);flex:none}
+.sev.r{background:var(--neg);border-radius:50%}
+.fix{border:1px solid var(--strong);background:transparent;border-radius:999px;padding:2px 12px;font-size:12px;min-height:32px;white-space:nowrap}
+.fix.done{border-color:transparent;background:var(--soft-pos);color:var(--pos)}
+
+/* 5 · missions */
+.lane{display:flex;flex-direction:column;gap:7px}
+.lane h3{margin:0;font-size:12.5px;font-weight:600;color:var(--text2);display:flex;justify-content:space-between}
+.mcard{background:var(--tile);border:1px solid var(--divider);border-radius:12px;padding:8px 12px;display:flex;align-items:center;gap:10px;will-change:transform}
+.mcard.mine{border-color:var(--gold)}
+.mini{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-family:var(--fl);font-size:10px;font-weight:700;background:var(--raised);border:1px solid var(--strong);flex:none}
+.slot{min-height:8px}
+
+/* 6 · fleet */
+.fleet{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.srv{background:var(--tile);border:1px solid var(--divider);border-radius:14px;padding:11px 12px;display:flex;flex-direction:column;gap:7px;position:relative;overflow:hidden}
+.srv.work{border-color:var(--hair)}
+.meter{height:4px;border-radius:2px;background:var(--divider);overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:var(--lapis);border-radius:2px;transition:width var(--d6) var(--std)}
+.meter i.hot{background:var(--warn)}
+.st{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text2)}
+.st i{width:7px;height:7px;border-radius:50%;background:var(--pos)}
+.st.off i{background:transparent;border:1.5px solid var(--neg);border-radius:2px}
+.jobline{font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.note{margin-top:34px;color:var(--text2);max-width:70ch}
+</style>
+</head>
+<body style="margin:0">
+
+<div class="wrap" dir="rtl" lang="fa" id="root">
+  <header>
+    <div class="sm" style="color:var(--gold-ink);letter-spacing:.02em">CoinePro HQ · تابلوی D5 · پیشنهاد، منتظر تأیید مالک</div>
+    <h1>اتاق فرمان</h1>
+    <p class="lede">شش صفحه برای اینکه از هاب، هر کاری را به هر شرکت بدهی، ساختش را ببینی، تأیید کنی و منتشر شود. همه با رنگ‌ها و قاعده‌های «دیوان»؛ هر حرکتی جواب یک لمس یا یک اتفاق واقعی است. دکمه‌ها کار میکنند: لمس کن.</p>
+    <div class="tools">
+      <button class="btn gold" id="replay" type="button">پخش دوباره‌ی همه</button>
+      <button class="btn" id="calm" type="button" aria-pressed="false">حالت کم‌حرکت</button>
+      <span class="sm muted">داده‌ها نمونه‌اند.</span>
+    </div>
+  </header>
+  <div class="tahrir" aria-hidden="true"></div>
+
+  <div class="stage">
+
+    <!-- 1 -->
+    <section class="unit" aria-labelledby="u1">
+      <div class="cap"><h2 id="u1">۱ · نوار فرمان</h2><div class="keys"><span class="key">M15</span><span class="key">M16</span><span class="key">M14</span></div></div>
+      <div class="phone open" id="p1">
+        <div class="top"><span class="ttl">دفتر</span><span class="live"><i class="dot breath"></i>زنده</span></div>
+        <div class="body">
+          <div class="office">
+            <div class="tilebox pulse"><b class="fig">7</b><span class="sm t2">نفر در کار</span></div>
+            <div class="tilebox pulse"><b class="fig">2</b><span class="sm t2">منتظر تو</span></div>
+          </div>
+          <div class="tilebox sess"><div class="row"><span class="mini">TY</span><div class="sp"><div>رصد سئوی تریدیار</div><div class="xs muted">کارمند سئو · کار میکند</div></div></div><i class="band" aria-hidden="true"></i></div>
+          <div class="tilebox newcard" id="newcard"><div class="row"><span class="mini" id="nc-co">PC</span><div class="sp"><div id="nc-title">ریلز اینستاگرام</div><div class="xs" style="color:var(--gold-ink)">جلسه باز شد · با من</div></div></div></div>
+        </div>
+        <div class="scrim" aria-hidden="true"></div>
+        <button class="fab" id="fab" type="button" aria-label="فرمان تازه"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+        <div class="sheet" role="dialog" aria-label="فرمان تازه">
+          <div class="grab" aria-hidden="true"></div>
+          <div class="field" id="field"><span class="muted" id="ph">چه میخواهی؟</span><span id="typed"></span></div>
+          <div class="wraprow" id="tpls">
+            <button class="chip" type="button" data-t="یک ریلز ۳۰ ثانیه‌ای درباره‌ی اندیکاتور ATR بساز">ریلز اینستاگرام</button>
+            <button class="chip" type="button" data-t="یک ویدیوی ۵ دقیقه‌ای آموزشی برای یوتیوب بساز">ویدیوی یوتیوب</button>
+            <button class="chip" type="button" data-t="یک رشته‌ی ۵ تکه‌ای برای X بنویس">پست X</button>
+            <button class="chip" type="button" data-t="سئوی سایت را هر روز رصد کن و گزارش بده">رصد سئو</button>
+            <button class="chip" type="button" data-t="یک کارمند سئوی ۲۴ ساعته استخدام کن">کارمند ۲۴ ساعته</button>
+          </div>
+          <div class="row" id="cos" role="group" aria-label="برای کدام شرکت">
+            <button class="seal" type="button" data-n="PC" aria-label="پروچارت" aria-pressed="false">PC</button>
+            <button class="seal" type="button" data-n="TY" aria-label="تریدیار" aria-pressed="false">TY</button>
+            <button class="seal" type="button" data-n="FX" aria-label="کوینه‌پرو FX" aria-pressed="false">FX</button>
+            <button class="seal" type="button" data-n="IG" aria-label="IG-Hub" aria-pressed="false">IG</button>
+            <span class="sp xs muted" id="co-name">برای کدام شرکت؟</span>
+          </div>
+          <div class="seg" id="pace" role="group" aria-label="روش کار">
+            <button type="button" class="on" aria-pressed="true">با من</button>
+            <button type="button" aria-pressed="false">خودکار</button>
+          </div>
+          <button class="go" id="go" type="button" disabled>باز کن</button>
+        </div>
+      </div>
+      <p class="sm t2">یک دکمه‌ی طلایی در همه‌ی صفحه‌ها. الگو فقط متن شروع را پر میکند؛ مسیر همان یک مسیر است. «باز کن» که بزنی، برگه خودش کارت جلسه میشود.</p>
+    </section>
+
+    <!-- 2 -->
+    <section class="unit" aria-labelledby="u2">
+      <div class="cap"><h2 id="u2">۲ · کارگاه</h2><div class="keys"><span class="key">M12</span><span class="key">M7</span><span class="key">M17</span><span class="key">M13</span></div></div>
+      <div class="phone" id="p2">
+        <div class="top"><span class="ttl">کارگاه · ریلز ATR</span><span class="chip lap" id="w-state">در حال ساخت</span></div>
+        <div class="body">
+          <div class="ringbox">
+            <div class="ring"><svg viewBox="0 0 92 92" aria-hidden="true"><circle class="bg" cx="46" cy="46" r="40"/><circle class="fg" id="w-fg" cx="46" cy="46" r="40"/></svg><div class="mid"><div><b id="w-min">23</b><div class="xs muted">از ۶۰ دقیقه</div></div></div></div>
+            <div class="sp">
+              <div class="row"><i class="arc" id="w-arc" aria-hidden="true"></i><span id="w-line">صحنه‌ی ۳ را رندر میکند</span></div>
+              <div class="xs muted" style="margin-top:4px">پروچارت · Opus 5.5 · کارگاه هلدینگ</div>
+            </div>
+          </div>
+          <div class="strip" id="w-strip">
+            <div class="file"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9l5 3-5 3z"/></svg><span class="xs fig">reel.mp4</span></div>
+            <div class="file"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><circle cx="9" cy="9" r="1.6"/><path d="M5 17l4-4 3 3 3-4 4 5"/></svg><span class="xs fig">cover.png</span></div>
+            <div class="file"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h5"/></svg><span class="xs fig">caption.md</span></div>
+          </div>
+          <div class="player">
+            <div class="poster" aria-hidden="true"><div class="candles"><i style="height:28px"></i><i class="d" style="height:20px"></i><i style="height:44px"></i><i style="height:36px"></i><i class="d" style="height:26px"></i><i style="height:58px"></i><i style="height:50px"></i><i class="d" style="height:34px"></i><i style="height:66px"></i></div></div>
+            <div class="atr" aria-hidden="true"></div>
+            <div class="tl"><div class="track"><i></i><span class="pin">اینجا رنگ تیره‌تر · <span class="fig">0:11</span></span></div></div>
+          </div>
+          <div class="row"><button class="btn gold sp" type="button" id="w-ok">تأیید</button><button class="btn" type="button" style="flex:2;white-space:nowrap">اصلاح روی همین ثانیه</button></div>
+        </div>
+      </div>
+      <p class="sm t2">حلقه زمانِ واقعی ساخت را نشان میدهد (سقف ۶۰ دقیقه). فایل‌های <span class="fig">out/</span> یکی‌یکی می‌نشینند. ویدیو همان‌جا پخش میشود و اصلاح را روی همان ثانیه مینویسی.</p>
+    </section>
+
+    <!-- 3 -->
+    <section class="unit" aria-labelledby="u3">
+      <div class="cap"><h2 id="u3">۳ · میز انتشار و مُهر</h2><div class="keys"><span class="key">M20</span><span class="key">M10</span><span class="key">M21</span></div></div>
+      <div class="phone" id="p3">
+        <div class="top"><span class="ttl">آماده‌ی انتشار</span><span class="chip">اینستاگرام · از راه IG-Hub</span></div>
+        <div class="body">
+          <div class="insta">
+            <div class="ph" aria-hidden="true"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="12" r="9"/><path d="M10 8.5l6 3.5-6 3.5z"/></svg></div>
+            <div class="cx"><div>ATR چیست و چرا حد ضررت را نجات میدهد؟</div><div class="wraprow" style="margin-top:6px"><span class="chip">#پروچارت</span><span class="chip">#اندیکاتور</span><span class="chip fig">#ATR</span></div></div>
+          </div>
+          <div class="tilebox row"><div class="sp"><div class="sm t2">بهترین ساعت از عددهای همین حساب</div><div>امشب <span class="fig">21:30</span></div></div><button class="chip" type="button">تغییر</button></div>
+          <div class="sealwrap">
+            <button class="sealbtn" id="sealbtn" type="button" aria-label="نگه دار تا مُهر بخورد">
+              <svg class="r" viewBox="0 0 96 96" aria-hidden="true"><circle class="bg" cx="48" cy="48" r="44"/><circle class="fg" id="s-fg" cx="48" cy="48" r="44"/></svg>
+              <svg class="oct" viewBox="0 0 54 54" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 4h16l15 15v16L35 50H19L4 35V19z"/><path d="M19 27l6 6 11-12" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <div class="sm t2 before">نگه دار تا مُهر بخورد</div>
+            <div class="after" style="text-align:center"><div style="color:var(--gold-ink);font-weight:650">مُهر شد</div><div class="sm t2">در صف انتشار · امشب <span class="fig">21:30</span></div><button class="chip" id="unseal" type="button" style="margin-top:6px">برگردان (۱۰ ثانیه)</button></div>
+          </div>
+        </div>
+      </div>
+      <p class="sm t2">خروجی تأییدشده در قاب شبکه‌اش دیده میشود. انتشار فقط با مُهر توست: نگه میداری، حلقه‌ی طلا پر میشود، گوشی یک ضربه میزند. رها کنی، برمیگردد.</p>
+    </section>
+
+    <!-- 4 -->
+    <section class="unit" aria-labelledby="u4">
+      <div class="cap"><h2 id="u4">۴ · کشیک ۲۴ ساعته</h2><div class="keys"><span class="key">M1</span><span class="key">M6</span><span class="key">M2</span></div></div>
+      <div class="phone" id="p4">
+        <div class="top"><span class="ttl">کارمند سئو · تریدیار</span><span class="chip pos"><i class="dot breath"></i>کار میکند</span></div>
+        <div class="body">
+          <div class="dialbox">
+            <svg class="dial" id="dial" viewBox="0 0 200 200" role="img" aria-label="شبانه‌روز این کارمند: ۱۴ بار کار، ۳ یافته"></svg>
+            <div class="dialmid"><b class="fig">14</b><div class="xs muted">بار کار امروز</div></div>
+          </div>
+          <div class="row sm t2"><span>هر <span class="fig">90</span> دقیقه نگاه میکند</span><span class="sp"></span><span>خرج امروز: <span class="fig">41K</span> توکن</span></div>
+          <div>
+            <div class="find"><i class="sev r" aria-hidden="true"></i><div class="sp"><div>صفحه‌ی «سیگنال فارکس» ۵ پله پایین آمد</div><div class="xs muted">هشدار · <span class="fig">09:12</span></div></div><button class="fix" type="button">درستش کن</button></div>
+            <div class="find"><i class="sev" aria-hidden="true"></i><div class="sp"><div>۳ لینک شکسته در بلاگ</div><div class="xs muted">پیشنهاد · <span class="fig">13:40</span></div></div><button class="fix" type="button">درستش کن</button></div>
+            <div class="find"><i class="sev" aria-hidden="true"></i><div class="sp"><div>کلمه‌ی تازه: «حد ضرر شناور»</div><div class="xs muted">ایده برای رسانه · <span class="fig">16:05</span></div></div><button class="fix" type="button">به بانک ایده</button></div>
+          </div>
+        </div>
+      </div>
+      <p class="sm t2">هر بار کارِ کارمند یک نقطه روی دایره‌ی شبانه‌روز است؛ نقطه‌ی طلایی یعنی چیزی پیدا کرد که به تو مربوط است. هر یافته با یک لمس کار میشود.</p>
+    </section>
+
+    <!-- 5 -->
+    <section class="unit" aria-labelledby="u5">
+      <div class="cap"><h2 id="u5">۵ · ماموریت‌ها</h2><div class="keys"><span class="key">M11</span><span class="key">M13</span></div></div>
+      <div class="phone" id="p5">
+        <div class="top"><span class="ttl">ماموریت‌ها</span><span class="live"><i class="dot breath"></i>زنده</span></div>
+        <div class="body">
+          <div class="lane"><h3><span>در حال ساخت</span><span class="fig" id="c-a">2</span></h3><div class="slot" id="l-a">
+            <div class="mcard" id="mover"><span class="mini">PC</span><div class="sp"><div>ریلز ATR</div><div class="xs muted" id="mv-sub">کارگاه · دقیقه‌ی <span class="fig">23</span></div></div></div>
+            <div class="mcard"><span class="mini">FX</span><div class="sp"><div>ویدیوی یوتیوب: مدیریت ریسک</div><div class="xs muted">کارگاه · در صف</div></div></div>
+          </div></div>
+          <div class="lane"><h3><span>منتظر تو</span><span class="fig" id="c-b">1</span></h3><div class="slot" id="l-b">
+            <div class="mcard mine"><span class="mini">TY</span><div class="sp"><div>استخدام کارمند سئو</div><div class="xs" style="color:var(--gold-ink)">مُهر میخواهد</div></div></div>
+          </div></div>
+          <div class="lane"><h3><span>آماده‌ی انتشار</span><span class="fig">1</span></h3><div class="slot">
+            <div class="mcard"><span class="mini">PC</span><div class="sp"><div>پست X: خبر نسخه‌ی تازه</div><div class="xs muted">امشب <span class="fig">20:00</span></div></div></div>
+          </div></div>
+          <div class="lane"><h3><span>منتشرشده</span><span class="fig">3</span></h3><div class="slot">
+            <div class="mcard"><span class="mini">TY</span><div class="sp"><div>ریلز هفتگی</div><div class="xs muted"><span class="fig">12.4K</span> بازدید در ۲۴ ساعت</div></div></div>
+          </div></div>
+          <button class="btn" type="button" id="move" style="margin-top:auto">نمایش: ساخت تمام شد</button>
+        </div>
+      </div>
+      <p class="sm t2">همه‌ی کارهای همه‌ی شرکت‌ها در چهار ستون. وقتی ساخت تمام میشود، کارت خودش نرم به «منتظر تو» میرود و خط طلایی‌اش یک بار برق میزند.</p>
+    </section>
+
+    <!-- 6 -->
+    <section class="unit" aria-labelledby="u6">
+      <div class="cap"><h2 id="u6">۶ · ناوگان</h2><div class="keys"><span class="key">M12</span><span class="key">M5</span><span class="key">M9</span></div></div>
+      <div class="phone" id="p6">
+        <div class="top"><span class="ttl">ناوگان</span><span class="chip"><span class="fig">4</span> از <span class="fig">5</span> وصل</span></div>
+        <div class="body">
+          <div class="fleet" id="fleet">
+            <div class="srv work"><div class="row"><b class="sp">کارگاه</b><span class="st"><i></i>وصل</span></div><div class="xs muted">حافظه</div><div class="meter"><i data-w="58"></i></div><div class="xs muted">پردازنده</div><div class="meter"><i data-w="71" class="hot"></i></div><div class="jobline">رندر ریلز ATR…</div><i class="band" aria-hidden="true"></i></div>
+            <div class="srv"><div class="row"><b class="sp">پروچارت</b><span class="st"><i></i>وصل</span></div><div class="xs muted">حافظه</div><div class="meter"><i data-w="44"></i></div><div class="xs muted">پردازنده</div><div class="meter"><i data-w="12"></i></div><div class="jobline muted">بی‌کار</div></div>
+            <div class="srv work"><div class="row"><b class="sp">تریدیار</b><span class="st"><i></i>وصل</span></div><div class="xs muted">حافظه</div><div class="meter"><i data-w="63"></i></div><div class="xs muted">پردازنده</div><div class="meter"><i data-w="35"></i></div><div class="jobline">خواندن نقشه‌ی سایت…</div><i class="band" aria-hidden="true"></i></div>
+            <div class="srv"><div class="row"><b class="sp">IG-Hub</b><span class="st"><i></i>وصل</span></div><div class="xs muted">حافظه</div><div class="meter"><i data-w="31"></i></div><div class="xs muted">پردازنده</div><div class="meter"><i data-w="8"></i></div><div class="jobline muted">صف انتشار: <span class="fig">2</span></div></div>
+            <div class="srv" style="grid-column:1/-1"><div class="row"><b class="sp">کوینه‌پرو FX</b><span class="st off"><i></i>قطع از <span class="fig">14:02</span></span></div><div class="sm t2">runner جواب نمیدهد. تیم فنی FX خبر شد؛ کاری از تو لازم نیست.</div></div>
+          </div>
+        </div>
+      </div>
+      <p class="sm t2">هر سرور با نام شرکتش. نوار کار فقط وقتی حرکت میکند که واقعاً کاری در جریان است. سرور قطع‌شده با ساعت و دلیل می‌آید، نه فقط یک چراغ قرمز.</p>
+    </section>
+  </div>
+
+  <p class="note sm">این تابلو جهت را نشان میدهد، نه نسخه‌ی نهایی هر صفحه را. بعد از تأیید تو، هر صفحه با همه‌ی حالت‌هایش (خالی، خطا، بی‌اینترنت، شب و روز) جدا طراحی و بعد در اندروید و وب ساخته میشود. فهرست ۲۰۰ قابلیت در سند <span class="fig">docs/UI_COMMAND_ROOM_PROPOSAL.md</span> است.</p>
+</div>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id)};
+  var root=$('root');
+  var calm=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var timers=[];
+  function later(fn,ms){timers.push(setTimeout(fn,calm?0:ms))}
+  function buzz(p){try{if(navigator.vibrate)navigator.vibrate(p)}catch(e){}}
+
+  /* 1 · command sheet */
+  var p1=$('p1'),typed=$('typed'),ph=$('ph'),field=$('field'),go=$('go'),co=null,text='';
+  function ready(){go.disabled=!(co&&text)}
+  function setText(t){text=t;typed.textContent=t;ph.hidden=!!t;field.classList.toggle('has',!!t);ready()}
+  $('tpls').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;
+    [].forEach.call(this.children,function(c){c.classList.toggle('on',c===b)});
+    setText(b.dataset.t);$('nc-title').textContent=b.textContent});
+  $('cos').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;
+    [].forEach.call(this.querySelectorAll('button'),function(c){var on=c===b;c.classList.toggle('on',on);c.setAttribute('aria-pressed',on)});
+    co=b.dataset.n;$('co-name').textContent=b.getAttribute('aria-label');$('nc-co').textContent=co;ready()});
+  $('pace').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;
+    [].forEach.call(this.children,function(c){var on=c===b;c.classList.toggle('on',on);c.setAttribute('aria-pressed',on)})});
+  go.addEventListener('click',function(){p1.classList.remove('open');p1.classList.add('sent');buzz(12)});
+  $('fab').addEventListener('click',function(){p1.classList.remove('sent');p1.classList.add('open')});
+  function play1(){p1.classList.remove('sent','open');later(function(){p1.classList.add('open')},350)}
+
+  /* 2 · workshop */
+  var fg=$('w-fg'),C=251.3;
+  function play2(){var st=$('w-state'),files=$('w-strip').children;
+    fg.style.strokeDashoffset=C;fg.style.stroke='';st.textContent='در حال ساخت';st.className='chip lap';
+    $('w-arc').hidden=false;$('w-line').textContent='صحنه‌ی ۳ را رندر میکند';$('w-min').textContent='23';
+    [].forEach.call(files,function(f){f.classList.remove('in')});
+    later(function(){fg.style.strokeDashoffset=C*(1-23/60)},300);
+    [].forEach.call(files,function(f,i){later(function(){f.classList.add('in')},900+i*90)});
+    later(function(){$('w-line').textContent='فایل‌ها را به ستاد فرستاد';$('w-arc').hidden=true;
+      st.textContent='آماده‌ی دیدن';st.className='chip on';fg.style.stroke='var(--gold)';$('w-min').textContent='24'},2300)}
+  $('w-ok').addEventListener('click',function(){var st=$('w-state');st.textContent='تأیید شد';st.className='chip pos';buzz(12)});
+
+  /* 3 · hold to seal */
+  var p3=$('p3'),sb=$('sealbtn'),sfg=$('s-fg'),SC=276.5,t0=0,raf=0,HOLD=800;
+  function draw(){var k=Math.min(1,(performance.now()-t0)/HOLD);sfg.style.strokeDashoffset=SC*(1-k);
+    if(k>=1){p3.classList.add('sealed');buzz(30);raf=0;return}raf=requestAnimationFrame(draw)}
+  function down(e){if(p3.classList.contains('sealed'))return;e.preventDefault();sfg.style.transition='none';t0=performance.now();
+    if(calm){sfg.style.strokeDashoffset=0;p3.classList.add('sealed');return}raf=requestAnimationFrame(draw)}
+  function up(){if(raf){cancelAnimationFrame(raf);raf=0;sfg.style.transition='stroke-dashoffset 320ms cubic-bezier(.2,0,0,1)';sfg.style.strokeDashoffset=SC}}
+  sb.addEventListener('pointerdown',down);sb.addEventListener('pointerup',up);sb.addEventListener('pointerleave',up);sb.addEventListener('pointercancel',up);
+  sb.addEventListener('keydown',function(e){if((e.key===' '||e.key==='Enter')&&!e.repeat)down(e)});
+  sb.addEventListener('keyup',function(e){if(e.key===' '||e.key==='Enter')up()});
+  function play3(){p3.classList.remove('sealed');sfg.style.transition='none';sfg.style.strokeDashoffset=SC}
+  $('unseal').addEventListener('click',play3);
+
+  /* 4 · the 24-hour dial */
+  var dial=$('dial'),NS='http://www.w3.org/2000/svg',runs=[0.4,1.9,3.4,4.9,6.4,7.9,9.2,10.9,12.4,13.7,15.2,16.1,17.6,19.1],found={6:1,9:1,11:1};
+  function pt(h,r){var a=(h/24)*2*Math.PI-Math.PI/2;return [100+r*Math.cos(a),100+r*Math.sin(a)]}
+  function el(n,a){var e=document.createElementNS(NS,n);for(var k in a)e.setAttribute(k,a[k]);return e}
+  function build4(){dial.textContent='';
+    for(var h=0;h<24;h++){var a=pt(h,86),b=pt(h,h%6===0?76:81);dial.appendChild(el('line',{x1:a[0],y1:a[1],x2:b[0],y2:b[1],'class':'tick'+(h%6===0?' h6':'')}))}
+    [[0,'00'],[6,'06'],[12,'12'],[18,'18']].forEach(function(x){var p=pt(x[0],66);var t=el('text',{x:p[0],y:p[1]+3,'text-anchor':'middle'});t.textContent=x[1];dial.appendChild(t)});
+    runs.forEach(function(h,i){var p=pt(h,93);dial.appendChild(el('circle',{cx:p[0],cy:p[1],r:found[i]?4:3,'class':'run'+(found[i]?' f':'')}))});
+    var hp=pt(19.4,84),hq=pt(19.4,56);dial.appendChild(el('line',{x1:hq[0],y1:hq[1],x2:hp[0],y2:hp[1],'class':'hand'}))}
+  function play4(){var ds=dial.querySelectorAll('.run');[].forEach.call(ds,function(d){d.classList.remove('in')});
+    [].forEach.call(ds,function(d,i){later(function(){d.classList.add('in')},250+i*70)})}
+  $('p4').addEventListener('click',function(e){var b=e.target.closest('.fix');if(!b||b.classList.contains('done'))return;b.classList.add('done');b.textContent='سپرده شد';buzz(12)});
+
+  /* 5 · missions: FLIP */
+  var mover=$('mover');
+  function flip(to){var a=mover.getBoundingClientRect();to.insertBefore(mover,to.firstChild);var b=mover.getBoundingClientRect();
+    if(calm)return;mover.style.transition='none';mover.style.transform='translate('+(a.left-b.left)+'px,'+(a.top-b.top)+'px)';
+    mover.getBoundingClientRect();mover.style.transition='transform 320ms cubic-bezier(.2,0,0,1)';mover.style.transform=''}
+  function toMine(){if(mover.parentNode.id==='l-b')return;flip($('l-b'));mover.classList.add('mine');
+    $('mv-sub').innerHTML='ساخت تمام شد · <span style="color:var(--gold-ink)">ببین و تأیید کن</span>';$('c-a').textContent='1';$('c-b').textContent='2';buzz(12)}
+  function back5(){if(mover.parentNode.id==='l-a')return;flip($('l-a'));mover.classList.remove('mine');
+    $('mv-sub').innerHTML='کارگاه · دقیقه‌ی <span class="fig">23</span>';$('c-a').textContent='2';$('c-b').textContent='1'}
+  $('move').addEventListener('click',function(){if(mover.parentNode.id==='l-b')back5();else toMine()});
+  function play5(){back5();later(toMine,1400)}
+
+  /* 6 · fleet meters */
+  function play6(){var ms=$('fleet').querySelectorAll('.meter i');[].forEach.call(ms,function(m){m.style.width='0'});
+    later(function(){[].forEach.call(ms,function(m){m.style.width=m.dataset.w+'%'})},250)}
+
+  function rest(){ /* the resting frame: every surface readable with no motion at all */
+    p1.classList.add('open');fg.style.strokeDashoffset=C*(1-23/60);
+    [].forEach.call($('w-strip').children,function(f){f.classList.add('in')});
+    [].forEach.call(dial.querySelectorAll('.run'),function(d){d.classList.add('in')});
+    [].forEach.call($('fleet').querySelectorAll('.meter i'),function(m){m.style.width=m.dataset.w+'%'})}
+  function playAll(){timers.forEach(clearTimeout);timers=[];play1();play2();play3();play4();play5();play6()}
+  build4();rest();
+  if(calm){root.classList.add('rm');$('calm').setAttribute('aria-pressed','true');$('calm').textContent='حرکت‌ها روشن'}
+  $('replay').addEventListener('click',playAll);
+  $('calm').addEventListener('click',function(){calm=!calm;root.classList.toggle('rm',calm);this.setAttribute('aria-pressed',calm);this.textContent=calm?'حرکت‌ها روشن':'حالت کم‌حرکت'});
+  if(!calm)setTimeout(playAll,500);
+})();
+</script>
+</body>
+</html>
