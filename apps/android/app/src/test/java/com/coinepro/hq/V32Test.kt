@@ -416,4 +416,26 @@ class V32Test {
         assertEquals("TY", n["company"]!!.jsonPrimitive.contentOrNull)
         assertEquals("ceo", n["role"]!!.jsonPrimitive.content)
     }
+
+    /**
+     * ⟨0.19.7⟩ 0.19.6 wrote `?limit=200` into the path: OkHttp sent it as `%3Flimit=200`, the hub answered 404 and a session opened
+     * with an empty conversation. A query is a query, however the call writes it.
+     */
+    @Test
+    fun aSessionsConversationAsksForItsTurnsAsAQueryNeverInsideThePath() = runTest {
+        server.enqueue(json(200, """{"ref":"CV-0001","persona":"secretary","turns_page":{"items":[],"next_cursor":null}}"""))
+        api.talkConversation("CV-0001")
+        val r = server.takeRequest()
+        assertEquals("/api/v1/talk/conversations/CV-0001", r.url.encodedPath)
+        assertEquals("200", r.url.queryParameter("limit"))
+        // a query written into a path is still a query, and what the caller adds joins it
+        val u = api.url("/academy/runs?role=ceo&latest=true", mapOf("subject_kind" to "model"))
+        assertEquals("/api/v1/academy/runs", u.encodedPath)
+        assertEquals(listOf("ceo", "true", "model"), listOf("role", "latest", "subject_kind").map(u::queryParameter))
+        server.enqueue(json(200, """{"items":[],"next_cursor":null}"""))
+        api.modelComparison("ceo")
+        val a = server.takeRequest()
+        assertEquals("/api/v1/academy/runs", a.url.encodedPath)
+        assertEquals("ceo", a.url.queryParameter("role"))
+    }
 }

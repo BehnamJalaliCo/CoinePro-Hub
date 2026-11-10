@@ -196,8 +196,13 @@ class Api(
         throw mismatch(200, method, path, e)
     }
 
+    /**
+     * ⟨0.19.7⟩ A query written into [path] (`/x?limit=200`) is the request's query, never part of its path: OkHttp encodes a `?` in a
+     * path as `%3F`, and the hub then answers 404 for a route that exists (0.19.6 opened a session with an empty conversation).
+     */
     fun url(path: String, query: Map<String, Any?> = emptyMap()): HttpUrl {
-        val b = base.newBuilder().encodedPath("/api/v1$path")
+        val b = base.newBuilder().encodedPath("/api/v1${path.substringBefore('?')}")
+        path.substringAfter('?', "").takeIf { it.isNotBlank() }?.let(b::encodedQuery)
         for ((k, v) in query) if (v != null) b.addQueryParameter(k, v.toString())
         return b.build()
     }
@@ -517,7 +522,7 @@ class Api(
     suspend fun evals(): List<EvalSuite> = get<List<EvalSuite>>("/academy/evals").map { s -> s.copy(recent = s.recent.filter { it.done }) }
     /** Item 30: the newest run of each (suite, model) for a role. */
     suspend fun modelComparison(role: String): Page<EvalRun> =
-        get<Page<EvalRun>>("/academy/runs?role=${seg(role)}&subject_kind=model&latest=true").let { p -> p.copy(items = p.items.filter { it.done }) }
+        get<Page<EvalRun>>("/academy/runs", mapOf("role" to role, "subject_kind" to "model", "latest" to true)).let { p -> p.copy(items = p.items.filter { it.done }) }
     suspend fun trainingRecord(employee: String): TrainingRecord = get("/academy/records/${seg(employee)}")
     suspend fun teachings(): List<Teaching> = get("/academy/teach")
     suspend fun teach(targetKind: String, targetRef: String, text: String, source: String, fileId: String?): Teaching =
@@ -1671,7 +1676,7 @@ class Api(
     suspend fun newTalkConversation(persona: String, role: String? = null, company: String? = null, mode: String? = null): TalkConversation =
         post("/talk/conversations", buildJsonObject { put("persona", persona); if (role != null) put("role", role); if (company != null) put("company", company); if (mode != null) put("mode", mode) })
     /** ⟨0.19.6⟩ `limit=200` (the hub's most): a long session opened with only its last 50 turns. */
-    suspend fun talkConversation(ref: String): TalkDetail = TalkDetail.parse(get<JsonElement>("/talk/conversations/${seg(ref)}?limit=200"))
+    suspend fun talkConversation(ref: String): TalkDetail = TalkDetail.parse(get<JsonElement>("/talk/conversations/${seg(ref)}", mapOf("limit" to 200)))
     suspend fun patchTalkConversation(ref: String, mode: String? = null, titleFa: String? = null): TalkConversation =
         send("PATCH", "/talk/conversations/${seg(ref)}", json.encodeToString(JsonElement.serializer(), buildJsonObject { if (mode != null) put("mode", mode); if (titleFa != null) put("title_fa", titleFa) }))
     /** A turn of the owner (`Idempotency-Key` = [clientId], kept across a retry of one press); the answer streams on [TalkTurnOut.events]. */
