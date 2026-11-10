@@ -1604,3 +1604,8 @@ async def loop(hub: Hub) -> None:
                 await SPB.after_job(hub, jid)
             except Exception:  # noqa: BLE001 - one job never stops the sweep
                 log.warning("after_job failed for a swept job", extra={"job": str(jid)})
+        # ⟨§46⟩ publications IG-Hub still holds (set for a time, or being prepared) are asked about
+        with contextlib.suppress(Exception):
+            from hq_api.domain import session_publish as SPB
+
+            await SPB.follow_up(hub)

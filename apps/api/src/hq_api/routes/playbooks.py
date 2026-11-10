@@ -59,8 +59,9 @@ async def _standing(ctx: Ctx, tx: Any, ref: str, company: Any, rule: PB.PublishR
     if row.get("group_id") is None:
         return
     set_to = await SPB.set_rule(
-        tx, row["group_id"], company.id, mode=rule.mode, account=rule.account, story=rule.story
-    )
+        tx, row["group_id"], company.id, mode=rule.mode, account=rule.account,
+        story=rule.story, at=rule.at,
+    )  # fmt: skip
     key = PB.group_key(ref)
     await ctx.audit(tx, company_id=company.id, action="group.publish", action_class="A3",
                     target_kind="group", target_ref=f"{key}:{company.code}",

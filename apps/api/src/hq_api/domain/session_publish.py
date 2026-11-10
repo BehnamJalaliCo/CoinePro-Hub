@@ -31,7 +31,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import UTC, datetime
+import re
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 from uuid import UUID
 
@@ -47,11 +48,13 @@ from hq_api.principal import Principal
 
 log = logging.getLogger("hq_api.session_publish")
 
-Kind = Literal["reel", "post", "story"]
-State = Literal["publishing", "published", "failed", "waiting_seal", "waiting_setup"]  # as OR's
+Kind = Literal["reel", "post", "story", "carousel"]
+State = Literal[
+    "publishing", "scheduled", "published", "failed", "waiting_seal", "waiting_setup"
+]  # as OR's; fmt: skip
 CAPTION_MAX = 2200
 TIMEOUT_S = 900
-KIND_FA = {"reel": "ریلز", "post": "پست", "story": "استوری"}
+KIND_FA = {"reel": "ریلز", "post": "پست", "story": "استوری", "carousel": "اسلاید"}
 OWNER_FA = "مدیر کل"
 SYSTEM_FA = "سامانه"
 LIVE = ("queued", "running", "awaiting_seal")
@@ -72,6 +75,21 @@ PICK_ACCOUNT_FA = "این شرکت چند حساب دارد؛ یکی را انت
 # ⟨§45⟩ the standing permission
 GROUPS = Principal(kind="service", code="groups", role="service")
 CAPTION_NAMES = ("caption.txt", "caption.md")
+# ⟨§46⟩ the package's comment rule (the word viewers are asked to comment, the private reply,
+# its link), the time a publication is set for, and asking IG-Hub again how it stands
+COMMENT_NAMES = ("comment.txt", "comment.md")
+PENDING = "pub:"  # the command's external id while scheduled, or while Meta prepares the file
+TRANSIENT = ("timed_out", "not_started")  # a check the runner never answered: asked again
+CHECK_AFTER = timedelta(seconds=90)
+CHECK_EVERY = timedelta(minutes=3)
+CHECK_FOR = timedelta(hours=6)
+CHECK_TIMEOUT_S = 120
+SOON = timedelta(minutes=2)  # a time this near is «now»
+FAR = timedelta(days=365)
+CAROUSEL_MAX = 10
+SCHEDULED_FA = "زمان‌بندی شد: {kind} در @{account}، {when}"
+QUEUED_FA = "اینستاگرام دارد {kind} را آماده میکند (@{account})؛ نتیجه همین‌جا می‌آید"
+AT = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
 CAPTION_FILE_MAX = 64 * 1024
 SWEEP_DAYS = 3
 WORK_DONE = ("done", "delivered")
@@ -103,19 +121,49 @@ def _cfg(row: dict[str, Any] | None) -> dict[str, Any]:
     return json.loads(cfg) if isinstance(cfg, str) else dict(cfg)
 
 
+def _when(raw: Any) -> datetime | None:
+    """A time with its zone, or None."""
+    try:
+        t = datetime.fromisoformat(str(raw))
+    except ValueError:
+        return None
+    return t if t.tzinfo is not None else None
+
+
+def _pending(j: dict[str, Any]) -> bool:
+    """The command answered `pub:<id>` and no link: IG-Hub holds it for its time, or Meta is
+    still preparing the file. The hub asks again (follow_up)."""
+    result = OR._j(j.get("result")) or {}
+    ext = str(result.get("external_id") or "")
+    return str(j["state"]) == "done" and ext.startswith(PENDING) and not result.get("url")
+
+
+def _waiting(meta: dict[str, Any]) -> State:
+    when = _when(meta.get("scheduled_at"))
+    return "scheduled" if when is not None and when > datetime.now(UTC) else "publishing"
+
+
 def _state(j: dict[str, Any]) -> State:
     st = str(j["state"])
+    meta = (OR._j(j["args"]) or {}).get("meta") or {}
     if st in ("queued", "running"):
-        return "publishing"
+        # a question on its way: what it asks about stands as it stood
+        return _waiting(meta) if meta.get("check") else "publishing"
     if st == "awaiting_seal":
         return "waiting_seal"
-    return "published" if st == "done" else "failed"
+    if st == "done":
+        return _waiting(meta) if _pending(j) else "published"
+    if meta.get("check") and str(j.get("error_code") or "") in TRANSIENT:
+        return _waiting(meta)  # the question was never answered: it is asked again
+    return "failed"
 
 
 def view(j: dict[str, Any]) -> SessionPublish:
     args = OR._j(j["args"]) or {}
     result = OR._j(j.get("result")) or {}
     s = args.get("session") or {}
+    meta = args.get("meta") or {}
+    files = args.get("files") or []
     state = _state(j)
     url = str(result.get("url") or "") or None
     note = None
@@ -123,14 +171,14 @@ def view(j: dict[str, Any]) -> SessionPublish:
         note = HZ.humanize(str(j.get("summary_fa") or "")) or "پلتفرم انتشار را نپذیرفت"
     elif state == "waiting_seal":
         note = "دستور انتشار این سرور مُهر شما را میخواهد."
+    words = (meta.get("comment") or {}).get("keywords") or []
     return SessionPublish(
         job=str(j["id"]),
         output=s.get("output"),
         file_id=str(s.get("file_id") or ""),
-        file_name=((args.get("files") or [{}])[0] or {}).get("name"),
-        cover_name=next(
-            (x.get("name") for x in args.get("files") or [] if x.get("role") == "cover"), None
-        ),
+        file_name=s.get("file_name") or ((files or [{}])[0] or {}).get("name"),
+        cover_name=s.get("cover_name")
+        or next((x.get("name") for x in files if x.get("role") == "cover"), None),
         kind=args.get("kind") if args.get("kind") in KIND_FA else "post",
         account=args.get("account"),
         state=state,
@@ -139,10 +187,15 @@ def view(j: dict[str, Any]) -> SessionPublish:
         at=j.get("created_at"),
         published_at=j.get("finished_at") if state == "published" else None,
         auto=bool(args.get("standing")),
+        scheduled_at=_when(meta.get("scheduled_at")),
+        comment=str(words[0]) if words else None,
+        files=max(1, int(s.get("files") or 1)),
     )
 
 
-JOB_COLS = "j.id, j.state, j.args, j.result, j.summary_fa, j.created_at, j.finished_at"
+JOB_COLS = (
+    "j.id, j.state, j.args, j.result, j.summary_fa, j.error_code, j.created_at, j.finished_at"
+)
 JOB_SQL = f"""SELECT {JOB_COLS} FROM infra.server_jobs j
               WHERE j.kind = 'publish' AND j.args -> 'session' ->> 'order' = :ref"""  # noqa: S608
 # an output's publishes, whatever asked for them (a tap in its session, a tap in «خروجی‌ها», the
@@ -199,12 +252,10 @@ async def _files(tx: Tx, d: dict[str, Any]) -> list[dict[str, Any]]:
     )
 
 
-async def caption_of(tx: Tx, hub: Any, d: dict[str, Any]) -> str | None:
-    """⟨§45⟩ The caption a package carries: the text of its `caption.txt` (a workshop turn leaves
-    it in `out/` beside the video and the cover)."""
+async def _text_of(tx: Tx, hub: Any, d: dict[str, Any], names: tuple[str, ...]) -> str | None:
+    """A small text file of the output, by its name (a workshop turn leaves it in `out/`)."""
     f = next(
-        (x for x in await _files(tx, d) if str(x["name"] or "").strip().lower() in CAPTION_NAMES),
-        None,
+        (x for x in await _files(tx, d) if str(x["name"] or "").strip().lower() in names), None
     )
     if f is None or hub is None or int(f["size"] or 0) > CAPTION_FILE_MAX:
         return None
@@ -214,10 +265,76 @@ async def caption_of(tx: Tx, hub: Any, d: dict[str, Any]) -> str | None:
             return fh.read(CAPTION_FILE_MAX).decode("utf-8", errors="replace")
 
     try:
-        text = (await asyncio.to_thread(read)).replace("﻿", "").strip()
+        return (await asyncio.to_thread(read)).replace("\ufeff", "").strip() or None
     except OSError:
         return None
-    return text[:CAPTION_MAX] or None
+
+
+async def caption_of(tx: Tx, hub: Any, d: dict[str, Any]) -> str | None:
+    """⟨§45⟩ The caption a package carries: the text of its `caption.txt` (a workshop turn leaves
+    it in `out/` beside the video and the cover)."""
+    text = await _text_of(tx, hub, d, CAPTION_NAMES)
+    return text[:CAPTION_MAX] or None if text else None
+
+
+COMMENT_KEYS = {
+    "keywords": ("keyword", "keywords", "word", "کلمه", "کلمات", "کد", "عدد"),
+    "reply": ("reply", "message", "پاسخ", "جواب", "پیام"),
+    "link": ("link", "url", "لینک"),
+    "public": ("public", "public_reply", "عمومی", "پاسخ عمومی", "جواب عمومی"),
+}
+
+
+def clean_comment(raw: Any) -> dict[str, Any] | None:
+    """⟨§46⟩ A comment rule as IG-Hub takes it, or None when it has no word or no reply: up to
+    10 words, the private reply, an https link (anything else is left out), public replies."""
+    if not isinstance(raw, dict):
+        return None
+    words = raw.get("keywords") or raw.get("keyword") or []
+    if isinstance(words, str):
+        words = re.split(r"[,،]", words)
+    words = list(dict.fromkeys(str(w).strip()[:100] for w in words if str(w).strip()))[:10]
+    reply = str(raw.get("reply") or raw.get("reply_text") or "").strip()[:1000]
+    if not words or not reply:
+        return None
+    out: dict[str, Any] = {"keywords": words, "reply": reply}
+    link = str(raw.get("link") or "").strip()
+    if re.fullmatch(r"https://\S{3,1900}", link):
+        out["link"] = link
+        if str(raw.get("button") or "").strip():
+            out["button"] = str(raw["button"]).strip()[:20]
+    public = raw.get("public_replies") or []
+    if isinstance(public, str):
+        public = [public]
+    public = [str(x).strip()[:300] for x in public if str(x).strip()][:10]
+    if public:
+        out["public_replies"] = public
+    return out
+
+
+def parse_comment(text: str | None) -> dict[str, Any] | None:
+    """`comment.txt` of a package, one `label: value` a line, in English or Persian:
+    `keyword: ۷`, `reply: این هم لینک`, `link: https://…`, `public: دایرکت را ببین`."""
+    got: dict[str, Any] = {}
+    for line in (text or "").splitlines():
+        label, sep, value = line.partition(":")
+        if not sep:
+            label, sep, value = line.partition("：")
+        label, value = label.strip().lower().strip("-* "), value.strip()
+        if not sep or not value:
+            continue
+        for key, names in COMMENT_KEYS.items():
+            if label in names:
+                if key == "public":
+                    got.setdefault("public_replies", []).append(value)
+                else:
+                    got.setdefault(key, value)
+    return clean_comment(got)
+
+
+async def comment_of(tx: Tx, hub: Any, d: dict[str, Any]) -> dict[str, Any] | None:
+    """⟨§46⟩ The comment rule a package carries (`comment.txt`), or None."""
+    return parse_comment(await _text_of(tx, hub, d, COMMENT_NAMES))
 
 
 async def of_output(tx: Tx, output: str) -> list[SessionPublish]:
@@ -241,6 +358,7 @@ async def panel(tx: Tx, output: str, hub: Any = None) -> OR.PublishPanel:
         publishes=await of_output(tx, output),
         tap=True,
         caption=await caption_of(tx, hub, dict(d)),
+        comment=await comment_of(tx, hub, dict(d)),
         group=run["group_key"] if run else None,
         group_fa=run["group_fa"] if run else None,
         mode=rule_of(run["publish"])["mode"] if run else None,
@@ -270,13 +388,40 @@ async def _send(
     order: str | None,
     standing: dict[str, Any] | None = None,
     request_id: str | None = None,
+    more: list[dict[str, Any]] | None = None,
+    scheduled_at: datetime | None = None,
+    comment: dict[str, Any] | None = None,
+    first_comment: str | None = None,
 ) -> dict[str, Any]:
-    """One `publish` job on IG-Hub's server: the file (and a reel's cover), the caption, the
-    company's own command."""
-    mime = str(f["mime"])
-    media = "video" if mime.startswith("video/") else "image"
+    """One `publish` job on IG-Hub's server: the file (a reel's cover, a carousel's other
+    files), the caption, the company's own command. ⟨§46⟩ `scheduled_at`: IG-Hub holds it for
+    that time; `comment`: the rule made for this post alone when it is out."""
+
+    def item(x: dict[str, Any], role: str | None = None) -> dict[str, Any]:
+        mime = str(x["mime"])
+        kind = "video" if mime.startswith("video/") else "image"
+        got = {"file_id": str(x["id"]), "name": x["name"], "mime": mime, "kind": kind}
+        return {**got, "role": role} if role else got
+
+    files = [item(f), *(item(x) for x in more or [])]
+    if cover is not None:
+        files.append(item(cover, "cover"))
     server = await SV.load_server(tx, route["server_name"], company=route["server_co"])
     where = f"جلسه‌ی {order}" if order else f"خروجی {d['ref']}"
+    meta: dict[str, Any] = {
+        "channel": "instagram",
+        "kind": what,
+        "account": account,
+        "company": d["company"],
+        # the cover, when there is one, is the job's second file (HQ_PUBLISH_FILE_2)
+        "cover": cover is not None,
+    }
+    if scheduled_at is not None:
+        meta["scheduled_at"] = scheduled_at.isoformat()
+    if comment and what != "story":
+        meta["comment"] = comment
+    if (first_comment or "").strip() and what != "story":
+        meta["first_comment"] = str(first_comment).strip()[:CAPTION_MAX]
     j = await SV.create_job(
         tx,
         server=server,
@@ -288,6 +433,10 @@ async def _send(
                 "work": d["work_ref"],
                 "company": d["company"],
                 "file_id": str(f["id"]),
+                # kept here too: a later question about this publication carries no file
+                "file_name": f["name"],
+                "cover_name": cover["name"] if cover is not None else None,
+                "files": 1 + len(more or []),
             },
             **({"standing": standing} if standing else {}),
             "kind": what,
@@ -296,30 +445,8 @@ async def _send(
             "command": route["command"],
             "caption": caption.strip()[:CAPTION_MAX],
             "title_fa": str(d["title"])[:200],
-            "meta": {
-                "channel": "instagram",
-                "kind": what,
-                "account": account,
-                "company": d["company"],
-                # the cover, when there is one, is the job's second file (HQ_PUBLISH_FILE_2)
-                "cover": cover is not None,
-            },
-            "files": [
-                {"file_id": str(f["id"]), "name": f["name"], "mime": mime, "kind": media},
-                *(
-                    [
-                        {
-                            "file_id": str(cover["id"]),
-                            "name": cover["name"],
-                            "mime": str(cover["mime"]),
-                            "kind": "image",
-                            "role": "cover",
-                        }
-                    ]
-                    if cover is not None
-                    else []
-                ),
-            ],
+            "meta": meta,
+            "files": files,
         },
         actor_kind=who.kind,
         actor_code=who.code,
@@ -329,6 +456,24 @@ async def _send(
         request_id=request_id,
     )
     return {**dict(j), "server_company_id": server["company_id"]}
+
+
+async def last_of(
+    tx: Tx, output: str, file_id: str, account: str, what: str
+) -> SessionPublish | None:
+    """Where this file stands for this account and kind (its newest job), unless that failed:
+    the same file is never sent twice, whatever sent it; after a failure a tap is a new try."""
+    row = await tx.first(LAST_SQL, out=output, f=file_id, a=account, k=what)
+    got = view(dict(row)) if row is not None else None
+    return got if got is not None and got.state != "failed" else None
+
+
+def when_fa(t: datetime, tz: str) -> str:
+    """A time as the owner reads it: «امروز ۱۸:۳۰» is said by the app; here the clock alone."""
+    from hq_api.domain.gov_common import zone
+
+    local = t.astimezone(zone(tz))
+    return f"ساعت {local:%H:%M} ({local:%Y-%m-%d})"
 
 
 async def start(
@@ -343,10 +488,16 @@ async def start(
     account: str | None = None,
     cover_file_id: UUID | None = None,
     request_id: str | None = None,
+    file_ids: list[UUID] | None = None,
+    scheduled_at: datetime | None = None,
+    comment: dict[str, Any] | None = None,
+    first_comment: str | None = None,
 ) -> SessionPublish:
     """The owner's tap. `tx` reaches every company (the session is the holding's, the file is
     its company's, the job is IG-Hub's). `ref`: the session the tap was made in; None for an
-    output tapped in «خروجی‌ها» (⟨§45⟩ a working group's daily output is no session's)."""
+    output tapped in «خروجی‌ها» (⟨§45⟩ a working group's daily output is no session's).
+    ⟨§46⟩ `file_ids`: a carousel's other files, in order; `scheduled_at`: the time he set (IG-Hub
+    holds it till then; a time that near is now); `comment`: the rule for this post alone."""
     rep = None
     if ref is not None:
         rep = await OR.ensure(tx, ref)
@@ -382,6 +533,45 @@ async def start(
     what: Kind = kind or ("reel" if media == "video" else "post")
     if what == "reel" and media != "video":
         raise ApiError(422, "validation_failed", fields={"kind": "a reel is a video"})
+    # ⟨§46⟩ a carousel: this file and 1 to 9 more of the same output, in the order given
+    more: list[dict[str, Any]] = []
+    others = list(dict.fromkeys(str(x) for x in file_ids or [] if str(x) != str(file_id)))
+    if what == "carousel":
+        mine = {str(a) for a in d["attachments"] or []}
+        rows = await tx.all(
+            """SELECT id, name, mime FROM files.files
+               WHERE id = ANY(CAST(:ids AS uuid[])) AND variant = 'original' AND company_id = :co
+                 AND (mime LIKE 'image/%' OR mime LIKE 'video/%')""",
+            ids=others,
+            co=d["company_id"],
+        )
+        by_id = {str(r["id"]): dict(r) for r in rows if str(r["id"]) in mine}
+        if not 1 <= len(others) <= CAROUSEL_MAX - 1 or len(by_id) != len(others):
+            raise ApiError(
+                422, "validation_failed",
+                fields={"file_ids": "1 to 9 more videos or images of this output"},
+                message_fa="اسلاید ۲ تا ۱۰ فایل از همین خروجی میخواهد.",
+            )  # fmt: skip
+        more = [by_id[x] for x in others]
+    elif others:
+        raise ApiError(422, "validation_failed", fields={"file_ids": "only for a carousel"})
+    when = None
+    if scheduled_at is not None:
+        if scheduled_at.tzinfo is None:
+            raise ApiError(
+                422, "validation_failed", fields={"scheduled_at": "a time with its zone"}
+            )
+        if scheduled_at > datetime.now(UTC) + FAR:
+            raise ApiError(
+                422, "validation_failed", fields={"scheduled_at": "at most a year ahead"}
+            )
+        when = scheduled_at if scheduled_at > datetime.now(UTC) + SOON else None
+    rule = clean_comment(comment) if what != "story" else None
+    if comment is not None and what != "story" and rule is None:
+        raise ApiError(
+            422, "validation_failed", fields={"comment": "a word and a reply"},
+            message_fa="برای کامنت، هم کلمه لازم است و هم پاسخ.",
+        )  # fmt: skip
     # ⟨2026-11-10⟩ the owner's own order: «ویدیو و کاور و کپشن رو میبریم به شرکت IG»: a reel goes out
     # with its cover, an image of the same output
     cover = None
@@ -428,23 +618,23 @@ async def start(
         )  # fmt: skip
 
     # one tap, one post: the same file to the same account is not sent twice (whatever sent it)
-    before = await tx.first(
-        SENT_SQL, out=d["ref"], f=str(file_id), a=wanted, k=what, st=[*LIVE, "done"]
-    )
+    before = await last_of(tx, d["ref"], str(file_id), wanted, what)
     if before is not None:
-        return view(dict(before))
+        return before
 
     j = await _send(
         tx, who, d, dict(f), dict(cover) if cover is not None else None,
         what=what, account=wanted, caption=caption or "", route=route, order=ref,
-        request_id=request_id,
+        request_id=request_id, more=more, scheduled_at=when, comment=rule,
+        first_comment=first_comment,
     )  # fmt: skip
     if rep is not None:
-        await OR._append_steps(
-            tx,
-            rep["id"],
-            [_line(OWNER_FA, TAPPED_FA.format(kind=KIND_FA[what], name=f["name"], account=wanted))],
-        )
+        said = TAPPED_FA.format(kind=KIND_FA[what], name=f["name"], account=wanted)
+        if when is not None:
+            from hq_api.domain.gov_common import owner_tz
+
+            said += f"، {when_fa(when, await owner_tz(tx))}"
+        await OR._append_steps(tx, rep["id"], [_line(OWNER_FA, said)])
     for co_id in dict.fromkeys((d["company_id"], j["server_company_id"])):
         await audit.record(
             tx,
@@ -468,12 +658,27 @@ async def start(
 
 # ------------------------------------------------- §45 the standing permission --
 def rule_of(raw: Any) -> dict[str, Any]:
-    """A membership's `publish` as the code reads it: `ask` unless the owner said `auto`."""
+    """A membership's `publish` as the code reads it: `ask` unless the owner said `auto`.
+    ⟨§46⟩ `at`: the clock time («HH:MM», the owner's zone) its package goes out at."""
     cfg = json.loads(raw) if isinstance(raw, str) else dict(raw or {})
     mode = "auto" if cfg.get("mode") == "auto" else "ask"
     account = str(cfg.get("account") or "").strip().lstrip("@") or None
+    at = str(cfg.get("at") or "").strip()
     return {"mode": mode, "account": account, "story": bool(cfg.get("story")),
-            "since": cfg.get("since")}  # fmt: skip
+            "since": cfg.get("since"), "at": at if AT.fullmatch(at) else None}  # fmt: skip
+
+
+def at_today(at: str | None, tz: str, now: datetime | None = None) -> datetime | None:
+    """Today's «HH:MM» in the owner's zone, when it is still ahead; None: it goes out now (a
+    package made after its hour is not kept for tomorrow, when the next one comes)."""
+    m = AT.fullmatch(at or "")
+    if m is None:
+        return None
+    from hq_api.domain.gov_common import zone
+
+    local = (now or datetime.now(UTC)).astimezone(zone(tz))
+    t = local.replace(hour=int(m.group(1)), minute=int(m.group(2)), second=0, microsecond=0)
+    return t.astimezone(UTC) if t > local + SOON else None
 
 
 RUN_SQL = """SELECT x.id AS run_id, x.routine, x.occurrence_at, x.work_id, x.note_fa, x.company_id,
@@ -500,9 +705,9 @@ SWEEP_WHERE = """ WHERE x.occurrence_at > now() - make_interval(days => :days)
     AND NOT EXISTS (SELECT 1 FROM infra.server_jobs j WHERE j.kind = 'publish'
                     AND j.args -> 'standing' ->> 'run' = x.id::text)
     ORDER BY x.occurrence_at LIMIT 50"""
-SENT_WHERE = """ AND j.args -> 'session' ->> 'file_id' = :f AND j.args ->> 'account' = :a
-    AND j.args ->> 'kind' = :k AND j.state = ANY(:st) ORDER BY j.created_at DESC LIMIT 1"""
-SENT_SQL = "".join((OUT_SQL, SENT_WHERE))  # module constants only
+LAST_WHERE = """ AND j.args -> 'session' ->> 'file_id' = :f AND j.args ->> 'account' = :a
+    AND j.args ->> 'kind' = :k ORDER BY j.created_at DESC LIMIT 1"""
+LAST_SQL = "".join((OUT_SQL, LAST_WHERE))  # module constants only
 RUN_UP_SQL = "".join((UP_CTE, RUN_SQL, UP_WHERE))
 RUN_SWEEP_SQL = "".join((RUN_SQL, SWEEP_WHERE))
 RUN_OF_WORK_SQL = "".join((RUN_SQL, " WHERE x.work_id = :w"))
@@ -634,19 +839,24 @@ async def publish_run(tx: Tx, hub: Any, run: dict[str, Any]) -> str:
         "occurrence": run["occurrence_at"].isoformat(),
         "since": rule["since"],
     }
+    # ⟨§46⟩ the hour he set for this working group (IG-Hub holds the package till then), and
+    # the comment rule the package carries for this post
+    from hq_api.domain.gov_common import owner_tz
+
+    when = at_today(rule["at"], await owner_tz(tx))
+    comment = await comment_of(tx, hub, d)
     sent: list[Kind] = []
     for what in kinds:
         # he may have tapped this very file himself already: the same file to the same account
         # in the same kind is never sent twice, whatever sent it
-        if await tx.scalar(
-            SENT_SQL, out=d["ref"], f=str(f["id"]), a=account, k=what, st=[*LIVE, "done"]
-        ):
+        if await last_of(tx, d["ref"], str(f["id"]), account, what) is not None:
             continue
         sent.append(what)
         j = await _send(
             tx, GROUPS, d, f, cover if what == "reel" else None,
             what=what, account=account, caption=caption if what != "story" else "",
-            route=route, order=None, standing=standing,
+            route=route, order=None, standing=standing, scheduled_at=when,
+            comment=comment if what != "story" else None,
         )  # fmt: skip
         for co_id in dict.fromkeys((run["company_id"], j["server_company_id"])):
             await audit.record(
@@ -716,6 +926,7 @@ async def set_rule(
     mode: Literal["ask", "auto"],
     account: str | None = None,
     story: bool = False,
+    at: str | None = None,
 ) -> dict[str, Any]:
     """The owner's word for one company in one working group. `auto` with an account names one
     of the company's registered accounts (checked when there are any; a company whose path is
@@ -731,8 +942,14 @@ async def set_rule(
                 fields={"account": "one of: " + ", ".join("@" + a for a in accounts[:20])},
                 message_fa=PICK_ACCOUNT_FA,
             )  # fmt: skip
+    clock = (at or "").strip() or None
+    if clock is not None and AT.fullmatch(clock) is None:
+        raise ApiError(
+            422, "validation_failed", fields={"at": "HH:MM"},
+            message_fa="ساعت انتشار را به شکل ۱۸:۳۰ بنویسید.",
+        )  # fmt: skip
     rule = (
-        {"mode": "auto", "account": wanted, "story": bool(story),
+        {"mode": "auto", "account": wanted, "story": bool(story), "at": clock,
          "since": datetime.now(UTC).isoformat(), "by": "owner"}
         if mode == "auto"
         else {"mode": "ask"}
@@ -755,14 +972,18 @@ def brief_block(raw: Any) -> str:
         return ""
     to = f" to @{rule['account']}" if rule["account"] else ""
     also = " and as a story" if rule["story"] else ""
+    at = f" at {rule['at']} (the owner's time)" if rule["at"] else ""
     return (
         "(Publishing: the owner gave this working group his standing permission. If this "
         "routine makes something to publish (a reel, a post), the hub itself publishes its "
-        f"package to Instagram{to}{also} when this work is delivered; nobody is asked. The "
+        f"package to Instagram{to}{also}{at} when this work is delivered; nobody is asked. The "
         "package is one output that holds the video (`.mp4`), its cover (`cover.jpg`, a JPEG: "
         "Instagram publishes no PNG) and `caption.txt` (the caption with its hashtags, UTF-8, "
         "at most 2200 characters): have the workshop turn (`workshop.run`) that builds the video leave "
-        "exactly these in `out/`. Deliver the work only when the package is right; never ask "
+        "exactly these in `out/`. When the reel asks viewers to comment a word or a number, add "
+        "`comment.txt` with three lines, `keyword: <that word>`, `reply: <the private message>` "
+        "and `link: https://…`: whoever comments it on this post gets the reply with the link. "
+        "Deliver the work only when the package is right; never ask "
         "the owner to approve it. Without `caption.txt` nothing is published. A routine that "
         "makes nothing to publish (a report, an analysis) delivers as usual.)"
     )
@@ -771,29 +992,55 @@ def brief_block(raw: Any) -> str:
 async def after_job(hub: Any, job_id: UUID) -> None:
     """The publish job of a session (or ⟨§45⟩ of a standing word) ended, after its result was
     committed: the session says so (the run's note does, and a failure is told to the owner),
-    and the company's audit trail keeps it."""
+    and the company's audit trail keeps it. ⟨§46⟩ A publication IG-Hub holds for its time (or
+    Meta is still preparing) is said once as «زمان‌بندی شد»; its end is said when a later
+    question (follow_up) brings it."""
+    from hq_api.domain.gov_common import owner_tz
+
     async with hub.db.tx(await hub.companies.ids()) as tx:
         j = await tx.first(
-            """SELECT id, state, args, result, summary_fa, error_code, created_at, finished_at
-               FROM infra.server_jobs WHERE id = :id AND kind = 'publish'""",
+            f"SELECT {JOB_COLS} FROM infra.server_jobs j WHERE j.id = :id AND j.kind = 'publish'",  # noqa: S608
             id=job_id,
         )
         if j is None:
             return
+        j = dict(j)
         args = OR._j(j["args"]) or {}
         s = args.get("session") or {}
+        meta = args.get("meta") or {}
         standing = args.get("standing") or {}
         ref = str(s.get("order") or "")
         if not (ref or standing) or j["state"] in LIVE:
             return
-        done = view(dict(j))
+        done = view(j)
         kind = KIND_FA.get(str(args.get("kind")), "پست")
         account = str(args.get("account") or "")
+        rep = await OR.ensure(tx, ref) if ref else None
+        run = None
+        if standing:
+            run = await tx.first(RUN_BY_ID_SQL, r=str(standing.get("run") or ""))
+        if done.state in ("scheduled", "publishing"):
+            # not out yet: said once, when the command first answered (never for each question)
+            if meta.get("check") or j["state"] != "done":
+                return
+            if done.state == "scheduled" and done.scheduled_at is not None:
+                when = when_fa(done.scheduled_at, await owner_tz(tx))
+                say = SCHEDULED_FA.format(kind=kind, account=account, when=when)
+            else:
+                say = QUEUED_FA.format(kind=kind, account=account)
+            if rep is not None:
+                await OR._append_steps(tx, rep["id"], [_line(SYSTEM_FA, say)])
+            if run is not None and args.get("kind") != "story":
+                await tx.exec(
+                    "UPDATE growth.routine_runs SET note_fa = :n WHERE id = :id",
+                    id=run["run_id"],
+                    n=say[:500],
+                )
+            return
         ok = done.state == "published"
         company_id = await tx.scalar(
             "SELECT id FROM core.companies WHERE code = :c", c=str(s.get("company") or "")
         )
-        rep = await OR.ensure(tx, ref) if ref else None
         if rep is not None:
             if ok:
                 say = DONE_FA.format(kind=kind, account=account)
@@ -807,7 +1054,6 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                 note += f" · {done.url}" if done.url else ""
             else:
                 note = AUTO_FAILED_FA.format(kind=kind, account=account, why=done.note_fa or "-")
-            run = await tx.first(RUN_BY_ID_SQL, r=str(standing.get("run") or ""))
             # the reel's (or the post's) end is the run's note; a story's failure is told too
             if run is not None and (args.get("kind") != "story" or not ok):
                 await tx.exec(
@@ -849,3 +1095,69 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                 summary=f"{args.get('kind')} to @{account} from {ref or s.get('output')}: "
                 f"{outcome}"[:500],
             )
+
+
+FOLLOW_SQL = """SELECT j.id, j.state, j.args, j.result, j.summary_fa, j.error_code, j.created_at,
+       j.finished_at, j.work_ref
+FROM infra.server_jobs j
+WHERE j.kind = 'publish' AND j.args ? 'session' AND j.created_at > now() - interval '8 days'
+  AND ((j.state = 'done' AND j.result ->> 'external_id' LIKE 'pub:%' AND j.result ->> 'url' IS NULL)
+       OR (j.state = 'failed' AND j.args -> 'meta' ? 'check'
+           AND j.error_code = ANY(CAST(:transient AS text[]))))
+  AND NOT EXISTS (
+      SELECT 1 FROM infra.server_jobs n
+      WHERE n.kind = 'publish' AND n.created_at > j.created_at
+        AND n.args -> 'session' ->> 'output' = j.args -> 'session' ->> 'output'
+        AND n.args -> 'session' ->> 'file_id' = j.args -> 'session' ->> 'file_id'
+        AND n.args ->> 'account' = j.args ->> 'account' AND n.args ->> 'kind' = j.args ->> 'kind')
+ORDER BY j.created_at LIMIT 50"""
+
+
+async def follow_up(hub: Any, now: datetime | None = None) -> int:
+    """⟨§46⟩ Every publication IG-Hub still holds (scheduled, or being prepared by Meta) is
+    asked about again: a `publish` job with meta `check` and no file, 90 seconds after its time
+    and then every 3 minutes, for 6 hours. Its answer is the publication's record from then on
+    (the newest job is), so the session and the run hear its end as they hear any other."""
+    now = now or datetime.now(UTC)
+    asked = 0
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        for row in await tx.all(FOLLOW_SQL, transient=list(TRANSIENT)):
+            j = dict(row)
+            args = OR._j(j["args"]) or {}
+            meta = dict(args.get("meta") or {})
+            result = OR._j(j.get("result")) or {}
+            ext = str(meta.get("check") or result.get("external_id") or "")
+            when = _when(meta.get("scheduled_at"))
+            since = j["finished_at"] or j["created_at"]
+            due = max(when, since) if when is not None else since
+            due += CHECK_EVERY if meta.get("check") else CHECK_AFTER
+            if not ext.startswith(PENDING) or now < due or now > (when or since) + CHECK_FOR:
+                continue
+            try:
+                async with tx.conn.begin_nested():
+                    company_id = await tx.scalar(
+                        "SELECT id FROM core.companies WHERE code = :c",
+                        c=str((args.get("session") or {}).get("company") or ""),
+                    )
+                    if company_id is None:
+                        continue
+                    route = await _route(tx, company_id)
+                    server = await SV.load_server(
+                        tx, route["server_name"], company=route["server_co"]
+                    )
+                    await SV.create_job(
+                        tx,
+                        server=server,
+                        kind="publish",
+                        args={**args, "caption": "", "files": [], "meta": {**meta, "check": ext}},
+                        actor_kind=SERVICE.kind,
+                        actor_code=SERVICE.code,
+                        work_ref=j["work_ref"],
+                        summary=f"پیگیری انتشار {KIND_FA.get(str(args.get('kind')), 'پست')} "
+                        f"در @{args.get('account')}",
+                        timeout_s=CHECK_TIMEOUT_S,
+                    )
+                    asked += 1
+            except Exception:  # noqa: BLE001 - one publication never stops the others
+                log.warning("publish follow-up failed", extra={"job": str(j["id"])})
+    return asked

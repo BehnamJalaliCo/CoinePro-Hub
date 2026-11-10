@@ -134,6 +134,8 @@ class MemberPublish(BaseModel):
     account: str | None = None
     story: bool = False
     since: datetime | None = None
+    # ⟨§46⟩ the clock time its package goes out at («HH:MM», the owner's zone); null: at once
+    at: str | None = None
 
 
 class Membership(BaseModel):
@@ -384,7 +386,7 @@ def member_publish(raw: Any) -> MemberPublish:
     if rule["mode"] != "auto":
         return MemberPublish()
     return MemberPublish(mode="auto", account=rule["account"], story=rule["story"],
-                         since=rule["since"])  # fmt: skip
+                         since=rule["since"], at=rule["at"])  # fmt: skip
 
 
 async def members(tx: Tx, group_id: UUID) -> list[dict[str, Any]]:

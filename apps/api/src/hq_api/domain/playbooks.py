@@ -159,6 +159,8 @@ class PublishRuleIn(Model):
     mode: Literal["ask", "auto"]
     account: str | None = Field(default=None, max_length=65)
     story: bool = False
+    # ⟨§46⟩ «HH:MM» in the owner's zone: the hour each day's package goes out at
+    at: str | None = Field(default=None, max_length=5)
 
 
 class PlaybookApplyIn(Model):

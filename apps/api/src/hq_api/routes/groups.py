@@ -56,6 +56,8 @@ class MemberPublishIn(Model):
     mode: Literal["ask", "auto"]
     account: str | None = Field(default=None, max_length=65)
     story: bool = False
+    # ⟨§46⟩ «HH:MM» in the owner's zone: the hour each day's package goes out at; null: at once
+    at: str | None = Field(default=None, max_length=5)
 
 
 class KpiSeries(BaseModel):
@@ -160,8 +162,9 @@ async def set_member_publish(
         grow = await _group(ctx, tx, key)
         await GR.member(tx, grow["id"], company.id, lock=True)
         rule = await SPB.set_rule(
-            tx, grow["id"], company.id, mode=body.mode, account=body.account, story=body.story
-        )
+            tx, grow["id"], company.id, mode=body.mode, account=body.account,
+            story=body.story, at=body.at,
+        )  # fmt: skip
         said = (
             f"auto to @{rule.get('account') or '(the company account)'}"
             + (" + story" if rule.get("story") else "")

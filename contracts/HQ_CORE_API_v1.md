@@ -17,6 +17,7 @@
 >
 > **v1.27 (۲۰۲۶-۱۱-۱۰):** جلسه‌ی مستقیم، قدم اول (§۴۴، پرامپت ۳۲): گوینده‌ی محتوا روشن است (آنچه مالک خاموش کرد گفتگوی صوتی خودش بود)؛ استخدامی که مالک در جلسه‌ی خودش خواسته همان‌جا با کد انجام میشود، بی کارت و بی اثر انگشت؛ مسئول جلسه کار را خودش با کارگاه انجام میدهد؛ و نوبت کارگاه فایل‌های ستاد را با خودش میبرد (`workshop.run {files}`، §۴۳.۸)؛ و دیوار کارگاه بین شرکت‌ها که هیچ‌وقت جلوی کار را نمیگیرد (§۴۳.۹، runner 0.3.4).
 >
+> **v1.30 (۲۰۲۶-۱۱-۱۰):** ساعت، کامنت و اسلاید در انتشار (§۴۶؛ مالک: «هر بار شاید یک کامنت باشد … ساعت را باید هاب تنظیم بکند»): هاب ساعت انتشار را میدهد و IG-Hub تا آن ساعت نگهش میدارد؛ کلمه‌ی کامنت و لینکِ همان پست همراهش میرود و در IG-Hub قانونِ همان یک پست میشود؛ اسلاید (چند فایل)؛ ساعت ثابت برای انتشار خودکار هر کارگروه. کاور ریلز و دستور انتشار در خود IG-Hub نوشته شد (شاخه‌ی `claude/coinepro-hub-setup-hsvnw7` آن ریپو).
 > **v1.29 (۲۰۲۶-۱۱-۱۰):** اجازه‌ی دائمی انتشار (§۴۵، پرامپت ۳۴؛ مالک: «به صورت خودکار از روز دوم انجام بشه … نه اینکه هر بار من تایید کنم»): مالک یک بار برای هر شرکت در یک کارگروه میگوید «خودکار»؛ از نوبت بعد، هاب بسته‌ی هر روال (ویدیو، کاور، `caption.txt`) را خودش از همان مسیر IG-Hub منتشر میکند. بدون آن، هر خروجی مثل قبل منتظر لمس اوست، حالا بیرون از جلسه هم. مُهر و بازنشستگی کارگروه دیگر اثر انگشت نمیخواهد.
 > **v1.28 (۲۰۲۶-۱۱-۱۰):** «تأیید و انتشار» (§۴۴.۴، §۴۴.۵، پرامپت ۳۳): مالک روی فایل خروجی جلسه یک بار میزند و همان فایل از راه runner سرور IG-Hub منتشر میشود، بی کارت و بی اثر انگشت؛ کارت `media_publish` هم دیگر اثر انگشت نمیخواهد. اثر انگشت فقط برای پول، حذف برای همیشه، کلید و دسترسی، و دستور ویرانگر سرور.
 
@@ -4722,4 +4723,57 @@ a standing word.
   gets the technical work of §44.5 once, and the run goes out on a later tick. A publish Instagram refused is told to him
   once, with the output and «دوباره». A work that made nothing to publish (a report) is no fault and tells nobody.
 - **Taking the word back:** `PUT … {mode: "ask"}`; pausing the member or retiring the group stops it as well.
+
+## 46. The time, the comment rule and the carousel of a publish ⟨1.30⟩ (2026-11-10, prompt 34)
+
+The owner, after IG-Hub's repository was read with him: «هر بار شاید یک کامنت باشد. شماره دو ساعت را باید هاب تنظیم
+بکند ولی باز هم از داخل خود سرور ig هاب نگاه کنی تنظیم پست با ساعت دارد … قابلیت گذاشتن کاور هم دارد باید کدش در آی جی هاب
+نوشته شود چون من api کامل از فیس بوک دریافت کردم.» So the hub decides and IG-Hub does: nothing here is a second scheduler
+or a second rule engine.
+
+### 46.1 What IG-Hub gained (its own repository, branch `claude/coinepro-hub-setup-hsvnw7`)
+
+- Publishing takes **`cover`** for a reel (one JPEG, sent to Meta as `cover_url`) and **`comment_rule`** (`keywords`,
+  `reply_text`, `link`, `button`, `public_replies`): kept with the publication and made a rule **for the post it became and
+  no other**, when it is published (ahead of the account's general rules).
+- `GET /api/v1/posts`: an account's last posts with likes and comments, and how they did by the Tehran hour they went out.
+- **`deploy/hq_publish.py`**: the command the hub's runner runs there for one `publish` job (the standard library only).
+  It reads `HQ_PUBLISH_FILE_n`, the caption file and `HQ_PUBLISH_META`, uploads, publishes or schedules through IG-Hub's
+  key API, and prints `{"external_id", "url"}`: the post's id and link, or **`"pub:<id>"` with a null url** while IG-Hub
+  holds it for its time or Meta is still preparing it. A refusal is one plain Persian line and exit code 1. The key is
+  made on that server into a file (`python -m ighub.admin api-key hq FILE`) and never printed.
+- So a company's `publish_command` is `python3 <IG-Hub's folder>/deploy/hq_publish.py`; the technical team's work (§44.5)
+  names it.
+
+### 46.2 The tap (`POST /orders/{ref}/publish`, `POST /deliverables/{ref}/publish`), additive
+
+- **`scheduled_at`** (a time with its zone, at most a year ahead; one nearer than 2 minutes is now): the job's
+  `meta.scheduled_at`. IG-Hub holds the post till then (it shows in IG-Hub's own calendar, where it can be cancelled).
+- **`comment`** `{keywords: [..], reply, link?, button?, public_replies?}` (not for a story; a word and a reply are both
+  needed, `422 fields.comment`; a link that is not https is left out): `meta.comment`.
+- **`first_comment`**: `meta.first_comment`.
+- **`kind: "carousel"`** with **`file_ids`** (1 to 9 more videos or images of the same output, in order): the job's files
+  are `file_id` then those. `422 fields.file_ids` otherwise.
+- `SessionPublish` gains `scheduled_at`, `comment` (the first word), `files`, and the state **`scheduled`**.
+  `PublishPanel` gains `comment` (the rule the package carries).
+- **The package** (§45.2) may carry **`comment.txt`**: `keyword: …`, `reply: …`, `link: https://…`, `public: …`, one a
+  line, in English or Persian labels («کلمه», «پاسخ», «لینک»). The sheet opens with it, and a standing publish sends it.
+
+### 46.3 Held, then asked about
+
+- The command's `pub:<id>` answer ends the job `done` but the publication is **not out**: its state is `scheduled`
+  (its time is ahead) or `publishing`. The session says once «زمان‌بندی شد: ریلز در @…، ساعت …»; nothing says «منتشر شد».
+  The same file to the same account in the same kind is still one publication: a second tap answers it.
+- **`follow_up`** (the api's 30-second sweep): 90 seconds after its time, and then every 3 minutes for 6 hours, the hub
+  queues one `publish` job with `meta.check: "pub:<id>"` and no file. Its answer is the publication's record from then
+  on: the post's link («منتشر شد … + link», the run's note, the audit), the same `pub:<id>` (asked again), or Instagram's
+  refusal (said plainly; a tap is then a new try). A question the runner never answered (`timed_out`, `not_started`)
+  changes nothing and is asked again.
+
+### 46.4 The standing word's hour
+
+`publish.at` («HH:MM», the owner's zone; `PUT /groups/{key}/members/{code}/publish {…, at?}`, the seal and the as-is gift
+take it too; `422 fields.at` for anything else): each day's package goes out at that hour **today when it is still
+ahead**, at once when the work is delivered after it (it is never kept for tomorrow, when the next one comes). The
+routine's brief names the hour and `comment.txt`.
 

@@ -83,10 +83,16 @@ class PublishIn(Model):
 
     output: str = Field(pattern=r"^O-\d{1,12}$")
     file_id: UUID
-    kind: Literal["reel", "post", "story"] | None = None
+    kind: Literal["reel", "post", "story", "carousel"] | None = None
     caption: str | None = Field(default=None, max_length=2200)
     account: str | None = Field(default=None, max_length=65)
     cover_file_id: UUID | None = None  # a reel's cover: an image of the same output
+    # ⟨§46⟩ a carousel's other files (after `file_id`, in order); the time he set (with its
+    # zone; left out: now); the comment rule for this post alone; a first comment under it
+    file_ids: list[UUID] | None = Field(default=None, max_length=9)
+    scheduled_at: datetime | None = None
+    comment: OR.PublishComment | None = None
+    first_comment: str | None = Field(default=None, max_length=2200)
 
 
 @router.post(
@@ -118,6 +124,10 @@ async def publish_from_session(
             account=body.account,
             cover_file_id=body.cover_file_id,
             request_id=ctx.request_id,
+            file_ids=body.file_ids,
+            scheduled_at=body.scheduled_at,
+            comment=body.comment.model_dump() if body.comment is not None else None,
+            first_comment=body.first_comment,
         )
         if idem:
             await idem.store(tx, 202, out.model_dump(mode="json"))

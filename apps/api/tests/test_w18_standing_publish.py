@@ -91,9 +91,11 @@ async def a_day(
     day: date,
     files: tuple[str, ...],
     deliver: bool = True,
+    texts: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """The routine's run of `day`: its work, a workshop turn that leaves `files` in `out/`
-    (one output of the work), and the work delivered by its holder."""
+    (one output of the work), and the work delivered by its holder. `texts`: what a `.txt`
+    file says (the caption otherwise)."""
     async with holding_switch(su, "released"):
         ticked = await GR.tick(hub, now=at(day, 8, 0), only={g["company"]["id"]})
     assert ticked["queued"] >= 1, ticked  # its own routine (and the file groups' of that hour)
@@ -111,8 +113,9 @@ async def a_day(
         if name.endswith(".mp4"):
             r = await send_file(client, g["rn"], job["id"], name, "video/mp4", mp4(2))
         elif name.endswith(".txt"):
+            said = (texts or {}).get(name, CAPTION)
             r = await send_file(
-                client, g["rn"], job["id"], name, "text/plain", f"﻿{CAPTION}\n".encode()
+                client, g["rn"], job["id"], name, "text/plain", f"\ufeff{said}\n".encode()
             )
         else:
             r = await send_file(client, g["rn"], job["id"], name, "image/png", a_png(i + day.day))
@@ -320,7 +323,7 @@ async def test_a_working_groups_daily_reel_goes_out_on_the_owners_standing_word(
     r = await client.put(f"/api/v1/groups/{key}/members/{co}/publish", headers=owner,
                          json={"mode": "ask"})  # fmt: skip
     assert r.status_code == 200 and r.json()["publish"] == {
-        "mode": "ask", "account": None, "story": False, "since": None}  # fmt: skip
+        "mode": "ask", "account": None, "story": False, "since": None, "at": None}  # fmt: skip
     day4 = day3 + timedelta(days=1)
     asked = await a_day(client, hub, su, g, day4, ("reel.mp4", "cover.png", "caption.txt"))
     assert "standing permission" not in asked["brief"]

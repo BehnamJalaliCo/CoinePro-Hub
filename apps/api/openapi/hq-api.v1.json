@@ -29704,6 +29704,17 @@
             ],
             "title": "Account"
           },
+          "at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
           "mode": {
             "default": "ask",
             "enum": [
@@ -29749,6 +29760,18 @@
               }
             ],
             "title": "Account"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "maxLength": 5,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
           },
           "mode": {
             "enum": [
@@ -33097,6 +33120,16 @@
             ],
             "title": "Caption"
           },
+          "comment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublishComment"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "cover_file_id": {
             "anyOf": [
               {
@@ -33114,13 +33147,42 @@
             "title": "File Id",
             "type": "string"
           },
+          "file_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 9,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Ids"
+          },
+          "first_comment": {
+            "anyOf": [
+              {
+                "maxLength": 2200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Comment"
+          },
           "kind": {
             "anyOf": [
               {
                 "enum": [
                   "reel",
                   "post",
-                  "story"
+                  "story",
+                  "carousel"
                 ],
                 "type": "string"
               },
@@ -33129,6 +33191,18 @@
               }
             ],
             "title": "Kind"
+          },
+          "scheduled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduled At"
           }
         },
         "required": [
@@ -39030,6 +39104,54 @@
         "title": "PublicKeyCredential",
         "type": "object"
       },
+      "PublishComment": {
+        "description": "⟨§46⟩ A comment rule for one post: who comments one of `keywords` on it gets `reply`\nin private (with `link` as a button) and, when given, one of `public_replies`.",
+        "properties": {
+          "button": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Button"
+          },
+          "keywords": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Keywords",
+            "type": "array"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link"
+          },
+          "public_replies": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Public Replies",
+            "type": "array"
+          },
+          "reply": {
+            "default": "",
+            "title": "Reply",
+            "type": "string"
+          }
+        },
+        "title": "PublishComment",
+        "type": "object"
+      },
       "PublishIn": {
         "additionalProperties": false,
         "description": "⟨2026-11-10⟩ §44.5 «تأیید و انتشار»: one file of one output of this session.",
@@ -39058,6 +39180,16 @@
             ],
             "title": "Caption"
           },
+          "comment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublishComment"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "cover_file_id": {
             "anyOf": [
               {
@@ -39075,13 +39207,42 @@
             "title": "File Id",
             "type": "string"
           },
+          "file_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 9,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Ids"
+          },
+          "first_comment": {
+            "anyOf": [
+              {
+                "maxLength": 2200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Comment"
+          },
           "kind": {
             "anyOf": [
               {
                 "enum": [
                   "reel",
                   "post",
-                  "story"
+                  "story",
+                  "carousel"
                 ],
                 "type": "string"
               },
@@ -39095,6 +39256,18 @@
             "pattern": "^O-\\d{1,12}$",
             "title": "Output",
             "type": "string"
+          },
+          "scheduled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduled At"
           }
         },
         "required": [
@@ -39130,6 +39303,16 @@
             "default": "instagram",
             "title": "Channel",
             "type": "string"
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublishComment"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "group": {
             "anyOf": [
@@ -39215,6 +39398,18 @@
               }
             ],
             "title": "Account"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "maxLength": 5,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
           },
           "mode": {
             "enum": [
@@ -47292,6 +47487,17 @@
             "title": "Channel",
             "type": "string"
           },
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment"
+          },
           "cover_name": {
             "anyOf": [
               {
@@ -47318,6 +47524,11 @@
             ],
             "title": "File Name"
           },
+          "files": {
+            "default": 1,
+            "title": "Files",
+            "type": "integer"
+          },
           "job": {
             "anyOf": [
               {
@@ -47333,7 +47544,8 @@
             "enum": [
               "reel",
               "post",
-              "story"
+              "story",
+              "carousel"
             ],
             "title": "Kind",
             "type": "string"
@@ -47372,9 +47584,22 @@
             ],
             "title": "Published At"
           },
+          "scheduled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduled At"
+          },
           "state": {
             "enum": [
               "publishing",
+              "scheduled",
               "published",
               "failed",
               "waiting_seal",
@@ -86958,6 +87183,17 @@
                   ],
                   "caption": "x",
                   "channel": "instagram",
+                  "comment": {
+                    "button": "x",
+                    "keywords": [
+                      "x"
+                    ],
+                    "link": "x",
+                    "public_replies": [
+                      "x"
+                    ],
+                    "reply": "x"
+                  },
                   "group": "x",
                   "group_fa": "x",
                   "mode": "ask",
@@ -86968,14 +87204,17 @@
                       "at": "2026-10-17T05:42:00Z",
                       "auto": false,
                       "channel": "instagram",
+                      "comment": "x",
                       "cover_name": "x",
                       "file_id": "x",
                       "file_name": "x",
+                      "files": 1,
                       "job": "x",
                       "kind": "reel",
                       "note_fa": "x",
                       "output": "x",
                       "published_at": "2026-10-17T05:42:00Z",
+                      "scheduled_at": "2026-10-17T05:42:00Z",
                       "state": "publishing",
                       "url": "x"
                     }
@@ -87071,9 +87310,25 @@
               "example": {
                 "account": "x",
                 "caption": "x",
+                "comment": {
+                  "button": "x",
+                  "keywords": [
+                    "x"
+                  ],
+                  "link": "x",
+                  "public_replies": [
+                    "x"
+                  ],
+                  "reply": "x"
+                },
                 "cover_file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                 "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
-                "kind": "reel"
+                "file_ids": [
+                  "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                ],
+                "first_comment": "x",
+                "kind": "reel",
+                "scheduled_at": "2026-10-17T05:42:00Z"
               },
               "schema": {
                 "$ref": "#/components/schemas/OutputPublishIn"
@@ -87091,14 +87346,17 @@
                   "at": "2026-10-17T05:42:00Z",
                   "auto": false,
                   "channel": "instagram",
+                  "comment": "x",
                   "cover_name": "x",
                   "file_id": "x",
                   "file_name": "x",
+                  "files": 1,
                   "job": "x",
                   "kind": "reel",
                   "note_fa": "x",
                   "output": "x",
                   "published_at": "2026-10-17T05:42:00Z",
+                  "scheduled_at": "2026-10-17T05:42:00Z",
                   "state": "publishing",
                   "url": "x"
                 },
@@ -92577,6 +92835,7 @@
                     "plan_at": "2026-10-17T05:42:00Z",
                     "publish": {
                       "account": "x",
+                      "at": "x",
                       "mode": "ask",
                       "since": "2026-10-17T05:42:00Z",
                       "story": false
@@ -92732,6 +92991,7 @@
                   "plan_at": "2026-10-17T05:42:00Z",
                   "publish": {
                     "account": "x",
+                    "at": "x",
                     "mode": "ask",
                     "since": "2026-10-17T05:42:00Z",
                     "story": false
@@ -92861,6 +93121,7 @@
             "application/json": {
               "example": {
                 "account": "x",
+                "at": "x",
                 "mode": "ask",
                 "story": false
               },
@@ -92884,6 +93145,7 @@
                   "plan_at": "2026-10-17T05:42:00Z",
                   "publish": {
                     "account": "x",
+                    "at": "x",
                     "mode": "ask",
                     "since": "2026-10-17T05:42:00Z",
                     "story": false
@@ -112724,14 +112986,17 @@
                       "at": "2026-10-17T05:42:00Z",
                       "auto": false,
                       "channel": "instagram",
+                      "comment": "x",
                       "cover_name": "x",
                       "file_id": "x",
                       "file_name": "x",
+                      "files": 1,
                       "job": "x",
                       "kind": "reel",
                       "note_fa": "x",
                       "output": "x",
                       "published_at": "2026-10-17T05:42:00Z",
+                      "scheduled_at": "2026-10-17T05:42:00Z",
                       "state": "publishing",
                       "url": "x"
                     }
@@ -113305,14 +113570,17 @@
                       "at": "2026-10-17T05:42:00Z",
                       "auto": false,
                       "channel": "instagram",
+                      "comment": "x",
                       "cover_name": "x",
                       "file_id": "x",
                       "file_name": "x",
+                      "files": 1,
                       "job": "x",
                       "kind": "reel",
                       "note_fa": "x",
                       "output": "x",
                       "published_at": "2026-10-17T05:42:00Z",
+                      "scheduled_at": "2026-10-17T05:42:00Z",
                       "state": "publishing",
                       "url": "x"
                     }
@@ -113681,14 +113949,17 @@
                       "at": "2026-10-17T05:42:00Z",
                       "auto": false,
                       "channel": "instagram",
+                      "comment": "x",
                       "cover_name": "x",
                       "file_id": "x",
                       "file_name": "x",
+                      "files": 1,
                       "job": "x",
                       "kind": "reel",
                       "note_fa": "x",
                       "output": "x",
                       "published_at": "2026-10-17T05:42:00Z",
+                      "scheduled_at": "2026-10-17T05:42:00Z",
                       "state": "publishing",
                       "url": "x"
                     }
@@ -114174,14 +114445,17 @@
                       "at": "2026-10-17T05:42:00Z",
                       "auto": false,
                       "channel": "instagram",
+                      "comment": "x",
                       "cover_name": "x",
                       "file_id": "x",
                       "file_name": "x",
+                      "files": 1,
                       "job": "x",
                       "kind": "reel",
                       "note_fa": "x",
                       "output": "x",
                       "published_at": "2026-10-17T05:42:00Z",
+                      "scheduled_at": "2026-10-17T05:42:00Z",
                       "state": "publishing",
                       "url": "x"
                     }
@@ -114553,14 +114827,17 @@
                       "at": "2026-10-17T05:42:00Z",
                       "auto": false,
                       "channel": "instagram",
+                      "comment": "x",
                       "cover_name": "x",
                       "file_id": "x",
                       "file_name": "x",
+                      "files": 1,
                       "job": "x",
                       "kind": "reel",
                       "note_fa": "x",
                       "output": "x",
                       "published_at": "2026-10-17T05:42:00Z",
+                      "scheduled_at": "2026-10-17T05:42:00Z",
                       "state": "publishing",
                       "url": "x"
                     }
@@ -114927,14 +115204,17 @@
                       "at": "2026-10-17T05:42:00Z",
                       "auto": false,
                       "channel": "instagram",
+                      "comment": "x",
                       "cover_name": "x",
                       "file_id": "x",
                       "file_name": "x",
+                      "files": 1,
                       "job": "x",
                       "kind": "reel",
                       "note_fa": "x",
                       "output": "x",
                       "published_at": "2026-10-17T05:42:00Z",
+                      "scheduled_at": "2026-10-17T05:42:00Z",
                       "state": "publishing",
                       "url": "x"
                     }
@@ -115135,6 +115415,7 @@
                       "order": "x",
                       "publish": {
                         "account": "x",
+                        "at": "x",
                         "mode": "ask",
                         "since": "2026-10-17T05:42:00Z",
                         "story": false
@@ -115273,10 +115554,26 @@
               "example": {
                 "account": "x",
                 "caption": "x",
+                "comment": {
+                  "button": "x",
+                  "keywords": [
+                    "x"
+                  ],
+                  "link": "x",
+                  "public_replies": [
+                    "x"
+                  ],
+                  "reply": "x"
+                },
                 "cover_file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                 "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                "file_ids": [
+                  "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
+                ],
+                "first_comment": "x",
                 "kind": "reel",
-                "output": "x"
+                "output": "x",
+                "scheduled_at": "2026-10-17T05:42:00Z"
               },
               "schema": {
                 "$ref": "#/components/schemas/PublishIn"
@@ -115294,14 +115591,17 @@
                   "at": "2026-10-17T05:42:00Z",
                   "auto": false,
                   "channel": "instagram",
+                  "comment": "x",
                   "cover_name": "x",
                   "file_id": "x",
                   "file_name": "x",
+                  "files": 1,
                   "job": "x",
                   "kind": "reel",
                   "note_fa": "x",
                   "output": "x",
                   "published_at": "2026-10-17T05:42:00Z",
+                  "scheduled_at": "2026-10-17T05:42:00Z",
                   "state": "publishing",
                   "url": "x"
                 },
@@ -115582,14 +115882,17 @@
                       "at": "2026-10-17T05:42:00Z",
                       "auto": false,
                       "channel": "instagram",
+                      "comment": "x",
                       "cover_name": "x",
                       "file_id": "x",
                       "file_name": "x",
+                      "files": 1,
                       "job": "x",
                       "kind": "reel",
                       "note_fa": "x",
                       "output": "x",
                       "published_at": "2026-10-17T05:42:00Z",
+                      "scheduled_at": "2026-10-17T05:42:00Z",
                       "state": "publishing",
                       "url": "x"
                     }
@@ -115960,14 +116263,17 @@
                       "at": "2026-10-17T05:42:00Z",
                       "auto": false,
                       "channel": "instagram",
+                      "comment": "x",
                       "cover_name": "x",
                       "file_id": "x",
                       "file_name": "x",
+                      "files": 1,
                       "job": "x",
                       "kind": "reel",
                       "note_fa": "x",
                       "output": "x",
                       "published_at": "2026-10-17T05:42:00Z",
+                      "scheduled_at": "2026-10-17T05:42:00Z",
                       "state": "publishing",
                       "url": "x"
                     }
@@ -116336,14 +116642,17 @@
                       "at": "2026-10-17T05:42:00Z",
                       "auto": false,
                       "channel": "instagram",
+                      "comment": "x",
                       "cover_name": "x",
                       "file_id": "x",
                       "file_name": "x",
+                      "files": 1,
                       "job": "x",
                       "kind": "reel",
                       "note_fa": "x",
                       "output": "x",
                       "published_at": "2026-10-17T05:42:00Z",
+                      "scheduled_at": "2026-10-17T05:42:00Z",
                       "state": "publishing",
                       "url": "x"
                     }
@@ -117046,14 +117355,17 @@
                       "at": "2026-10-17T05:42:00Z",
                       "auto": false,
                       "channel": "instagram",
+                      "comment": "x",
                       "cover_name": "x",
                       "file_id": "x",
                       "file_name": "x",
+                      "files": 1,
                       "job": "x",
                       "kind": "reel",
                       "note_fa": "x",
                       "output": "x",
                       "published_at": "2026-10-17T05:42:00Z",
+                      "scheduled_at": "2026-10-17T05:42:00Z",
                       "state": "publishing",
                       "url": "x"
                     }
@@ -121875,6 +122187,7 @@
                         "order": "x",
                         "publish": {
                           "account": "x",
+                          "at": "x",
                           "mode": "ask",
                           "since": "2026-10-17T05:42:00Z",
                           "story": false
@@ -122037,6 +122350,7 @@
                       "order": "x",
                       "publish": {
                         "account": "x",
+                        "at": "x",
                         "mode": "ask",
                         "since": "2026-10-17T05:42:00Z",
                         "story": false
@@ -122222,6 +122536,7 @@
                       "order": "x",
                       "publish": {
                         "account": "x",
+                        "at": "x",
                         "mode": "ask",
                         "since": "2026-10-17T05:42:00Z",
                         "story": false
@@ -122364,6 +122679,7 @@
                 "platform": "instagram",
                 "publish": {
                   "account": "x",
+                  "at": "x",
                   "mode": "ask",
                   "story": false
                 }
@@ -122387,6 +122703,7 @@
                     "order": "x",
                     "publish": {
                       "account": "x",
+                      "at": "x",
                       "mode": "ask",
                       "since": "2026-10-17T05:42:00Z",
                       "story": false
@@ -122415,6 +122732,7 @@
                         "order": "x",
                         "publish": {
                           "account": "x",
+                          "at": "x",
                           "mode": "ask",
                           "since": "2026-10-17T05:42:00Z",
                           "story": false
@@ -122573,6 +122891,7 @@
                       "order": "x",
                       "publish": {
                         "account": "x",
+                        "at": "x",
                         "mode": "ask",
                         "since": "2026-10-17T05:42:00Z",
                         "story": false
@@ -122711,6 +123030,7 @@
               "example": {
                 "publish": {
                   "account": "x",
+                  "at": "x",
                   "mode": "ask",
                   "story": false
                 }
@@ -122754,6 +123074,7 @@
                       "order": "x",
                       "publish": {
                         "account": "x",
+                        "at": "x",
                         "mode": "ask",
                         "since": "2026-10-17T05:42:00Z",
                         "story": false
@@ -162164,14 +162485,17 @@
                       "at": "2026-10-17T05:42:00Z",
                       "auto": false,
                       "channel": "instagram",
+                      "comment": "x",
                       "cover_name": "x",
                       "file_id": "x",
                       "file_name": "x",
+                      "files": 1,
                       "job": "x",
                       "kind": "reel",
                       "note_fa": "x",
                       "output": "x",
                       "published_at": "2026-10-17T05:42:00Z",
+                      "scheduled_at": "2026-10-17T05:42:00Z",
                       "state": "publishing",
                       "url": "x"
                     }
@@ -162553,14 +162877,17 @@
                       "at": "2026-10-17T05:42:00Z",
                       "auto": false,
                       "channel": "instagram",
+                      "comment": "x",
                       "cover_name": "x",
                       "file_id": "x",
                       "file_name": "x",
+                      "files": 1,
                       "job": "x",
                       "kind": "reel",
                       "note_fa": "x",
                       "output": "x",
                       "published_at": "2026-10-17T05:42:00Z",
+                      "scheduled_at": "2026-10-17T05:42:00Z",
                       "state": "publishing",
                       "url": "x"
                     }
@@ -162945,14 +163272,17 @@
                       "at": "2026-10-17T05:42:00Z",
                       "auto": false,
                       "channel": "instagram",
+                      "comment": "x",
                       "cover_name": "x",
                       "file_id": "x",
                       "file_name": "x",
+                      "files": 1,
                       "job": "x",
                       "kind": "reel",
                       "note_fa": "x",
                       "output": "x",
                       "published_at": "2026-10-17T05:42:00Z",
+                      "scheduled_at": "2026-10-17T05:42:00Z",
                       "state": "publishing",
                       "url": "x"
                     }

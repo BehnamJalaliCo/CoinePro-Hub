@@ -373,7 +373,7 @@ async def test_the_holder_drafts_a_playbook_the_owner_edits_and_seals_it(
     assert pb["state"] == "sealed" and pb["sealed_at"] and pb["group"] == gkey
     [member] = pb["members"]
     # ⟨§45⟩ without his standing word each output waits for his tap
-    asks = {"mode": "ask", "account": None, "story": False, "since": None}
+    asks = {"mode": "ask", "account": None, "story": False, "since": None, "at": None}
     assert member == {"company": co, "name_fa": f"شرکت آزمایشی {co}", "state": "on", "order": ref,
                       "publish": asks}  # fmt: skip
     # a working group in the database: eligibility `chosen`, on, version 1, the playbook named

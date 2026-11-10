@@ -243,15 +243,33 @@ class SessionPublish(BaseModel):
     file_name: str | None = None
     cover_name: str | None = None  # a reel's cover, when the owner chose one
     channel: Literal["instagram"] = "instagram"
-    kind: Literal["reel", "post", "story"]
+    kind: Literal["reel", "post", "story", "carousel"]
     account: str | None = None
-    state: Literal["publishing", "published", "failed", "waiting_seal", "waiting_setup"]
+    # ⟨§46⟩ `scheduled`: IG-Hub holds it for `scheduled_at`
+    state: Literal[
+        "publishing", "scheduled", "published", "failed", "waiting_seal", "waiting_setup"
+    ]  # fmt: skip
     url: str | None = None
     note_fa: str | None = None
     at: datetime | None = None
     published_at: datetime | None = None
     # ⟨§45⟩ true: the hub sent it on the owner's standing permission (no tap)
     auto: bool = False
+    # ⟨§46⟩ the time it is set for; the word viewers comment for its link; a carousel's files
+    scheduled_at: datetime | None = None
+    comment: str | None = None
+    files: int = 1
+
+
+class PublishComment(BaseModel):
+    """⟨§46⟩ A comment rule for one post: who comments one of `keywords` on it gets `reply`
+    in private (with `link` as a button) and, when given, one of `public_replies`."""
+
+    keywords: list[str] = Field(default_factory=list)
+    reply: str = ""
+    link: str | None = None
+    button: str | None = None
+    public_replies: list[str] = Field(default_factory=list)
 
 
 class PublishPanel(BaseModel):
@@ -269,6 +287,8 @@ class PublishPanel(BaseModel):
     publishes: list[SessionPublish] = Field(default_factory=list)
     tap: bool = False
     caption: str | None = None
+    # ⟨§46⟩ the comment rule its package carries (`comment.txt`), for the sheet
+    comment: PublishComment | None = None
     group: str | None = None
     group_fa: str | None = None
     mode: Literal["ask", "auto"] | None = None
