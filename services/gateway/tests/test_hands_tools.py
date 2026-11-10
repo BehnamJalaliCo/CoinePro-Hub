@@ -251,3 +251,26 @@ async def test_the_ledger_tools_and_the_effort_of_a_turn(
     assert json.loads(runs.calls.last.request.content) == {"brief": "موشن را بساز"}
     bad = await call(gw, "workshop.run", {"brief": "x", "effort": "ultra"})
     assert bad["outcome"] != "ok", bad
+
+
+def test_the_catalog_of_a_direct_session_names_what_each_tool_takes() -> None:
+    """⟨1.32⟩ contract §54: `POST /v1/tools/catalog` gives a direct session's tool list its
+    exact inputs: the gateway's own input models as JSON Schema, with the class and the
+    catalog's description. Nothing implicit, nothing unknown, and never an A3 or A4 tool
+    (those stay cards and the owner's)."""
+    from hq_gateway.app import catalog_rows
+
+    rows = catalog_rows(LIB, ["order.ask", "topic.claim", "done", "no.such", "order.ask"])
+    assert [r["tool"] for r in rows] == ["order.ask", "topic.claim"]
+    ask = rows[0]
+    assert ask["class"] == "A1" and "Input:" in ask["description"]
+    assert set(ask["input_schema"]["properties"]) == {"ref", "question_fa"}
+    assert ask["input_schema"]["required"] == ["ref", "question_fa"]
+    assert (
+        ask["input_schema"]["additionalProperties"] is False and "title" not in ask["input_schema"]
+    )
+    assert rows[1]["input_schema"]["properties"]["kind"]["enum"] == ["topic", "reference"]
+    held = [name for name, t in LIB.tools.items() if t.cls in ("A3", "A4") and name in T.TOOLS]
+    assert catalog_rows(LIB, held) == []
+    everything = catalog_rows(LIB, list(LIB.tools))
+    assert len(everything) > 50 and all(isinstance(r["input_schema"], dict) for r in everything)

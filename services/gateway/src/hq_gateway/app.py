@@ -1,6 +1,9 @@
 """HTTP API of the Tool Gateway (hq-core only, no published port).
 
     POST /v1/tools/call   the runtime (worker) only: {token, step, index, tool, args}
+    POST /v1/tools/catalog  ⟨1.32⟩ the worker only: {tools: [names]} -> what each takes (its
+                          class, description and the JSON Schema of its input), for a direct
+                          session's tool list (contract §54); nothing is called
     POST /v1/connectors/call  the worker only: one call of a connector of code
                           (prompt 10 §2.2: the revenue pulls; hq_gateway.revenue)
     GET  /v1/health       the runtime only
@@ -40,6 +43,37 @@ class CallIn(BaseModel):
     index: int = Field(default=0, ge=0, le=50)
     tool: str = Field(min_length=1, max_length=80)
     args: Any = None
+
+
+class CatalogIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    tools: list[str] = Field(default_factory=list, max_length=200)
+
+
+def catalog_rows(lib: charters.Library, names: list[str]) -> list[dict[str, Any]]:
+    """⟨1.32⟩ §54 The tools a direct session lists: only ones the gateway carries out itself
+    (never an implicit one, never an A3 or A4: those stay cards and the owner's), each with its
+    class, its description from the catalog and the exact shape of its input."""
+    from hq_gateway import tools as T
+
+    out: list[dict[str, Any]] = []
+    for name in dict.fromkeys(names):
+        row = lib.tools.get(name)
+        if row is None or name in charters.IMPLICIT_TOOLS or name not in T.TOOLS:
+            continue
+        if row.cls in ("A3", "A4"):
+            continue
+        schema = T.TOOLS[name][0].model_json_schema()
+        schema.pop("title", None)
+        out.append(
+            {
+                "tool": name,
+                "class": row.cls,
+                "description": f"{row.description} Input: {row.input}"[:3000],
+                "input_schema": schema,
+            }
+        )
+    return out
 
 
 class State:
@@ -129,6 +163,11 @@ def build_app(state: State) -> FastAPI:
         assert state.gateway is not None
         out = await state.gateway.call(body.token, body.step, body.index, body.tool, body.args)
         return JSONResponse(out.as_json())
+
+    @app.post("/v1/tools/catalog")
+    async def catalog(body: CatalogIn) -> JSONResponse:
+        assert state.gateway is not None
+        return JSONResponse({"tools": catalog_rows(state.gateway.lib, body.tools)})
 
     @app.post("/v1/connectors/call")
     async def connector(body: ConnectorCallIn) -> JSONResponse:

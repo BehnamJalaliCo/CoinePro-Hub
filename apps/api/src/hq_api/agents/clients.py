@@ -200,6 +200,22 @@ class Gateway:
         out: dict[str, Any] = resp.json()
         return out
 
+    async def catalog(self, tools: list[str]) -> list[dict[str, Any]]:
+        """⟨1.32⟩ §54 what each of these tools takes (the gateway's own input models), for a
+        direct session's tool list; [] when the gateway cannot be asked."""
+        try:
+            resp = await self._http.post(
+                "/v1/tools/catalog",
+                json={"tools": tools[:200]},
+                headers={"Authorization": f"Bearer {self._token()}"},
+            )
+        except httpx.HTTPError:
+            return []
+        if resp.status_code != 200:
+            return []
+        got = resp.json().get("tools")
+        return got if isinstance(got, list) else []
+
 
 class LivePush:
     """One streamed POST /internal/v1/threads/{code}/live for a reply being

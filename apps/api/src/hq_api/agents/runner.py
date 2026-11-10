@@ -305,7 +305,9 @@ class Runner:
                         refuse = "owner_turn"
             if refuse is None and await tx.scalar(
                 # a talk run (contract §32) reads beside the employee's work; it never makes it busy (0045)
-                "SELECT 1 FROM agents.runs WHERE employee_id = :e AND state = 'running' AND trigger <> 'talk'",
+                # ⟨1.32⟩ a direct turn (up to an hour) never keeps its holder from other work
+                """SELECT 1 FROM agents.runs WHERE employee_id = :e AND state = 'running'
+                     AND trigger NOT IN ('talk', 'direct')""",
                 e=run["employee_id"],
             ):
                 return Claim("busy")
@@ -523,6 +525,13 @@ class Runner:
         from hq_api.domain import workspace as WS
 
         handed = await WS.hand_over(self.hub, run, emp)
+        if handed is not None:
+            return await self.finish(run_id, "done", None, note=handed)
+        # ⟨1.32⟩ §54 the direct session: the holder's own run of an order is one turn of Claude
+        # Code on the workshop with the hub's tools (no model call here); None: as today
+        from hq_api.domain import direct as DR
+
+        handed = await DR.hand_over(self.hub, run, emp)
         if handed is not None:
             return await self.finish(run_id, "done", None, note=handed)
         deadline = time.monotonic() + self.s.agent_max_run_s

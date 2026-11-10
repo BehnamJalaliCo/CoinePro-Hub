@@ -486,6 +486,56 @@ RAW_BODY = {
         "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}},
     }
 }
+
+
+class ToolCallIn(Model):
+    """⟨1.32⟩ §54 one call of a direct session: `name` as the session's tool list gave it."""
+
+    name: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    args: dict[str, Any] = Field(default_factory=dict)
+
+
+@router.get("/runners/jobs/{id}/tools", responses=ER, include_in_schema=True)
+async def runner_tools(
+    id: UUID, r: dict[str, Any] = Depends(runner), hub: Hub = Depends(get_hub)
+) -> dict[str, Any]:
+    """⟨1.32⟩ §54 The hub's tools a direct session holds, for the runner of that turn's server
+    while the turn runs: `{tools: [{name, description, input_schema}]}`: the tools of the
+    turn's holder (its role's own, without the workshop's), each with the JSON Schema of its
+    input, and `skill_list` / `skill_read` (the roles' guides). `422` for a job that is not a
+    direct turn, `404` for another server's job, `409` once it ended."""
+    from hq_api.domain import direct as DR
+
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        j = await _runner_job(tx, r, id)
+        _still_running(j)
+        return {"tools": await DR.tools_for(tx, hub, dict(j))}
+
+
+@router.post("/runners/jobs/{id}/tools/call", responses=ER, include_in_schema=True)
+async def runner_tool_call(
+    id: UUID,
+    body: ToolCallIn,
+    r: dict[str, Any] = Depends(runner),
+    hub: Hub = Depends(get_hub),
+) -> dict[str, Any]:
+    """⟨1.32⟩ §54 One tool call of a direct session, relayed by its runner. The hub carries it
+    to the Tool Gateway as the turn's holder, for the turn's own run: the gateway reserves the
+    call, checks the role's tools and the policy, decides its class and writes its audit row,
+    exactly as for any agent. Answers the gateway's outcome `{outcome: ok | denied | error,
+    class, code, ref, result?, hint_fa?, fields?}` (always `200`: a refusal is an outcome the
+    session reads). `422` for a job that is not a direct turn, `409` once it ended."""
+    from hq_api.domain import direct as DR
+
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        j = dict(await _runner_job(tx, r, id))
+        _still_running(j)
+        turn = DR._turn_of(j)
+    # the call itself runs outside the job's row lock (it may take as long as a tool takes)
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        return await DR.call(tx, hub, {**j, "args": turn}, body.name, body.args)
+
+
 # ⟨2026-11-09⟩ §43 what a turn may send back: everything the owner may upload but fonts
 RUNNER_FILE_KINDS = {"video", "image", "audio", "document"}
 

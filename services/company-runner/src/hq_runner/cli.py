@@ -272,6 +272,7 @@ def build_parser() -> argparse.ArgumentParser:
         "ledger-check",
         help="check the company ledger's files, role and query (prints ok or the reason)",
     )
+    sub.add_parser("mcp-tools", help=argparse.SUPPRESS)  # ⟨0.3.5⟩ §54 a direct session's tools
     hp = sub.add_parser("classify-hook", help=argparse.SUPPRESS)
     hp.add_argument("--job")
     sx = sub.add_parser("sandbox-exec", help=argparse.SUPPRESS)
@@ -328,6 +329,10 @@ def main(argv: list[str] | None = None) -> int:
         return unpair(cfg_path)
     if args.cmd == "ledger-check":
         return ledger_check(cfg_path)
+    if args.cmd == "mcp-tools":
+        from hq_runner import tools_bridge
+
+        return tools_bridge.main()
     if args.cmd == "classify-hook":
         from hq_runner import hook
 

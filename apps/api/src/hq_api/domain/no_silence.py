@@ -185,7 +185,7 @@ async def sweep_unanswered(tx: Tx, *, limit: int = 20) -> int:
             elif run["state"] == "queued":
                 busy = await tx.scalar(
                     """SELECT 1 FROM agents.runs WHERE employee_id = :e AND state = 'running'
-                         AND trigger <> 'talk' LIMIT 1""",
+                         AND trigger NOT IN ('talk', 'direct') LIMIT 1""",
                     e=r["employee_id"],
                 )
                 if busy:

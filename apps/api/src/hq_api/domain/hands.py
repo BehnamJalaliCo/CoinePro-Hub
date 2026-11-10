@@ -20,6 +20,7 @@ show the owner and ask «تأیید یا اصلاح؟». A failed turn wakes the
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -281,10 +282,14 @@ async def start(
     request_id: str | None = None,
     files: list[Any] | None = None,
     effort: str | None = None,
+    direct: dict[str, Any] | None = None,
+    text_of: Callable[[bool, list[dict[str, Any]]], str] | None = None,
 ) -> WorkshopRun:
     """The turn on the workshop for the work (its workspace made or resumed), or the turn that
     still runs (`state: working`, nothing new). 409 for a workspace the owner stopped or one on a
-    company's own server."""
+    company's own server. ⟨1.32⟩ §54 `direct`: the turn is the session's own (domain/direct.py):
+    these args go with it (`direct`, `tools`, `run`) and `text_of(first, inputs)` writes its
+    brief in place of the workshop's own; the owner's stop was already weighed by the caller."""
     w = await W.load(tx, w["id"], lock=True)
     ws = await WS.of_work(tx, w["id"], lock=True)
     if ws is not None and ws["server_id"] != server["id"]:
@@ -292,7 +297,12 @@ async def start(
     # ⟨2026-11-10⟩ the kill switch of the work's own company holds its workshop turn too (the
     # job itself is the holding's, whose lock create_job checks)
     await SV.check_lock(tx, w["company_id"], deploy=False)
-    if ws is not None and ws["state"] == "stopped" and not await _owner_said_since(tx, who, ws):
+    if (
+        direct is None
+        and ws is not None
+        and ws["state"] == "stopped"
+        and not await _owner_said_since(tx, who, ws)
+    ):
         raise ApiError(409, "workshop_stopped")
     if ws is not None and (busy := await WS.busy_job(tx, ws)) is not None:
         return WorkshopRun(
@@ -333,8 +343,12 @@ async def start(
         # its server can (>= 0.3.4), and runs the turn without it when it cannot
         "sandbox": "auto",
         **({"inputs": inputs} if inputs else {}),
+        **(direct or {}),
     }
-    text = compose(w, who, brief, first=session is None, inputs=inputs)
+    if text_of is not None:
+        text = text_of(session is None, inputs)
+    else:
+        text = compose(w, who, brief, first=session is None, inputs=inputs)
     if session is None:
         s, job = await SS.open_session(
             tx,
@@ -382,24 +396,26 @@ async def start(
         await W.set_status(tx, w, "in_progress", accepted_at=datetime.now(UTC))
     await W.event(
         tx, w, "workspace_turn", who,
-        {"server": server["name"], "job": str(job["id"]), "turn": ws["turns"], "hands": True},
+        {"server": server["name"], "job": str(job["id"]), "turn": ws["turns"], "hands": True,
+         **({"direct": True} if direct else {})},
     )  # fmt: skip
     for co_id in dict.fromkeys((w["company_id"], server["company_id"])):
         await audit.record(
             tx,
             who,
             company_id=co_id,
-            action="workshop.run",
+            action="session.turn" if direct else "workshop.run",
             action_class="A2",
             target_kind="work",
             target_ref=w["ref"],
-            summary=f"turn {ws['turns']} of {w['ref']} on the workshop "
+            summary=f"{'direct ' if direct else ''}turn {ws['turns']} of {w['ref']} on the workshop "
             f"({server['company']}:{server['name']}); job {job['id']}",
             request_id=request_id,
         )
     await events.emit(
         tx, w["company"], "work.updated", w["ref"],
-        {"workspace": "starting", "server": server["name"], "turn": ws["turns"], "hands": True},
+        {"workspace": "starting", "server": server["name"], "turn": ws["turns"], "hands": True,
+         **({"direct": True} if direct else {})},
     )  # fmt: skip
     return WorkshopRun(
         job=str(job["id"]),

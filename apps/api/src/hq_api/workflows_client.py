@@ -128,6 +128,32 @@ async def route_order(
     return out
 
 
+DIRECT_WORKFLOW = "DirectTool"
+
+
+async def direct_tool(
+    hub: Any, req: dict[str, Any], timeout_s: float = 150.0
+) -> dict[str, Any] | None:
+    """⟨1.32⟩ §54 one tool call (or the tools' catalog) of a direct session, carried by the
+    worker to the Tool Gateway (workflow DirectTool; the api cannot reach the gateway), awaited.
+    None when Temporal or the worker is not there."""
+    client = _client(hub)
+    if client is None:
+        return None
+    try:
+        out: dict[str, Any] = await client.execute_workflow(
+            DIRECT_WORKFLOW,
+            req,
+            id=f"direct-tool-{uuid.uuid4()}",
+            task_queue=hub.settings.task_queue,
+            execution_timeout=timedelta(seconds=timeout_s),
+        )
+    except Exception:  # noqa: BLE001 - the session is told the gateway could not be reached
+        log.warning("a direct session's tool call did not come back")
+        return None
+    return out
+
+
 async def model_call(
     hub: Any, req: dict[str, Any], timeout_s: float = 90.0
 ) -> dict[str, Any] | None:

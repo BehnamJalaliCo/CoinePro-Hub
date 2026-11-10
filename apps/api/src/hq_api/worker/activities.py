@@ -37,6 +37,7 @@ from hq_api.domain import order_report as OR
 from hq_api.domain import work as W
 from hq_api.errors import ApiError
 from hq_api.hub import Hub
+from hq_api.security import agent_tokens
 from hq_api.worker import report, schedules
 from hq_api.worker.academy_activities import AcademyActivities
 from hq_api.worker.brand_activities import BrandActivities
@@ -190,6 +191,7 @@ class Activities:
             self.site_checks,
             self.hub_health,
             self.order_route,
+            self.direct_tool,
             self.ceo_daily,
         ]
 
@@ -1124,6 +1126,24 @@ class Activities:
             "input_tokens": call.input_tokens,
             "output_tokens": call.output_tokens,
         }
+
+    @activity.defn(name="direct_tool")
+    async def direct_tool(self, req: dict[str, Any]) -> dict[str, Any]:
+        """⟨1.32⟩ §54 a direct session's tools: `catalog` asks the gateway what each tool takes;
+        `call` hands one call to the gateway with a token minted here for the turn's own run
+        (the gateway reserves it, decides and audits as for any run). The request was built and
+        checked by the api (the turn is live, the tool is its holder's)."""
+        if not self.hub.secrets.gateway_token:
+            return {"outcome": "error", "class": None, "code": "gateway_unreachable", "ref": None}
+        if req.get("op") == "catalog":
+            return {"tools": await self.gateway.catalog([str(t) for t in req.get("tools") or []])}
+        token = agent_tokens.mint(
+            self.hub.secrets.agent_token_key, str(req["employee"]), str(req["run"]), ttl_s=300
+        )
+        return await self.gateway.call(
+            token, int(req.get("step") or 1), int(req.get("index") or 0), str(req["tool"]),
+            req.get("args"),
+        )  # fmt: skip
 
     # ---------------------------------------------------------- helpers --
     def _client(self) -> Client:

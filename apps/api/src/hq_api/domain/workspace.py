@@ -316,7 +316,8 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                     id=w["id"],
                 )
         if j["state"] == "done":
-            answer = (await SV.full_answer(tx, hub, j)).strip() or (j["summary_fa"] or "")
+            said = (await SV.full_answer(tx, hub, j)).strip()
+            answer = said or (j["summary_fa"] or "")
             # ⟨2026-11-09⟩ the files the turn left in `out/` (runner >= 0.3.2), checked
             files = await made_files(tx, j, w["company_id"])
             if files and not answer:
@@ -324,7 +325,35 @@ async def after_job(hub: Any, job_id: UUID) -> None:
             state: State = "idle"
             # a workshop turn of the order itself leaves it open: its holder shows the owner
             close = not (hands and w["parent_id"] is None)
-            if (w["status"] in W.OPEN or w["status"] == "delivered") and answer:
+            # ⟨1.32⟩ §54 a direct turn is the session's own holder: what it says is its word in
+            # the session, and only what it made (files in `out/`) is an output
+            direct = hands and bool((j.get("args") or {}).get("direct"))
+            if direct:
+                from hq_api.domain import direct as DR
+
+                if files and (w["status"] in W.OPEN or w["status"] == "delivered"):
+                    await PL.deliver(
+                        tx,
+                        w,
+                        title=f"خروجی جلسه: {w['title']}"[:300],
+                        body=said or OUT_ONLY_FA,
+                        produced_with={
+                            "runtime": "workshop",
+                            "direct": True,
+                            "server": j["server_name"],
+                            "workspace": w["ref"],
+                            "job": str(j["id"]),
+                            "session": j.get("session_ref"),
+                            "files": len(files),
+                            **({"sandbox": wall} if wall else {}),
+                            **made_with(j),
+                        },
+                        hub=hub,
+                        attachments=files,
+                        close=False,
+                    )
+                await DR.after_turn(tx, hub, j, w, answer=said, files=files)
+            elif (w["status"] in W.OPEN or w["status"] == "delivered") and answer:
                 await PL.deliver(  # a long answer goes whole into an attachment
                     tx,
                     w,
@@ -355,8 +384,10 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                     await _wake_or_say(tx, w, f"{DONE_REASON}{w['ref']}")
             await _set(tx, ws, state, None)
         elif j["state"] == "cancelled":
+            await _close_direct(tx, j)
             await _set(tx, ws, "stopped", HZ.humanize(j["summary_fa"]) or "متوقف شد")
         else:
+            await _close_direct(tx, j)
             note = HZ.humanize(j["summary_fa"]) or "کار روی سرور به نتیجه نرسید"
             await _set(tx, ws, "failed", note)
             await W.event(
@@ -395,6 +426,14 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                 # the next run is on the hub, as today: a `resume` the worker turns into one run
                 await W.event(tx, w, W.RESUME, SERVICE, {"why": f"{FAILED_REASON}{w['ref']}"})
         await events.emit(tx, w["company"], "work.updated", w["ref"], {"workspace": ws["state"]})
+
+
+async def _close_direct(tx: Tx, j: dict[str, Any]) -> None:
+    """⟨1.32⟩ §54 a direct turn that was stopped or failed: its own run ends with it."""
+    if (j.get("args") or {}).get("direct"):
+        from hq_api.domain import direct as DR
+
+        await DR.close_run(tx, j)
 
 
 async def _wake_or_say(tx: Tx, w: dict[str, Any], reason: str) -> None:

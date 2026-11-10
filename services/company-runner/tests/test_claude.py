@@ -306,6 +306,118 @@ def test_the_effort_the_hub_asks_for_reaches_the_cli_when_it_can_take_it(
     assert "--effort" not in got["argv"]
 
 
+def test_a_direct_session_calls_the_hubs_tools_through_the_runner(
+    fake_hub: FakeHub, cfg: Config, cfg_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """⟨0.3.5⟩ contract §54: with `args.tools: "hub"` the session gets one MCP server, the
+    runner's own; its list and each call go over the job's socket to the runner and from there
+    to the hub with the runner's token. The session never holds a secret, and a turn without
+    `tools` gets no server at all."""
+    record = tmp_path / "argv.json"
+    monkeypatch.setenv("FAKE_CLAUDE_RECORD", str(record))
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    cfg.claude_bin = str(FAKE_CLAUDE)
+    save(cfg, cfg_path)
+    fake_hub.tools = [
+        {"name": "order_ask", "description": "[A1] Ask the owner one question.",
+         "input_schema": {"type": "object", "properties": {"question_fa": {"type": "string"}},
+                          "required": ["question_fa"]}},
+        {"name": "skill_read", "description": "A role's guide.", "input_schema": {"type": "object"}},
+    ]  # fmt: skip
+    seen: list[Any] = []
+
+    def answer(body: Any) -> dict[str, Any]:
+        seen.append(body)
+        if body["name"] == "narrator_set":
+            return {"outcome": "denied", "class": None, "code": "policy_denied", "ref": None,
+                    "hint_fa": "اجازه نیست"}  # fmt: skip
+        return {"outcome": "ok", "class": "A1", "code": None, "ref": "F-0014",
+                "result": {"asked": True}}  # fmt: skip
+
+    fake_hub.tool_answer = answer
+    brief = (
+        'ask [[tool:order_ask:{"question_fa": "کدام حساب؟"}]] '
+        'then [[tool:narrator_set:{"voice": "Kore"}]]'
+    )
+    fake_hub.jobs.append(
+        {"id": "dr1", "kind": "claude",
+         "args": {"brief": brief, "cwd": str(repo), "tools": "hub", "allowed_tools": ["Read"]}}
+    )  # fmt: skip
+    runner = Runner(cfg, make_route(fake_hub), cfg_path=cfg_path, persist_state=False)
+    run(drive(runner, lambda: "dr1" in fake_hub.results, within=60))
+    got = fake_hub.results["dr1"]
+    assert got["exit_code"] == 0 and got["data"]["tool_calls"] == 2, got
+    assert seen == [
+        {"name": "order_ask", "args": {"question_fa": "کدام حساب؟"}},
+        {"name": "narrator_set", "args": {"voice": "Kore"}},
+    ]
+    assert [jid for jid, _ in fake_hub.tool_calls] == ["dr1", "dr1"]
+    # what the session said of its calls (the masked stream the hub keeps)
+    said = json.dumps(fake_hub.events["dr1"], ensure_ascii=False)
+    assert "mcp hq -> hq" in said and "tools -> order_ask,skill_read" in said
+    assert "call order_ask -> error=False" in said and "asked" in said
+    assert "call narrator_set -> error=True" in said and "policy_denied" in said
+    rec = json.loads(record.read_text())
+    argv = rec["argv"]
+    i = argv.index("--mcp-config")
+    assert argv[i + 2] == "--strict-mcp-config" and argv.index("--allowedTools") > i
+    assert argv[argv.index("--allowedTools") + 1 :] == ["Read", "mcp__hq"]
+    assert rec["settings"]["permissions"]["allow"] == ["Read", "mcp__hq"]
+    # the runner's token is nowhere in what the session was given
+    token = cfg.runner_token
+    assert token and token not in json.dumps(rec)
+
+    # a turn without `tools`: no MCP server, no extra permission
+    fake_hub.jobs.append(
+        {"id": "dr2", "kind": "claude",
+         "args": {"brief": 'x [[tool:order_ask:{"question_fa": "؟"}]]', "cwd": str(repo),
+                  "allowed_tools": ["Read"]}}
+    )  # fmt: skip
+    runner = Runner(cfg, make_route(fake_hub), cfg_path=cfg_path, persist_state=False)
+    run(drive(runner, lambda: "dr2" in fake_hub.results, within=60))
+    argv = json.loads(record.read_text())["argv"]
+    assert "--mcp-config" not in argv and argv[argv.index("--allowedTools") + 1 :] == ["Read"]
+    assert "tool_calls" not in fake_hub.results["dr2"]["data"] and len(fake_hub.tool_calls) == 2
+
+
+def test_the_mcp_server_speaks_the_protocol_and_never_fails_the_session() -> None:
+    """⟨0.3.5⟩ the bridge alone: JSON-RPC as MCP's stdio transport has it, and a runner that
+    cannot be asked is an error the session reads, never a crash."""
+    import io
+
+    from hq_runner import tools_bridge as TB
+
+    lines = [
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+         "params": {"protocolVersion": "2025-03-26", "capabilities": {}}},
+        {"jsonrpc": "2.0", "method": "notifications/initialized"},
+        {"jsonrpc": "2.0", "id": 2, "method": "ping"},
+        {"jsonrpc": "2.0", "id": 3, "method": "tools/list"},
+        {"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "x", "arguments": {}}},
+        {"jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": {}},
+        {"jsonrpc": "2.0", "id": 6, "method": "resources/list"},
+    ]  # fmt: skip
+    src = io.StringIO("\n".join(json.dumps(x) for x in lines) + "\nnot json\n\n")
+    out = io.StringIO()
+    assert TB.main(src, out) == 0
+    got = [json.loads(x) for x in out.getvalue().splitlines()]
+    assert [g.get("id") for g in got] == [1, 2, 3, 4, 5, 6, None]  # the notification has no answer
+    assert got[0]["result"]["protocolVersion"] == "2025-03-26"
+    assert got[0]["result"]["capabilities"] == {"tools": {}}
+    assert got[1]["result"] == {} and got[2]["result"] == {"tools": []}  # no socket: no tools
+    call = got[3]["result"]
+    assert call["isError"] is True and "hub_unreachable" in call["content"][0]["text"]
+    assert got[4]["error"]["code"] == -32602 and got[5]["error"]["code"] == -32601
+    assert got[6]["error"]["code"] == -32700
+    rows = TB.tool_rows({"tools": [{"name": "a", "description": "d", "input_schema": {"type": "object"}},
+                                   {"name": 5}, "junk"]})  # fmt: skip
+    assert rows == [{"name": "a", "description": "d", "inputSchema": {"type": "object"}}]
+    ok = TB.call_result({"outcome": "ok", "class": "A0", "code": None, "result": {"n": 1}})
+    assert ok["isError"] is False and json.loads(ok["content"][0]["text"]) == {
+        "outcome": "ok", "class": "A0", "result": {"n": 1}}  # fmt: skip
+
+
 def test_a_claude_job_runs_on_the_hubs_account_when_it_sends_one(
     fake_hub: FakeHub, cfg: Config, cfg_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

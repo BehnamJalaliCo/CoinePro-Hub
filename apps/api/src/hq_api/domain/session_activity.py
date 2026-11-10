@@ -329,7 +329,7 @@ SELECT r.id, r.state, r.error_code, r.partial, r.queued_at, r.started_at, r.fini
        c.code AS company
 FROM agents.runs r JOIN work.work w ON w.id = r.work_id
 JOIN core.employees e ON e.id = r.employee_id JOIN core.companies c ON c.id = w.company_id
-WHERE r.work_id = ANY(:ids) AND r.trigger <> 'talk'
+WHERE r.work_id = ANY(:ids) AND r.trigger NOT IN ('talk', 'direct')
 ORDER BY r.queued_at DESC LIMIT :lim
 """
 STEPS_SQL = """
@@ -433,14 +433,22 @@ async def activity(
                     )
                 )
     for t in await live_turns(tx, ids):  # ⟨2026-11-10⟩ the workshop's turn is someone working
+        # ⟨1.32⟩ §54 a direct turn is the session's own holder at work, by its own name
+        direct = bool(t.get("direct")) and bool(t.get("holder_fa"))
+        if direct:
+            who = str(t["holder_fa"])
+            doing = DIRECT_DOING_FA if t["state"] == "running" else DIRECT_QUEUED_FA
+        else:
+            who = WORKSHOP_WHO_FA if t["hands"] else SERVER_WHO_FA
+            doing = TURN_DOING_FA if t["state"] == "running" else TURN_QUEUED_FA
         working.append(
             Worker(
-                who_fa=WORKSHOP_WHO_FA if t["hands"] else SERVER_WHO_FA,
+                who_fa=who,
                 company_fa=str(t["company_fa"] or ""),
                 work_title_fa=title_text(t["work_title"]),
                 started_at=t["started_at"] or t["created_at"],
                 step=int(t["turns"] or 0),
-                doing_fa=TURN_DOING_FA if t["state"] == "running" else TURN_QUEUED_FA,
+                doing_fa=doing,
             )
         )
     lines.sort(key=lambda x: x.at)
@@ -497,7 +505,7 @@ async def live_run(tx: Tx, work_ids: list[Any]) -> dict[str, Any] | None:
         return None
     row = await tx.first(
         """SELECT r.id, r.state, r.steps, r.employee_id FROM agents.runs r
-           WHERE r.work_id = ANY(:ids) AND r.state IN ('queued', 'running') AND r.trigger <> 'talk'
+           WHERE r.work_id = ANY(:ids) AND r.state IN ('queued', 'running') AND r.trigger NOT IN ('talk', 'direct')
            ORDER BY (r.state = 'running') DESC, r.queued_at LIMIT 1""",
         ids=work_ids,
     )
@@ -509,6 +517,8 @@ WORKSHOP_WHO_FA = "کارگاه هلدینگ"
 SERVER_WHO_FA = "Claude روی سرور شرکت"
 TURN_DOING_FA = "دارد میسازد؛ هر نوبت تا ۶۰ دقیقه"
 TURN_QUEUED_FA = "در صف کارگاه"
+DIRECT_DOING_FA = "دارد روی فرمان شما کار میکند؛ هر نوبت تا ۶۰ دقیقه"
+DIRECT_QUEUED_FA = "همین حالا شروع میکند"
 
 
 async def live_turns(tx: Tx, work_ids: list[Any]) -> list[dict[str, Any]]:
@@ -521,9 +531,11 @@ async def live_turns(tx: Tx, work_ids: list[Any]) -> list[dict[str, Any]]:
     rows = await tx.all(
         """SELECT ws.work_id, ws.turns, j.state, j.created_at, j.started_at,
                   COALESCE(j.args ->> 'hands', '') = 'true' AS hands,
+                  COALESCE(j.args ->> 'direct', '') = 'true' AS direct, e.title_fa AS holder_fa,
                   w.title AS work_title, c.name_fa AS company_fa, c.code AS company
            FROM work.workspaces ws JOIN infra.server_jobs j ON j.id = ws.last_job_id
            JOIN work.work w ON w.id = ws.work_id JOIN core.companies c ON c.id = w.company_id
+           LEFT JOIN core.employees e ON e.code = j.actor_code AND j.actor_kind = 'agent'
            WHERE ws.work_id = ANY(:ids) AND j.state = ANY(:open)
            ORDER BY j.created_at""",
         ids=work_ids,
@@ -591,7 +603,7 @@ async def stuck_cause(
         # ⟨2026-11-10⟩ only what ended since the session last moved (an old refusal the order got
         # past is not why it stands now), and never the hold for the owner's own answer
         """SELECT state, error_code, note FROM agents.runs
-           WHERE work_id = ANY(:ids) AND state IN ('refused', 'failed') AND trigger <> 'talk'
+           WHERE work_id = ANY(:ids) AND state IN ('refused', 'failed') AND trigger NOT IN ('talk', 'direct')
              AND error_code IS NOT NULL AND error_code <> 'owner_turn'
              AND COALESCE(finished_at, queued_at) >= CAST(:since AS timestamptz) - interval '10 minutes'
            ORDER BY COALESCE(finished_at, queued_at) DESC LIMIT 1""",
@@ -693,7 +705,7 @@ async def working_count(tx: Tx, ref: str) -> int:
         """WITH ws AS (SELECT w.id FROM work.work w JOIN owner.order_reports o ON o.ref = :r
                        WHERE w.ref = ANY(o.work_refs))
            SELECT (SELECT count(*) FROM agents.runs r
-                   WHERE r.state IN ('queued', 'running') AND r.trigger <> 'talk'
+                   WHERE r.state IN ('queued', 'running') AND r.trigger NOT IN ('talk', 'direct')
                      AND r.work_id IN (SELECT id FROM ws))
                 + (SELECT count(*) FROM work.workspaces t
                    JOIN infra.server_jobs j ON j.id = t.last_job_id

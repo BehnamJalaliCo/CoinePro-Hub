@@ -81,8 +81,9 @@ async def test_the_chain_runs_through_prompt_11_then_prompt_12(su: Any) -> None:
     assert rev["0058"] == "0057"  # W12: the holding live
     assert rev["0059"] == "0058"  # 34: the owner's standing permission to publish (a membership's)
     assert rev["0060"] == "0059"  # 1.0.1: the ledger, the narrator, the posts, a routine's source
-    assert heads == {"0060"}
-    assert await su.fetchval("SELECT version_num FROM alembic_version_api") == "0060"
+    assert rev["0061"] == "0060"  # 1.0.1: a direct session's turn has a run of its own
+    assert heads == {"0061"}
+    assert await su.fetchval("SELECT version_num FROM alembic_version_api") == "0061"
 
 
 async def test_the_kind_check_holds_every_kind_and_is_validated(su: Any) -> None:

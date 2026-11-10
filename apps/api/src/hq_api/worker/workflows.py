@@ -614,7 +614,28 @@ class OrderRouting:
         return out
 
 
+@workflow.defn(name="DirectTool")
+class DirectTool:
+    """⟨1.32⟩ §54 One tool call of a direct session (or the catalog of its tools), awaited by
+    the api: the worker is the Tool Gateway's only caller. Never retried here: a call that
+    failed is told to the session, which decides."""
+
+    @workflow.run
+    async def run(self, req: dict[str, Any]) -> dict[str, Any]:
+        try:
+            out: dict[str, Any] = await _act(
+                "direct_tool",
+                req,
+                limit=timedelta(seconds=140),
+                retry=RetryPolicy(maximum_attempts=1),
+            )
+        except ActivityError:
+            out = {"outcome": "error", "class": None, "code": "gateway_unreachable", "ref": None}
+        return out
+
+
 WORKFLOWS = [
+    DirectTool,
     MeetingsTick,
     KnowledgeDaily,
     SupportInbound,

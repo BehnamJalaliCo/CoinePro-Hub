@@ -57,6 +57,13 @@ class FakeHub:
     on_upload: Callable[[str], None] | None = None  # ⟨0.3.3⟩ after a file of a job is stored
     # ⟨0.3.3⟩ §43.8 a job's input files: {"<job>/<file id>": bytes}
     inputs: dict[str, bytes] = field(default_factory=dict)
+    # ⟨0.3.5⟩ §54 the hub's tools of a direct turn, and the calls the runner relayed
+    tools: list[dict[str, Any]] = field(default_factory=list)
+    tool_calls: list[tuple[str, Any]] = field(default_factory=list)
+    tool_answer: Callable[[Any], dict[str, Any]] = field(
+        default=lambda body: {"outcome": "ok", "class": "A1", "code": None, "ref": None,
+                              "result": {"echo": body}}
+    )  # fmt: skip
 
     def transport(self) -> httpx.MockTransport:
         return httpx.MockTransport(self.handle)
@@ -134,6 +141,11 @@ class FakeHub:
                     if data is not None
                     else problem(404, "not_found")
                 )
+            if what == "tools":  # ⟨0.3.5⟩ §54 a direct session's hub tools
+                if len(path.split("/")) > 7:
+                    self.tool_calls.append((jid, body))
+                    return httpx.Response(200, json=self.tool_answer(body))
+                return httpx.Response(200, json={"tools": self.tools})
             if what == "events":
                 assert set(body) == {"events"}
                 self.events.setdefault(jid, []).extend(body["events"])

@@ -32857,6 +32857,11 @@
             ],
             "title": "Conversation Ref"
           },
+          "direct": {
+            "default": false,
+            "title": "Direct",
+            "type": "boolean"
+          },
           "files": {
             "items": {
               "$ref": "#/components/schemas/FileRef"
@@ -53818,81 +53823,6 @@
         "title": "TokenIn",
         "type": "object"
       },
-      "ToolCallIn": {
-        "additionalProperties": false,
-        "properties": {
-          "class": {
-            "anyOf": [
-              {
-                "enum": [
-                  "A0",
-                  "A1",
-                  "A2",
-                  "A3",
-                  "A4"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Class"
-          },
-          "code": {
-            "anyOf": [
-              {
-                "pattern": "^[a-z][a-z0-9_]{1,60}$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Code"
-          },
-          "outcome": {
-            "enum": [
-              "ok",
-              "denied",
-              "error"
-            ],
-            "title": "Outcome",
-            "type": "string"
-          },
-          "ref": {
-            "anyOf": [
-              {
-                "maxLength": 80,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ref"
-          },
-          "step": {
-            "maximum": 50.0,
-            "minimum": 1.0,
-            "title": "Step",
-            "type": "integer"
-          },
-          "tool": {
-            "maxLength": 40,
-            "pattern": "^[a-z][a-z_]*(\\.[a-z_]+)?$",
-            "title": "Tool",
-            "type": "string"
-          }
-        },
-        "required": [
-          "tool",
-          "outcome",
-          "step"
-        ],
-        "title": "ToolCallIn",
-        "type": "object"
-      },
       "ToolOut": {
         "properties": {
           "detail": {
@@ -60067,6 +59997,81 @@
         "title": "ReserveIn",
         "type": "object"
       },
+      "hq_api__routes__agent_tools__ToolCallIn": {
+        "additionalProperties": false,
+        "properties": {
+          "class": {
+            "anyOf": [
+              {
+                "enum": [
+                  "A0",
+                  "A1",
+                  "A2",
+                  "A3",
+                  "A4"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Class"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]{1,60}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "outcome": {
+            "enum": [
+              "ok",
+              "denied",
+              "error"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "ref": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref"
+          },
+          "step": {
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Step",
+            "type": "integer"
+          },
+          "tool": {
+            "maxLength": 40,
+            "pattern": "^[a-z][a-z_]*(\\.[a-z_]+)?$",
+            "title": "Tool",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tool",
+          "outcome",
+          "step"
+        ],
+        "title": "ToolCallIn",
+        "type": "object"
+      },
       "hq_api__routes__agent_tools__Usage": {
         "properties": {
           "budgets": {
@@ -61263,6 +61268,29 @@
           "actions"
         ],
         "title": "Step",
+        "type": "object"
+      },
+      "hq_api__routes__servers__ToolCallIn": {
+        "additionalProperties": false,
+        "description": "⟨1.32⟩ §54 one call of a direct session: `name` as the session's tool list gave it.",
+        "properties": {
+          "args": {
+            "additionalProperties": true,
+            "title": "Args",
+            "type": "object"
+          },
+          "name": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ToolCallIn",
         "type": "object"
       },
       "hq_api__routes__sessions__CloseIn": {
@@ -114387,6 +114415,7 @@
                     }
                   ],
                   "conversation_ref": "x",
+                  "direct": false,
                   "files": [
                     {
                       "duration_s": 1.0,
@@ -114986,6 +115015,7 @@
                     }
                   ],
                   "conversation_ref": "x",
+                  "direct": false,
                   "files": [
                     {
                       "duration_s": 1.0,
@@ -115380,6 +115410,7 @@
                     }
                   ],
                   "conversation_ref": "x",
+                  "direct": false,
                   "files": [
                     {
                       "duration_s": 1.0,
@@ -115891,6 +115922,7 @@
                     }
                   ],
                   "conversation_ref": "x",
+                  "direct": false,
                   "files": [
                     {
                       "duration_s": 1.0,
@@ -116288,6 +116320,7 @@
                     }
                   ],
                   "conversation_ref": "x",
+                  "direct": false,
                   "files": [
                     {
                       "duration_s": 1.0,
@@ -116680,6 +116713,7 @@
                     }
                   ],
                   "conversation_ref": "x",
+                  "direct": false,
                   "files": [
                     {
                       "duration_s": 1.0,
@@ -117374,6 +117408,7 @@
                     }
                   ],
                   "conversation_ref": "x",
+                  "direct": false,
                   "files": [
                     {
                       "duration_s": 1.0,
@@ -117770,6 +117805,7 @@
                     }
                   ],
                   "conversation_ref": "x",
+                  "direct": false,
                   "files": [
                     {
                       "duration_s": 1.0,
@@ -118164,6 +118200,7 @@
                     }
                   ],
                   "conversation_ref": "x",
+                  "direct": false,
                   "files": [
                     {
                       "duration_s": 1.0,
@@ -118892,6 +118929,7 @@
                     }
                   ],
                   "conversation_ref": "x",
+                  "direct": false,
                   "files": [
                     {
                       "duration_s": 1.0,
@@ -131843,6 +131881,292 @@
           }
         },
         "summary": "Runner Result",
+        "tags": [
+          "servers"
+        ]
+      }
+    },
+    "/api/v1/runners/jobs/{id}/tools": {
+      "get": {
+        "description": "⟨1.32⟩ §54 The hub's tools a direct session holds, for the runner of that turn's server\nwhile the turn runs: `{tools: [{name, description, input_schema}]}`: the tools of the\nturn's holder (its role's own, without the workshop's), each with the JSON Schema of its\ninput, and `skill_list` / `skill_read` (the roles' guides). `422` for a job that is not a\ndirect turn, `404` for another server's job, `409` once it ended.",
+        "operationId": "runner_tools",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {},
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Runner Tools",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Runner Tools",
+        "tags": [
+          "servers"
+        ]
+      }
+    },
+    "/api/v1/runners/jobs/{id}/tools/call": {
+      "post": {
+        "description": "⟨1.32⟩ §54 One tool call of a direct session, relayed by its runner. The hub carries it\nto the Tool Gateway as the turn's holder, for the turn's own run: the gateway reserves the\ncall, checks the role's tools and the policy, decides its class and writes its audit row,\nexactly as for any agent. Answers the gateway's outcome `{outcome: ok | denied | error,\nclass, code, ref, result?, hint_fa?, fields?}` (always `200`: a refusal is an outcome the\nsession reads). `422` for a job that is not a direct turn, `409` once it ended.",
+        "operationId": "runner_tool_call",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "args": {},
+                "name": "report.pdf"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/hq_api__routes__servers__ToolCallIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {},
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Runner Tool Call",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Runner Tool Call",
         "tags": [
           "servers"
         ]
@@ -164510,6 +164834,7 @@
                     }
                   ],
                   "conversation_ref": "x",
+                  "direct": false,
                   "files": [
                     {
                       "duration_s": 1.0,
@@ -164917,6 +165242,7 @@
                     }
                   ],
                   "conversation_ref": "x",
+                  "direct": false,
                   "files": [
                     {
                       "duration_s": 1.0,
@@ -165327,6 +165653,7 @@
                     }
                   ],
                   "conversation_ref": "x",
+                  "direct": false,
                   "files": [
                     {
                       "duration_s": 1.0,
@@ -168458,7 +168785,7 @@
                 "tool": "x"
               },
               "schema": {
-                "$ref": "#/components/schemas/ToolCallIn"
+                "$ref": "#/components/schemas/hq_api__routes__agent_tools__ToolCallIn"
               }
             }
           },

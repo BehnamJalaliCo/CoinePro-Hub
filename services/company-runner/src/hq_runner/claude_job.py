@@ -54,7 +54,7 @@ from typing import Any
 
 import hq_runner
 from hq_runner import hook as hook_module
-from hq_runner import outbox, sandbox
+from hq_runner import outbox, sandbox, tools_bridge
 from hq_runner import workspace as workspace_state
 from hq_runner.config import config_path
 from hq_runner.hub import HubError
@@ -429,6 +429,35 @@ async def run_claude(ctx: JobContext) -> JobResult:
             "progress", {"text": "sandbox on" if wall is not None else f"sandbox off: {wall_why}"}
         )
     hook_log = Path(os.devnull)
+    # ⟨0.3.5⟩ §54 a direct session: the hub's tools reach it through this runner (the job's own
+    # socket and a small MCP server); every call is the hub's gateway's to decide
+    tools_on = args.get("tools") == "hub"
+    tool_calls = 0
+
+    async def list_tools() -> dict[str, Any]:
+        try:
+            resp = await ctx.hub.request(
+                "GET", f"/runners/jobs/{ctx.id}/tools", job_scoped=True, job_id=ctx.id,
+                read_timeout=60.0,
+            )  # fmt: skip
+        except HubError as exc:
+            return {"tools": [], "error": exc.code or str(exc.status)}
+        got = resp.json()
+        return got if isinstance(got, dict) else {"tools": []}
+
+    async def call_tool(name: str, call_args: dict[str, Any]) -> dict[str, Any]:
+        nonlocal tool_calls
+        tool_calls += 1
+        try:
+            resp = await ctx.hub.request(
+                "POST", f"/runners/jobs/{ctx.id}/tools/call",
+                json={"name": name, "args": call_args}, job_scoped=True, job_id=ctx.id,
+                read_timeout=170.0,
+            )  # fmt: skip
+        except HubError as exc:
+            return dict(tools_bridge.UNREACHABLE, detail=exc.code or str(exc.status))
+        got = resp.json()
+        return got if isinstance(got, dict) else dict(tools_bridge.UNREACHABLE)
 
     async def classify_for_hook(cmd: str) -> tuple[str | None, str | None]:
         return await asyncio.to_thread(
@@ -522,7 +551,8 @@ async def run_claude(ctx: JobContext) -> JobResult:
             tmp = plan.job
         settings = tmp / "settings.json"
         hook_log = tmp / "hook-events.jsonl"
-        settings.write_text(json.dumps(hook_settings(ctx.id, allow)), encoding="utf-8")
+        granted = [*allow, tools_bridge.ALLOW] if tools_on else allow
+        settings.write_text(json.dumps(hook_settings(ctx.id, granted)), encoding="utf-8")
         # behind the wall the brief goes in on stdin: a turn's argv is readable by every
         # process of this user (/proc), and the other turns are other companies'
         argv = [claude, "-p", *([] if plan is not None else [brief])]
@@ -537,8 +567,14 @@ async def run_claude(ctx: JobContext) -> JobResult:
             argv += ["--max-turns", str(int(args["max_turns"]))]
         if effort:
             argv += ["--effort", effort]
-        if allow:  # last: the option takes every value after it
-            argv += ["--allowedTools", *allow]
+        tools_sock = tmp / "tools.sock"
+        if tools_on:
+            mcp_file = tmp / "mcp.json"
+            mcp_file.write_text(json.dumps(tools_bridge.mcp_config(tools_sock)), encoding="utf-8")
+            # only the hub's own server: nothing this machine's user configured rides along
+            argv += ["--mcp-config", str(mcp_file), "--strict-mcp-config"]
+        if granted:  # last: the option takes every value after it
+            argv += ["--allowedTools", *granted]
         env = dict(ctx.env)
         if has_oauth:
             env["CLAUDE_CODE_OAUTH_TOKEN"] = str(oauth)
@@ -553,8 +589,14 @@ async def run_claude(ctx: JobContext) -> JobResult:
                 "HQ_RUNNER_JOB_ID": ctx.id,
             }
         )
+        if tools_on:
+            # a hub tool may hold its answer for a while (a job on a server, a voice being made)
+            env.update({"MCP_TIMEOUT": "30000", "MCP_TOOL_TIMEOUT": "180000"})
         server: asyncio.AbstractServer | None = None
+        tools_server: asyncio.AbstractServer | None = None
         try:
+            if tools_on:
+                tools_server = await tools_bridge.serve(tools_sock, list_tools, call_tool)
             if plan is not None:
                 if resume:
                     await asyncio.to_thread(
@@ -583,10 +625,11 @@ async def run_claude(ctx: JobContext) -> JobResult:
             drain_hook_log()
             return out
         finally:
-            if server is not None:
-                server.close()
-                with contextlib.suppress(Exception):
-                    await server.wait_closed()
+            for srv in (server, tools_server):
+                if srv is not None:
+                    srv.close()
+                    with contextlib.suppress(Exception):
+                        await srv.wait_closed()
             shutil.rmtree(tmp, ignore_errors=True)
             if plan is not None:
                 shutil.rmtree(plan.tmp, ignore_errors=True)
@@ -638,6 +681,8 @@ async def run_claude(ctx: JobContext) -> JobResult:
         output["workspace"] = {"ref": workspace, "path": cwd}
     if effort:
         output["effort"] = effort  # what was passed to the CLI (the hub shows it on the output)
+    if tools_on:
+        output["tool_calls"] = tool_calls  # how many hub tools the session called
     if walled:
         output["sandbox"] = (
             {"state": "on", "kind": "landlock"}

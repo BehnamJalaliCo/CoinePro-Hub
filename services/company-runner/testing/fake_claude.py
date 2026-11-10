@@ -8,6 +8,8 @@ The brief chooses the behaviour:
     [[bash:<command>]]   a Bash tool call with that command (hooks run first)
     [[fake:sleep]]       never finishes (cancel and timeout tests)
     [[fake:error]]       ends with an error result and exit code 1
+    [[tool:NAME:{json}]] one MCP call of that tool of the server in --mcp-config (the hub's
+                         tools of a direct session), after initialize and tools/list
     [[fake:spend:N]]     N assistant messages of 10 000 tokens each (every one
                          repeated once, as Claude Code repeats a message's usage
                          on each content block), then never finishes (token cap)
@@ -66,6 +68,62 @@ def run_hooks(settings: dict[str, object], session: str, command: str) -> tuple[
             if proc.returncode == 2:
                 return False, proc.stderr.strip()
     return True, ""
+
+
+def mcp_calls(brief: str) -> list[str]:
+    """`[[tool:<name>:<json args>]]`: speak MCP to the first server of `--mcp-config` as the
+    real CLI does (initialize, the initialized notice, tools/list, then each call) and say what
+    came back. Nothing when the brief names no tool or no server was configured."""
+    wanted = re.findall(r"\[\[tool:([A-Za-z0-9_-]+):(\{.*?\})\]\]", brief)
+    config = arg("--mcp-config")
+    if not wanted:
+        return []
+    if not config:
+        return ["mcp -> no server configured"]
+    with open(config) as fh:
+        servers = json.load(fh)["mcpServers"]
+    name, spec = next(iter(servers.items()))
+    proc = subprocess.Popen(
+        [spec["command"], *spec.get("args", [])],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        text=True,
+        env={**os.environ, **spec.get("env", {})},
+    )
+    assert proc.stdin is not None
+    assert proc.stdout is not None
+    n = 0
+
+    def ask(method: str, params: dict[str, object] | None = None) -> dict[str, object]:
+        nonlocal n
+        n += 1
+        proc.stdin.write(json.dumps({"jsonrpc": "2.0", "id": n, "method": method,
+                                     "params": params or {}}) + "\n")  # fmt: skip
+        proc.stdin.flush()
+        return dict(json.loads(proc.stdout.readline()))
+
+    out: list[str] = []
+    try:
+        client = {"name": "fake-claude", "version": "0"}
+        init = ask(
+            "initialize",
+            {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": client},
+        )
+        out.append(f"mcp {name} -> {init['result']['serverInfo']['name']}")
+        notice = {"jsonrpc": "2.0", "method": "notifications/initialized"}
+        proc.stdin.write(json.dumps(notice) + "\n")
+        proc.stdin.flush()
+        listed = ask("tools/list")["result"]["tools"]
+        out.append("tools -> " + ",".join(sorted(t["name"] for t in listed)))
+        for tool, raw in wanted:
+            got = ask("tools/call", {"name": tool, "arguments": json.loads(raw)})
+            res = got.get("result") or {}
+            text = (res.get("content") or [{}])[0].get("text", "")
+            out.append(f"call {tool} -> error={res.get('isError')} {text}")
+    finally:
+        proc.stdin.close()
+        proc.wait(timeout=10)
+    return out
 
 
 HELP = """Usage: claude [options] [prompt]
@@ -203,6 +261,7 @@ def main() -> int:
             seen.append(f"write {path} -> ok")
         except OSError as exc:
             seen.append(f"write {path} -> {type(exc).__name__}")
+    seen += mcp_calls(brief)
     if seen:
         emit(
             {

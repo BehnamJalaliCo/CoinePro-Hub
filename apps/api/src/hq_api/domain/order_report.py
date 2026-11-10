@@ -376,6 +376,10 @@ class OrderReport(BaseModel):
     # ⟨1.31⟩ §50 the standing routines the owner asked for in this session («کارمند ۲۴ ساعته»),
     # newest first; each is switched with POST /automations/{ref}/state
     routines: list[SessionRoutine] = Field(default_factory=list)
+    # ⟨1.32⟩ §54 true: the session is direct now (its holder works as one Claude Code session on
+    # the workshop, with the hub's tools); false: the workshop cannot take it and the holder
+    # works the classic way
+    direct: bool = False
 
 
 # ----------------------------------------------------------------- reading --
@@ -1135,6 +1139,9 @@ async def report(tx: Tx, ref: str) -> OrderReport | None:
     from hq_api.domain import routines as RT
 
     out.routines = await RT.of_order(tx, rep["ref"])
+    from hq_api.domain import direct as DR
+
+    out.direct = await DR.server_for(tx) is not None
     return out
 
 
@@ -1441,7 +1448,9 @@ async def idle_runs(
     n = await tx.scalar(
         """SELECT count(*) FROM agents.runs r
            WHERE r.work_id = ANY(:ids) AND r.state IN ('running', 'done', 'failed')
-             AND r.trigger <> 'talk'
+             AND r.trigger NOT IN ('talk', 'direct')
+             -- ⟨1.32⟩ §54 a run handed over to a direct turn did its work there
+             AND COALESCE(r.note, '') NOT LIKE 'direct turn%'
              AND r.created_at > COALESCE(
                  (SELECT max(d.created_at) FROM cartable.deliverables d
                    WHERE d.work_id = ANY(:ids) AND NOT starts_with(d.title, :partial)),

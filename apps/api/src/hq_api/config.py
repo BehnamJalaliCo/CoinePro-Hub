@@ -316,6 +316,10 @@ class Settings:
     # ⟨21⟩ §29.11 the working groups' routines run (the worker's tick) only once
     # the deploy switches them on, a step of its own after the checks (prompt 21)
     groups: bool = field(default_factory=lambda: _env("HQ_GROUPS", "off") == "on")
+    # ⟨1.32⟩ §54 sessions are direct by default (the owner's decision): the holder's run of an
+    # order is a turn on the workshop whenever the workshop can take it. `off`: every run stays
+    # the classic one (a switch for the deploy, never a setting of the owner's)
+    direct_sessions: bool = field(default_factory=lambda: _env("HQ_DIRECT_SESSIONS", "on") != "off")
     # ⟨1.13⟩ prompt 22 part 3 (§31.3): Listmonk is the opt-in profile "newsletter"
     # (hq.sh sets HQ_NEWSLETTER_ACTIVE on only while it fits the memory budget); its
     # API on the internal network hq-newsletter; a list over `newsletter_size_limit`

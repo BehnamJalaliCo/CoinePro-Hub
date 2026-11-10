@@ -17,6 +17,8 @@
 >
 > **v1.27 (۲۰۲۶-۱۱-۱۰):** جلسه‌ی مستقیم، قدم اول (§۴۴، پرامپت ۳۲): گوینده‌ی محتوا روشن است (آنچه مالک خاموش کرد گفتگوی صوتی خودش بود)؛ استخدامی که مالک در جلسه‌ی خودش خواسته همان‌جا با کد انجام میشود، بی کارت و بی اثر انگشت؛ مسئول جلسه کار را خودش با کارگاه انجام میدهد؛ و نوبت کارگاه فایل‌های ستاد را با خودش میبرد (`workshop.run {files}`، §۴۳.۸)؛ و دیوار کارگاه بین شرکت‌ها که هیچ‌وقت جلوی کار را نمیگیرد (§۴۳.۹، runner 0.3.4).
 >
+> **v1.32 (۲۰۲۶-۱۱-۱۰، به‌روزرسانی ۱.۰.۱):** جلسه‌ی مستقیم، قدم سوم (§۵۴، پرامپت ۳۵؛ مالک: «مثل همین سشنی که من با تو صحبت میکنم»): مسئول جلسه یک نشست Claude Code روی کارگاه است، با ابزارهای ستاد. هر ابزار از همان درگاه ابزار رد میشود، هر توکن در خزانه ثبت میشود، و اگر کارگاه نتواند، مسئول مثل قبل کار میکند.
+>
 > **v1.31 (۲۰۲۶-۱۱-۱۰، به‌روزرسانی ۱.۰.۱):** کمبودهای فرمان ریلز (§۴۷ تا §۵۳، پرامپت ۳۵؛ مالک: «هیچ روزی تکراری نباشد»، «گوینده یک بار برای همیشه»، «در ساعت‌های پربازدید»): دفتر موضوع‌های گفته‌شده که کد جلوی تکرار را میگیرد؛ گوینده‌ی ثابت هر شرکت؛ «بهترین ساعت» از روی آمار IG-Hub؛ روال دائمی («کارمند ۲۴ ساعته») با یک جمله، بی کارت و بی اثر انگشت؛ لغو پست زمان‌بندی‌شده از اپ؛ تبدیل خودکار عکس و کاور به JPEG؛ و «بیشترین effort» برای کارگاه.
 >
 > **v1.30 (۲۰۲۶-۱۱-۱۰):** ساعت، کامنت و اسلاید در انتشار (§۴۶؛ مالک: «هر بار شاید یک کامنت باشد … ساعت را باید هاب تنظیم بکند»): هاب ساعت انتشار را میدهد و IG-Hub تا آن ساعت نگهش میدارد؛ کلمه‌ی کامنت و لینکِ همان پست همراهش میرود و در IG-Hub قانونِ همان یک پست میشود؛ اسلاید (چند فایل)؛ ساعت ثابت برای انتشار خودکار هر کارگروه. کاور ریلز و دستور انتشار در خود IG-Hub نوشته شد (شاخه‌ی `claude/coinepro-hub-setup-hsvnw7` آن ریپو).
@@ -4957,3 +4959,107 @@ The owner's order: the motion graphic is made by «Opus 5.5 با بیشترین 
   `data.effort` says what was passed; the hub keeps it on the output (`produced_with.effort`, with
   `produced_with.model`). A runner older than 0.3.5 ignores the argument.
 - Error codes (additive, §47 and §51): `topic_taken` 409 · `not_cancellable` 409.
+
+## 54. The direct session, step three: the holder is one session with the hub's tools ⟨1.32⟩ (2026-11-10, prompt 35)
+
+The owner (`docs/SIMPLIFY_2026-11-10_DIRECT_SESSIONS.md` §4.1, §7.3): «مثل همین سشنی که من با تو صحبت میکنم … توی
+شرکت هم همین اشتراک کلود هست و همین مدل‌ها، پس نباید انقدر پیچیده باشه». Until now a session's holder was a short run
+of a model that could only name a tool, six steps at a time, read the session again on every wake, and handed
+anything with hands to the workshop and waited. From here the holder's run **is** a turn on the workshop: one
+brain, one thread, the same Claude session and the same folder on every word of the owner's, up to 60 minutes.
+
+### 54.1 What does not change
+
+- **Everything of the hub goes through the Tool Gateway.** The session reaches the hub's data and actions only by
+  its role's own tools. Each call is relayed by the workshop's runner to the api, handed by the worker to the
+  gateway with a token minted for the turn's own run, and decided by the gateway as for any agent: the role's
+  tools, the policy, the class (A0 to A4: an A3 is still a card, an A4 never an AI's), the kill switch, the hold of
+  the overseer, the audit row. The runner's own token never goes behind the workshop's wall (§43.9).
+- **The Treasury sees every token:** the turn's usage comes with its result (§26.2), on the hub's Claude account of
+  the moment, which the hub chooses.
+- The companies' data stay apart (the wall of §43.9; every tool's own company check). A turn has its hour and is
+  never silent (§43.6). The passkey is for money, deleting for good, keys and access, and a destructive command
+  (the PreToolUse hook classifies every command of the session as before).
+- What the workshop itself may reach (the internet, its own folder) is what §43 already gave it; nothing of the hub
+  is reachable from there but the tools.
+
+### 54.2 The hand-over (worker, `Runner.execute`)
+
+A claimed run is handed over when all of these hold; otherwise it runs as before (nothing ever waits for the
+workshop):
+- it is a `work` run of the **assignee of an order's own root work** (the session's holder), the session open;
+- its reason is not one that only tells of a failed turn (`workspace_failed:`): that stays the quick classic run;
+- the holding's workshop is **online on runner ≥ 0.3.5**, and the work's workspace, if it has one, is on it and
+  not stopped by the owner (his own later word starts it again);
+- `HQ_DIRECT_SESSIONS` is not `off` (a switch of the deploy; sessions are direct by default, his decision).
+
+The hand-over makes one **workspace turn** of that work (§43.2: the same folder `~/hq-workspace/<W-ref>`, the same
+Claude session resumed) with `args = {…hands, direct: true, tools: "hub", run: <its run>, order: <F-ref>, model:
+"claude-opus-5-5", effort: "max", sandbox: "auto", inputs?}` and the classic run ends `done` at once (note `direct
+turn <job>`; it called no model). Audit `session.turn` (A2) on the work's company and the holding.
+
+- **Its brief** (code, Persian): on a session's first turn who it is (the holder's title and company), the rules
+  (its final answer is its word to the owner: short, plain Persian; deliverables in `out/`; never publish, pay or
+  message outside; hand a part over only when the owner says who; the hub only through its tools), its tools, its
+  role's own guide, the session's memory and the order; on every turn the session's state (plan, steps, blockers,
+  outputs, files, the owner's open turn), why it was woken, and the owner's last words. A later turn of the same
+  Claude session carries only what is new.
+- **The owner's files** of the session that no turn carried yet go with it (`in/`, §43.8).
+- **One brain, one thread:** while a turn of the work is live (a direct one, or the holder's own classic
+  `workshop.run`), a new run of the holder for it ends at once (`direct turn waits`) and, when the owner's word
+  caused it, the session says once «مسئول هنوز روی نوبت قبلی است؛ حرف شما بعد از آن خوانده میشود …». When the turn
+  ends, a word of his that came after it began starts the next turn (`owner_reply:`).
+
+### 54.3 The turn's own run (`agents.runs.trigger = 'direct'`, migration 0061)
+
+The gateway acts for a run, so a direct turn opens one (`agents.open_direct_run`): the holder's, for the order's
+work, `running` at once, 500 tool calls (50 a step; the api counts the steps), its token good for the turn's hour.
+- It never counts against the one-running-run rule (as a `talk` run does not): a holder whose turn builds for an
+  hour still answers its other work. One live direct run per work.
+- It ends with the turn (`agents.close_direct_run`): `done` with the turn's tokens, or `failed` (the job's code).
+  One left open past its token is failed when the next is opened.
+- A direct run is not a line of the session's activity, a «talk without output» or a busy employee: the turn's own
+  row is (`SessionActivity.working`: the **holder's** name, «دارد روی فرمان شما کار میکند؛ هر نوبت تا ۶۰ دقیقه»).
+
+### 54.4 The hub's tools in the session (runner 0.3.5)
+
+A turn with `args.tools: "hub"` gets one MCP server, the runner's own (`hq-runner mcp-tools`, stdio; no other MCP
+server is loaded): its tools are `mcp__hq__<name>` and are allowed without asking. The server holds no secret: each
+request is one line to the job's own unix socket, and the runner asks the hub.
+
+- **`GET /api/v1/runners/jobs/{id}/tools`** (runner, bearer; a live direct turn of its own server) → `{tools:
+  [{name, description, input_schema}]}`: the tools of the holder's charter (a drafted role: its draft's), without
+  `workshop.run` / `workshop.stop` (the session is the workshop) and without any A3 or A4 tool. `name` is the tool's
+  name with its dot as an underscore (`order.ask` → `order_ask`); `input_schema` is the gateway's own input model
+  (`POST /v1/tools/catalog` on the gateway, asked through the worker; when it cannot be asked, an open object and the
+  catalog's description). Two more that the api answers itself: **`skill_list`** and **`skill_read {role}`**.
+- **`POST /api/v1/runners/jobs/{id}/tools/call {name, args}`** → the gateway's outcome `{outcome: ok | denied |
+  error, class, code, ref, result?, hint_fa?, fields?}`, always `200` (a refusal is an outcome the session reads). The
+  api maps `name` back to a tool the holder holds (any other: `unknown_tool`, nothing is called), finds the turn's
+  run and hands `{employee, run, step, index, tool, args}` to the worker (workflow `DirectTool`), which mints the
+  agent token for that run and calls the gateway's `POST /v1/tools/call`. `422` for a job that is not a direct turn,
+  `404` for another server's job, `409` once the turn ended.
+- **Roles are skills, not seats:** `skill_list` names every working role with its Persian title; `skill_read`
+  returns that role's guide (its charter's body). The session reads the scriptwriter's or the motion designer's
+  guide and does that work itself: nobody is hired to make a reel (a hire happens only on the owner's own word,
+  §44.2). Audit `skill.read` (A0).
+- The runner's result says how many hub tools the session called (`data.tool_calls`).
+
+### 54.5 The turn's end in the session
+
+- **Done:** what the session answered is **the holder's own word**: a line of the session's talk and a step by the
+  holder's name (never «کارگاه هلدینگ»). What it left in `out/` is one output of the order's work (`produced_with:
+  {runtime: "workshop", direct: true, model, effort, …}`), with «تأیید و انتشار» on its files (§44.5). The work stays
+  open (it is his session), and **no second run is woken to repeat it**. A question the turn asked with `order.ask`
+  is already the session's open turn. An answer of nothing, with no file and no question, is said («این نوبت بی‌جواب
+  تمام شد …»), never left silent.
+- **Failed or timed out:** the run ends `failed`, what the turn had made is kept as an unfinished output, and the
+  holder is told at once by the quick classic run (`workspace_failed:`), as for any workshop turn (§43.4, §43.6).
+- **Stopped by the owner** (`POST /work/{ref}/stop`): the run ends; only his own later word starts a new turn.
+- `OrderReport.direct` (bool): the workshop can take this session's turns directly now.
+
+### 54.6 What stays classic
+
+A working group's routine, a colleague's child work, a message, a meeting, a talk persona's read, and every run
+while the workshop cannot take a turn: all as before (a routine's work still hands its build to the workshop with
+`workshop.run`). Step three is the session's own holder; nothing else changes its path.
