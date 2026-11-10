@@ -3,8 +3,8 @@ settings, registered by an agent (the owner could not have the account names and
 command registered from a session).
 
     connection.set  A2  {company?, kind, accounts?: [@handle], via?: "ig_hub",
-                        server?: {company, name}, read_command?, channels?: [{chat, title_fa?,
-                        role?}], site_url?, channel_id?, handle?, property_id?}
+                        server?: {company, name}, read_command?, publish_command?, channels?:
+                        [{chat, title_fa?, role?}], site_url?, channel_id?, handle?, property_id?}
                         Instagram: the account names and that they are read through IG-Hub (its
                         server), a read-only command the daily read runs there; Telegram: the
                         public channels; a site's address; YouTube's channel id. The company's
@@ -49,6 +49,8 @@ class ConnectionSetIn(T.In):
     via: Literal["ig_hub"] | None = None
     server: ServerIn | None = None
     read_command: str | None = Field(default=None, min_length=2, max_length=500)
+    # ⟨2026-11-10⟩ §44.5 the command the server's own runner runs to publish a file
+    publish_command: str | None = Field(default=None, min_length=2, max_length=500)
     channels: list[ChannelIn] | None = Field(default=None, max_length=20)
     site_url: str | None = Field(default=None, max_length=300, pattern=r"^https?://")
     channel_id: str | None = Field(default=None, pattern=HANDLE)

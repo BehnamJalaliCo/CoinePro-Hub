@@ -599,11 +599,10 @@ async def test_a_failed_check_makes_a_card_not_a_publish(
     async with platforms(co["code"].lower()) as fake:
         out = await P.publish_due(hub)
         assert ref not in out.get("published", []) and not fake.calls
-        # The owner's seal on the card (🔏 decision.approve) publishes it now.
+        # ⟨2026-11-10⟩ §44.5 the owner's word on the card publishes it now, with no passkey: what
+        # goes out and can be taken back is a tap (the passkey stays for money, deleting for
+        # good, keys and a destructive command)
         r = await client.post(f"/api/v1/media/items/{ref}/publish", headers={**h, **idem()})
-        assert r.status_code == 403 and r.json()["code"] == "step_up_required"
-        su_ = await step_up(hub, owner_session["session_id"], "decision.approve", x["decision_ref"])
-        r = await client.post(f"/api/v1/media/items/{ref}/publish", headers={**h, **su_, **idem()})
         assert r.status_code == 200, r.text
         async with hub.db.tx(await hub.companies.ids()) as tx:
             eff = await D.apply_effect(tx, x["decision_ref"], SYSTEM)

@@ -473,6 +473,10 @@ async def runner_result(
         await WS.after_job(hub, j["id"])  # ⟨1.15⟩ §33.10 a workspace's turn, after the commit
     elif j["kind"] == "netcheck" and j["state"] == "done":
         await SV.after_netcheck(hub, j)  # ⟨1.24⟩ §42.2 an offline server's reason, measured again
+    elif j["kind"] == "publish" and (j.get("args") or {}).get("session") and j["state"] in SV.FINAL:
+        from hq_api.domain import session_publish as SPB
+
+        await SPB.after_job(hub, j["id"])  # ⟨2026-11-10⟩ §44.5 the session hears its publish
     return {"state": j["state"]}
 
 
@@ -500,12 +504,17 @@ async def runner_input(
     async with hub.db.tx(_scope(r)) as tx:
         j = await _runner_job(tx, r, id)
         _still_running(j)
-    named = {
-        str(f.get("file_id"))
-        for f in (j.get("args") or {}).get("inputs") or []
-        if isinstance(f, dict)
-    }
-    if j["kind"] != "claude" or str(file_id) not in named:
+    args = j.get("args") or {}
+    # a workspace turn's inputs, or ⟨§44.5⟩ the files of a publish the owner tapped in a session
+    listed = (
+        args.get("inputs")
+        if j["kind"] == "claude"
+        else args.get("files")
+        if j["kind"] == "publish" and args.get("session")
+        else None
+    )
+    named = {str(f.get("file_id")) for f in listed or [] if isinstance(f, dict)}
+    if str(file_id) not in named:
         raise ApiError(404, "not_found", "not an input of this job")
     async with hub.db.tx(await hub.companies.ids()) as tx:
         f = await tx.first(
@@ -1589,5 +1598,9 @@ async def loop(hub: Hub) -> None:
             # away) ends like any other: the workspace is marked, the work's assignee is told
             try:
                 await WS.after_job(hub, jid)
+                # ⟨§44.5⟩ a session's publish that timed out is said in its session too
+                from hq_api.domain import session_publish as SPB
+
+                await SPB.after_job(hub, jid)
             except Exception:  # noqa: BLE001 - one job never stops the sweep
                 log.warning("after_job failed for a swept job", extra={"job": str(jid)})

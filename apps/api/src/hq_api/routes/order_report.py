@@ -37,6 +37,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Literal
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
@@ -74,6 +75,50 @@ async def order_report(ref: str, ctx: Ctx = Depends(owner_ctx)) -> OR.OrderRepor
         out = await OR.report(tx, ref)
     if out is None:
         raise ApiError(404, "not_found", f"order {ref}", message_fa=NOT_FOUND_FA)
+    return out
+
+
+class PublishIn(Model):
+    """⟨2026-11-10⟩ §44.5 «تأیید و انتشار»: one file of one output of this session."""
+
+    output: str = Field(pattern=r"^O-\d{1,12}$")
+    file_id: UUID
+    kind: Literal["reel", "post", "story"] | None = None
+    caption: str | None = Field(default=None, max_length=2200)
+    account: str | None = Field(default=None, max_length=65)
+
+
+@router.post(
+    "/orders/{ref}/publish", response_model=OR.SessionPublish, status_code=202, responses=E
+)
+async def publish_from_session(
+    ref: str, body: PublishIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+) -> Any:
+    """⟨2026-11-10⟩ §44.5 The owner's «تأیید و انتشار» on a file of his own session: his word
+    there is the seal for what goes out and can be taken back (no card, no passkey). One
+    `publish` job on IG-Hub's server with the company's own publish command; `state:
+    waiting_setup` (and the holding's technical work, made by code) when that command is not
+    registered yet. The same file to the same account is never sent twice. Requires
+    `Idempotency-Key`."""
+    from hq_api.domain import session_publish as SPB
+
+    async with ctx.tx() as tx:
+        idem = await idempotency.claim(tx, request, ctx.who, required=True)
+        if idem and idem.replay:
+            return idem.replay
+        out = await SPB.start(
+            tx,
+            ctx.who,
+            ref,
+            output=body.output,
+            file_id=body.file_id,
+            kind=body.kind,
+            caption=body.caption,
+            account=body.account,
+            request_id=ctx.request_id,
+        )
+        if idem:
+            await idem.store(tx, 202, out.model_dump(mode="json"))
     return out
 
 

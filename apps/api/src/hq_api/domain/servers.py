@@ -1254,7 +1254,14 @@ def runner_job(j: dict[str, Any], hub: Any, *, claude_token: str = "") -> dict[s
     """What the runner gets: the exact arguments (it runs them), the timeout
     and, for a publish, fresh signed hub URLs of the rendered files."""
     args = dict(j["args"] or {})
-    if j["kind"] == "publish":
+    if j["kind"] == "publish" and args.get("session"):
+        # ⟨2026-11-10⟩ §44.5 a file of the owner's session (made by the workshop, not by the
+        # studio): the runner fetches it with its own token from the job's own route
+        args["files"] = [
+            {**f, "url": f"/api/v1/runners/jobs/{j['id']}/inputs/{f['file_id']}"}
+            for f in args.get("files") or []
+        ]
+    elif j["kind"] == "publish":
         from hq_api.domain import studio_publish as P
 
         args["files"] = [

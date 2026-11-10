@@ -16,6 +16,8 @@
 > **v1.26 (۲۰۲۶-۱۱-۱۰):** «با من» واقعاً قدم‌به‌قدم (§۳۴.۱، §۴۱.۲): گام‌های شماره‌دار مالک خودِ برنامه‌اند و به ترتیب خودش؛ کارگاه در «با من» فقط کار بعدی برنامه را شروع میکند؛ مسئول میتواند نوبت کارگاه خودش را متوقف کند (`workshop.stop`)؛ و اصلاح‌های بازبینی عمیق (§۴۳.۶، §۴۳.۷).
 >
 > **v1.27 (۲۰۲۶-۱۱-۱۰):** جلسه‌ی مستقیم، قدم اول (§۴۴، پرامپت ۳۲): گوینده‌ی محتوا روشن است (آنچه مالک خاموش کرد گفتگوی صوتی خودش بود)؛ استخدامی که مالک در جلسه‌ی خودش خواسته همان‌جا با کد انجام میشود، بی کارت و بی اثر انگشت؛ مسئول جلسه کار را خودش با کارگاه انجام میدهد؛ و نوبت کارگاه فایل‌های ستاد را با خودش میبرد (`workshop.run {files}`، §۴۳.۸)؛ و دیوار کارگاه بین شرکت‌ها که هیچ‌وقت جلوی کار را نمیگیرد (§۴۳.۹، runner 0.3.4).
+>
+> **v1.28 (۲۰۲۶-۱۱-۱۰):** «تأیید و انتشار» (§۴۴.۴، §۴۴.۵، پرامپت ۳۳): مالک روی فایل خروجی جلسه یک بار میزند و همان فایل از راه runner سرور IG-Hub منتشر میشود، بی کارت و بی اثر انگشت؛ کارت `media_publish` هم دیگر اثر انگشت نمیخواهد. اثر انگشت فقط برای پول، حذف برای همیشه، کلید و دسترسی، و دستور ویرانگر سرور.
 
 > **v1.12 (۲۰۲۶-۱۱-۰۴):** «خط تولید» (§۳۰، پرامپت ۲۲): موتور عمومی تولید و انتشار محتوا برای هر شرکت و هر پلتفرم، از روی قالب، با مرحله‌های قابل ویرایش، کتابخانه، تقویم، n8n برای مرحله‌های قاعده‌ای، و حالت پیش‌نویس تا خودکار.
 >
@@ -4443,7 +4445,8 @@ Design: `docs/WORKSHOP_HANDS.md`; the review: `docs/ops/reports/WORKSHOP_REVIEW.
 - A workshop turn of a **child** work delivers it (the work `delivered`; its parent's holder is woken as for any child). A workshop
   turn of a **root** work (the order itself) leaves it open: the deliverable is made (`work_events` kind `output`) and its holder is
   woken at once (`work.wake_assignee`, reason `workshop_done:<W-ref>`) to show the owner what is ready and ask «تأیید یا اصلاح؟»
-  (`order.ask`). After the owner approves, publishing goes the usual way (Instagram through IG-Hub; A3 stays a decision).
+  (`order.ask`). After the owner approves, publishing goes the usual way (Instagram through IG-Hub; A3 stays a decision). ⟨2026-11-10⟩ The
+  usual way is now his own tap on the file: «تأیید و انتشار» (§44.5).
 - A workshop turn that fails (its 60 minutes, an error) marks the workspace `failed` with the reason (`note_fa`, and the work event
   `workspace_failed` carries it) and wakes the holder at once (reason `workspace_failed:<W-ref>`): the session never stalls
   silently. The activity line of such a run says why it started (§41: «کارگاه کارش را تحویل داد؛ نگاهش میکند», «کار کارگاه به نتیجه
@@ -4593,5 +4596,49 @@ isolation never blocks work (§43.9). This section is the first step; the publis
   tells him to go and seal something elsewhere for an internal step.
 - The common rules (`agents/roles/_common.md` v13) say the same to every role.
 
-### 44.4 Not in this step
-The approval levels on the publish path (his tap in the session as the seal, an unpublish path) are prompt 33. Until then A3 publishing stays a decision card, shown in the session (§34.1 `cards`, `seal: tap | passkey`).
+### 44.4 Three levels of approval
+The owner, 2026-11-10: «اثر انگشت فقط برای پول، حذف برای همیشه، کلید و دسترسی، و دستور ویرانگر سرور».
+- **Level 0, free:** everything inside and undoable (writing, making, reading, a draft, a file, a plan).
+- **Level 1, one tap:** what goes out and can be taken back. The `media_publish` card is approved without a passkey
+  (`decisions.TAP_KINDS`; `POST /media/items/{ref}/publish` and `POST /decisions/{ref}/approve` take no `X-Step-Up` for it; a
+  token sent anyway is ignored), and `OrderCard.seal` reads `tap` for it. The owner's «تأیید و انتشار» on a file of his session
+  (§44.5) needs no card at all.
+- **Level 2, the passkey:** as before for every other A3 card and every kind of `STEP_UP_KINDS` (a hire outside a session, a
+  budget, a tool, a series, an erase, a destructive command on a server, a line's gated step: `line_publish` may gate a
+  newsletter or an ad, which cannot be taken back).
+
+### 44.5 «تأیید و انتشار»: the owner publishes a file of his session (`POST /orders/{ref}/publish`)
+Nothing here is a new way out of the hub: Instagram, for every company, lives on IG-Hub, and a server publishes through its own
+runner (§26.1b). The tap makes one `publish` job on IG-Hub's server; the job is the record.
+- **`POST /api/v1/orders/{ref}/publish`** (the owner's bearer; **no step-up, no card**; requires `Idempotency-Key`). Body:
+  `{output: "O-…", file_id, kind?: reel | post | story, caption? (≤ 2200), account?: "@handle"}`. `output` is an output of one
+  of the order's works and `file_id` one of its attachments (an original video or image of that company): `404` / `422
+  fields.file_id` otherwise. `kind` defaults to `reel` for a video and `post` for an image (`422 fields.kind` for a reel that
+  is not a video). `423 company_locked` while the file's company is locked.
+- **The company's Instagram connection** (`growth.connections`, kind `instagram`) gives the accounts, IG-Hub's server and the
+  **`publish_command`**: a non-secret setting registered with `connection.set {…, publish_command}` (a secret-looking command
+  and one the hub's classifier calls destructive are refused, `422 fields.publish_command`). With several accounts and none
+  named: `422 fields.account` lists them.
+- **`202 SessionPublish`** `{job, output, file_id, file_name, channel: "instagram", kind, account, state, url, note_fa, at,
+  published_at}`; `state`: `publishing` (the job is queued or running) · `published` · `failed` (`note_fa` says why) ·
+  `waiting_seal` (the hub's classifier held the command for the owner's seal) · `waiting_setup` (below; `job: null`).
+  The same file to the same account in the same kind is **never sent twice**: a tap while its job is live, or after it was
+  published, answers that publish; after a failure a tap is a new try.
+- **The job** (`infra.server_jobs`, kind `publish`, on IG-Hub's server, actor the owner): `args = {session: {order, output,
+  work, company, file_id}, kind, placement: "instagram_<kind>", account, command, caption, title_fa, meta: {channel, kind,
+  account, company}, files: [{file_id, name, mime, kind}]}`. Its runner fetches each file with its own token from
+  `GET /runners/jobs/{id}/inputs/{file_id}` (only the files the job names; a studio item's publish keeps its signed URLs) and
+  runs the command with `HQ_PUBLISH_FILE_1`, `HQ_PUBLISH_CAPTION_FILE` and `HQ_PUBLISH_META`; the command prints
+  `{"external_id", "url"}` (§26.1b). No runner change.
+- **The session hears it:** a step «مدیر کل: «تأیید و انتشار»: ریلز «…» به @… میرود» at the tap; when the job ends, «منتشر شد:
+  ریلز در @… · <link>» or «انتشار … انجام نشد: <why>» (the handle and the link are written as they are). `OrderReport.publishes`
+  lists the session's publishes, newest first. Audit: `publish.session` (A3, the owner, on the file's company and on IG-Hub's)
+  at the tap; `publish.session_done` / `publish.session_failed` on the file's company when it ends.
+- **Never the owner's step:** a company with no accounts or no `publish_command` registered answers `202` with `state:
+  waiting_setup` and a `note_fa`; the hub makes the technical work once per company (`run_meta.ig_publish`, P1: IG-Hub's CTO,
+  else the holding's AIOPS; under the order's work, so its holder is woken when it is delivered) and the session says so. The
+  work's brief names what the command gets and must print. The owner taps again when the session says it is connected.
+- **Taking it back:** Instagram's API deletes no post; a published post is removed in Instagram itself. (A Telegram message is
+  still unpublished by the hub, §22.7.)
+- The common rules (v14) tell every role: a ready file is shown with its caption and «تأیید و انتشار؟»; no card for it; never
+  «منتشر شد» before the session says so.

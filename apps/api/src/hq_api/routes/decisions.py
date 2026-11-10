@@ -47,7 +47,7 @@ class Posted(BaseModel):
 
 
 def needs_step_up(d: dict[str, Any]) -> bool:
-    return d["action_class"] == "A3" or d["kind"] in D.STEP_UP_KINDS
+    return D.needs_step_up(d)
 
 
 Category = Literal[

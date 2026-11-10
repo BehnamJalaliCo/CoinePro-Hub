@@ -255,6 +255,7 @@ class ConnectionSetIn(Model):
     via: str | None = Field(default=None, max_length=20)
     server: dict[str, Any] | None = None
     read_command: str | None = Field(default=None, max_length=500)
+    publish_command: str | None = Field(default=None, max_length=500)  # ⟨2026-11-10⟩ §44.5
     channels: list[dict[str, Any]] | None = Field(default=None, max_length=20)
     site_url: str | None = Field(default=None, max_length=300)
     channel_id: str | None = Field(default=None, max_length=64)

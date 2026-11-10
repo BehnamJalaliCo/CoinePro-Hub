@@ -167,13 +167,26 @@ STEP_UP_KINDS = (
     "evaluation",
     # ⟨1.6⟩ all sealed with step-up (contract §22.6)
     "media_series",
-    "media_publish",
     "role_new",
     # ⟨1.7⟩ both archive cards are sealed with step-up (contract §23.11)
     "archive_schema",
     "archive_disposal",
     "erase",  # ⟨1.19⟩ §37.3 decision.approve on the card's ref
 )
+# ⟨2026-11-10⟩ §44.5 the owner's decision: what goes out and can be taken back (a reel, a post, a
+# story) is approved by his tap, with no passkey («اثر انگشت فقط برای پول، حذف برای همیشه، کلید و
+# دسترسی، و دستور ویرانگر سرور»). This A3 card is a tap. (`line_publish` keeps the passkey: a
+# line's gated step may be a newsletter or an ad, which cannot be taken back.)
+TAP_KINDS = ("media_publish",)
+
+
+def needs_step_up(d: dict[str, Any]) -> bool:
+    """Whether approving this card asks for the passkey."""
+    if d["kind"] in TAP_KINDS:
+        return False
+    return d["action_class"] == "A3" or d["kind"] in STEP_UP_KINDS
+
+
 # ⟨1.6⟩ cards only code writes (series.propose, the media pipeline, a role
 # draft's gates); an agent's or the owner's `propose` of one is refused.
 SYSTEM_CARD_KINDS = (

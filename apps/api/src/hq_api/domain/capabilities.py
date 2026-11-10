@@ -76,7 +76,10 @@ HOW = {
         "video (a person on camera): the «بسته‌ی ساخت ویدیو» with `deliver`: script, shot list, "
         "on-screen text, voice text (what the narrator reads), caption, hashtags, cover prompt, for "
         "the owner to shoot. No render or ffmpeg is ever a blocker, a readiness item or a step of "
-        "the owner's. Publishing, after the owner approves, goes on through IG-Hub"
+        "the owner's. Publishing, after the owner approves, goes on through IG-Hub: ⟨2026-11-10⟩ "
+        "he taps «تأیید و انتشار» on the file in the session (no card, no passkey), so give the "
+        "caption and hashtags ready in the same output and never say it is published before the "
+        "session says «منتشر شد»"
     ),
     "narration": (
         "⟨2026-11-10⟩ the narrator of a reel or a video is ON (what the owner switched off is his "

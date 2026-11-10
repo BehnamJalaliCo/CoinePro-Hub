@@ -220,10 +220,87 @@ def ig_setup_brief(company_code: str) -> str:
         f"figures as JSON ({{accounts: [{{account, followers, reach, views}}]}}); (2) connection.set "
         f"{{company: {company_code}, kind: instagram, accounts: [handles], via: ig_hub, server: "
         f"{{company: {hub['company']}, name: {hub['server']}}}, read_command}}; (3) deliver one "
-        f"Persian line: the accounts registered. Publishing goes through {hub['server']}'s API "
-        "(docs/server-prompts/IGHUB_PUBLISH_API.md). Never ask the owner for anything here and "
-        "never say Instagram is not connected: it is, through IG-Hub."
+        f"Persian line: the accounts registered. When you can also find (or write there) the one "
+        f"command that publishes a file on {hub['server']} and prints {{external_id, url}}, pass it "
+        "in the same call as publish_command (the owner's «تأیید و انتشار» runs it through that "
+        "server's own runner). Never ask the owner for anything here and never say Instagram is "
+        "not connected: it is, through IG-Hub."
     )
+
+
+IG_PUBLISH_TITLE_FA = "وصل کردن مسیر انتشار اینستاگرام {company} (از راه {server})"
+
+
+def ig_publish_brief(company_code: str) -> str:
+    """⟨2026-11-10⟩ §44.5 what the technical team registers so the owner's «تأیید و انتشار»
+    publishes: the company's handles and the command IG-Hub's own runner runs."""
+    hub = ig_hub()
+    return (
+        f"Connect {company_code}'s Instagram PUBLISHING on the hub. The owner tapped «تأیید و "
+        f"انتشار» on a file in his session and nothing could go out. Instagram, for every company, "
+        f"is published through {hub['server']} (company {hub['company']}'s server, Meta's official "
+        f"API); the hub sends that server's own runner one `publish` job. Steps: (1) server.map, "
+        f"then server.read / server.exec (read-only) on {hub['company']}'s server {hub['server']} "
+        f"to find how it publishes a reel, a post and a story for {company_code}'s account(s). "
+        "(2) Find, or write there in the application's own folder, ONE command that publishes "
+        "what the job gives it and prints one JSON line. The job sets: HQ_PUBLISH_FILE_1 (the "
+        "video or image, already downloaded), HQ_PUBLISH_CAPTION_FILE (UTF-8 text), "
+        'HQ_PUBLISH_META (JSON: {"channel": "instagram", "kind": "reel" | "post" | "story", '
+        '"account": "<handle>", "company": "<code>"}). It must print {"external_id": "<id>", '
+        '"url": "<permalink or null>"} and exit 0, or exit non-zero with one plain line of why. '
+        "It never deletes, edits or messages anyone. Try it once with a dry run if the "
+        f"application has one; never publish a test post. (3) connection.set {{company: "
+        f"{company_code}, kind: instagram, accounts: [handles], via: ig_hub, server: {{company: "
+        f"{hub['company']}, name: {hub['server']}}}, publish_command}} (no token ever goes in the "
+        "command: the application's own configuration on the server holds it). (4) deliver one "
+        "Persian line: «مسیر انتشار وصل شد؛ «تأیید و انتشار» را دوباره بزنید». Never ask the owner "
+        "for anything here and never say Instagram is not connected."
+    )
+
+
+async def ensure_ig_publish_work(
+    tx: Tx, company_id: UUID, *, requested_by: UUID | None = None
+) -> str | None:
+    """⟨2026-11-10⟩ §44.5 A company whose publish command is not registered gets the technical
+    work made by code, once (one open work per company), under the order's work when
+    `requested_by` names one (the session sees the step; its holder is woken when it is
+    delivered). The work's ref, or None when nobody can take it."""
+    from hq_api.domain import work as W
+    from hq_api.principal import Principal
+
+    code = await tx.scalar("SELECT code FROM core.companies WHERE id = :c", c=company_id)
+    found: str | None = await tx.scalar(
+        """SELECT ref FROM work.work WHERE run_meta ->> 'ig_publish' = :code
+             AND status <> ALL(CAST(:closed AS text[])) ORDER BY created_at LIMIT 1""",
+        code=code,
+        closed=list(W.CLOSED),
+    )
+    if found is not None:
+        return found
+    co = await tx.first("SELECT code, name_fa FROM core.companies WHERE id = :c", c=company_id)
+    who = await ig_setup_assignee(tx)
+    if co is None or who is None:
+        return None
+    hub = ig_hub()
+    w = await W.create(
+        tx,
+        Principal(kind="service", code="connections", role="service"),
+        company_id=who["company_id"],
+        company_code=str(who["company"]),
+        title=IG_PUBLISH_TITLE_FA.format(company=co["name_fa"] or co["code"], server=hub["server"]),
+        brief=ig_publish_brief(str(co["code"])),
+        kind="one_off",
+        priority="P1",
+        assignee_code=str(who["code"]),
+        requested_by_work_id=requested_by,
+    )
+    await tx.exec(
+        """UPDATE work.work SET run_meta = COALESCE(run_meta, '{}'::jsonb) || CAST(:m AS jsonb)
+           WHERE id = :id""",
+        id=w["id"],
+        m=json.dumps({"ig_publish": co["code"]}),
+    )
+    return str(w["ref"])
 
 
 async def ig_setup_assignee(tx: Tx) -> dict[str, Any] | None:
@@ -301,8 +378,12 @@ SECRET_WORDS = re.compile(
     r"(secret|token|password|passwd|api[_-]?key|private[_-]?key|bearer)", re.I
 )
 TOKEN_LIKE = re.compile(r"^[A-Za-z0-9+/=_\-]{32,}$")
-SET_FIELDS = ("accounts", "via", "server", "read_command", "channels", "site_url", "channel_id",
-              "handle", "property_id")  # fmt: skip
+SET_FIELDS = ("accounts", "via", "server", "read_command", "publish_command", "channels",
+              "site_url", "channel_id", "handle", "property_id")  # fmt: skip
+COMMAND_FIELDS = ("read_command", "publish_command")
+DESTRUCTIVE_FA = (
+    "این دستور میتواند به سرور آسیب بزند؛ دستور انتشار فقط فایل و کپشن را میگیرد و منتشر میکند."
+)
 NOT_READ_ONLY_FA = (
     "این دستور فقط‌خواندنی نیست؛ روی سرور فقط دستوری اجرا میشود که چیزی را تغییر ندهد."
 )
@@ -333,7 +414,7 @@ def agent_config(kind: str, current: dict[str, Any], fields: dict[str, Any]) -> 
             bad[key] = "not a field an agent sets"
             continue
         flat = json.dumps(value, ensure_ascii=False) if not isinstance(value, str) else value
-        if SECRET_WORDS.search(key) or (looks_secret(flat) and key != "read_command"):
+        if SECRET_WORDS.search(key) or (looks_secret(flat) and key not in COMMAND_FIELDS):
             raise ApiError(422, "validation_failed", fields={key: "a secret never goes here"},
                            message_fa=NO_SECRET_FA)  # fmt: skip
         if key == "accounts":
@@ -360,6 +441,21 @@ def agent_config(kind: str, current: dict[str, Any], fields: dict[str, Any]) -> 
                 raise ApiError(422, "validation_failed", fields={key: "a read-only command"},
                                message_fa=NOT_READ_ONLY_FA)  # fmt: skip
             out["command"] = cmd[:500]
+        elif key == "publish_command":
+            # ⟨2026-11-10⟩ §44.5 the command the server's runner runs to publish a file (§26.1b:
+            # HQ_PUBLISH_FILE_1, HQ_PUBLISH_CAPTION_FILE, HQ_PUBLISH_META; it prints
+            # {"external_id", "url"}). Never a secret, never a command the hub's own classifier
+            # calls destructive.
+            from hq_api.domain import server_classify
+
+            cmd = str(value).strip()
+            if not cmd or looks_secret(cmd):
+                raise ApiError(422, "validation_failed", fields={key: "a command, never a secret"},
+                               message_fa=NO_SECRET_FA)  # fmt: skip
+            if server_classify.classify(cmd) is not None:
+                raise ApiError(422, "validation_failed", fields={key: "not a destructive command"},
+                               message_fa=DESTRUCTIVE_FA)  # fmt: skip
+            out["publish_command"] = cmd[:500]
         elif key == "channels":
             chans = []
             for c in value if isinstance(value, list) else []:

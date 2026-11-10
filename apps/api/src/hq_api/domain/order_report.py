@@ -233,6 +233,24 @@ class OrderCard(BaseModel):
     created_at: datetime
 
 
+class SessionPublish(BaseModel):
+    """⟨2026-11-10⟩ §44.5 one «تأیید و انتشار» of a session (domain.session_publish): the publish
+    job on IG-Hub's server and where it stands."""
+
+    job: str | None = None
+    output: str | None = None
+    file_id: str
+    file_name: str | None = None
+    channel: Literal["instagram"] = "instagram"
+    kind: Literal["reel", "post", "story"]
+    account: str | None = None
+    state: Literal["publishing", "published", "failed", "waiting_seal", "waiting_setup"]
+    url: str | None = None
+    note_fa: str | None = None
+    at: datetime | None = None
+    published_at: datetime | None = None
+
+
 class OrderReport(BaseModel):
     ref: str
     text_fa: str
@@ -271,6 +289,8 @@ class OrderReport(BaseModel):
     memory_md: str | None = None
     # ⟨2026-11-10⟩ the order's cards that wait for a decision, oldest first (sealed from the session)
     cards: list[OrderCard] = Field(default_factory=list)
+    # ⟨2026-11-10⟩ §44.5 what the owner published from this session («تأیید و انتشار»), newest first
+    publishes: list[SessionPublish] = Field(default_factory=list)
 
 
 # ----------------------------------------------------------------- reading --
@@ -1024,6 +1044,9 @@ async def report(tx: Tx, ref: str) -> OrderReport | None:
     out.files = [F.render(f) for f in await F.of_order(tx, rep["order_id"])]  # ⟨1.18⟩ §36.3
     if rep.get("ended_at") is None:
         out.cards = await cards_of(tx, order, works)
+    from hq_api.domain import session_publish as SPB
+
+    out.publishes = await SPB.of_order(tx, rep["ref"])
     return out
 
 
@@ -1065,9 +1088,7 @@ async def cards_of(tx: Tx, order: dict[str, Any], works: list[dict[str, Any]]) -
                 if mine
                 else f"منتظر تصمیم {who}؛ شما هم میتوانید مُهر کنید",
                 with_owner=mine,
-                seal="passkey"
-                if d["action_class"] == "A3" or d["kind"] in DC.STEP_UP_KINDS
-                else "tap",
+                seal="passkey" if DC.needs_step_up(dict(d)) else "tap",
                 created_at=d["created_at"],
             )
         )

@@ -10703,6 +10703,18 @@
             ],
             "title": "Property Id"
           },
+          "publish_command": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publish Command"
+          },
           "read_command": {
             "anyOf": [
               {
@@ -32546,6 +32558,13 @@
             "title": "Parts",
             "type": "array"
           },
+          "publishes": {
+            "items": {
+              "$ref": "#/components/schemas/SessionPublish"
+            },
+            "title": "Publishes",
+            "type": "array"
+          },
           "ref": {
             "title": "Ref",
             "type": "string"
@@ -38845,6 +38864,68 @@
           "response"
         ],
         "title": "PublicKeyCredential",
+        "type": "object"
+      },
+      "PublishIn": {
+        "additionalProperties": false,
+        "description": "⟨2026-11-10⟩ §44.5 «تأیید و انتشار»: one file of one output of this session.",
+        "properties": {
+          "account": {
+            "anyOf": [
+              {
+                "maxLength": 65,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account"
+          },
+          "caption": {
+            "anyOf": [
+              {
+                "maxLength": 2200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "file_id": {
+            "format": "uuid",
+            "title": "File Id",
+            "type": "string"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "reel",
+                  "post",
+                  "story"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "output": {
+            "pattern": "^O-\\d{1,12}$",
+            "title": "Output",
+            "type": "string"
+          }
+        },
+        "required": [
+          "output",
+          "file_id"
+        ],
+        "title": "PublishIn",
         "type": "object"
       },
       "Published": {
@@ -46879,6 +46960,138 @@
           "absolute_expires_at"
         ],
         "title": "SessionOut",
+        "type": "object"
+      },
+      "SessionPublish": {
+        "description": "⟨2026-11-10⟩ §44.5 one «تأیید و انتشار» of a session (domain.session_publish): the publish\njob on IG-Hub's server and where it stands.",
+        "properties": {
+          "account": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "channel": {
+            "const": "instagram",
+            "default": "instagram",
+            "title": "Channel",
+            "type": "string"
+          },
+          "file_id": {
+            "title": "File Id",
+            "type": "string"
+          },
+          "file_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Name"
+          },
+          "job": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job"
+          },
+          "kind": {
+            "enum": [
+              "reel",
+              "post",
+              "story"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "note_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Fa"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "state": {
+            "enum": [
+              "publishing",
+              "published",
+              "failed",
+              "waiting_seal",
+              "waiting_setup"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "required": [
+          "file_id",
+          "kind",
+          "state"
+        ],
+        "title": "SessionPublish",
         "type": "object"
       },
       "SessionState": {
@@ -111750,6 +111963,22 @@
                       "work_ref": "x"
                     }
                   ],
+                  "publishes": [
+                    {
+                      "account": "x",
+                      "at": "2026-10-17T05:42:00Z",
+                      "channel": "instagram",
+                      "file_id": "x",
+                      "file_name": "x",
+                      "job": "x",
+                      "kind": "reel",
+                      "note_fa": "x",
+                      "output": "x",
+                      "published_at": "2026-10-17T05:42:00Z",
+                      "state": "publishing",
+                      "url": "x"
+                    }
+                  ],
                   "ref": "W-000789",
                   "route": {
                     "budget_tokens": 1,
@@ -112313,6 +112542,22 @@
                       "work_ref": "x"
                     }
                   ],
+                  "publishes": [
+                    {
+                      "account": "x",
+                      "at": "2026-10-17T05:42:00Z",
+                      "channel": "instagram",
+                      "file_id": "x",
+                      "file_name": "x",
+                      "job": "x",
+                      "kind": "reel",
+                      "note_fa": "x",
+                      "output": "x",
+                      "published_at": "2026-10-17T05:42:00Z",
+                      "state": "publishing",
+                      "url": "x"
+                    }
+                  ],
                   "ref": "W-000789",
                   "route": {
                     "budget_tokens": 1,
@@ -112669,6 +112914,22 @@
                       "proposed_by": "x",
                       "state": "running",
                       "work_ref": "x"
+                    }
+                  ],
+                  "publishes": [
+                    {
+                      "account": "x",
+                      "at": "2026-10-17T05:42:00Z",
+                      "channel": "instagram",
+                      "file_id": "x",
+                      "file_name": "x",
+                      "job": "x",
+                      "kind": "reel",
+                      "note_fa": "x",
+                      "output": "x",
+                      "published_at": "2026-10-17T05:42:00Z",
+                      "state": "publishing",
+                      "url": "x"
                     }
                   ],
                   "ref": "W-000789",
@@ -113146,6 +113407,22 @@
                       "work_ref": "x"
                     }
                   ],
+                  "publishes": [
+                    {
+                      "account": "x",
+                      "at": "2026-10-17T05:42:00Z",
+                      "channel": "instagram",
+                      "file_id": "x",
+                      "file_name": "x",
+                      "job": "x",
+                      "kind": "reel",
+                      "note_fa": "x",
+                      "output": "x",
+                      "published_at": "2026-10-17T05:42:00Z",
+                      "state": "publishing",
+                      "url": "x"
+                    }
+                  ],
                   "ref": "W-000789",
                   "route": {
                     "budget_tokens": 1,
@@ -113507,6 +113784,22 @@
                       "work_ref": "x"
                     }
                   ],
+                  "publishes": [
+                    {
+                      "account": "x",
+                      "at": "2026-10-17T05:42:00Z",
+                      "channel": "instagram",
+                      "file_id": "x",
+                      "file_name": "x",
+                      "job": "x",
+                      "kind": "reel",
+                      "note_fa": "x",
+                      "output": "x",
+                      "published_at": "2026-10-17T05:42:00Z",
+                      "state": "publishing",
+                      "url": "x"
+                    }
+                  ],
                   "ref": "W-000789",
                   "route": {
                     "budget_tokens": 1,
@@ -113863,6 +114156,22 @@
                       "work_ref": "x"
                     }
                   ],
+                  "publishes": [
+                    {
+                      "account": "x",
+                      "at": "2026-10-17T05:42:00Z",
+                      "channel": "instagram",
+                      "file_id": "x",
+                      "file_name": "x",
+                      "job": "x",
+                      "kind": "reel",
+                      "note_fa": "x",
+                      "output": "x",
+                      "published_at": "2026-10-17T05:42:00Z",
+                      "state": "publishing",
+                      "url": "x"
+                    }
+                  ],
                   "ref": "W-000789",
                   "route": {
                     "budget_tokens": 1,
@@ -114170,6 +114479,136 @@
         ]
       }
     },
+    "/api/v1/orders/{ref}/publish": {
+      "post": {
+        "description": "⟨2026-11-10⟩ §44.5 The owner's «تأیید و انتشار» on a file of his own session: his word\nthere is the seal for what goes out and can be taken back (no card, no passkey). One\n`publish` job on IG-Hub's server with the company's own publish command; `state:\nwaiting_setup` (and the holding's technical work, made by code) when that command is not\nregistered yet. The same file to the same account is never sent twice. Requires\n`Idempotency-Key`.",
+        "operationId": "publish_from_session",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "account": "x",
+                "caption": "x",
+                "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                "kind": "reel",
+                "output": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/PublishIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "account": "x",
+                  "at": "2026-10-17T05:42:00Z",
+                  "channel": "instagram",
+                  "file_id": "x",
+                  "file_name": "x",
+                  "job": "x",
+                  "kind": "reel",
+                  "note_fa": "x",
+                  "output": "x",
+                  "published_at": "2026-10-17T05:42:00Z",
+                  "state": "publishing",
+                  "url": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/SessionPublish"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Publish From Session",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
     "/api/v1/orders/{ref}/reopen": {
       "post": {
         "description": "`ended_at` cleared, the session open again, the holder woken.",
@@ -114359,6 +114798,22 @@
                       "proposed_by": "x",
                       "state": "running",
                       "work_ref": "x"
+                    }
+                  ],
+                  "publishes": [
+                    {
+                      "account": "x",
+                      "at": "2026-10-17T05:42:00Z",
+                      "channel": "instagram",
+                      "file_id": "x",
+                      "file_name": "x",
+                      "job": "x",
+                      "kind": "reel",
+                      "note_fa": "x",
+                      "output": "x",
+                      "published_at": "2026-10-17T05:42:00Z",
+                      "state": "publishing",
+                      "url": "x"
                     }
                   ],
                   "ref": "W-000789",
@@ -114721,6 +115176,22 @@
                       "work_ref": "x"
                     }
                   ],
+                  "publishes": [
+                    {
+                      "account": "x",
+                      "at": "2026-10-17T05:42:00Z",
+                      "channel": "instagram",
+                      "file_id": "x",
+                      "file_name": "x",
+                      "job": "x",
+                      "kind": "reel",
+                      "note_fa": "x",
+                      "output": "x",
+                      "published_at": "2026-10-17T05:42:00Z",
+                      "state": "publishing",
+                      "url": "x"
+                    }
+                  ],
                   "ref": "W-000789",
                   "route": {
                     "budget_tokens": 1,
@@ -115077,6 +115548,22 @@
                       "proposed_by": "x",
                       "state": "running",
                       "work_ref": "x"
+                    }
+                  ],
+                  "publishes": [
+                    {
+                      "account": "x",
+                      "at": "2026-10-17T05:42:00Z",
+                      "channel": "instagram",
+                      "file_id": "x",
+                      "file_name": "x",
+                      "job": "x",
+                      "kind": "reel",
+                      "note_fa": "x",
+                      "output": "x",
+                      "published_at": "2026-10-17T05:42:00Z",
+                      "state": "publishing",
+                      "url": "x"
                     }
                   ],
                   "ref": "W-000789",
@@ -115769,6 +116256,22 @@
                       "proposed_by": "x",
                       "state": "running",
                       "work_ref": "x"
+                    }
+                  ],
+                  "publishes": [
+                    {
+                      "account": "x",
+                      "at": "2026-10-17T05:42:00Z",
+                      "channel": "instagram",
+                      "file_id": "x",
+                      "file_name": "x",
+                      "job": "x",
+                      "kind": "reel",
+                      "note_fa": "x",
+                      "output": "x",
+                      "published_at": "2026-10-17T05:42:00Z",
+                      "state": "publishing",
+                      "url": "x"
                     }
                   ],
                   "ref": "W-000789",
@@ -150169,6 +150672,7 @@
                 "handle": "x",
                 "kind": "one_off",
                 "property_id": "x",
+                "publish_command": "x",
                 "read_command": "x",
                 "server": {},
                 "site_url": "x",
@@ -160799,6 +161303,22 @@
                       "work_ref": "x"
                     }
                   ],
+                  "publishes": [
+                    {
+                      "account": "x",
+                      "at": "2026-10-17T05:42:00Z",
+                      "channel": "instagram",
+                      "file_id": "x",
+                      "file_name": "x",
+                      "job": "x",
+                      "kind": "reel",
+                      "note_fa": "x",
+                      "output": "x",
+                      "published_at": "2026-10-17T05:42:00Z",
+                      "state": "publishing",
+                      "url": "x"
+                    }
+                  ],
                   "ref": "W-000789",
                   "route": {
                     "budget_tokens": 1,
@@ -161168,6 +161688,22 @@
                       "proposed_by": "x",
                       "state": "running",
                       "work_ref": "x"
+                    }
+                  ],
+                  "publishes": [
+                    {
+                      "account": "x",
+                      "at": "2026-10-17T05:42:00Z",
+                      "channel": "instagram",
+                      "file_id": "x",
+                      "file_name": "x",
+                      "job": "x",
+                      "kind": "reel",
+                      "note_fa": "x",
+                      "output": "x",
+                      "published_at": "2026-10-17T05:42:00Z",
+                      "state": "publishing",
+                      "url": "x"
                     }
                   ],
                   "ref": "W-000789",
@@ -161542,6 +162078,22 @@
                       "proposed_by": "x",
                       "state": "running",
                       "work_ref": "x"
+                    }
+                  ],
+                  "publishes": [
+                    {
+                      "account": "x",
+                      "at": "2026-10-17T05:42:00Z",
+                      "channel": "instagram",
+                      "file_id": "x",
+                      "file_name": "x",
+                      "job": "x",
+                      "kind": "reel",
+                      "note_fa": "x",
+                      "output": "x",
+                      "published_at": "2026-10-17T05:42:00Z",
+                      "state": "publishing",
+                      "url": "x"
                     }
                   ],
                   "ref": "W-000789",
