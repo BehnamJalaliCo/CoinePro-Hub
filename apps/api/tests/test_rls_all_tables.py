@@ -1562,6 +1562,32 @@ async def _fill_p17(su: Any, co: dict[str, Any]) -> None:
     )
 
 
+async def _fill_w20(su: Any, co: dict[str, Any]) -> None:
+    """Update 1.0.1 (migration 0060, contract §47 to §49): the ledger of topics, the company's
+    narrator, and the posts the hub read from IG-Hub."""
+    c = co["id"]
+    await su.execute(
+        """INSERT INTO growth.topics (company_id, order_ref, kind, title_fa, norm, source, by_code)
+           VALUES ($1, 'O-000001', 'topic', 'سه سطح طلا', 'سطح سه طلا', 'owner', 'OWNER')""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO media.narrators (company_id, voice, style_fa, by_kind, by_code)
+           VALUES ($1, 'Charon', 'آرام', 'owner', 'OWNER')""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO growth.ig_posts (company_id, account, post_id, posted_at, likes, comments)
+           VALUES ($1, 'rls.account', '1', now() - interval '3 days', 10, 2)""",
+        c,
+    )
+    await su.execute(
+        """INSERT INTO growth.ig_post_reads (company_id, account, read_at, posts)
+           VALUES ($1, 'rls.account', now(), 1)""",
+        c,
+    )
+
+
 @pytest.mark.usefixtures("hiring_open")  # agents propose hires (§18.11)
 async def test_no_table_leaks_between_companies(
     client: httpx.AsyncClient,
@@ -1588,6 +1614,7 @@ async def test_no_table_leaks_between_companies(
     await _fill_p22g(su, b)
     await _fill_p22(su, b)
     await _fill_p24(su, b)
+    await _fill_w20(su, b)
     tables = await su.fetch(
         """SELECT c.table_schema AS s, c.table_name AS t FROM information_schema.columns c
            JOIN information_schema.tables x ON x.table_schema = c.table_schema AND x.table_name = c.table_name

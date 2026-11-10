@@ -17,6 +17,8 @@
 >
 > **v1.27 (۲۰۲۶-۱۱-۱۰):** جلسه‌ی مستقیم، قدم اول (§۴۴، پرامپت ۳۲): گوینده‌ی محتوا روشن است (آنچه مالک خاموش کرد گفتگوی صوتی خودش بود)؛ استخدامی که مالک در جلسه‌ی خودش خواسته همان‌جا با کد انجام میشود، بی کارت و بی اثر انگشت؛ مسئول جلسه کار را خودش با کارگاه انجام میدهد؛ و نوبت کارگاه فایل‌های ستاد را با خودش میبرد (`workshop.run {files}`، §۴۳.۸)؛ و دیوار کارگاه بین شرکت‌ها که هیچ‌وقت جلوی کار را نمیگیرد (§۴۳.۹، runner 0.3.4).
 >
+> **v1.33 (۲۰۲۶-۱۱-۱۰، به‌روزرسانی ۱.۰.۱):** آنچه ظاهر تازه‌ی اپ میخواند (§۵۵، پرامپت ۳۵): خط زنده‌ی کار و «چراغ حال» جلسه (`Worker.kind`، `cap_s`، `last_fa`، `SessionActivity.mood`)، «میز انتشار» (`GET /publish-desk`)، حلقه‌ی هر اکانت Claude و کنتور امروز (`GET /treasury/limits`)، و یک ردیف برای هر انتشار (کارهای پیگیری و لغو دیگر ردیف جدا نیستند). فقط خواندنی و افزودنی؛ migration ندارد.
+>
 > **v1.32 (۲۰۲۶-۱۱-۱۰، به‌روزرسانی ۱.۰.۱):** جلسه‌ی مستقیم، قدم سوم (§۵۴، پرامپت ۳۵؛ مالک: «مثل همین سشنی که من با تو صحبت میکنم»): مسئول جلسه یک نشست Claude Code روی کارگاه است، با ابزارهای ستاد. هر ابزار از همان درگاه ابزار رد میشود، هر توکن در خزانه ثبت میشود، و اگر کارگاه نتواند، مسئول مثل قبل کار میکند.
 >
 > **v1.31 (۲۰۲۶-۱۱-۱۰، به‌روزرسانی ۱.۰.۱):** کمبودهای فرمان ریلز (§۴۷ تا §۵۳، پرامپت ۳۵؛ مالک: «هیچ روزی تکراری نباشد»، «گوینده یک بار برای همیشه»، «در ساعت‌های پربازدید»): دفتر موضوع‌های گفته‌شده که کد جلوی تکرار را میگیرد؛ گوینده‌ی ثابت هر شرکت؛ «بهترین ساعت» از روی آمار IG-Hub؛ روال دائمی («کارمند ۲۴ ساعته») با یک جمله، بی کارت و بی اثر انگشت؛ لغو پست زمان‌بندی‌شده از اپ؛ تبدیل خودکار عکس و کاور به JPEG؛ و «بیشترین effort» برای کارگاه.
@@ -5063,3 +5065,75 @@ request is one line to the job's own unix socket, and the runner asks the hub.
 A working group's routine, a colleague's child work, a message, a meeting, a talk persona's read, and every run
 while the workshop cannot take a turn: all as before (a routine's work still hands its build to the workshop with
 `workshop.run`). Step three is the session's own holder; nothing else changes its path.
+
+---
+
+## 55. What the 1.0.1 look reads ⟨1.33⟩ (2026-11-10, prompt 35)
+
+The app's look was rebuilt on a short list (`docs/HANDOFF_2026-11-10_V1_0_1.md`, part C). Four things it shows had
+no source. All four only read, all are additive, none has a migration, and none decides anything.
+
+### 55.1 Live work, said as it is (`GET /orders/{ref}/activity`)
+
+- `Worker` gains `kind: run | workshop | direct | server` (an agent's run; the workshop's turn; the holder's own
+  direct turn, §54; a company server's turn), `cap_s` (a turn's time cap in seconds, `null` for a run: the build
+  ring fills against it), and `last_fa`, `last_at`: **the last thing a live turn did, in the owner's words**.
+- `last_fa` is made by code from the newest of the events the runner sends while Claude Code works
+  (`infra.server_job_events`, type `session_event`): the first sentence of what the session said when it is
+  Persian; a file it writes as «فایل «نام» را مینویسد» (the name only, never a path); «دستور اجرا میکند» for a
+  command (never the command); a hub tool of a direct turn by that tool's own verb (§41.1); a few known tools of
+  Claude Code by a fixed verb. English text, a tool's result and an unknown tool say nothing: `null`, and the app
+  shows `doing_fa`.
+- `SessionActivity` gains `mood: thinking | working | waiting | stuck | idle` and `mood_fa` (the «چراغ حال»), by
+  code: someone works (`thinking` while a run has no step yet, or a turn has done nothing yet); else the session
+  waits for the owner; else it is stuck (§41.3); else calm.
+
+### 55.2 The publish desk (`GET /api/v1/publish-desk?company=`, owner)
+
+Everything that can go out, is set to go out, or went out, of every company (or of one), on one page. Nothing new is
+stored: an output's files are the package and the `publish` jobs are the record (§44.5).
+
+`PublishDesk {ready: [DeskCard], queue: [DeskCard], done: [DeskCard]}`, each at most 30:
+
+- **`ready`**: an output of the last 14 days that carries a video or a picture and has no publication that stands
+  (none, or only failed and cancelled ones), newest first.
+- **`queue`**: a publication IG-Hub holds for its time, or that is on its way (`scheduled`, `publishing`,
+  `waiting_setup`, `waiting_seal`), soonest first (`at` is its time).
+- **`done`**: what went out, failed or was cancelled in the last 7 days, newest first. An output whose only
+  publication failed or was taken back is in `done` and in `ready` again.
+
+`DeskCard {output, title_fa, company, company_fa, order?, group_fa?, file: DeskFile, cover?: DeskFile, files,
+kind: reel | post | story | carousel, channel: "instagram", account?, accounts, route_ready, caption?, state,
+publish?: SessionPublish, best?: BestHour, mode?: ask | auto, at}`; `DeskFile {id, name, mime, size}`.
+
+- **The package**, as a routine's (§45.2): the output's video with a picture of the same output as its cover (one
+  named `cover…` first); without a video, its picture, or its pictures together as a carousel (at most 10). An
+  output with neither (a report, an analysis) has no card, which is no fault.
+- `route_ready` false: the company's publishing path is not set yet; the card has no action and says the technical
+  team sets it (never the owner's step).
+- The card's tap is the output's own `POST /deliverables/{ref}/publish` (§45.4), its cancel
+  `POST /publishes/{job}/cancel` (§51). `best` is §49's, only when there is enough data.
+- `404` for an unknown `company`.
+
+### 55.3 The limit at a glance (`GET /api/v1/treasury/limits`, owner)
+
+`Limits {accounts: [ClaudeAccount], waiting, today: TodayMeter}`.
+
+- `ClaudeAccount {key, name_fa, state: working | ready | full | off, utilization?, window_fa?, resets_at?,
+  observed_at?}`: the owner's Claude subscriptions in the hub's order of use (the main one, then the second),
+  read by the very rule that hands an account to a Claude Code job (`servers.runner_claude_account`): `working` is
+  the one the hub is on now; `full` is at 99% of its window or refused, until `resets_at`; `off` is switched off on
+  the hub or not stored. `utilization` is 0 to 1 of the window that holds (0 once it has reset, `null` when
+  unknown). `waiting`: every account is full and jobs wait in the queue. **No token, key or address is ever in this
+  answer.**
+- `TodayMeter {spent, cap, share, state: calm | warm | near | full, resets_at, note_fa}`: what the agents spent
+  today (UTC), counted as their daily cap counts it (a cache read at a tenth), against `AGENT_DAILY_TOKEN_CAP`;
+  `warm` from 70%, `near` from 90%, `full` at 100%. `cap` 0: no cap is set (`calm`).
+
+### 55.4 One row for one publication
+
+The hub asks IG-Hub about a publication it holds (§46, `meta.check`) and cancels it (§51, `meta.cancel`) with
+further `publish` jobs of the same file, account and kind. `OrderReport.publishes`, `PublishPanel.publishes` and the
+desk now show **one row for the whole chain**: the newest job says where the publication stands and is the row's
+`job` (what a cancel names), and `at` is when it was first sent. A new tap after a failure or a cancel is a new
+publication and its own row.

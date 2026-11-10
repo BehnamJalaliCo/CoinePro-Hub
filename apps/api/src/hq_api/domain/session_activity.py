@@ -176,13 +176,32 @@ class ActivityLine(BaseModel):
     task_n: int | None = None
 
 
+WorkerKind = Literal["run", "workshop", "direct", "server"]
+Mood = Literal["thinking", "working", "waiting", "stuck", "idle"]
+MOOD_FA: dict[str, str] = {
+    "thinking": "فکر میکند",
+    "working": "کار میکند",
+    "waiting": "منتظر تو",
+    "stuck": "گیر کرده",
+    "idle": "آرام",
+}
+
+
 class Worker(BaseModel):
+    """⟨1.33⟩ §55.1 additive: `kind` (an agent's run, the workshop's turn, the holder's own direct
+    turn, a company server's turn), `cap_s` (a turn's time cap; the ring fills against it),
+    `last_fa` and `last_at` (the last thing a live turn did, in the owner's words)."""
+
     who_fa: str
     company_fa: str
     work_title_fa: str
     started_at: datetime
     step: int
     doing_fa: str
+    kind: WorkerKind = "run"
+    cap_s: int | None = None
+    last_fa: str | None = None
+    last_at: datetime | None = None
 
 
 class SessionActivity(BaseModel):
@@ -191,6 +210,9 @@ class SessionActivity(BaseModel):
     idle_since: datetime | None = None
     waiting_fa: str | None = None
     stuck_fa: str | None = None
+    # ⟨1.33⟩ §55.1 where the session stands, in one word (the «چراغ حال»)
+    mood: Mood = "idle"
+    mood_fa: str = MOOD_FA["idle"]
 
 
 # ------------------------------------------------------------- the words --
@@ -441,6 +463,9 @@ async def activity(
         else:
             who = WORKSHOP_WHO_FA if t["hands"] else SERVER_WHO_FA
             doing = TURN_DOING_FA if t["state"] == "running" else TURN_QUEUED_FA
+        last_fa, last_at = (
+            await last_of_turn(tx, t["job_id"]) if t["state"] == "running" else (None, None)
+        )
         working.append(
             Worker(
                 who_fa=who,
@@ -449,6 +474,10 @@ async def activity(
                 started_at=t["started_at"] or t["created_at"],
                 step=int(t["turns"] or 0),
                 doing_fa=doing,
+                kind="direct" if direct else ("workshop" if t["hands"] else "server"),
+                cap_s=int(t["timeout_s"]) if t.get("timeout_s") else None,
+                last_fa=last_fa,
+                last_at=last_at,
             )
         )
     lines.sort(key=lambda x: x.at)
@@ -467,13 +496,28 @@ async def activity(
     idle_since = None
     if not working:
         idle_since = max([pulse.clock, *[x.at for x in lines]]) if lines else pulse.clock
+    stuck = pulse.stuck_fa if not working else None
+    mood = mood_of(working, waiting, stuck)
     return SessionActivity(
         working=working,
         last=last,
         idle_since=idle_since,
         waiting_fa=waiting,
-        stuck_fa=pulse.stuck_fa if not working else None,
+        stuck_fa=stuck,
+        mood=mood,
+        mood_fa=MOOD_FA[mood],
     )
+
+
+def mood_of(working: list[Worker], waiting: str | None, stuck: str | None) -> Mood:
+    """⟨1.33⟩ §55.1 by code: someone works (a run with no step yet, or a turn that has done
+    nothing yet, is still thinking); else it waits for the owner; else it is stuck; else calm."""
+    if working:
+        moving = any(w.step > 0 if w.kind == "run" else w.last_fa is not None for w in working)
+        return "working" if moving else "thinking"
+    if waiting:
+        return "waiting"
+    return "stuck" if stuck else "idle"
 
 
 # ---------------------------------------------------------------- the pulse --
@@ -521,6 +565,77 @@ DIRECT_DOING_FA = "دارد روی فرمان شما کار میکند؛ هر ن
 DIRECT_QUEUED_FA = "همین حالا شروع میکند"
 
 
+# ⟨1.33⟩ §55.1 the last thing a live turn did, from the events its runner sends as it works
+TURN_TOOLS_FA: dict[str, str] = {
+    "Bash": "دستور اجرا میکند",
+    "Read": "فایل میخواند",
+    "Grep": "در فایل‌ها میگردد",
+    "Glob": "در فایل‌ها میگردد",
+    "WebSearch": "در وب میگردد",
+    "WebFetch": "صفحه‌ای را در وب میخواند",
+    "TodoWrite": "برنامه‌اش را مرتب میکند",
+    "Task": "بخشی از کار را جدا پیش میبرد",
+}
+TURN_FILE_FA = "فایل «{name}» را مینویسد"
+TURN_COMMAND_FA = "دستور اجرا میکند"
+TURN_EVENTS = 12
+_HUB_TOOL = re.compile(r"^mcp__[A-Za-z0-9-]+__(.+)$")
+_PERSIAN = re.compile(r"[\u0600-\u06FF]")
+_SENTENCE = re.compile(r"(?<=[.!?؟…])\s|\n")
+
+
+def _hub_tool(name: str) -> str | None:
+    """`mcp__hq__order_ask` → `order.ask`: the hub's tool a direct turn called, by its own name."""
+    m = _HUB_TOOL.match(name)
+    if m is None:
+        return None
+    for tool in TOOLS_FA:
+        if re.sub(r"[^A-Za-z0-9_-]", "_", tool) == m.group(1):
+            return tool
+    return None
+
+
+def turn_line(kind: str, data: dict[str, Any]) -> str | None:
+    """One event of a Claude Code turn as the owner may read it, or None when it says nothing he
+    can read: its own Persian sentence, the file it writes (the name only), or the tool's verb.
+    Never a command, a path or English text."""
+    if kind == "message" and data.get("role") == "assistant":
+        first = _SENTENCE.split(str(data.get("text") or "").strip(), maxsplit=1)[0].strip()
+        if first and _PERSIAN.search(first):
+            said = plain(first.lstrip("#*-• ").strip())
+            return _cut(said, 120) if said else None
+        return None
+    if kind == "file_change":
+        name = str(data.get("path") or "").replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
+        return TURN_FILE_FA.format(name=name[:60]) if name else None
+    if kind == "command":
+        return TURN_COMMAND_FA
+    if kind == "progress" and data.get("tool"):
+        tool = str(data["tool"])
+        hub_tool = _hub_tool(tool)
+        if hub_tool is not None:
+            return None if hub_tool in SILENT_TOOLS else TOOLS_FA[hub_tool][1]
+        return TURN_TOOLS_FA.get(tool)
+    return None
+
+
+async def last_of_turn(tx: Tx, job_id: Any) -> tuple[str | None, datetime | None]:
+    rows = await tx.all(
+        """SELECT data, at FROM infra.server_job_events
+           WHERE job_id = :j AND type = 'session_event' ORDER BY seq DESC LIMIT :n""",
+        j=job_id,
+        n=TURN_EVENTS,
+    )
+    for r in rows:
+        ev = OR._j(r["data"]) or {}
+        raw = ev.get("data")
+        inner: dict[str, Any] = raw if isinstance(raw, dict) else {}
+        said = turn_line(str(ev.get("type") or ""), inner)
+        if said:
+            return said, r["at"]
+    return None, None
+
+
 async def live_turns(tx: Tx, work_ids: list[Any]) -> list[dict[str, Any]]:
     """⟨2026-11-10⟩ The workshop (or company-server) turns of these works that still run. A turn
     is live work although no agent run is: the holder's run ended when it handed the task over,
@@ -529,8 +644,8 @@ async def live_turns(tx: Tx, work_ids: list[Any]) -> list[dict[str, Any]]:
     if not work_ids:
         return []
     rows = await tx.all(
-        """SELECT ws.work_id, ws.turns, j.state, j.created_at, j.started_at,
-                  COALESCE(j.args ->> 'hands', '') = 'true' AS hands,
+        """SELECT ws.work_id, ws.turns, j.id AS job_id, j.timeout_s, j.state, j.created_at,
+                  j.started_at, COALESCE(j.args ->> 'hands', '') = 'true' AS hands,
                   COALESCE(j.args ->> 'direct', '') = 'true' AS direct, e.title_fa AS holder_fa,
                   w.title AS work_title, c.name_fa AS company_fa, c.code AS company
            FROM work.workspaces ws JOIN infra.server_jobs j ON j.id = ws.last_job_id

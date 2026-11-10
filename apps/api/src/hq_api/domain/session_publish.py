@@ -241,10 +241,44 @@ OUT_SQL = f"""SELECT {JOB_COLS} FROM infra.server_jobs j
               WHERE j.kind = 'publish' AND j.args -> 'session' ->> 'output' = :out"""  # noqa: S608
 
 
+def publication_of(j: dict[str, Any]) -> tuple[str, str, str, str]:
+    """What one publication is: this file of this output, as this kind, to this account."""
+    args = OR._j(j["args"]) or {}
+    s = args.get("session") or {}
+    return (
+        str(s.get("output") or ""), str(s.get("file_id") or ""),
+        str(args.get("account") or ""), str(args.get("kind") or ""),
+    )  # fmt: skip
+
+
+def collapse(rows: list[Any], limit: int = 20) -> list[SessionPublish]:
+    """⟨1.33⟩ §55.4 One row for one publication. The hub asks IG-Hub about a publication it holds
+    (⟨§46⟩ `meta.check`) and cancels it (⟨§51⟩ `meta.cancel`) with further jobs of the same
+    file, account and kind: the newest of them says where the publication stands and is the row
+    (its `job` is what a cancel names); the job that first sent it says when (`at`). `rows`:
+    the jobs newest first."""
+    out: list[SessionPublish] = []
+    open_chain: dict[tuple[str, str, str, str], int] = {}
+    for r in rows:
+        j = dict(r)
+        key = publication_of(j)
+        meta = (OR._j(j["args"]) or {}).get("meta") or {}
+        asks = bool(meta.get("check") or meta.get("cancel"))
+        if key in open_chain:
+            out[open_chain[key]].at = j.get("created_at")
+            if not asks:
+                del open_chain[key]  # the job that sent it: the chain ends here
+            continue
+        out.append(view(j))
+        if asks:
+            open_chain[key] = len(out) - 1
+    return out[:limit]
+
+
 async def of_order(tx: Tx, ref: str) -> list[SessionPublish]:
     """The session's publishes, newest first (the jobs are the record)."""
-    rows = await tx.all(JOB_SQL + " ORDER BY j.created_at DESC LIMIT 20", ref=ref)
-    return [view(dict(r)) for r in rows]
+    rows = await tx.all(JOB_SQL + " ORDER BY j.created_at DESC LIMIT 80", ref=ref)
+    return collapse(rows)
 
 
 OUTPUT_SQL = """SELECT d.ref, d.title, d.work_id, d.company_id, d.attachments, d.produced_with,
@@ -375,8 +409,8 @@ async def comment_of(tx: Tx, hub: Any, d: dict[str, Any]) -> dict[str, Any] | No
 
 
 async def of_output(tx: Tx, output: str) -> list[SessionPublish]:
-    rows = await tx.all(OUT_SQL + " ORDER BY j.created_at DESC LIMIT 20", out=output)
-    return [view(dict(r)) for r in rows]
+    rows = await tx.all(OUT_SQL + " ORDER BY j.created_at DESC LIMIT 80", out=output)
+    return collapse(rows)
 
 
 async def panel(tx: Tx, output: str, hub: Any = None) -> OR.PublishPanel:

@@ -4,7 +4,7 @@
 > - **پیش‌نیاز:** پرامپت ۳۴. اگر ۳۴.۱ هنوز deploy نشده، **همین پرامپت آن را هم میپوشاند** (کدش در همین شاخه است و migration ندارد؛ کارهای ۳۴.۱ را هم انجام بده و یک گزارش بنویس).
 > - **شاخه:** `server/p35-deploy` از `claude/coinepro-hub-setup-hsvnw7`.
 > - **گزارش:** `docs/ops/reports/PROMPT_35.md`.
-> - **قرارداد:** §۴۷ تا §۵۳ (v1.31) و §۵۴ (v1.32).
+> - **قرارداد:** §۴۷ تا §۵۳ (v1.31)، §۵۴ (v1.32) و §۵۵ (v1.33).
 > - **طرح:** `docs/HANDOFF_2026-11-10_V1_0_1.md`، `docs/SIMPLIFY_2026-11-10_DIRECT_SESSIONS.md` بخش ۹.
 
 ## چرا
@@ -29,18 +29,22 @@
 - **اگر کارگاه نتواند** (خاموش، جدا، یا runner زیر ۰.۳.۵): مسئول مثل قبل کار میکند. پس **deploy هاب پیش از به‌روز شدن runner کارگاه بی‌خطر است.**
 - **کلید برگشت:** `HQ_DIRECT_SESSIONS` (پیش‌فرض روشن). مقدار `off` در محیط `api` و `worker` همه را به مسیر قبلی برمیگرداند.
 
-### پ) اپ‌ها ۱.۰.۱ (اندروید و وب) و سند OpenAPI
-رابط هر هفت کمبود، نمایش جلسه‌ی مستقیم، و بازسازی ظاهر شش خانواده‌ی صفحه. هاب فقط **پنل وب** را مستقر میکند.
+### پ) ظاهر تازه‌ی اپ و آنچه میخواند (قرارداد §۵۵؛ migration ندارد؛ فقط خواندنی)
+- **خط زنده‌ی کار و «چراغ حال» جلسه** (`domain/session_activity.py`): `Worker.kind`، `cap_s`، `last_fa` (آخرین کار نوبت کارگاه، به زبان مالک، از رویدادهای همان job) و `SessionActivity.mood`.
+- **میز انتشار** (`GET /publish-desk`، `domain/publish_desk.py`): هر خروجی آماده‌ی انتشار، صف، و منتشرشده‌های ۷ روز، برای همه‌ی شرکت‌ها.
+- **سقف در یک نگاه** (`GET /treasury/limits`، `domain/limits.py`): هر اکانت Claude با پر بودن پنجره و ساعت خالی شدنش، و کنتور امروز در برابر `AGENT_DAILY_TOKEN_CAP`. **هیچ توکن یا کلیدی در این جواب نیست.**
+- **یک ردیف برای هر انتشار:** کارهای پیگیری (`meta.check`) و لغو (`meta.cancel`) دیگر ردیف جدا در جلسه و صفحه‌ی خروجی نیستند.
+- **اپ‌ها ۱.۰.۱ (اندروید و وب) و سند OpenAPI:** رابط هر هفت کمبود، نمایش جلسه‌ی مستقیم، نوار فرمان، جلسه‌ی بازطراحی‌شده، میز انتشار و بازسازی شش خانواده‌ی صفحه. هاب فقط **پنل وب** را مستقر میکند.
 
 ### تست‌ها (همه پیش از push سبز اجرا شدند)
-- **api:** `test_w20_order_gaps` (۱۳ تست)، `test_w21_direct_session` (۴ تست)، `test_w17_session_publish`، `test_w18_standing_publish`، `test_w19_publish_time`، `test_w10_playbooks`، `test_w14_workshop`، `test_w16_direct_sessions`، `test_p17_runners`، `test_p12f_join`، `test_p13f_join`، و سند OpenAPI.
+- **api:** `test_w20_order_gaps` (۱۳ تست)، `test_w21_direct_session` (۴ تست)، `test_w22_look` (۸ تست)، `test_w11_activity`، `test_w13_second_account`، `test_w17_session_publish`، `test_w18_standing_publish`، `test_w19_publish_time`، `test_w10_playbooks`، `test_w14_workshop`، `test_w16_direct_sessions`، `test_p17_runners`، `test_p12f_join`، `test_p13f_join`، و سند OpenAPI.
 - **gateway، hq-common، company-runner:** کل مجموعه. **OPA:** همه سبز با پوشش ۱۰۰٪. ruff و mypy پاک.
 
 ## کار تو (Claude سرور هاب)
 1. شاخه را بساز، شاخه‌ی اصلی را merge کن. تست‌های بالا، lint، mypy و `opa test` را اجرا کن.
 2. **بکاپ، بعد migration `0060` و `0061`، بعد deploy:** `api`، `worker`، `gateway`، `opa` (سیاست) و `web` (پروفایل `web`، ‏۱.۰.۱). منشورها (`agents/`) با همین deploy خوانده میشوند.
    - **آزمون رفت‌وبرگشت migration را روی هاب انجام نده.**
-   - **سنجش:** `alembic current` = `0061`؛ `https://hq.coinepro.com/healthz` ‏۲۰۰ و نسخه‌ی پنل ۱.۰.۱؛ `GET /api/v1/runners/jobs/<یک uuid ساختگی>/tools` بی توکن ۴۰۱.
+   - **سنجش:** `alembic current` = `0061`؛ `https://hq.coinepro.com/healthz` ‏۲۰۰ و نسخه‌ی پنل ۱.۰.۱؛ `GET /api/v1/runners/jobs/<یک uuid ساختگی>/tools`، `GET /api/v1/publish-desk` و `GET /api/v1/treasury/limits` بی توکن ۴۰۱.
 3. **Caddy:** تغییری لازم نیست (مسیرهای تازه زیر همان `/api/v1/runners/*` و `/api/v1/*` میروند). `/internal` همچنان از Caddy رد نمیشود.
 4. **runner کارگاه هلدینگ باید ۰.۳.۵ شود** (کاربر `studio`). `sudo` میخواهد و با مالک است: **دستورها را آماده کن و در گزارش بگذار** (همان قدم‌های ۰.۳.۴، با کد همین شاخه)، **خودت نزن**. بعد از اینکه مالک زد، فقط بخوان و بنویس: نسخه‌ای که runner به هاب میگوید و آنلاین بودنش. runner سرورهای شرکت‌ها و IG-Hub لازم نیست عوض شود.
 5. **اولین نوبت مستقیم را مالک خودش با یک حرف در جلسه میدهد.** تو فقط ردپا را از دیتابیس هاب بنویس (اگر نوبتی اجرا نشد: «هنوز آزمایش نشده»):
@@ -51,6 +55,7 @@
 6. **فقط خواندنی، در گزارش بنویس** (به هیچ سروری جز هاب دست نزن):
    - **sweep:** پنج دقیقه بعد از deploy، لاگ `api` و `worker` خطایی از `follow_up`، `read_due`، `connections_read` یا `direct_tool` نداشته باشد (یک خط: «بی خطا» یا متن خطا).
    - **بهترین ساعت:** ردیف‌های `growth.ig_post_reads` (حساب، `read_at` هست یا نه، `posts`، و `note_fa`). تا IG-Hub پرامپت ۲ خودش را نگرفته، «دستور آمار روی IG-Hub انجام نشد» طبیعی است؛ همان را بنویس.
+   - **سقف و میز انتشار** (با نشست مالک یا از دیتابیس؛ فقط شمار و حال، بی هیچ مقدار محرمانه): حال هر اکانت Claude (`working` / `ready` / `full` / `off`) و شمار کارت‌های `ready`، `queue` و `done` میز انتشار.
    - **شمارها:** `growth.topics`، `media.narrators`، روال‌های دائمی (`growth.automations` با `source ->> 'routine'`).
    - **اتصال `instagram` هر شرکت:** `command` و `publish_command` «هست / نیست»، بی مقدار. سرور IG-Hub: نسخه‌ی runner و آنلاین بودن.
    - **ورودها:** Google AI Studio (`signed_in` / `signed_out` / `unknown`). اگر بیرون افتاده، فقط بنویس «مالک یک بار `make aistudio-web-login` بزند»؛ خودت وارد نشو. حال حساب دوم Claude و آخرین `quota_status` هر دو حساب.

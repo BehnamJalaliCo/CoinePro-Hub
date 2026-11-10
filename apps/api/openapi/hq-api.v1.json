@@ -8880,6 +8880,82 @@
         "title": "ClassifyIn",
         "type": "object"
       },
+      "ClaudeAccount": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name_fa": {
+            "title": "Name Fa",
+            "type": "string"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "resets_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resets At"
+          },
+          "state": {
+            "enum": [
+              "working",
+              "ready",
+              "full",
+              "off"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "utilization": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Utilization"
+          },
+          "window_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Fa"
+          }
+        },
+        "required": [
+          "key",
+          "name_fa",
+          "state"
+        ],
+        "title": "ClaudeAccount",
+        "type": "object"
+      },
       "ClientError": {
         "properties": {
           "app": {
@@ -13695,6 +13771,210 @@
           "computed_at"
         ],
         "title": "DepartmentRank",
+        "type": "object"
+      },
+      "DeskCard": {
+        "properties": {
+          "account": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account"
+          },
+          "accounts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Accounts",
+            "type": "array"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "best": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BestHour"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "channel": {
+            "const": "instagram",
+            "default": "instagram",
+            "title": "Channel",
+            "type": "string"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "company_fa": {
+            "title": "Company Fa",
+            "type": "string"
+          },
+          "cover": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeskFile"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "file": {
+            "$ref": "#/components/schemas/DeskFile"
+          },
+          "files": {
+            "default": 1,
+            "title": "Files",
+            "type": "integer"
+          },
+          "group_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Fa"
+          },
+          "kind": {
+            "enum": [
+              "reel",
+              "post",
+              "story",
+              "carousel"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ask",
+                  "auto"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
+          },
+          "order": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order"
+          },
+          "output": {
+            "title": "Output",
+            "type": "string"
+          },
+          "publish": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SessionPublish"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "route_ready": {
+            "default": false,
+            "title": "Route Ready",
+            "type": "boolean"
+          },
+          "state": {
+            "enum": [
+              "ready",
+              "scheduled",
+              "publishing",
+              "published",
+              "failed",
+              "cancelled",
+              "waiting_setup",
+              "waiting_seal"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "output",
+          "title_fa",
+          "company",
+          "company_fa",
+          "file",
+          "kind",
+          "state",
+          "at"
+        ],
+        "title": "DeskCard",
+        "type": "object"
+      },
+      "DeskFile": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "mime": {
+            "title": "Mime",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "mime",
+          "size"
+        ],
+        "title": "DeskFile",
         "type": "object"
       },
       "DestinationStatus": {
@@ -25132,7 +25412,7 @@
         "title": "LifecycleTrigger",
         "type": "object"
       },
-      "Limits": {
+      "Limits-Input": {
         "properties": {
           "steps_per_run": {
             "maximum": 50.0,
@@ -25157,6 +25437,30 @@
           "steps_per_run",
           "tokens_per_step",
           "tokens_per_run"
+        ],
+        "title": "Limits",
+        "type": "object"
+      },
+      "Limits-Output": {
+        "properties": {
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/ClaudeAccount"
+            },
+            "title": "Accounts",
+            "type": "array"
+          },
+          "today": {
+            "$ref": "#/components/schemas/TodayMeter"
+          },
+          "waiting": {
+            "default": false,
+            "title": "Waiting",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "today"
         ],
         "title": "Limits",
         "type": "object"
@@ -39415,6 +39719,33 @@
         "title": "PublishComment",
         "type": "object"
       },
+      "PublishDesk": {
+        "properties": {
+          "done": {
+            "items": {
+              "$ref": "#/components/schemas/DeskCard"
+            },
+            "title": "Done",
+            "type": "array"
+          },
+          "queue": {
+            "items": {
+              "$ref": "#/components/schemas/DeskCard"
+            },
+            "title": "Queue",
+            "type": "array"
+          },
+          "ready": {
+            "items": {
+              "$ref": "#/components/schemas/DeskCard"
+            },
+            "title": "Ready",
+            "type": "array"
+          }
+        },
+        "title": "PublishDesk",
+        "type": "object"
+      },
       "PublishIn": {
         "additionalProperties": false,
         "description": "⟨2026-11-10⟩ §44.5 «تأیید و انتشار»: one file of one output of this session.",
@@ -43961,7 +44292,7 @@
             "type": "array"
           },
           "limits": {
-            "$ref": "#/components/schemas/Limits"
+            "$ref": "#/components/schemas/Limits-Input"
           },
           "model": {
             "maxLength": 100,
@@ -47470,6 +47801,23 @@
             },
             "title": "Last",
             "type": "array"
+          },
+          "mood": {
+            "default": "idle",
+            "enum": [
+              "thinking",
+              "working",
+              "waiting",
+              "stuck",
+              "idle"
+            ],
+            "title": "Mood",
+            "type": "string"
+          },
+          "mood_fa": {
+            "default": "آرام",
+            "title": "Mood Fa",
+            "type": "string"
           },
           "stuck_fa": {
             "anyOf": [
@@ -53807,6 +54155,52 @@
         "title": "Today",
         "type": "object"
       },
+      "TodayMeter": {
+        "properties": {
+          "cap": {
+            "default": 0,
+            "title": "Cap",
+            "type": "integer"
+          },
+          "note_fa": {
+            "default": "مصرف امروز آرام است.",
+            "title": "Note Fa",
+            "type": "string"
+          },
+          "resets_at": {
+            "format": "date-time",
+            "title": "Resets At",
+            "type": "string"
+          },
+          "share": {
+            "default": "0",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Share",
+            "type": "string"
+          },
+          "spent": {
+            "default": 0,
+            "title": "Spent",
+            "type": "integer"
+          },
+          "state": {
+            "default": "calm",
+            "enum": [
+              "calm",
+              "warm",
+              "near",
+              "full"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resets_at"
+        ],
+        "title": "TodayMeter",
+        "type": "object"
+      },
       "TokenIn": {
         "additionalProperties": false,
         "properties": {
@@ -58099,7 +58493,19 @@
         "type": "object"
       },
       "Worker": {
+        "description": "⟨1.33⟩ §55.1 additive: `kind` (an agent's run, the workshop's turn, the holder's own direct\nturn, a company server's turn), `cap_s` (a turn's time cap; the ring fills against it),\n`last_fa` and `last_at` (the last thing a live turn did, in the owner's words).",
         "properties": {
+          "cap_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cap S"
+          },
           "company_fa": {
             "title": "Company Fa",
             "type": "string"
@@ -58107,6 +58513,40 @@
           "doing_fa": {
             "title": "Doing Fa",
             "type": "string"
+          },
+          "kind": {
+            "default": "run",
+            "enum": [
+              "run",
+              "workshop",
+              "direct",
+              "server"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last At"
+          },
+          "last_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Fa"
           },
           "started_at": {
             "format": "date-time",
@@ -114250,12 +114690,18 @@
                       "who_fa": "x"
                     }
                   ],
+                  "mood": "thinking",
+                  "mood_fa": "x",
                   "stuck_fa": "x",
                   "waiting_fa": "x",
                   "working": [
                     {
+                      "cap_s": 1,
                       "company_fa": "x",
                       "doing_fa": "x",
+                      "kind": "run",
+                      "last_at": "2026-10-17T05:42:00Z",
+                      "last_fa": "x",
                       "started_at": "2026-10-17T05:42:00Z",
                       "step": 1,
                       "who_fa": "x",
@@ -115758,12 +116204,18 @@
                       "who_fa": "x"
                     }
                   ],
+                  "mood": "thinking",
+                  "mood_fa": "x",
                   "stuck_fa": "x",
                   "waiting_fa": "x",
                   "working": [
                     {
+                      "cap_s": 1,
                       "company_fa": "x",
                       "doing_fa": "x",
+                      "kind": "run",
+                      "last_at": "2026-10-17T05:42:00Z",
+                      "last_fa": "x",
                       "started_at": "2026-10-17T05:42:00Z",
                       "step": 1,
                       "who_fa": "x",
@@ -125706,6 +126158,285 @@
         "summary": "Resume Provision Run",
         "tags": [
           "founding"
+        ]
+      }
+    },
+    "/api/v1/publish-desk": {
+      "get": {
+        "description": "§55.2 The publish desk: `ready` (an output of the last 14 days that carries a video or a\npicture and has no publication that stands), `queue` (held for its time, or on its way;\nsoonest first) and `done` (the last 7 days, newest first). The card's tap is the output's\nown `POST /deliverables/{ref}/publish`; its cancel `POST /publishes/{job}/cancel`.",
+        "operationId": "publish_desk",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 10,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "done": [
+                    {
+                      "account": "x",
+                      "accounts": [
+                        "x"
+                      ],
+                      "at": "2026-10-17T05:42:00Z",
+                      "best": {
+                        "account": "x",
+                        "at": "2026-10-17T05:42:00Z",
+                        "basis": "likes_comments",
+                        "days": 1,
+                        "enough": false,
+                        "hour": "x",
+                        "note_fa": "x",
+                        "posts": 1,
+                        "read_at": "2026-10-17T05:42:00Z"
+                      },
+                      "caption": "x",
+                      "channel": "instagram",
+                      "company": "TY",
+                      "company_fa": "x",
+                      "cover": {
+                        "id": "x",
+                        "mime": "application/pdf",
+                        "name": "report.pdf",
+                        "size": 1
+                      },
+                      "file": {
+                        "id": "x",
+                        "mime": "application/pdf",
+                        "name": "report.pdf",
+                        "size": 1
+                      },
+                      "files": 1,
+                      "group_fa": "x",
+                      "kind": "reel",
+                      "mode": "ask",
+                      "order": "x",
+                      "output": "x",
+                      "publish": {
+                        "account": "x",
+                        "at": "2026-10-17T05:42:00Z",
+                        "auto": false,
+                        "channel": "instagram",
+                        "comment": "x",
+                        "cover_name": "x",
+                        "file_id": "x",
+                        "file_name": "x",
+                        "files": 1,
+                        "job": "x",
+                        "kind": "reel",
+                        "note_fa": "x",
+                        "output": "x",
+                        "published_at": "2026-10-17T05:42:00Z",
+                        "scheduled_at": "2026-10-17T05:42:00Z",
+                        "state": "publishing",
+                        "url": "x"
+                      },
+                      "route_ready": false,
+                      "state": "ready",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "queue": [
+                    {
+                      "account": "x",
+                      "accounts": [
+                        "x"
+                      ],
+                      "at": "2026-10-17T05:42:00Z",
+                      "best": {
+                        "account": "x",
+                        "at": "2026-10-17T05:42:00Z",
+                        "basis": "likes_comments",
+                        "days": 1,
+                        "enough": false,
+                        "hour": "x",
+                        "note_fa": "x",
+                        "posts": 1,
+                        "read_at": "2026-10-17T05:42:00Z"
+                      },
+                      "caption": "x",
+                      "channel": "instagram",
+                      "company": "TY",
+                      "company_fa": "x",
+                      "cover": {
+                        "id": "x",
+                        "mime": "application/pdf",
+                        "name": "report.pdf",
+                        "size": 1
+                      },
+                      "file": {
+                        "id": "x",
+                        "mime": "application/pdf",
+                        "name": "report.pdf",
+                        "size": 1
+                      },
+                      "files": 1,
+                      "group_fa": "x",
+                      "kind": "reel",
+                      "mode": "ask",
+                      "order": "x",
+                      "output": "x",
+                      "publish": {
+                        "account": "x",
+                        "at": "2026-10-17T05:42:00Z",
+                        "auto": false,
+                        "channel": "instagram",
+                        "comment": "x",
+                        "cover_name": "x",
+                        "file_id": "x",
+                        "file_name": "x",
+                        "files": 1,
+                        "job": "x",
+                        "kind": "reel",
+                        "note_fa": "x",
+                        "output": "x",
+                        "published_at": "2026-10-17T05:42:00Z",
+                        "scheduled_at": "2026-10-17T05:42:00Z",
+                        "state": "publishing",
+                        "url": "x"
+                      },
+                      "route_ready": false,
+                      "state": "ready",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "ready": [
+                    {
+                      "account": "x",
+                      "accounts": [
+                        "x"
+                      ],
+                      "at": "2026-10-17T05:42:00Z",
+                      "best": {
+                        "account": "x",
+                        "at": "2026-10-17T05:42:00Z",
+                        "basis": "likes_comments",
+                        "days": 1,
+                        "enough": false,
+                        "hour": "x",
+                        "note_fa": "x",
+                        "posts": 1,
+                        "read_at": "2026-10-17T05:42:00Z"
+                      },
+                      "caption": "x",
+                      "channel": "instagram",
+                      "company": "TY",
+                      "company_fa": "x",
+                      "cover": {
+                        "id": "x",
+                        "mime": "application/pdf",
+                        "name": "report.pdf",
+                        "size": 1
+                      },
+                      "file": {
+                        "id": "x",
+                        "mime": "application/pdf",
+                        "name": "report.pdf",
+                        "size": 1
+                      },
+                      "files": 1,
+                      "group_fa": "x",
+                      "kind": "reel",
+                      "mode": "ask",
+                      "order": "x",
+                      "output": "x",
+                      "publish": {
+                        "account": "x",
+                        "at": "2026-10-17T05:42:00Z",
+                        "auto": false,
+                        "channel": "instagram",
+                        "comment": "x",
+                        "cover_name": "x",
+                        "file_id": "x",
+                        "file_name": "x",
+                        "files": 1,
+                        "job": "x",
+                        "kind": "reel",
+                        "note_fa": "x",
+                        "output": "x",
+                        "published_at": "2026-10-17T05:42:00Z",
+                        "scheduled_at": "2026-10-17T05:42:00Z",
+                        "state": "publishing",
+                        "url": "x"
+                      },
+                      "route_ready": false,
+                      "state": "ready",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/PublishDesk"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Publish Desk",
+        "tags": [
+          "look"
         ]
       }
     },
@@ -144447,6 +145178,94 @@
         "summary": "Treasury Calls",
         "tags": [
           "treasury"
+        ]
+      }
+    },
+    "/api/v1/treasury/limits": {
+      "get": {
+        "description": "§55.3 The owner's Claude accounts, each with how full its window is and when it resets\n(`working`: the one the hub is on now), `waiting` (every account is full), and today's meter:\nwhat the agents spent today against their daily cap (marks at 70%, 90% and 100%).",
+        "operationId": "treasury_limits",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "accounts": [
+                    {
+                      "key": "x",
+                      "name_fa": "تریدیار",
+                      "observed_at": "2026-10-17T05:42:00Z",
+                      "resets_at": "2026-10-17T05:42:00Z",
+                      "state": "working",
+                      "utilization": "x",
+                      "window_fa": "x"
+                    }
+                  ],
+                  "today": {
+                    "cap": 1,
+                    "note_fa": "x",
+                    "resets_at": "2026-10-17T05:42:00Z",
+                    "share": "x",
+                    "spent": 1,
+                    "state": "calm"
+                  },
+                  "waiting": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Limits-Output"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Treasury Limits",
+        "tags": [
+          "look"
         ]
       }
     },

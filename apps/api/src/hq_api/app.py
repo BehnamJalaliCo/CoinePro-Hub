@@ -87,6 +87,7 @@ from hq_api.routes import lines as line_routes  # prompt 22: production lines (�
 from hq_api.routes import linked as linked_routes  # ⟨2026-11-06⟩ linked.read along a link
 from hq_api.routes import links as link_routes  # prompt 25: §35.6 company links, the canvas
 from hq_api.routes import live as live_routes  # ⟨1.24⟩ §42.3 the live views' seed
+from hq_api.routes import look as look_routes  # ⟨1.33⟩ §55 what the 1.0.1 look reads
 from hq_api.routes import media as media_routes  # prompt 13, the media half
 from hq_api.routes import money as money_routes  # prompt 24: §33.2-§33.3 payments, the board
 from hq_api.routes import narrators as narrator_routes  # ⟨1.31⟩ §48 a company's narrator
@@ -349,6 +350,7 @@ def create_app(
     app.include_router(narrator_routes.router, prefix="/api/v1")
     app.include_router(narrator_routes.internal_router, prefix="/internal/v1")
     app.include_router(routine_routes.router, prefix="/api/v1")
+    app.include_router(look_routes.router, prefix="/api/v1")
     # ⟨1.20⟩ §38: hub operations (hub.ops, its dispatcher) and the owner's services page
     app.include_router(hubops_routes.router, prefix="/api/v1")
     app.include_router(hubops_routes.internal_router, prefix="/internal/v1")
