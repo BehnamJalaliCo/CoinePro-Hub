@@ -4682,6 +4682,14 @@ tap. `auto`: from the next run on, the hub publishes the package of each routine
 
 ### 45.2 The package
 
+> **IG-Hub as it is (its repository, read 2026-11-10):** a publishing API for other servers (`/api/v1/media`,
+> `/api/v1/publish` with `kind: image | reel | carousel | story`, `caption`, `first_comment`, `scheduled_at`, cancel and
+> status with the permalink); **JPEG pictures only**; **no cover field for a reel yet**; comment rules (keywords, on all
+> posts / the next post / chosen posts, public replies, one private reply with a link button, hours, cooldown) and the
+> statistics (likes and comments of each post) only in its own panel, not through a key. So a package's picture is a
+> `.jpg`, a reel's cover is carried by the hub and used once IG-Hub takes it, and scheduling and the comment rules are
+> IG-Hub's own to wire next.
+
 What a routine's work made to go out is **one output** of that work (or of a work under it): its newest finished output
 that carries **`caption.txt`** (or `caption.md`) and a video; the cover is an image of the same output (one named `cover…`
 first); without a video, an image with `caption.txt` goes out as a post. A workshop turn leaves these in `out/` (§43.3
