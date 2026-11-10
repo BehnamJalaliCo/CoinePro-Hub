@@ -9,6 +9,7 @@ or makes the order «خودکار». A general order («خودکار») is never
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from typing import Any
 
@@ -128,3 +129,186 @@ async def test_a_step_session_holds_everything_until_the_owner_answers(
     assert r.status_code == 200, r.text
     async with hub.db.tx(await hub.companies.ids()) as tx:
         assert await OR.owner_turn(tx, root) is None
+
+
+async def test_the_nudge_wakes_whoever_asked_and_a_word_before_the_question_does_not_answer_it(
+    client: httpx.AsyncClient,
+    owner: dict[str, str],
+    hub: Hub,
+    su: Any,
+    agents: Any,
+    no_model: list[Any],  # noqa: F811
+    new_company: Callable[..., Any],
+) -> None:
+    """⟨2026-11-10⟩ audit: «ادامه بده» cleared a colleague's question and woke only the holder
+    (the colleague slept for ever); and a run his word had queued BEFORE a question was asked ran
+    through that question. Also: a closed session takes no step, and its asker's run is a
+    finished one."""
+    co = (await new_company())["code"]
+    out = await post_order(
+        client, owner, f"برای {co} {words()} وضع کامل شرکت را بررسی کن و گزارش بده", pace="step"
+    )
+    ref = out["ref"]
+    [route] = out["routes"]
+    holder, work_ref = route["to"], route["work_ref"]
+    root = await su.fetchval("SELECT id FROM work.work WHERE ref = $1", work_ref)
+    r = await client.post(
+        f"/internal/v1/work/{root}/delegate",
+        headers=await agent_headers(holder),
+        json={"to": f"{co}-TECH-MGR", "title": "خواندن عددهای روزانه"},
+    )
+    assert r.status_code == 201, r.text
+    child = await su.fetchval("SELECT id FROM work.work WHERE ref = $1", r.json()["ref"])
+    colleague = f"{co}-TECH-MGR"
+    await su.execute(
+        """UPDATE agents.runs SET state = 'refused', error_code = 'test', finished_at = now()
+           WHERE work_id = ANY($1::uuid[]) AND state = 'queued'""",
+        [root, child],
+    )
+
+    # a word of the owner's queued a run of the holder; THEN the colleague asks him something
+    early = await su.fetchval("SELECT work.wake_assignee($1, $2)", root, f"nudge:{ref}")
+    await asyncio.sleep(0.2)  # the question comes after his word
+    await ask(client, ref, colleague, "عددها را از کدام حساب بخوانم؟")
+    claim = await agents.runner.claim(str(early))
+    assert (claim.state, claim.code) == ("final", "owner_turn")  # his earlier word is no answer
+
+    # «ادامه بده» answers the question: the one who asked runs again, not only the holder
+    r = await client.post(f"/api/v1/orders/{ref}/nudge", headers={**owner, **idem()})
+    assert r.status_code == 200, r.text
+    assert await su.fetchval("SELECT turn FROM owner.order_reports WHERE ref = $1", ref) is None
+    woke = await queued_of(su, child)
+    assert woke is not None and woke["reason"] == f"nudge:{ref}", woke
+    assert (await queued_of(su, root)) is not None
+    # (the colleague's test token is a run of its own, so the claim reads `busy`: not held)
+    assert (await agents.runner.claim(str(woke["id"]))).code != "owner_turn"
+
+    # the owner closes the session: nothing more is written on it by a run that was still going
+    r = await client.post(
+        f"/api/v1/orders/{ref}/close", headers={**owner, **idem()}, json={"verdict": "cancel"}
+    )
+    assert r.status_code == 200, r.text
+    r = await client.post(
+        f"/internal/v1/orders/{ref}/ask",
+        headers=await agent_headers(holder),
+        json={"question_fa": "ادامه بدهم؟"},
+    )
+    assert r.status_code == 409 and r.json()["code"] == "work_closed", r.text
+    r = await client.post(
+        f"/internal/v1/orders/{ref}/progress",
+        headers=await agent_headers(holder),
+        json={"step_fa": "یک قدم دیگر"},
+    )
+    assert r.status_code == 409 and r.json()["code"] == "work_closed", r.text
+
+
+async def test_the_owners_numbered_steps_are_the_plan_in_his_order(
+    client: httpx.AsyncClient,
+    owner: dict[str, str],
+    hub: Hub,
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+    new_company: Callable[..., Any],
+) -> None:
+    """⟨2026-11-10⟩ the owner's recording of 2026-11-09: he gave nine numbered steps (script,
+    voice, voice check, direction, …); the holder already had five of its own, so his were
+    appended after them and its «ساخت اولین ریلز» (4) ran before his script and voice (7, 8).
+    His numbered steps are the plan: the holder's open ones step aside, and the numbers are the
+    places in the plan."""
+    from hq_api.domain import order_turns as OT
+
+    co = (await new_company())["code"]
+    out = await post_order(
+        client, owner, f"برای {co} {words()} وضع کامل شرکت را بررسی کن و گزارش بده", pace="step"
+    )
+    ref = out["ref"]
+    [route] = out["routes"]
+    holder = route["to"]
+    r = await client.post(
+        f"/internal/v1/orders/{ref}/ack",
+        headers=await agent_headers(holder),
+        json={
+            "plan_fa": "برنامه‌ی من",
+            "steps": [
+                "بررسی وضع کارگروه",
+                "ساختار روزانه و سری",
+                "تکمیل تیم",
+                "ساخت اولین ریلز و بازبینی",
+                "انتشار و تحلیل",
+            ],
+        },
+    )
+    assert r.status_code == 200, r.text
+    r = await client.post(
+        f"/internal/v1/orders/{ref}/progress",
+        headers=await agent_headers(holder),
+        json={"step_fa": "وضع کارگروه بررسی شد", "done": [1]},
+    )
+    assert r.status_code == 200, r.text
+
+    steps = (
+        "به هرچه میگویم دقت کن.\n"
+        "۱ - نویسنده یا سناریست باید استخدام بشه\n"
+        "۲ - متن گفتار ۱ تا ۱:۳۰ دقیقه برای ساخت صدا آماده بشه\n"
+        "۳ - بعد از صدا، QC زبان فارسی بررسی بکنه\n"
+        "۴ - کارگردانی و تدوین لحظه‌ای روی متن صدا\n"
+        "۵ - موشن‌گرافی ساخته بشه"
+    )
+    r = await client.post(
+        f"/api/v1/orders/{ref}/reply", headers={**owner, **idem()}, json={"text": steps}
+    )
+    assert r.status_code == 200, r.text
+    rows = await su.fetch(
+        """SELECT t.n, t.title_fa, t.state, t.by FROM owner.session_tasks t
+           JOIN owner.order_reports r ON r.order_id = t.order_id WHERE r.ref = $1 ORDER BY t.n""",
+        ref,
+    )
+    live = [(x["n"], x["by"], x["state"]) for x in rows if x["state"] != "dropped"]
+    # what was done stays first; then HIS steps, in HIS order, numbered on from there
+    assert live == [(1, "agent", "done"), *[(n, "owner", "todo") for n in range(2, 7)]], rows
+    assert "سناریست" in rows[1]["title_fa"] and "متن گفتار" in rows[2]["title_fa"]
+    assert "QC" in rows[3]["title_fa"] and "موشن" in rows[5]["title_fa"]
+    # the holder's own open steps (its «ساخت اولین ریلز» among them) stepped aside
+    aside = [x["title_fa"] for x in rows if x["state"] == "dropped"]
+    assert len(aside) == 4 and any("ریلز" in t for t in aside), rows
+    said = await su.fetchval("SELECT steps::text FROM owner.order_reports WHERE ref = $1", ref)
+    assert "برنامه‌ی قبلی مسئول کنار رفت" in said
+
+    # the holder's brief names the next task and the rule, by code
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        brief = await OT.talk_brief(tx, ref)
+        work_id = await tx.scalar("SELECT id FROM work.work WHERE ref = :r", r=route["work_ref"])
+        nxt = await OT.step_next(tx, work_id)
+    assert brief is not None and brief["plan_next"] == 2
+    assert "next open task is 2" in brief["step_rule"] and "سناریست" in brief["step_rule"]
+    assert "start NO task" in brief["step_rule"] and "workshop.stop" in brief["step_rule"]
+    assert nxt is not None and nxt["n"] == 2
+
+    # the same list again adds nothing and drops nothing
+    r = await client.post(
+        f"/api/v1/orders/{ref}/reply", headers={**owner, **idem()}, json={"text": steps}
+    )
+    assert r.status_code == 200, r.text
+    again = await su.fetchval(
+        """SELECT count(*) FROM owner.session_tasks t JOIN owner.order_reports r
+             ON r.order_id = t.order_id WHERE r.ref = $1 AND t.state <> 'dropped'""",
+        ref,
+    )
+    assert again == 6
+
+    # closing drops what is open; reopening brings the plan back (not the steps set aside before)
+    r = await client.post(
+        f"/api/v1/orders/{ref}/close", headers={**owner, **idem()}, json={"verdict": "cancel"}
+    )
+    assert r.status_code == 200, r.text
+    r = await client.post(f"/api/v1/orders/{ref}/reopen", headers={**owner, **idem()})
+    assert r.status_code == 200, r.text
+    back = await su.fetch(
+        """SELECT t.n, t.state FROM owner.session_tasks t JOIN owner.order_reports r
+             ON r.order_id = t.order_id WHERE r.ref = $1 AND t.state <> 'dropped' ORDER BY t.n""",
+        ref,
+    )
+    assert [(x["n"], x["state"]) for x in back] == [
+        (1, "done"),
+        *[(n, "todo") for n in range(2, 7)],
+    ]

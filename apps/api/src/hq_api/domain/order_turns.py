@@ -72,6 +72,7 @@ PLAN_INSTRUCTION = (
 NUM_ITEM = re.compile(r"^\s*[(\[]?([0-9۰-۹٠-٩]{1,2})\s*[-.)\]:،–—]\s*(.*?)\s*$")
 INLINE_ITEM = re.compile(r"(?:(?<=\s)|^)([0-9۰-۹٠-٩]{1,2})\s*[-.)،:]\s+")
 PLAN_STEP_FA = "برنامه: {n} کار از حرف مدیر کل"
+PLAN_ASIDE_FA = "؛ برنامه همین گام‌های شماست و به ترتیب خودتان، برنامه‌ی قبلی مسئول کنار رفت"
 MAX_PLAN_ITEMS = 30
 # ⟨2026-11-08⟩ audit B1: in a working session the owner's word is the order's word by code; a
 # question is answered by the talk alone
@@ -344,6 +345,53 @@ async def _reopen_delivered(tx: Tx, ref: str, works: list[dict[str, Any]]) -> di
     return None
 
 
+def _asker_works(works: list[dict[str, Any]], turn: dict[str, Any]) -> list[dict[str, Any]]:
+    """The open works of whoever asked the owner (one per asker, in the order they asked)."""
+    targets: list[dict[str, Any]] = []
+    for code in _asker_codes(turn):
+        t = next((w for w in works if w["a_code"] == code and w["status"] in OR.OPEN), None)
+        if t is not None and all(x["id"] != t["id"] for x in targets):
+            targets.append(t)
+    return targets
+
+
+async def _wake_for_owner(
+    tx: Tx, works: list[dict[str, Any]], t: dict[str, Any], reason: str
+) -> Any:
+    """A work that waited for the owner runs again on his word (`waiting` → `in_progress` when no
+    open child of its own holds it). Answers the run id, or None when nothing was woken."""
+    if t["status"] == "waiting" and await _waits_on_owner(tx, works, t):
+        await tx.exec(
+            "UPDATE work.work SET status = 'in_progress' WHERE id = :w AND status = 'waiting'",
+            w=t["id"],
+        )
+    return await tx.scalar("SELECT work.wake_assignee(:w, :r)", w=t["id"], r=reason)
+
+
+async def answered_by_nudge(tx: Tx, ref: str, rep: dict[str, Any]) -> list[str]:
+    """⟨2026-11-10⟩ «ادامه بده» while the order waits for the owner is his answer to whoever
+    asked: the turn is cleared, a talk-loop stop is lifted, and every asker's work runs again
+    with his word (a colleague who asked is not left asleep because only the holder is woken).
+    Answers the refs woken; the holder itself is woken by the caller."""
+    turn = OR._j(rep.get("turn")) or {}
+    order = await OR.load_order(tx, ref)
+    works = await OR.tree(tx, OR.root_refs(order)) if order is not None else []
+    if rep.get("talk_stopped_at") is not None:
+        await OR._append_steps(tx, rep["id"], [OR._step("سامانه", RESTARTED_FA)])
+    await tx.exec(
+        """UPDATE owner.order_reports SET last_step_at = now(), progress_nudged_at = NULL,
+               owner_told_at = NULL, turn = NULL, talk_stopped_at = NULL, updated_at = now()
+           WHERE id = :id""",
+        id=rep["id"],
+    )
+    woken: list[str] = []
+    for t in _asker_works(works, turn):
+        if await _wake_for_owner(tx, works, t, f"nudge:{ref}") is not None:
+            woken.append(str(t["ref"]))
+    await OR.resume_held(tx, ref)
+    return woken
+
+
 async def reply(tx: Tx, ref: str, text: str) -> dict[str, Any]:
     """The owner's word on the order: a step, the turn cleared, and the askers' works (else the
     holder's) run again at once. Answers {work_ref, run_id, woken: [work refs], why_fa}; a reply
@@ -366,11 +414,7 @@ async def reply(tx: Tx, ref: str, text: str) -> dict[str, Any]:
     order = await OR.load_order(tx, ref)
     assert order is not None
     works = await OR.tree(tx, OR.root_refs(order))
-    targets: list[dict[str, Any]] = []
-    for code in _asker_codes(turn):
-        t = next((w for w in works if w["a_code"] == code and w["status"] in OR.OPEN), None)
-        if t is not None and all(x["id"] != t["id"] for x in targets):
-            targets.append(t)
+    targets = _asker_works(works, turn)
     if not targets:
         root = next((w for w in works if w["is_root"] and w["status"] in OR.OPEN), None)
         if root is not None:
@@ -402,14 +446,7 @@ async def reply(tx: Tx, ref: str, text: str) -> dict[str, Any]:
     runs: list[str] = []
     why: str | None = None
     for t in targets:
-        if t["status"] == "waiting" and await _waits_on_owner(tx, works, t):
-            await tx.exec(
-                "UPDATE work.work SET status = 'in_progress' WHERE id = :w AND status = 'waiting'",
-                w=t["id"],
-            )
-        run_id = await tx.scalar(
-            "SELECT work.wake_assignee(:w, :r)", w=t["id"], r=f"owner_reply:{ref}"
-        )
+        run_id = await _wake_for_owner(tx, works, t, f"owner_reply:{ref}")
         if run_id is not None:
             woken.append(str(t["ref"]))
             runs.append(str(run_id))
@@ -467,8 +504,11 @@ def numbered_items(text: str) -> list[str]:
 
 async def plan_from_owner(tx: Tx, ref: str, text: str) -> int:
     """⟨1.23⟩ §41.2 the owner's numbered steps become the session's plan tasks, in order, by code
-    (an item the plan already has — the holder's `order.ack` or an earlier word — is not added
-    again); one step «برنامه: N کار از حرف مدیر کل». Answers how many were added."""
+    (an item the plan already has is not added again); one step «برنامه: N کار از حرف مدیر کل».
+    ⟨2026-11-10⟩ His steps ARE the plan, in his order: the holder's own tasks that are still open
+    step aside (dropped) and the plan is numbered again from 1, done tasks first. Before, his
+    nine steps were appended after the holder's five, so «ساخت ریلز» (the holder's 4) ran before
+    his «متن گفتار» and «صدا» (which had become 7 and 8). Answers how many were added."""
     from hq_api.domain import sessions as SE
 
     items = numbered_items(text)
@@ -477,21 +517,67 @@ async def plan_from_owner(tx: Tx, ref: str, text: str) -> int:
     rep = await OR.ensure(tx, ref)
     if rep is None or rep.get("ended_at") is not None:
         return 0
-    have = {" ".join(str(t["title_fa"]).split()) for t in await SE.tasks_of(tx, rep["order_id"])}
-    added = 0
+
+    def norm(v: Any) -> str:
+        return " ".join(str(v).split())
+
+    tasks = await SE.tasks_of(tx, rep["order_id"])
+    live = {norm(t["title_fa"]) for t in tasks if t["state"] != "dropped"}
+    gone = {norm(t["title_fa"]) for t in tasks if t["state"] == "dropped"}
+    wanted: list[str] = []  # his steps, in his order
     for item in items:
-        title = HZ.humanize(item) or item
-        title = " ".join(title.split())[:300]
-        if not title or title in have:
-            continue
+        title = norm(HZ.humanize(item) or item)[:300]
+        if title and title not in wanted:
+            wanted.append(title)
+    # a step the plan already has (the holder wrote it, or an earlier word of his) stays as it is;
+    # one he removed himself is not brought back by a repeat of the list
+    titles = [t for t in wanted if t not in live and t not in gone]
+    if not titles:
+        return 0  # the same list again: nothing is added, nothing steps aside
+    aside = [
+        t["id"]
+        for t in tasks
+        if t["by"] == "agent"
+        and t["state"] in ("todo", "doing")
+        and norm(t["title_fa"]) not in wanted
+    ]
+    if aside:
+        await tx.exec(
+            """UPDATE owner.session_tasks SET state = 'dropped', updated_at = now()
+               WHERE id = ANY(:ids)""",
+            ids=aside,
+        )
+    for title in titles:
         await SE.add_task(tx, rep, title_fa=title, by="owner", who_fa=OWNER_FA)
-        have.add(title)
-        added += 1
-    if added:
-        line = PLAN_STEP_FA.format(n=added)
-        await OR._append_steps(tx, rep["id"], [OR._step(SYSTEM_FA, line)])
-        await SE.remember(tx, rep["id"], line)
-    return added
+    await renumber_plan(tx, rep["order_id"], first=wanted)
+    line = PLAN_STEP_FA.format(n=len(titles))
+    if aside:
+        line += PLAN_ASIDE_FA
+    await OR._append_steps(tx, rep["id"], [OR._step(SYSTEM_FA, line)])
+    await SE.remember(tx, rep["id"], line)
+    return len(titles)
+
+
+async def renumber_plan(tx: Tx, order_id: Any, *, first: list[str] | None = None) -> None:
+    """The plan's numbers run 1, 2, 3 … over what is still in it: done tasks first (in the order
+    they stood), then the open ones — the owner's own list (`first`, its titles in his order)
+    before any other — then the dropped ones. A number the owner reads is the place in the plan."""
+    from hq_api.domain import sessions as SE
+
+    tasks = await SE.tasks_of(tx, order_id)
+    place = {t: i for i, t in enumerate(first or [])}
+
+    def title(t: dict[str, Any]) -> str:
+        return " ".join(str(t["title_fa"]).split())
+
+    done = [t for t in tasks if t["state"] == "done"]
+    open_ = [t for t in tasks if t["state"] not in ("done", "dropped")]
+    his = sorted((t for t in open_ if title(t) in place), key=lambda t: place[title(t)])
+    rest = [t for t in open_ if title(t) not in place]
+    order = done + his + rest + [t for t in tasks if t["state"] == "dropped"]
+    for n, t in enumerate(order, start=1):
+        if int(t["n"]) != n:
+            await tx.exec("UPDATE owner.session_tasks SET n = :n WHERE id = :id", n=n, id=t["id"])
 
 
 def is_question(text: str) -> bool:
@@ -679,6 +765,58 @@ def _company_of(order: dict[str, Any]) -> str | None:
     return None
 
 
+def step_rule(nxt: dict[str, Any] | None) -> str:
+    """⟨2026-11-10⟩ What a step-by-step order («با من») binds its holder to, said by code with the
+    plan's next task in it (the owner: «چرا باید با من قدم‌به‌قدم جلو نره؟» — the holder read his
+    «بیار مهر کنم» as leave to build a reel two steps early)."""
+    head = (
+        f"STEP BY STEP («با من»), enforced by the hub. The plan is the owner's, in his order; its "
+        f"next open task is {nxt['n']}: «{nxt['title_fa']}». "
+        if nxt
+        else "STEP BY STEP («با من»), enforced by the hub. The plan has no open task: ask the "
+        "owner what the next step is. "
+    )
+    return head + (
+        "In this run do ONLY that task, and only when the owner's last word clearly tells you to "
+        "start it (a plain yes, «شروع کن», «ادامه بده», or a clear choice of an option you "
+        "offered). If his word asks for something else, or does not clearly choose (he asks to "
+        "see or seal the cards, asks a question, gives a correction), do exactly what he asked, "
+        "start NO task, and ask again in one short question. Never start a later task before an "
+        "earlier open one, and never fold two tasks into one run. A task that makes something "
+        "goes to the workshop with `workshop.run` and `task` set to that task's number: the hub "
+        "refuses a turn for any other task. You can stop a workshop turn you started with "
+        "`workshop.stop`: when the owner says it was wrong or says stop, stop it first, then "
+        "answer. When a task's output is ready, show it, tick it (`order.progress`, `done`) and "
+        "ask «تأیید یا اصلاح؟»; the next task starts only after his answer. A card that waits "
+        "for his seal is shown to him in this session by the app: say which card it is, never "
+        "send him to look for it."
+    )
+
+
+async def step_next(tx: Tx, work_id: Any) -> dict[str, Any] | None:
+    """`{ref, n, title_fa}` of the next open plan task when the work's order is step by step
+    («با من»), open, and has a plan; else None (a general order, no order, an empty plan)."""
+    from hq_api.domain import sessions as SE
+
+    ref = await OR.order_of_work(tx, work_id)
+    if ref is None:
+        return None
+    row = await tx.first(
+        """SELECT r.order_id FROM owner.order_reports r JOIN owner.orders o ON o.id = r.order_id
+           WHERE r.ref = :r AND r.ended_at IS NULL AND o.pace = 'step'""",
+        r=ref,
+    )
+    if row is None:
+        return None
+    tasks = [t for t in await SE.tasks_of(tx, row["order_id"]) if t["state"] != "dropped"]
+    nxt = next((t for t in tasks if t["state"] == "doing"), None) or next(
+        (t for t in tasks if t["state"] == "todo"), None
+    )
+    if nxt is None:
+        return None
+    return {"ref": ref, "n": int(nxt["n"]), "title_fa": str(nxt["title_fa"])}
+
+
 async def talk_brief(tx: Tx, order_ref: str) -> dict[str, Any] | None:
     """What a talk bound to an order knows of it (by code): the order, how it is carried out, the
     owner's open turn, the plan, the last steps and what blocks it."""
@@ -704,6 +842,8 @@ async def talk_brief(tx: Tx, order_ref: str) -> dict[str, Any] | None:
         "plan": [{"n": t["n"], "title": t["title_fa"], "state": t["state"]} for t in tasks],
         "plan_next": nxt["n"] if nxt else None,
         "plan_instruction": PLAN_INSTRUCTION,
+        # ⟨2026-11-10⟩ «با من»: the rule of this run, by code, with the next task named
+        **({"step_rule": step_rule(nxt)} if (order.get("pace") or "auto") == "step" else {}),
         # ⟨2026-11-08⟩ audit B1: the owner's last words in the session, verbatim
         "owner_said": await owner_said(tx, rep.get("conversation_ref")),
         "steps": [f"{s.get('who_fa')}: {s.get('what_fa')}" for s in steps[-DIALOGUE_STEPS:]],

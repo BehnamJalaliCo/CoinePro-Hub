@@ -86,6 +86,13 @@ CODES: dict[str, tuple[int, str, str]] = {
         "این کار روی سرور خود شرکت در حال انجام است؛ کارگاه برای کار دیگری است.",
     ),
     "work_closed": (409, "Work closed", "این کار بسته شده است؛ کار تازه‌ای رویش شروع نمیشود."),
+    # ⟨2026-11-10⟩ «با من»: the workshop starts only the plan's next open task
+    "not_next_step": (
+        409,
+        "Not the next step",
+        "این فرمان «با من» است: فقط کار بعدی برنامه شروع میشود. همان را انجام بده، یا اگر مدیر "
+        "کل هنوز نگفته شروع کن، از او بپرس.",
+    ),
     "deploy_frozen": (
         423,
         "Deploy frozen",

@@ -347,6 +347,15 @@ def _agent(ctx: Ctx) -> None:
         raise ApiError(403, "policy_denied", "agents only")
 
 
+async def _session_open(tx: Any, ref: str) -> None:
+    """⟨2026-11-10⟩ A closed session takes no plan, step or question (a run that was still going
+    when the owner closed it): 409 `work_closed`, and the run ends with it."""
+    if await tx.scalar(
+        "SELECT 1 FROM owner.order_reports WHERE ref = :r AND ended_at IS NOT NULL", r=ref
+    ):
+        raise ApiError(409, "work_closed", "the session is closed")
+
+
 @internal_router.post("/orders/{ref}/ack", response_model=OR.OrderReport, responses=E)
 async def order_ack(ref: str, body: AckIn, ctx: Ctx = Depends(internal_ctx)) -> OR.OrderReport:
     """order.ack (A1): the plan of an order's assignee (or its company's CEO):
@@ -357,6 +366,7 @@ async def order_ack(ref: str, body: AckIn, ctx: Ctx = Depends(internal_ctx)) -> 
         await allow(ctx, "order.ack", {"company": ctx.who.company, "assigned": assigned})
         if not assigned:
             raise ApiError(403, "policy_denied", "not an order you work on")
+        await _session_open(tx, ref)
         rep = await OR.acknowledge(
             tx,
             ctx.who,
@@ -401,6 +411,7 @@ async def order_progress(
         await allow(ctx, "order.progress", {"company": ctx.who.company, "assigned": assigned})
         if not assigned:
             raise ApiError(403, "policy_denied", "not an order you work on")
+        await _session_open(tx, ref)
         rep = await OR.progress(tx, ctx.who, ref, body.step_fa)
         if body.done:
             from hq_api.domain import sessions as SE
@@ -441,6 +452,7 @@ async def order_ask(ref: str, body: AskIn, ctx: Ctx = Depends(internal_ctx)) -> 
         await allow(ctx, "order.ask", {"company": ctx.who.company, "assigned": assigned})
         if not assigned:
             raise ApiError(403, "policy_denied", "not an order you work on")
+        await _session_open(tx, ref)
         await OT.ask(tx, ctx.who, ref, body.question_fa)
         await ctx.audit(
             tx,

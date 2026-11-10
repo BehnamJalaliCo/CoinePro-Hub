@@ -210,6 +210,22 @@ class Turn(BaseModel):
     asks: list[Ask] = Field(default_factory=list)
 
 
+class OrderCard(BaseModel):
+    """⟨2026-11-10⟩ A card of this order that waits for a decision, shown IN its session (the
+    owner, in his session: «بیار مهر کنم» — the holder had said «کارت منتظر مُهر شماست» and the
+    card was on another page). The owner seals any of them from here (`POST
+    /decisions/{ref}/approve`, its own step-up); one routed to a CEO or a manager says so."""
+
+    ref: str
+    kind: str
+    title_fa: str
+    by_fa: str | None = None  # who proposed it
+    waits_fa: str  # «منتظر مُهر شما» · «منتظر تصمیم مدیرعامل …»
+    with_owner: bool  # false: an agent (the CEO, a manager) decides it; the owner still may
+    seal: Literal["passkey", "tap"]
+    created_at: datetime
+
+
 class OrderReport(BaseModel):
     ref: str
     text_fa: str
@@ -246,6 +262,8 @@ class OrderReport(BaseModel):
     files: list[FileRef] = Field(default_factory=list)
     # ⟨1.22⟩ §40.1 the session's memory («تا اینجا»; read-only: code and a small model keep it)
     memory_md: str | None = None
+    # ⟨2026-11-10⟩ the order's cards that wait for a decision, oldest first (sealed from the session)
+    cards: list[OrderCard] = Field(default_factory=list)
 
 
 # ----------------------------------------------------------------- reading --
@@ -985,6 +1003,55 @@ async def report(tx: Tx, ref: str) -> OrderReport | None:
         session=await SE.view(tx, rep, order, works=works),
     )
     out.files = [F.render(f) for f in await F.of_order(tx, rep["order_id"])]  # ⟨1.18⟩ §36.3
+    if rep.get("ended_at") is None:
+        out.cards = await cards_of(tx, order, works)
+    return out
+
+
+async def cards_of(tx: Tx, order: dict[str, Any], works: list[dict[str, Any]]) -> list[OrderCard]:
+    """The pending cards of the order: raised on one of its works, or by someone working on it
+    since it began (as the series blocker reads them)."""
+    from hq_api.domain import decisions as DC
+
+    ids = [w["id"] for w in works]
+    codes = [w["a_code"] for w in works if w["a_code"]]
+    if not ids:
+        return []
+    rows = await tx.all(
+        """SELECT d.ref, d.kind, d.action_class, d.title, d.approver_code, d.created_at,
+                  p.title_fa AS by_title, pc.name_fa AS by_company, a.title_fa AS approver_title
+           FROM cartable.decisions d
+           LEFT JOIN core.employees p ON d.proposer_kind = 'agent' AND p.code = d.proposer_code
+           LEFT JOIN core.companies pc ON pc.id = p.company_id
+           LEFT JOIN core.employees a ON a.code = d.approver_code
+           WHERE d.status = 'pending'
+             AND (d.work_id = ANY(:ids) OR (d.proposer_kind = 'agent'
+                  AND d.proposer_code = ANY(:codes) AND d.created_at >= :since))
+           ORDER BY d.created_at LIMIT 20""",
+        ids=ids,
+        codes=codes,
+        since=order["created_at"],
+    )
+    out: list[OrderCard] = []
+    for d in rows:
+        mine = d["approver_code"] is None
+        who = HZ.humanize(str(d["approver_title"] or "")) or "مدیر شرکت"
+        out.append(
+            OrderCard(
+                ref=d["ref"],
+                kind=d["kind"],
+                title_fa=HZ.humanize(str(d["title"])) or str(d["title"]),
+                by_fa=who_fa(d["by_title"], d["by_company"]) if d["by_title"] else None,
+                waits_fa="منتظر مُهر شما"
+                if mine
+                else f"منتظر تصمیم {who}؛ شما هم میتوانید مُهر کنید",
+                with_owner=mine,
+                seal="passkey"
+                if d["action_class"] == "A3" or d["kind"] in DC.STEP_UP_KINDS
+                else "tap",
+                created_at=d["created_at"],
+            )
+        )
     return out
 
 
@@ -1402,14 +1469,23 @@ async def owner_turn(tx: Tx, work_id: UUID | None) -> dict[str, Any] | None:
     }
 
 
+def answers_owner(run: dict[str, Any], waiting: dict[str, Any]) -> bool:
+    """Whether the run carries the owner's word on what the order waits for: his own word started
+    it (`OWNER_WORD_REASONS`) and it was queued after the question. A word he said before the
+    question was asked («ادامه بده» a moment before a colleague asked) does not answer it."""
+    if not str(run.get("reason") or "").startswith(OWNER_WORD_REASONS):
+        return False
+    since, queued = waiting.get("since"), run.get("queued_at")
+    return since is None or queued is None or queued >= since
+
+
 async def held_for_owner(tx: Tx, run: dict[str, Any]) -> bool:
     """Whether a work run waits for the owner's answer (claim): a `work` run of a step-by-step
-    order that waits for the owner, unless the owner's own word started it."""
+    order that waits for the owner, unless the owner's own word on that question started it."""
     if run.get("trigger") != "work" or run.get("work_id") is None:
         return False
-    if str(run.get("reason") or "").startswith(OWNER_WORD_REASONS):
-        return False
-    return await owner_turn(tx, run["work_id"]) is not None
+    waiting = await owner_turn(tx, run["work_id"])
+    return waiting is not None and not answers_owner(run, waiting)
 
 
 async def resume_held(tx: Tx, ref: str) -> list[str]:

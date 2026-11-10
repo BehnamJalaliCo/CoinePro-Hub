@@ -66,6 +66,7 @@ SHARED_TOOLS = (
     "linked.read",
     "erase.propose",
     "workshop.run",
+    "workshop.stop",  # ⟨2026-11-10⟩ whoever may start a turn may stop its own
 )
 
 
@@ -193,7 +194,11 @@ def parse_tools(text: str) -> dict[str, Tool]:
                 out[name] = Tool(
                     name=name,
                     cls=cls,
-                    input=inputs[i] if i < len(inputs) else inputs[-1],
+                    # ⟨2026-11-10⟩ a single tool with alternative inputs («{…} · {job}») keeps
+                    # them all: the model's tool table never showed `{job}`
+                    input=" · ".join(inputs)
+                    if len(names) == 1
+                    else (inputs[i] if i < len(inputs) else inputs[-1]),
                     description=cells[3].strip(),
                     classes=classes,
                     per_tool=per_tool,

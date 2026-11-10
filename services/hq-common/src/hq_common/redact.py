@@ -421,6 +421,12 @@ def _spans(text: str, secrets_only: bool = False) -> list[tuple[int, int, str]]:
     return merged
 
 
+_UUID = re.compile(
+    r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}"
+    r"(?![0-9A-Fa-f])"
+)
+
+
 def _masks(text: str, secrets_only: bool = False) -> list[tuple[int, int, str]]:
     """(start, end, replacement) in `text` itself (not its normalised view):
     sorted and non-overlapping."""
@@ -429,7 +435,13 @@ def _masks(text: str, secrets_only: bool = False) -> list[tuple[int, int, str]]:
     norm, origin = _normalise(text)
     out: list[tuple[int, int, str]] = []
     pos = 0
+    # ⟨2026-11-10⟩ a run of digits inside a UUID is part of an id, not a phone number: about
+    # one job or file id in 400 came back to the model ending in "[phone]" and its next call
+    # with that id failed
+    ids = [m.span() for m in _UUID.finditer(norm)] if "-" in norm else []
     for s, e, repl in _spans(norm, secrets_only):
+        if repl == "[phone]" and any(a <= s and e <= b for a, b in ids):
+            continue
         if origin is not None:
             s, e = origin[s], origin[e - 1] + 1
         s = max(s, pos)
@@ -529,6 +541,19 @@ def _number(n: int) -> int | str:
     return n if out == digits else out
 
 
+CUT = " …[cut]"
+HEAD_CUT = "[cut]… "
+# a command's output: when it must be cut, its end is kept (where the error is)
+TAIL_KEYS = frozenset({"stdout", "stderr"})
+
+
+def _tail(value: str, max_string: int) -> str:
+    if len(value) > max_string + CUT_MARGIN:
+        value = value[-(max_string + CUT_MARGIN) :]
+    out = scrub(value)
+    return out if len(out) <= max_string else HEAD_CUT + out[-max_string:]
+
+
 def redact(
     value: Any, *, max_string: int | None = None, max_list: int | None = None, _depth: int = 0
 ) -> Any:
@@ -544,7 +569,7 @@ def redact(
         out = scrub(value)
         if max_string is None or len(out) <= max_string:
             return out
-        return out[:max_string] + " …[cut]"
+        return out[:max_string] + CUT
     if isinstance(value, bool):
         return value
     if isinstance(value, int):
@@ -559,6 +584,8 @@ def redact(
             secret = is_secret_key(str(k)) or (pair and str(k).lower() in _PAIR_VALUES)
             if secret and not isinstance(v, bool) and v is not None:
                 res[key] = MASK
+            elif isinstance(v, str) and max_string is not None and str(k) in TAIL_KEYS:
+                res[key] = _tail(v, max_string)
             else:
                 res[key] = redact(v, max_string=max_string, max_list=max_list, _depth=_depth + 1)
         return res
@@ -602,15 +629,16 @@ def mask_secrets(value: Any, _depth: int = 0) -> Any:
 
 
 def fit(value: Any, max_chars: int) -> tuple[Any, bool]:
-    """Redacted `value` whose JSON fits in `max_chars` (strings cut harder if needed)."""
-    out = redact(value, max_string=MAX_STRING, max_list=MAX_LIST)
-    if len(json.dumps(out, ensure_ascii=False, default=str)) <= max_chars:
-        return out, False
-    for limit in (1000, 400, 160):
+    """Redacted `value` whose JSON fits in `max_chars` (strings cut harder if needed).
+    ⟨2026-11-10⟩ A string is cut only when the whole does not fit (a command's 12,000 characters
+    came back as their first 4,000 although the result had room for all of them), a command's
+    output keeps its end, and the flag is true whenever a string was cut."""
+    text = ""
+    for limit in (max(max_chars, MAX_STRING), MAX_STRING, 1000, 400, 160):
         out = redact(value, max_string=limit, max_list=MAX_LIST)
-        if len(json.dumps(out, ensure_ascii=False, default=str)) <= max_chars:
-            return out, True
-    text = json.dumps(out, ensure_ascii=False, default=str)
+        text = json.dumps(out, ensure_ascii=False, default=str)
+        if len(text) <= max_chars:
+            return out, limit < MAX_STRING or CUT in text or HEAD_CUT in text
     return {"truncated": text[: max(0, max_chars - 40)]}, True
 
 

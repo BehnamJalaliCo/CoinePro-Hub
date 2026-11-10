@@ -285,11 +285,20 @@ async def after_job(hub: Any, job_id: UUID) -> None:
             return
         w = await W.load(tx, ws["work_id"], lock=True)
         tokens = W.effective_tokens(*_usage(j.get("usage") or {}))
+        hands = bool((j.get("args") or {}).get("hands"))  # ⟨2026-11-09⟩ §43 the workshop
         if tokens:
             await W.add_usage(
                 tx, w, tokens, Decimal(0)
             )  # the server's own login: tokens, no hub money
-        hands = bool((j.get("args") or {}).get("hands"))  # ⟨2026-11-09⟩ §43 the workshop
+            if hands and w.get("budget_tokens") is not None:
+                # ⟨2026-11-10⟩ the workshop has no token cap (the owner's decision): what a turn
+                # spent is shown on the work but not taken from the budget of its assignee's own
+                # runs (a long turn left the next run a cap of zero)
+                await tx.exec(
+                    "UPDATE work.work SET budget_tokens = budget_tokens + :t WHERE id = :id",
+                    t=tokens,
+                    id=w["id"],
+                )
         if j["state"] == "done":
             answer = (await SV.full_answer(tx, hub, j)).strip() or (j["summary_fa"] or "")
             # ⟨2026-11-09⟩ the files the turn left in `out/` (runner >= 0.3.2), checked
@@ -323,9 +332,7 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                     await SP.after_part(tx, w["id"])
                     await SP.after_parent(tx, w["id"])
                 else:  # the holder tells the owner what is ready and asks «تأیید یا اصلاح؟»
-                    await tx.scalar(
-                        "SELECT work.wake_assignee(:w, :r)", w=w["id"], r=f"{DONE_REASON}{w['ref']}"
-                    )
+                    await _wake_or_say(tx, w, f"{DONE_REASON}{w['ref']}")
             await _set(tx, ws, state, None)
         elif j["state"] == "cancelled":
             await _set(tx, ws, "stopped", HZ.humanize(j["summary_fa"]) or "متوقف شد")
@@ -337,15 +344,58 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                 {"job": str(j["id"]), "code": j["error_code"], "note_fa": note[:500]},
             )  # fmt: skip
             if hands:
+                # ⟨2026-11-10⟩ what the turn had already made is not lost with it: the files it
+                # left in `out/` (a turn stopped at its hour sends them, runner >= 0.3.3) come as
+                # an unfinished output of the work, which stays open
+                files = await made_files(tx, j, w["company_id"])
+                if files and (w["status"] in W.OPEN or w["status"] == "delivered"):
+                    await PL.deliver(
+                        tx,
+                        w,
+                        title=f"خروجی ناتمام کارگاه: {w['title']}"[:300],
+                        body=f"{note}\n\n{OUT_ONLY_FA}",
+                        produced_with={
+                            "runtime": "workshop",
+                            "server": j["server_name"],
+                            "workspace": w["ref"],
+                            "job": str(j["id"]),
+                            "session": j.get("session_ref"),
+                            "files": len(files),
+                            "unfinished": True,
+                        },
+                        hub=hub,
+                        attachments=files,
+                        close=False,
+                    )
                 # ⟨2026-11-09⟩ never a silent stop: the holder gets a run now and says why (60
                 # minutes, an error); a fix is the next workshop.run (a fresh session, same folder)
-                await tx.scalar(
-                    "SELECT work.wake_assignee(:w, :r)", w=w["id"], r=f"{FAILED_REASON}{w['ref']}"
-                )
+                await _wake_or_say(tx, w, f"{FAILED_REASON}{w['ref']}")
             elif w["status"] in W.OPEN and w["assignee_id"] is not None:
                 # the next run is on the hub, as today: a `resume` the worker turns into one run
                 await W.event(tx, w, W.RESUME, SERVICE, {"why": f"{FAILED_REASON}{w['ref']}"})
         await events.emit(tx, w["company"], "work.updated", w["ref"], {"workspace": ws["state"]})
+
+
+async def _wake_or_say(tx: Tx, w: dict[str, Any], reason: str) -> None:
+    """⟨2026-11-10⟩ The work's assignee gets a run for what the turn left, or its order's session
+    says why not (a lock, nobody assigned): a workshop turn never ends in silence."""
+    from hq_api.domain import order_report as OR
+    from hq_api.domain import session_activity as SA
+
+    if await tx.scalar("SELECT work.wake_assignee(:w, :r)", w=w["id"], r=reason) is not None:
+        return
+    ref = await OR.order_of_work(tx, w["id"])
+    rep = await OR.ensure(tx, ref) if ref else None
+    if rep is None or rep.get("ended_at") is not None:
+        return
+    lock = await tx.scalar("SELECT control.lock_state(:co)", co=w["company_id"])
+    if lock is not None:
+        why = "شرکت قفل است و تا قفل باز نشود کار راه نمیافتد"
+    elif w.get("assignee_id") is None:
+        why = "کار مسئولی ندارد"
+    else:
+        why = "کار راه نیفتاد؛ «ادامه بده» را بزنید"
+    await OR._append_steps(tx, rep["id"], [OR._step(SA.SYSTEM_FA, f"کار کارگاه تمام شد ولی {why}")])
 
 
 async def made_files(tx: Tx, j: dict[str, Any], company_id: Any) -> list[str]:

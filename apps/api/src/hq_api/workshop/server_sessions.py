@@ -19,6 +19,7 @@ failed, `stopped` when the owner stopped it or a kill switch cancelled it.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 from uuid import UUID
 
@@ -33,6 +34,10 @@ from hq_common.redact import scrub
 MODEL = "claude-code"  # the server's own login decides the model
 EFFORT = "high"
 TURN_TIMEOUT_S = 3600
+
+
+# what makes a turn a workshop turn (domain/hands.py): carried from one turn to the next
+HANDS_KEYS = ("hands", "model", "permission_mode", "allowed_tools", "timeout_s")
 
 
 def default_cwd(server: dict[str, Any]) -> str | None:
@@ -199,8 +204,8 @@ async def steer(
         )
     server = await SV.load_server(tx, s["server_id"])
     last = await tx.first(
-        """SELECT actor_kind, actor_code, on_behalf_code, work_ref FROM infra.server_jobs
-           WHERE session_id = :s ORDER BY created_at DESC LIMIT 1""",
+        """SELECT actor_kind, actor_code, on_behalf_code, work_ref, args, timeout_s
+           FROM infra.server_jobs WHERE session_id = :s ORDER BY created_at DESC LIMIT 1""",
         s=s["id"],
     )
     ak, ac = (
@@ -216,6 +221,14 @@ async def steer(
     )
     if ws_ref:
         extra_args = {"workspace": ws_ref, **(extra_args or {})}
+        # ⟨2026-11-10⟩ a workshop session keeps its hands on every turn: the owner's own message
+        # in it (no extra args) ran without the model, the tools and the hour, and its `out/`
+        # never came back as a workshop output
+        prev = last["args"] if last else None
+        prev = json.loads(prev) if isinstance(prev, str) else (prev or {})
+        if prev.get("hands") and not extra_args.get("hands"):
+            extra_args = {**{k: prev[k] for k in HANDS_KEYS if k in prev}, **extra_args}
+            timeout_s = max(timeout_s, int((last["timeout_s"] if last else None) or timeout_s))
     job = await SV.create_job(
         tx,
         server=server,

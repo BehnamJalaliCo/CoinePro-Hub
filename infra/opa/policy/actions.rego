@@ -50,7 +50,13 @@ locked := object.get(ctx, "company_locked", true) != false
 
 # The Tool Gateway sends the tool's name (agents/tools.md); the lock rules speak
 # of policy actions. This is the one map from the one to the other.
-tool_actions := {"notify": "notification.raise"}
+tool_actions := {
+	"notify": "notification.raise",
+	# ⟨2026-11-10⟩ the controls by their tool names: a CEO could not engage the kill switch while
+	# its company was under a deploy freeze (the exemption below knew only the api's op names)
+	"kill_switch.engage": "kill_switch.set",
+	"deploy.freeze": "deploy_freeze.set",
+}
 
 policy_action := object.get(tool_actions, name, name)
 
@@ -62,7 +68,7 @@ lock_exempt if {
 
 # The controls themselves (kill switch, deploy freeze) are what the lock is
 # about: hq.internal decides who may set or release them.
-lock_exempt if name in {"kill_switch.set", "deploy_freeze.set"}
+lock_exempt if policy_action in {"kill_switch.set", "deploy_freeze.set"}
 
 default allow := false
 

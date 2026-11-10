@@ -127,7 +127,9 @@ def with_overflow(result: JobResult, sink: EventSink) -> JobResult:
             f" خروجی بسیار بزرگ بود؛ از بایت {kept_from} پیوست شد"
             f" و {sink.dropped_bytes} بایت فراتر از سقف دیسک نگه داشته نشد."
         )
-    return JobResult(result.exit_code, result.summary_fa + note, result.usage, output)
+    return JobResult(
+        result.exit_code, result.summary_fa + note, result.usage, output, result.after_post
+    )
 
 
 class Runner:
@@ -405,6 +407,12 @@ class Runner:
             body["data"] = result.output
         try:
             await with_retry(lambda: self.hub.post_result(jid, body), attempts=10, sleep=self.sleep)
+            if result.after_post is not None:
+                # ⟨0.3.3⟩ only now is what the result names recorded as delivered
+                try:
+                    await asyncio.to_thread(result.after_post)
+                except Exception:
+                    log.exception("job %s: its delivery could not be recorded", jid)
         except JobGone:
             log.info("job %s was already closed on the hub", jid)
         except (Unauthorized, Revoked) as exc:

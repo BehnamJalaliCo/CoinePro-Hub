@@ -1,6 +1,7 @@
 """⟨0.3.2⟩ A workspace turn's deliverables (contract §43, the holding's workshop).
 
-When a `claude` job with `args.workspace` ends well, the files the session left in `out/` of
+When a `claude` job with `args.workspace` ends well (⟨0.3.3⟩ or is stopped at its time limit:
+what it had made is not lost), the files the session left in `out/` of
 the work's folder go to the hub, one request each (POST /runners/jobs/{id}/files, raw body,
 while the job still runs), and the result names them (`files`): the hub attaches them to the
 turn's output in the owner's session. The same folder serves every turn of the work, so a file
@@ -101,15 +102,21 @@ def candidates(
     return send, skipped
 
 
-async def send(ctx: Any, folder: Path, ref: str) -> tuple[list[str], list[dict[str, str]]]:
-    """Sends the turn's new files in `out/` -> (the hub's file ids, the files skipped)."""
+async def send(
+    ctx: Any, folder: Path, ref: str
+) -> tuple[list[str], list[dict[str, str]], dict[str, str]]:
+    """Sends the turn's new files in `out/` -> (the hub's file ids, the files skipped, and
+    ⟨0.3.3⟩ what to record as sent {name: sha256} once the hub has taken the turn's result: a
+    file recorded before that was never sent again when the result did not arrive, and reached
+    no output at all)."""
     sent = await asyncio.to_thread(WSP.sent_of, ref, ctx.cfg_path)
     todo, skipped = await asyncio.to_thread(candidates, folder, sent)
     ids: list[str] = []
+    marks: dict[str, str] = {}
     for path, rel, ctype, digest in todo:
         try:
             ref_: dict[str, Any] | None = await with_retry(
-                functools.partial(ctx.hub.upload_file, ctx.id, path, rel, ctype), attempts=3
+                functools.partial(ctx.hub.upload_file, ctx.id, path, rel, ctype)
             )
         except JobGone:
             log.warning("job %s ended while its files were being sent", ctx.id)
@@ -123,6 +130,6 @@ async def send(ctx: Any, folder: Path, ref: str) -> tuple[list[str], list[dict[s
             skipped.append({"name": rel, "why": REFUSED_FA})
             continue
         ids.append(fid)
-        await asyncio.to_thread(WSP.mark_sent, ref, rel, digest, ctx.cfg_path)
+        marks[rel] = digest
         ctx.sink.emit("progress", {"text": f"out/{rel} sent"})
-    return ids, skipped
+    return ids, skipped, marks

@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import functools
 import json
 import os
 import re
@@ -52,6 +53,7 @@ from typing import Any
 
 import hq_runner
 from hq_runner import outbox
+from hq_runner import workspace as workspace_state
 from hq_runner.config import config_path
 from hq_runner.jobs import JobContext, JobError, JobResult, _cwd, _timeout
 from hq_runner.mask import Masker, StreamMasker
@@ -494,9 +496,22 @@ async def run_claude(ctx: JobContext) -> JobResult:
     if workspace is not None:
         output["workspace"] = {"ref": workspace, "path": cwd}
     sent_n = 0
-    if workspace is not None and exit_code == 0 and not ctx.cancel.is_set() and not capped:
+    after_post = None
+    timed_out = res.reason == "timeout"
+    if (
+        workspace is not None
+        and (exit_code == 0 or timed_out)
+        and not ctx.cancel.is_set()
+        and not capped
+    ):
         # ⟨0.3.2⟩ §43 the files the turn left in out/ go to the hub before the result names them
-        files, skipped = await outbox.send(ctx, Path(cwd), str(workspace))
+        # ⟨0.3.3⟩ also when the turn was stopped at its time limit: what it had made reaches the
+        # owner as an unfinished output instead of staying on the server
+        files, skipped, marks = await outbox.send(ctx, Path(cwd), str(workspace))
+        if marks:
+            after_post = functools.partial(
+                workspace_state.mark_sent, str(workspace), marks, "", ctx.cfg_path
+            )
         sent_n = len(files)
         if files:
             output["files"] = files
@@ -516,4 +531,4 @@ async def run_claude(ctx: JobContext) -> JobResult:
         summary += f" جواب {len(whole)} نویسه بود و فقط {MAX_ANSWER_CHARS} نویسه‌ی اول آن آمد."
     if sent_n:
         summary += f" {sent_n} فایل از out/ به ستاد رفت."
-    return JobResult(exit_code, summary, usage=usage, output=output)
+    return JobResult(exit_code, summary, usage=usage, output=output, after_post=after_post)

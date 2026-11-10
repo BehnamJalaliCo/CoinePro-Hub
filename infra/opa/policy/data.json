@@ -132,7 +132,8 @@
           "hub.ops",
           "hubops.run",
           "connection.set",
-          "workshop.run"
+          "workshop.run",
+          "kpi.record"
         ],
         "assistant": [
           "errand.step",
@@ -180,6 +181,12 @@
         ],
         "advisor": [
           "workshop.run"
+        ],
+        "system": [
+          "work.accept",
+          "work.progress",
+          "work.fail",
+          "activity.set"
         ]
       },
       "authority_bounds": {

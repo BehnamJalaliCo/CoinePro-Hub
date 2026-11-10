@@ -17,12 +17,15 @@ HQ_RUNNER_WORKSPACES overrides the root folder (tests).
 from __future__ import annotations
 
 import contextlib
+import functools
 import json
 import logging
 import os
 import re
 import shutil
+import threading
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -30,6 +33,19 @@ from typing import Any
 from hq_runner.config import config_path, write_private
 
 log = logging.getLogger("hq_runner.workspace")
+# ⟨0.3.3⟩ workspaces.json is read, changed and written back by every job of the runner (each in
+# its own thread): one lock, so two jobs ending together do not lose each other's change
+_LOCK = threading.RLock()
+
+
+def _locked[**P, R](fn: Callable[P, R]) -> Callable[P, R]:
+    @functools.wraps(fn)
+    def inner(*args: P.args, **kwargs: P.kwargs) -> R:
+        with _LOCK:
+            return fn(*args, **kwargs)
+
+    return inner
+
 
 REF = re.compile(r"^W-[0-9]{6,12}$")
 KEEP_DAYS = 30
@@ -83,6 +99,7 @@ def save(state: dict[str, dict[str, Any]], cfg_path: Path | None = None) -> None
     write_private(state_file(cfg_path), state)
 
 
+@_locked
 def prepare(ref: str, cfg_path: Path | None = None, now: float | None = None) -> Path:
     """The work's folder, made (700) on its first use; every later turn finds
     it as it was left. A folder whose work was closed is opened again only by
@@ -111,17 +128,26 @@ def sent_of(ref: str, cfg_path: Path | None = None) -> dict[str, str]:
     return {str(k): str(v) for k, v in sent.items()} if isinstance(sent, dict) else {}
 
 
-def mark_sent(ref: str, name: str, digest: str, cfg_path: Path | None = None) -> None:
-    """⟨0.3.2⟩ One file of `out/` sent (its name and its bytes' sha256)."""
+@_locked
+def mark_sent(
+    ref: str, name: str | dict[str, str], digest: str = "", cfg_path: Path | None = None
+) -> None:
+    """⟨0.3.2⟩ Files of `out/` sent (a name and its bytes' sha256, or ⟨0.3.3⟩ {name: sha256} at
+    once: recorded after the hub took the turn's result, so a result that never arrived leaves
+    its files to be sent again with the next turn)."""
+    marks = name if isinstance(name, dict) else {name: digest}
+    if not marks:
+        return
     state = load(cfg_path)
     entry = state.setdefault(check_ref(ref), {"created_at": None, "closed_at": None})
     prev = entry.get("sent")
     sent: dict[str, Any] = dict(prev) if isinstance(prev, dict) else {}
-    sent[name] = digest
+    sent.update(marks)
     entry["sent"] = sent
     save(state, cfg_path)
 
 
+@_locked
 def close(refs: list[Any], cfg_path: Path | None = None, now: float | None = None) -> list[str]:
     """The hub's close of each work: recorded once (the folder stays until
     the sweep) and logged. Returns the refs newly recorded."""
@@ -152,6 +178,7 @@ def close(refs: list[Any], cfg_path: Path | None = None, now: float | None = Non
     return recorded
 
 
+@_locked
 def sweep(cfg_path: Path | None = None, now: float | None = None) -> list[str]:
     """Removes every workspace whose work closed more than KEEP_DAYS ago
     (logged, one line each). Returns the refs removed."""

@@ -19,9 +19,16 @@ test_kpi_record_and_checkins_are_the_companys_leaders if {
 		allowed(f.ty_ceo, op, ty)
 		allowed(f.ty_growth_mgr, op, ty)
 		not allowed(f.fx_ceo, op, ty)
-		not allowed(f.ty_growth_01, op, ty)
 		not allowed(f.owner, op, ty)
 	}
+	not allowed(f.ty_growth_01, "okr.checkin", ty)
+}
+
+# ⟨2026-11-10⟩ an employee records a KPI of its own company (its charter decides whether it has
+# the tool at all: the gateway), never another company's
+test_an_employee_records_its_own_companys_kpi if {
+	allowed(f.ty_growth_01, "kpi.record", ty)
+	not allowed(f.ty_growth_01, "kpi.record", fx)
 }
 
 test_only_the_ceo_drafts_its_okrs if {

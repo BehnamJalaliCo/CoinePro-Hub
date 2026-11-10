@@ -55,6 +55,8 @@ class JobResult:
     summary_fa: str
     usage: dict[str, Any] | None = None
     output: dict[str, Any] | None = None
+    # ⟨0.3.3⟩ run once the hub has taken this result (never when it was not delivered)
+    after_post: Callable[[], None] | None = None
 
 
 @dataclass

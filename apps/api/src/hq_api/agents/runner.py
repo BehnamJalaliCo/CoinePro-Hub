@@ -610,6 +610,7 @@ class Runner:
         done = False
         n = 0
         bad_outputs = 0
+        asked = False
         while n < research_steps and not done:
             if await self._locked(run["company_id"]):
                 return (
@@ -625,12 +626,17 @@ class Runner:
                     "talk_loop",
                     "the order was stopped: too many runs without an output",
                 )
+            if await self._work_cancelled(rc):
+                # ⟨2026-11-10⟩ the owner closed the session (or the work was cancelled) while
+                # this run was going: it stops here, not at its last step
+                return ("refused", "work_closed", "the work was cancelled during the run")
             waiting = await self._owner_turn(rc)
             if waiting is not None:
                 # ⟨2026-11-09⟩ «با من»: the session began to wait for the owner during this run.
                 # Whoever asked has finished its step; anyone else stops here and goes on once
                 # he answers (OR.resume_held).
                 if rc.emp["code"] in waiting["askers"]:
+                    asked = True  # its step ended with the question: a finished run, not a cut one
                     break
                 return (
                     "refused",
@@ -728,7 +734,7 @@ class Runner:
             return await self._answer(rc, system, n + 1, live_thread, deadline)
         if live_thread and rc.replied is None and not done:
             await self._live(live_thread, rc, "reply.failed", {"code": "no_reply"})
-        if done:
+        if done or asked:
             return "done", None, None
         return await self._partial(rc, n)
 
@@ -1028,23 +1034,30 @@ class Runner:
         cached = min(rc.last_cache_read, est)
         return est - cached + round(cached * W.CACHE_READ_SHARE)
 
+    async def _work_cancelled(self, rc: RunCtx) -> bool:
+        if rc.run.get("trigger") != "work" or rc.run["work_id"] is None:
+            return False
+        async with await self._tx() as tx:
+            return bool(
+                await tx.scalar(
+                    "SELECT 1 FROM work.work WHERE id = :id AND status = 'cancelled'",
+                    id=rc.run["work_id"],
+                )
+            )
+
     async def _owner_turn(self, rc: RunCtx) -> dict[str, Any] | None:
-        """⟨2026-11-09⟩ The run's step-by-step order began to wait for the owner after this run
-        started ({askers, since}); a question already open when it started (the owner's own word
-        started it) does not stop it."""
+        """⟨2026-11-09⟩ The run's step-by-step order waits for the owner ({askers, since}); a run
+        his own word on that question started (queued after it was asked) is not stopped."""
         if rc.run.get("trigger") != "work" or rc.run["work_id"] is None:
             return None
         async with await self._tx() as tx:
             waiting = await OR.owner_turn(tx, rc.run["work_id"])
-            started = await tx.scalar(
-                "SELECT started_at FROM agents.runs WHERE id = :id", id=rc.run["id"]
+            if waiting is None:
+                return None
+            row = await tx.first(
+                "SELECT reason, queued_at FROM agents.runs WHERE id = :id", id=rc.run["id"]
             )
-        if waiting is None:
-            return None
-        since = waiting.get("since")
-        if since is not None and started is not None and since < started:
-            return None
-        return waiting
+        return None if row is not None and OR.answers_owner(dict(row), waiting) else waiting
 
     async def _talk_stopped(self, rc: RunCtx) -> bool:
         if rc.run["work_id"] is None:

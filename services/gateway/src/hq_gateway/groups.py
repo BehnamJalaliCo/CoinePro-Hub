@@ -105,9 +105,24 @@ async def experiment_write(api: T.Api, call: T.Call, a: ExperimentIn) -> T.Resul
 
 async def connection_read(api: T.Api, call: T.Call, a: ConnectionReadIn) -> T.Result:
     params = {k: v for k, v in a.model_dump(mode="json").items() if v is not None}
-    return T.from_response(
+    r = T.from_response(
         await api.request("GET", "/internal/v1/connections", call.token, params=params), None
     )
+    # ⟨2026-11-10⟩ the field `secret` only says set | missing, but a key of that name is masked
+    # on the way to the model: it travels as `secret_state` so the agent can tell which it is
+    r.data = _secret_state(r.data)
+    return r
+
+
+def _secret_state(v: Any) -> Any:
+    if isinstance(v, dict):
+        return {
+            ("secret_state" if k == "secret" and x in ("set", "missing") else k): _secret_state(x)
+            for k, x in v.items()
+        }
+    if isinstance(v, list):
+        return [_secret_state(x) for x in v]
+    return v
 
 
 TOOLS: dict[str, tuple[type[T.In], T.Handler]] = {

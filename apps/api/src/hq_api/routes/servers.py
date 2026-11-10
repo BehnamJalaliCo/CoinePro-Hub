@@ -36,6 +36,7 @@ import asyncio
 import contextlib
 import hashlib
 import json
+import logging
 from collections.abc import AsyncIterator
 from datetime import datetime
 from typing import Any, Literal
@@ -50,13 +51,14 @@ from hq_api.context import Ctx, internal_ctx, owner_ctx
 from hq_api.domain import files as F
 from hq_api.domain import hands as HANDS
 from hq_api.domain import links as LK
+from hq_api.domain import order_turns as OT
 from hq_api.domain import servers as SV
 from hq_api.domain import workspace as WS
 from hq_api.errors import ApiError, responses
 from hq_api.hub import Hub, get_hub
 from hq_api.principal import Principal
 from hq_api.routes.files import Prepared, Upload, file_name, prepare_file, store_file
-from hq_api.routes.internal import allow
+from hq_api.routes.internal import action_gate, allow
 from hq_api.schemas import FileRef, Model, Page
 from hq_api.security import deps, stepup
 from hq_api.workshop import domain as W
@@ -69,6 +71,7 @@ E = responses(401, 403, 404, 409, 422)
 ER = responses(401, 403, 404, 409, 410, 422, 423, 428, 429)
 CODE = r"^[A-Z][A-Z0-9]{1,9}$"
 NAME = r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$"
+log = logging.getLogger("hq_api.servers")
 LONG_POLL_S = 30
 POLL_S = 1.0
 SSE_POLL_S = 0.3
@@ -375,8 +378,14 @@ async def runner_next(
     Nothing new starts while the company is locked."""
     del via, hub_rtt_ms  # read by the runner dependency (documented here for the schema)
     deadline = asyncio.get_running_loop().time() + wait
+    # ⟨2026-11-10⟩ the holding's runner is the workshop: it holds works of every company, so its
+    # poll reads in every company's view (in its own scope a company's closed work was never seen
+    # and no folder was removed, and a locked company's turn could not be told from another's)
+    scope = _scope(r)
+    if (await hub.companies.holding()).id == r["company_id"]:
+        scope = await hub.companies.ids()
     while True:
-        async with hub.db.tx(_scope(r)) as tx:
+        async with hub.db.tx(scope) as tx:
             if await tx.scalar(
                 "SELECT revoked_at IS NOT NULL FROM infra.runners WHERE id = :id", id=r["id"]
             ):
@@ -1410,6 +1419,57 @@ class WorkshopRunIn(Model):
     brief: str = Field(min_length=1, max_length=20000)
     title: str | None = Field(default=None, max_length=300)
     work: str | None = Field(default=None, pattern=r"^W-[0-9]{6,}$")
+    # ⟨2026-11-10⟩ the plan task this turn is for: required in a step-by-step order («با من»)
+    task: int | None = Field(default=None, ge=1, le=99)
+
+
+class WorkshopStopIn(Model):
+    """⟨2026-11-10⟩ workshop.stop: the caller's own turn (its run's work, or `work`)."""
+
+    work: str | None = Field(default=None, pattern=r"^W-[0-9]{6,}$")
+    reason: str | None = Field(default=None, max_length=300)
+
+
+class WorkshopStopped(BaseModel):
+    work_ref: str
+    stopped: bool  # false: no turn of that work was running
+    job: str | None = None
+
+
+async def _workshop_gate(ctx: Ctx, who: Any, server: dict[str, Any]) -> None:
+    """Who may (hq.internal: any working role, only on the holding's workshop), then the action
+    gate by the tool's own name: `workshop.run` is every working kind's A2, `server.run` is not
+    (the advisor, the assistant and QC were refused here)."""
+    await ctx.hub.policy.require(
+        "internal",
+        {
+            "principal": who.opa(),
+            "op": "server.run",
+            "target": {"company": server["company"], "charter": who.charter, "via": "workshop"},
+        },
+    )
+    await action_gate(ctx.hub, who, "workshop.run", "A2", escrow_classes=[])
+
+
+@internal_router.post("/workshop/stop", response_model=WorkshopStopped, responses=ER)
+async def workshop_stop(body: WorkshopStopIn, ctx: Ctx = Depends(internal_ctx)) -> Any:
+    """⟨2026-11-10⟩ workshop.stop (contract §43.6): the caller stops the workshop turn of its own
+    work (its run's work, or `work`, assigned to it). The owner: the holder had started a turn
+    he had not asked for and could only answer «نمیتوانم متوقفش کنم». The turn's process is killed
+    by the runner on its next poll; the workspace stays (a later `workshop.run` goes on in the
+    same folder, a fresh session). `stopped: false` when nothing was running."""
+    who = _agent(ctx)
+    if who.role == "system":
+        raise ApiError(403, "policy_denied", "a working role only")
+    wide = await ctx.hub.companies.ids()
+    async with ctx.hub.db.tx(wide) as tx:
+        server = await HANDS.workshop_server(tx)
+        if server is None:
+            raise ApiError(409, "workshop_unavailable")
+    await _workshop_gate(ctx, who, server)
+    async with ctx.hub.db.tx(wide) as tx:
+        w = await HANDS.the_work(tx, who, body.work, closed_ok=True)
+        return await HANDS.stop_turn(tx, who, w, body.reason, request_id=ctx.request_id)
 
 
 @internal_router.post(
@@ -1425,10 +1485,12 @@ async def workshop_run(
     agent of any company hands a task with no tool of its own to Claude Code on the holding's
     workshop server, for its run's work item (or `work`, assigned to it). Answers at once:
     `201 {job, work_ref, state: starting, turn, path, server}`; `200` with `state: working` while
-    a turn of that work still runs (nothing new starts). The turn's answer and `out/` files come
-    back as an output of the work. `409 workshop_unavailable` (no paired workshop on runner ≥
-    0.3.2), `409 workshop_stopped` (the owner stopped it), `409 workspace_elsewhere` (the work
-    runs on its company's own server), `409 work_closed`. Requires `Idempotency-Key`."""
+    a turn of that work still runs (nothing new starts). ⟨2026-11-10⟩ In a step-by-step order
+    («با من») with a plan, `task` must be the plan's next open task: `409 not_next_step` names
+    it. The turn's answer and `out/` files come back as an output of the work.
+    `409 workshop_unavailable` (no paired workshop on runner ≥ 0.3.2, or it is not online now),
+    `409 workshop_stopped` (the owner stopped it), `409 workspace_elsewhere` (the work runs on
+    its company's own server), `409 work_closed`. Requires `Idempotency-Key`."""
     who = _agent(ctx)
     if who.role == "system":
         raise ApiError(403, "policy_denied", "a working role only")
@@ -1438,11 +1500,20 @@ async def workshop_run(
         if server is None:
             raise ApiError(409, "workshop_unavailable")
         w = await HANDS.the_work(tx, who, body.work)
-    await allow(
-        ctx,
-        "server.run",
-        {"company": server["company"], "charter": who.charter, "via": "workshop"},
-    )
+        # ⟨2026-11-10⟩ «با من»: only the plan's next open task starts, and the caller names it
+        nxt = await OT.step_next(tx, w["id"])
+        if nxt is not None and body.task != nxt["n"]:
+            raise ApiError(
+                409,
+                "not_next_step",
+                fields={
+                    "task": f"the plan's next open task is {nxt['n']}: {nxt['title_fa'][:160]}"
+                },
+            )
+    if SV.state_of(server) != "online":
+        # ⟨2026-11-10⟩ said at once, not a turn that waits in a queue nobody reads
+        raise ApiError(409, "workshop_unavailable")
+    await _workshop_gate(ctx, who, server)
     scope = list(dict.fromkeys([who.company_id, server["company_id"], w["company_id"]]))
     async with ctx.hub.db.tx(scope) as tx:
         idem = await idempotency.claim(tx, request, who, required=True)
@@ -1463,6 +1534,14 @@ async def loop(hub: Hub) -> None:
     a dispatched job past its timeout fails."""
     while True:
         await asyncio.sleep(30)
+        ended: list[UUID] = []
         with contextlib.suppress(Exception):
             async with hub.db.tx(await hub.companies.ids()) as tx:
-                await SV.sweep(tx)
+                await SV.sweep(tx, ended=ended)
+        for jid in ended:
+            # ⟨2026-11-10⟩ a workspace turn the sweep failed (its hour passed, its server went
+            # away) ends like any other: the workspace is marked, the work's assignee is told
+            try:
+                await WS.after_job(hub, jid)
+            except Exception:  # noqa: BLE001 - one job never stops the sweep
+                log.warning("after_job failed for a swept job", extra={"job": str(jid)})

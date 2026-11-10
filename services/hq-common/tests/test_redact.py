@@ -508,3 +508,36 @@ async def test_async_helpers_give_the_same_answer() -> None:
     await scrub_async(HOSTILE["mixed"] * 2)
     task.cancel()
     assert ticks > 0
+
+
+def test_fit_keeps_what_fits_and_a_commands_tail() -> None:
+    """⟨2026-11-10⟩ A command's 12,000 characters came back to the model as their first 4,000
+    (the error at the end lost) although the result had room for all, with `truncated: false`."""
+    from hq_common.redact import CUT, HEAD_CUT
+
+    long = "line\n" * 2300 + "ERROR: the real cause"  # ~11,500 characters
+    out, cut = fit({"state": "done", "result": {"stdout": long, "exit_code": 1}}, 16_000)
+    assert cut is False and out["result"]["stdout"].endswith("ERROR: the real cause")
+    assert len(out["result"]["stdout"]) == len(long)
+    # too big for the whole: the output keeps its END, any other text its beginning, and says so
+    big = "x" * 30_000 + "THE-END"
+    out, cut = fit({"stdout": big, "text": "begin" + "y" * 30_000}, 16_000)
+    assert cut is True
+    assert out["stdout"].startswith(HEAD_CUT) and out["stdout"].endswith("THE-END")
+    assert out["text"].startswith("begin") and out["text"].endswith(CUT)
+    assert len(json.dumps(out, ensure_ascii=False)) <= 16_000
+
+
+def test_an_id_is_never_read_as_a_phone_number() -> None:
+    """⟨2026-11-10⟩ about one job or file id in 400 came back ending in "[phone]"."""
+    ids = [
+        "0193e7a1-0000-7000-8000-09123456789a",
+        "00000000-0000-4000-8000-009121234567",
+        "a1b2c3d4-0912-4345-8678-000000000001",
+    ]
+    for i in ids:
+        assert scrub(i) == i, i
+        assert scrub(f"job {i} is running") == f"job {i} is running"
+        assert redact({"job": i, "file_ids": [i]}) == {"job": i, "file_ids": [i]}
+    # a real number beside an id is still masked
+    assert scrub(f"{ids[0]} تماس 09123456789") == f"{ids[0]} تماس [phone]"

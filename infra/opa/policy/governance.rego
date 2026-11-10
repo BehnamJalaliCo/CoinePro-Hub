@@ -4,7 +4,8 @@
 # where the row decides, its owner or proposer (looked up in the agent's own
 # scope only, so another company's row is never found).
 #
-#   kpi.record       the CEO or a manager of the KPI's company (a manual KPI, with a source)
+#   kpi.record       the CEO, a manager, or an employee whose charter has the tool, of the KPI's
+#                    company (a manual KPI, with a source)
 #   okr.draft        the company's CEO
 #   okr.checkin      the CEO or a manager of the key result's company
 #   outcome.note     the proposer of the reviewed decision, in its own company
@@ -23,6 +24,16 @@ grant if {
 	agent
 	same_company(tv("company"))
 	p.role in {"ceo", "manager"}
+}
+
+# ⟨2026-11-10⟩ and an employee whose charter carries the tool (the content analyst, the publisher:
+# the gateway refuses a tool that is not in the caller's charter). Whoever read the figure records
+# it, with its source; it is not passed up a level to be typed again.
+grant if {
+	op == "kpi.record"
+	agent
+	same_company(tv("company"))
+	p.role == "employee"
 }
 
 grant if {

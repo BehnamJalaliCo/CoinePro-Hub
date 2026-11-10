@@ -69,6 +69,9 @@ test_company_locked if {
 	reasons(f.ty_ceo, named("A1", "work.deliver", "TY"), {"escrow_classes": [], "company_locked": true, "incident": true}) == {"company_locked"}
 	allowed(f.ty_ceo, named("A2", "kill_switch.set", "TY"), ctx([], true))
 	allowed(f.ty_ceo, named("A2", "deploy_freeze.set", "TY"), ctx([], true))
+
+	# ⟨2026-11-10⟩ by the tool's own name too (what the gateway sends)
+	allowed(f.ty_ceo, named("A2", "kill_switch.engage", "TY"), ctx([], true))
 	allowed(f.ty_growth_01, act("A0", "TY"), ctx([], true))
 	reasons(f.svc, act("A2", "TY"), ctx([], true)) == {"company_locked"}
 }

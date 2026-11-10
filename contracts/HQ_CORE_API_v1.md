@@ -12,6 +12,8 @@
 > **v1.24 (۲۰۲۶-۱۱-۰۸):** هلدینگ زنده: یک جریان رویداد برای همه‌ی برنامه، نقشه‌ی شبکه، نبض دفتر، کنتور توکن و حال هر کارمند (§۴۲، W12).
 >
 > **v1.25 (۲۰۲۶-۱۱-۰۹):** کارگاه با دست: هر نقش هر شرکت هر کاری را که ابزارش را ندارد به Claude Code روی سرور هاب میدهد (`workshop.run`)، و فایل‌های `out/` با لینک در جلسه برمیگردند (§۴۳).
+>
+> **v1.26 (۲۰۲۶-۱۱-۱۰):** «با من» واقعاً قدم‌به‌قدم (§۳۴.۱، §۴۱.۲): گام‌های شماره‌دار مالک خودِ برنامه‌اند و به ترتیب خودش؛ کارگاه در «با من» فقط کار بعدی برنامه را شروع میکند؛ مسئول میتواند نوبت کارگاه خودش را متوقف کند (`workshop.stop`)؛ و اصلاح‌های بازبینی عمیق (§۴۳.۶، §۴۳.۷).
 
 > **v1.12 (۲۰۲۶-۱۱-۰۴):** «خط تولید» (§۳۰، پرامپت ۲۲): موتور عمومی تولید و انتشار محتوا برای هر شرکت و هر پلتفرم، از روی قالب، با مرحله‌های قابل ویرایش، کتابخانه، تقویم، n8n برای مرحله‌های قاعده‌ای، و حالت پیش‌نویس تا خودکار.
 >
@@ -3814,6 +3816,18 @@ the owner reply. This section is the base of §35 (every order a session).
   «منتظر جواب شما ماند؛ با جواب شما ادامه میدهد.»; its comeback «شما جواب دادید؛ کارش را ادامه میدهد». An `auto` order is
   never held. The holder's plan instruction says it: in a step order a part handed to a colleague is waited for (its output wakes
   the holder) before the step is reported and the owner asked.
+- ⟨2026-11-10⟩ **The hold, tightened (the owner's recording of 2026-11-09 and the audit):**
+  - A run his word started is exempt only when it was **queued after the question** it waits on (`queued_at >= ` the latest ask):
+    «ادامه بده» a moment before a colleague asks does not answer that question.
+  - «ادامه بده» (`nudge`) while a question is open is his answer to **whoever asked**: every asker's work runs again (reason
+    `nudge:<ref>`), not only the holder's, and a talk-loop stop is lifted as a reply lifts it.
+  - The asker's run that ends on its own question is `done` (it was reported as a cut, «خروجی ناقص»).
+  - A session the owner **closed** takes no plan, step or question from a run that was still going (`order.ack`,
+    `order.progress`, `order.ask` answer `409 work_closed`), and a run whose work was cancelled stops before its next step
+    (`refused`, `work_closed`). Reopening brings back the plan tasks the close dropped.
+  - **The step rule is said by code** in the holder's brief (`order.step_rule`, only in a `step` order): the plan's next open task
+    by number and title; only that task in this run, and only when the owner's last word clearly says to start it; a word that
+    asks for something else (to see or seal the cards, a question, a correction) is done as asked and starts no task.
 
 ### 34.2 The order's live talk
 - `POST /orders/{ref}/talk` (owner) → `{conversation_ref}`: the order's conversation (§32), made once: work mode, the persona of the order's
@@ -4203,6 +4217,12 @@ of a session, made visible and continuous.
 - When the owner's word in a session holds a numbered list (Persian or Latin digits, «۱ -», «1.», «۱)» …), each item becomes a plan
   task of the session in that order (code, no model), unless the holder's `order.ack` already wrote those steps; the holder's brief
   says: work the plan task by task, tick each with `order.progress done`, and ask the owner (`order.ask`) the moment one cannot go on.
+- ⟨2026-11-10⟩ **His steps ARE the plan, in his order** (the owner's recording of 2026-11-09: his nine steps had been appended
+  after the holder's five, so the holder's «ساخت اولین ریلز» (4) ran before his «متن گفتار» and «صدا», which had become 7 and 8).
+  When his word holds a numbered list, the holder's own tasks that are still open are dropped (`state: dropped`), his items are
+  added in his order, and the plan is numbered again from 1 (done tasks first, then the open ones, then the dropped): a task's
+  `n` is its place in the plan. One step says it: «برنامه: N کار از حرف مدیر کل؛ برنامه همین گام‌های شماست و به ترتیب خودتان،
+  برنامه‌ی قبلی مسئول کنار رفت». The holder may add steps of its own afterwards (`order.ack steps`): they go after his.
 - The holder's pace («با من» / «خودکار») is shown and switched in the session's header again (§34 `POST /orders/{ref}/pace`).
 
 ### 41.3 Never a silent stall
@@ -4429,4 +4449,56 @@ Design: `docs/WORKSHOP_HANDS.md`; the review: `docs/ops/reports/WORKSHOP_REVIEW.
 - `WorkspaceProgress.where_fa` of a workshop turn is «کارگاه هلدینگ».
 
 ### 43.5 Error codes (additive)
-`workshop_unavailable` 409 · `workshop_stopped` 409 · `workspace_elsewhere` 409 · `work_closed` 409.
+`workshop_unavailable` 409 · `workshop_stopped` 409 · `workspace_elsewhere` 409 · `work_closed` 409 · ⟨2026-11-10⟩
+`not_next_step` 409.
+
+### 43.6 ⟨2026-11-10⟩ The workshop after its first week (the audit and the owner's recording)
+- **`workshop.run {…, task?}`.** In a `step` order («با من») that has a plan, `task` is required and must be the number of the
+  plan's next open task: any other answers `409 not_next_step` with `fields.task` naming the next one (a later step never starts
+  before an earlier one). A general order, a work of no order and an empty plan are not gated.
+- **`workshop.stop {work?, reason?}`** (agent tool, **A1**, every working role; `POST /internal/v1/workshop/stop`): the caller
+  stops the running turn of its own work (its run's work, or `work`, assigned to it). The job is cancelled
+  (`error_code: workshop_stopped`; the runner kills its process group on its next poll), nothing of it is delivered, the
+  workspace goes `idle` and stays usable (a later `workshop.run` opens a fresh session in the same folder). Answers
+  `{work_ref, stopped, job}`; `stopped: false` when nothing was running. Audit `workshop.stop` on both companies; work event
+  `workspace_stopped`. (The owner's own stop, `POST /work/{ref}/stop`, still holds the work until he speaks: a
+  `workshop.run` of a run his word started after the stop starts it again; any other answers `409 workshop_stopped`.)
+- **Who may:** the route asks `hq.internal` as before (`server.run`, `via: workshop`) and `hq.actions` by the tool's own name
+  (`workshop.run`): the advisor, the assistant and QC, who have that grant and not `server.run`, are no longer refused.
+- **A turn is someone working.** A workspace turn whose job is `queued`, `running` or `awaiting_seal` counts as live work of its
+  order: `SessionActivity.working` carries a row for it (`who_fa`: «کارگاه هلدینگ», or «Claude روی سرور شرکت» on a company's
+  server; `doing_fa`: «دارد میسازد؛ هر نوبت تا ۶۰ دقیقه» / «در صف کارگاه»), `session.activity.working` counts it, and the idle
+  sweep neither wakes the holder nor says «گیر کرد» while it runs.
+- **Never a silent end.** The api's job sweep runs `workspace.after_job` for a workspace turn it failed (`timed_out`), and fails
+  a workshop turn still `queued` after 15 minutes while its server is not online (`error_code: not_started`). `409
+  workshop_unavailable` is answered at once when the workshop is paired but not online. When the holder cannot be woken for what a
+  turn left (a lock, nobody assigned), the session gets a step saying so.
+- **What an unfinished turn made is kept.** A turn stopped at its time limit sends its `out/` files (runner ≥ 0.3.3) and the
+  failed turn's files become an output of the work titled «خروجی ناتمام کارگاه: …» (`produced_with.unfinished: true`), the work
+  left open, before the holder is woken with the reason.
+- **Its hands stay.** Every later turn of a workshop session carries the first one's `hands`, `model`, `permission_mode`,
+  `allowed_tools` and time limit, the owner's own message in that session included (it ran without them).
+- **Its tokens are not the work's budget.** A workshop turn's tokens are shown on the work (`tokens_used`) and the work's
+  `budget_tokens`, when it has one, grows by the same amount: the workshop has no token cap, and a long turn does not leave the
+  assignee's next run a cap of zero.
+- **The company's kill switch covers its workshop turn.** `workshop.run` is refused (`423 company_locked`) while the work's own
+  company is locked; engaging a company's switch cancels its running workshop turns; a queued one is not dispatched. The holding's
+  runner polls in every company's view, so a closed work's folder of any company is closed and removed as §33.10 says.
+- **Runner 0.3.3** (compatible with 0.3.2; only the workshop's runner needs it now): `sent` is recorded after the hub took the
+  turn's result (a result that never arrived leaves its files to be sent again); `out/` is sent on a time-limit stop too;
+  `workspaces.json` is written under a lock.
+
+### 43.7 ⟨2026-11-10⟩ Tools and policy found by the audit (no new surface)
+- The gateway waits for a held call longer than the api holds it (`server.*` with `wait_s`, `hub.ops {job}`): its 10 s client
+  timeout gave up first and the model read `api_unreachable` for a job that was running, then sent the command again.
+- A tool result is cut only when it does not fit (`GATEWAY_MAX_RESULT_CHARS`): a string was always cut to its first 4,000
+  characters. A command's `stdout`/`stderr`, when cut, keep their **end**. `truncated` is true whenever a string was cut. A UUID is
+  never read as a phone number.
+- `mail.read` answers `messages` (the key `emails` was masked whole); `connection.read` answers `secret_state: set | missing`
+  (the key `secret` was masked).
+- `propose` takes kind `archive_schema` (the archivist's one card). A `system` role has `work.accept`, `work.progress`,
+  `work.fail`, `activity.set` (`a2_grants.system`). An employee whose charter has `kpi.record` may record a KPI of its own company.
+  `kill_switch.engage` and `deploy.freeze` are exempt from the lock by their tool names too. `server.map` has no `fresh`.
+- llm-router: a subscription out of quota stays a fallback candidate (its breaker decides); `near_full` reads every window that
+  holds and ignores an `ok` reading older than six hours. A `claude` job waits when every stored account is refused (it was sent
+  out with no token).

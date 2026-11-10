@@ -159,7 +159,13 @@ async def email_draft(api: T.Api, call: T.Call, a: EmailDraftIn) -> T.Result:
 
 async def mail_read(api: T.Api, call: T.Call, a: MailReadIn) -> T.Result:
     resp = await api.request("GET", f"/internal/v1/legal/cases/{a.case}/mail", call.token)
-    return T.from_response(resp, "case")
+    r = T.from_response(resp, "case")
+    if r.outcome == "ok" and isinstance(r.data, dict) and "emails" in r.data:
+        # ⟨2026-11-10⟩ the key `emails` is masked whole on the way to the model (a key named
+        # like personal data): the counsel only ever read "[redacted]". The api already masks
+        # what is inside each message; here they travel as `messages`.
+        r.data = {("messages" if k == "emails" else k): v for k, v in r.data.items()}
+    return r
 
 
 async def media_voice(api: T.Api, call: T.Call, a: MediaVoiceIn) -> T.Result:

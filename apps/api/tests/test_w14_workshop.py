@@ -291,3 +291,139 @@ async def test_a_file_only_comes_from_a_workspace_turn_of_that_server(
     # an unknown job of another server
     r = await send_file(client, rn, str(uuid.uuid4()), "x.png", "image/png", png())
     assert r.status_code == 404, r.text
+
+
+async def test_a_step_order_starts_only_its_next_task_and_the_holder_can_stop_the_turn(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+) -> None:
+    """⟨2026-11-10⟩ the owner's recording of 2026-11-09 («با من»): the holder sent «ساخت ریلز» to
+    the workshop two steps before the owner's script and voice, then answered «نمیتوانم بگویم آن
+    سفارش متوقف شده است، چون این کار در دست من نیست». In a step-by-step order the workshop takes
+    only the plan's next open task, the holder can stop its own turn, and a turn that runs is
+    someone working (the session is not «گیر کرد» while the workshop builds)."""
+    from hq_api.domain import order_report as OR
+    from hq_api.domain import servers as SV
+    from hq_api.domain import session_activity as SA
+
+    from .test_p21_secretary import post_order, words
+
+    co = (await new_company())["code"]
+    rn = await workshop(client, hub, owner_session, su)
+    out = await post_order(
+        client, owner, f"برای {co} {words()} وضع کامل شرکت را بررسی کن و گزارش بده", pace="step"
+    )
+    ref = out["ref"]
+    [route] = out["routes"]
+    holder, work_ref = route["to"], route["work_ref"]
+    wid = await su.fetchval("SELECT id FROM work.work WHERE ref = $1", work_ref)
+
+    # no plan yet: nothing to be out of order with
+    r = await client.post(
+        f"/api/v1/orders/{ref}/reply",
+        headers={**owner, **idem()},
+        json={"text": "۱ - متن گفتار آماده بشه\n۲ - صدا ساخته بشه\n۳ - ریلز ساخته بشه"},
+    )
+    assert r.status_code == 200, r.text
+
+    # the reel is task 3: not before the script and the voice
+    r = await run_ask(client, holder, {"work": work_ref, "brief": "ریلز بی‌صدا بساز"})
+    assert r.status_code == 409 and r.json()["code"] == "not_next_step", r.text
+    assert "1" in r.json()["fields"]["task"] and "متن گفتار" in r.json()["fields"]["task"]
+    r = await run_ask(client, holder, {"work": work_ref, "brief": "ریلز بی‌صدا بساز", "task": 3})
+    assert r.status_code == 409 and r.json()["code"] == "not_next_step", r.text
+    assert await su.fetchval("SELECT count(*) FROM work.workspaces WHERE work_id = $1", wid) == 0
+    r = await run_ask(
+        client, holder, {"work": work_ref, "brief": "متن گفتار ۹۰ ثانیه‌ای بنویس", "task": 1}
+    )
+    assert r.status_code == 201, r.text
+    job = await take(client, rn)
+    assert job["id"] == r.json()["job"]
+
+    # while the turn runs, the session has someone working: the workshop (the holder's own run
+    # ended when it handed the task over)
+    await refuse_queued(su, str(wid))
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        rep = await OR.ensure(tx, ref)
+        works = await OR.tree(tx, OR.root_refs(await OR.load_order(tx, ref) or {}))
+        pulse = await SA.read_pulse(tx, rep, works, minutes=0)
+        act = await SA.activity(tx, rep, works, pulse=pulse)
+        n = await SA.working_count(tx, ref)
+    assert pulse.live and pulse.stuck_fa is None and pulse.doing_fa == SA.TURN_DOING_FA
+    assert n >= 1 and any(w.who_fa == SA.WORKSHOP_WHO_FA for w in act.working), act.working
+
+    # the holder stops the turn it started (its run's work; no ref needed with `work`)
+    stop = await client.post(
+        "/internal/v1/workshop/stop",
+        headers=await agent_headers(holder),
+        json={"work": work_ref, "reason": "مالک گفت اشتباه بود"},
+    )
+    assert stop.status_code == 200 and stop.json()["stopped"] is True, stop.text
+    assert stop.json()["job"] == job["id"] and stop.json()["work_ref"] == work_ref
+    st = await su.fetchrow(
+        "SELECT state, error_code, summary_fa FROM infra.server_jobs WHERE id = $1",
+        uuid.UUID(job["id"]),
+    )
+    assert st["state"] == "cancelled" and st["error_code"] == "workshop_stopped"
+    assert "مالک گفت اشتباه بود" in st["summary_fa"]
+    ws = await su.fetchrow("SELECT state FROM work.workspaces WHERE work_id = $1", wid)
+    assert ws["state"] == "idle"
+    r = await poll(client, rn)  # the runner is told to kill it
+    assert r.status_code == 200 and job["id"] in r.json()["cancels"], r.text
+    again = await client.post(
+        "/internal/v1/workshop/stop", headers=await agent_headers(holder), json={"work": work_ref}
+    )
+    assert again.status_code == 200 and again.json()["stopped"] is False
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        assert not (await SA.live_turns(tx, [wid]))
+
+    # the same task again starts a fresh session in the same folder
+    r = await run_ask(
+        client, holder, {"work": work_ref, "brief": "متن گفتار، این بار کوتاه‌تر", "task": 1}
+    )
+    assert r.status_code == 201 and r.json()["turn"] == 2, r.text
+    nxt = await take(client, rn)
+    assert nxt["args"]["hands"] is True and nxt["args"]["workspace"] == work_ref
+
+    # past its hour with no word from the runner: the sweep fails it AND the turn ends as any
+    # other (the workspace marked, the holder woken with the reason), never a silent stall
+    await su.execute(
+        "UPDATE infra.server_jobs SET dispatched_at = now() - interval '3 hours' WHERE id = $1",
+        uuid.UUID(nxt["id"]),
+    )
+    await refuse_queued(su, str(wid))
+    ended: list[uuid.UUID] = []
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        await SV.sweep(tx, ended=ended)
+    assert uuid.UUID(nxt["id"]) in ended
+    for jid in ended:
+        await WS.after_job(hub, jid)
+    ws = await su.fetchrow("SELECT state FROM work.workspaces WHERE work_id = $1", wid)
+    assert ws["state"] == "failed"
+    reason = await su.fetchval(
+        "SELECT reason FROM agents.runs WHERE work_id = $1 ORDER BY created_at DESC LIMIT 1", wid
+    )
+    assert reason == f"workspace_failed:{work_ref}"
+
+    # the kill switch of the work's own company stops (and holds) its workshop turn
+    r = await run_ask(client, holder, {"work": work_ref, "brief": "متن گفتار", "task": 1})
+    assert r.status_code == 201, r.text
+    held = r.json()["job"]
+    from hq_api.domain import control
+    from hq_api.principal import Principal
+
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        company = await control.resolve_scope(tx, f"company:{co}")
+        await control.set_kill_switch(
+            tx, Principal(kind="owner", code="owner", role="owner"), company, "engaged", "test"
+        )
+    st = await su.fetchrow(
+        "SELECT state, error_code FROM infra.server_jobs WHERE id = $1", uuid.UUID(held)
+    )
+    assert (st["state"], st["error_code"]) == ("cancelled", "company_locked")
+    r = await run_ask(client, holder, {"work": work_ref, "brief": "متن گفتار", "task": 1})
+    assert r.status_code == 423, r.text

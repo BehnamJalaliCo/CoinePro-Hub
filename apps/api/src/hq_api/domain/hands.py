@@ -79,7 +79,9 @@ async def workshop_server(tx: Tx) -> dict[str, Any] | None:
     return None
 
 
-async def the_work(tx: Tx, who: Principal, ref: str | None) -> dict[str, Any]:
+async def the_work(
+    tx: Tx, who: Principal, ref: str | None, *, closed_ok: bool = False
+) -> dict[str, Any]:
     """The work the turn is for: `ref` (assigned to the caller), else the caller's run's work."""
     if ref:
         w = await tx.first("SELECT id FROM work.work WHERE ref = :r", r=ref)
@@ -101,9 +103,62 @@ async def the_work(tx: Tx, who: Principal, ref: str | None) -> dict[str, Any]:
                 fields={"work": "this run has no work item: name one assigned to you"},
             )
         w = await W.load(tx, wid)
-    if w["status"] in W.CLOSED:
+    if w["status"] in W.CLOSED and not closed_ok:
         raise ApiError(409, "work_closed", fields={"work": f"{w['ref']} is {w['status']}"})
     return w
+
+
+STOPPED_BY_AGENT_FA = "مسئول کار، کار کارگاه را متوقف کرد"
+
+
+async def stop_turn(
+    tx: Tx, who: Principal, w: dict[str, Any], reason: str | None, *, request_id: str | None = None
+) -> dict[str, Any]:
+    """⟨2026-11-10⟩ workshop.stop: the running turn of the work is cancelled (the runner kills
+    its process group on its next poll). The workspace is left usable: the owner's own stop
+    (`work.stop`) is the one that holds a work until he speaks; this one only ends the turn."""
+    ws = await WS.of_work(tx, w["id"], lock=True)
+    busy = await WS.busy_job(tx, ws) if ws is not None else None
+    if ws is None or busy is None:
+        return {"work_ref": w["ref"], "stopped": False, "job": None}
+    job = await SV.load_job(tx, busy["id"], lock=True)
+    why = " ".join((reason or "").split())[:300]
+    await SV.cancel(tx, job, "workshop_stopped", STOPPED_BY_AGENT_FA + (f": {why}" if why else ""))
+    await WS._set(tx, ws, "idle", STOPPED_BY_AGENT_FA)
+    await W.event(tx, w, "workspace_stopped", who, {"job": str(job["id"]), "by": who.code})
+    for co_id in dict.fromkeys((w["company_id"], job["company_id"])):
+        await audit.record(
+            tx,
+            who,
+            company_id=co_id,
+            action="workshop.stop",
+            action_class="A1",
+            target_kind="work",
+            target_ref=w["ref"],
+            summary=f"turn of {w['ref']} stopped by {who.code}; job {job['id']}"
+            + (f": {why}" if why else ""),
+            request_id=request_id,
+        )
+    await events.emit(tx, w["company"], "work.updated", w["ref"], {"workspace": "idle"})
+    return {"work_ref": w["ref"], "stopped": True, "job": str(job["id"])}
+
+
+async def _owner_said_since(tx: Tx, who: Principal, ws: dict[str, Any]) -> bool:
+    """⟨2026-11-10⟩ A workshop the owner stopped starts again only on his own word after the
+    stop: the caller's run is one his word started (his reply, «ادامه بده», a reopened session)
+    and it was queued after the stop. Before, a stopped workshop could never start again."""
+    from hq_api.domain import order_report as OR
+
+    if not who.run_id:
+        return False
+    run = await tx.first(
+        "SELECT reason, queued_at FROM agents.runs WHERE id = CAST(:r AS uuid)", r=who.run_id
+    )
+    return (
+        run is not None
+        and str(run["reason"] or "").startswith(OR.OWNER_WORD_REASONS)
+        and run["queued_at"] >= ws["updated_at"]
+    )
 
 
 def compose(w: dict[str, Any], who: Principal, ask: str, first: bool) -> str:
@@ -151,7 +206,10 @@ async def start(
     ws = await WS.of_work(tx, w["id"], lock=True)
     if ws is not None and ws["server_id"] != server["id"]:
         raise ApiError(409, "workspace_elsewhere")
-    if ws is not None and ws["state"] == "stopped":
+    # ⟨2026-11-10⟩ the kill switch of the work's own company holds its workshop turn too (the
+    # job itself is the holding's, whose lock create_job checks)
+    await SV.check_lock(tx, w["company_id"], deploy=False)
+    if ws is not None and ws["state"] == "stopped" and not await _owner_said_since(tx, who, ws):
         raise ApiError(409, "workshop_stopped")
     if ws is not None and (busy := await WS.busy_job(tx, ws)) is not None:
         return WorkshopRun(
@@ -163,7 +221,7 @@ async def start(
             server=server["name"],
         )
     session = None
-    if ws is not None and ws.get("session_id") is not None and ws["state"] != "failed":
+    if ws is not None and ws.get("session_id") is not None and ws["state"] not in WS.ENDED:
         s = await WD.load(tx, ws["session_id"])
         session = s if s["state"] not in WD.FINAL else None
     extra = {

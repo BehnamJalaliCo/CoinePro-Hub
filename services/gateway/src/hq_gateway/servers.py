@@ -35,6 +35,10 @@ UUID_RE = T.UUID_RE
 HOLDING_ROLES = ("hub_platform_sre", "overseer")
 TECH_DEPARTMENT = "TECH"  # ⟨2026-11-08⟩ H1: the technical charters' department
 WAIT_S = 18  # within the gateway's own tool timeout
+# ⟨2026-11-10⟩ the api holds the call open for WAIT_S: the client waits longer than that (its
+# own 10 s gave up first, the model read `api_unreachable` for a job that was running and sent
+# the same command again in its next step)
+HOLD_S = WAIT_S + 5
 OTHER_FA = (
     "این سرور شرکت دیگری است: فقط با درخواست میان‌شرکتی که مدیرعامل آن شرکت پذیرفته "
     "(work.request و بعد via_work) یا برای SRE سکو و ناظر کل."
@@ -184,7 +188,11 @@ def _shape(r: T.Result) -> T.Result:
 async def _job(api: T.Api, call: T.Call, tool: str, kind: str, a: _ServerIn) -> T.Result:
     if a.job is not None:
         resp = await api.request(
-            "GET", f"/internal/v1/servers/jobs/{a.job}", call.token, params={"wait_s": WAIT_S}
+            "GET",
+            f"/internal/v1/servers/jobs/{a.job}",
+            call.token,
+            params={"wait_s": WAIT_S},
+            timeout=HOLD_S,
         )
         return _shape(T.from_response(resp, None))
     via, refused = scope(call, a)
@@ -209,6 +217,7 @@ async def _job(api: T.Api, call: T.Call, tool: str, kind: str, a: _ServerIn) -> 
             "wait_s": WAIT_S,
         },
         idem=call.idem(f"{tool}:{a.server}"),
+        timeout=HOLD_S,
     )
     return _shape(T.from_response(resp, None))
 

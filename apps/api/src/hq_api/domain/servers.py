@@ -1119,9 +1119,14 @@ async def cancel(tx: Tx, j: dict[str, Any], code: str, summary_fa: str) -> dict[
 async def cancel_locked(tx: Tx) -> list[dict[str, Any]]:
     """A kill switch was engaged: the open jobs of every locked company are
     cancelled (contract §26.3)."""
+    # ⟨2026-11-10⟩ and a workshop turn of a locked company's work (the job is the holding's, the
+    # work is the company's): its kill switch stops what is being made for it
     rows = await tx.all(
-        JOB_SQL
-        + """ WHERE j.state = ANY(:open) AND control.lock_state(j.company_id) IN ('holding', 'company')
+        JOB_SQL  # noqa: S608 - two constants, no input
+        + """ WHERE j.state = ANY(:open) AND (
+                  control.lock_state(j.company_id) IN ('holding', 'company')
+                  OR EXISTS (SELECT 1 FROM work.workspaces ws WHERE ws.last_job_id = j.id
+                               AND control.lock_state(ws.company_id) IN ('holding', 'company')))
               FOR UPDATE OF j""",
         open=list(OPEN),
     )
@@ -1139,9 +1144,12 @@ async def dispatch(
     if lock in ("holding", "company"):
         return None
     row = await tx.first(
-        """SELECT id FROM infra.server_jobs WHERE server_id = :s AND state = 'queued'
-             AND (NOT CAST(:hold AS boolean) OR kind <> 'claude')
-           ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED""",
+        # ⟨2026-11-10⟩ a workshop turn of a locked company's work does not start either
+        """SELECT j.id FROM infra.server_jobs j WHERE j.server_id = :s AND j.state = 'queued'
+             AND (NOT CAST(:hold AS boolean) OR j.kind <> 'claude')
+             AND NOT EXISTS (SELECT 1 FROM work.workspaces ws WHERE ws.last_job_id = j.id
+                               AND control.lock_state(ws.company_id) IN ('holding', 'company'))
+           ORDER BY j.created_at LIMIT 1 FOR UPDATE OF j SKIP LOCKED""",
         s=runner["server_id"],
         hold=hold_claude,
     )
@@ -1225,7 +1233,15 @@ async def runner_claude_account(tx: Tx, hub: Any) -> tuple[str, bool]:
     full = False
     for key, token in stored:
         r = rows.get(key)
-        if r is not None and r["connection_status"] not in ("enabled", "ready"):
+        if r is not None and r["connection_status"] == "quota_exhausted":
+            # ⟨2026-11-10⟩ refused by the provider: full until its window resets. Skipped like a
+            # switched-off one, both accounts refused sent the job out with no token at all
+            # (the server's own login) instead of leaving it in the queue.
+            resets = r.get("resets_at")
+            if resets is None or resets > now:
+                full = True
+                continue
+        elif r is not None and r["connection_status"] not in ("enabled", "ready"):
             continue  # switched off on the hub too
         if account_full(r, now):
             full = True
@@ -1728,9 +1744,16 @@ async def record_usage(tx: Tx, j: dict[str, Any], usage: dict[str, Any]) -> None
         )
 
 
-async def sweep(tx: Tx) -> int:
+# ⟨2026-11-10⟩ a workshop turn that could not start because its server went away: after this
+# long it fails (and its holder is told) instead of showing «در صف کارگاه» for ever. A turn that
+# waits for room on the Claude accounts (the server online) is not this.
+QUEUED_OFFLINE_S = 900
+
+
+async def sweep(tx: Tx, *, ended: list[UUID] | None = None) -> int:
     """Runners that stopped polling go offline; a running job past its
-    timeout (and a grace) fails; nothing waits forever."""
+    timeout (and a grace) fails; nothing waits forever. `ended` collects the jobs failed here:
+    the caller runs what follows a job's end (a workspace turn's `after_job`) after the commit."""
     n = 0
     for s in await tx.all(
         SERVER_SQL
@@ -1762,6 +1785,32 @@ async def sweep(tx: Tx) -> int:
         if j["session_id"]:
             await _session_end(tx, j, "failed", "timed_out", "کار در زمانش تمام نشد")
         await emit_call(tx, j)
+        if ended is not None:
+            ended.append(j["id"])
+        n += 1
+    for j in await tx.all(
+        JOB_SQL  # noqa: S608 - two constants, no input
+        + """ WHERE j.state = 'queued' AND j.kind = 'claude'
+              AND COALESCE(j.args ->> 'hands', '') = 'true'
+              AND j.created_at < now() - make_interval(secs => :q)
+              AND EXISTS (SELECT 1 FROM infra.servers sv WHERE sv.id = j.server_id
+                            AND sv.state IS DISTINCT FROM 'online')
+              FOR UPDATE OF j SKIP LOCKED""",
+        q=QUEUED_OFFLINE_S,
+    ):
+        note = "کارگاه در دسترس نبود و این نوبت شروع نشد"
+        await tx.exec(
+            """UPDATE infra.server_jobs SET state = 'failed', finished_at = now(),
+                   error_code = 'not_started', summary_fa = :s
+               WHERE id = :id""",
+            id=j["id"],
+            s=note,
+        )
+        j = await load_job(tx, j["id"])
+        if j["session_id"]:
+            await _session_end(tx, j, "failed", "not_started", note)
+        if ended is not None:
+            ended.append(j["id"])
         n += 1
     return n
 

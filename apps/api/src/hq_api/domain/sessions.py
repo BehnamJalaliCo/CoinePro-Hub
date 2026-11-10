@@ -820,6 +820,15 @@ async def reopen(tx: Tx, ref: str) -> dict[str, Any]:
             "UPDATE talk.conversations SET closed_at = NULL, updated_at = now() WHERE ref = :r",
             r=rep["conversation_ref"],
         )
+    if rep.get("closed_at") is not None:
+        # ⟨2026-11-10⟩ the plan comes back with the session: the tasks the close dropped are open
+        # again (the ones the owner removed himself, earlier, stay removed)
+        await tx.exec(
+            """UPDATE owner.session_tasks SET state = 'todo', updated_at = now()
+               WHERE order_id = :o AND state = 'dropped' AND updated_at >= :at""",
+            o=rep["order_id"],
+            at=rep["closed_at"],
+        )
     woken: list[str] = []
     for w in works:
         if w["is_root"] and w["status"] == "cancelled":

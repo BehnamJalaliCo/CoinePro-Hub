@@ -54,6 +54,7 @@ class FakeHub:
     uploads: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     refuse_names: set[str] = field(default_factory=set)
     on_events: Callable[[str, list[dict[str, Any]]], None] | None = None
+    on_upload: Callable[[str], None] | None = None  # ⟨0.3.3⟩ after a file of a job is stored
 
     def transport(self) -> httpx.MockTransport:
         return httpx.MockTransport(self.handle)
@@ -163,6 +164,8 @@ class FakeHub:
         self.uploads.setdefault(jid, []).append(
             {"name": name, "type": request.headers.get("content-type"), "data": data, "id": fid}
         )
+        if self.on_upload:
+            self.on_upload(jid)
         return httpx.Response(201, json={"id": fid, "name": name, "size": len(data)})
 
     def texts(self, jid: str, type_: str = "stdout") -> list[str]:

@@ -264,14 +264,10 @@ async def nudge_session(ref: str, request: Request, ctx: Ctx = Depends(owner_ctx
             return idem.replay
         rep = await SE._open(tx, ref)
         await OR._append_steps(tx, rep["id"], [OR._step(SE.OWNER_FA, SA.NUDGED_FA)])
-        # ⟨2026-11-09⟩ «ادامه بده» is the owner's word: an open question is answered by it, and
-        # whatever waited for him («با من») goes on
-        await tx.exec(
-            """UPDATE owner.order_reports SET last_step_at = now(), progress_nudged_at = NULL,
-                   owner_told_at = NULL, turn = NULL, updated_at = now() WHERE id = :id""",
-            id=rep["id"],
-        )
-        await OR.resume_held(tx, ref)
+        # ⟨2026-11-09⟩ «ادامه بده» is the owner's word: an open question is answered by it (every
+        # asker runs again, not only the holder), a talk-loop stop is lifted, and whatever waited
+        # for him («با من») goes on
+        await OT.answered_by_nudge(tx, ref, rep)
         if rep.get("conversation_ref"):
             await OT.to_talk_owner(tx, rep, "ادامه بده")
         out = await SA.wake_holder(tx, ref, SA.NUDGE_REASON.format(ref=ref))

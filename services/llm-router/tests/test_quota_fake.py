@@ -273,3 +273,51 @@ async def test_ledger_windows_when_configured(
     await q3.observe(sub.id, sub.key, {"status": "allowed_warning"})
     assert await q3.scan({sub.id: sub.key}, companies) == []
     assert await svc.quota_scan() == 0
+
+
+async def test_near_full_reads_every_window_that_holds() -> None:
+    """⟨2026-11-10⟩ five-hour at 99% beside seven-day at 82%, both `warning`: the state shows the
+    window that resets last (82%) and the switch at 99% never came."""
+    import time
+
+    q = QuotaController(None, None)
+    now = time.time()
+    await q.observe(
+        "c", "claude-max",
+        {"status": "allowed_warning", "window": "five_hour", "utilization": 0.995,
+         "resets_at": now + 3600},
+    )  # fmt: skip
+    await q.observe(
+        "c", "claude-max",
+        {"status": "allowed_warning", "window": "seven_day", "utilization": 0.82,
+         "resets_at": now + 5 * 86400},
+    )  # fmt: skip
+    assert q.near_full("c")
+
+
+def test_a_subscription_out_of_quota_stays_a_fallback() -> None:
+    """⟨2026-11-10⟩ the second account, once refused, was dropped from the fallbacks for good:
+    only a call through it could mark it `enabled` again, and none could reach it. Its breaker
+    decides instead (closed until the window resets, then one probe)."""
+    from datetime import UTC, datetime
+
+    from llm_router.registry import Connection, Snapshot
+
+    def conn(key: str, kind: str, status: str, prio: int | None) -> Connection:
+        return Connection(
+            id=key, key=key, kind=kind, provider="anthropic", display_name=key, status=status,
+            status_changed_at=datetime.now(UTC), quota_reset_at=None, secret_ref=None,
+            api_base=None, models=("m",), default_model="m", pricing={}, limits={},
+            fallback_priority=prio,
+        )  # fmt: skip
+
+    snap = Snapshot()
+    for c in (
+        conn("claude-max", "claude_subscription", "enabled", None),
+        conn("claude-max-2", "claude_subscription", "quota_exhausted", 1),
+        conn("api-out", "api", "quota_exhausted", 2),  # an api key out of quota is not tried
+        conn("api-off", "api", "disabled", 3),
+        conn("api-on", "api", "enabled", 4),
+    ):
+        snap.connections[c.id] = c
+    assert [c.key for c in snap.fallbacks()] == ["claude-max-2", "api-on"]

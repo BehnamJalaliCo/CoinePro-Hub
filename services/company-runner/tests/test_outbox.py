@@ -128,3 +128,39 @@ def test_limits_on_size_and_count(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     assert sum(1 for s in skipped if s["why"] == O.MANY_FA) == 2
     # nothing in out/, or out/ a link: nothing at all
     assert O.candidates(tmp_path / "none", {}) == ([], [])
+
+
+def test_a_turn_stopped_at_its_time_limit_still_sends_what_it_made(
+    fake_hub: FakeHub, cfg: Config, cfg_path: Path, spaces: Path
+) -> None:
+    """⟨0.3.3⟩ The hour passed: what the turn had left in `out/` goes to the hub with the failed
+    result, so the owner gets it as an unfinished output."""
+    (out_dir(spaces) / "draft.mp4").write_bytes(b"\x00\x00\x00\x18ftypmp42" + b"v" * 32)
+    job = turn("h6", "[[fake:sleep]]")
+    job["args"]["timeout_s"] = 1  # type: ignore[index]
+    fake_hub.jobs.append(job)
+    run(drive(runner_for(fake_hub, cfg, cfg_path), lambda: "h6" in fake_hub.results, within=60))
+    res = fake_hub.results["h6"]
+    assert res["exit_code"] != 0 and "سقف زمان" in res["summary_fa"]
+    assert [u["name"] for u in fake_hub.uploads["h6"]] == ["draft.mp4"]
+    assert res["data"]["files"] == [fake_hub.uploads["h6"][0]["id"]]
+
+
+def test_a_file_is_recorded_as_sent_only_when_the_result_arrived(
+    fake_hub: FakeHub, cfg: Config, cfg_path: Path, spaces: Path
+) -> None:
+    """⟨0.3.3⟩ The hub closed the job before the result reached it (its sweep): the file is not
+    recorded, and the next turn sends it again (before, it was never sent again and reached no
+    output)."""
+    (out_dir(spaces) / "a.txt").write_text("one", encoding="utf-8")
+    fake_hub.jobs.append(turn("h7"))
+    fake_hub.on_upload = lambda jid: fake_hub.gone_jobs.add(jid)  # gone once its file is in
+    first = runner_for(fake_hub, cfg, cfg_path)
+    run(drive(first, lambda: "h7" in fake_hub.uploads and not first.running, within=60))
+    assert "h7" not in fake_hub.results
+    assert W.sent_of(REF, cfg_path) == {}
+    fake_hub.on_upload = None
+    fake_hub.jobs.append(turn("h8"))
+    run(drive(runner_for(fake_hub, cfg, cfg_path), lambda: "h8" in fake_hub.results, within=60))
+    assert [u["name"] for u in fake_hub.uploads["h8"]] == ["a.txt"]
+    assert set(W.sent_of(REF, cfg_path)) == {"a.txt"}

@@ -36,12 +36,15 @@ def gw() -> Gateway:
 
 
 def test_every_working_role_holds_the_workshop() -> None:
-    assert set(H.TOOLS) == {"workshop.run"}
+    assert set(H.TOOLS) == {"workshop.run", "workshop.stop"}
     assert set(H.TOOLS) <= set(T.TOOLS) and set(H.TOOLS) <= tool_status.GATEWAY_TOOLS
-    assert "workshop.run" in SHARED_TOOLS
+    assert {"workshop.run", "workshop.stop"} <= set(SHARED_TOOLS)
     assert LIB.tools["workshop.run"].cls == "A2"
+    # ⟨2026-11-10⟩ whoever may start a turn may stop its own, with no grant of its own (A1)
+    assert LIB.tools["workshop.stop"].cls == "A1"
     for role, charter in LIB.roles.items():
-        assert ("workshop.run" in charter.tools) == (charter.kind != "system"), role
+        for tool in ("workshop.run", "workshop.stop"):
+            assert (tool in charter.tools) == (charter.kind != "system"), (role, tool)
 
 
 async def test_the_brief_goes_redacted_and_the_run_is_told_to_finish(
@@ -124,3 +127,45 @@ async def test_a_bad_work_ref_never_reaches_the_api(mock: respx.MockRouter, gw: 
     out = await call(gw, "workshop.run", {"brief": "x", "work": "../etc"})
     assert out["outcome"] == "error" and out["code"] == "invalid_args"
     assert not route.called
+
+
+async def test_a_step_order_names_the_plan_task_and_the_holder_can_stop_its_turn(
+    mock: respx.MockRouter, gw: Gateway
+) -> None:
+    """⟨2026-11-10⟩ «با من»: the turn carries the plan task it is for (the api refuses any but
+    the next one), and the holder stops a turn it started (the owner's recording: «نمیتوانم
+    بگویم آن سفارش متوقف شده است، چون این کار در دست من نیست»)."""
+    Stub(mock, WRITER)
+    seen: list[dict[str, Any]] = []
+
+    def refuse(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(
+            409,
+            json={
+                "code": "not_next_step",
+                "fields": {"task": "the plan's next open task is 2: متن گفتار"},
+                "message_fa": "فقط کار بعدی برنامه شروع میشود.",
+            },
+        )
+
+    mock.post(f"{API}/internal/v1/workshop/runs").mock(side_effect=refuse)
+    out = await call(gw, "workshop.run", {"brief": "ریلز را بساز", "task": 4})
+    assert seen == [{"brief": "ریلز را بساز", "task": 4}]
+    assert out["outcome"] != "ok" and out["code"] == "not_next_step", out
+    assert "2" in out["fields"]["task"]
+
+    stop = mock.post(f"{API}/internal/v1/workshop/stop").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "work_ref": "W-000501",
+                "stopped": True,
+                "job": "0193e7a1-0000-7000-8000-0000000000aa",
+            },
+        )
+    )
+    out = await call(gw, "workshop.stop", {"reason": "مالک گفت اشتباه بود"})
+    assert (out["outcome"], out["class"], out["ref"]) == ("ok", "A1", "W-000501"), out
+    assert out["result"]["stopped"] is True and out["hint_fa"] == H.STOPPED_FA[: T.HINT_CHARS]
+    assert json.loads(stop.calls.last.request.content) == {"reason": "مالک گفت اشتباه بود"}

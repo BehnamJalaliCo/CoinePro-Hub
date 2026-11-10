@@ -32211,6 +32211,66 @@
         "title": "Option",
         "type": "object"
       },
+      "OrderCard": {
+        "description": "⟨2026-11-10⟩ A card of this order that waits for a decision, shown IN its session (the\nowner, in his session: «بیار مهر کنم» — the holder had said «کارت منتظر مُهر شماست» and the\ncard was on another page). The owner seals any of them from here (`POST\n/decisions/{ref}/approve`, its own step-up); one routed to a CEO or a manager says so.",
+        "properties": {
+          "by_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "By Fa"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "seal": {
+            "enum": [
+              "passkey",
+              "tap"
+            ],
+            "title": "Seal",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "waits_fa": {
+            "title": "Waits Fa",
+            "type": "string"
+          },
+          "with_owner": {
+            "title": "With Owner",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ref",
+          "kind",
+          "title_fa",
+          "waits_fa",
+          "with_owner",
+          "seal",
+          "created_at"
+        ],
+        "title": "OrderCard",
+        "type": "object"
+      },
       "OrderOut": {
         "properties": {
           "pace": {
@@ -32409,6 +32469,13 @@
                 "type": "null"
               }
             ]
+          },
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/OrderCard"
+            },
+            "title": "Cards",
+            "type": "array"
           },
           "conversation_ref": {
             "anyOf": [
@@ -56779,6 +56846,19 @@
             "title": "Brief",
             "type": "string"
           },
+          "task": {
+            "anyOf": [
+              {
+                "maximum": 99.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task"
+          },
           "title": {
             "anyOf": [
               {
@@ -56808,6 +56888,67 @@
           "brief"
         ],
         "title": "WorkshopRunIn",
+        "type": "object"
+      },
+      "WorkshopStopIn": {
+        "additionalProperties": false,
+        "description": "⟨2026-11-10⟩ workshop.stop: the caller's own turn (its run's work, or `work`).",
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "work": {
+            "anyOf": [
+              {
+                "pattern": "^W-[0-9]{6,}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work"
+          }
+        },
+        "title": "WorkshopStopIn",
+        "type": "object"
+      },
+      "WorkshopStopped": {
+        "properties": {
+          "job": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job"
+          },
+          "stopped": {
+            "title": "Stopped",
+            "type": "boolean"
+          },
+          "work_ref": {
+            "title": "Work Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "work_ref",
+          "stopped"
+        ],
+        "title": "WorkshopStopped",
         "type": "object"
       },
       "Workspace": {
@@ -111465,6 +111606,18 @@
                     "need_fa": "x",
                     "now_fa": "x"
                   },
+                  "cards": [
+                    {
+                      "by_fa": "x",
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "kind": "one_off",
+                      "ref": "W-000789",
+                      "seal": "passkey",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "waits_fa": "x",
+                      "with_owner": false
+                    }
+                  ],
                   "conversation_ref": "x",
                   "files": [
                     {
@@ -112016,6 +112169,18 @@
                     "need_fa": "x",
                     "now_fa": "x"
                   },
+                  "cards": [
+                    {
+                      "by_fa": "x",
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "kind": "one_off",
+                      "ref": "W-000789",
+                      "seal": "passkey",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "waits_fa": "x",
+                      "with_owner": false
+                    }
+                  ],
                   "conversation_ref": "x",
                   "files": [
                     {
@@ -112362,6 +112527,18 @@
                     "need_fa": "x",
                     "now_fa": "x"
                   },
+                  "cards": [
+                    {
+                      "by_fa": "x",
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "kind": "one_off",
+                      "ref": "W-000789",
+                      "seal": "passkey",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "waits_fa": "x",
+                      "with_owner": false
+                    }
+                  ],
                   "conversation_ref": "x",
                   "files": [
                     {
@@ -112825,6 +113002,18 @@
                     "need_fa": "x",
                     "now_fa": "x"
                   },
+                  "cards": [
+                    {
+                      "by_fa": "x",
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "kind": "one_off",
+                      "ref": "W-000789",
+                      "seal": "passkey",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "waits_fa": "x",
+                      "with_owner": false
+                    }
+                  ],
                   "conversation_ref": "x",
                   "files": [
                     {
@@ -113174,6 +113363,18 @@
                     "need_fa": "x",
                     "now_fa": "x"
                   },
+                  "cards": [
+                    {
+                      "by_fa": "x",
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "kind": "one_off",
+                      "ref": "W-000789",
+                      "seal": "passkey",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "waits_fa": "x",
+                      "with_owner": false
+                    }
+                  ],
                   "conversation_ref": "x",
                   "files": [
                     {
@@ -113518,6 +113719,18 @@
                     "need_fa": "x",
                     "now_fa": "x"
                   },
+                  "cards": [
+                    {
+                      "by_fa": "x",
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "kind": "one_off",
+                      "ref": "W-000789",
+                      "seal": "passkey",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "waits_fa": "x",
+                      "with_owner": false
+                    }
+                  ],
                   "conversation_ref": "x",
                   "files": [
                     {
@@ -114004,6 +114217,18 @@
                     "need_fa": "x",
                     "now_fa": "x"
                   },
+                  "cards": [
+                    {
+                      "by_fa": "x",
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "kind": "one_off",
+                      "ref": "W-000789",
+                      "seal": "passkey",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "waits_fa": "x",
+                      "with_owner": false
+                    }
+                  ],
                   "conversation_ref": "x",
                   "files": [
                     {
@@ -114352,6 +114577,18 @@
                     "need_fa": "x",
                     "now_fa": "x"
                   },
+                  "cards": [
+                    {
+                      "by_fa": "x",
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "kind": "one_off",
+                      "ref": "W-000789",
+                      "seal": "passkey",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "waits_fa": "x",
+                      "with_owner": false
+                    }
+                  ],
                   "conversation_ref": "x",
                   "files": [
                     {
@@ -114698,6 +114935,18 @@
                     "need_fa": "x",
                     "now_fa": "x"
                   },
+                  "cards": [
+                    {
+                      "by_fa": "x",
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "kind": "one_off",
+                      "ref": "W-000789",
+                      "seal": "passkey",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "waits_fa": "x",
+                      "with_owner": false
+                    }
+                  ],
                   "conversation_ref": "x",
                   "files": [
                     {
@@ -115378,6 +115627,18 @@
                     "need_fa": "x",
                     "now_fa": "x"
                   },
+                  "cards": [
+                    {
+                      "by_fa": "x",
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "kind": "one_off",
+                      "ref": "W-000789",
+                      "seal": "passkey",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "waits_fa": "x",
+                      "with_owner": false
+                    }
+                  ],
                   "conversation_ref": "x",
                   "files": [
                     {
@@ -160250,6 +160511,18 @@
                     "need_fa": "x",
                     "now_fa": "x"
                   },
+                  "cards": [
+                    {
+                      "by_fa": "x",
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "kind": "one_off",
+                      "ref": "W-000789",
+                      "seal": "passkey",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "waits_fa": "x",
+                      "with_owner": false
+                    }
+                  ],
                   "conversation_ref": "x",
                   "files": [
                     {
@@ -160609,6 +160882,18 @@
                     "need_fa": "x",
                     "now_fa": "x"
                   },
+                  "cards": [
+                    {
+                      "by_fa": "x",
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "kind": "one_off",
+                      "ref": "W-000789",
+                      "seal": "passkey",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "waits_fa": "x",
+                      "with_owner": false
+                    }
+                  ],
                   "conversation_ref": "x",
                   "files": [
                     {
@@ -160971,6 +161256,18 @@
                     "need_fa": "x",
                     "now_fa": "x"
                   },
+                  "cards": [
+                    {
+                      "by_fa": "x",
+                      "created_at": "2026-10-17T05:42:00Z",
+                      "kind": "one_off",
+                      "ref": "W-000789",
+                      "seal": "passkey",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "waits_fa": "x",
+                      "with_owner": false
+                    }
+                  ],
                   "conversation_ref": "x",
                   "files": [
                     {
@@ -170474,13 +170771,14 @@
     },
     "/internal/v1/workshop/runs": {
       "post": {
-        "description": "⟨2026-11-09⟩ The workshop (contract §43; the owner: «سرور کامپیوتر است»): any working\nagent of any company hands a task with no tool of its own to Claude Code on the holding's\nworkshop server, for its run's work item (or `work`, assigned to it). Answers at once:\n`201 {job, work_ref, state: starting, turn, path, server}`; `200` with `state: working` while\na turn of that work still runs (nothing new starts). The turn's answer and `out/` files come\nback as an output of the work. `409 workshop_unavailable` (no paired workshop on runner ≥\n0.3.2), `409 workshop_stopped` (the owner stopped it), `409 workspace_elsewhere` (the work\nruns on its company's own server), `409 work_closed`. Requires `Idempotency-Key`.",
+        "description": "⟨2026-11-09⟩ The workshop (contract §43; the owner: «سرور کامپیوتر است»): any working\nagent of any company hands a task with no tool of its own to Claude Code on the holding's\nworkshop server, for its run's work item (or `work`, assigned to it). Answers at once:\n`201 {job, work_ref, state: starting, turn, path, server}`; `200` with `state: working` while\na turn of that work still runs (nothing new starts). ⟨2026-11-10⟩ In a step-by-step order\n(«با من») with a plan, `task` must be the plan's next open task: `409 not_next_step` names\nit. The turn's answer and `out/` files come back as an output of the work.\n`409 workshop_unavailable` (no paired workshop on runner ≥ 0.3.2, or it is not online now),\n`409 workshop_stopped` (the owner stopped it), `409 workspace_elsewhere` (the work runs on\nits company's own server), `409 work_closed`. Requires `Idempotency-Key`.",
         "operationId": "workshop_run",
         "requestBody": {
           "content": {
             "application/json": {
               "example": {
                 "brief": "x",
+                "task": 1,
                 "title": "گزارش هفتگی رشد",
                 "work": "x"
               },
@@ -171220,6 +171518,146 @@
           }
         },
         "summary": "Agent Post Session Message",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
+    "/internal/v1/workshop/stop": {
+      "post": {
+        "description": "⟨2026-11-10⟩ workshop.stop (contract §43.6): the caller stops the workshop turn of its own\nwork (its run's work, or `work`, assigned to it). The owner: the holder had started a turn\nhe had not asked for and could only answer «نمیتوانم متوقفش کنم». The turn's process is killed\nby the runner on its next poll; the workspace stays (a later `workshop.run` goes on in the\nsame folder, a fresh session). `stopped: false` when nothing was running.",
+        "operationId": "workshop_stop",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "reason": "دلیل",
+                "work": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/WorkshopStopIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "job": "x",
+                  "stopped": false,
+                  "work_ref": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/WorkshopStopped"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Workshop Stop",
         "tags": [
           "internal"
         ]

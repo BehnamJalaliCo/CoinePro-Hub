@@ -15,6 +15,7 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import threading
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -69,7 +70,8 @@ def write_private(path: Path, data: dict[str, Any]) -> None:
     """Writes JSON with mode 600 in a folder with mode 700, atomically."""
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chmod(path.parent, 0o700)
-    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    # ⟨0.3.3⟩ per thread too: two jobs of one runner wrote the same temp file
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:

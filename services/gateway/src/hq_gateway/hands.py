@@ -1,6 +1,7 @@
 """⟨2026-11-09⟩ The workshop: hands for any task (contract §43, agents/tools.md).
 
-    workshop.run   A2  {brief, title?, work?}
+    workshop.run   A2  {brief, title?, work?, task?}
+    workshop.stop  A1  {work?, reason?}     ⟨2026-11-10⟩ the caller stops its own running turn
 
 The owner: «اپ وسیله‌ی ارتباط است؛ سرور کامپیوتر است و Claude روی سرور مغز و دست دارد». Every
 working role hands any task none of its tools covers to the holding's workshop: Claude Code
@@ -28,6 +29,32 @@ class WorkshopIn(T.In):
     brief: str = Field(min_length=1, max_length=20000)
     title: str | None = Field(default=None, max_length=300)
     work: str | None = Field(default=None, pattern=T.WORK_REF)
+    # ⟨2026-11-10⟩ the plan task the turn is for (required in a step-by-step order, «با من»)
+    task: int | None = Field(default=None, ge=1, le=99)
+
+
+class WorkshopStopIn(T.In):
+    work: str | None = Field(default=None, pattern=T.WORK_REF)
+    reason: str | None = Field(default=None, max_length=300)
+
+
+STOPPED_FA = "نوبت کارگاه متوقف شد. به مالک بگو متوقف شد و قدم بعد را از او بپرس."
+NOTHING_FA = "کارگاه الان روی این کار نوبتی در حال اجرا ندارد؛ چیزی برای توقف نبود."
+
+
+async def workshop_stop(api: T.Api, call: T.Call, a: WorkshopStopIn) -> T.Result:
+    body: dict[str, object] = {}
+    if a.work:
+        body["work"] = a.work
+    if a.reason:
+        body["reason"] = await T._text(a.reason)
+    resp = await api.request("POST", "/internal/v1/workshop/stop", call.token, json=body)
+    r = T.from_response(resp, None)
+    if r.outcome != "ok" or not isinstance(r.data, dict):
+        return r
+    r.ref = str(r.data.get("work_ref") or "") or None
+    r.hint_fa = STOPPED_FA if r.data.get("stopped") else NOTHING_FA
+    return r
 
 
 async def workshop_run(api: T.Api, call: T.Call, a: WorkshopIn) -> T.Result:
@@ -37,6 +64,8 @@ async def workshop_run(api: T.Api, call: T.Call, a: WorkshopIn) -> T.Result:
         body["title"] = await T._text(a.title)
     if a.work:
         body["work"] = a.work
+    if a.task is not None:
+        body["task"] = a.task
     resp = await api.request(
         "POST",
         "/internal/v1/workshop/runs",
@@ -56,5 +85,6 @@ async def workshop_run(api: T.Api, call: T.Call, a: WorkshopIn) -> T.Result:
 
 TOOLS: dict[str, tuple[type[T.In], T.Handler]] = {
     "workshop.run": (WorkshopIn, workshop_run),
+    "workshop.stop": (WorkshopStopIn, workshop_stop),
 }
 T.TOOLS.update(TOOLS)

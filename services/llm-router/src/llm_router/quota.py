@@ -204,8 +204,21 @@ class QuotaController:
     def near_full(self, connection_id: str) -> bool:
         """⟨2026-11-09⟩ A subscription at 99% of its window (as the SDK last saw it) or refused:
         while the owner's other subscription has room, the calls go there."""
+        now = self.now()
+        # ⟨2026-11-10⟩ any window that still holds, not only the one the state shows: five-hour
+        # at 99% beside seven-day at 82% (both `warning`) read as 82% and never switched
+        for w in self.windows.get(connection_id, {}).values():
+            if w.holds(now) and (
+                w.status == LIMITED or (w.utilization is not None and w.utilization >= NEAR_FULL)
+            ):
+                return True
         s = self.state(connection_id)
-        return s.status == LIMITED or (s.utilization is not None and s.utilization >= NEAR_FULL)
+        if s.status == LIMITED:
+            return True
+        if s.utilization is None or s.utilization < NEAR_FULL:
+            return False
+        # an `ok` reading that old no longer decides (the api's account_full reads it the same)
+        return s.status != OK or s.observed_at > now - SDK_FRESH
 
     def check(self, connection_id: str, kind: str, priority: int) -> None:
         """Admission: raises Throttled when this priority waits in the current state."""

@@ -82,7 +82,11 @@ def _shape(r: T.Result) -> T.Result:
 async def hub_ops(api: T.Api, call: T.Call, a: HubOpsIn) -> T.Result:
     if a.job is not None:
         resp = await api.request(
-            "GET", f"/internal/v1/hubops/{a.job}", call.token, params={"wait_s": WAIT_S}
+            "GET",
+            f"/internal/v1/hubops/{a.job}",
+            call.token,
+            params={"wait_s": WAIT_S},
+            timeout=WAIT_S + 5,  # ⟨2026-11-10⟩ longer than the api holds it (see servers.HOLD_S)
         )
         return _shape(T.from_response(resp, None))
     resp = await api.request(

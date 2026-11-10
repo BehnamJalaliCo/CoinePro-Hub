@@ -144,6 +144,7 @@ TOOLS_FA: dict[str, tuple[str, str]] = {
     "server.write": ("فایلی روی سرور نوشت", "فایلی روی سرور نوشت"),
     "server.claude": ("کار را به کلود سرور داد", "کار را به کلود سرور داد"),
     "workshop.run": ("کار را به کارگاه داد تا بسازد", "کار را به کارگاه داد تا بسازد"),
+    "workshop.stop": ("کار کارگاه را متوقف کرد", "کار کارگاه را متوقف کرد"),
     "automation.propose": ("خودکارسازی پیشنهاد داد", "خودکارسازی پیشنهاد داد"),
     "message.owner": ("برای شما پیام نوشت", "برای شما پیام نوشت"),
     "message.thread": ("پیامی نوشت", "پیامی نوشت"),
@@ -431,6 +432,17 @@ async def activity(
                         state=final,
                     )
                 )
+    for t in await live_turns(tx, ids):  # ⟨2026-11-10⟩ the workshop's turn is someone working
+        working.append(
+            Worker(
+                who_fa=WORKSHOP_WHO_FA if t["hands"] else SERVER_WHO_FA,
+                company_fa=str(t["company_fa"] or ""),
+                work_title_fa=title_text(t["work_title"]),
+                started_at=t["started_at"] or t["created_at"],
+                step=int(t["turns"] or 0),
+                doing_fa=TURN_DOING_FA if t["state"] == "running" else TURN_QUEUED_FA,
+            )
+        )
     lines.sort(key=lambda x: x.at)
     merged: dict[str, ActivityLine] = {}
     for ln in lines:  # the later line of an id wins
@@ -492,6 +504,34 @@ async def live_run(tx: Tx, work_ids: list[Any]) -> dict[str, Any] | None:
     return dict(row) if row is not None else None
 
 
+TURN_OPEN = ("queued", "running", "awaiting_seal")  # infra.server_jobs: a turn not ended
+WORKSHOP_WHO_FA = "کارگاه هلدینگ"
+SERVER_WHO_FA = "Claude روی سرور شرکت"
+TURN_DOING_FA = "دارد میسازد؛ هر نوبت تا ۶۰ دقیقه"
+TURN_QUEUED_FA = "در صف کارگاه"
+
+
+async def live_turns(tx: Tx, work_ids: list[Any]) -> list[dict[str, Any]]:
+    """⟨2026-11-10⟩ The workshop (or company-server) turns of these works that still run. A turn
+    is live work although no agent run is: the holder's run ended when it handed the task over,
+    and the turn may take an hour. Without this the session read as idle, the holder was woken
+    after ten minutes and the owner was told «گیر کرد» while the workshop was building."""
+    if not work_ids:
+        return []
+    rows = await tx.all(
+        """SELECT ws.work_id, ws.turns, j.state, j.created_at, j.started_at,
+                  COALESCE(j.args ->> 'hands', '') = 'true' AS hands,
+                  w.title AS work_title, c.name_fa AS company_fa, c.code AS company
+           FROM work.workspaces ws JOIN infra.server_jobs j ON j.id = ws.last_job_id
+           JOIN work.work w ON w.id = ws.work_id JOIN core.companies c ON c.id = w.company_id
+           WHERE ws.work_id = ANY(:ids) AND j.state = ANY(:open)
+           ORDER BY j.created_at""",
+        ids=work_ids,
+        open=list(TURN_OPEN),
+    )
+    return [dict(r) for r in rows]
+
+
 async def read_pulse(
     tx: Tx, rep: dict[str, Any], works: list[dict[str, Any]], *, minutes: int | None = None
 ) -> Pulse:
@@ -508,6 +548,9 @@ async def read_pulse(
         )
         if last is not None:
             doing = step_text(last["summary_fa"], OR._j(last["actions"]) or [])
+    turns = await live_turns(tx, ids) if live is None else []
+    if turns:
+        doing = TURN_DOING_FA if turns[0]["state"] == "running" else TURN_QUEUED_FA
     woken = None
     if ids:
         row = await tx.first(
@@ -525,14 +568,15 @@ async def read_pulse(
     open_roots = [w for w in works if w["is_root"] and w["status"] in OR.OPEN]
     if (
         live is None
+        and not turns
         and open_roots
         and rep.get("ended_at") is None
         and not OR._j(rep.get("turn"))
         and idle >= 2 * T
     ):
         stuck = await stuck_cause(tx, rep, works, clock)
-    return Pulse(live=live is not None, clock=clock, idle=idle, woken=woken, stuck_fa=stuck,
-                 doing_fa=doing)  # fmt: skip
+    return Pulse(live=live is not None or bool(turns), clock=clock, idle=idle, woken=woken,
+                 stuck_fa=stuck, doing_fa=doing)  # fmt: skip
 
 
 # ----------------------------------------------------------------- the cause --
@@ -544,11 +588,15 @@ async def stuck_cause(
     company's working group; else «نمیدانیم چرا»."""
     ids = [w["id"] for w in works]
     last = await tx.first(
+        # ⟨2026-11-10⟩ only what ended since the session last moved (an old refusal the order got
+        # past is not why it stands now), and never the hold for the owner's own answer
         """SELECT state, error_code, note FROM agents.runs
            WHERE work_id = ANY(:ids) AND state IN ('refused', 'failed') AND trigger <> 'talk'
-             AND error_code IS NOT NULL
+             AND error_code IS NOT NULL AND error_code <> 'owner_turn'
+             AND COALESCE(finished_at, queued_at) >= CAST(:since AS timestamptz) - interval '10 minutes'
            ORDER BY COALESCE(finished_at, queued_at) DESC LIMIT 1""",
         ids=ids,
+        since=clock,
     )
     if last is not None and last["error_code"] not in SKIP_END:
         code = str(last["error_code"])
@@ -576,9 +624,10 @@ async def stuck_cause(
     for a in bad:
         tool, code = str(a["tool"] or ""), str(a["code"] or "")
         if tool == "speech.make":
-            return "کلید صدا (Google AI Studio) تنظیم نشده یا کار نمیکند؛ در صفحه‌ی بازیکن‌ها واردش کنید."
+            continue  # the owner's decision (2026-11-08): voice is off and never a cause
         if code in OR.CONNECTION_CODES:
-            return "یک اتصال وصل نیست (مثلاً Instagram)؛ تیم فنی آن را به هاب معرفی میکند."
+            # (2026-11-08) never «اینستاگرام وصل نیست» and never the owner's step
+            return "یک اتصال فنی هنوز آماده نیست؛ تیم فنی هلدینگ خودش آن را تنظیم میکند."
         if code in ("signed_out", "not_ready", "unavailable", "expired", "limited"):
             return "بازیکن بیرونی وارد حسابش نیست؛ در صفحه‌ی بازیکن‌ها واردش کنید."
     seat = await tx.first(
@@ -634,12 +683,17 @@ def make_line(
 
 async def working_count(tx: Tx, ref: str) -> int:
     n = await tx.scalar(
-        """SELECT count(*) FROM agents.runs r
-           WHERE r.state IN ('queued', 'running') AND r.trigger <> 'talk' AND r.work_id IN (
-               SELECT w.id FROM work.work w JOIN owner.order_reports o ON o.ref = :r
-               WHERE w.ref = ANY(o.work_refs))""",
+        """WITH ws AS (SELECT w.id FROM work.work w JOIN owner.order_reports o ON o.ref = :r
+                       WHERE w.ref = ANY(o.work_refs))
+           SELECT (SELECT count(*) FROM agents.runs r
+                   WHERE r.state IN ('queued', 'running') AND r.trigger <> 'talk'
+                     AND r.work_id IN (SELECT id FROM ws))
+                + (SELECT count(*) FROM work.workspaces t
+                   JOIN infra.server_jobs j ON j.id = t.last_job_id
+                   WHERE t.work_id IN (SELECT id FROM ws) AND j.state = ANY(:open))""",
         r=ref,
-    )
+        open=list(TURN_OPEN),
+    )  # ⟨2026-11-10⟩ a workshop turn that still runs counts as someone working
     return int(n or 0)
 
 

@@ -109,11 +109,19 @@ class Api:
         json: Any = None,
         params: dict[str, Any] | None = None,
         idem: str | None = None,
+        timeout: float | None = None,  # noqa: ASYNC109 - the http client's own timeout
     ) -> httpx.Response:
+        """`timeout`: for a call the api itself holds open (a server job's `wait_s`): longer than
+        the client's own (GATEWAY_CALL_TIMEOUT_S, 10 s), which would give up first and report a
+        job that is running as `api_unreachable`."""
         headers = {"Authorization": f"Bearer {token}", "X-Request-ID": str(uuid.uuid4())}
         if idem:
             headers["Idempotency-Key"] = idem
         clean = {k: v for k, v in (params or {}).items() if v is not None}
+        if timeout is not None:
+            return await self._http.request(
+                method, path, json=json, params=clean, headers=headers, timeout=timeout
+            )
         return await self._http.request(method, path, json=json, params=clean, headers=headers)
 
 
@@ -324,6 +332,9 @@ class ProposeIn(In):
         # ⟨1.5⟩ prompt 11 §7, §8: a change of the authority matrix, a risk's acceptance
         "authority_change",
         "risk_acceptance",
+        # ⟨2026-11-10⟩ the archivist's one card (its charter tells it to; hq.internal lets a
+        # system role propose only this): it was missing here and answered invalid_args
+        "archive_schema",
     ]  # every API kind but server_plan (only server.plan makes it), tool_enable (the api's),
     # support_go_live (only a passed shadow run makes it), okr (okr.draft makes it), and
     # meeting_resolution and knowledge_entry (the system makes them)
