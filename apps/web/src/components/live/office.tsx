@@ -19,42 +19,53 @@ import { ago, cx, tokens as tokFig, usd } from '@/lib/format';
 import { LiveFigure, WorkBand, useFlip, useTick } from './motion';
 import { PERSON_FA, StateGlyph } from './person';
 import { LiveCorner } from './shell';
+import { Spark } from '@/components/look/ring';
+import { Ltr, clock } from '@/components/look/text';
+import { useLiveSummary } from '@/lib/api/v42';
+import { pulseSeries } from '@/lib/api/v55';
 
 const dash = (v: number | null | undefined) => (v == null ? '—' : String(v));
 
 // ------------------------------------------------------------------------------------------------------- OF-1 --
-function PulseTile({ label, sub, sig, glint, href, children }: { label: string; sub: string; sig: string; glint: 'gold' | 'silver'; href?: string; children: React.ReactNode }) {
+/** One figure of the pulse: its number, a tiny line of its last 24 hours when the hub gives a series, and what it counts. */
+function PulseCell({ label, sig, glint, href, series, children }: { label: string; sig: string; glint: 'gold' | 'silver'; href?: string; series?: number[] | null; children: React.ReactNode }) {
   const body = (
     <>
-      <span className="text-[12px] text-sec">{label}</span>
-      <LiveFigure sig={sig} glint={glint} className="mt-0.5"><span className="text-[26px] font-bold leading-[34px] text-ink">{children}</span></LiveFigure>
-      <span className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted">{sub}</span>
+      <span className="flex items-end justify-between gap-2">
+        {/* The tahrir under the figure glints once when it changes (M13): gold for what is the owner's, silver for the agents' work. */}
+        <LiveFigure sig={sig} glint={glint}><span className={cx('text-[26px] font-bold leading-8', glint === 'gold' ? 'text-gold-ink' : 'text-ink')}>{children}</span></LiveFigure>
+        <Spark series={series} tone={glint} label={`روند ۲۴ ساعت ${label}`} />
+      </span>
+      <span className="text-[12px] leading-4 text-sec">{label}</span>
     </>
   );
-  const cls = 'flex min-w-0 flex-col rounded-[14px] border border-div bg-card px-3.5 py-3';
-  return href ? <Link href={href} className={cx(cls, 'transition-colors hover:bg-hover')} data-pulse={label}>{body}</Link> : <div className={cls} data-pulse={label}>{body}</div>;
+  const cls = 'flex min-w-0 flex-1 flex-col gap-1 border-s border-div px-3.5 py-3 first:border-s-0';
+  return href ? <Link href={href} className={cx(cls, 'hover:bg-hover')} data-pulse={label}>{body}</Link> : <div className={cls} data-pulse={label}>{body}</div>;
 }
 
-/** OF-1: is my holding working, and is anything waiting for me? */
-export function OfficePulse() {
+/** OF-1 «نبض دفتر», ⟨1.0.1⟩ as one row: how many work, how many sessions are open, how many things wait for the owner; each a
+ *  number (with its 24-hour line when the hub's summary carries a series) and the moment it was read. */
+export function OfficePulse({ waiting: counted }: { waiting?: number | null } = {}) {
   const s = useLiveState((x) => x);
-  const now = useTick(5000);
+  const summary = useLiveSummary();
+  const series = pulseSeries(summary.data);
   const busy = peopleBusy(s);
   const total = s.people.total;
-  const moving = s.sessions.moving;
-  const waiting = waitingForOwner(s);
-  const rate = perMin(s, now);
+  const open = s.sessions.moving == null && s.sessions.your_turn == null ? null : (s.sessions.moving ?? 0) + (s.sessions.your_turn ?? 0) + (s.sessions.stuck ?? 0) + (s.sessions.ready ?? 0);
+  // The office's own count when it is there (the same number the «نوبت تو» row shows); else the live store's.
+  const waiting = counted ?? waitingForOwner(s);
+  const readAt = s.last_event_at ?? (s.seed_at != null ? new Date(s.seed_at).toISOString() : null);
   return (
-    <section aria-label="نبض دفتر" data-testid="office-pulse" className="flex flex-col gap-2">
+    <section aria-label="نبض دفتر" data-testid="office-pulse" className="flex flex-col gap-1.5">
       <div className="flex items-center justify-end empty:hidden"><LiveCorner /></div>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <PulseTile label="الان کار میکنند" sub="کسانی که مدلی برایشان فکر میکند یا ابزاری کار میکند" sig={`${busy}/${total}`} glint="silver">
-          {busy == null ? '—' : <>{busy}<span className="text-[13px] font-medium text-muted"> از {dash(total)}</span></>}
-        </PulseTile>
-        <PulseTile label="سشن در جریان" sub="کاری که الان قدمی دارد" sig={dash(moving)} glint="silver" href="/s">{dash(moving)}</PulseTile>
-        <PulseTile label="منتظر تو" sub="تصمیم برای مُهر و سشن در نوبت تو" sig={dash(waiting)} glint="gold" href="/cartable">{dash(waiting)}</PulseTile>
-        <PulseTile label="مصرف در دقیقه" sub="خزانه، زنده" sig={dash(rate)} glint="silver"><span className="fig">{rate == null ? '—' : tokFig(rate)}</span></PulseTile>
+      <div className="flex items-stretch overflow-hidden rounded-[16px] bg-card">
+        <PulseCell label="کار میکنند" sig={`${busy}/${total}`} glint="silver" series={series?.working}>
+          {busy == null ? '—' : <>{busy}<span className="text-[12px] font-medium text-muted"> از {dash(total)}</span></>}
+        </PulseCell>
+        <PulseCell label="جلسه‌ی باز" sig={dash(open)} glint="silver" href="/s" series={series?.sessions}>{dash(open)}</PulseCell>
+        <PulseCell label="منتظر تو" sig={dash(waiting)} glint={waiting ? 'gold' : 'silver'} href="/cartable" series={series?.waiting}>{dash(waiting)}</PulseCell>
       </div>
+      {readAt ? <span className="px-1 text-[11px] text-muted" data-pulse-at>تا <Ltr>{clock(series?.until ?? readAt)}</Ltr></span> : null}
     </section>
   );
 }
@@ -99,7 +110,7 @@ export function TokenMeter({ named = false, className }: { named?: boolean; clas
           {KINDS.map((x, i) => <span key={x.key} className="hq-m12 block h-full" style={{ flexGrow: weights && wsum ? weights[i]! / wsum : 0.25, background: fillTone ?? x.color }} />)}
         </div>
         {pct != null && flying > 0 && pct < 100 ? (
-          <span className="absolute -bottom-2 w-11 translate-x-1/2" style={{ insetInlineStart: `${pct}%` }} data-lead><WorkBand on height={3} color="var(--hq-gold-ink)" label="مدل‌ها در حال کار" /></span>
+          <span className="absolute -bottom-2 w-11 translate-x-1/2" style={{ insetInlineStart: `${pct}%` }} data-lead><WorkBand on height={3} color="var(--hq-silver-ink)" label="مدل‌ها در حال کار" /></span>
         ) : null}
         {[70, 90, 100].map((m) => (
           <span key={m} className="absolute -bottom-1 -top-1 w-0 border-s-[1.5px]" style={{ insetInlineStart: m === 100 ? 'calc(100% - 1.5px)' : `${m}%`, borderColor: pct != null && pct >= m ? (m === 100 ? 'var(--hq-negative)' : 'var(--hq-warning)') : 'var(--hq-line-strong)' }} data-mark={m}>
@@ -138,9 +149,9 @@ const ServerSquares = ({ online, total }: { online: number | null; total: number
 /** The sessions of a company by badge, from what the store knows (the open list and the stream); else the summary's count. */
 function sessionsLine(s: LiveState, code: string): string {
   const mine = Object.values(s.sessions_by_ref).filter((x) => x.company === code && x.badge && x.badge !== 'closed');
-  if (!mine.length) { const n = s.companies[code]?.sessions_open; return n == null ? 'سشن: —' : n ? `سشن: ${n} باز` : 'سشن: هیچ'; }
+  if (!mine.length) { const n = s.companies[code]?.sessions_open; return n == null ? 'جلسه: —' : n ? `جلسه: ${n} باز` : 'جلسه: هیچ'; }
   const by = (['your_turn', 'moving', 'ready', 'stuck'] as Badge[]).map((b) => [b, mine.filter((x) => x.badge === b).length] as const).filter(([, n]) => n);
-  return `سشن: ${by.map(([b, n]) => `${n} ${BADGE[b].fa}`).join(' · ')}`;
+  return `جلسه: ${by.map(([b, n]) => `${n} ${BADGE[b].fa}`).join('، ')}`;
 }
 
 /** Every person's state from the employees list (§29.14): the dots start from it (one request, shared by every card). */
@@ -241,7 +252,7 @@ export function LiveCompanies({ max = 6 }: { max?: number }) {
     <Card as="section" className="flex flex-col gap-2.5 p-4" aria-label="شرکت‌ها، زنده" data-testid="live-companies">
       <SectionTitle title="شرکت‌ها · زنده" note={`${order.length} شرکت`} action={<LiveCorner />} />
       <div ref={ref} className="flex flex-col gap-2">{shown.map((code) => <CompanyLiveCard key={code} code={code} />)}</div>
-      {ranked.length > shown.length ? <Link href="/network?view=table" className="self-start text-[12px] font-semibold text-gold-ink hover:underline">+{ranked.length - shown.length} شرکت دیگر · همه در نمای جدول</Link> : null}
+      {ranked.length > shown.length ? <Link href="/network?view=table" className="self-start text-[12px] font-semibold text-silver-ink hover:text-ink hover:underline">+{ranked.length - shown.length} شرکت دیگر · همه در نمای جدول</Link> : null}
       <PeopleLegend />
     </Card>
   );

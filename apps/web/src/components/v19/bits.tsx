@@ -1,5 +1,6 @@
 'use client';
 
+import { ROUTE_NOT_READY_SHORT_FA } from '@/lib/plain';
 import { type ComponentProps, type ReactNode } from 'react';
 import { Icon } from '@/components/icon';
 import { Pill } from '@/components/ui/primitives';
@@ -52,7 +53,7 @@ export const RESULT: Record<string, Label & { icon: IconName }> = {
 };
 export const QC_VERDICT: Record<string, Label> = { pass: { fa: 'قبول', tone: 'pos' }, changes: { fa: 'اصلاح لازم', tone: 'warn' }, reject: { fa: 'رد', tone: 'neg' } };
 export const PUBLISH_ERROR: Record<string, string> = {
-  no_api: 'API رسمی ندارد؛ با دست خودت', account_not_configured: 'حساب کلید ندارد', removed: 'از API حذف شد', remove_by_hand: 'API حذف را اجازه نداد؛ از خود اپ پایین بیاور',
+  no_api: 'API رسمی ندارد؛ با دست خودت', account_not_configured: ROUTE_NOT_READY_SHORT_FA, removed: 'از API حذف شد', remove_by_hand: 'API حذف را اجازه نداد؛ از خود اپ پایین بیاور',
   platform_limit: 'سقف خود پلتفرم پر بود', series_not_sealed: 'برنامه مُهر نبود', held: 'نگه‌داشته‌ی ناظر',
 };
 export const SERIES_STATUS: Record<string, Label & { icon: IconName }> = {

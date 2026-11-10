@@ -151,6 +151,8 @@ fun publishRule(p: MemberPublish): JsonObject = buildJsonObject {
         if (p.story) put("story", JsonPrimitive(true))
         // ⟨0.20.0⟩ §46 the hour, only when it reads as one («18:30»)
         clockOf(p.at)?.let { put("at", JsonPrimitive(it)) }
+        // ⟨1.31⟩ §49 the hub chooses the hour; left out when off (the hub's own default, and a hub before §49 knows no such field)
+        if (p.best) put("best", JsonPrimitive(true))
     }
 }
 

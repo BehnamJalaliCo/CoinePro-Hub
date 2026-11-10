@@ -9,7 +9,7 @@ import { NotificationsView } from '@/components/v21/notifications';
 export function NotificationsSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title="اعلان‌ها" description="فوری هر جا باشی میرسد؛ بقیه این‌جا منتظر میمانند." width={460}
-      footer={<Link href="/notifications" onClick={() => onOpenChange(false)} className="text-[13px] font-semibold text-gold-ink hover:underline">همه‌ی اعلان‌ها در یک صفحه</Link>}>
+      footer={<Link href="/notifications" onClick={() => onOpenChange(false)} className="text-[13px] font-semibold text-silver-ink hover:text-ink hover:underline">همه‌ی اعلان‌ها در یک صفحه</Link>}>
       {open ? <NotificationsView compact onNavigate={() => onOpenChange(false)} /> : null}
     </Sheet>
   );

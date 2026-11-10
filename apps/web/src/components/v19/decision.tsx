@@ -1,5 +1,6 @@
 'use client';
 
+import { ROUTE_NOT_READY_FA } from '@/lib/plain';
 import { refWord } from '@/lib/refs';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -53,7 +54,8 @@ function PublishBlock({ d }: { d: Decision }) {
             {(p.placements ?? []).map((x) => (
               <li key={`${x.account}-${x.placement}`} className="flex flex-wrap items-center gap-2 rounded-[10px] bg-tile px-3 py-2 text-[12px]">
                 <span className="font-semibold text-ink">{PLACEMENT_FA[x.placement] ?? x.placement}</span><span className="fig text-muted">{x.account}</span><span className="flex-1" />
-                {x.blocked ? <Pill tone="warn" icon="urgent">{PUBLISH_ERROR[x.blocked] ?? x.blocked}؛ این بار نه</Pill> : x.via === 'manual' ? <Pill tone="gold" icon="share">با دست تو</Pill> : <Pill tone="silver" icon="send">API رسمی</Pill>}
+                {/* ⟨1.0.1⟩ a path that is not connected yet is the technical team's work, never the owner's step (and never «این بار نه»). */}
+                {x.blocked === 'account_not_configured' ? <span className="text-sec" data-route-not-ready>{ROUTE_NOT_READY_FA}</span> : x.blocked ? <Pill tone="warn" icon="urgent">{PUBLISH_ERROR[x.blocked] ?? x.blocked}؛ این بار نه</Pill> : x.via === 'manual' ? <Pill tone="gold" icon="share">با دست تو</Pill> : <Pill tone="silver" icon="send">API رسمی</Pill>}
               </li>
             ))}
           </ul>

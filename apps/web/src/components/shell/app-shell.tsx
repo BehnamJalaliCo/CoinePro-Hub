@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Icon } from '@/components/icon';
+import type { IconName } from '@/generated/icons';
 import { Orb } from '@/components/brand/avatar';
 import { Monogram } from '@/components/brand/marks';
 import { IconButton } from '@/components/ui/button';
@@ -24,12 +25,25 @@ import { CommandPalette } from './command-palette';
 import { NotificationsSheet } from './notifications';
 import { useSessions } from '@/lib/api/v34';
 import { NAV_MOBILE, isActive } from './nav';
+import { CommandButton, CommandContext, CommandSheet, type CommandOpen } from '@/components/look/command';
+import { useRouteSettle } from '@/components/look/transition';
 import { ScopeSwitcher, Sidebar } from './sidebar';
 
 function ThemeToggle() {
   const [t, set] = useTheme();
   const next = t === 'day' ? 'night' : 'day';
   return <IconButton icon={t === 'day' ? 'sleeping' : 'time'} label={next === 'day' ? 'تم روز' : 'تم شب'} onClick={() => set(next)} />;
+}
+
+const BAR_ITEM = 'inline-flex h-12 min-w-11 flex-none flex-col items-center justify-center gap-0.5 rounded-[10px] px-1.5 text-sec hover:bg-hover hover:text-ink md:h-10 md:flex-row md:gap-1.5 md:px-2.5';
+const BAR_LABEL = 'text-[10px] leading-3 md:text-[13px] md:font-semibold md:leading-5';
+/** One sign of the top bar with its name under it (beside it on a wide screen, where only «گفتگو» keeps its word). */
+function BarItem({ icon, label, short, onClick, className }: { icon: IconName; label: string; short?: string; onClick: () => void; className?: string }) {
+  return (
+    <button type="button" aria-label={label} title={label} onClick={onClick} className={cx(BAR_ITEM, className)}>
+      <Icon name={icon} size={20} /><span aria-hidden className={cx(BAR_LABEL, 'md:hidden')}>{short ?? label}</span>
+    </button>
+  );
 }
 
 function TopBar({ onPalette, onBell, onMore, onVoice, urgent }: { onPalette: () => void; onBell: () => void; onMore: () => void; onVoice: () => void; urgent: number }) {
@@ -45,17 +59,17 @@ function TopBar({ onPalette, onBell, onMore, onVoice, urgent }: { onPalette: () 
       <span className="flex-1" />
       {/* ⟨1.24⟩ GL-1: live / reconnecting / stale / offline, in words. */}
       <LiveBeacon compact />
-      <IconButton icon="search" label="جستجو" onClick={onPalette} className="md:hidden" />
-      {/* ⟨1.14⟩ §32: talking is apart from the golden order button. */}
-      <Link href="/talk" aria-label="گفتگو با ستاد" title="گفتگو با ستاد" className="inline-flex h-10 items-center gap-1.5 rounded-[10px] px-2.5 text-[13px] font-semibold text-ink hover:bg-hover"><Icon name="messages" size={20} /><span className="hidden md:inline">گفتگو</span></Link>
-      <IconButton icon="mic" label="فرمان صوتی" onClick={onVoice} className="text-gold-ink" />
+      {/* ⟨1.0.1⟩ part C: on a phone every sign of the bar carries its name; the mic is quiet (the owner types), nothing here is gold. */}
+      <BarItem icon="search" label="جستجو" onClick={onPalette} className="md:hidden" />
+      <Link href="/talk" aria-label="گفتگو با ستاد" title="گفتگو با ستاد" className={BAR_ITEM}><Icon name="messages" size={20} /><span className={BAR_LABEL}>گفتگو</span></Link>
+      <BarItem icon="mic" label="فرمان صوتی" short="صوتی" onClick={onVoice} />
       <span className="relative">
-        <IconButton icon="bell" label="اعلان‌ها" onClick={onBell} />
-        {urgent > 0 ? <span className="pointer-events-none absolute right-1.5 top-1.5 size-2.5 rounded-full border-2 border-page bg-neg" /> : null}
+        <BarItem icon="bell" label="اعلان‌ها" short="اعلان" onClick={onBell} />
+        {urgent > 0 ? <span className="pointer-events-none absolute right-2 top-0.5 size-2.5 rounded-full border-2 border-page bg-neg" /> : null}
       </span>
-      {/* Phones: the theme lives in settings and the palette, so the bar keeps room for voice. */}
+      {/* Phones: the theme lives in settings and the palette, so the bar keeps room for the names. */}
       <span className="hidden sm:inline-flex"><ThemeToggle /></span>
-      <IconButton icon="more" label="همه‌ی بخش‌ها" onClick={onMore} />
+      <BarItem icon="more" label="همه‌ی بخش‌ها" short="بیشتر" onClick={onMore} />
     </div>
     </div>
   );
@@ -70,16 +84,16 @@ function BottomNav({ counts }: { counts: Record<string, number> }) {
         if (n.href === '/advisor') {
           return (
             <Link key={n.href} href={n.href} aria-label="مشاور کل" className="flex flex-1 items-start justify-center">
-              <span className={cx('-mt-5 rounded-full p-1.5', on ? 'bg-gold-soft' : 'bg-page')}><Orb size={56} state={on ? 'listening' : 'rest'} /></span>
+              <span className={cx('-mt-5 rounded-full p-1.5', on ? 'bg-raised' : 'bg-page')}><Orb size={56} state={on ? 'listening' : 'rest'} /></span>
             </Link>
           );
         }
         const badge = n.badge ? counts[n.badge] ?? 0 : 0;
         return (
           <Link key={n.href} href={n.href} aria-current={on ? 'page' : undefined} className={cx('flex flex-1 flex-col items-center justify-center gap-1 text-[11px]', on ? 'font-bold text-ink' : 'text-muted')}>
-            <span className={cx('relative', on && 'text-gold-ink')}>
+            <span className="relative">
               <Icon name={n.icon} size={24} active={on} />
-              {badge ? <span className="absolute -right-2.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-gold px-1 text-[10px] font-bold text-on-gold">{badge}</span> : null}
+              {badge ? <span className="absolute -right-2.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-page px-1 text-[10px] font-bold text-gold-ink shadow-[inset_0_0_0_1px_var(--hq-gold-ink)]">{badge}</span> : null}
             </span>
             {n.label}
           </Link>
@@ -113,6 +127,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   // ⟨1.11⟩ the golden button opens as an order or a rule, optionally with words (a council's plan).
   const [voiceInit, setVoiceInit] = useState<{ n: number; o: VoiceOpen }>({ n: 0, o: {} });
   const openVoice = (o?: VoiceOpen) => { setVoiceInit((v) => ({ n: v.n + 1, o: o ?? {} })); setVoice(true); };
+  // ⟨1.0.1⟩ part C: the command sheet, opened from the round button of every screen (and the home's row); mounted afresh each time.
+  const [command, setCommand] = useState<{ n: number; open: boolean; o: CommandOpen }>({ n: 0, open: false, o: {} });
+  const openCommand = (o?: CommandOpen) => setCommand((c) => ({ n: c.n + 1, open: true, o: o ?? {} }));
+  useRouteSettle();
+  // Inside a session its composer is the command.
+  const inSession = /^\/s\/[^/]+/.test(pathname);
 
   useEffect(() => {
     if (session.error instanceof ApiError && session.error.status === 401) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
@@ -131,6 +151,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <LiveContext.Provider value={{ state: stream, last: feed[0] ?? null, feed }}>
       <PulsesProvider feed={feed}>
       <VoiceOrderContext.Provider value={openVoice}>
+      <CommandContext.Provider value={openCommand}>
       <div className="flex min-h-dvh">
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">
@@ -143,6 +164,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </div>
       <BottomNav counts={counts} />
+      {inSession ? null : <CommandButton onClick={() => openCommand()} />}
+      <CommandSheet key={`command-${command.n}`} open={command.open} onOpenChange={(v) => setCommand((c) => ({ ...c, open: v }))} initial={command.o} />
       <CommandPalette open={palette} onOpenChange={setPalette} onVoice={() => openVoice()} />
       <VoiceOrder key={voiceInit.n} open={voice} onOpenChange={setVoice} initial={voiceInit.o} />
       <NotificationsSheet open={bell} onOpenChange={setBell} />
@@ -154,6 +177,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <LiveSeed />
       <DecisionToasts />
       <ToolsSheet open={more} onOpenChange={setMore} extra={<ScopeSwitcher />} />
+      </CommandContext.Provider>
       </VoiceOrderContext.Provider>
       </PulsesProvider>
       </LiveContext.Provider>

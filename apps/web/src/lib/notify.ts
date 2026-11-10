@@ -2,7 +2,7 @@
 // row with its count, what a notification is about comes from its link (a finding is not a decision, even when the hub raises it at the
 // `decision` level), and marking read moves it out of the main list. The Android app's core/data/Notifications.kt, rule for rule.
 
-import { ago } from './format';
+import { ago, jDate } from './format';
 import { LEVEL } from './labels';
 import type { Notification } from './api/v21';
 
@@ -54,4 +54,49 @@ export function splitNotifications(unread: Notification[], read: Notification[],
   const seen = new Map<string, Notification>();
   for (const n of [...moved, ...read.map((r) => (!r.read_at && marked[r.id] ? { ...r, read_at: marked[r.id]! } : r))]) if (n.read_at && !seen.has(n.id)) seen.set(n.id, n);
   return [now, [...seen.values()].sort((a, b) => b.created_at.localeCompare(a.created_at))];
+}
+
+// ⟨1.0.1⟩ Part C (C3.5): three levels only, the day a row belongs to, what asks something of the owner, and a machine-written title
+// said in Persian.
+
+/** Three levels: «فوری» (red, it rings), «تصمیم» (gold), «خبر» (silent: the hub's report, info and learning together). */
+export type Level3 = 'urgent' | 'decision' | 'news';
+export const LEVELS3: Level3[] = ['urgent', 'decision', 'news'];
+export const level3 = (level: string): Level3 => (level === 'urgent' ? 'urgent' : level === 'decision' ? 'decision' : 'news');
+export const LEVEL3_FA: Record<Level3, string> = { urgent: 'فوری', decision: 'تصمیم', news: 'خبر' };
+/** The hub's levels a row of the settings stands for. */
+export const LEVEL3_OF: Record<Level3, Array<'urgent' | 'decision' | 'report' | 'info' | 'learning'>> = { urgent: ['urgent'], decision: ['decision'], news: ['report', 'info', 'learning'] };
+
+/** It wants something of the owner: urgent or a decision, not read yet and not answered. */
+export const asksOwner = (n: Notification): boolean => !n.read_at && !n.answer && level3(n.level) !== 'news';
+
+const DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit' });
+/** The owner's calendar day of an instant («2026-11-10»), to group rows by. */
+export const dayKey = (iso: string): string => DAY.format(new Date(iso));
+/** «امروز», «دیروز», else the date. */
+export function dayLabel(iso: string, now = Date.now()): string {
+  const k = dayKey(iso);
+  if (k === DAY.format(new Date(now))) return 'امروز';
+  if (k === DAY.format(new Date(now - 86_400_000))) return 'دیروز';
+  return jDate(iso);
+}
+
+const FA_DIGIT = '۰۱۲۳۴۵۶۷۸۹';
+const fa = (n: number | string) => String(n).replace(/\d/g, (d) => FA_DIGIT[Number(d)]!);
+const WORD_N: Record<number, string> = { 1: 'یک', 2: 'دو', 3: 'سه', 4: 'چهار', 5: 'پنج' };
+/**
+ * A title (or a line) the machine wrote, said in Persian: «disk 90.4%» is «دیسک ۹۰٪ پر است», «down: a, b» is «دو سرویس پایین است»,
+ * «company:TY» is the company's name, a bare period «(2026-10)» goes. What it does not know it leaves as it is. The raw text stays
+ * one tap away (the caller shows it when this differs from it).
+ */
+export function humanize(text: string | null | undefined, companyName: (code: string) => string | null | undefined = () => null): string {
+  if (!text) return '';
+  let t = text
+    .replace(/\bcompany:([A-Z][A-Z0-9]{1,9})\b/g, (_m, c: string) => companyName(c) ?? c)
+    .replace(/\s*\(\d{4}-\d{2}\)/g, '')
+    .replace(/\bdown:\s*([a-z0-9_.-]+(?:\s*,\s*[a-z0-9_.-]+)*)/gi, (_m, list: string) => { const n = list.split(',').length; return n === 1 ? 'یک سرویس پایین است' : `${WORD_N[n] ?? fa(n)} سرویس پایین است`; })
+    .replace(/\bdisk\s+(\d+(?:\.\d+)?)\s*%/gi, (_m, p: string) => `دیسک ${fa(Math.round(Number(p)))}٪ پر است`)
+    .replace(/\b(cpu|memory|ram)\s+(\d+(?:\.\d+)?)\s*%/gi, (_m, k: string, p: string) => `${/cpu/i.test(k) ? 'پردازنده' : 'حافظه'} ${fa(Math.round(Number(p)))}٪ پر است`);
+  if (t !== text) t = t.replace(/\s*[—–]\s*/g, '؛ ').replace(/\s*;\s*/g, '؛ ').replace(/\s*,\s*/g, '، ').replace(/؛\s*؛/g, '؛').replace(/\s{2,}/g, ' ').trim();
+  return t;
 }

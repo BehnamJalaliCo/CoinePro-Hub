@@ -17,6 +17,7 @@ import { byFa } from '@/lib/control';
 import { companyOf } from '@/lib/company';
 import { attention, useAttention } from '@/lib/live/attention';
 import { beaconOf, liveStore, useStreamMeta, type Beacon } from '@/lib/live/store';
+import { seps } from '@/components/look/text';
 import { cx, jTime } from '@/lib/format';
 import { Arc, useReducedMotion, useTick } from './motion';
 
@@ -123,11 +124,12 @@ export function KillBand() {
       ? `${name(locked[0]!.company)} قفل است · از ${jTime(locked[0]!.changed_at)} · ${byFa(locked[0]!.changed_by)}`
       : `${locked.length} شرکت قفل‌اند: ${locked.map((k) => name(k.company)).join('، ')}`;
   return (
-    <div role="status" aria-live="polite" data-testid="kill-band" data-scope={h?.state === 'engaged' ? 'holding' : 'company'} className="hq-m1">
+    <div role="status" aria-live="polite" data-testid="kill-band" data-scope={h?.state === 'engaged' ? 'holding' : 'company'} className="hq-m1 bg-page">
       <div className="h-1 bg-neg" aria-hidden />
       <div className="flex items-center gap-2 bg-neg-soft px-4 py-1 text-[12px] font-semibold text-ink md:px-6">
         <span className="text-neg"><Icon name="lock" size={14} /></span>
-        <span className="min-w-0 flex-1 truncate">{text}</span>
+        {/* ⟨1.0.1⟩ the facts are parted by the hairline: «·» beside a Persian digit reads as a zero. */}
+        <span className="min-w-0 flex-1 truncate">{seps(text)}</span>
         <Link href={h?.state === 'engaged' ? '/control' : '/companies'} className="flex-none text-[12px] text-neg hover:underline">کلیدها</Link>
       </div>
     </div>

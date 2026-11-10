@@ -130,7 +130,7 @@ export function UsageHomeCard() {
   if (!r?.text) return null;
   return (
     <Card className="flex flex-col gap-2 p-4" aria-label="مصرف دیروز">
-      <SectionTitle title="مصرف دیروز" note="به زبان مشاور" action={<Link href="/usage" className="text-[12px] font-semibold text-gold-ink hover:underline">گزارش کامل</Link>} />
+      <SectionTitle title="مصرف دیروز" note="به زبان مشاور" action={<Link href="/usage" className="text-[12px] font-semibold text-silver-ink hover:text-ink hover:underline">گزارش کامل</Link>} />
       <ol className="flex flex-col gap-1.5">{r.text.lines_fa.slice(0, 3).map((l, i) => <li key={i} className="text-[13px] leading-6"><PlainText text={l} /></li>)}</ol>
       <Pill tone="gold" icon="chart" className="self-start">{r.text.saving_fa.length > 60 ? `${r.text.saving_fa.slice(0, 58)}…` : r.text.saving_fa}</Pill>
     </Card>

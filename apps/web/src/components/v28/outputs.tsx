@@ -48,7 +48,7 @@ export function RowCheck({ on, label, onToggle }: { on: boolean; label: string; 
   return (
     <label className="-m-1 flex size-9 flex-none cursor-pointer items-center justify-center self-start rounded-[8px] hover:bg-hover" onClick={(e) => e.stopPropagation()}>
       <input
-        type="checkbox" checked={on} aria-label={label} className="size-[18px] cursor-pointer accent-[var(--hq-gold-ink)]"
+        type="checkbox" checked={on} aria-label={label} className="size-[18px] cursor-pointer accent-[var(--hq-silver-ink)]"
         onClick={(e) => { shift.current = e.shiftKey; }}
         onChange={() => { onToggle(shift.current); shift.current = false; }}
       />
@@ -62,7 +62,7 @@ export function SelectAll({ all, some, count, onToggle }: { all: boolean; some: 
   useEffect(() => { if (ref.current) ref.current.indeterminate = some; }, [some]);
   return (
     <label className="flex cursor-pointer items-center gap-2 rounded-[8px] px-1 py-1 text-[12px] text-sec hover:text-ink">
-      <input ref={ref} type="checkbox" checked={all} onChange={onToggle} aria-label="انتخاب همه‌ی خروجی‌های فهرست" className="size-[18px] cursor-pointer accent-[var(--hq-gold-ink)]" />
+      <input ref={ref} type="checkbox" checked={all} onChange={onToggle} aria-label="انتخاب همه‌ی خروجی‌های فهرست" className="size-[18px] cursor-pointer accent-[var(--hq-silver-ink)]" />
       {all ? 'همه انتخاب شد' : `انتخاب همه (${fa(count)})`}
     </label>
   );

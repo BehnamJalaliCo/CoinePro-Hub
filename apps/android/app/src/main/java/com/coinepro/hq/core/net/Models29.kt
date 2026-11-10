@@ -114,12 +114,15 @@ data class OrderReport(
     val cards: List<OrderCard> = emptyList(),
     /** ⟨0.19.8⟩ §44.5 what the owner published from this session («تأیید و انتشار»), newest first. */
     val publishes: List<SessionPublish> = emptyList(),
+    /** ⟨1.31⟩ §50 the standing routines asked for in this session, newest first. Null: a hub before §50 (it has no routines at all). */
+    val routines: List<SessionRoutine>? = null,
 )
 
 /**
  * ⟨0.19.8⟩ §44.5 One «تأیید و انتشار» of a session: the owner's tap on a file, as the publish job on IG-Hub's server stands.
  * [state]: `publishing` · `published` · `failed` ([noteFa] says why) · `waiting_seal` · `waiting_setup` (the technical team is
- * connecting the company's publish path; no job yet).
+ * connecting the company's publish path; no job yet) · ⟨1.31⟩ §51 `cancelled` (he took it back before it went out; while the cancel
+ * is on its way the state stays and [noteFa] says «در حال لغو»).
  */
 @Serializable
 data class SessionPublish(
@@ -180,6 +183,8 @@ data class PublishPanel(
     val group: String? = null,
     val groupFa: String? = null,
     val mode: String? = null,
+    /** ⟨1.31⟩ §49 the account's best hour, only when there is enough data: one of the sheet's times. */
+    val best: BestHour? = null,
 )
 
 /**
@@ -194,6 +199,8 @@ data class MemberPublish(
     val since: String? = null,
     /** ⟨0.20.0⟩ §46 the hour each day's package goes out at («HH:MM», the owner's zone); null: as soon as it is ready. */
     val at: String? = null,
+    /** ⟨1.31⟩ §49 the hub chooses the hour itself (the account's best one); [at] is what it falls back on while the data is thin. */
+    val best: Boolean = false,
 ) {
     val auto: Boolean get() = mode == "auto"
 }

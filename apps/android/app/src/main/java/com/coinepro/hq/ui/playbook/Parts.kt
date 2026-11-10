@@ -283,7 +283,7 @@ internal fun sealedFa(out: Playbook, word: MemberPublish?): String = when {
  * «به صورت خودکار از روز دوم انجام بشه … نه اینکه هر بار من تایید کنم»). On: each day's package goes out by itself.
  */
 @Composable
-fun StandingChoice(value: MemberPublish, onChange: (MemberPublish) -> Unit, modifier: Modifier = Modifier) {
+fun StandingChoice(value: MemberPublish, onChange: (MemberPublish) -> Unit, modifier: Modifier = Modifier, company: String? = null) {
     val c = Divan.colors
     Column(modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -298,21 +298,21 @@ fun StandingChoice(value: MemberPublish, onChange: (MemberPublish) -> Unit, modi
             HqSwitch(value.auto, { onChange(value.copy(mode = if (it) "auto" else "ask")) }, "انتشار خودکار")
         }
         Expand(value.auto) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip("استوری هم بشود", value.story, { onChange(value.copy(story = !value.story)) })
-                // ⟨0.20.0⟩ §46 the hour each day's package goes out at; empty: as soon as it is ready
-                HqTextField(value.at.orEmpty(), { onChange(value.copy(at = it.ifBlank { null })) }, "ساعت انتشار، مثل ۱۸:۳۰", Modifier.weight(1f), maxLength = 5, figure = true)
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip("استوری هم بشود", value.story, { onChange(value.copy(story = !value.story)) })
+                    // ⟨0.20.0⟩ §46 the hour each day's package goes out at; empty: as soon as it is ready
+                    HqTextField(value.at.orEmpty(), { onChange(value.copy(at = it.ifBlank { null })) }, "ساعت انتشار، مثل ۱۸:۳۰", Modifier.weight(1f), maxLength = 5, figure = true)
+                }
+                // ⟨1.0.1⟩ §49 the hub chooses the hour itself, for the company this word is for; the fixed hour stays as what it falls back on
+                if (company != null) BestHourChoice(company, value, onChange)
             }
         }
     }
 }
 
 /** A member's standing word in one line: where its daily output goes by itself, or that each waits for him. */
-internal fun standingFa(p: MemberPublish): String = when {
-    !p.auto -> "هر بار بپرس"
-    // the hour first: the line is one row, and the hour is what he looks for
-    else -> listOfNotNull("خودکار", clockOf(p.at)?.let { "ساعت $it" }, p.account?.let { "\u2066@$it\u2069" }, "استوری هم".takeIf { p.story }).joinToString(" · ")
-}
+internal fun standingFa(p: MemberPublish, best: com.coinepro.hq.core.net.BestHour? = null): String = com.coinepro.hq.core.data.standingLineFa(p, best)
 
 /**
  * One member's standing word under its row: a switch, his tap, no passkey. A company with several accounts is asked which one (the
@@ -350,7 +350,9 @@ private fun StandingRow(group: String, company: String, value: MemberPublish, on
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             Text("انتشار خودکار", style = Divan.type.caption, color = c.textSecondary)
-            Text(standingFa(value), style = Divan.type.micro, color = if (value.auto) c.goldInk else c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // ⟨1.0.1⟩ §49 «بهترین ساعت», with the hour once the hub knows it
+            val best = if (value.auto && value.best) rememberBestHour(company, value.account).data else null
+            Text(standingFa(value, best), style = Divan.type.micro, color = if (value.auto) c.goldInk else c.textMuted, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         // ⟨0.20.0⟩ §46 its hour and «استوری هم», changed in a small sheet
         if (value.auto) HqButton("تنظیم", { editing = value }, variant = BtnVariant.TEXT, size = BtnSize.SM)
@@ -359,7 +361,7 @@ private fun StandingRow(group: String, company: String, value: MemberPublish, on
     editing?.let { draft ->
         HqSheet({ editing = null }, "انتشار خودکار", sub = "ساعت و استوری همین شرکت در این کارگروه") {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                StandingChoice(draft, { editing = it })
+                StandingChoice(draft, { editing = it }, company = company)
                 val badHour = draft.auto && !draft.at.isNullOrBlank() && clockOf(draft.at) == null
                 HqButton("ذخیره", { go.run { say(draft); editing = null } }, Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, enabled = !badHour, loading = go.busy)
                 if (badHour) Text("ساعت را به شکل ۱۸:۳۰ بنویسید.", style = Divan.type.micro, color = c.textMuted)
@@ -524,6 +526,9 @@ fun MembersBlock(pb: Playbook) {
             if (group != null && pb.sealed && publishes(pb) && HubFeature.STANDING_PUBLISH !in gaps) {
                 StandingRow(group, m.company, said[m.company] ?: m.publish) { said[m.company] = it }
             }
+            // ⟨1.0.1⟩ §47 what this company already said here, and §48 the voice its content is spoken with
+            if (group != null && pb.sealed && HubFeature.TOPIC_LEDGER !in gaps) LedgerRow(group, m.company, name)
+            if (pb.sealed && HubFeature.NARRATOR !in gaps) NarratorRow(m.company)
         }
     }
 }

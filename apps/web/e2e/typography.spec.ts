@@ -43,6 +43,8 @@ test('agent prose is justified, its inline code keeps the line and may break', a
 test('chooses unread notifications with shift, marks them read, then deletes every read one after the confirmation', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/notifications');
+    // ⟨1.0.1⟩ One list (unread and read by day); the boxes come with «انتخاب».
+    await page.getByRole('button', { name: 'انتخاب', exact: true }).click();
     const boxes = page.getByRole('checkbox', { name: /^انتخاب: / });
     await expect(boxes.first()).toBeVisible();
     await boxes.nth(0).click();
@@ -52,26 +54,31 @@ test('chooses unread notifications with shift, marks them read, then deletes eve
     await expect(bar.getByText('۳ انتخاب‌شده')).toBeVisible();
     await bar.getByRole('button', { name: 'خوانده‌شده' }).click();
     await expect(page.getByText(/اعلان خوانده شد/)).toBeVisible();
-    // The read tab: «انتخاب همه» and «حذف», only «حذف».
-    await page.getByRole('radio', { name: 'خوانده‌شده', exact: true }).click();
-    await page.getByRole('checkbox', { name: /انتخاب همه/ }).click();
+    // A read row chosen alone: only «حذف» is offered.
+    await page.getByRole('checkbox', { name: 'انتخاب: گزارش صبحگاهی آماده است' }).click();
+    await expect(bar.getByText('۱ انتخاب‌شده')).toBeVisible();
     await expect(bar.getByRole('button', { name: 'خوانده‌شده' })).toHaveCount(0);
+    // «انتخاب همه» and «حذف»: every row goes, after the confirmation.
+    await page.getByRole('checkbox', { name: /انتخاب همه/ }).click();
     await bar.getByRole('button', { name: 'حذف' }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog.getByText('از دیتابیس پاک میشود و برنمیگردد.')).toBeVisible();
     await dialog.getByRole('button', { name: 'حذف' }).click();
     await expect(page.getByText(/اعلان برای همیشه پاک شد/)).toBeVisible();
-    await expect(page.getByText('هنوز اعلانی خوانده نشده')).toBeVisible();
+    await expect(page.getByText('اعلانی نیست')).toBeVisible();
   });
 });
 
 test('deletes one unread notification by its box', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/notifications');
+    await page.getByRole('button', { name: 'انتخاب', exact: true }).click();
     const boxes = page.getByRole('checkbox', { name: /^انتخاب: / });
     await expect(boxes.first()).toBeVisible();
     const before = await boxes.count();
-    await boxes.last().click();
+    // The first row is unread (what asks something of him comes first).
+    await expect(page.locator('[data-row]').first()).toHaveAttribute('data-unread', '');
+    await boxes.first().click();
     await page.getByRole('toolbar', { name: 'کار با اعلان‌های انتخاب‌شده' }).getByRole('button', { name: 'حذف' }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'حذف' }).click();
     await expect(page.getByText(/اعلان برای همیشه پاک شد/)).toBeVisible();

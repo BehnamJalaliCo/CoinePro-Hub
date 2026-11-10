@@ -29,3 +29,20 @@ export const leaks = (text: string | null | undefined): boolean => !!text && (ne
 
 /** The pattern the end-to-end check holds every owner page to. */
 export const REF_PATTERN = /\b[A-Z]{1,3}-\d{3,}\b/;
+
+// ⟨1.0.1⟩ Part C (C1.4), the owner's decisions: a terminal command is never the owner's step, and a publishing account is never «کلید
+// ندارد» for him. A note of the hub's that carries a command is shown without that sentence; the sentence goes under «جزئیات فنی».
+const COMMAND = /`[^`]+`|\bmake\s+[a-z][a-z0-9-]*/i;
+/** What the owner reads where the publishing path of a company is not connected yet (the technical team's work). */
+export const ROUTE_NOT_READY_FA = 'مسیر انتشار این شرکت را تیم فنی وصل میکند؛ بعد خودش منتشر میشود.';
+export const ROUTE_NOT_READY_SHORT_FA = 'تیم فنی مسیر انتشار را وصل میکند';
+/** [text] split into what the owner reads and the technical sentences (with their commands) that go one tap away. */
+export function ownerNote(text: string | null | undefined): { fa: string; technical: string | null } {
+  const t = (text ?? '').trim();
+  if (!t || !COMMAND.test(t)) return { fa: t, technical: null };
+  const sentences = t.split(/(?<=[.!؟])\s+/);
+  const tech = sentences.filter((s) => COMMAND.test(s));
+  const keep = sentences.filter((s) => !COMMAND.test(s));
+  if (tech.some((s) => /کلید|حساب|اینستاگرام|account|key/i.test(s))) keep.push(ROUTE_NOT_READY_FA);
+  return { fa: keep.join(' ').trim(), technical: tech.join(' ').trim() || null };
+}

@@ -3,7 +3,8 @@
 import { useRouter } from 'next/navigation';
 import { useVoiceOrder } from '@/components/work/voice-order';
 import { DecisionRow } from '@/components/cartable/decision-row';
-import { CommandBar, OfficeBody, OfficeHeader, OfficeSkeleton } from '@/components/office/office';
+import { OfficeBody, OfficeHeader, OfficeSkeleton } from '@/components/office/office';
+import { CommandRow } from '@/components/look/command';
 import { Button } from '@/components/ui/button';
 import { Card, Empty, ErrorState, SectionTitle, Skeleton } from '@/components/ui/primitives';
 import { StoriesBar } from '@/components/v14/stories';
@@ -43,7 +44,7 @@ function OlderHome() {
   const h = home.data;
   return (
     <>
-      <CommandBar />
+      <CommandRow />
       {home.isLoading ? <HomeSkeleton /> : home.error ? <ErrorState error={home.error} onRetry={() => home.refetch()} /> : !h ? (
         <>
           <HomeNotServed />

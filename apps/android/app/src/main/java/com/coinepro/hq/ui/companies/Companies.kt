@@ -231,8 +231,12 @@ fun CompanyScreen(code: String, tab0: String = "control", dept0: String? = null,
             "sales" -> item(key = "sales") { com.coinepro.hq.ui.v33.CompanySales(code) }
             "personas" -> item(key = "personas") { com.coinepro.hq.ui.v33.CompanyPersonas(code) }
             "journey" -> item(key = "journey") { com.coinepro.hq.ui.v33.CompanyJourney(code) }
-            "brand" -> item {
-                Loadable(co) { x -> HqCard(Modifier.fillMaxWidth()) { BrandBlock(x.code, x.nameFa ?: x.code, x.nameEn ?: x.code) } }
+            "brand" -> {
+                item {
+                    Loadable(co) { x -> HqCard(Modifier.fillMaxWidth()) { BrandBlock(x.code, x.nameFa ?: x.code, x.nameEn ?: x.code) } }
+                }
+                // ⟨1.0.1⟩ §48 the voice this company's content is spoken with, set once (beside its mark and seal: its identity)
+                item(key = "narrator") { com.coinepro.hq.ui.playbook.NarratorCard(code) }
             }
             "people" -> {
               // ⟨1.6⟩ §22.5: roles a department's manager wrote beyond the template.

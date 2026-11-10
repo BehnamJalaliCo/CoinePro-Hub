@@ -151,9 +151,9 @@ export function OfficeCanvas({ canvas, sessions }: { canvas: Canvas; sessions: S
               onClick={(e) => { if (e.detail === 0) return; if (connect && !isHub) pick(n); }}
               onKeyDown={(e) => onKey(n, e)}
               className={cx('absolute z-20 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 rounded-[14px] px-2.5 py-2 text-[12px] font-semibold text-ink shadow-sm', isHub ? 'bg-gold-soft ring-2 ring-[var(--hq-gold-ink)]' : 'bg-card ring-1 ring-[var(--hq-line-strong)] hover:bg-hover', from && 'ring-2 ring-[var(--hq-lapis)]', connect && !isHub ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing')}>
-              <span className="text-gold-ink">{isHub ? <Monogram size={22} /> : <CompanyMark code={n.code} height={18} mono />}</span>
+              <span className="text-silver-ink">{isHub ? <Monogram size={22} /> : <CompanyMark code={n.code} height={18} mono />}</span>
               <span className="max-w-[7rem] truncate">{n.name_fa}</span>
-              {!isHub && n.open_sessions ? <span className="fig absolute -top-2 -end-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-gold px-1 text-[11px] font-bold text-on-gold">{n.open_sessions}</span> : null}
+              {!isHub && n.open_sessions ? <span className="fig absolute -top-2 -end-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-page px-1 text-[11px] font-bold text-gold-ink shadow-[inset_0_0_0_1px_var(--hq-gold-ink)]">{n.open_sessions}</span> : null}
             </button>
           );
         })}

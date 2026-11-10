@@ -20,14 +20,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={v}>
       {children}
-      <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-20 z-[60] flex flex-col items-center gap-2 px-4 md:bottom-6">
+      <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-[9.75rem] z-[60] flex flex-col items-center gap-2 px-4 md:bottom-6">
         {items.map((t) => {
           const icon: IconName = t.tone === 'ok' ? 'seal' : t.tone === 'error' ? 'urgent' : 'info';
           return (
             <div key={t.id} className="hq-rise pointer-events-auto flex min-h-12 w-full max-w-md items-center gap-3 rounded-[14px] bg-raised px-4 py-2 shadow-[0_12px_32px_rgba(0,0,0,.35)]">
-              <span className={cx(t.tone === 'ok' ? 'text-gold-ink' : t.tone === 'error' ? 'text-neg' : 'text-sec')}><Icon name={icon} size={20} active={t.tone === 'ok'} /></span>
+              <span className={cx(t.tone === 'ok' ? 'text-pos' : t.tone === 'error' ? 'text-neg' : 'text-sec')}><Icon name={icon} size={20} active={t.tone === 'ok'} /></span>
               <span className="flex-1 text-[13px] text-ink">{typeof t.text === 'string' ? bidi(t.text) : t.text}</span>
-              {t.action ? <button type="button" className="text-[13px] font-semibold text-gold-ink" onClick={t.action.run}>{t.action.label}</button> : null}
+              {t.action ? <button type="button" className="text-[13px] font-semibold text-silver-ink hover:text-ink" onClick={t.action.run}>{t.action.label}</button> : null}
             </div>
           );
         })}

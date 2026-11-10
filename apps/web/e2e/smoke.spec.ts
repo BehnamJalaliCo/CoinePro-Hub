@@ -78,7 +78,7 @@ test('searches messages from the messages page', async ({ page }) => {
 test('saves the notification matrix', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/settings');
-    await page.getByRole('switch', { name: 'گزارش: push' }).click();
+    await page.getByRole('switch', { name: 'خبر: push' }).click();
     await page.getByRole('button', { name: 'ذخیره', exact: true }).click();
     await expect(page.getByText('تنظیمات اعلان ذخیره شد.')).toBeVisible();
   });

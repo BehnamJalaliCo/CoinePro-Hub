@@ -68,6 +68,16 @@ enum class HubFeature {
     SESSION_PUBLISH,
     /** ⟨0.19.9⟩ §45 `PUT /groups/{key}/members/{code}/publish`; without it the standing word on publishing is not offered. */
     STANDING_PUBLISH,
+    /** ⟨1.31⟩ §47.4 `/groups/{key}/members/{code}/topics`; without it «دفتر موضوع‌ها» is not shown. */
+    TOPIC_LEDGER,
+    /** ⟨1.31⟩ §48 `/companies/{code}/narrator`; without it «گوینده‌ی محتوا» is not shown. */
+    NARRATOR,
+    /** ⟨1.31⟩ §49 `GET /companies/{code}/best-hour`; without it «بهترین ساعت» is not offered and the fixed hour stands alone. */
+    BEST_HOUR,
+    /** ⟨1.31⟩ §50 `POST /routines`; without it «روال دائمی» is not offered (a hub before it also sends no `routines` in a report). */
+    ROUTINES,
+    /** ⟨1.31⟩ §51 `POST /publishes/{job}/cancel`; without it «لغو» is not offered on a scheduled post. */
+    PUBLISH_CANCEL,
 }
 
 /**

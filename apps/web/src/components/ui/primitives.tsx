@@ -6,6 +6,7 @@ import { Icon } from '@/components/icon';
 import type { IconName } from '@/generated/icons';
 import { cx } from '@/lib/format';
 import { Button } from './button';
+import { Fit } from '@/components/look/text';
 
 const OCT = 'polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%)';
 
@@ -70,7 +71,8 @@ export function FilterChip({ selected, onClick, children, count }: { selected?: 
       aria-pressed={selected}
       className={cx(
         'inline-flex h-8 flex-none items-center gap-1.5 rounded-full px-3 text-[13px] transition-colors duration-[120ms]',
-        selected ? 'tahrir bg-gold-soft font-semibold text-gold-ink' : 'border border-strong text-sec hover:bg-hover hover:text-ink',
+        // ⟨1.0.1⟩ one full gold per screen: a selection is ivory on a raised surface with a silver hairline.
+        selected ? 'bg-raised font-semibold text-ink shadow-[inset_0_0_0_1px_var(--hq-silver-line)]' : 'border border-strong text-sec hover:bg-hover hover:text-ink',
       )}
     >
       {children}
@@ -91,7 +93,7 @@ export function Segmented<T extends string>({ value, onChange, options, label }:
             role="radio"
             aria-checked={on}
             onClick={() => onChange(o.value)}
-            className={cx('flex h-8 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-[8px] px-3 text-[13px] transition-colors', on ? 'bg-raised font-semibold text-ink shadow-[inset_0_-2px_0_var(--hq-gold-ink)]' : 'text-sec hover:text-ink')}
+            className={cx('flex h-8 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-[8px] px-3 text-[13px] transition-colors', on ? 'bg-raised font-semibold text-ink shadow-[inset_0_0_0_1px_var(--hq-silver-line)]' : 'text-sec hover:text-ink')}
           >
             {o.icon ? <Icon name={o.icon} size={16} /> : null}
             {o.label}
@@ -113,10 +115,11 @@ export function Switch({ checked, onChange, label, disabled }: { checked: boolea
       onClick={() => onChange(!checked)}
       className={cx(
         'flex h-[26px] w-11 flex-none items-center rounded-full px-[3px] transition-colors duration-200',
-        disabled ? 'border border-div bg-disabled-fill' : checked ? 'justify-end bg-gold' : 'justify-start border-[1.5px] border-[var(--hq-switch-off)] bg-tile',
+        // ⟨1.0.1⟩ on = a silver knob on a lighter track (never gold: a switch is a setting, not the owner's act).
+        disabled ? 'border border-div bg-disabled-fill' : checked ? 'justify-end bg-[var(--hq-switch-on)] shadow-[inset_0_0_0_1px_var(--hq-silver-line)]' : 'justify-start border-[1.5px] border-[var(--hq-switch-off)] bg-tile',
       )}
     >
-      <span className={cx('rounded-full transition-all duration-200', disabled ? 'size-[18px] bg-disabled' : checked ? 'size-5 bg-on-gold' : 'size-4 bg-sec')} />
+      <span className={cx('rounded-full transition-all duration-200', disabled ? 'size-[18px] bg-disabled' : checked ? 'size-5 bg-silver' : 'size-4 bg-sec')} />
     </button>
   );
 }
@@ -205,7 +208,8 @@ export function StatTile({ label, value, sub, tone }: { label: ReactNode; value:
   return (
     <div className="flex flex-col gap-1 rounded-[14px] bg-card p-4">
       <span className="text-caption text-muted">{label}</span>
-      <span className={cx('text-[24px] font-semibold leading-8', tone === 'neg' ? 'text-neg' : tone === 'warn' ? 'text-warn' : tone === 'pos' ? 'text-pos' : 'text-ink')}>{value}</span>
+      {/* ⟨1.0.1⟩ a figure is never cut and never leaves its tile: it shrinks to fit. */}
+      <Fit className={cx('text-[24px] font-semibold leading-8', tone === 'neg' ? 'text-neg' : tone === 'warn' ? 'text-warn' : tone === 'pos' ? 'text-pos' : 'text-ink')}>{value}</Fit>
       {sub ? <span className="text-caption text-sec">{sub}</span> : null}
     </div>
   );

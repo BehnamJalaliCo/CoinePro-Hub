@@ -238,7 +238,12 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
 
     private fun brief(s: S) = jo("done_fa" to s.brief.first, "now_fa" to s.brief.second, "need_fa" to s.brief.third)
 
-    private fun report(s: S) = jo(
+    /** ⟨1.31⟩ What the rest of the demo adds to a session's report: its standing routines (§50) and its publishes (§44.5, §51). */
+    @Volatile var extras: ((String) -> Map<String, JsonElement>)? = null
+
+    private fun report(s: S) = JsonObject(base(s) + extras?.invoke(s.ref).orEmpty())
+
+    private fun base(s: S) = jo(
         "ref" to s.ref, "text_fa" to s.text, "at" to at(s.opened),
         "state" to when { s.closedAt != null -> "delivered"; s.turn != null -> "waiting"; s.blockers.isNotEmpty() -> "blocked"; else -> "in_progress" },
         "ack" to jo("at" to at(s.opened - 2), "by" to null, "plan_fa" to s.brief.second, "assigned" to JsonArray(emptyList()), "due_at" to null),

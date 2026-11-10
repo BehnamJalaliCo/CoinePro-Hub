@@ -1943,6 +1943,38 @@ class Api(
     suspend fun retirePlaybook(ref: String, stepUp: StepUp): Playbook =
         call(write("POST", "/playbooks/${seg(ref)}/retire", JsonObject(emptyMap()), stepUp("playbook.retire", ref)), serializer())
 
+    // --------------------------------------------- ⟨1.31⟩ §47–§51 what the reels order still lacked --
+    /** §47.4 a page of what [company] already said in the working group [group], newest first: [kind] `topic` · `reference`, [q] a
+     *  search in the titles. The counts are of the whole ledger. */
+    suspend fun topics(group: String, company: String, kind: String? = null, q: String? = null, cursor: String? = null, limit: Int = 30): TopicLedger =
+        get("/groups/${seg(group)}/members/${seg(company)}/topics", mapOf("kind" to kind, "q" to q?.trim()?.ifEmpty { null }, "limit" to limit, "cursor" to cursor))
+    /** The owner adds a line himself («این را قبلاً گفته‌ایم»): [body] from [com.coinepro.hq.core.data.topicBody]. One already said is a
+     *  `409 topic_taken` whose Persian message names the earlier line. */
+    suspend fun addTopic(group: String, company: String, body: JsonObject): TopicEntry =
+        post("/groups/${seg(group)}/members/${seg(company)}/topics", body)
+    /** A line freed: it may be said again (nothing is deleted on the hub). */
+    suspend fun freeTopic(group: String, company: String, id: String): TopicEntry =
+        call(Request.Builder().url(url("/groups/${seg(group)}/members/${seg(company)}/topics/${seg(id)}")).delete().build(), serializer())
+
+    /** §48 the company's narrator, the prebuilt voices, and whether the hub's sign-in to the speech service stands. */
+    suspend fun narrator(code: String): Narrator = get("/companies/${seg(code)}/narrator")
+    /** The owner's tap, no passkey. A voice the service does not have is a 422 with its Persian message. */
+    suspend fun setNarrator(code: String, voice: String, styleFa: String?): Narrator =
+        put("/companies/${seg(code)}/narrator", com.coinepro.hq.core.data.narratorBody(voice, styleFa))
+
+    /** §49 the hour [account] of the company does best at (the company's own account when left out). */
+    suspend fun bestHour(code: String, account: String? = null): BestHour =
+        get("/companies/${seg(code)}/best-hour", mapOf("account" to account?.trim()?.removePrefix("@")?.ifBlank { null }))
+
+    /** §50 a standing routine from one sentence, on at once: no card, no passkey. [order] is the session it is said in; [key] the
+     *  press's own UUID. A sentence that is no plain timed routine is a 422 with its Persian message; nothing is made. */
+    suspend fun newRoutine(sentence: String, order: String?, key: String, company: String? = null): SessionRoutine =
+        call(write("POST", "/routines", com.coinepro.hq.core.data.routineBody(sentence, order, company), null, key), serializer())
+
+    /** §51 a scheduled post taken back: his tap, no passkey. The answer is the publication as it stands now (`cancelled`, or its state
+     *  kept with «در حال لغو» while IG-Hub is asked); one that is out already is a `409 not_cancellable`. */
+    suspend fun cancelPublish(job: String): SessionPublish = post("/publishes/${seg(job)}/cancel", JsonObject(emptyMap()))
+
     /** §35.6 the canvas: the hub and the companies, and the links between them. */
     suspend fun links(): Canvas = get("/links")
     suspend fun newLink(from: String, to: String, kind: String, purposeFa: String): CompanyLink =

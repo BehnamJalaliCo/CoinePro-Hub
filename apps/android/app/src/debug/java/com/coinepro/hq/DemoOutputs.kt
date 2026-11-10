@@ -23,7 +23,11 @@ import kotlinx.serialization.json.put
  * to the fixtures: the rule-based morning report as the hub writes it (worker/report.py, with its table of companies), and two of the
  * days before, seen (one filed), so the list has days to group by.
  */
-internal class OutputsDemo(private val store: MutableMap<String, Pair<Int, JsonElement>>) {
+internal class OutputsDemo(
+    private val store: MutableMap<String, Pair<Int, JsonElement>>,
+    /** ⟨1.31⟩ §49 the best hour of a company's account, as the demo's rule answers it. */
+    private val bestHour: (String, String?) -> JsonObject? = { _, _ -> null },
+) {
     private val seen = mutableMapOf<String, String>()
     private val filed = mutableMapOf<String, String>()
     private var nextRecord = 97
@@ -33,7 +37,10 @@ internal class OutputsDemo(private val store: MutableMap<String, Pair<Int, JsonE
     private val sessionOutputs = mutableMapOf("O-000950" to listOf("coineprofx", "coineprofx.academy"), "O-000951" to listOf("coineprofx"))
     /** ⟨0.19.9⟩ §45 outputs a working group's routine made (no session), with the group's name. Declared before `init` fills it. */
     private val groupOutputs = mutableMapOf<String, String>()
-    private var nextJob = 10
+    private var nextJob = 30
+    /** ⟨1.31⟩ §51 the publications IG-Hub already holds (a cancel is asked of it: «در حال لغو»), and those whose file is still on its way. */
+    private val held = mutableSetOf("jp-2", "jp-23")
+    private val onItsWay = mutableSetOf("jp-11")
 
     init {
         val now = HqClock.now()
@@ -60,7 +67,8 @@ internal class OutputsDemo(private val store: MutableMap<String, Pair<Int, JsonE
         val reel = file("/demo/fx-reel-levels.mp4", "gold-levels-reel.mp4", "video/mp4", "video", "/demo/fx-reel-levels-poster.webp")
         val cover = file("/demo/fx-reel-levels-poster.webp", "gold-levels-cover.webp", "image/webp", "image")
         val story = file("/demo/ty-story-stoploss-poster.webp", "gold-levels-story.webp", "image/webp", "image")
-        val workshop = buildJsonObject { put("runtime", "workshop"); put("label_fa", "کارگاه هلدینگ · Opus 5.5") }
+        // ⟨1.31⟩ §53 a workshop turn's output says the model it ran on and how hard it thought
+        val workshop = buildJsonObject { put("runtime", "workshop"); put("model", "claude-opus-5-5"); put("effort", "max") }
         for ((ref, files) in listOf("O-000950" to listOf(reel, cover), "O-000951" to listOf(reel, cover, story))) {
             val d = deliverable(
                 ref, "FX", "W-000311", media, "خروجی کارگاه: ریلز «سطوح کلیدی طلا»",
@@ -97,6 +105,23 @@ internal class OutputsDemo(private val store: MutableMap<String, Pair<Int, JsonE
                 "O-000953", "jp-10", reel, "reel", "coineprofx", "scheduled", at = at(5), cover = "gold-levels-cover.webp",
                 scheduledAt = "2026-11-06T15:00:00Z", comment = "۷",
             ),
+        )
+        // ⟨1.31⟩ §51 the same session's next reel, set for this evening, in every state of a cancel: one he can still take back, one
+        // taken back, one whose cancel is on its way to IG-Hub, and one IG-Hub would not cancel.
+        val pngCover = file("/demo/fx-reel-resist-poster.webp", "entry-cover.png", "image/png", "image")
+        val lastSlide = file("/demo/pc-landing-redesign.webp", "entry-slide.jpg", "image/jpeg", "image")
+        val evening = HqClock.today().atTime(18, 30).atZone(java.time.ZoneId.of(com.coinepro.hq.core.format.OWNER_TZ)).toInstant().toString()
+        val next = deliverable(
+            "O-000954", "FX", "W-000313", media, "خروجی کارگاه: ریلز «حد سود در بازار طلا»",
+            "ریلز فردا با کاور، استوری و اسلاید آماده است.", "ریلز **حد سود در بازار طلا** آماده است: ویدیو، کاور، استوری و یک اسلاید.", at(12), produced = workshop,
+        )
+        store["/deliverables/O-000954"] = 200 to JsonObject(next + ("attachments" to JsonArray(listOf(reel, pngCover, story, lastSlide))))
+        sessionOutputs["O-000954"] = listOf("coineprofx")
+        published["O-000954"] = mutableListOf(
+            publish("O-000954", "jp-23", lastSlide, "post", "coineprofx", "scheduled", note = "لغو انجام نشد (IG-Hub جواب نداد)", at = at(6), scheduledAt = evening),
+            publish("O-000954", "jp-22", story, "story", "coineprofx", "scheduled", note = "در حال لغو", at = at(7), scheduledAt = evening),
+            publish("O-000954", "jp-21", pngCover, "post", "coineprofx", "cancelled", at = at(8), scheduledAt = evening),
+            publish("O-000954", "jp-20", reel, "reel", "coineprofx", "scheduled", at = at(9), cover = "entry-cover.png", scheduledAt = evening),
         )
         published["O-000951"] = mutableListOf(
             publish("O-000951", "jp-3", story, "story", "coineprofx", "failed", note = "حساب امروز به سقف انتشار رسیده است.", at = at(4)),
@@ -136,7 +161,7 @@ internal class OutputsDemo(private val store: MutableMap<String, Pair<Int, JsonE
         val group = groupOutputs[ref]
         val accounts = sessionOutputs[ref] ?: group?.let { listOf("tradeyar") }
         if (method == "GET") return 200 to buildJsonObject {
-            put("order", if (accounts == null || group != null) JsonNull else JsonPrimitive("F-0100")); put("channel", "instagram")
+            put("order", if (accounts == null || group != null) JsonNull else JsonPrimitive(SESSION)); put("channel", "instagram")
             put("accounts", JsonArray(accounts.orEmpty().map(::JsonPrimitive))); put("ready", accounts != null)
             put("publishes", JsonArray(published[ref].orEmpty()))
             // ⟨0.19.9⟩ §45 every output is tapped here; a working group's carries its caption and the owner's standing word
@@ -149,6 +174,8 @@ internal class OutputsDemo(private val store: MutableMap<String, Pair<Int, JsonE
             } else JsonNull)
             put("group", if (group != null) JsonPrimitive("pb_1") else JsonNull); put("group_fa", group?.let(::JsonPrimitive) ?: JsonNull)
             put("mode", if (group != null) JsonPrimitive("auto") else JsonNull)
+            // ⟨1.31⟩ §49 the account's best hour, only when there is enough data (a time of the sheet)
+            put("best", bestHour(if (group != null) "TY" else "FX", accounts?.firstOrNull())?.takeIf { (it["enough"] as? JsonPrimitive)?.booleanOrNull == true } ?: JsonNull)
         }
         if (method != "POST" || accounts == null) return null
         val fileId = body?.str("file_id") ?: return null
@@ -166,9 +193,35 @@ internal class OutputsDemo(private val store: MutableMap<String, Pair<Int, JsonE
         return 202 to made
     }
 
+    /** ⟨1.31⟩ §44.5 what the demo's session published, across its outputs, newest first (`OrderReport.publishes`). */
+    fun sessionPublishes(): JsonArray =
+        JsonArray(sessionOutputs.keys.flatMap { published[it].orEmpty() }.sortedByDescending { it.str("at").orEmpty() })
+
+    /**
+     * ⟨1.31⟩ §51 «لغو»: one no runner has taken is cancelled at once; one IG-Hub holds keeps its state with «در حال لغو» (a second tap
+     * answers the same); one that is out, failed or cancelled, or whose file is still on its way, is a `409 not_cancellable`.
+     */
+    private fun cancel(job: String): Pair<Int, JsonElement> {
+        fun refuse(fa: String) = 409 to buildJsonObject { put("code", "not_cancellable"); put("message_fa", fa); put("status", 409); put("title", "Conflict"); put("type", "about:blank") }
+        for (list in published.values) {
+            val i = list.indexOfFirst { it.str("job") == job }
+            if (i < 0) continue
+            val p = list[i]
+            val state = p.str("state")
+            if (state != "scheduled" && state != "publishing") return refuse(
+                when (state) { "published" -> "این پست منتشر شده است؛ برداشتنش از خود اینستاگرام انجام میشود."; "cancelled" -> "این انتشار پیش‌تر لغو شده است."; else -> "این انتشار دیگر در صف نیست." },
+            )
+            if (job in onItsWay) return refuse("فایل این انتشار هنوز در راه IG-Hub است؛ چند لحظه‌ی دیگر میشود لغوش کرد.")
+            list[i] = JsonObject(p + if (job in held) mapOf("note_fa" to JsonPrimitive("در حال لغو")) else mapOf("state" to JsonPrimitive("cancelled"), "note_fa" to JsonNull))
+            return 200 to list[i]
+        }
+        return 404 to buildJsonObject { put("code", "not_found"); put("message_fa", "این انتشار پیدا نشد."); put("status", 404); put("title", "Not found"); put("type", "about:blank") }
+    }
+
     /** Answers the ⟨1.7.3⟩ reads and writes, or null to let the rest of the demo answer. */
     fun handle(method: String, path: String, query: Map<String, String?>, body: JsonObject?, stepUp: String? = null): Pair<Int, JsonElement>? {
         Regex("^/deliverables/(O-\\d+)/publish$").find(path)?.let { m -> return publishRoute(method, m.groupValues[1], body) }
+        Regex("^/publishes/([^/]+)/cancel$").find(path)?.let { m -> return if (method == "POST") cancel(m.groupValues[1]) else null }
         if (method == "GET" && path == "/deliverables") return 200 to page(filter(query).map(::view))
         if (method == "GET" && path.matches(Regex("^/deliverables/O-\\d+$"))) return store[path]?.let { 200 to view(it.second) }
         if (method == "GET" && path == "/inbox/summary") {
@@ -270,7 +323,10 @@ internal class OutputsDemo(private val store: MutableMap<String, Pair<Int, JsonE
         put("produced_with", produced); put("usage", JsonObject(emptyMap())); put("rating", JsonNull); put("created_at", at)
     }
 
-    private companion object {
+    companion object {
+        /** The session the demo's workshop outputs belong to (their panel's `order`). */
+        const val SESSION = "F-0100"
+
         /** The morning report exactly as the hub's rule-based writer lays it out (worker/report.py `render`). */
         val MORNING = """
             # گزارش صبحگاهی — شنبه ۲۵ مهر ۱۴۰۵ (2026-10-17)

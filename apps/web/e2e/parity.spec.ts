@@ -129,11 +129,17 @@ test('gives an order with a priority in words', async ({ page }) => {
 test('folds a repeated alert, reads it and finds it among the read', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/notifications');
-    await expect(page.getByText('۵ بار، آخرین', { exact: false }).or(page.getByText('5 بار، آخرین', { exact: false })).first()).toBeVisible();
-    await page.getByRole('button', { name: 'همه خوانده شد' }).nth(1).click();
+    // ⟨1.0.1⟩ One row for the alert raised five times, with its count; read, it stays in the one list without its unread edge.
+    const row = page.locator('[data-row]').filter({ hasText: 'یافته‌ی جدی ناظر کل' }).first();
+    await expect(row.locator('[data-times]')).toHaveText('۵ بار');
+    await expect(row).toHaveAttribute('data-unread', '');
+    await row.hover();
+    await row.getByRole('button', { name: 'همه خوانده شد' }).click();
     await expect(page.getByText('5 اعلان خوانده شد').or(page.getByText('۵ اعلان خوانده شد'))).toBeVisible();
-    await page.getByRole('radio', { name: 'خوانده‌شده' }).click();
-    await expect(page.getByText(/یافته‌ی جدی ناظر کل/).first()).toBeVisible();
+    const read = page.locator('[data-row]').filter({ hasText: 'یافته‌ی جدی ناظر کل' }).first();
+    await expect(read).toBeVisible();
+    await expect(read).not.toHaveAttribute('data-unread', '');
+    await expect(page.getByTestId('asks').locator('[data-row]').filter({ hasText: 'یافته‌ی جدی ناظر کل' })).toHaveCount(0);
   });
 });
 

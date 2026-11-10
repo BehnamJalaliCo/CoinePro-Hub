@@ -11,7 +11,8 @@ const VARIANT: Record<Variant, string> = {
   primary: 'bg-gold text-on-gold font-bold hover:bg-gold-bright active:bg-[var(--hq-gold-pressed)] disabled:bg-disabled-fill disabled:text-disabled',
   secondary: 'border border-strong text-ink hover:bg-hover active:bg-pressed disabled:border-div disabled:text-disabled',
   silver: 'bg-[var(--hq-silver-soft)] text-silver-ink hover:bg-[var(--hq-silver-soft-hover)] active:bg-[var(--hq-silver-soft-pressed)] disabled:bg-disabled-fill disabled:text-disabled',
-  text: 'text-gold-ink hover:bg-gold-soft active:bg-gold-soft disabled:text-disabled',
+  // ⟨1.0.1⟩ a small text action («کپی», «همه», «برگردان») is silver; gold is the primary alone.
+  text: 'text-silver-ink hover:bg-[var(--hq-silver-soft)] hover:text-ink active:bg-[var(--hq-silver-soft-hover)] disabled:text-disabled',
   danger: 'border border-[var(--hq-neg-line)] text-neg hover:bg-neg-soft active:bg-neg-soft disabled:border-div disabled:text-disabled',
   ghost: 'text-sec hover:bg-hover hover:text-ink active:bg-pressed disabled:text-disabled',
 };
@@ -53,7 +54,7 @@ export function IconButton({ icon, label, size = 40, className, active, mirror, 
       type="button"
       aria-label={label}
       title={label}
-      className={cx('inline-flex flex-none items-center justify-center rounded-full text-sec transition-colors duration-[120ms] hover:bg-hover hover:text-ink active:bg-pressed', active && 'text-gold-ink', className)}
+      className={cx('inline-flex flex-none items-center justify-center rounded-full text-sec transition-colors duration-[120ms] hover:bg-hover hover:text-ink active:bg-pressed', active && 'text-ink', className)}
       style={{ width: size, height: size }}
       {...rest}
     >

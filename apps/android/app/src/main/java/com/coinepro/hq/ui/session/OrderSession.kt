@@ -142,7 +142,7 @@ import kotlinx.serialization.json.JsonObject
 // the pace, the plan, the results and files, close, cancel, hide and erase) is in the «جزئیات» sheet; «تأیید و بستن» is also a pill in
 // the head once the work is ready. Nothing technical and no ref is shown: the ref is the key only.
 
-private enum class SessionSheet { NONE, DETAILS, PLAN, LIVE, PERSON, MODEL, CLOSE, LINE, KEY, PARTICIPANT, ERASE }
+private enum class SessionSheet { NONE, DETAILS, PLAN, LIVE, PERSON, MODEL, CLOSE, LINE, KEY, PARTICIPANT, ERASE, ROUTINE }
 
 @Composable
 fun OrderSessionScreen(ref: String) {
@@ -417,7 +417,18 @@ fun OrderSessionScreen(ref: String) {
                     onErase = { sheet = SessionSheet.ERASE },
                     // ⟨1.22⟩ §40.2 the draft's card is in the chat now: back to it.
                     onDrafted = { sheet = SessionSheet.NONE; scope.launch { q.refresh(); talk.reload() } },
+                    // ⟨1.0.1⟩ §50 a standing routine from one sentence
+                    onRoutine = { sheet = SessionSheet.ROUTINE },
                 )
+            }
+        }
+        // ⟨1.0.1⟩ §50 «روال دائمی»: made, it is a row of the details the sheet goes back to (and a line of the session).
+        SessionSheet.ROUTINE -> com.coinepro.hq.ui.v14.HqSheet({ sheet = SessionSheet.NONE }, "روال دائمی", sub = "یک جمله بگو؛ همان‌جا ساخته و روشن میشود.") {
+            RoutineForm(ref) { made ->
+                o?.let { r -> q.set(r.copy(routines = listOf(made) + r.routines.orEmpty().filter { it.ref != made.ref })) }
+                toasts.ok("روال دائمی ساخته شد.")
+                sheet = SessionSheet.DETAILS
+                scope.launch { q.refresh(); talk.reload() }
             }
         }
         SessionSheet.PERSON -> com.coinepro.hq.ui.v14.HqSheet({ sheet = SessionSheet.NONE }, "آدم تازه در جلسه", sub = "مدیر یا کارمند هر شرکت، یا مشاور و ناظر؛ با جلسه حرف میزند و از داده‌ی خودش جواب میدهد.") {
@@ -615,6 +626,8 @@ internal fun SessionDetailsBody(
     onDrafted: (com.coinepro.hq.core.net.Playbook) -> Unit = {},
     pace: String = o.pace,
     focusPlan: Boolean = false,
+    /** ⟨1.0.1⟩ §50 opens «روال دائمی». */
+    onRoutine: () -> Unit = {},
 ) {
     val c = Divan.colors
     val brief = briefOf(o)
@@ -643,10 +656,17 @@ internal fun SessionDetailsBody(
     // ⟨1.22⟩ §40.1 what the session remembers, and §40.2 its result as a working group (open or closed alike).
     o.memoryMd?.takeIf { it.isNotBlank() }?.let { com.coinepro.hq.ui.playbook.MemoryCard(it) }
     if (playbooksOn) com.coinepro.hq.ui.playbook.SessionPlaybooks(o.ref, onDrafted)
+    // ⟨1.0.1⟩ §50 the standing routines asked for here, and the way to a new one (a hub before §50 sends no `routines`: neither shows).
+    o.routines?.takeIf { served(HubFeature.ROUTINES) }?.let { rs ->
+        SessionRoutines(rs, onChanged = onTasksChanged)
+        if (sessionsOn) RoutineAction(onRoutine)
+    }
     PeopleBar(participants, open = !closed && sessionsOn, addressee = addressee, onPick = onPick, onAddPerson = onAddPerson, onAddModel = onAddModel)
     PaceRow(pace, enabled = !closed && sessionsOn, onPace = onPace)
     if (o.tasks.isNotEmpty() || (sessionsOn && !closed)) TasksCard(o.ref, o.tasks, editable = sessionsOn && !closed, onChanged = onTasksChanged, modifier = Modifier.bringIntoViewRequester(planAt))
     if (o.outputs.isNotEmpty()) OutputsCard(o)
+    // ⟨1.0.1⟩ §51 what went out or is set to go out from this session; a scheduled one is taken back here.
+    SessionPublishes(o.publishes, onChanged = onTasksChanged)
     if (o.files.any { it.id.isNotBlank() }) FilesCard(o.files.filter { it.id.isNotBlank() })
     if (sessionsOn) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (closed) HqButton("باز کردن دوباره", onReopen, Modifier.fillMaxWidth(), icon = DivanIcon.REFRESH)

@@ -115,6 +115,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             v42.handle(req.method, path)?.let { Thread.sleep(60); return respond(req, it) }
             // ⟨1.20⟩ §38.3 the hub's services and their jobs.
             v38.handle(req.method, path, b)?.let { Thread.sleep(60); return respond(req, it) }
+            // ⟨1.31⟩ §47–§50 the ledger of topics, the narrator, the best hour and the standing routines (their own routes only).
+            v47.handle(req.method, path, q, b)?.let { Thread.sleep(60); return respond(req, it) }
             // ⟨1.22⟩ §40 the playbooks, a session's draft and the playbook cards in its talk, before the sessions' own routes.
             v40.handle(req.method, path, q, b)?.let { Thread.sleep(60); return respond(req, it) }
             // ⟨1.17⟩ §35 first: the sessions (F-01xx), their talk (CV-05xx), the office and the canvas.
@@ -293,7 +295,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     /** ⟨1.9⟩ eager: `/meta.speech` and the voice message's hub transcript are there from the first read. */
     private val council = CouncilDemo(context, store, files)
     private val watch = WatchDemo(store)
-    private val outputs by lazy { OutputsDemo(store) }
+    private val outputs by lazy { OutputsDemo(store) { code, account -> v47.bestHour(code, account) } }
     /** Eager: the holding's mixed states are there from the first read. */
     private val control = ControlDemo(store)
     private val notifications = NotificationsDemo(store)
@@ -314,6 +316,8 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     private val v38 = V38Demo()
     /** ⟨1.22⟩ §40 a session becomes a working group: the library, the drafts in the sessions' talk, a session opened from one. */
     private val v40 = V40Demo(v35)
+    /** ⟨1.31⟩ §47–§50 the ledger, the narrator, the best hour and a session's standing routines. */
+    private val v47 = V47Demo(v35)
     /** ⟨1.24⟩ §42 the holding live: `/live/summary` and the live views' script on the stream. */
     private val v42 = V42Demo(store)
     /** ⟨1.8⟩ before [scripts]: wakes on the first look at a server, so other screens see the holding as before. */
@@ -322,6 +326,10 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     init {
         // ⟨1.9⟩ a live media council's versions are drawn and served beside the fixture ones.
         orders.mediaMaker = council::make
+        // ⟨1.31⟩ a session's report carries its standing routines (§50) and what it published (§44.5, §51).
+        v35.extras = { ref ->
+            mapOf("routines" to v47.routinesOf(ref)) + (if (ref == OutputsDemo.SESSION) mapOf("publishes" to outputs.sessionPublishes()) else emptyMap())
+        }
     }
     private val scripts = mutableMapOf<String, MutableList<JsonObject>>().apply {
         for ((k, v) in store) if (k.startsWith("#script:")) put(k.removePrefix("#script:"), v.second.jsonObject["items"]!!.jsonArray.map { it.jsonObject }.toMutableList())

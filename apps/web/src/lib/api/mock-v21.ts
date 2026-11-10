@@ -32,6 +32,7 @@ import { handle40 } from './mock-v40';
 import { openFromPlaybook, playbookOrder, postPlaybookCard } from './mock-v34';
 import { drive42, handle42, tick42 as beat42 } from './mock-v42';
 import { handle47 } from './mock-v47';
+import { handle55 } from './mock-v55';
 
 const json = (body: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const problem = (status: number, code: string, message_fa: string) => json({ code, message_fa, status, title: code, type: 'about:blank' }, status);
@@ -585,6 +586,9 @@ async function handleRest(req: Request): Promise<Response> {
       if (v34) return v34;
       return below(r);
     };
+    // ⟨1.0.1⟩ §55 the look (./mock-v55): the limits of the treasury, and an order that names its company.
+    const v55 = await handle55(req, path, sessions);
+    if (v55) return v55;
     // ⟨1.0.1⟩ §47 to §53 the gaps of the reels order (./mock-v47): its own routes, and what it adds to a session's report and outputs.
     const v47 = await handle47(req, path, sessions);
     if (v47) return v47;

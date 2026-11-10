@@ -19,11 +19,15 @@ test('the home is the office: sessions with his turn first, approvals, money, th
     await expect(page.getByRole('heading', { level: 1 })).toContainText('مدیر کل');
     const sessions = page.getByLabel('جلسه‌ها', { exact: true });
     await expect(sessions.getByText('سه عنوان برای خبرنامه‌ی هفته‌ی تریدیار پیشنهاد بده')).toBeVisible();
-    // His turn comes first.
+    // His turn comes first, in one of three states only («منتظر تو», «در کار», «تمام»).
     const first = sessions.locator('a[data-badge]').first();
     await expect(first).toHaveAttribute('data-badge', 'your_turn');
-    await expect(first.getByText('نوبت تو')).toBeVisible();
-    await expect(page.getByLabel('منتظر مُهر تو')).toBeVisible();
+    await expect(first.getByText('منتظر تو')).toBeVisible();
+    // ⟨1.0.1⟩ What waits for him is on top, answered in place: a session's question, and a card with its own «تأیید».
+    const turn = page.getByTestId('turn-row');
+    await expect(turn.getByRole('heading', { name: 'نوبت تو' })).toBeVisible();
+    await expect(turn.locator('[data-wait="session"]').first()).toContainText('کدام عنوان بهتر است');
+    await expect(turn.locator('[data-wait="decision"]').first().getByRole('button', { name: /^تأیید/ })).toBeVisible();
     await expect(page.getByLabel('پول')).toContainText('درآمد');
     await expect(page.getByLabel('بوم شرکت‌ها')).toBeVisible();
     await expect(page.getByLabel(/^شاخص‌های /)).toHaveCount(0);
@@ -34,10 +38,14 @@ test('the home is the office: sessions with his turn first, approvals, money, th
 test('a word in the command bar becomes an order and opens its session', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/');
-    await page.getByLabel('فرمان تازه', { exact: true }).fill('برای پرو-چارت یک پست درباره‌ی هشدار قیمت بنویس');
+    // ⟨1.0.1⟩ The home's command entry is one row that opens the command sheet.
+    await page.getByTestId('command-row').click();
+    const sheet = page.getByTestId('command-sheet');
+    await sheet.getByLabel('فرمان', { exact: true }).fill('برای پرو-چارت یک پست درباره‌ی هشدار قیمت بنویس');
     // ⟨2026-11-09⟩ «با من یا خودکار؟» first
-    await page.getByRole('radiogroup', { name: 'این جلسه چطور جلو برود؟' }).getByRole('radio', { name: 'خودکار' }).click();
-    await page.getByRole('button', { name: 'بفرست' }).first().click();
+    await expect(sheet.getByRole('button', { name: 'باز کن' })).toBeDisabled();
+    await sheet.getByRole('radiogroup', { name: 'این جلسه چطور جلو برود؟' }).getByRole('radio', { name: 'خودکار' }).click();
+    await sheet.getByRole('button', { name: 'باز کن' }).click();
     await expect(page).toHaveURL(/\/s\/F-\d+$/);
     await expect(page.getByRole('heading', { level: 1 })).toContainText('هشدار قیمت');
     // The holder has greeted in the order's own talk.

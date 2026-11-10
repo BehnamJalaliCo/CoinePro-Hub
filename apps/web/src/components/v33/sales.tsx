@@ -3,6 +3,7 @@
 // ⟨1.15⟩ Contract §33.4–§33.5 «فروش»: a small CRM per company — the pipeline by stage, the leads, one lead with its events and the follow-up
 // draft (shown only; nothing is sent from here), and the affiliate commission due against received.
 
+import { Fit } from '@/components/look/text';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -76,7 +77,7 @@ function LeadSheet({ code, leadRef, onClose, stages }: { code: string; leadRef: 
         <div className="flex flex-col gap-5" aria-label={`سرنخ ${d.ref}`}>
           <dl className="grid grid-cols-2 gap-2">
             {([['منبع', LEAD_SOURCE_FA[d.source] ?? d.source], ['ارزش', usdt(d.value_usdt)], ['شناسه', d.contact], ['مسئول', d.assignee?.display_fa ?? d.assignee?.code ?? 'بدون مسئول']] as const).map(([k, v]) => (
-              <div key={k} className="rounded-[12px] bg-tile p-3"><dt className="text-[11px] text-muted">{k}</dt><dd className="fig truncate pt-1 text-[14px] font-semibold" dir="auto">{v}</dd></div>
+              <div key={k} className="rounded-[12px] bg-tile p-3"><dt className="text-[11px] text-muted">{k}</dt><dd className="pt-1 text-[14px] font-semibold"><Fit><span className="fig" dir="auto">{v}</span></Fit></dd></div>
             ))}
           </dl>
           <label className="flex flex-col gap-1.5"><span className="text-[12px] text-sec">مرحله</span>

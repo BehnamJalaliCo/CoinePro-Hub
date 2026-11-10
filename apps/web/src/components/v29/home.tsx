@@ -67,7 +67,7 @@ export function SuggestionCard({ kind, s }: { kind: 'effective' | 'good'; s: Sug
           {s.state === 'run' ? (
             <div className="flex flex-wrap items-center gap-2 rounded-[10px] bg-pos-soft px-3 py-2 text-[13px] text-pos">
               <Icon name="seal" size={16} active />فرمانش ساخته شد
-              {s.order_ref ? <Link href={`/s/${s.order_ref}`} className="ms-auto font-semibold text-gold-ink hover:underline">برو به جلسه</Link> : null}
+              {s.order_ref ? <Link href={`/s/${s.order_ref}`} className="ms-auto font-semibold text-silver-ink hover:text-ink hover:underline">برو به جلسه</Link> : null}
             </div>
           ) : asking ? (
             <form className="flex flex-col gap-2" onSubmit={(e) => { e.preventDefault(); if (reason.trim()) go('no', reason.trim()); }}>
@@ -82,7 +82,8 @@ export function SuggestionCard({ kind, s }: { kind: 'effective' | 'good'; s: Sug
             </form>
           ) : (
             <div className="mt-auto flex flex-wrap gap-2">
-              <Button variant={kind === 'effective' ? 'primary' : 'secondary'} icon="send" loading={act.isPending && act.variables?.action === 'run'} onClick={() => go('run')}>اجرا کن</Button>
+              {/* ⟨1.0.1⟩ one full gold per screen: on the home that is the first «تأیید» of what waits for him; a suggestion is offered quietly. */}
+              <Button variant="secondary" icon="send" loading={act.isPending && act.variables?.action === 'run'} onClick={() => go('run')}>اجرا کن</Button>
               <Button variant="ghost" icon="time" disabled={act.isPending} onClick={() => go('later')}>بعداً</Button>
               <Button variant="ghost" icon="close" disabled={act.isPending} onClick={() => setAsking(true)}>نه</Button>
             </div>

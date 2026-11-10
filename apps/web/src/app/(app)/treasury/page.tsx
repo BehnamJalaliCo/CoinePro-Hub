@@ -11,12 +11,17 @@ import { RoiCard, WasteCard } from '@/components/v18/treasury';
 import Link from 'next/link';
 import type { Connection } from '@/lib/api/v15';
 import { TokenMeter } from '@/components/live/office';
-import { Bar, Card, ErrorState, PageHeader, Pill, SectionTitle, Segmented, Skeleton, StatTile, budgetTone } from '@/components/ui/primitives';
+import { Bar, Card, ErrorState, PageHeader, Pill, SectionTitle, Segmented, Skeleton, budgetTone } from '@/components/ui/primitives';
 import { useBreakdown, useCompanies, useConnections, useTreasury } from '@/lib/api/hooks';
 import { companyColor } from '@/lib/company';
 import { useScope } from '@/lib/scope';
 import { tokens, usd, cx, until, isRealModel } from '@/lib/format';
 import { ModelMark, ModelName } from '@/components/brand/model-mark';
+import { Icon } from '@/components/icon';
+import { LimitsBlock } from '@/components/look/limits';
+import { Amount, Facts, Ltr, clock } from '@/components/look/text';
+import { useLimits } from '@/lib/api/v55';
+import { DEPT_FA } from '@/lib/labels';
 
 const TOKEN_COLOR = { input: 'var(--hq-chart-1)', output: 'var(--hq-chart-2)', cache: 'var(--hq-chart-3)', write: 'var(--hq-chart-5)', thinking: 'var(--hq-chart-4)' };
 
@@ -27,6 +32,46 @@ const CONNECTION_STATUS: Record<string, { label: string; tone: 'pos' | 'warn' | 
   quota_exhausted: { label: 'سهمیه تمام', tone: 'warn' },
   disabled: { label: 'خاموش', tone: 'neutral' },
 };
+/** A role's code as the owner reads it: «مدیر فنی کوینه‌پرو اف‌ایکس», never «FX-TECH-MGR». */
+function actorTitle(code: string, company: (c: string) => string): string {
+  const [co = '', a = '', b = ''] = code.split('-');
+  const name = company(co);
+  if (a === 'CEO') return `مدیرعامل ${name}`;
+  if (a === 'ADV') return 'مشاور کل';
+  if (a === 'OVR') return 'ناظر کل';
+  if (a === 'SYS') return 'سیستم';
+  if (a === 'AST' || a === 'PA') return 'دستیار';
+  const dept = DEPT_FA[a];
+  if (dept && b === 'MGR') return `مدیر ${dept} ${name}`;
+  if (dept && /^\d+$/.test(b)) return `کارمند ${dept} ${name}`;
+  return name && name !== co ? `همکار ${name}` : 'همکار';
+}
+
+type Verdict = { tone: 'pos' | 'warn' | 'neg'; fa: string };
+/** «تا آخر ماه میرسم یا نه»: this month's pace against its cap. The month is the hub's own (a calendar month, UTC). */
+function verdictOf(used: number, limit: number | null | undefined, now = new Date()): Verdict | null {
+  if (!limit) return null;
+  const day = now.getUTCDate();
+  const days = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
+  const perDay = used / Math.max(1, day);
+  const end = perDay * days;
+  if (used >= limit) return { tone: 'neg', fa: 'سقف این ماه پر شده است.' };
+  if (end > limit) return { tone: 'neg', fa: `با این آهنگ، حدود روز ${Math.min(days, Math.ceil(limit / perDay))} ماه به سقف میرسی.` };
+  if (end > limit * 0.9) return { tone: 'warn', fa: 'با این آهنگ، آخر ماه به سقف نزدیک میشوی.' };
+  return { tone: 'pos', fa: 'با این آهنگ، آخر ماه زیر سقف میمانی.' };
+}
+const VERDICT_CLS: Record<Verdict['tone'], string> = { pos: 'text-pos', warn: 'text-warn', neg: 'text-neg' };
+
+/** One small figure of the row under the big number: Latin tabular digits, never cut. */
+function Small({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col gap-0.5 border-s border-div px-3 first:border-s-0 first:ps-0 last:pe-0">
+      <Amount className="text-[17px] font-semibold leading-7 text-ink">{children}</Amount>
+      <span className="text-[11px] leading-4 text-muted">{label}</span>
+    </div>
+  );
+}
+
 export default function TreasuryPage() {
   const { company } = useScope();
   const [period, setPeriod] = useState<'day' | 'month'>('month');
@@ -36,6 +81,7 @@ export default function TreasuryPage() {
   const byDay = useBreakdown({ by: 'day' as never, company: company ?? undefined });
   const conns = useConnections();
   const { data: companies } = useCompanies();
+  const limits = useLimits();
   const t = sum.data?.totals;
   const [editBudgets, setEditBudgets] = useState(false);
   const [editConn, setEditConn] = useState<Connection | null>(null);
@@ -47,23 +93,43 @@ export default function TreasuryPage() {
     value: r.input_tokens + r.output_tokens,
   }));
   const daysInMonth = 30;
+  const companyName = (code: string) => companies?.find((c) => c.code === code)?.name_fa ?? code;
+  const verdict = period === 'month' && budget ? verdictOf(budget.tokens_used, budget.token_limit) : null;
+  const readAt = sum.dataUpdatedAt ? clock(sum.dataUpdatedAt) : null;
 
   return (
     <>
       <PageHeader eyebrow="مصرف هر فراخوانی، از یک مسیر واحد" title="خزانه‌ی توکن" actions={<div className="w-56"><Segmented label="دوره" value={period} onChange={setPeriod} options={[{ value: 'day', label: 'امروز' }, { value: 'month', label: 'این ماه' }]} /></div>} />
-      {/* ⟨1.24⟩ MO-1: today's spend against the daily budget, moving with every tick of the stream. */}
-      <TokenMeter named className="max-w-3xl" />
+      {/* ⟨1.0.1⟩ §55.3: the Claude accounts as rings and today's meter. A hub before it: nothing here, and the older cards stay. */}
+      <LimitsBlock limits={limits.data} className="max-w-3xl" />
+      {/* ⟨1.24⟩ MO-1: today's spend in its four kinds, moving with every tick; under the limits it is the detail, alone it leads. */}
+      {limits.data ? null : <TokenMeter named className="max-w-3xl" />}
       {sum.error ? <ErrorState error={sum.error} onRetry={() => sum.refetch()} /> : null}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {!t ? Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-[104px] rounded-[14px]" />) : (
-          <>
-            <StatTile label="توکن ورودی و خروجی" value={<span className="fig">{tokens(t.input_tokens + t.output_tokens)}</span>} sub={<span><span className="fig">{tokens(t.cache_read_tokens)}</span> از کش خوانده شد</span>} />
-            <StatTile label="هزینه‌ی معادل" value={<span className="fig">{usd(t.equiv_cost_usd)}</span>} sub={<span>پرداخت واقعی API: <span className="fig">{usd(t.cost_usd)}</span></span>} />
-            <StatTile label="فراخوانی" value={t.calls} sub={period === 'day' ? 'از نیمه‌شب تهران' : 'از اول ماه'} />
-            <StatTile label="بودجه‌ی مصرف‌شده" value={budget?.pct != null ? `${Math.round(budget.pct)}٪` : '—'} tone={(budget?.pct ?? 0) >= 90 ? 'neg' : (budget?.pct ?? 0) >= 70 ? 'warn' : undefined} sub={budget ? <span className="fig">{tokens(budget.tokens_used)} / {tokens(budget.token_limit)}</span> : 'بودجه‌ای تعیین نشده'} />
-          </>
-        )}
-      </div>
+      {!t ? <Skeleton className="h-[148px] max-w-3xl rounded-[16px]" /> : (
+        <Card as="section" aria-label={period === 'month' ? 'مصرف این ماه' : 'مصرف امروز'} data-testid="treasury-hero" className="flex max-w-3xl flex-col gap-3 p-4 sm:p-5">
+          {verdict ? (
+            <p className={cx('flex items-start gap-2 text-[14px] font-semibold leading-6', VERDICT_CLS[verdict.tone])} data-verdict={verdict.tone}>
+              <span className="mt-0.5 flex-none"><Icon name={verdict.tone === 'pos' ? 'seal' : 'urgent'} size={16} /></span>{verdict.fa}
+            </p>
+          ) : null}
+          <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
+            <Amount className="max-w-full text-[40px] font-bold leading-[46px] text-ink" style={{ flex: '0 1 auto' }}>{period === 'month' && budget ? tokens(budget.tokens_used) : tokens(t.input_tokens + t.output_tokens)}</Amount>
+            <span className="pb-1.5 text-[12px] leading-5 text-sec">
+              {period === 'month' && budget
+                ? <Facts><span>از <Ltr>{tokens(budget.token_limit)}</Ltr> سقف ماه</span>{budget.pct != null ? <Ltr className={cx('font-semibold', budget.pct >= 90 ? 'text-neg' : budget.pct >= 70 ? 'text-warn' : 'text-sec')}>{Math.round(budget.pct)}%</Ltr> : null}</Facts>
+                : period === 'month' ? 'توکن این ماه' : 'توکن امروز، از نیمه‌شب تهران'}
+            </span>
+          </div>
+          <div className="flex items-stretch" data-small-figures>
+            <Small label="توکن ورودی و خروجی">{tokens(t.input_tokens + t.output_tokens)}</Small>
+            <Small label="هزینه‌ی معادل">{usd(t.equiv_cost_usd)}</Small>
+            <Small label="فراخوانی">{t.calls.toLocaleString('en-US')}</Small>
+          </div>
+          <p className="text-[11px] text-muted" data-read-at>
+            <Facts>{period === 'month' ? 'از اول ماه' : 'امروز'}{readAt ? <span>خوانده‌شده در <Ltr>{readAt}</Ltr></span> : null}<span>پرداخت واقعی: <Ltr>{usd(t.cost_usd)}</Ltr></span></Facts>
+          </p>
+        </Card>
+      )}
 
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-4">
@@ -98,7 +164,7 @@ export default function TreasuryPage() {
         </div>
 
         <div className="flex min-w-0 flex-col gap-4">
-          <QuotaCard />
+          {limits.data ? <TokenMeter named /> : <QuotaCard />}
           <Card className="flex flex-col gap-3 p-5">
             <SectionTitle title="بودجه‌ها" note="هشدار ۷۰٪ و ۹۰٪؛ در ۱۰۰٪ کارهای غیرفوری میایستند" action={<Button variant="text" size="sm" icon="edit" onClick={() => setEditBudgets(true)}>ویرایش</Button>} />
             {(sum.data?.budgets ?? []).map((b) => (
@@ -106,26 +172,26 @@ export default function TreasuryPage() {
                 <div className="flex items-center gap-2 text-[12px]">
                   <span className="flex flex-1 items-center gap-1.5 text-sec">{b.scope_type === 'holding' ? 'کل هلدینگ' : <><CompanyMark code={b.company} height={12} mono />{companies?.find((c) => c.code === b.company)?.name_fa ?? b.scope_ref}</>}</span>
                   <span className="fig text-muted">{tokens(b.tokens_used)} / {tokens(b.token_limit)}</span>
-                  <span className={cx('w-10 text-left font-semibold', (b.pct ?? 0) >= 90 ? 'text-neg' : (b.pct ?? 0) >= 70 ? 'text-warn' : 'text-sec')}>{Math.round(b.pct ?? 0)}٪</span>
+                  <Ltr className={cx('w-10 text-left font-semibold', (b.pct ?? 0) >= 90 ? 'text-neg' : (b.pct ?? 0) >= 70 ? 'text-warn' : 'text-sec')}>{Math.round(b.pct ?? 0)}%</Ltr>
                 </div>
                 <Bar pct={b.pct ?? 0} tone={budgetTone(b.pct)} />
               </div>
             ))}
           </Card>
-          <Card className="flex flex-col gap-2 p-5">
+          <Card as="section" aria-label="پرمصرف‌ها" className="flex flex-col gap-2 p-5">
             <SectionTitle title="پرمصرف‌ها" />
             {(sum.data?.top_consumers ?? []).map((c, i) => (
               <div key={c.actor} className="flex items-center gap-3 border-b border-div py-2 last:border-0">
                 <span className="w-4 text-[12px] text-muted">{i + 1}</span>
                 <Avatar kind={c.actor.endsWith('-ADV') ? 'advisor' : c.actor.endsWith('-CEO') ? 'ceo' : c.actor.endsWith('-MGR') ? 'manager' : c.actor.endsWith('-SYS') ? 'system' : 'employee'} dept={c.actor.split('-')[1]} size={30} />
-                <div className="flex min-w-0 flex-1 flex-col"><span className="fig truncate text-[13px] text-ink">{c.actor}</span><span className="text-[11px] text-muted">{c.calls} فراخوانی</span></div>
+                <div className="flex min-w-0 flex-1 flex-col"><span className="truncate text-[13px] text-ink">{actorTitle(c.actor, companyName)}</span><span className="text-[11px] text-muted"><Ltr>{c.calls}</Ltr> فراخوانی</span></div>
                 <span className="fig text-[12px] text-sec">{tokens(c.tokens)}</span>
                 <span className="fig w-14 text-left text-[13px] font-semibold">{usd(c.usd)}</span>
               </div>
             ))}
           </Card>
           <Card className="flex flex-col gap-2 p-5">
-            <SectionTitle title="اتصال‌ها" note="کلیدها هرگز نمایش داده نمیشوند" action={<Link href="/tools" className="inline-flex h-8 items-center gap-1.5 rounded-[8px] px-3 text-[12px] font-semibold text-gold-ink hover:bg-gold-soft">اتصال تازه</Link>} />
+            <SectionTitle title="اتصال‌ها" note="کلیدها هرگز نمایش داده نمیشوند" action={<Link href="/tools" className="inline-flex h-8 items-center gap-1.5 rounded-[8px] px-3 text-[12px] font-semibold text-silver-ink hover:bg-[var(--hq-silver-soft)] hover:text-ink">اتصال تازه</Link>} />
             {(conns.data ?? []).map((c) => {
               // ⟨1.5⟩ §21.7 adds pending_secret, verifying, ready and error.
               const st: { label: string; tone: (typeof CONN)[string]['tone'] } = CONNECTION_STATUS[c.status] ?? { label: CONN[c.status]?.fa ?? c.status, tone: CONN[c.status]?.tone ?? 'neutral' };

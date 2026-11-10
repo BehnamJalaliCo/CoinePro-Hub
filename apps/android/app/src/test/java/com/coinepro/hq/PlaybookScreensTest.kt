@@ -67,6 +67,23 @@ class PlaybookScreensTest(private val name: String, private val night: Boolean) 
             "playbook-apply" to Scene { Apply() },
             // ⟨0.19.9⟩ §45 the owner's standing word where he seals (on, with «استوری هم») and where he gives a group as it is
             "playbook-standing" to Scene { Standing() },
+            // ⟨1.0.1⟩ §49 «بهترین ساعت، خودکار» in the standing word: an account with enough posts (its hour, and what it rests on), one
+            // with too few yet (his fixed hour till then), and one never read, with no fixed hour (the moment it is ready)
+            "playbook-best-hour" to Scene { BestHours() },
+            // ⟨1.0.1⟩ §47 «دفتر موضوع‌ها»: TradeYar's topics (search, the two filters with their counts, the line he adds, each line
+            // with its day and where it came from, «آزاد کن», «بیشتر»); its outside samples with their links; and one he adds that
+            // was said before, with the hub's own words under the field
+            "playbook-ledger" to Scene { Sheet("دفتر موضوع‌ها") { com.coinepro.hq.ui.playbook.LedgerBody("pb_1", "TY", pageSize = 12) } },
+            "playbook-ledger-samples" to Scene { Sheet("دفتر موضوع‌ها") { com.coinepro.hq.ui.playbook.LedgerBody("pb_1", "TY", kind0 = "reference", pageSize = 8) } },
+            "playbook-ledger-refused" to Scene({ g ->
+                try {
+                    g.env.value.api.addTopic("pb_1", "TY", com.coinepro.hq.core.data.topicBody("topic", TAKEN, "")!!)
+                    null
+                } catch (e: com.coinepro.hq.core.net.ApiException) { e.messageFa }
+            }) { refused -> Sheet("دفتر موضوع‌ها") { com.coinepro.hq.ui.playbook.LedgerBody("pb_1", "TY", draft0 = TAKEN, refused0 = refused, pageSize = 5) } },
+            // ⟨1.0.1⟩ §48 «گوینده‌ی محتوا»: a company whose narrator is set and one with none (there the hub is out of its account, the
+            // owner's one step), then the picker of the first: the voices, the chosen one first, and how it should speak
+            "playbook-narrator" to Scene { Narrators() },
             "playbook-library" to Scene { com.coinepro.hq.ui.playbook.PlaybooksScreen() },
             "playbook-session-from" to Scene({ g ->
                 g.env.value.api.applyPlaybook("PB-0001", "PC", "youtube", "برای یوتیوب، ویدیوهای بلندتر.", false, java.util.UUID.randomUUID().toString()).order
@@ -81,6 +98,29 @@ class PlaybookScreensTest(private val name: String, private val night: Boolean) 
             ) {
                 Text(title, style = Divan.type.h2)
                 content()
+            }
+        }
+
+        /** A topic TradeYar's ledger already holds (its newest line). */
+        private const val TAKEN = "حد ضرر در ۳۰ ثانیه"
+
+        @Composable
+        private fun BestHours() {
+            Sheet("انتشار خودکار") {
+                com.coinepro.hq.ui.playbook.StandingChoice(com.coinepro.hq.core.net.MemberPublish(mode = "auto", account = "tradeyar", story = true, at = "18:30", best = true), {}, company = "TY")
+                com.coinepro.hq.ui.playbook.StandingChoice(com.coinepro.hq.core.net.MemberPublish(mode = "auto", account = "coineprofx", at = "18:30", best = true), {}, company = "FX")
+                com.coinepro.hq.ui.playbook.StandingChoice(com.coinepro.hq.core.net.MemberPublish(mode = "auto"), {}, company = "PC")
+            }
+        }
+
+        @Composable
+        private fun Narrators() {
+            val n = com.coinepro.hq.ui.playbook.rememberNarrator("TY").data ?: return
+            Sheet("گوینده‌ی محتوا") {
+                com.coinepro.hq.ui.playbook.NarratorRow("TY", inset = false)
+                com.coinepro.hq.ui.playbook.NarratorRow("FX", inset = false)
+                HorizontalDivider(color = Divan.colors.lineDivider)
+                com.coinepro.hq.ui.playbook.NarratorPicker(n) {}
             }
         }
 

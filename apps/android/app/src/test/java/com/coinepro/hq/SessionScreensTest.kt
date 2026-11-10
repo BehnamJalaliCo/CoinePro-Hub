@@ -63,7 +63,54 @@ class SessionScreensTest(private val name: String, private val night: Boolean) {
             // ⟨0.17.0⟩ «جزئیات»: the order's words whole, the brief, the people and models, the pace, the plan, the files; close, hide
             // and erase. Everything the head no longer stacks above the chat.
             "order-session-details" to { _ -> Details("F-0101") },
+            // ⟨1.0.1⟩ §50 «روال‌های دائمی» of the reels session (one on with its next run, one off that says why), «روال دائمی» among its
+            // actions, and the sheet with a sentence the hub would not make a routine of (its own words under the field, the text kept).
+            "order-session-routines" to { _ -> Routines("F-0100") },
+            // ⟨1.0.1⟩ §51 «انتشارها» of the same session: what is set to go out carries «لغو»; one taken back, one being cancelled.
+            "order-session-publishes" to { _ -> Publishes("F-0100") },
+            // ⟨1.0.1⟩ §53 an output of the workshop, whole: how it was made («Opus 5.5 · بیشترین دقت»), its files, and its publishes.
+            "output-effort" to { _ -> com.coinepro.hq.ui.outputs.OutputScreen("O-000954") },
         )
+
+        /** A sentence that names no time: no plain routine. */
+        private const val NO_ROUTINE = "برای پرو-چارت یک لوگوی تازه بساز"
+
+        @Composable
+        private fun Routines(ref: String) {
+            val env = com.coinepro.hq.ui.LocalEnv.current
+            val c = com.coinepro.hq.designsystem.Divan.colors
+            val o = com.coinepro.hq.ui.v29.rememberOrderReport(ref).data ?: return
+            // the hub's own refusal of the sentence, as the sheet shows it
+            val refused = androidx.compose.runtime.produceState<String?>(null) {
+                value = try {
+                    env.api.newRoutine(NO_ROUTINE, ref, java.util.UUID.randomUUID().toString())
+                    "made"
+                } catch (e: com.coinepro.hq.core.net.ApiException) { e.messageFa }
+            }.value ?: return
+            androidx.compose.foundation.layout.Column(
+                Modifier.fillMaxSize().background(c.overlay).padding(16.dp),
+                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(14.dp),
+            ) {
+                androidx.compose.material3.Text("جزئیات جلسه", style = com.coinepro.hq.designsystem.Divan.type.h2)
+                com.coinepro.hq.ui.session.SessionRoutines(o.routines.orEmpty()) {}
+                com.coinepro.hq.ui.session.RoutineAction {}
+                androidx.compose.material3.HorizontalDivider(color = c.lineDivider)
+                androidx.compose.material3.Text("روال دائمی", style = com.coinepro.hq.designsystem.Divan.type.h2)
+                com.coinepro.hq.ui.session.RoutineForm(ref, sentence0 = NO_ROUTINE, refused0 = refused) {}
+            }
+        }
+
+        @Composable
+        private fun Publishes(ref: String) {
+            val o = com.coinepro.hq.ui.v29.rememberOrderReport(ref).data ?: return
+            androidx.compose.foundation.layout.Column(
+                Modifier.fillMaxSize().background(com.coinepro.hq.designsystem.Divan.colors.overlay).padding(16.dp),
+                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(14.dp),
+            ) {
+                androidx.compose.material3.Text("جزئیات جلسه", style = com.coinepro.hq.designsystem.Divan.type.h2)
+                com.coinepro.hq.ui.session.SessionPublishes(o.publishes) {}
+            }
+        }
 
         @Composable
         private fun Details(ref: String) {

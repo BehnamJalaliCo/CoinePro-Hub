@@ -296,7 +296,7 @@ internal fun PlaybookBody(pb: Playbook, onSaved: (Playbook) -> Unit, onApply: ()
                     HqButton("برگردان", { edit = pb; head = false }, variant = BtnVariant.TEXT)
                 }
                 // ⟨0.19.9⟩ §45 his standing word, given with the seal: on, as he asked («به صورت خودکار از روز دوم انجام بشه»)
-                if (publishes(pb)) StandingChoice(word, { word = it })
+                if (publishes(pb)) StandingChoice(word, { word = it }, company = pb.source.company?.takeIf { !companyOf(companies, it).holding })
                 HqButton("مُهر کن", {
                     seal.run {
                         val said = word.takeIf { publishes(pb) }
@@ -458,7 +458,7 @@ internal fun ApplyBody(pb: Playbook, companies: List<Company>, company0: String?
             }
             HqSwitch(asIs, { asIs = it }, "بدون تغییر")
         }
-        Expand(standing) { StandingChoice(word, { word = it }) }
+        Expand(standing) { StandingChoice(word, { word = it }, company = company) }
         Expand(!asIs) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("روی کدام پلتفرم؟", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textMuted)
@@ -508,9 +508,9 @@ private fun RetireBody(pb: Playbook, onCancel: () -> Unit, onDone: (Playbook) ->
     HqButton("بیخیال", onCancel, Modifier.fillMaxWidth(), variant = BtnVariant.TEXT)
 }
 
-/** The standing word across a rotation: `mode`, `story`, the hour (the account is asked by the hub when there are several). */
+/** The standing word across a rotation: `mode`, `story`, the hour and «بهترین ساعت» (the account is asked by the hub when there are several). */
 internal val StandingSaver = androidx.compose.runtime.saveable.Saver<MemberPublish, List<Any>>(
-    save = { listOf(it.mode, it.story, it.at.orEmpty()) },
-    restore = { MemberPublish(mode = it[0] as String, story = it[1] as Boolean, at = (it[2] as String).ifBlank { null }) },
+    save = { listOf(it.mode, it.story, it.at.orEmpty(), it.best) },
+    restore = { MemberPublish(mode = it[0] as String, story = it[1] as Boolean, at = (it[2] as String).ifBlank { null }, best = it.getOrNull(3) as? Boolean ?: false) },
 )
 

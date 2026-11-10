@@ -34,7 +34,7 @@ function refs(text: string, key: string, links = true): ReactNode[] {
   const parts = text.split(new RegExp(REF.source, 'g'));
   return parts.flatMap((p, i) =>
     i % 2 === 1
-      ? [links ? refLink(p, `${key}${i}`) : <span key={`${key}${i}`} className="whitespace-nowrap text-gold-ink">{refWord(p)}</span>]
+      ? [links ? refLink(p, `${key}${i}`) : <span key={`${key}${i}`} className="whitespace-nowrap text-silver-ink">{refWord(p)}</span>]
       // ⟨1.10.1⟩ Latin runs (model names and versions, paths, URLs, money) keep Latin digits and are isolated from the Persian around them.
       : bidi(p, `${key}${i}l`),
   );
@@ -45,7 +45,7 @@ function refLink(ref: string, key: string): ReactNode {
   const href = refRoute(ref);
   return href
     ? <RefLink key={key} refId={ref} href={href} />
-    : <span key={key} className="whitespace-nowrap text-gold-ink">{refWord(ref)}</span>;
+    : <span key={key} className="whitespace-nowrap text-silver-ink">{refWord(ref)}</span>;
 }
 
 /** One GFM table row: its cells, without the outer pipes; `\|` stays a pipe inside a cell. */
@@ -92,7 +92,7 @@ function Block({ b, bi }: { b: string; bi: string }): ReactNode {
     return <Fragment key={bi}><Table lines={rows} bi={bi} />{end > 0 ? <Block b={lines.slice(end).join('\n')} bi={`${bi}c`} /> : null}</Fragment>;
   }
   if (lines.every((l) => /^\s*>/.test(l))) {
-    return <blockquote key={bi} className="border-r-2 border-gold-ink/60 pr-3 text-[13px] text-muted">{inline(lines.map((l) => l.replace(/^\s*>\s?/, '')).join(' '), `${bi}q`)}</blockquote>;
+    return <blockquote key={bi} className="border-r-2 border-[var(--hq-silver-line)] pr-3 text-[13px] text-muted">{inline(lines.map((l) => l.replace(/^\s*>\s?/, '')).join(' '), `${bi}q`)}</blockquote>;
   }
   const h = /^(#{1,4})\s+(.*)$/.exec(lines[0] ?? '');
   if (h) {

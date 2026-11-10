@@ -24,12 +24,15 @@
   --hq-mark-silver: #DBDBDB; --hq-mark-gold: #D8A848; --hq-gold-pressed: #C4953C;
   --hq-silver-soft: rgba(174,184,199,.12); --hq-silver-soft-hover: rgba(174,184,199,.18); --hq-silver-soft-pressed: rgba(174,184,199,.26);
   --hq-neg-line: rgba(246,70,93,.45); --hq-switch-off: rgba(242,238,228,.38); --hq-gold-hover-soft: rgba(216,168,72,.30);
+  /* ⟨1.0.1⟩ part C: selection is silver (a hairline on a raised surface), never gold. */
+  --hq-silver-line: rgba(174,184,199,.42); --hq-switch-on: rgba(174,184,199,.34);
 }
 [data-theme="day"] {
   --hq-day: 1;
   --hq-mark-silver: #5A5F66; --hq-mark-gold: #896217; --hq-gold-pressed: #C4953C;
   --hq-silver-soft: rgba(90,95,102,.10); --hq-silver-soft-hover: rgba(90,95,102,.16); --hq-silver-soft-pressed: rgba(90,95,102,.24);
   --hq-neg-line: rgba(197,47,60,.45); --hq-switch-off: rgba(28,26,23,.20); --hq-gold-hover-soft: rgba(216,168,72,.34);
+  --hq-silver-line: rgba(90,95,102,.46); --hq-switch-on: rgba(90,95,102,.30);
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme]) {
@@ -37,6 +40,7 @@
     --hq-mark-silver: #5A5F66; --hq-mark-gold: #896217;
     --hq-silver-soft: rgba(90,95,102,.10); --hq-silver-soft-hover: rgba(90,95,102,.16); --hq-silver-soft-pressed: rgba(90,95,102,.24);
     --hq-neg-line: rgba(197,47,60,.45); --hq-switch-off: rgba(28,26,23,.20); --hq-gold-hover-soft: rgba(216,168,72,.34);
+    --hq-silver-line: rgba(90,95,102,.46); --hq-switch-on: rgba(90,95,102,.30);
   }
 }
 
@@ -123,6 +127,12 @@
   ::selection { background: var(--hq-soft-gold); }
   button { cursor: pointer; }
   button:disabled { cursor: not-allowed; }
+  /* ⟨1.0.1⟩ M16 «فرورفتن»: every pressable surface answers the touch (2% smaller, 120 ms). In the base layer, so an element's own
+     transition or scale utility wins; `data-no-press` keeps a surface still (a drag handle, a canvas node). */
+  :where(button, a[href], summary, [role="button"], [role="radio"], [role="switch"], [role="tab"]):where(:not([data-no-press])) {
+    transition: scale var(--hq-dur-micro) var(--hq-ease-standard), background-color var(--hq-dur-micro) var(--hq-ease-standard), color var(--hq-dur-micro) var(--hq-ease-standard), border-color var(--hq-dur-micro) var(--hq-ease-standard), box-shadow var(--hq-dur-micro) var(--hq-ease-standard), opacity var(--hq-dur-micro) var(--hq-ease-standard);
+  }
+  :where(button, a[href], summary, [role="button"], [role="radio"], [role="switch"], [role="tab"]):where(:not([data-no-press], :disabled, [aria-disabled="true"])):active { scale: .98; }
   * { scrollbar-width: thin; scrollbar-color: var(--hq-line-strong) transparent; }
 }
 
@@ -220,6 +230,36 @@
 [data-tint="silver"] { stroke: var(--hq-silver-ink) !important; stroke-width: 2.2px; }
 [data-tint="lapis"] { stroke: var(--hq-lapis) !important; stroke-width: 2.2px; }
 
+/* ⟨1.0.1⟩ Part C, the look (components/look/*): the touch and travel half of the motion grammar (M14 to M18, M21 is lib-only), and the
+   shared pieces every screen is built from. Nothing here moves at rest. */
+/* M16 by name, for a surface that is none of the pressable elements above or that carries a transition utility of its own. */
+.hq-press { transition: scale var(--hq-dur-micro) var(--hq-ease-standard), background-color var(--hq-dur-micro) var(--hq-ease-standard), color var(--hq-dur-micro) var(--hq-ease-standard), border-color var(--hq-dur-micro) var(--hq-ease-standard), box-shadow var(--hq-dur-micro) var(--hq-ease-standard), opacity var(--hq-dur-micro) var(--hq-ease-standard); }
+.hq-press:active:not(:disabled, [aria-disabled="true"]) { scale: .98; }
+/* M17 «پله‌پله»: rows settle 30 ms apart the first time (look/stagger.ts sets --hq-i for the first eight). */
+.hq-m17 { animation: hq-rise var(--hq-dur-state) var(--hq-ease-standard) both; animation-delay: calc(var(--hq-i, 0) * 30ms); }
+/* M15 «برگه‌ی فنری»: the one sheet rises and settles like a spring without a bounce; it follows the finger by its own transform. */
+@keyframes hq-sheet-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes hq-scrim-in { from { opacity: 0; } to { opacity: 1; } }
+/* `backwards` only: once it has risen the sheet's own transform (the finger's) must be free again. */
+.hq-sheet { animation: hq-sheet-in var(--hq-dur-transition) cubic-bezier(.22, 1, .36, 1) backwards; }
+.hq-sheet[data-settle] { transition: transform var(--hq-dur-transition) cubic-bezier(.22, 1, .36, 1); }
+.hq-scrim { animation: hq-scrim-in var(--hq-dur-state) var(--hq-ease-standard) both; }
+/* The command button leaves while any sheet or dialog is open (the sheet is the command then). */
+body:has([role="dialog"][data-state="open"]) [data-command-button] { display: none; }
+/* «منتظر تو» and an unread row: a thin gold line at the start edge, the only gold such a row carries (`data-edge="neg"`: an urgent one). */
+.hq-edge { position: relative; }
+.hq-edge::before { content: ''; position: absolute; inset-block: 12px; inset-inline-start: 0; width: 2px; border-radius: 2px; background: var(--hq-gold-ink); }
+.hq-edge[data-edge="neg"]::before { background: var(--hq-negative); }
+/* M14 «پیوستگی»: the tapped card and the header of the page it opens share one name (look/transition.ts). */
+.hq-vt-hero { view-transition-name: hq-hero; }
+::view-transition-group(hq-hero) { animation-duration: var(--hq-dur-transition); animation-timing-function: cubic-bezier(.22, 1, .36, 1); }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--hq-dur-state); }
+/* M18 «جمع شدن سربرگ»: a header that is stuck (look/collapse.ts sets data-stuck) folds to one line. */
+.hq-m18 { transition: padding var(--hq-dur-state) var(--hq-ease-standard), background-color var(--hq-dur-state) var(--hq-ease-standard), box-shadow var(--hq-dur-state) var(--hq-ease-standard); }
+.hq-m18[data-stuck] .hq-m18-fold { display: none; }
+/* The separator between facts: a thin vertical hairline with air on both sides (never «·», which reads as a zero beside a Persian digit). */
+.hq-sep { display: inline-block; width: 1px; height: .9em; margin-inline: .6em; background: var(--hq-line-strong); vertical-align: -0.08em; flex: none; }
 @media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }

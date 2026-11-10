@@ -14,7 +14,7 @@ import { NAV_ARCHIVE, NAV_BUSINESS, NAV_GOVERNANCE, NAV_MAIN, NAV_MANAGEMENT, NA
 
 function Badge({ n }: { n: number }) {
   if (!n) return null;
-  return <span className="mr-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-gold px-1.5 text-[11px] font-bold text-on-gold">{n}</span>;
+  return <span className="mr-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold text-gold-ink shadow-[inset_0_0_0_1px_var(--hq-gold-ink)]">{n}</span>;
 }
 
 function Item({ item, counts }: { item: NavItem; counts: Record<string, number> }) {
@@ -27,10 +27,11 @@ function Item({ item, counts }: { item: NavItem; counts: Record<string, number> 
       aria-current={on ? 'page' : undefined}
       className={cx(
         'flex h-10 items-center gap-3 rounded-[10px] px-3 text-[14px] transition-colors duration-[120ms]',
-        on ? 'bg-gold-soft font-semibold text-ink shadow-[inset_-2px_0_0_var(--hq-gold-ink)]' : 'text-sec hover:bg-hover hover:text-ink',
+        // ⟨1.0.1⟩ one full gold per screen: where he is reads ivory on a raised surface with a silver edge.
+        on ? 'bg-raised font-semibold text-ink shadow-[inset_-2px_0_0_var(--hq-silver-ink)]' : 'text-sec hover:bg-hover hover:text-ink',
       )}
     >
-      <span className={on ? 'text-gold-ink' : undefined}><Icon name={item.icon} size={20} active={on} /></span>
+      <span><Icon name={item.icon} size={20} active={on} /></span>
       <span>{item.label}</span>
       {item.badge ? <Badge n={counts[item.badge] ?? 0} /> : null}
     </Link>
@@ -74,7 +75,7 @@ export function ScopeSwitcher() {
               <span className="text-sec"><CompanyMark code={c.code} height={16} mono /></span>
               <span className="flex-1">{c.name_fa}</span>
               {c.kill_switch === 'engaged' ? <span className="text-neg"><Icon name="lock" size={14} /></span> : null}
-              {company === c.code ? <span className="text-gold-ink"><Icon name="seal" size={14} active /></span> : null}
+              {company === c.code ? <span className="text-silver-ink"><Icon name="seal" size={14} active /></span> : null}
             </Menu.Item>
           ))}
         </Menu.Content>

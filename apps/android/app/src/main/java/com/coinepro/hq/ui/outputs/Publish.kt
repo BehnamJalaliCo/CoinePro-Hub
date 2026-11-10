@@ -24,7 +24,14 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.coinepro.hq.core.data.JPEG_LINE_FA
+import com.coinepro.hq.core.data.bestChoice
+import com.coinepro.hq.core.data.bestClockFa
+import com.coinepro.hq.core.data.cancellable
+import com.coinepro.hq.core.data.cancelling
 import com.coinepro.hq.core.data.faNum
+import com.coinepro.hq.core.data.goesAsJpeg
+import com.coinepro.hq.core.data.withPublish
 import com.coinepro.hq.core.format.HqClock
 import com.coinepro.hq.core.format.Tone
 import com.coinepro.hq.core.format.jTime
@@ -49,6 +56,7 @@ import com.coinepro.hq.ui.LocalEnv
 import com.coinepro.hq.ui.LocalToasts
 import com.coinepro.hq.ui.rememberAction
 import com.coinepro.hq.ui.rememberQuery
+import com.coinepro.hq.ui.v29.served
 import com.coinepro.hq.ui.v14.HqSheet
 import com.coinepro.hq.ui.v16.ChipRow
 import kotlinx.coroutines.delay
@@ -114,6 +122,7 @@ internal fun storyOf(panel: PublishPanel, fileId: String): SessionPublish? =
 
 internal val STATE_FA = mapOf(
     "publishing" to "در حال انتشار", "scheduled" to "زمان‌بندی شد", "published" to "منتشر شد", "failed" to "انجام نشد", "waiting_seal" to "منتظر مُهر",
+    "cancelled" to "لغو شد",
 )
 
 /**
@@ -133,14 +142,17 @@ internal fun PublishSection(d: Deliverable) {
     var asking by remember { mutableStateOf<FileRef?>(null) }
     // what the hub said of a file whose publish path is not connected yet (no job to list): kept while the page is open
     var notes by remember { mutableStateOf(mapOf<String, String>()) }
-    val live = panel.publishes.any { it.state == "publishing" }
+    // ⟨1.0.1⟩ §51 a cancel on its way to IG-Hub is followed like a publish on its way
+    val live = panel.publishes.any { it.state == "publishing" || cancelling(it) }
     LaunchedEffect(live) { while (live) { delay(5_000); q.refresh() } }
+    val cancel = rememberPublishCancel { out -> q.set(panel.copy(publishes = withPublish(panel.publishes, out))) }
+    val canCancel = served(HubFeature.PUBLISH_CANCEL)
     Column(Modifier.testTag("publish"), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text("انتشار در اینستاگرام", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(horizontal = 12.dp, vertical = 4.dp)) {
             files.forEachIndexed { i, f ->
                 if (i > 0) HorizontalDivider(color = c.lineDivider)
-                PublishRow(f, publishOf(panel, f.id), notes[f.id], storyOf(panel, f.id)) { asking = f }
+                PublishRow(f, publishOf(panel, f.id), notes[f.id], storyOf(panel, f.id), cancel.takeIf { canCancel }) { asking = f }
             }
         }
         Text(
@@ -160,9 +172,14 @@ internal fun PublishSection(d: Deliverable) {
 
 /** One file: its name, where its publish stands, and the one action that fits. */
 @Composable
-private fun PublishRow(f: FileRef, p: SessionPublish?, note: String?, story: SessionPublish? = null, onAsk: () -> Unit) {
+private fun PublishRow(f: FileRef, p: SessionPublish?, note: String?, story: SessionPublish? = null, cancel: PublishCancel? = null, onAsk: () -> Unit) {
     val c = Divan.colors
     val uri = LocalUriHandler.current
+    // ⟨1.0.1⟩ §51 «لغو» on a publication that is not out yet; once cancelled, the file is his to publish again
+    val job = p?.job
+    val cancelled = p?.state == "cancelled"
+    val asking = job != null && cancel?.asking == job
+    Column(Modifier.fillMaxWidth()) {
     Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         DIcon(if (f.kind == "video") DivanIcon.VIDEO else DivanIcon.IMAGE, size = 20.dp, tint = c.textSecondary)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -182,17 +199,28 @@ private fun PublishRow(f: FileRef, p: SessionPublish?, note: String?, story: Ses
                 p == null -> Text(if (f.kind == "video") "ویدیو · آماده‌ی انتشار" else "تصویر · آماده‌ی انتشار", style = Divan.type.micro, color = c.textMuted)
                 p.state == "failed" -> Text(listOfNotNull(where, p.noteFa).joinToString(" · "), style = Divan.type.micro, color = c.negative)
                 p.state == "waiting_seal" -> Text(p.noteFa ?: "منتظر مُهر شما", style = Divan.type.micro, color = c.textSecondary)
-                else -> if (!where.isNullOrEmpty()) Text(where, style = Divan.type.micro, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                cancelled -> Text(listOfNotNull(KIND_FA[p.kind], "لغو شد").joinToString(" · "), style = Divan.type.micro, color = c.textMuted)
+                // whole, on a second line when it has to (beside «لغو» the row is narrower): the hour and the comment word are what he looks for
+                else -> if (!where.isNullOrEmpty()) Text(where, style = Divan.type.micro, color = c.textSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
+            // what the hub says of it meanwhile («در حال لغو», «لغو انجام نشد (…)»), and what it refused of his cancel
+            if (p != null && !cancelled && (p.state == "scheduled" || p.state == "publishing")) p.noteFa?.trim()?.ifBlank { null }?.let {
+                Text(com.coinepro.hq.designsystem.timesFig(it), style = Divan.type.micro, color = if (cancelling(p)) c.goldInk else c.warning)
+            }
+            job?.let { j -> cancel?.refused?.get(j) }?.let { Text(com.coinepro.hq.designsystem.timesFig(it), style = Divan.type.micro, color = c.warning) }
             if (story != null) Text(
                 "استوری: ${STATE_FA[story.state] ?: story.state}",
                 style = Divan.type.micro, color = if (story.state == "failed") c.negative else c.textMuted,
             )
         }
+        val quiet = p != null && cancel != null && !asking && cancellable(p)
         when (p?.state) {
             null -> HqButton(if (note == null) "تأیید و انتشار" else "دوباره", onAsk, variant = if (note == null) BtnVariant.PRIMARY else BtnVariant.SECONDARY, size = BtnSize.SM, icon = DivanIcon.SEND)
-            "publishing" -> Pill("در حال انتشار", Tone.GOLD, dot = true, live = true)
-            "scheduled" -> Pill("زمان‌بندی شد", Tone.GOLD, dot = true)
+            "cancelled" -> HqButton("تأیید و انتشار", onAsk, variant = BtnVariant.PRIMARY, size = BtnSize.SM, icon = DivanIcon.SEND)
+            "publishing", "scheduled" -> Row(verticalAlignment = Alignment.CenterVertically) {
+                if (p.state == "publishing") Pill("در حال انتشار", Tone.GOLD, dot = true, live = true) else Pill("زمان‌بندی شد", Tone.GOLD, dot = true)
+                if (quiet && job != null) HqButton("لغو", { cancel?.ask(job) }, variant = BtnVariant.TEXT, size = BtnSize.SM, label = "لغو این انتشار")
+            }
             "published" -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Pill("منتشر شد", Tone.POS, dot = true)
                 val url = p.url
@@ -201,6 +229,8 @@ private fun PublishRow(f: FileRef, p: SessionPublish?, note: String?, story: Ses
             "waiting_seal" -> Pill("منتظر مُهر", Tone.WARN, dot = true)
             else -> HqButton("دوباره", onAsk, variant = BtnVariant.SECONDARY, size = BtnSize.SM, icon = DivanIcon.REFRESH)
         }
+    }
+    if (asking && job != null && cancel != null) CancelAsk(job, cancel)
     }
 }
 
@@ -234,13 +264,22 @@ internal fun PublishForm(d: Deliverable, f: FileRef, panel: PublishPanel, onDone
     var word by rememberSaveable(f.id) { mutableStateOf(panel.comment?.keywords.orEmpty().joinToString("، ")) }
     var reply by rememberSaveable(f.id) { mutableStateOf(panel.comment?.reply.orEmpty()) }
     var link by rememberSaveable(f.id) { mutableStateOf(panel.comment?.link.orEmpty()) }
-    val whenIso = if (later) scheduledIso(day, clock) else null
-    val key = rememberSaveable(f.id, kind, later, day, clock) { UUID.randomUUID().toString() }
+    // ⟨1.0.1⟩ §49 the account's best hour as one of the times (the panel carries it only when there is enough data)
+    var best by rememberSaveable(f.id) { mutableStateOf(false) }
+    val bestHour = bestChoice(panel.best, account)
+    val atBest = best && bestHour != null
+    val whenIso = if (atBest) bestHour?.at else if (later) scheduledIso(day, clock) else null
+    val key = rememberSaveable(f.id, kind, later, day, clock, atBest) { UUID.randomUUID().toString() }
+    // ⟨1.0.1⟩ §52 a picture that is no JPEG goes out as one the hub makes: said once, quietly, under the picture
+    @Composable fun JpegLine() = Text(com.coinepro.hq.designsystem.timesFig(JPEG_LINE_FA), style = Divan.type.micro, color = c.textMuted)
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         @Composable fun Label(t: String) = Text(t, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            DIcon(if (f.kind == "video") DivanIcon.VIDEO else DivanIcon.IMAGE, size = 18.dp, tint = c.goldInk)
-            Fig(f.name.ifBlank { "فایل" }, style = Divan.type.figureSmall, color = c.textPrimary)
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DIcon(if (f.kind == "video") DivanIcon.VIDEO else DivanIcon.IMAGE, size = 18.dp, tint = c.goldInk)
+                Fig(f.name.ifBlank { "فایل" }, style = Divan.type.figureSmall, color = c.textPrimary)
+            }
+            if (f.kind == "image" && goesAsJpeg(f)) JpegLine()
         }
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Label("حساب")
@@ -260,6 +299,7 @@ internal fun PublishForm(d: Deliverable, f: FileRef, panel: PublishPanel, onDone
                 for (x in covers) FilterChip(x.name.ifBlank { "تصویر" }, cover == x.id, { cover = x.id }, figure = true)
                 FilterChip("بدون کاور", cover == null, { cover = null })
             }
+            if (goesAsJpeg(covers.firstOrNull { it.id == cover })) JpegLine()
         }
         if (kind != "story") Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Label("کپشن")
@@ -268,10 +308,13 @@ internal fun PublishForm(d: Deliverable, f: FileRef, panel: PublishPanel, onDone
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Label("زمان")
             ChipRow {
-                FilterChip("الان", !later, { later = false })
-                FilterChip("ساعت مشخص", later, { later = true })
+                FilterChip("الان", !later && !atBest, { later = false; best = false })
+                FilterChip("ساعت مشخص", later && !atBest, { later = true; best = false })
+                if (bestHour != null) FilterChip(listOfNotNull("بهترین ساعت", bestClockFa(bestHour)?.let { "($it)" }).joinToString(" "), atBest, { best = true; later = false })
             }
-            if (later) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // what the hour rests on, as the hub says it wherever it shows the hour
+            if (atBest) bestHour?.noteFa?.trim()?.ifBlank { null }?.let { Text(com.coinepro.hq.designsystem.timesFig(it), style = Divan.type.micro, color = c.textMuted) }
+            if (later && !atBest) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip("امروز", day == 0, { day = 0 })
                 FilterChip("فردا", day == 1, { day = 1 })
                 HqTextField(clock, { clock = it }, "۱۸:۳۰", Modifier.weight(1f), maxLength = 5, figure = true)
@@ -284,10 +327,10 @@ internal fun PublishForm(d: Deliverable, f: FileRef, panel: PublishPanel, onDone
             HqTextField(link, { link = it }, "https://…", Modifier.fillMaxWidth(), maxLength = 1900, figure = true)
         }
         val pick = panel.accounts.size > 1 && account == null
-        val noHour = later && whenIso == null
+        val noHour = later && !atBest && whenIso == null
         val half = kind != "story" && commentHalf(word, reply, link)
         HqButton(
-            if (later) "تأیید و زمان‌بندی" else "تأیید و انتشار",
+            if (later || atBest) "تأیید و زمان‌بندی" else "تأیید و انتشار",
             {
                 action.run {
                     val out = env.api.publishOutput(

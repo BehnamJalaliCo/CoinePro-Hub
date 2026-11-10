@@ -830,7 +830,8 @@ private fun OutputDetail(d: Deliverable, onDelete: () -> Unit = {}, onErase: () 
             com.coinepro.hq.ui.Selectable { Md(d.summary, Modifier.padding(top = 4.dp), color = c.textPrimary) }
         }
         if (!d.body.isNullOrBlank()) com.coinepro.hq.ui.Selectable { Md(d.body) }
-        val model = (d.producedWith["label_fa"] as? JsonPrimitive)?.contentOrNull ?: (d.producedWith["model"] as? JsonPrimitive)?.contentOrNull
+        // ⟨1.0.1⟩ §53 the model by the app's own name and how hard it thought («Opus 5.5 · بیشترین دقت») when the hub says both
+        val model = com.coinepro.hq.core.data.madeWithFa(d.producedWith)
         val (used, cost) = usageOf(d)
         if (model != null || used != null) {
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {

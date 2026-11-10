@@ -13,12 +13,15 @@ test('«برگردان» after «همه خوانده شد» keeps every notifica
     const before = await dots.count();
     await page.getByRole('button', { name: 'همه خوانده شد' }).first().click();
     await expect(dots).toHaveCount(0);
-    await page.getByRole('button', { name: 'برگردان' }).click();
+    await page.getByRole('button', { name: 'برگردان', exact: true }).click();
     await expect(dots).toHaveCount(before);
-    // Past the five seconds: nothing was sent, so nothing comes back read when the lists are read again.
+    // Past the five seconds: nothing was sent, so nothing comes back read when the lists are read again (another page and back, with
+    // no reload: the demo's hub keeps its state in the page).
     await page.waitForTimeout(6_500);
-    await page.getByRole('radio', { name: 'خوانده‌شده', exact: true }).click();
-    await page.getByRole('radio', { name: /^خوانده‌نشده/ }).click();
+    await page.getByRole('navigation', { name: 'ناوبری اصلی' }).first().getByRole('link', { name: 'کارتابل' }).click();
+    await expect(page).toHaveURL(/\/cartable/);
+    await page.goBack();
+    await expect(dots.first()).toBeAttached();
     await expect(dots).toHaveCount(before);
   });
 });

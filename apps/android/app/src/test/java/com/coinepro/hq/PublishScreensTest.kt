@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import com.coinepro.hq.core.AppGraph
@@ -57,7 +58,8 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35], qualifiers = "w400dp-h900dp-xxhdpi")
 class PublishScreensTest(private val name: String, private val night: Boolean) {
-    private class Scene(val ref: String, val sheet: Boolean, val shows: List<String>)
+    /** [tap]: a node tapped once the scene has settled (its words), before it is checked and drawn. */
+    private class Scene(val ref: String, val sheet: Boolean, val shows: List<String>, val tap: String? = null)
 
     companion object {
         private val SCREENS: Map<String, Scene> = linkedMapOf(
@@ -74,6 +76,18 @@ class PublishScreensTest(private val name: String, private val night: Boolean) {
             ),
             // ⟨0.20.0⟩ §46 a reel set for this evening with its comment word, and a carousel of two files on its way
             "output-publish-scheduled" to Scene("O-000953", false, listOf("زمان‌بندی شد", "ساعت 18:30", "کامنت «۷»", "اسلاید", "در حال انتشار")),
+            // ⟨1.0.1⟩ §51 a scheduled post taken back: a reel he can still cancel («لغو»), a post taken back («لغو شد», his to publish
+            // again), a story whose cancel is on its way, and a post IG-Hub would not cancel (he may try again)
+            "output-publish-cancel" to Scene("O-000954", false, listOf("زمان‌بندی شد", "لغو", "پست · لغو شد", "در حال لغو", "لغو انجام نشد")),
+            // …asked once, in the row's own place
+            "output-publish-cancel-ask" to Scene("O-000954", false, listOf("این انتشار لغو شود؟", "لغو کن", "نه"), tap = "لغو"),
+            // ⟨1.0.1⟩ §49 «بهترین ساعت» among the sheet's times (chosen: what it rests on, «تأیید و زمان‌بندی»), and §52 the quiet line
+            // under a cover that is no JPEG
+            "output-publish-best-sheet" to Scene(
+                "O-000952", true,
+                listOf("بهترین ساعت (۲۱:۰۰)", "از روی لایک و کامنت", "تأیید و زمان‌بندی", "این تصویر هنگام انتشار خودکار به"),
+                tap = "بهترین ساعت (۲۱:۰۰)",
+            ),
         )
 
         @JvmStatic
@@ -130,6 +144,10 @@ class PublishScreensTest(private val name: String, private val night: Boolean) {
             }
         }
         settle(16)
+        scene.tap?.let { t ->
+            compose.onAllNodesWithText(t)[0].performClick()
+            settle(6)
+        }
         for (t in scene.shows) assertTrue("$name shows «$t»", compose.onAllNodesWithText(t, substring = true).fetchSemanticsNodes().isNotEmpty())
         compose.onRoot().captureRoboImage(
             "src/test/screenshots/$name-${if (night) "night" else "day"}.png",

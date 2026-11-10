@@ -10,11 +10,13 @@ import com.coinepro.hq.core.net.Skill
 import com.coinepro.hq.core.net.TokenSource
 import com.coinepro.hq.core.net.hireableRoles
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -1150,6 +1152,117 @@ class ApiContractTest {
         assertEquals("با واژگان بسته نمیخواند: نوع فیلد عوض نمیشود", com.coinepro.hq.core.net.archiveError(invalid))
         assertEquals(mapOf("fields.amount.type" to "نوع فیلد عوض نمیشود"), invalid.fields)
         assertEquals("server", com.coinepro.hq.core.net.archiveError(fails(409, """{"code":"other","message_fa":"server","status":409}""")))
+    }
+
+    /**
+     * ⟨1.31⟩ §47 to §51, what the reels order still lacked: each call goes to a route the hub's own OpenAPI has
+     * (`apps/api/openapi/hq-api.v1.json`), by its method, with only the query parameters and the body fields that route takes; the
+     * owner's tap is the seal on all of them (no step-up header), and a routine carries the press's own key.
+     */
+    @Test
+    fun theReelsOrdersCallsAreTheHubsOwnRoutes() = runTest {
+        val doc = Api.json.parseToJsonElement(java.io.File("../../api/openapi/hq-api.v1.json").readText()).jsonObject
+        val paths = doc["paths"]!!.jsonObject
+        val schemas = doc["components"]!!.jsonObject["schemas"]!!.jsonObject
+        org.junit.Assume.assumeTrue("the hub's §47 routes are in this tree's OpenAPI", "/api/v1/routines" in paths)
+        /** The request as sent against the route's own entry: its method, its query, and the fields of its body. */
+        fun sent(template: String, bodySchema: String? = null): mockwebserver3.RecordedRequest {
+            val req = server.takeRequest()
+            val pattern = Regex("^" + template.replace(Regex("\\{[^}]+}"), "[^/]+") + "$")
+            assertTrue("${req.url.encodedPath} is $template", pattern.matches(req.url.encodedPath))
+            val op = paths[template]?.jsonObject?.get(req.method.lowercase())?.jsonObject ?: throw AssertionError("the hub has no ${req.method} $template")
+            val query = op["parameters"]?.let { ps -> (ps as kotlinx.serialization.json.JsonArray).filter { it.jsonObject["in"].toString() == "\"query\"" }.map { it.jsonObject["name"].toString().trim('"') } }.orEmpty()
+            for (q in req.url.queryParameterNames) assertTrue("$template takes ?$q", q in query)
+            assertNull(req.headers["X-Step-Up"])
+            if (bodySchema != null) {
+                val props = schemas[bodySchema]!!.jsonObject["properties"]!!.jsonObject.keys
+                val keys = Api.json.parseToJsonElement(req.body!!.utf8()).jsonObject.keys
+                assertTrue("$bodySchema takes $keys", props.containsAll(keys))
+                val required = (schemas[bodySchema]!!.jsonObject["required"] as? kotlinx.serialization.json.JsonArray)?.map { it.toString().trim('"') }.orEmpty()
+                assertTrue("$bodySchema needs $required", keys.containsAll(required))
+            }
+            return req
+        }
+        val entry = """{"id":"0193c0de-47a0-7000-8000-000000000001","kind":"topic","title_fa":"حد ضرر","url":null,"at":"2026-11-04T05:30:00Z","by":"owner","source":"owner","work_ref":null,"output":null}"""
+        // §47.4 the ledger: a page (its kind, a search, the next page), a line he adds, a line he frees
+        server.enqueue(json(200, """{"items":[$entry],"topics":42,"references":40,"next_cursor":"30"}"""))
+        assertEquals(42, api.topics("pb_1", "TY", kind = "topic", q = " حد ", cursor = "30").topics)
+        val page = sent("/api/v1/groups/{key}/members/{code}/topics")
+        assertEquals("GET", page.method)
+        assertEquals(listOf("topic", "حد", "30", "30"), listOf("kind", "q", "limit", "cursor").map { page.url.queryParameter(it) })
+        server.enqueue(json(200, """{"items":[],"topics":0,"references":0,"next_cursor":null}"""))
+        api.topics("pb_1", "FX", limit = 1)
+        assertEquals("limit=1", sent("/api/v1/groups/{key}/members/{code}/topics").url.encodedQuery)
+        server.enqueue(json(201, entry))
+        assertEquals("owner", api.addTopic("pb_1", "TY", com.coinepro.hq.core.data.topicBody("topic", "حد ضرر", "")!!).source)
+        assertNotNull(sent("/api/v1/groups/{key}/members/{code}/topics", "TopicIn").headers["Idempotency-Key"])
+        server.enqueue(json(201, entry))
+        api.addTopic("pb_1", "TY", com.coinepro.hq.core.data.topicBody("reference", "کاور", "https://pin.it/abc")!!)
+        sent("/api/v1/groups/{key}/members/{code}/topics", "TopicIn")
+        // one already said: the hub's Persian sentence names the earlier line (shown under the field)
+        server.enqueue(json(409, """{"type":"about:blank","title":"Conflict","status":409,"code":"topic_taken","message_fa":"این پیش‌تر گفته شده: «حد ضرر» (2026-11-04). یک موضوع تازه انتخاب کن.","fields":{"title_fa":"taken: «حد ضرر» (2026-11-04)","recent":"حد ضرر؛ حد سود"}}"""))
+        try { api.addTopic("pb_1", "TY", com.coinepro.hq.core.data.topicBody("topic", "حد ضرر", "")!!); fail("expected ApiException") } catch (e: ApiException) {
+            assertEquals(Triple(409, "topic_taken", "این پیش‌تر گفته شده: «حد ضرر» (2026-11-04). یک موضوع تازه انتخاب کن."), Triple(e.status, e.code, e.messageFa))
+        }
+        server.takeRequest()
+        server.enqueue(json(200, entry))
+        api.freeTopic("pb_1", "TY", "0193c0de-47a0-7000-8000-000000000001")
+        val free = sent("/api/v1/groups/{key}/members/{code}/topics/{topic_id}")
+        assertEquals("DELETE", free.method)
+        assertEquals("/api/v1/groups/pb_1/members/TY/topics/0193c0de-47a0-7000-8000-000000000001", free.url.encodedPath)
+        // §48 the narrator: read, and set with his tap
+        val narrator = """{"company":"TY","set":true,"voice":"Charon","style_fa":"آرام و مطمئن","by":"owner","updated_at":"2026-11-07T08:00:00Z","voices":[{"name":"Charon","gender":"male","trait_fa":"اطلاع‌رسان"}],"aistudio":"signed_in"}"""
+        server.enqueue(json(200, narrator))
+        assertEquals("Charon", api.narrator("TY").voice)
+        assertEquals("GET", sent("/api/v1/companies/{code}/narrator").method)
+        server.enqueue(json(200, narrator))
+        api.setNarrator("TY", "Charon", "آرام و مطمئن")
+        val put = sent("/api/v1/companies/{code}/narrator", "NarratorIn")
+        assertEquals("PUT", put.method)
+        assertEquals("""{"voice":"Charon","style_fa":"آرام و مطمئن"}""", put.body!!.utf8())
+        // §49 the best hour of an account (the handle without its «@»), and the standing word that carries it
+        server.enqueue(json(200, """{"account":"tradeyar","hour":"21:00","at":"2026-11-06T17:30:00Z","enough":true,"posts":38,"days":90,"basis":"likes_comments","note_fa":"n","read_at":null}"""))
+        assertEquals("21:00", api.bestHour("TY", "@tradeyar").hour)
+        assertEquals("account=tradeyar", sent("/api/v1/companies/{code}/best-hour").url.encodedQuery)
+        server.enqueue(json(200, """{"account":null,"hour":null,"at":null,"enough":false,"note_fa":"n"}"""))
+        assertFalse(api.bestHour("PC").enough)
+        assertNull(sent("/api/v1/companies/{code}/best-hour").url.encodedQuery)
+        server.enqueue(json(200, """{"group":"pb_1","company":"TY","state":"on","seats":[],"publish":{"mode":"auto","account":"tradeyar","story":false,"since":null,"at":"18:30","best":true}}"""))
+        assertTrue(api.setMemberPublish("pb_1", "TY", com.coinepro.hq.core.net.MemberPublish(mode = "auto", at = "18:30", best = true)).publish.best)
+        assertEquals("""{"mode":"auto","at":"18:30","best":true}""", sent("/api/v1/groups/{key}/members/{code}/publish", "MemberPublishIn").body!!.utf8())
+        // §50 a standing routine from one sentence: the press's own key, no step-up; a sentence that is none is a 422 in Persian
+        val routine = """{"ref":"AT-0903","company":"PC","sentence_fa":"هر روز ساعت ۹ رتبه‌ها را ببین","when_fa":"هر روز ساعت 09:00","preview_fa":"یک کار تازه ساخته میشود","state":"on","next_at":"2026-11-07T05:30:00Z","last_run_at":null,"runs":0,"order":"F-0100","note_fa":null}"""
+        server.enqueue(json(201, routine))
+        assertEquals("on", api.newRoutine("هر روز ساعت ۹ رتبه‌ها را ببین", "F-0100", "key-1").state)
+        val made = sent("/api/v1/routines", "RoutineIn")
+        assertEquals("POST", made.method)
+        assertEquals("key-1", made.headers["Idempotency-Key"])
+        assertEquals("""{"sentence_fa":"هر روز ساعت ۹ رتبه‌ها را ببین","order":"F-0100"}""", made.body!!.utf8())
+        server.enqueue(json(422, """{"type":"about:blank","title":"Unprocessable","status":422,"code":"validation_failed","message_fa":"این جمله یک روال زمان‌دار ساده نیست."}"""))
+        try { api.newRoutine("یک لوگو بساز", "F-0100", "key-2"); fail("expected ApiException") } catch (e: ApiException) { assertEquals(422 to "این جمله یک روال زمان‌دار ساده نیست.", e.status to e.messageFa) }
+        server.takeRequest()
+        // its switch is the automations' own (no step-up)
+        server.enqueue(json(200, """{"ref":"AT-0903","company":"PC","sentence_fa":"s","rule":{},"state":"off","runs":0,"routine":true,"order":"F-0100"}"""))
+        assertEquals("off", api.setAutomationState("AT-0903", "off").state)
+        assertEquals("""{"state":"off"}""", sent("/api/v1/automations/{ref}/state", "AutomationStateIn").body!!.utf8())
+        // §51 a scheduled post taken back: the publication as it stands now; one that is out is a 409 in Persian
+        server.enqueue(json(200, """{"job":"0193c0de-0000-7000-8000-000000000020","output":"O-000954","file_id":"f1","file_name":"reel.mp4","kind":"reel","account":"coineprofx","state":"cancelled","note_fa":null,"scheduled_at":"2026-11-06T15:00:00Z"}"""))
+        assertEquals("cancelled", api.cancelPublish("0193c0de-0000-7000-8000-000000000020").state)
+        val cancel = sent("/api/v1/publishes/{job}/cancel")
+        assertEquals("POST", cancel.method)
+        assertEquals("/api/v1/publishes/0193c0de-0000-7000-8000-000000000020/cancel", cancel.url.encodedPath)
+        server.enqueue(json(200, """{"job":"j","file_id":"f1","kind":"post","state":"scheduled","note_fa":"در حال لغو"}"""))
+        assertTrue(com.coinepro.hq.core.data.cancelling(api.cancelPublish("j")))
+        server.takeRequest()
+        server.enqueue(json(409, """{"type":"about:blank","title":"Conflict","status":409,"code":"not_cancellable","message_fa":"این پست منتشر شده است."}"""))
+        try { api.cancelPublish("j"); fail("expected ApiException") } catch (e: ApiException) { assertEquals(Triple(409, "not_cancellable", "این پست منتشر شده است."), Triple(e.status, e.code, e.messageFa)) }
+        // the tap's sheet sends the best hour as the time it is set for
+        server.takeRequest()
+        server.enqueue(json(202, """{"job":"j2","file_id":"f1","kind":"reel","state":"scheduled","scheduled_at":"2026-11-06T17:30:00Z"}"""))
+        api.publishOutput("O-000952", "f1", "reel", "کپشن", "tradeyar", "key-3", scheduledAt = "2026-11-06T17:30:00Z")
+        val tap = server.takeRequest()
+        assertEquals("2026-11-06T17:30:00Z", Api.json.parseToJsonElement(tap.body!!.utf8()).jsonObject["scheduled_at"].toString().trim('"'))
+        assertTrue(schemas["OutputPublishIn"]!!.jsonObject["properties"]!!.jsonObject.keys.containsAll(Api.json.parseToJsonElement(tap.body!!.utf8()).jsonObject.keys))
     }
 
     @Test

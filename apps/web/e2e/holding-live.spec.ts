@@ -20,14 +20,17 @@ test('GL-1: the header says the stream is live, in words', async ({ page }) => {
   });
 });
 
-test('OF-1: four figures on top of the office, from the seed, glinting as they change', async ({ page }) => {
+test('OF-1: the pulse of the office in one row, from the seed, glinting as it changes', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/');
     const pulse = page.getByTestId('office-pulse');
-    await expect(pulse.locator('[data-pulse]')).toHaveCount(4);
-    for (const label of ['الان کار میکنند', 'سشن در جریان', 'منتظر تو', 'مصرف در دقیقه']) await expect(pulse.locator(`[data-pulse="${label}"]`)).toBeVisible();
-    // Seeded from the summary: no «—» once it has arrived; «الان کار میکنند» is n of all.
-    await expect(pulse.locator('[data-pulse="الان کار میکنند"] [data-figure]')).toHaveAttribute('data-figure', /^\d+\/\d+$/);
+    // ⟨1.0.1⟩ Three figures in one row: who works, how many sessions are open, what waits for him; and when they were read.
+    await expect(pulse.locator('[data-pulse]')).toHaveCount(3);
+    for (const label of ['کار میکنند', 'جلسه‌ی باز', 'منتظر تو']) await expect(pulse.locator(`[data-pulse="${label}"]`)).toBeVisible();
+    await expect(pulse.locator('[data-pulse-at]')).toContainText(/تا\s*\d{2}:\d{2}/);
+    await expect(page.locator('body')).not.toContainText('سشن');
+    // Seeded from the summary: no «—» once it has arrived; «کار میکنند» is n of all.
+    await expect(pulse.locator('[data-pulse="کار میکنند"] [data-figure]')).toHaveAttribute('data-figure', /^\d+\/\d+$/);
     await expect(pulse.locator('[data-pulse="منتظر تو"] [data-figure]')).toHaveAttribute('data-figure', /^\d+$/);
     // People change state on the stream: a figure crossfades and its tahrir glints (silver: the agents' work).
     await drive(page, 'work', 'burst');
@@ -63,7 +66,7 @@ test('CO-1: a live card per company: people by state, servers, sessions, spend; 
     for (const card of await list.locator('[data-company-card]').all()) expect(await card.locator('[data-dot]').count()).toBeLessThanOrEqual(12);
     const ty = list.locator('[data-company-card="TY"]');
     await expect(ty.locator('[data-servers]')).toHaveAttribute('data-servers', '1/1');
-    await expect(ty.locator('[data-sessions]')).toContainText('سشن');
+    await expect(ty.locator('[data-sessions]')).toContainText('جلسه');
     await drive(page, 'drop');
     await expect(ty.locator('[data-servers]')).toHaveAttribute('data-servers', '0/1');
     await expect(ty).toContainText('قطع');
