@@ -9,6 +9,10 @@
 #   connection.read   any agent of the company (figures, never a secret: only
 #                     set/missing); the holding's readers (advisor, overseer, ...)
 #                     for any company
+#   topic.claim       ⟨1.31⟩ §47 (A1): any working agent, for a work of its own (the
+#                     api finds the work and says it is the caller's: `assigned`)
+#   narrator.set      ⟨1.31⟩ §48 (A1): an agent that works on an order of the owner
+#                     (`assigned`: its work belongs to one), for that work's company
 package hq.internal
 
 import rego.v1
@@ -42,4 +46,22 @@ grant if {
 	agent
 	holding_reader
 	is_string(tv("company"))
+}
+
+# ⟨1.31⟩ §47 today's topic, named before it is made: the agent whose work it is.
+grant if {
+	op == "topic.claim"
+	agent
+	p.role != "system"
+	same_company(tv("company"))
+	tv("assigned") == true
+}
+
+# ⟨1.31⟩ §48 a company's narrator, set by whoever works on the owner's own order.
+grant if {
+	op == "narrator.set"
+	agent
+	p.role != "system"
+	same_company(tv("company"))
+	tv("assigned") == true
 }

@@ -168,11 +168,20 @@ async def test_the_owners_tap_publishes_a_session_file_through_ig_hub(
     a = job["args"]
     assert a["command"] == command and a["caption"] == "هفته‌ی طلا #طلا"
     assert a["meta"] == {"channel": "instagram", "kind": "post", "account": "pro.chart",
-                         "company": co, "cover": False}  # fmt: skip
+                         "company": co, "cover": False, "key": a["meta"]["key"]}  # fmt: skip
     [f] = a["files"]
-    assert f["url"] == f"/api/v1/runners/jobs/{job['id']}/inputs/{one}" and f["name"] == "cover.png"
+    # ⟨§52⟩ Instagram takes JPEG pictures only: the PNG he tapped goes out as a JPEG the hub
+    # made from it (a file of the same company; the publication keeps the name he knows)
+    assert f["name"] == "cover.jpg" and f["mime"] == "image/jpeg" and one not in f["url"]
+    assert f["url"].startswith(f"/api/v1/runners/jobs/{job['id']}/inputs/")
     got = await client.get(f["url"], headers=ig_rn["h"])
-    assert got.status_code == 200 and got.content[:8] == b"\x89PNG\r\n\x1a\n"
+    assert got.status_code == 200 and got.content[:3] == b"\xff\xd8\xff"
+    assert (
+        await su.fetchval(
+            "SELECT meta ->> 'jpeg_of' FROM files.files WHERE id = $1::uuid", f["file_id"]
+        )
+        == one
+    )
     # only the file the tap named, only for that job's runner
     assert (
         await client.get(f"/api/v1/runners/jobs/{job['id']}/inputs/{two}", headers=ig_rn["h"])
@@ -326,7 +335,7 @@ async def test_a_reel_goes_out_with_its_cover_and_caption(
     assert pub["cover_name"] == "cover.png" and pub["account"] == "pro.chart"
     job = await take(client, ig_rn)
     a = job["args"]
-    assert [f["name"] for f in a["files"]] == ["reel.mp4", "cover.png"]
+    assert [f["name"] for f in a["files"]] == ["reel.mp4", "cover.jpg"]  # ⟨§52⟩ a JPEG cover
     assert a["files"][1]["role"] == "cover" and a["meta"]["cover"] is True
     assert a["meta"]["kind"] == "reel" and a["caption"].endswith("کامنت کن «۳»")
     for f in a["files"]:  # both come from the job's own route, with the runner's token

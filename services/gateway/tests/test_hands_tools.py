@@ -169,3 +169,85 @@ async def test_a_step_order_names_the_plan_task_and_the_holder_can_stop_its_turn
     assert (out["outcome"], out["class"], out["ref"]) == ("ok", "A1", "W-000501"), out
     assert out["result"]["stopped"] is True and out["hint_fa"] == H.STOPPED_FA[: T.HINT_CHARS]
     assert json.loads(stop.calls.last.request.content) == {"reason": "مالک گفت اشتباه بود"}
+
+
+async def test_the_ledger_tools_and_the_effort_of_a_turn(
+    mock: respx.MockRouter, gw: Gateway
+) -> None:
+    """⟨1.31⟩ contract §47, §48, §53: `topic.claim` and `narrator.set` are every working role's
+    (A1); a taken topic comes back as its own code with the hint to choose another; a turn's
+    `effort` goes to the api only when it is given."""
+    from hq_gateway import ledger as L
+
+    assert set(L.TOOLS) == {"topic.claim", "narrator.set"} <= set(T.TOOLS)
+    assert set(L.TOOLS) <= tool_status.GATEWAY_TOOLS and set(L.TOOLS) <= set(SHARED_TOOLS)
+    assert LIB.tools["topic.claim"].cls == "A1" and LIB.tools["narrator.set"].cls == "A1"
+    for role, charter in LIB.roles.items():
+        assert ("topic.claim" in charter.tools) == (charter.kind != "system"), role
+    Stub(mock, WRITER)
+    seen: list[Any] = []
+
+    def claimed(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(
+            201,
+            json={
+                "entry": {"id": "0193e7a1-0000-7000-8000-0000000000bb", "kind": "topic",
+                          "title_fa": "اندیکاتور ATR", "url": None, "by": "PC-MED-02"},
+                "new": True,
+                "group": "pb_1",
+            },
+        )  # fmt: skip
+
+    route = mock.post(f"{API}/internal/v1/topics/claim").mock(side_effect=claimed)
+    out = await call(gw, "topic.claim", {"title_fa": "اندیکاتور ATR"})
+    assert (out["outcome"], out["class"]) == ("ok", "A1"), out
+    assert seen == [{"kind": "topic", "title_fa": "اندیکاتور ATR"}]
+    assert out["result"] == {"kind": "topic", "title_fa": "اندیکاتور ATR", "url": None,
+                             "new": True, "group": "pb_1"}  # fmt: skip
+    assert out["hint_fa"] == L.CLAIMED_FA[: T.HINT_CHARS]
+    route.mock(
+        return_value=httpx.Response(
+            409,
+            json={"type": "urn:coinepro-hq:problem:topic_taken", "title": "Topic already said",
+                  "status": 409, "code": "topic_taken", "message_fa": "این پیش‌تر گفته شده",
+                  "fields": {"title_fa": "taken: «اندیکاتور ATR» (2026-11-09)", "recent": "الف؛ ب"}},
+        )
+    )  # fmt: skip
+    out = await call(gw, "topic.claim", {"title_fa": "معرفی اندیکاتور ATR"})
+    assert out["outcome"] != "ok" and out["code"] == "topic_taken", out
+    assert out["hint_fa"] == L.TAKEN_FA[: T.HINT_CHARS] and "recent" in out["fields"]
+
+    narrator = mock.post(f"{API}/internal/v1/narrator").mock(
+        return_value=httpx.Response(
+            200, json={"company": "PC", "set": True, "voice": "Charon", "style_fa": "آرام"}
+        )
+    )
+    out = await call(gw, "narrator.set", {"voice": "Charon", "style_fa": "آرام"})
+    assert (out["outcome"], out["ref"]) == ("ok", "PC"), out
+    assert json.loads(narrator.calls.last.request.content) == {
+        "voice": "Charon",
+        "style_fa": "آرام",
+    }
+    assert out["result"] == {"company": "PC", "voice": "Charon", "style_fa": "آرام"}
+
+    started = {
+        "job": "0193e7a1-0000-7000-8000-0000000000aa",
+        "work_ref": "W-000501",
+        "state": "starting",
+        "turn": 1,
+        "path": "~/hq-workspace/W-000501",
+        "server": "workshop",
+    }
+    runs = mock.post(f"{API}/internal/v1/workshop/runs").mock(
+        return_value=httpx.Response(201, json=started)
+    )
+    await call(gw, "workshop.run", {"brief": "رنگ را آبی کن", "effort": "medium"})
+    assert json.loads(runs.calls.last.request.content) == {
+        "brief": "رنگ را آبی کن",
+        "effort": "medium",
+    }
+    await call(gw, "workshop.run", {"brief": "موشن را بساز"})
+    assert json.loads(runs.calls.last.request.content) == {"brief": "موشن را بساز"}
+    bad = await call(gw, "workshop.run", {"brief": "x", "effort": "ultra"})
+    assert bad["outcome"] != "ok", bad

@@ -246,8 +246,10 @@ class SessionPublish(BaseModel):
     kind: Literal["reel", "post", "story", "carousel"]
     account: str | None = None
     # ⟨§46⟩ `scheduled`: IG-Hub holds it for `scheduled_at`
+    # ⟨§51⟩ `cancelled`: he took it back before it went out
     state: Literal[
-        "publishing", "scheduled", "published", "failed", "waiting_seal", "waiting_setup"
+        "publishing", "scheduled", "published", "failed", "waiting_seal", "waiting_setup",
+        "cancelled",
     ]  # fmt: skip
     url: str | None = None
     note_fa: str | None = None
@@ -272,6 +274,41 @@ class PublishComment(BaseModel):
     public_replies: list[str] = Field(default_factory=list)
 
 
+class SessionRoutine(BaseModel):
+    """⟨1.31⟩ §50 A standing routine as the session (and the app) shows it (domain.routines).
+    `when_fa`: its schedule in plain Persian; `preview_fa`: what each run does, written by code
+    from the checked rule; `next_at`: its next run while it is `on`."""
+
+    ref: str
+    company: str | None = None
+    sentence_fa: str
+    when_fa: str
+    preview_fa: str
+    state: Literal["proposed", "on", "off"]
+    next_at: datetime | None = None
+    last_run_at: datetime | None = None
+    runs: int = 0
+    order: str | None = None
+    note_fa: str | None = None
+
+
+class BestHour(BaseModel):
+    """⟨§49⟩ The hour a company's Instagram account does best at (domain.best_hour). `hour`
+    («HH:MM», the owner's zone) and `at` (its next occurrence) are null while the data is too
+    thin (`enough: false`); `note_fa` says what it rests on, or what is missing. `basis` is what
+    is counted: likes and comments (IG-Hub reads no views or reach)."""
+
+    account: str | None = None
+    hour: str | None = None
+    at: datetime | None = None
+    enough: bool = False
+    posts: int = 0
+    days: int = 0
+    basis: Literal["likes_comments"] = "likes_comments"
+    note_fa: str = "آمار پست‌های این حساب هنوز از IG-Hub خوانده نشده است"
+    read_at: datetime | None = None
+
+
 class PublishPanel(BaseModel):
     """⟨2026-11-10⟩ §44.5 what the output's page shows of «تأیید و انتشار»: the session the
     output belongs to, the company's accounts, and this output's publishes. ⟨§45⟩ `tap`: the
@@ -292,6 +329,8 @@ class PublishPanel(BaseModel):
     group: str | None = None
     group_fa: str | None = None
     mode: Literal["ask", "auto"] | None = None
+    # ⟨§49⟩ the hour this account's posts do best at, once there is a month of them (else null)
+    best: BestHour | None = None
 
 
 class OrderReport(BaseModel):
@@ -334,6 +373,9 @@ class OrderReport(BaseModel):
     cards: list[OrderCard] = Field(default_factory=list)
     # ⟨2026-11-10⟩ §44.5 what the owner published from this session («تأیید و انتشار»), newest first
     publishes: list[SessionPublish] = Field(default_factory=list)
+    # ⟨1.31⟩ §50 the standing routines the owner asked for in this session («کارمند ۲۴ ساعته»),
+    # newest first; each is switched with POST /automations/{ref}/state
+    routines: list[SessionRoutine] = Field(default_factory=list)
 
 
 # ----------------------------------------------------------------- reading --
@@ -1090,6 +1132,9 @@ async def report(tx: Tx, ref: str) -> OrderReport | None:
     from hq_api.domain import session_publish as SPB
 
     out.publishes = await SPB.of_order(tx, rep["ref"])
+    from hq_api.domain import routines as RT
+
+    out.routines = await RT.of_order(tx, rep["ref"])
     return out
 
 

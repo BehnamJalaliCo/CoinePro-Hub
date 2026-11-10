@@ -55,6 +55,9 @@ class SpeechMakeAnswer(BaseModel):
     bytes: int | None = None
     voice: str | None = None
     style: str | None = None
+    # ⟨1.31⟩ §48 true: the voice and the style are the company's own narrator (set once by the
+    # owner), whatever was asked for
+    narrator: bool = False
     code: str | None = None
     hint_fa: str | None = None
 
@@ -86,15 +89,24 @@ async def speech_make(body: SpeechIn, request: Request, ctx: Ctx = Depends(inter
     assert who.company is not None
     assert who.company_id is not None
     await allow(ctx, "speech.make", {"company": who.company, "charter": who.charter})
-    if not tts.known_voice(body.voice):
+    # ⟨1.31⟩ §48 the narrator of the company the content is for (the run's work's company), set
+    # once: its voice and style are used whatever the model asked for
+    from hq_api.domain import narrator as NR
+
+    async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
+        _, fixed = await NR.for_work(tx, who)
+    voice, style = body.voice, body.style.strip()
+    if fixed is not None:
+        voice, style = str(fixed["voice"]), str(fixed["style_fa"] or "")
+    if not tts.known_voice(voice):
         names = "، ".join(v[0] for v in tts.DOCUMENTED[:6])
         raise ApiError(
             422,
             "validation_failed",
             fields={"voice": "not one of AI Studio's prebuilt voices"},
-            message_fa=f"صدای «{body.voice}» در ای‌آی استودیو نیست؛ یکی از صداهای آماده مثل {names}.",
+            message_fa=f"صدای «{voice}» در ای‌آی استودیو نیست؛ یکی از صداهای آماده مثل {names}.",
         )
-    if not _leaves_clean(body.text_fa, body.style):
+    if not _leaves_clean(body.text_fa, style):
         raise ApiError(
             403,
             "policy_denied",
@@ -103,14 +115,15 @@ async def speech_make(body: SpeechIn, request: Request, ctx: Ctx = Depends(inter
         )
     key = idempotency.read_key(request, required=True)
     job = str(uuid.uuid5(NS, f"{who.code}:{key}"))
-    payload = {
+    payload: dict[str, Any] = {
         "job": job,
         "company_id": str(who.company_id),
         "company": who.company,
         "by": who.code,
         "text": body.text_fa.strip(),
-        "voice": body.voice,
-        "style": body.style.strip(),
+        "voice": voice,
+        "style": style,
+        "narrator": fixed is not None,
     }
     async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as tx:
         idem = await idempotency.claim(tx, request, who, required=True)
@@ -127,14 +140,16 @@ async def speech_make(body: SpeechIn, request: Request, ctx: Ctx = Depends(inter
             action_class="A1",
             target_kind="speech",
             target_ref=job,
-            summary=f"AI Studio {body.voice}, {len(payload['text'])} chars",
+            summary=f"AI Studio {voice}{' (the narrator)' if fixed is not None else ''}, "
+            f"{len(payload['text'])} chars",
         )
         client = getattr(ctx.hub, "temporal", None)
         if client is not None:
             await _start(ctx, client, payload)
             out = SpeechMakeAnswer(
-                job=job, state="running", voice=body.voice, hint_fa=SM.RUNNING_FA
-            )
+                job=job, state="running", voice=voice, style=style,
+                narrator=fixed is not None, hint_fa=SM.RUNNING_FA,
+            )  # fmt: skip
             if idem:
                 await idem.store(tx, 202, out.model_dump(mode="json"))
             return out

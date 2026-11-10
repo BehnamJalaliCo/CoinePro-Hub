@@ -4183,6 +4183,17 @@
             ],
             "title": "Off Reason"
           },
+          "order": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order"
+          },
           "preview_fa": {
             "title": "Preview Fa",
             "type": "string"
@@ -4190,6 +4201,11 @@
           "ref": {
             "title": "Ref",
             "type": "string"
+          },
+          "routine": {
+            "default": false,
+            "title": "Routine",
+            "type": "boolean"
           },
           "rule": {
             "additionalProperties": true,
@@ -4313,6 +4329,17 @@
             ],
             "title": "Off Reason"
           },
+          "order": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order"
+          },
           "preview_fa": {
             "title": "Preview Fa",
             "type": "string"
@@ -4320,6 +4347,11 @@
           "ref": {
             "title": "Ref",
             "type": "string"
+          },
+          "routine": {
+            "default": false,
+            "title": "Routine",
+            "type": "boolean"
           },
           "rule": {
             "additionalProperties": true,
@@ -4842,6 +4874,85 @@
           "proposer"
         ],
         "title": "Batchable",
+        "type": "object"
+      },
+      "BestHour": {
+        "description": "⟨§49⟩ The hour a company's Instagram account does best at (domain.best_hour). `hour`\n(«HH:MM», the owner's zone) and `at` (its next occurrence) are null while the data is too\nthin (`enough: false`); `note_fa` says what it rests on, or what is missing. `basis` is what\nis counted: likes and comments (IG-Hub reads no views or reach).",
+        "properties": {
+          "account": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "basis": {
+            "const": "likes_comments",
+            "default": "likes_comments",
+            "title": "Basis",
+            "type": "string"
+          },
+          "days": {
+            "default": 0,
+            "title": "Days",
+            "type": "integer"
+          },
+          "enough": {
+            "default": false,
+            "title": "Enough",
+            "type": "boolean"
+          },
+          "hour": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hour"
+          },
+          "note_fa": {
+            "default": "آمار پست‌های این حساب هنوز از IG-Hub خوانده نشده است",
+            "title": "Note Fa",
+            "type": "string"
+          },
+          "posts": {
+            "default": 0,
+            "title": "Posts",
+            "type": "integer"
+          },
+          "read_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read At"
+          }
+        },
+        "title": "BestHour",
         "type": "object"
       },
       "Blocker": {
@@ -29715,6 +29826,11 @@
             ],
             "title": "At"
           },
+          "best": {
+            "default": false,
+            "title": "Best",
+            "type": "boolean"
+          },
           "mode": {
             "default": "ask",
             "enum": [
@@ -29772,6 +29888,11 @@
               }
             ],
             "title": "At"
+          },
+          "best": {
+            "default": false,
+            "title": "Best",
+            "type": "boolean"
           },
           "mode": {
             "enum": [
@@ -30856,6 +30977,136 @@
           "spoken_chars"
         ],
         "title": "Narration",
+        "type": "object"
+      },
+      "Narrator": {
+        "description": "`set: false`: the company has none yet (`voice` is then AI Studio's default, which a model\nmay still override). `voices`: AI Studio's prebuilt speakers. `aistudio`: whether the hub's\nbrowser is signed in to it (`signed_in`, `signed_out`, `unknown`).",
+        "properties": {
+          "aistudio": {
+            "default": "unknown",
+            "title": "Aistudio",
+            "type": "string"
+          },
+          "by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "By"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "set": {
+            "default": false,
+            "title": "Set",
+            "type": "boolean"
+          },
+          "style_fa": {
+            "default": "",
+            "title": "Style Fa",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "voice": {
+            "default": "Kore",
+            "title": "Voice",
+            "type": "string"
+          },
+          "voices": {
+            "items": {
+              "$ref": "#/components/schemas/VoiceOption"
+            },
+            "title": "Voices",
+            "type": "array"
+          }
+        },
+        "required": [
+          "company"
+        ],
+        "title": "Narrator",
+        "type": "object"
+      },
+      "NarratorIn": {
+        "additionalProperties": false,
+        "properties": {
+          "style_fa": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Style Fa"
+          },
+          "voice": {
+            "pattern": "^[A-Za-z]{2,30}$",
+            "title": "Voice",
+            "type": "string"
+          }
+        },
+        "required": [
+          "voice"
+        ],
+        "title": "NarratorIn",
+        "type": "object"
+      },
+      "NarratorSetIn": {
+        "additionalProperties": false,
+        "properties": {
+          "style_fa": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Style Fa"
+          },
+          "voice": {
+            "pattern": "^[A-Za-z]{2,30}$",
+            "title": "Voice",
+            "type": "string"
+          },
+          "work": {
+            "anyOf": [
+              {
+                "pattern": "^W-[0-9]{6,}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work"
+          }
+        },
+        "required": [
+          "voice"
+        ],
+        "title": "NarratorSetIn",
         "type": "object"
       },
       "Network": {
@@ -32677,6 +32928,13 @@
           },
           "route": {
             "$ref": "#/components/schemas/hq_api__domain__order_report__Route"
+          },
+          "routines": {
+            "items": {
+              "$ref": "#/components/schemas/SessionRoutine"
+            },
+            "title": "Routines",
+            "type": "array"
           },
           "session": {
             "anyOf": [
@@ -39287,6 +39545,16 @@
             "title": "Accounts",
             "type": "array"
           },
+          "best": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BestHour"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "caption": {
             "anyOf": [
               {
@@ -39410,6 +39678,11 @@
               }
             ],
             "title": "At"
+          },
+          "best": {
+            "default": false,
+            "title": "Best",
+            "type": "boolean"
           },
           "mode": {
             "enum": [
@@ -44073,6 +44346,46 @@
         "title": "Routine",
         "type": "object"
       },
+      "RoutineIn": {
+        "additionalProperties": false,
+        "properties": {
+          "company": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "order": {
+            "anyOf": [
+              {
+                "pattern": "^F-[0-9]{4,}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order"
+          },
+          "sentence_fa": {
+            "maxLength": 1000,
+            "minLength": 3,
+            "title": "Sentence Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sentence_fa"
+        ],
+        "title": "RoutineIn",
+        "type": "object"
+      },
       "RoutineRun": {
         "properties": {
           "at": {
@@ -47603,7 +47916,8 @@
               "published",
               "failed",
               "waiting_seal",
-              "waiting_setup"
+              "waiting_setup",
+              "cancelled"
             ],
             "title": "State",
             "type": "string"
@@ -47626,6 +47940,107 @@
           "state"
         ],
         "title": "SessionPublish",
+        "type": "object"
+      },
+      "SessionRoutine": {
+        "description": "⟨1.31⟩ §50 A standing routine as the session (and the app) shows it (domain.routines).\n`when_fa`: its schedule in plain Persian; `preview_fa`: what each run does, written by code\nfrom the checked rule; `next_at`: its next run while it is `on`.",
+        "properties": {
+          "company": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "last_run_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run At"
+          },
+          "next_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next At"
+          },
+          "note_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Fa"
+          },
+          "order": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order"
+          },
+          "preview_fa": {
+            "title": "Preview Fa",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "runs": {
+            "default": 0,
+            "title": "Runs",
+            "type": "integer"
+          },
+          "sentence_fa": {
+            "title": "Sentence Fa",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "proposed",
+              "on",
+              "off"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "when_fa": {
+            "title": "When Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "sentence_fa",
+          "when_fa",
+          "preview_fa",
+          "state"
+        ],
+        "title": "SessionRoutine",
         "type": "object"
       },
       "SessionState": {
@@ -48765,6 +49180,11 @@
               }
             ],
             "title": "Mime"
+          },
+          "narrator": {
+            "default": false,
+            "title": "Narrator",
+            "type": "boolean"
           },
           "state": {
             "enum": [
@@ -53674,6 +54094,249 @@
         "title": "TopThread",
         "type": "object"
       },
+      "TopicClaimIn": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "default": "topic",
+            "enum": [
+              "topic",
+              "reference"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "title_fa": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title Fa"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "work": {
+            "anyOf": [
+              {
+                "pattern": "^W-[0-9]{6,}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work"
+          }
+        },
+        "title": "TopicClaimIn",
+        "type": "object"
+      },
+      "TopicClaimed": {
+        "description": "`new: false`: this run had named the same one already. `group`: the working group whose\nledger it is in (null: the session's own, until its working group is sealed).",
+        "properties": {
+          "entry": {
+            "$ref": "#/components/schemas/TopicEntry"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
+          },
+          "new": {
+            "title": "New",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "entry",
+          "new"
+        ],
+        "title": "TopicClaimed",
+        "type": "object"
+      },
+      "TopicEntry": {
+        "description": "One line of the ledger. `source`: `claim` (the routine's work named it), `package` (the\nhub read it from what went out), `owner` (he added it himself).",
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "topic",
+              "reference"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output"
+          },
+          "source": {
+            "enum": [
+              "claim",
+              "package",
+              "owner"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "title_fa": {
+            "title": "Title Fa",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "work_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Ref"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "title_fa",
+          "at",
+          "by",
+          "source"
+        ],
+        "title": "TopicEntry",
+        "type": "object"
+      },
+      "TopicIn": {
+        "additionalProperties": false,
+        "description": "⟨§47⟩ A line the owner adds to the ledger himself («این را قبلاً گفته‌ایم»).",
+        "properties": {
+          "kind": {
+            "default": "topic",
+            "enum": [
+              "topic",
+              "reference"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "title_fa": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title Fa"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "title": "TopicIn",
+        "type": "object"
+      },
+      "TopicLedger": {
+        "description": "⟨§47⟩ What a company already said in a working group, newest first, and how many.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TopicEntry"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "references": {
+            "title": "References",
+            "type": "integer"
+          },
+          "topics": {
+            "title": "Topics",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "topics",
+          "references"
+        ],
+        "title": "TopicLedger",
+        "type": "object"
+      },
       "Totals": {
         "properties": {
           "cache_read_tokens": {
@@ -54951,6 +55614,29 @@
           "seconds"
         ],
         "title": "VoiceMeterPersona",
+        "type": "object"
+      },
+      "VoiceOption": {
+        "properties": {
+          "gender": {
+            "title": "Gender",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "trait_fa": {
+            "title": "Trait Fa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "gender",
+          "trait_fa"
+        ],
+        "title": "VoiceOption",
         "type": "object"
       },
       "VoicePrice": {
@@ -57592,6 +58278,24 @@
             "minLength": 1,
             "title": "Brief",
             "type": "string"
+          },
+          "effort": {
+            "anyOf": [
+              {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "xhigh",
+                  "max"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effort"
           },
           "files": {
             "items": {
@@ -69084,8 +69788,10 @@
                     "last_run_at": "2026-10-17T05:42:00Z",
                     "n8n_workflow": "x",
                     "off_reason": "owner",
+                    "order": "x",
                     "preview_fa": "x",
                     "ref": "W-000789",
+                    "routine": false,
                     "rule": {},
                     "runs": 1,
                     "sealed_at": "2026-10-17T05:42:00Z",
@@ -69195,8 +69901,10 @@
                   "last_run_at": "2026-10-17T05:42:00Z",
                   "n8n_workflow": "x",
                   "off_reason": "owner",
+                  "order": "x",
                   "preview_fa": "x",
                   "ref": "W-000789",
+                  "routine": false,
                   "rule": {},
                   "runs": 1,
                   "sealed_at": "2026-10-17T05:42:00Z",
@@ -69397,8 +70105,10 @@
                   "last_run_at": "2026-10-17T05:42:00Z",
                   "n8n_workflow": "x",
                   "off_reason": "owner",
+                  "order": "x",
                   "preview_fa": "x",
                   "ref": "W-000789",
+                  "routine": false,
                   "rule": {},
                   "run_log": [
                     {
@@ -69513,8 +70223,10 @@
                   "last_run_at": "2026-10-17T05:42:00Z",
                   "n8n_workflow": "x",
                   "off_reason": "owner",
+                  "order": "x",
                   "preview_fa": "x",
                   "ref": "W-000789",
+                  "routine": false,
                   "rule": {},
                   "runs": 1,
                   "sealed_at": "2026-10-17T05:42:00Z",
@@ -69630,8 +70342,10 @@
                   "last_run_at": "2026-10-17T05:42:00Z",
                   "n8n_workflow": "x",
                   "off_reason": "owner",
+                  "order": "x",
                   "preview_fa": "x",
                   "ref": "W-000789",
+                  "routine": false,
                   "rule": {},
                   "runs": 1,
                   "sealed_at": "2026-10-17T05:42:00Z",
@@ -75223,6 +75937,133 @@
         ]
       }
     },
+    "/api/v1/companies/{code}/best-hour": {
+      "get": {
+        "description": "⟨1.31⟩ §49 The hour this company's Instagram account does best at, from the posts IG-Hub\nreports (read once a day): `hour` in the owner's zone and `at`, its next occurrence, once\nthere are enough posts over a month (`enough`); else why not yet (`note_fa`). What is\ncounted is likes and comments: IG-Hub reads no views or reach. `account`: one of the\ncompany's registered accounts (left out: its only one).",
+        "operationId": "best_hour",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "account",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 65,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Account"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "account": "x",
+                  "at": "2026-10-17T05:42:00Z",
+                  "basis": "likes_comments",
+                  "days": 1,
+                  "enough": false,
+                  "hour": "x",
+                  "note_fa": "x",
+                  "posts": 1,
+                  "read_at": "2026-10-17T05:42:00Z"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/BestHour"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Best Hour",
+        "tags": [
+          "groups"
+        ]
+      }
+    },
     "/api/v1/companies/{code}/brand": {
       "get": {
         "description": "The active version and, if any, the newest `proposed` one.",
@@ -79366,6 +80207,226 @@
         "summary": "Create Company Line",
         "tags": [
           "lines"
+        ]
+      }
+    },
+    "/api/v1/companies/{code}/narrator": {
+      "get": {
+        "description": "⟨1.31⟩ §48 The company's narrator: the voice and the style every `speech.make` for its\ncontent uses (`set: false`: none yet, a model still chooses). `voices`: AI Studio's prebuilt\nspeakers; `aistudio`: whether the hub's browser is signed in to it.",
+        "operationId": "get_narrator",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "aistudio": "x",
+                  "by": "x",
+                  "company": "TY",
+                  "set": false,
+                  "style_fa": "x",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "voice": "x",
+                  "voices": [
+                    {
+                      "gender": "x",
+                      "name": "report.pdf",
+                      "trait_fa": "x"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Narrator"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Get Narrator",
+        "tags": [
+          "media"
+        ]
+      },
+      "put": {
+        "description": "⟨1.31⟩ §48 The owner sets the company's narrator once: from now every voice made for\nthis company's content is this voice in this style, whatever a model asks for. `422` for a\nvoice AI Studio does not have. A tap, no step-up.",
+        "operationId": "put_narrator",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "style_fa": "x",
+                "voice": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/NarratorIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "aistudio": "x",
+                  "by": "x",
+                  "company": "TY",
+                  "set": false,
+                  "style_fa": "x",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "voice": "x",
+                  "voices": [
+                    {
+                      "gender": "x",
+                      "name": "report.pdf",
+                      "trait_fa": "x"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Narrator"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Put Narrator",
+        "tags": [
+          "media"
         ]
       }
     },
@@ -87181,6 +88242,17 @@
                   "accounts": [
                     "x"
                   ],
+                  "best": {
+                    "account": "x",
+                    "at": "2026-10-17T05:42:00Z",
+                    "basis": "likes_comments",
+                    "days": 1,
+                    "enough": false,
+                    "hour": "x",
+                    "note_fa": "x",
+                    "posts": 1,
+                    "read_at": "2026-10-17T05:42:00Z"
+                  },
                   "caption": "x",
                   "channel": "instagram",
                   "comment": {
@@ -92836,6 +93908,7 @@
                     "publish": {
                       "account": "x",
                       "at": "x",
+                      "best": false,
                       "mode": "ask",
                       "since": "2026-10-17T05:42:00Z",
                       "story": false
@@ -92992,6 +94065,7 @@
                   "publish": {
                     "account": "x",
                     "at": "x",
+                    "best": false,
                     "mode": "ask",
                     "since": "2026-10-17T05:42:00Z",
                     "story": false
@@ -93122,6 +94196,7 @@
               "example": {
                 "account": "x",
                 "at": "x",
+                "best": false,
                 "mode": "ask",
                 "story": false
               },
@@ -93146,6 +94221,7 @@
                   "publish": {
                     "account": "x",
                     "at": "x",
+                    "best": false,
                     "mode": "ask",
                     "since": "2026-10-17T05:42:00Z",
                     "story": false
@@ -93241,6 +94317,459 @@
           }
         },
         "summary": "Set Member Publish",
+        "tags": [
+          "groups"
+        ]
+      }
+    },
+    "/api/v1/groups/{key}/members/{code}/topics": {
+      "get": {
+        "description": "⟨1.31⟩ §47 The ledger of what this company already said in this working group: each\nday's topic and each outside sample (a Pinterest pin), newest first. The hub refuses one\nthat is said again (`topic.claim`), so no day repeats another. `q`: words to look for;\n`cursor`: the `next_cursor` of the page before.",
+        "operationId": "list_topics",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "topic",
+                    "reference"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "at": "2026-10-17T05:42:00Z",
+                      "by": "x",
+                      "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                      "kind": "topic",
+                      "output": "x",
+                      "source": "claim",
+                      "title_fa": "گزارش هفتگی رشد",
+                      "url": "x",
+                      "work_ref": "x"
+                    }
+                  ],
+                  "next_cursor": "x",
+                  "references": 1,
+                  "topics": 1
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TopicLedger"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Topics",
+        "tags": [
+          "groups"
+        ]
+      },
+      "post": {
+        "description": "⟨1.31⟩ §47 The owner adds a line himself: a topic this company already covered (before\nthe ledger, or elsewhere), or a sample already used, so it is never made again. `409\ntopic_taken` when the ledger already says it.",
+        "operationId": "add_topic",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "kind": "topic",
+                "title_fa": "گزارش هفتگی رشد",
+                "url": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/TopicIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "at": "2026-10-17T05:42:00Z",
+                  "by": "x",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "topic",
+                  "output": "x",
+                  "source": "claim",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "url": "x",
+                  "work_ref": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TopicEntry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Add Topic",
+        "tags": [
+          "groups"
+        ]
+      }
+    },
+    "/api/v1/groups/{key}/members/{code}/topics/{topic_id}": {
+      "delete": {
+        "description": "⟨1.31⟩ §47 The owner frees a line (it was a mistake, or he wants it made again): it may\nbe said once more. Nothing is deleted (the row is kept as `freed`).",
+        "operationId": "free_topic",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "topic_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Topic Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "at": "2026-10-17T05:42:00Z",
+                  "by": "x",
+                  "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                  "kind": "topic",
+                  "output": "x",
+                  "source": "claim",
+                  "title_fa": "گزارش هفتگی رشد",
+                  "url": "x",
+                  "work_ref": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TopicEntry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Free Topic",
         "tags": [
           "groups"
         ]
@@ -113015,6 +114544,21 @@
                     "output_kind": "x",
                     "player": "x"
                   },
+                  "routines": [
+                    {
+                      "company": "TY",
+                      "last_run_at": "2026-10-17T05:42:00Z",
+                      "next_at": "2026-10-17T05:42:00Z",
+                      "note_fa": "x",
+                      "order": "x",
+                      "preview_fa": "x",
+                      "ref": "W-000789",
+                      "runs": 1,
+                      "sentence_fa": "x",
+                      "state": "proposed",
+                      "when_fa": "x"
+                    }
+                  ],
                   "session": {
                     "badge": "your_turn",
                     "closed_at": "2026-10-17T05:42:00Z",
@@ -113599,6 +115143,21 @@
                     "output_kind": "x",
                     "player": "x"
                   },
+                  "routines": [
+                    {
+                      "company": "TY",
+                      "last_run_at": "2026-10-17T05:42:00Z",
+                      "next_at": "2026-10-17T05:42:00Z",
+                      "note_fa": "x",
+                      "order": "x",
+                      "preview_fa": "x",
+                      "ref": "W-000789",
+                      "runs": 1,
+                      "sentence_fa": "x",
+                      "state": "proposed",
+                      "when_fa": "x"
+                    }
+                  ],
                   "session": {
                     "badge": "your_turn",
                     "closed_at": "2026-10-17T05:42:00Z",
@@ -113978,6 +115537,21 @@
                     "output_kind": "x",
                     "player": "x"
                   },
+                  "routines": [
+                    {
+                      "company": "TY",
+                      "last_run_at": "2026-10-17T05:42:00Z",
+                      "next_at": "2026-10-17T05:42:00Z",
+                      "note_fa": "x",
+                      "order": "x",
+                      "preview_fa": "x",
+                      "ref": "W-000789",
+                      "runs": 1,
+                      "sentence_fa": "x",
+                      "state": "proposed",
+                      "when_fa": "x"
+                    }
+                  ],
                   "session": {
                     "badge": "your_turn",
                     "closed_at": "2026-10-17T05:42:00Z",
@@ -114474,6 +116048,21 @@
                     "output_kind": "x",
                     "player": "x"
                   },
+                  "routines": [
+                    {
+                      "company": "TY",
+                      "last_run_at": "2026-10-17T05:42:00Z",
+                      "next_at": "2026-10-17T05:42:00Z",
+                      "note_fa": "x",
+                      "order": "x",
+                      "preview_fa": "x",
+                      "ref": "W-000789",
+                      "runs": 1,
+                      "sentence_fa": "x",
+                      "state": "proposed",
+                      "when_fa": "x"
+                    }
+                  ],
                   "session": {
                     "badge": "your_turn",
                     "closed_at": "2026-10-17T05:42:00Z",
@@ -114856,6 +116445,21 @@
                     "output_kind": "x",
                     "player": "x"
                   },
+                  "routines": [
+                    {
+                      "company": "TY",
+                      "last_run_at": "2026-10-17T05:42:00Z",
+                      "next_at": "2026-10-17T05:42:00Z",
+                      "note_fa": "x",
+                      "order": "x",
+                      "preview_fa": "x",
+                      "ref": "W-000789",
+                      "runs": 1,
+                      "sentence_fa": "x",
+                      "state": "proposed",
+                      "when_fa": "x"
+                    }
+                  ],
                   "session": {
                     "badge": "your_turn",
                     "closed_at": "2026-10-17T05:42:00Z",
@@ -115233,6 +116837,21 @@
                     "output_kind": "x",
                     "player": "x"
                   },
+                  "routines": [
+                    {
+                      "company": "TY",
+                      "last_run_at": "2026-10-17T05:42:00Z",
+                      "next_at": "2026-10-17T05:42:00Z",
+                      "note_fa": "x",
+                      "order": "x",
+                      "preview_fa": "x",
+                      "ref": "W-000789",
+                      "runs": 1,
+                      "sentence_fa": "x",
+                      "state": "proposed",
+                      "when_fa": "x"
+                    }
+                  ],
                   "session": {
                     "badge": "your_turn",
                     "closed_at": "2026-10-17T05:42:00Z",
@@ -115416,6 +117035,7 @@
                       "publish": {
                         "account": "x",
                         "at": "x",
+                        "best": false,
                         "mode": "ask",
                         "since": "2026-10-17T05:42:00Z",
                         "story": false
@@ -115911,6 +117531,21 @@
                     "output_kind": "x",
                     "player": "x"
                   },
+                  "routines": [
+                    {
+                      "company": "TY",
+                      "last_run_at": "2026-10-17T05:42:00Z",
+                      "next_at": "2026-10-17T05:42:00Z",
+                      "note_fa": "x",
+                      "order": "x",
+                      "preview_fa": "x",
+                      "ref": "W-000789",
+                      "runs": 1,
+                      "sentence_fa": "x",
+                      "state": "proposed",
+                      "when_fa": "x"
+                    }
+                  ],
                   "session": {
                     "badge": "your_turn",
                     "closed_at": "2026-10-17T05:42:00Z",
@@ -116292,6 +117927,21 @@
                     "output_kind": "x",
                     "player": "x"
                   },
+                  "routines": [
+                    {
+                      "company": "TY",
+                      "last_run_at": "2026-10-17T05:42:00Z",
+                      "next_at": "2026-10-17T05:42:00Z",
+                      "note_fa": "x",
+                      "order": "x",
+                      "preview_fa": "x",
+                      "ref": "W-000789",
+                      "runs": 1,
+                      "sentence_fa": "x",
+                      "state": "proposed",
+                      "when_fa": "x"
+                    }
+                  ],
                   "session": {
                     "badge": "your_turn",
                     "closed_at": "2026-10-17T05:42:00Z",
@@ -116671,6 +118321,21 @@
                     "output_kind": "x",
                     "player": "x"
                   },
+                  "routines": [
+                    {
+                      "company": "TY",
+                      "last_run_at": "2026-10-17T05:42:00Z",
+                      "next_at": "2026-10-17T05:42:00Z",
+                      "note_fa": "x",
+                      "order": "x",
+                      "preview_fa": "x",
+                      "ref": "W-000789",
+                      "runs": 1,
+                      "sentence_fa": "x",
+                      "state": "proposed",
+                      "when_fa": "x"
+                    }
+                  ],
                   "session": {
                     "badge": "your_turn",
                     "closed_at": "2026-10-17T05:42:00Z",
@@ -117384,6 +119049,21 @@
                     "output_kind": "x",
                     "player": "x"
                   },
+                  "routines": [
+                    {
+                      "company": "TY",
+                      "last_run_at": "2026-10-17T05:42:00Z",
+                      "next_at": "2026-10-17T05:42:00Z",
+                      "note_fa": "x",
+                      "order": "x",
+                      "preview_fa": "x",
+                      "ref": "W-000789",
+                      "runs": 1,
+                      "sentence_fa": "x",
+                      "state": "proposed",
+                      "when_fa": "x"
+                    }
+                  ],
                   "session": {
                     "badge": "your_turn",
                     "closed_at": "2026-10-17T05:42:00Z",
@@ -122188,6 +123868,7 @@
                         "publish": {
                           "account": "x",
                           "at": "x",
+                          "best": false,
                           "mode": "ask",
                           "since": "2026-10-17T05:42:00Z",
                           "story": false
@@ -122351,6 +124032,7 @@
                       "publish": {
                         "account": "x",
                         "at": "x",
+                        "best": false,
                         "mode": "ask",
                         "since": "2026-10-17T05:42:00Z",
                         "story": false
@@ -122537,6 +124219,7 @@
                       "publish": {
                         "account": "x",
                         "at": "x",
+                        "best": false,
                         "mode": "ask",
                         "since": "2026-10-17T05:42:00Z",
                         "story": false
@@ -122680,6 +124363,7 @@
                 "publish": {
                   "account": "x",
                   "at": "x",
+                  "best": false,
                   "mode": "ask",
                   "story": false
                 }
@@ -122704,6 +124388,7 @@
                     "publish": {
                       "account": "x",
                       "at": "x",
+                      "best": false,
                       "mode": "ask",
                       "since": "2026-10-17T05:42:00Z",
                       "story": false
@@ -122733,6 +124418,7 @@
                         "publish": {
                           "account": "x",
                           "at": "x",
+                          "best": false,
                           "mode": "ask",
                           "since": "2026-10-17T05:42:00Z",
                           "story": false
@@ -122892,6 +124578,7 @@
                       "publish": {
                         "account": "x",
                         "at": "x",
+                        "best": false,
                         "mode": "ask",
                         "since": "2026-10-17T05:42:00Z",
                         "story": false
@@ -123031,6 +124718,7 @@
                 "publish": {
                   "account": "x",
                   "at": "x",
+                  "best": false,
                   "mode": "ask",
                   "story": false
                 }
@@ -123075,6 +124763,7 @@
                       "publish": {
                         "account": "x",
                         "at": "x",
+                        "best": false,
                         "mode": "ask",
                         "since": "2026-10-17T05:42:00Z",
                         "story": false
@@ -123979,6 +125668,125 @@
         "summary": "Resume Provision Run",
         "tags": [
           "founding"
+        ]
+      }
+    },
+    "/api/v1/publishes/{job}/cancel": {
+      "post": {
+        "description": "⟨1.31⟩ §51 The owner takes back a publication that is not out yet (`scheduled`: set for a\ntime; `publishing`: IG-Hub is still preparing it). `job`: the publication's job, as\n`SessionPublish.job` gives it. One that never reached IG-Hub is cancelled at once (`state:\ncancelled`); one IG-Hub holds is cancelled there: the answer keeps its state with `note_fa`\n«در حال لغو» until IG-Hub answers (`cancelled`, or `published` when it went out first; a\nrefusal is said in `note_fa` and the publication stands). His tap, no step-up. `409\nnot_cancellable` for one that is out, failed or cancelled already.",
+        "operationId": "cancel_publish",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "account": "x",
+                  "at": "2026-10-17T05:42:00Z",
+                  "auto": false,
+                  "channel": "instagram",
+                  "comment": "x",
+                  "cover_name": "x",
+                  "file_id": "x",
+                  "file_name": "x",
+                  "files": 1,
+                  "job": "x",
+                  "kind": "reel",
+                  "note_fa": "x",
+                  "output": "x",
+                  "published_at": "2026-10-17T05:42:00Z",
+                  "scheduled_at": "2026-10-17T05:42:00Z",
+                  "state": "publishing",
+                  "url": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/SessionPublish"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Cancel Publish",
+        "tags": [
+          "orders"
         ]
       }
     },
@@ -128225,6 +130033,241 @@
         "summary": "Retire Draft",
         "tags": [
           "people"
+        ]
+      }
+    },
+    "/api/v1/routines": {
+      "get": {
+        "description": "⟨1.31⟩ §50 The standing routines made from one sentence, newest first: each with its\nschedule and what a run does in plain Persian, its next run, and its switch (`state`).",
+        "operationId": "list_routines",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          },
+          {
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^F-[0-9]{4,}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Order"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "company": "TY",
+                    "last_run_at": "2026-10-17T05:42:00Z",
+                    "next_at": "2026-10-17T05:42:00Z",
+                    "note_fa": "x",
+                    "order": "x",
+                    "preview_fa": "x",
+                    "ref": "W-000789",
+                    "runs": 1,
+                    "sentence_fa": "x",
+                    "state": "proposed",
+                    "when_fa": "x"
+                  }
+                ],
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SessionRoutine"
+                  },
+                  "title": "Response List Routines",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "List Routines",
+        "tags": [
+          "automations"
+        ]
+      },
+      "post": {
+        "description": "⟨1.31⟩ §50 «کارمند ۲۴ ساعته»: one Persian sentence becomes a standing routine, `on` at\nonce. No card, no step-up: a routine only makes work for a role of the company (inside its\nmonth envelope) or tells the owner something, on a schedule, and one tap switches it off\n(`POST /automations/{ref}/state`). `company`: whose routine it is (left out with `order`:\nthe session's company; left out without: the holding's). `422` when the sentence does not\ncompile to a rule, or the rule is more than a routine (an event or a number as its\ntrigger, a line, an ad, an n8n flow: that is an automation the owner seals, §31.7); nothing\nis made then. Requires `Idempotency-Key`.",
+        "operationId": "make_routine",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "company": "TY",
+                "order": "x",
+                "sentence_fa": "xxx"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/RoutineIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "company": "TY",
+                  "last_run_at": "2026-10-17T05:42:00Z",
+                  "next_at": "2026-10-17T05:42:00Z",
+                  "note_fa": "x",
+                  "order": "x",
+                  "preview_fa": "x",
+                  "ref": "W-000789",
+                  "runs": 1,
+                  "sentence_fa": "x",
+                  "state": "proposed",
+                  "when_fa": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/SessionRoutine"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Make Routine",
+        "tags": [
+          "automations"
         ]
       }
     },
@@ -150477,8 +152520,10 @@
                   "last_run_at": "2026-10-17T05:42:00Z",
                   "n8n_workflow": "x",
                   "off_reason": "owner",
+                  "order": "x",
                   "preview_fa": "x",
                   "ref": "W-000789",
+                  "routine": false,
                   "rule": {},
                   "runs": 1,
                   "sealed_at": "2026-10-17T05:42:00Z",
@@ -162158,6 +164203,114 @@
         ]
       }
     },
+    "/internal/v1/narrator": {
+      "post": {
+        "description": "⟨1.31⟩ narrator.set (A1): the agent that works on the owner's own order sets the narrator\nof that work's company, as he asked in the session («گوینده را … بگذار»). Only for a work of\nan open order (its run's work, or `work`, assigned to the caller): `403` otherwise. The\ncompany's own page changes it later.",
+        "operationId": "agent_narrator",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "style_fa": "x",
+                "voice": "x",
+                "work": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/NarratorSetIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "aistudio": "x",
+                  "by": "x",
+                  "company": "TY",
+                  "set": false,
+                  "style_fa": "x",
+                  "updated_at": "2026-10-17T05:42:00Z",
+                  "voice": "x",
+                  "voices": [
+                    {
+                      "gender": "x",
+                      "name": "report.pdf",
+                      "trait_fa": "x"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Narrator"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Agent Narrator",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
     "/internal/v1/notifications": {
       "post": {
         "description": "Services and agents raise a notification; level rules, Khalvat and the CEO\nattention quota apply. An agent's 🔴 needs an incident `category` and is\ncapped per company per hour; otherwise it is raised as 🟡. While its company\nis locked an agent raises only 🔴 incidents.",
@@ -162514,6 +164667,21 @@
                     "output_kind": "x",
                     "player": "x"
                   },
+                  "routines": [
+                    {
+                      "company": "TY",
+                      "last_run_at": "2026-10-17T05:42:00Z",
+                      "next_at": "2026-10-17T05:42:00Z",
+                      "note_fa": "x",
+                      "order": "x",
+                      "preview_fa": "x",
+                      "ref": "W-000789",
+                      "runs": 1,
+                      "sentence_fa": "x",
+                      "state": "proposed",
+                      "when_fa": "x"
+                    }
+                  ],
                   "session": {
                     "badge": "your_turn",
                     "closed_at": "2026-10-17T05:42:00Z",
@@ -162906,6 +165074,21 @@
                     "output_kind": "x",
                     "player": "x"
                   },
+                  "routines": [
+                    {
+                      "company": "TY",
+                      "last_run_at": "2026-10-17T05:42:00Z",
+                      "next_at": "2026-10-17T05:42:00Z",
+                      "note_fa": "x",
+                      "order": "x",
+                      "preview_fa": "x",
+                      "ref": "W-000789",
+                      "runs": 1,
+                      "sentence_fa": "x",
+                      "state": "proposed",
+                      "when_fa": "x"
+                    }
+                  ],
                   "session": {
                     "badge": "your_turn",
                     "closed_at": "2026-10-17T05:42:00Z",
@@ -163301,6 +165484,21 @@
                     "output_kind": "x",
                     "player": "x"
                   },
+                  "routines": [
+                    {
+                      "company": "TY",
+                      "last_run_at": "2026-10-17T05:42:00Z",
+                      "next_at": "2026-10-17T05:42:00Z",
+                      "note_fa": "x",
+                      "order": "x",
+                      "preview_fa": "x",
+                      "ref": "W-000789",
+                      "runs": 1,
+                      "sentence_fa": "x",
+                      "state": "proposed",
+                      "when_fa": "x"
+                    }
+                  ],
                   "session": {
                     "badge": "your_turn",
                     "closed_at": "2026-10-17T05:42:00Z",
@@ -166967,6 +169165,7 @@
                   "hint_fa": "x",
                   "job": "x",
                   "mime": "application/pdf",
+                  "narrator": false,
                   "state": "running",
                   "style": "x",
                   "voice": "x"
@@ -167090,6 +169289,7 @@
                   "hint_fa": "x",
                   "job": "x",
                   "mime": "application/pdf",
+                  "narrator": false,
                   "state": "running",
                   "style": "x",
                   "voice": "x"
@@ -169917,6 +172117,125 @@
         ]
       }
     },
+    "/internal/v1/topics/claim": {
+      "post": {
+        "description": "⟨1.31⟩ topic.claim (A1, contract §47): the agent names today's topic (or, with `kind:\nreference` and `url`, the outside sample it uses) for its run's work (or `work`, assigned to\nit) BEFORE it writes or builds. The ledger is the working group's of the routine the work\nbelongs to (a session's own before its group is sealed). `409 topic_taken` when it was said\nbefore (`fields.title_fa` names the line and its day, `fields.recent` the last ones): choose\nanother and claim again. A run names one topic and one reference; a second, different claim\nof the same run replaces its first.",
+        "operationId": "agent_topic_claim",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "kind": "topic",
+                "title_fa": "گزارش هفتگی رشد",
+                "url": "x",
+                "work": "x"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/TopicClaimIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "entry": {
+                    "at": "2026-10-17T05:42:00Z",
+                    "by": "x",
+                    "id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                    "kind": "topic",
+                    "output": "x",
+                    "source": "claim",
+                    "title_fa": "گزارش هفتگی رشد",
+                    "url": "x",
+                    "work_ref": "x"
+                  },
+                  "group": "x",
+                  "new": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TopicClaimed"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Agent Topic Claim",
+        "tags": [
+          "internal"
+        ]
+      }
+    },
     "/internal/v1/treasury/usage": {
       "get": {
         "description": "treasury.usage: tokens and equivalent cost of a company (own; another one\nor `holding` for holding-scope roles) by model, domain, department and top\nactors, budget use %. ⟨20.1⟩ `week` (the last 7 days), and a department or\na role to narrow it (prompt 20 finding 7).",
@@ -172674,6 +174993,7 @@
             "application/json": {
               "example": {
                 "brief": "x",
+                "effort": "low",
                 "files": [
                   "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f"
                 ],

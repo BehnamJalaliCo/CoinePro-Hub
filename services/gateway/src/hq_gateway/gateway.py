@@ -51,6 +51,7 @@ from hq_gateway import (
     hubops,  # noqa: F401 - ⟨1.20⟩ §38: hub.ops, the hub run from the app
     inquiries,  # noqa: F401 - inquiries, errands, planner, workshop.read
     knowledge,  # noqa: F401 - prompt 11: knowledge.propose/review/approve
+    ledger,  # noqa: F401 - ⟨1.31⟩ §47, §48: topic.claim, narrator.set
     legal,  # noqa: F401 - prompt 13: case.open/note, email.draft, mail.read, media.voice
     linked,  # noqa: F401 - ⟨2026-11-06⟩ linked.read: a company's data along an owner's link
     management,  # noqa: F401 - prompt 12 part A: memo.write, substitute.call

@@ -232,7 +232,8 @@ async def test_a_carousel_goes_out_whole_and_a_refusal_at_its_time_can_be_tried_
     assert r.status_code == 202 and r.json()["kind"] == "carousel", r.text
     assert r.json()["files"] == 3
     job = await take(client, rn)
-    assert [f["name"] for f in job["args"]["files"]] == ["one.png", "three.png", "two.png"]
+    # ⟨§52⟩ each picture goes out as a JPEG, in the order he gave
+    assert [f["name"] for f in job["args"]["files"]] == ["one.jpg", "three.jpg", "two.jpg"]
     assert job["args"]["meta"]["kind"] == "carousel" and job["args"]["meta"]["cover"] is False
     await answer(client, rn, job["id"], {"external_id": "pub:8", "url": None})
 

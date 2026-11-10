@@ -136,6 +136,9 @@ class MemberPublish(BaseModel):
     since: datetime | None = None
     # ⟨§46⟩ the clock time its package goes out at («HH:MM», the owner's zone); null: at once
     at: str | None = None
+    # ⟨§49⟩ true: at the hour the account's own posts did best at, once there is a month of
+    # them (`GET /companies/{code}/best-hour` says where that stands); until then `at`, else at once
+    best: bool = False
 
 
 class Membership(BaseModel):
@@ -386,7 +389,7 @@ def member_publish(raw: Any) -> MemberPublish:
     if rule["mode"] != "auto":
         return MemberPublish()
     return MemberPublish(mode="auto", account=rule["account"], story=rule["story"],
-                         since=rule["since"], at=rule["at"])  # fmt: skip
+                         since=rule["since"], at=rule["at"], best=rule["best"])  # fmt: skip
 
 
 async def members(tx: Tx, group_id: UUID) -> list[dict[str, Any]]:
@@ -613,7 +616,14 @@ def due_occurrence(rule: recurrence.Rule, tz: str, now: datetime) -> datetime | 
     return found[-1] if found else None
 
 
-def brief_for(r: Routine, g: Group, company: dict[str, Any], occurrence: datetime) -> str:
+def publishes(g: Group) -> bool:
+    """A working group that makes content for a channel (its ledger of topics applies)."""
+    return bool(set(g.connections) & set(PUBLISHING)) or g.playbook is not None
+
+
+def brief_for(
+    r: Routine, g: Group, company: dict[str, Any], occurrence: datetime, ledger: str = ""
+) -> str:
     from hq_api.domain import session_publish as SPB
 
     code = str(company.get("company") or company.get("code"))
@@ -626,6 +636,8 @@ def brief_for(r: Routine, g: Group, company: dict[str, Any], occurrence: datetim
         f"(Working group «{g.title_fa}» ({g.key}), routine «{r.title_fa}» ({r.key}), "
         f"for {occurrence.isoformat()}; budget {r.max_tokens} tokens; contract §29.11.)"
         + (f"\n\n{publishing}" if publishing else "")
+        # ⟨§47⟩ what this company already said in this working group, and how today's is named
+        + (f"\n\n{ledger}" if ledger else "")
     )
 
 
@@ -709,6 +721,11 @@ async def run_routine(
     rid = await _record_run(tx, grow, m, r, occurrence, "queued", None, emp)
     if rid is None:
         return None
+    ledger = ""
+    if publishes(g):
+        from hq_api.domain import topics as TP
+
+        ledger = await TP.brief_block(tx, m["company_id"], grow["id"])
     try:
         async with tx.conn.begin_nested():
             w = await W.create(
@@ -717,7 +734,7 @@ async def run_routine(
                 company_id=m["company_id"],
                 company_code=m["company"],
                 title=f"{r.title_fa} · {g.title_fa}",
-                brief=brief_for(r, g, m, occurrence),
+                brief=brief_for(r, g, m, occurrence, ledger),
                 kind="one_off",
                 priority="P3",
                 assignee_code=emp,

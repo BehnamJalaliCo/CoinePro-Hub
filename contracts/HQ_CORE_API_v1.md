@@ -17,6 +17,8 @@
 >
 > **v1.27 (۲۰۲۶-۱۱-۱۰):** جلسه‌ی مستقیم، قدم اول (§۴۴، پرامپت ۳۲): گوینده‌ی محتوا روشن است (آنچه مالک خاموش کرد گفتگوی صوتی خودش بود)؛ استخدامی که مالک در جلسه‌ی خودش خواسته همان‌جا با کد انجام میشود، بی کارت و بی اثر انگشت؛ مسئول جلسه کار را خودش با کارگاه انجام میدهد؛ و نوبت کارگاه فایل‌های ستاد را با خودش میبرد (`workshop.run {files}`، §۴۳.۸)؛ و دیوار کارگاه بین شرکت‌ها که هیچ‌وقت جلوی کار را نمیگیرد (§۴۳.۹، runner 0.3.4).
 >
+> **v1.31 (۲۰۲۶-۱۱-۱۰، به‌روزرسانی ۱.۰.۱):** کمبودهای فرمان ریلز (§۴۷ تا §۵۳، پرامپت ۳۵؛ مالک: «هیچ روزی تکراری نباشد»، «گوینده یک بار برای همیشه»، «در ساعت‌های پربازدید»): دفتر موضوع‌های گفته‌شده که کد جلوی تکرار را میگیرد؛ گوینده‌ی ثابت هر شرکت؛ «بهترین ساعت» از روی آمار IG-Hub؛ روال دائمی («کارمند ۲۴ ساعته») با یک جمله، بی کارت و بی اثر انگشت؛ لغو پست زمان‌بندی‌شده از اپ؛ تبدیل خودکار عکس و کاور به JPEG؛ و «بیشترین effort» برای کارگاه.
+>
 > **v1.30 (۲۰۲۶-۱۱-۱۰):** ساعت، کامنت و اسلاید در انتشار (§۴۶؛ مالک: «هر بار شاید یک کامنت باشد … ساعت را باید هاب تنظیم بکند»): هاب ساعت انتشار را میدهد و IG-Hub تا آن ساعت نگهش میدارد؛ کلمه‌ی کامنت و لینکِ همان پست همراهش میرود و در IG-Hub قانونِ همان یک پست میشود؛ اسلاید (چند فایل)؛ ساعت ثابت برای انتشار خودکار هر کارگروه. کاور ریلز و دستور انتشار در خود IG-Hub نوشته شد (شاخه‌ی `claude/coinepro-hub-setup-hsvnw7` آن ریپو).
 > **v1.29 (۲۰۲۶-۱۱-۱۰):** اجازه‌ی دائمی انتشار (§۴۵، پرامپت ۳۴؛ مالک: «به صورت خودکار از روز دوم انجام بشه … نه اینکه هر بار من تایید کنم»): مالک یک بار برای هر شرکت در یک کارگروه میگوید «خودکار»؛ از نوبت بعد، هاب بسته‌ی هر روال (ویدیو، کاور، `caption.txt`) را خودش از همان مسیر IG-Hub منتشر میکند. بدون آن، هر خروجی مثل قبل منتظر لمس اوست، حالا بیرون از جلسه هم. مُهر و بازنشستگی کارگروه دیگر اثر انگشت نمیخواهد.
 > **v1.28 (۲۰۲۶-۱۱-۱۰):** «تأیید و انتشار» (§۴۴.۴، §۴۴.۵، پرامپت ۳۳): مالک روی فایل خروجی جلسه یک بار میزند و همان فایل از راه runner سرور IG-Hub منتشر میشود، بی کارت و بی اثر انگشت؛ کارت `media_publish` هم دیگر اثر انگشت نمیخواهد. اثر انگشت فقط برای پول، حذف برای همیشه، کلید و دسترسی، و دستور ویرانگر سرور.
@@ -4777,3 +4779,181 @@ take it too; `422 fields.at` for anything else): each day's package goes out at 
 ahead**, at once when the work is delivered after it (it is never kept for tomorrow, when the next one comes). The
 routine's brief names the hour and `comment.txt`.
 
+## 47. The ledger of what was said: a topic is never made twice ⟨1.31⟩ (2026-11-10, prompt 35)
+
+The owner's order (`docs/ORDER_PROCHART_REELS_2026-11-10.md`): «هیچ روزی تکراری نباشد: ۳۶۵ روز، ۳۶۵ مطلب و ویدیوی
+متفاوت», and for each day's Pinterest sample «هر بار متفاوت». Until now that rested on what a model remembered of a
+session. From here it is a table and a comparison made by code.
+
+### 47.1 The ledger (`growth.topics`, migration 0060)
+
+One row for each topic and each reference (an outside sample) a company used in a working group:
+`TopicEntry {id, kind: "topic" | "reference", title_fa, url?, at, by, source: "claim" | "package" | "owner",
+work_ref?, output?}`.
+
+- **The same topic, by code:** letters unified (Arabic and Persian forms, digits), marks, half-spaces and punctuation
+  dropped, a plural's «ها/های» cut, filler words («آموزش», «معرفی», «ویدیو», «چیست», …) and the company's own name
+  left out; two titles are one topic when their words are the same in any order, when they read the same once the
+  spaces are out («پرو چارت», «پروچارت»), or when they share at least 0.8 of their words. Another indicator, another
+  product compared, or a part of a topic («واگرایی در RSI» after «اندیکاتور RSI») is another topic.
+- **The same reference:** its address without `www.`, the country prefix, the query and the trailing slash; a
+  Pinterest pin is its number.
+- **Whose ledger:** the working group of the routine run the work belongs to (the work itself, or up its parents and
+  requests). A work of a session that is not a working group yet writes in that session's own list; sealing the
+  session's playbook (§40.2) moves those lines to the group, so day one counts.
+- A day's run names **one** topic and **one** reference: the same one again answers the same line, another one
+  replaces it. A freed line (below) is kept as `freed`; nothing is deleted.
+
+### 47.2 `topic.claim` (agent tool, A1; `POST /internal/v1/topics/claim`)
+
+Held by every working role (`SHARED_TOOLS`). Body `{title_fa?, kind?, url?, work?}`: the caller's run's work, or
+`work` assigned to it (`403` otherwise). `201 {entry, new, group}` (`new: false`: this run had named the same one);
+**`409 topic_taken`** when the ledger already says it: `fields.title_fa` names the earlier line and its day,
+`fields.recent` the last ones, and the model chooses another. `422 fields.url` for a reference without an address.
+Policy `hq.internal` op `topic.claim` (groups.rego: a working agent, for a work the api says is its own). Audit
+`topic.claim` (A1) on the work's company.
+
+- **The routine is told by code:** the brief of every routine of a working group that publishes (a playbook's group,
+  or one with a publishing connection) ends with a «Ledger: …» block: claim before writing, the last 40 topics and 10
+  references («Already said, newest first: …»), and `topic.txt` in the package. The common rules (v16) say the same.
+
+### 47.3 What goes out is in the ledger, and a twin is not sent by itself
+
+- **On the standing word (§45.3):** before a package goes out, its topic is the run's own claim; a run that named
+  none is read by the hub (`topic.txt` of the output, else the first line of its caption without its hashtags; `source:
+  package`). When that says what an earlier line of the ledger says (`topic.txt`: the rule of §47.1; a caption line:
+  the same words only), the package is **not sent by itself**: the run's note says «موضوع این نوبت پیش‌تر گفته شده
+  («…»، روز) …» and the owner gets one notification with the output, where one tap sends it anyway. A package he
+  already tapped himself is no twin to hold.
+- **On his own tap (§44.5):** an output of a routine's work he publishes himself is noted in the ledger the same way
+  (never refused: it is his choice).
+
+### 47.4 The owner's page of the ledger
+
+- `GET /api/v1/groups/{key}/members/{code}/topics?kind=&q=&limit=&cursor=` → `TopicLedger {items, topics,
+  references, next_cursor}`, newest first.
+- `POST …/topics {kind?, title_fa?, url?}` (the owner adds one himself, «این را قبلاً گفته‌ایم») → `201 TopicEntry`
+  or `409 topic_taken`. `DELETE …/topics/{id}` frees a line (it may be said again). Audit `topic.add` (A1),
+  `topic.free` (A2).
+
+## 48. A company's narrator, set once ⟨1.31⟩ (2026-11-10, prompt 35)
+
+The owner's order: «گوینده یک بار برای همیشه تنظیم شود». The voice and its style were words in a working group's
+instructions that a model passed along each time.
+
+- **`media.narrators`** (migration 0060): one row per company, `{voice, style_fa}`. `voice` is one of AI Studio's
+  prebuilt speakers (`422 fields.voice` otherwise).
+- **`GET /api/v1/companies/{code}/narrator`** → `Narrator {company, set, voice, style_fa, by, updated_at, voices:
+  [{name, gender, trait_fa}], aistudio: signed_in | signed_out | unknown}` (`set: false`: none yet; `voice` is then
+  AI Studio's default). **`PUT /api/v1/companies/{code}/narrator {voice, style_fa?}`** (owner; his tap, no step-up;
+  audit `narrator.set`, A2).
+- **`speech.make` takes it by code:** the voice is for the company of the caller's run's work (a holding role
+  working on a company's order speaks with that company's narrator), else the caller's own. When that company has a
+  narrator, its voice and style are used **whatever `voice` and `style` were passed**; `SpeechMakeAnswer` gains
+  `narrator: true`. A company without one speaks as before.
+- **`narrator.set` (agent tool, A1; `POST /internal/v1/narrator {voice, style_fa?, work?}`):** the agent that works
+  on an open order of the owner sets the narrator of that work's company, as he asked in the session. `403` for a
+  work of no order. Policy `hq.internal` op `narrator.set` (groups.rego). The holder's brief
+  (`capabilities.brief.narration`) names the company's narrator when it has one (`narrator: {voice, style, fixed}`).
+
+## 49. The best hour, by itself ⟨1.31⟩ (2026-11-10, prompt 35)
+
+The owner's order: «بعد از یک ماه صفحه را تحلیل کند و در ساعت‌های پربازدید طبق زمان‌بندی منتشر کند».
+
+> **What IG-Hub has (its server's report, 2026-11-10; its repository read again):** each post's likes and comments
+> for an account's last 50 posts, overwritten every 15 minutes, no history; **no views, reach, saves or shares**
+> (its code asks Meta for no insights and has no permission for them). So «پربازدید» is, until IG-Hub reads insights,
+> **the hour whose posts drew the most likes and comments**, and the hub says so wherever it shows the hour.
+
+### 49.1 The read
+
+- Once a day for each registered Instagram account of a company whose `publish_command` is registered: one
+  read-only `exec` job on IG-Hub's server (actor the service `best-hour`), `<publish_command> posts <account> 100`
+  (IG-Hub's `deploy/hq_publish.py` prints its own `GET /api/v1/posts`: `{items: [{id, media_type, permalink,
+  posted_at, like_count, comments_count}], hours}`). The hourly connections read asks it and collects it on a later
+  tick. The command must pass the hub's read-only check; nothing else is ever run this way.
+- The hub keeps each post (`growth.ig_posts`, upsert by its id) and the state of each account's read
+  (`growth.ig_post_reads`). An IG-Hub whose command does not know `posts` yet answers nothing readable: noted, tried
+  again the next day, never a blocker.
+
+### 49.2 The rule (code, never a model)
+
+The posts of the last 90 days that are at least 48 hours old; at least **12 posts over at least 28 days**; each hour
+of the owner's day scored by its posts' mean likes + comments, pulled toward the account's own mean by a prior of 2
+posts; an hour needs 2 posts; the best one, a tie to the hour with more posts.
+
+- **`GET /api/v1/companies/{code}/best-hour?account=`** → `BestHour {account, hour: "HH:00" | null, at, enough,
+  posts, days, basis: "likes_comments", note_fa, read_at}`. `enough: false`: too little data yet, and `note_fa` says
+  how much there is.
+- **The standing word (§45, §46.4) gains `best`:** `PUT /groups/{key}/members/{code}/publish {…, best?: bool}` (the
+  seal and the as-is gift take it too); `MemberPublish.best`. With `best` and enough data, each day's package goes out
+  at that hour **today while it is still ahead**, else at once; without enough data, at the fixed `at` when there is
+  one, else at once. The routine's brief says the hub chooses the hour.
+- **The tap's sheet:** `PublishPanel.best` (the `BestHour` of the account, only when `enough`), so «بهترین ساعت» is
+  one of its times (`scheduled_at = best.at`).
+
+## 50. A standing routine from one sentence («کارمند ۲۴ ساعته») ⟨1.31⟩ (2026-11-10, prompt 35)
+
+The owner's decision (2026-11-10, §44.2): «کارمند ۲۴ ساعته» is not a hire; it is a standing routine made from one
+sentence, in the session, **without a card, without a passkey, and without going through «کارگروه از این جلسه»**.
+
+- **A routine** is an automation (§31.7) of the plainest kind: its trigger is a **schedule** and every action is
+  `work.create`, `notify.owner` or `notify.lead`. It only makes work for a role of the company (inside its month
+  envelope) or tells someone, and one tap switches it off, so the owner's sentence is the seal. Anything more (an
+  event or a number as the trigger, a line, an ad, an n8n flow) stays an automation he seals (🔏 `automation.seal`).
+- **`POST /api/v1/routines {sentence_fa, company?, order?}`** (owner; no step-up; `Idempotency-Key`) → `201
+  SessionRoutine {ref, company, sentence_fa, when_fa, preview_fa, state: "on", next_at, last_run_at, runs, order,
+  note_fa}`: one compile (§31.7), checked by code, then **`on` at once** (`sealed_at` now, no step-up id,
+  `growth.automations.source = {order, by, routine: true}`). `company` left out with `order`: the session's
+  company; left out without: the holding's. `422` (nothing made) when the sentence does not compile or is more than a
+  routine (`message_fa` says which). Audit `automation.routine` (A2). The session says «روال دائمی ساخته شد: …».
+- **`GET /api/v1/routines?company=&order=`**; `OrderReport.routines` lists a session's own, newest first.
+  `Automation` gains `routine` and `order`. Switching: `POST /automations/{ref}/state {on | off}` (no step-up, as
+  before).
+- **The holder's way in (`automation.propose`, A1):** when the compiled rule is a routine and **the owner's own
+  words in that open session ask for something standing** (the order's text, his words there, the plan steps he
+  wrote; a word of repetition: «هر روز», «هفتگی», «۲۴ ساعته», «دائمی», «هر N ساعت», …), the automation is made `on` in
+  that request (`state: "on"`, `routine: true`; the session says «روال دائمی به خواست مدیر کل ساخته شد: …»; no
+  notification to seal). Otherwise it is `proposed` as before. The words are his, stored by code.
+
+## 51. A scheduled post taken back from the app ⟨1.31⟩ (2026-11-10, prompt 35)
+
+- **`POST /api/v1/publishes/{job}/cancel`** (owner; his tap, no step-up) → `SessionPublish`. `job`: the
+  publication's job (`SessionPublish.job`). For a publication that is `scheduled` or `publishing` (not out yet):
+  - one whose first job no runner has taken is cancelled here (`state: cancelled` at once);
+  - one IG-Hub holds (`pub:<id>`) is cancelled there: one `publish` job with `meta.cancel = "pub:<id>"` and no file.
+    Its command answers **`{"external_id": "cancelled:pub:<id>", "url": null}`** (cancelled), the post's id and link
+    (it went out first: the publication is `published` and the session says so), or exits non-zero (IG-Hub refused:
+    the publication **stands**, `note_fa` says «لغو انجام نشد (…)», and the follow-up of §46.3 goes on). While the
+    cancel is on its way the answer keeps its state with `note_fa` «در حال لغو»; a second tap answers the same job.
+  - `409 not_cancellable` for one that is out, failed or cancelled already, and for one whose file is still on its
+    way to IG-Hub (a moment later it is cancellable).
+- `SessionPublish.state` gains **`cancelled`**. After it a tap on the same file is a new publication. The session
+  says «لغو انتشار: …» at the tap and «لغو شد: … منتشر نمیشود» or «لغو … انجام نشد: …» when IG-Hub answers. Audit
+  `publish.cancel` (A2).
+- **IG-Hub's side** (its prompt 2): `hq_publish.py` takes `meta.cancel` (its own `DELETE /api/v1/publish/{id}`). An
+  older command there fails the cancel job with a plain line and changes nothing.
+- Every `publish` job's meta also carries **`key`** (the publication's own key, the same on every try), for IG-Hub to
+  refuse a twin once it reads it.
+
+## 52. A picture goes out as a JPEG ⟨1.31⟩ (2026-11-10, prompt 35)
+
+Instagram publishes JPEG pictures only (IG-Hub refuses any other: `publish_jpeg_only`). In every `publish` job
+(the tap, the standing word, a reel's cover, a carousel's pictures, a story's picture) a picture that is not a JPEG
+is sent as one the hub makes from it: turned the way it is seen (EXIF), on white where it was see-through, RGB, its
+longer side at most 4096 px, quality 92. The JPEG is a file of the same company (`meta.jpeg_of` names the picture it
+came from), made once and used again; the publication keeps the name and the id of the file the owner tapped
+(`SessionPublish.file_name`, `file_id`, `cover_name`). A picture the hub cannot read: `422 fields.file_id` on a tap.
+PNG, WebP and HEIC are read; a video is never touched.
+
+## 53. The workshop on its highest effort ⟨1.31⟩ (2026-11-10, prompt 35)
+
+The owner's order: the motion graphic is made by «Opus 5.5 با بیشترین effort».
+
+- Every workshop turn's args carry **`effort`** (`low | medium | high | xhigh | max`): **`max`** unless the caller
+  asks for less (`workshop.run {…, effort?}`); carried to the owner's own messages in that session as `model` is.
+- **Runner 0.3.5** passes it to Claude Code (`--effort`), reading once from the CLI's own `--help` which levels it
+  takes: the level asked for, else the highest it has below it, else none (the turn runs as before). The result's
+  `data.effort` says what was passed; the hub keeps it on the output (`produced_with.effort`, with
+  `produced_with.model`). A runner older than 0.3.5 ignores the argument.
+- Error codes (additive, §47 and §51): `topic_taken` 409 · `not_cancellable` 409.

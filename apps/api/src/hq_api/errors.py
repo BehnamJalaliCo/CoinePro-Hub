@@ -86,6 +86,14 @@ CODES: dict[str, tuple[int, str, str]] = {
         "این کار روی سرور خود شرکت در حال انجام است؛ کارگاه برای کار دیگری است.",
     ),
     "work_closed": (409, "Work closed", "این کار بسته شده است؛ کار تازه‌ای رویش شروع نمیشود."),
+    # ⟨1.31⟩ §47 the ledger: a topic (or a reference) this working group already said
+    "topic_taken": (
+        409,
+        "Topic already said",
+        "این موضوع پیش‌تر گفته شده است؛ یک موضوع تازه انتخاب کن.",
+    ),
+    # ⟨1.31⟩ §51 a publication that is out already, failed, or was cancelled before
+    "not_cancellable": (409, "Not cancellable", "این انتشار دیگر لغوشدنی نیست."),
     # ⟨2026-11-10⟩ «با من»: the workshop starts only the plan's next open task
     "not_next_step": (
         409,

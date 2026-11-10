@@ -427,6 +427,15 @@ async def _narration(tx: Tx) -> dict[str, Any]:
     return {"state": state, "tool": "speech.make"}
 
 
+async def _narrator(tx: Tx, company_id: UUID) -> dict[str, Any] | None:
+    from hq_api.domain import narrator as NR
+
+    row = await NR.of(tx, company_id)
+    if row is None:
+        return None
+    return {"voice": row["voice"], "style": str(row["style_fa"] or "")[:160], "fixed": True}
+
+
 async def _workshop(tx: Tx) -> dict[str, Any]:
     """⟨2026-11-09⟩ §43 the holding's workshop: ready (a paired holding server on a runner that
     sends files back, online now or not) or not set up yet."""
@@ -482,6 +491,11 @@ async def brief(
             "state": "unknown",
             "tool": "speech.make",
         }
+        if company_id is not None:
+            # ⟨1.31⟩ §48 the company's own narrator, set once: speech.make uses it by itself
+            fixed = await _safe(tx, _narrator, company_id)
+            if fixed:
+                out["narration"]["narrator"] = fixed
         if company_id is not None:
             company = await _safe(tx, _company, company_id)
             if company is not None:

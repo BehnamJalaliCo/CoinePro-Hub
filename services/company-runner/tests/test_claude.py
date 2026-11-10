@@ -255,6 +255,57 @@ def test_the_hubs_allow_list_reaches_claude_code_and_the_hook_stays(
         assert fake_hub.results[jid]["exit_code"] != 0, bad
 
 
+def test_the_effort_the_hub_asks_for_reaches_the_cli_when_it_can_take_it(
+    fake_hub: FakeHub, cfg: Config, cfg_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """⟨0.3.5⟩ contract §53: `args.effort` goes to Claude Code as --effort, at the level asked
+    for when the CLI lists it, the highest it has below it otherwise, and not at all for a CLI
+    that has no such option (the turn runs as before); the result says what was passed."""
+    from hq_runner import claude_job as CJ
+
+    assert CJ.effort_for("max", ("low", "medium", "high", "xhigh", "max")) == "max"
+    assert CJ.effort_for("max", ("low", "medium", "high")) == "high"
+    assert CJ.effort_for("medium", ("high", "max")) is None  # nothing at or below it
+    assert CJ.effort_for("max", ()) is None and CJ.effort_for("ultra", ("max",)) is None
+    assert CJ.effort_for(None, ("max",)) is None
+
+    record = tmp_path / "argv.json"
+    monkeypatch.setenv("FAKE_CLAUDE_RECORD", str(record))
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    cfg.claude_bin = str(FAKE_CLAUDE)
+    save(cfg, cfg_path)
+
+    def turn(jid: str, effort: str | None) -> dict[str, Any]:
+        CJ._EFFORT_LEVELS.clear()
+        args: dict[str, Any] = {"brief": "motion", "cwd": str(repo), "allowed_tools": ["Read"]}
+        if effort:
+            args["effort"] = effort
+        fake_hub.jobs.append({"id": jid, "kind": "claude", "args": args})
+        runner = Runner(cfg, make_route(fake_hub), cfg_path=cfg_path, persist_state=False)
+        run(drive(runner, lambda: jid in fake_hub.results, within=60))
+        assert fake_hub.results[jid]["exit_code"] == 0, fake_hub.results[jid]
+        return {"argv": json.loads(record.read_text())["argv"], **fake_hub.results[jid]}
+
+    got = turn("ef1", "max")
+    i = got["argv"].index("--effort")
+    assert got["argv"][i + 1] == "max" and got["argv"].index("--allowedTools") > i
+    assert got["data"]["effort"] == "max"
+    monkeypatch.setenv("FAKE_CLAUDE_EFFORTS", "low, medium, high")
+    got = turn("ef2", "max")  # this CLI has no `max`: its highest
+    assert (
+        got["argv"][got["argv"].index("--effort") + 1] == "high" and got["data"]["effort"] == "high"
+    )
+    monkeypatch.setenv("FAKE_CLAUDE_EFFORTS", "")
+    got = turn("ef3", "max")  # an older CLI: the turn runs as before
+    assert "--effort" not in got["argv"] and "effort" not in got["data"]
+    monkeypatch.delenv("FAKE_CLAUDE_EFFORTS")
+    got = turn("ef4", None)  # nothing asked: nothing passed
+    assert "--effort" not in got["argv"] and "effort" not in got["data"]
+    got = turn("ef5", "ultra")  # not a level: ignored, never an error
+    assert "--effort" not in got["argv"]
+
+
 def test_a_claude_job_runs_on_the_hubs_account_when_it_sends_one(
     fake_hub: FakeHub, cfg: Config, cfg_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

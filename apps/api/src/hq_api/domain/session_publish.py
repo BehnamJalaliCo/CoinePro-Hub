@@ -29,6 +29,7 @@ without a caption is never sent on a standing word: it waits for his tap and say
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import re
@@ -50,7 +51,7 @@ log = logging.getLogger("hq_api.session_publish")
 
 Kind = Literal["reel", "post", "story", "carousel"]
 State = Literal[
-    "publishing", "scheduled", "published", "failed", "waiting_seal", "waiting_setup"
+    "publishing", "scheduled", "published", "failed", "waiting_seal", "waiting_setup", "cancelled"
 ]  # as OR's; fmt: skip
 CAPTION_MAX = 2200
 TIMEOUT_S = 900
@@ -79,6 +80,9 @@ CAPTION_NAMES = ("caption.txt", "caption.md")
 # its link), the time a publication is set for, and asking IG-Hub again how it stands
 COMMENT_NAMES = ("comment.txt", "comment.md")
 PENDING = "pub:"  # the command's external id while scheduled, or while Meta prepares the file
+# ⟨§51⟩ the command's external id once IG-Hub cancelled the publication it held
+CANCELLED = "cancelled:"
+CANCEL_CODE = "publish_cancelled"  # the hub's own job, cancelled before any runner took it
 TRANSIENT = ("timed_out", "not_started")  # a check the runner never answered: asked again
 CHECK_AFTER = timedelta(seconds=90)
 CHECK_EVERY = timedelta(minutes=3)
@@ -104,6 +108,24 @@ WAIT_SETUP_FA = (
 ALREADY_FA = "این بسته را خودتان پیش‌تر منتشر کرده‌اید؛ دوباره فرستاده نشد."
 PICK_STANDING_FA = "این شرکت چند حساب دارد و حساب انتشار خودکار این کارگروه انتخاب نشده است."
 HELD_TITLE_FA = "انتشار خودکار «{group}» ({company}) منتظر شماست"
+# ⟨§51⟩ cancelling a publication IG-Hub still holds
+CANCEL_ASKED_FA = "لغو انتشار: {kind} در @{account}"
+CANCEL_DONE_FA = "لغو شد: {kind} در @{account} منتشر نمیشود"
+CANCEL_FAILED_FA = "لغو {kind} در @{account} انجام نشد: {why}"
+CANCEL_NOTE_FA = "لغو انجام نشد ({why})؛ از تقویم خود IG-Hub هم میشود لغوش کرد."
+CANCELLING_FA = "در حال لغو"
+NOT_CANCELLABLE_FA = "این انتشار دیگر لغوشدنی نیست."
+STILL_SENDING_FA = "فایل هنوز در راه IG-Hub است؛ چند لحظه بعد دوباره لغو کنید."
+# ⟨§47⟩ a package whose topic was said before is not sent by itself
+DUPLICATE_FA = (
+    "موضوع این نوبت پیش‌تر گفته شده («{title}»، {day})؛ خودکار منتشر نشد. اگر همین را میخواهید، "
+    "با یک لمس شما میرود."
+)
+# ⟨§52⟩ Instagram publishes JPEG pictures only
+JPEG = "image/jpeg"
+JPEG_QUALITY = 92
+JPEG_SIDE = 4096
+NOT_A_PICTURE_FA = "تصویر «{name}» خوانده نشد و به JPEG تبدیل نشد."
 FAILED_TITLE_FA = "انتشار خودکار «{group}» ({company}) انجام نشد"
 
 
@@ -146,13 +168,21 @@ def _waiting(meta: dict[str, Any]) -> State:
 def _state(j: dict[str, Any]) -> State:
     st = str(j["state"])
     meta = (OR._j(j["args"]) or {}).get("meta") or {}
+    asks = meta.get("check") or meta.get("cancel")
     if st in ("queued", "running"):
-        # a question on its way: what it asks about stands as it stood
-        return _waiting(meta) if meta.get("check") else "publishing"
+        # a question (or ⟨§51⟩ a cancel) on its way: what it asks about stands as it stood
+        return _waiting(meta) if asks else "publishing"
     if st == "awaiting_seal":
         return "waiting_seal"
     if st == "done":
+        ext = str((OR._j(j.get("result")) or {}).get("external_id") or "")
+        if ext.startswith(CANCELLED):
+            return "cancelled"
         return _waiting(meta) if _pending(j) else "published"
+    if str(j.get("error_code") or "") == CANCEL_CODE:
+        return "cancelled"  # ⟨§51⟩ he cancelled it before it reached IG-Hub
+    if meta.get("cancel"):
+        return _waiting(meta)  # ⟨§51⟩ a cancel IG-Hub refused: the publication still stands
     if meta.get("check") and str(j.get("error_code") or "") in TRANSIENT:
         return _waiting(meta)  # the question was never answered: it is asked again
     return "failed"
@@ -171,6 +201,13 @@ def view(j: dict[str, Any]) -> SessionPublish:
         note = HZ.humanize(str(j.get("summary_fa") or "")) or "پلتفرم انتشار را نپذیرفت"
     elif state == "waiting_seal":
         note = "دستور انتشار این سرور مُهر شما را میخواهد."
+    elif meta.get("cancel") and state in ("scheduled", "publishing"):
+        # ⟨§51⟩ a cancel on its way, or one IG-Hub refused (the publication still stands)
+        if str(j["state"]) in ("queued", "running"):
+            note = CANCELLING_FA
+        else:
+            why = HZ.humanize(str(j.get("summary_fa") or "")) or "IG-Hub نپذیرفت"
+            note = CANCEL_NOTE_FA.format(why=why)[:500]
     words = (meta.get("comment") or {}).get("keywords") or []
     return SessionPublish(
         job=str(j["id"]),
@@ -351,6 +388,15 @@ async def panel(tx: Tx, output: str, hub: Any = None) -> OR.PublishPanel:
         raise ApiError(404, "not_found", f"output {output}")
     route = await _route(tx, d["company_id"])
     run = await run_of_work(tx, d["work_id"])
+    # ⟨§49⟩ the hour this company's account does best at (the sheet offers it as a time)
+    from hq_api.domain import best_hour as BH
+    from hq_api.domain.gov_common import owner_tz
+
+    rule = rule_of(run["publish"]) if run else None
+    handle = (rule or {}).get("account") or (
+        route["accounts"][0] if len(route["accounts"]) == 1 else None
+    )
+    best = await BH.best(tx, d["company_id"], handle, await owner_tz(tx)) if handle else None
     return OR.PublishPanel(
         order=await OR.order_of_work(tx, d["work_id"]),
         accounts=route["accounts"],
@@ -361,7 +407,8 @@ async def panel(tx: Tx, output: str, hub: Any = None) -> OR.PublishPanel:
         comment=await comment_of(tx, hub, dict(d)),
         group=run["group_key"] if run else None,
         group_fa=run["group_fa"] if run else None,
-        mode=rule_of(run["publish"])["mode"] if run else None,
+        mode=rule["mode"] if rule else None,
+        best=best if best is not None and best.enough else None,
     )
 
 
@@ -374,6 +421,81 @@ async def order_of_output(tx: Tx, output: str) -> str | None:
     return await OR.order_of_work(tx, work_id)
 
 
+def _to_jpeg(path: str) -> tuple[bytes, int, int]:
+    """A picture as Instagram takes it: turned the way it is seen, on white where it was
+    see-through, RGB, its longer side at most JPEG_SIDE."""
+    import io
+
+    from PIL import Image, ImageOps
+
+    with contextlib.suppress(ImportError):  # HEIC from a phone
+        import pillow_heif
+
+        pillow_heif.register_heif_opener()
+    with Image.open(path) as raw:
+        img = ImageOps.exif_transpose(raw) or raw
+        if img.mode in ("RGBA", "LA", "PA") or (img.mode == "P" and "transparency" in img.info):
+            rgba = img.convert("RGBA")
+            flat = Image.new("RGB", rgba.size, (255, 255, 255))
+            flat.paste(rgba, mask=rgba.getchannel("A"))
+            img = flat
+        else:
+            img = img.convert("RGB")
+        img.thumbnail((JPEG_SIDE, JPEG_SIDE))
+        out = io.BytesIO()
+        img.save(out, "JPEG", quality=JPEG_QUALITY, optimize=True)
+        return out.getvalue(), img.width, img.height
+
+
+async def as_jpeg(tx: Tx, hub: Any, f: dict[str, Any], company_id: UUID) -> dict[str, Any]:
+    """⟨§52⟩ Instagram publishes JPEG pictures only (IG-Hub refuses any other: `publish_jpeg_only`).
+    A PNG, WebP or HEIC of an output goes out as a JPEG the hub makes from it once: a file of
+    the same company that names the picture it came from (`meta.jpeg_of`). A video, and a
+    picture that is a JPEG already, are returned as they are. `ValueError`: not a picture the
+    hub can read."""
+    mime = str(f["mime"])
+    if not mime.startswith("image/") or mime == JPEG or hub is None:
+        return f
+    made = await tx.first(
+        """SELECT id, name, mime FROM files.files
+           WHERE company_id = :co AND variant = 'original' AND mime = 'image/jpeg'
+             AND meta ->> 'jpeg_of' = :src ORDER BY created_at DESC LIMIT 1""",
+        co=company_id,
+        src=str(f["id"]),
+    )
+    if made is not None:
+        return dict(made)
+    key = f.get("storage_key") or await tx.scalar(
+        "SELECT storage_key FROM files.files WHERE id = :id AND company_id = :co",
+        id=f["id"],
+        co=company_id,
+    )
+    try:
+        data, width, height = await asyncio.to_thread(
+            _to_jpeg, str(hub.storage.local_path(str(key)))
+        )
+    except Exception as exc:
+        raise ValueError(str(f["name"])) from exc
+    from hq_api.domain import files as F
+
+    stem = str(f["name"] or "image").rsplit(".", 1)[0][:240] or "image"
+    name = f"{stem}.jpg"
+    new_key, sha = await hub.storage.put(data)
+    fid = await F.insert(
+        tx, company_id=company_id, name=name, mime=JPEG, size=len(data), sha256=sha,
+        storage_key=new_key, kind="image", by_kind="service", by_code=SERVICE.code,
+        width=width, height=height, meta={"jpeg_of": str(f["id"])},
+    )  # fmt: skip
+    return {"id": fid, "name": name, "mime": JPEG}
+
+
+def publication_key(output: str, file_id: str, account: str, what: str) -> str:
+    """One publication's own key, the same on every try: IG-Hub can refuse to make it twice."""
+    import hashlib
+
+    return hashlib.sha256(f"{output}|{file_id}|{account}|{what}".encode()).hexdigest()[:32]
+
+
 async def _send(
     tx: Tx,
     who: Principal,
@@ -381,6 +503,7 @@ async def _send(
     f: dict[str, Any],
     cover: dict[str, Any] | None,
     *,
+    hub: Any = None,
     what: Kind,
     account: str,
     caption: str,
@@ -403,9 +526,14 @@ async def _send(
         got = {"file_id": str(x["id"]), "name": x["name"], "mime": mime, "kind": kind}
         return {**got, "role": role} if role else got
 
-    files = [item(f), *(item(x) for x in more or [])]
+    # ⟨§52⟩ every picture of the job is a JPEG (the file the tap named stays the publication's
+    # own: `session.file_id` is the original)
+    sent = await as_jpeg(tx, hub, f, d["company_id"])
+    others = [await as_jpeg(tx, hub, x, d["company_id"]) for x in more or []]
+    files = [item(sent), *(item(x) for x in others)]
+    cover_name = cover["name"] if cover is not None else None
     if cover is not None:
-        files.append(item(cover, "cover"))
+        files.append(item(await as_jpeg(tx, hub, cover, d["company_id"]), "cover"))
     server = await SV.load_server(tx, route["server_name"], company=route["server_co"])
     where = f"جلسه‌ی {order}" if order else f"خروجی {d['ref']}"
     meta: dict[str, Any] = {
@@ -415,6 +543,8 @@ async def _send(
         "company": d["company"],
         # the cover, when there is one, is the job's second file (HQ_PUBLISH_FILE_2)
         "cover": cover is not None,
+        # ⟨1.31⟩ the publication's own key, the same on a second try (IG-Hub may refuse a twin)
+        "key": publication_key(str(d["ref"]), str(f["id"]), account, what),
     }
     if scheduled_at is not None:
         meta["scheduled_at"] = scheduled_at.isoformat()
@@ -435,7 +565,7 @@ async def _send(
                 "file_id": str(f["id"]),
                 # kept here too: a later question about this publication carries no file
                 "file_name": f["name"],
-                "cover_name": cover["name"] if cover is not None else None,
+                "cover_name": cover_name,
                 "files": 1 + len(more or []),
             },
             **({"standing": standing} if standing else {}),
@@ -465,7 +595,8 @@ async def last_of(
     the same file is never sent twice, whatever sent it; after a failure a tap is a new try."""
     row = await tx.first(LAST_SQL, out=output, f=file_id, a=account, k=what)
     got = view(dict(row)) if row is not None else None
-    return got if got is not None and got.state != "failed" else None
+    # ⟨§51⟩ one he cancelled is over as well: a tap is a new publication
+    return got if got is not None and got.state not in ("failed", "cancelled") else None
 
 
 def when_fa(t: datetime, tz: str) -> str:
@@ -492,6 +623,7 @@ async def start(
     scheduled_at: datetime | None = None,
     comment: dict[str, Any] | None = None,
     first_comment: str | None = None,
+    hub: Any = None,
 ) -> SessionPublish:
     """The owner's tap. `tx` reaches every company (the session is the holding's, the file is
     its company's, the job is IG-Hub's). `ref`: the session the tap was made in; None for an
@@ -622,12 +754,31 @@ async def start(
     if before is not None:
         return before
 
-    j = await _send(
-        tx, who, d, dict(f), dict(cover) if cover is not None else None,
-        what=what, account=wanted, caption=caption or "", route=route, order=ref,
-        request_id=request_id, more=more, scheduled_at=when, comment=rule,
-        first_comment=first_comment,
-    )  # fmt: skip
+    try:
+        j = await _send(
+            tx, who, d, dict(f), dict(cover) if cover is not None else None,
+            hub=hub, what=what, account=wanted, caption=caption or "", route=route, order=ref,
+            request_id=request_id, more=more, scheduled_at=when, comment=rule,
+            first_comment=first_comment,
+        )  # fmt: skip
+    except ValueError as exc:  # ⟨§52⟩ a picture the hub could not read to make a JPEG of
+        raise ApiError(
+            422, "validation_failed", fields={"file_id": "not a readable picture"},
+            message_fa=NOT_A_PICTURE_FA.format(name=str(exc)[:120]),
+        ) from exc  # fmt: skip
+    if what != "story":
+        # ⟨§47⟩ what he sends himself was said too: a routine's output he tapped is in its
+        # working group's ledger (a twin is his own choice here, so it is only noted)
+        from hq_api.domain import topics as TP
+
+        run = await run_of_work(tx, d["work_id"])
+        if run is not None:
+            with contextlib.suppress(ApiError):
+                async with tx.conn.begin_nested():
+                    await TP.of_package(
+                        tx, run, d, topic_txt=await _text_of(tx, hub, d, TP.TOPIC_NAMES),
+                        caption=caption or await caption_of(tx, hub, d),
+                    )  # fmt: skip
     if rep is not None:
         said = TAPPED_FA.format(kind=KIND_FA[what], name=f["name"], account=wanted)
         if when is not None:
@@ -665,7 +816,10 @@ def rule_of(raw: Any) -> dict[str, Any]:
     account = str(cfg.get("account") or "").strip().lstrip("@") or None
     at = str(cfg.get("at") or "").strip()
     return {"mode": mode, "account": account, "story": bool(cfg.get("story")),
-            "since": cfg.get("since"), "at": at if AT.fullmatch(at) else None}  # fmt: skip
+            "since": cfg.get("since"), "at": at if AT.fullmatch(at) else None,
+            # ⟨§49⟩ `best`: the hour the account's own posts did best at, once there is a
+            # month of them; until then `at`, else at once
+            "best": bool(cfg.get("best"))}  # fmt: skip
 
 
 def at_today(at: str | None, tz: str, now: datetime | None = None) -> datetime | None:
@@ -682,7 +836,7 @@ def at_today(at: str | None, tz: str, now: datetime | None = None) -> datetime |
 
 
 RUN_SQL = """SELECT x.id AS run_id, x.routine, x.occurrence_at, x.work_id, x.note_fa, x.company_id,
-                    g.key AS group_key, g.title_fa AS group_fa, g.state AS group_state,
+                    x.group_id, g.key AS group_key, g.title_fa AS group_fa, g.state AS group_state,
                     m.publish, m.state AS member_state, w.ref AS work_ref,
                     w.status AS work_status, w.delivered_at, c.code AS company,
                     c.name_fa AS company_fa
@@ -843,18 +997,42 @@ async def publish_run(tx: Tx, hub: Any, run: dict[str, Any]) -> str:
     # the comment rule the package carries for this post
     from hq_api.domain.gov_common import owner_tz
 
-    when = at_today(rule["at"], await owner_tz(tx))
+    tz = await owner_tz(tx)
+    when = at_today(rule["at"], tz)
+    if rule["best"]:
+        # ⟨§49⟩ the hour this account's posts did best at, today while it is still ahead; too
+        # little data yet: his fixed hour when he set one, else now
+        from hq_api.domain import best_hour as BH
+
+        got = await BH.best(tx, run["company_id"], account, tz)
+        if got.enough and got.hour:
+            when = BH.next_at(int(got.hour[:2]), tz, datetime.now(UTC), tomorrow=False)
     comment = await comment_of(tx, hub, d)
+    # ⟨§47⟩ a topic is never sent twice by itself: the run's own claim stands; a run that named
+    # none is read from its package (`topic.txt`, else the caption's first line)
+    from hq_api.domain import topics as TP
+
+    twin = await TP.of_package(
+        tx, run, d, topic_txt=await _text_of(tx, hub, d, TP.TOPIC_NAMES), caption=caption
+    )
+    # he may have tapped this very file himself already: the same file to the same account in
+    # the same kind is never sent twice, whatever sent it (and what he sent is no twin to hold)
+    todo: list[Kind] = [
+        what for what in kinds
+        if await last_of(tx, d["ref"], str(f["id"]), account, what) is None
+    ]  # fmt: skip
+    if twin is not None and todo:
+        return await _hold(
+            tx, run,
+            DUPLICATE_FA.format(title=str(twin["title_fa"])[:120], day=f"{twin['created_at']:%Y-%m-%d}"),
+            output=d["ref"],
+        )  # fmt: skip
     sent: list[Kind] = []
-    for what in kinds:
-        # he may have tapped this very file himself already: the same file to the same account
-        # in the same kind is never sent twice, whatever sent it
-        if await last_of(tx, d["ref"], str(f["id"]), account, what) is not None:
-            continue
+    for what in todo:
         sent.append(what)
         j = await _send(
             tx, GROUPS, d, f, cover if what == "reel" else None,
-            what=what, account=account, caption=caption if what != "story" else "",
+            hub=hub, what=what, account=account, caption=caption if what != "story" else "",
             route=route, order=None, standing=standing, scheduled_at=when,
             comment=comment if what != "story" else None,
         )  # fmt: skip
@@ -927,6 +1105,7 @@ async def set_rule(
     account: str | None = None,
     story: bool = False,
     at: str | None = None,
+    best: bool = False,
 ) -> dict[str, Any]:
     """The owner's word for one company in one working group. `auto` with an account names one
     of the company's registered accounts (checked when there are any; a company whose path is
@@ -950,7 +1129,7 @@ async def set_rule(
         )  # fmt: skip
     rule = (
         {"mode": "auto", "account": wanted, "story": bool(story), "at": clock,
-         "since": datetime.now(UTC).isoformat(), "by": "owner"}
+         "best": bool(best), "since": datetime.now(UTC).isoformat(), "by": "owner"}
         if mode == "auto"
         else {"mode": "ask"}
     )  # fmt: skip
@@ -973,6 +1152,8 @@ def brief_block(raw: Any) -> str:
     to = f" to @{rule['account']}" if rule["account"] else ""
     also = " and as a story" if rule["story"] else ""
     at = f" at {rule['at']} (the owner's time)" if rule["at"] else ""
+    if rule["best"]:
+        at = " at the hour this account's posts do best (the hub chooses it)"
     return (
         "(Publishing: the owner gave this working group his standing permission. If this "
         "routine makes something to publish (a reel, a post), the hub itself publishes its "
@@ -1019,6 +1200,24 @@ async def after_job(hub: Any, job_id: UUID) -> None:
         run = None
         if standing:
             run = await tx.first(RUN_BY_ID_SQL, r=str(standing.get("run") or ""))
+        if meta.get("cancel") and done.state != "published":
+            # ⟨§51⟩ the end of a cancel: gone, or IG-Hub refused and the publication stands
+            if done.state == "cancelled":
+                say = CANCEL_DONE_FA.format(kind=kind, account=account)
+            else:
+                why = HZ.humanize(str(j.get("summary_fa") or "")) or "IG-Hub نپذیرفت"
+                say = CANCEL_FAILED_FA.format(kind=kind, account=account, why=why)
+            if rep is not None:
+                await OR._append_steps(tx, rep["id"], [_line(SYSTEM_FA, say)])
+            if run is not None and args.get("kind") != "story":
+                await tx.exec(
+                    "UPDATE growth.routine_runs SET note_fa = :n WHERE id = :id",
+                    id=run["run_id"],
+                    n=say[:500],
+                )
+            return
+        if done.state == "cancelled":
+            return  # cancelled before it reached IG-Hub: said when he cancelled it
         if done.state in ("scheduled", "publishing"):
             # not out yet: said once, when the command first answered (never for each question)
             if meta.get("check") or j["state"] != "done":
@@ -1097,13 +1296,105 @@ async def after_job(hub: Any, job_id: UUID) -> None:
             )
 
 
+async def cancel(
+    tx: Tx, who: Principal, job_id: UUID, *, request_id: str | None = None
+) -> SessionPublish:
+    """⟨§51⟩ The owner takes back a publication that is not out yet (set for a time, or still
+    being prepared). One that never reached IG-Hub is cancelled here; one IG-Hub holds is
+    cancelled there by a `publish` job with meta `cancel` and no file (its command answers
+    `cancelled:pub:<id>`, or the post's link when it went out first). `409 not_cancellable` for
+    anything else. `job`: any job of that publication."""
+    first = await tx.first(
+        f"SELECT {JOB_COLS} FROM infra.server_jobs j WHERE j.id = :id AND j.kind = 'publish'"  # noqa: S608
+        " AND j.args ? 'session'",
+        id=job_id,
+    )
+    if first is None:
+        raise ApiError(404, "not_found", f"publication {job_id}")
+    a0 = OR._j(first["args"]) or {}
+    s0 = a0.get("session") or {}
+    row = await tx.first(
+        LAST_SQL, out=str(s0.get("output") or ""), f=str(s0.get("file_id") or ""),
+        a=str(a0.get("account") or ""), k=str(a0.get("kind") or ""),
+    )  # fmt: skip
+    j = dict(row or first)
+    now = view(j)
+    args = OR._j(j["args"]) or {}
+    meta = dict(args.get("meta") or {})
+    if now.state not in ("scheduled", "publishing"):
+        raise ApiError(409, "not_cancellable", f"it is {now.state}", message_fa=NOT_CANCELLABLE_FA)
+    if meta.get("cancel") and str(j["state"]) in ("queued", "running"):
+        return now  # a cancel is on its way already
+    s = args.get("session") or {}
+    ref = str(s.get("order") or "") or None
+    kind = KIND_FA.get(str(args.get("kind")), "پست")
+    account = str(args.get("account") or "")
+    company_id = await tx.scalar(
+        "SELECT id FROM core.companies WHERE code = :c", c=str(s.get("company") or "")
+    )
+    result = OR._j(j.get("result")) or {}
+    ext = str(meta.get("check") or meta.get("cancel") or result.get("external_id") or "")
+    job = await SV.load_job(tx, j["id"], lock=True)
+    if not ext.startswith(PENDING):
+        # the first job itself: IG-Hub has nothing yet
+        if str(job["state"]) != "queued" or job.get("dispatched_at") is not None:
+            raise ApiError(
+                409, "not_cancellable", "the file is on its way", message_fa=STILL_SENDING_FA
+            )
+        await SV.cancel(tx, job, CANCEL_CODE, "مدیر کل انتشار را لغو کرد")
+        said, new_id = CANCEL_DONE_FA.format(kind=kind, account=account), j["id"]
+    else:
+        if company_id is None:
+            raise ApiError(409, "not_cancellable", message_fa=NOT_CANCELLABLE_FA)
+        route = await _route(tx, company_id)
+        server = await SV.load_server(tx, route["server_name"], company=route["server_co"])
+        meta.pop("check", None)
+        made = await SV.create_job(
+            tx,
+            server=server,
+            kind="publish",
+            args={**args, "caption": "", "files": [], "meta": {**meta, "cancel": ext}},
+            actor_kind=who.kind,
+            actor_code=who.code,
+            work_ref=job.get("work_ref"),
+            summary=f"لغو انتشار {kind} در @{account}",
+            timeout_s=CHECK_TIMEOUT_S,
+            request_id=request_id,
+        )
+        said, new_id = CANCEL_ASKED_FA.format(kind=kind, account=account), made["id"]
+    if ref:
+        rep = await OR.ensure(tx, ref)
+        if rep is not None:
+            await OR._append_steps(tx, rep["id"], [_line(OWNER_FA, said)])
+    if company_id is not None:
+        await audit.record(
+            tx,
+            who,
+            company_id=company_id,
+            action="publish.cancel",
+            action_class="A2",
+            target_kind="order" if ref else "deliverable",
+            target_ref=ref or str(s.get("output") or ""),
+            summary=f"the owner cancelled {args.get('kind')} to @{account} of "
+            f"{s.get('output')} ({ext or 'not sent yet'}); job {new_id}"[:500],
+            request_id=request_id,
+        )
+    out = await tx.one(
+        f"SELECT {JOB_COLS} FROM infra.server_jobs j WHERE j.id = :id",  # noqa: S608
+        id=new_id,
+    )
+    return view(dict(out))
+
+
 FOLLOW_SQL = """SELECT j.id, j.state, j.args, j.result, j.summary_fa, j.error_code, j.created_at,
        j.finished_at, j.work_ref
 FROM infra.server_jobs j
 WHERE j.kind = 'publish' AND j.args ? 'session' AND j.created_at > now() - interval '8 days'
   AND ((j.state = 'done' AND j.result ->> 'external_id' LIKE 'pub:%' AND j.result ->> 'url' IS NULL)
        OR (j.state = 'failed' AND j.args -> 'meta' ? 'check'
-           AND j.error_code = ANY(CAST(:transient AS text[]))))
+           AND j.error_code = ANY(CAST(:transient AS text[])))
+       OR (j.state = 'failed' AND j.args -> 'meta' ? 'cancel'
+           AND COALESCE(j.error_code, '') <> 'publish_cancelled'))
   AND NOT EXISTS (
       SELECT 1 FROM infra.server_jobs n
       WHERE n.kind = 'publish' AND n.created_at > j.created_at
@@ -1126,11 +1417,13 @@ async def follow_up(hub: Any, now: datetime | None = None) -> int:
             args = OR._j(j["args"]) or {}
             meta = dict(args.get("meta") or {})
             result = OR._j(j.get("result")) or {}
-            ext = str(meta.get("check") or result.get("external_id") or "")
+            # a question that was never answered, or ⟨§51⟩ a cancel IG-Hub refused: asked again
+            again = meta.get("check") or meta.pop("cancel", None)
+            ext = str(again or result.get("external_id") or "")
             when = _when(meta.get("scheduled_at"))
             since = j["finished_at"] or j["created_at"]
             due = max(when, since) if when is not None else since
-            due += CHECK_EVERY if meta.get("check") else CHECK_AFTER
+            due += CHECK_EVERY if again else CHECK_AFTER
             if not ext.startswith(PENDING) or now < due or now > (when or since) + CHECK_FOR:
                 continue
             try:

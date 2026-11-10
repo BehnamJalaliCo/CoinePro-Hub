@@ -83,6 +83,11 @@ async def a_group(
     }  # fmt: skip
 
 
+def caption_of(day: date) -> str:
+    """Each day says something of its own (⟨§47⟩ the hub never sends one topic twice)."""
+    return f"سه سطح مهم طلا، روز {day.day}\n#طلا #پروچارت"
+
+
 async def a_day(
     client: httpx.AsyncClient,
     hub: Hub,
@@ -113,7 +118,7 @@ async def a_day(
         if name.endswith(".mp4"):
             r = await send_file(client, g["rn"], job["id"], name, "video/mp4", mp4(2))
         elif name.endswith(".txt"):
-            said = (texts or {}).get(name, CAPTION)
+            said = (texts or {}).get(name, caption_of(day))
             r = await send_file(
                 client, g["rn"], job["id"], name, "text/plain", f"\ufeff{said}\n".encode()
             )
@@ -225,13 +230,16 @@ async def test_a_working_groups_daily_reel_goes_out_on_the_owners_standing_word(
     job = taken[str(reel["id"])]
     assert job["kind"] == "publish"
     a = job["args"]
-    assert a["command"] == COMMAND and a["caption"] == CAPTION and a["kind"] == "reel"
+    assert a["command"] == COMMAND and a["caption"] == caption_of(day) and a["kind"] == "reel"
     assert a["meta"] == {"channel": "instagram", "kind": "reel", "account": "pro.chart",
-                         "company": co, "cover": True}  # fmt: skip
+                         "company": co, "cover": True, "key": a["meta"]["key"]}  # fmt: skip
+    assert len(a["meta"]["key"]) == 32  # ⟨1.31⟩ the publication's own key, the same on a retry
     assert a["standing"]["group"] == key and a["standing"]["routine"] == "daily_topic"
     assert a["session"]["order"] is None and a["session"]["output"] == made["output"]
     video, cover = a["files"]
-    assert video["name"] == "reel.mp4" and cover["name"] == "cover.png" and cover["role"] == "cover"
+    # ⟨§52⟩ the cover goes out as a JPEG the hub made from the PNG
+    assert video["name"] == "reel.mp4" and cover["name"] == "cover.jpg" and cover["role"] == "cover"
+    assert cover["mime"] == "image/jpeg"
     got = await client.get(video["url"], headers=g["ig_rn"]["h"])
     assert got.status_code == 200 and len(got.content) > 100
     s_args = args_of(story)
@@ -267,7 +275,8 @@ async def test_a_working_groups_daily_reel_goes_out_on_the_owners_standing_word(
     r = await client.get(f"/api/v1/deliverables/{made['output']}/publish", headers=owner)
     assert r.status_code == 200, r.text
     panel = r.json()
-    assert panel["tap"] is True and panel["order"] is None and panel["caption"] == CAPTION
+    assert panel["tap"] is True and panel["order"] is None
+    assert panel["caption"] == caption_of(day)
     assert panel["group"] == key and panel["mode"] == "auto" and panel["ready"] is True
     by_kind = {p["kind"]: p for p in panel["publishes"]}
     assert by_kind["reel"]["state"] == "published" and by_kind["reel"]["auto"] is True
@@ -323,7 +332,7 @@ async def test_a_working_groups_daily_reel_goes_out_on_the_owners_standing_word(
     r = await client.put(f"/api/v1/groups/{key}/members/{co}/publish", headers=owner,
                          json={"mode": "ask"})  # fmt: skip
     assert r.status_code == 200 and r.json()["publish"] == {
-        "mode": "ask", "account": None, "story": False, "since": None, "at": None}  # fmt: skip
+        "mode": "ask", "account": None, "story": False, "since": None, "at": None, "best": False}  # fmt: skip
     day4 = day3 + timedelta(days=1)
     asked = await a_day(client, hub, su, g, day4, ("reel.mp4", "cover.png", "caption.txt"))
     assert "standing permission" not in asked["brief"]
@@ -331,7 +340,8 @@ async def test_a_working_groups_daily_reel_goes_out_on_the_owners_standing_word(
     panel = (
         await client.get(f"/api/v1/deliverables/{asked['output']}/publish", headers=owner)
     ).json()
-    assert panel["mode"] == "ask" and panel["caption"] == CAPTION and panel["publishes"] == []
+    assert panel["mode"] == "ask" and panel["caption"] == caption_of(day4)
+    assert panel["publishes"] == []
 
 
 async def test_a_word_given_later_covers_only_what_comes_after_and_waits_for_the_path(
@@ -393,7 +403,8 @@ async def test_a_word_given_later_covers_only_what_comes_after_and_waits_for_the
     assert ticked["published"] == 1, ticked
     [job] = await jobs_of(su, made["run"])
     args = args_of(job)
-    assert args["kind"] == "reel" and args["meta"]["cover"] is False and args["caption"] == CAPTION
+    assert args["kind"] == "reel" and args["meta"]["cover"] is False
+    assert args["caption"] == caption_of(day2)
 
     # he taps a package himself before its work is delivered: his standing word never sends
     # that file a second time
@@ -402,7 +413,7 @@ async def test_a_word_given_later_covers_only_what_comes_after_and_waits_for_the
     r = await client.post(
         f"/api/v1/deliverables/{own['output']}/publish",
         headers={**owner, **idem()},
-        json={"file_id": own["files"]["reel.mp4"], "caption": CAPTION},
+        json={"file_id": own["files"]["reel.mp4"], "caption": caption_of(day3)},
     )
     assert r.status_code == 202 and r.json()["auto"] is False, r.text
     await refuse_queued(su, str(own["work_id"]))

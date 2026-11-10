@@ -13,6 +13,7 @@ The brief chooses the behaviour:
                          on each content block), then never finishes (token cap)
     anything else        one text answer, then a success result with usage
 If FAKE_CLAUDE_RECORD is set, argv, cwd and the settings file go to that JSON file.
+`--help` prints the options a real CLI lists (FAKE_CLAUDE_EFFORTS: the levels of --effort).
 """
 
 from __future__ import annotations
@@ -67,7 +68,22 @@ def run_hooks(settings: dict[str, object], session: str, command: str) -> tuple[
     return True, ""
 
 
+HELP = """Usage: claude [options] [prompt]
+
+Options:
+  --model <model>            Model for the current session
+  --effort <level>           Effort level for the current session
+                             ({levels})
+  --resume [value]           Resume a conversation by session ID
+"""
+
+
 def main() -> int:
+    if "--help" in sys.argv[1:]:
+        # FAKE_CLAUDE_EFFORTS: the levels this CLI lists for --effort ("" = an older CLI without it)
+        levels = os.environ.get("FAKE_CLAUDE_EFFORTS", "low, medium, high, xhigh, max")
+        sys.stdout.write(HELP.format(levels=levels) if levels else "Usage: claude [options]\n")
+        return 0
     if "--version" in sys.argv:
         print("2.1.294 (Claude Code)")
         return 0

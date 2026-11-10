@@ -23,15 +23,18 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 from typing import Any, Literal
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
 from hq_api import pagination
 from hq_api.context import Ctx, internal_ctx, owner_ctx
+from hq_api.domain import best_hour as BH
 from hq_api.domain import groups as GR
 from hq_api.domain import home as HM
 from hq_api.domain import readiness as RD
+from hq_api.domain import topics as TP
 from hq_api.domain.connections import owner_today
 from hq_api.domain.gov_common import owner_tz
 from hq_api.domain.watch import owner_week
@@ -58,6 +61,9 @@ class MemberPublishIn(Model):
     story: bool = False
     # ⟨§46⟩ «HH:MM» in the owner's zone: the hour each day's package goes out at; null: at once
     at: str | None = Field(default=None, max_length=5)
+    # ⟨§49⟩ the hour the account's own posts did best at, once there is a month of them (until
+    # then `at`, else at once)
+    best: bool = False
 
 
 class KpiSeries(BaseModel):
@@ -163,7 +169,7 @@ async def set_member_publish(
         await GR.member(tx, grow["id"], company.id, lock=True)
         rule = await SPB.set_rule(
             tx, grow["id"], company.id, mode=body.mode, account=body.account,
-            story=body.story, at=body.at,
+            story=body.story, at=body.at, best=body.best,
         )  # fmt: skip
         said = (
             f"auto to @{rule.get('account') or '(the company account)'}"
@@ -191,6 +197,158 @@ async def set_member_publish(
         )
         await ctx.emit(tx, code, "group.run", None, {"group": key, "publish": rule["mode"]})
         return GR.render_member(await GR.member(tx, grow["id"], company.id), GR.render(grow))
+
+
+class TopicIn(Model):
+    """⟨§47⟩ A line the owner adds to the ledger himself («این را قبلاً گفته‌ایم»)."""
+
+    kind: Literal["topic", "reference"] = "topic"
+    title_fa: str | None = Field(default=None, max_length=TP.TITLE_MAX)
+    url: str | None = Field(default=None, max_length=TP.URL_MAX)
+
+
+class TopicLedger(BaseModel):
+    """⟨§47⟩ What a company already said in a working group, newest first, and how many."""
+
+    items: list[TP.TopicEntry]
+    topics: int
+    references: int
+    next_cursor: str | None = None
+
+
+@router.get("/groups/{key}/members/{code}/topics", response_model=TopicLedger, responses=E)
+async def list_topics(
+    key: str,
+    code: str,
+    kind: Literal["topic", "reference"] | None = Query(default=None),
+    q: str | None = Query(default=None, max_length=100),
+    limit: int = Query(default=50, ge=1, le=200),
+    cursor: str | None = Query(default=None, max_length=64),
+    ctx: Ctx = Depends(owner_ctx),
+) -> TopicLedger:
+    """⟨1.31⟩ §47 The ledger of what this company already said in this working group: each
+    day's topic and each outside sample (a Pinterest pin), newest first. The hub refuses one
+    that is said again (`topic.claim`), so no day repeats another. `q`: words to look for;
+    `cursor`: the `next_cursor` of the page before."""
+    company = await ctx.hub.companies.by_code(code)
+    try:
+        before = datetime.fromisoformat(cursor) if cursor else None
+    except ValueError as exc:
+        raise ApiError(422, "validation_failed", fields={"cursor": "not a cursor"}) from exc
+    async with ctx.tx() as tx:
+        grow = await _group(ctx, tx, key)
+        await GR.member(tx, grow["id"], company.id)
+        rows = await tx.all(
+            """SELECT * FROM growth.topics
+               WHERE company_id = :co AND group_id = :g AND state = 'said'
+                 AND (CAST(:k AS text) IS NULL OR kind = :k)
+                 AND (CAST(:q AS text) IS NULL OR title_fa ILIKE :q OR url ILIKE :q)
+                 AND (CAST(:b AS timestamptz) IS NULL OR created_at < :b)
+               ORDER BY created_at DESC LIMIT :n""",
+            co=company.id,
+            g=grow["id"],
+            k=kind,
+            q=f"%{q.strip()}%" if q and q.strip() else None,
+            b=before,
+            n=limit + 1,
+        )
+        n = await TP.count(tx, company.id, grow["id"])
+    more = len(rows) > limit
+    rows = rows[:limit]
+    return TopicLedger(
+        items=[TP.render(dict(r)) for r in rows],
+        topics=n.topics,
+        references=n.references,
+        next_cursor=rows[-1]["created_at"].isoformat() if more and rows else None,
+    )
+
+
+@router.post(
+    "/groups/{key}/members/{code}/topics", response_model=TP.TopicEntry, status_code=201,
+    responses=E,
+)  # fmt: skip
+async def add_topic(
+    key: str, code: str, body: TopicIn, ctx: Ctx = Depends(owner_ctx)
+) -> TP.TopicEntry:
+    """⟨1.31⟩ §47 The owner adds a line himself: a topic this company already covered (before
+    the ledger, or elsewhere), or a sample already used, so it is never made again. `409
+    topic_taken` when the ledger already says it."""
+    company = await ctx.hub.companies.by_code(code)
+    async with ctx.tx() as tx:
+        grow = await _group(ctx, tx, key)
+        await GR.member(tx, grow["id"], company.id)
+        row, _ = await TP.claim(
+            tx, {"company_id": company.id, "group_id": grow["id"]}, kind=body.kind,
+            title=body.title_fa, url=body.url, source="owner", by="owner",
+        )  # fmt: skip
+        await ctx.audit(
+            tx,
+            company_id=company.id,
+            action="topic.add",
+            action_class="A1",
+            target_kind="group",
+            target_ref=f"{key}:{code}",
+            summary=f"the owner added a {body.kind} to the ledger",
+        )
+        return TP.render(row)
+
+
+@router.delete(
+    "/groups/{key}/members/{code}/topics/{topic_id}", response_model=TP.TopicEntry, responses=E
+)
+async def free_topic(
+    key: str, code: str, topic_id: UUID, ctx: Ctx = Depends(owner_ctx)
+) -> TP.TopicEntry:
+    """⟨1.31⟩ §47 The owner frees a line (it was a mistake, or he wants it made again): it may
+    be said once more. Nothing is deleted (the row is kept as `freed`)."""
+    company = await ctx.hub.companies.by_code(code)
+    async with ctx.tx() as tx:
+        grow = await _group(ctx, tx, key)
+        row = await tx.first(
+            """UPDATE growth.topics SET state = 'freed', freed_at = now()
+               WHERE id = :id AND company_id = :co AND group_id = :g AND state = 'said'
+               RETURNING *""",
+            id=topic_id,
+            co=company.id,
+            g=grow["id"],
+        )
+        if row is None:
+            raise ApiError(404, "not_found", f"no such line in {key}:{code}")
+        await ctx.audit(
+            tx,
+            company_id=company.id,
+            action="topic.free",
+            action_class="A2",
+            target_kind="group",
+            target_ref=f"{key}:{code}",
+            summary=f"the owner freed a {row['kind']} of the ledger",
+        )
+        return TP.render(dict(row))
+
+
+@router.get("/companies/{code}/best-hour", response_model=BH.BestHour, responses=E)
+async def best_hour(
+    code: str,
+    account: str | None = Query(default=None, max_length=65),
+    ctx: Ctx = Depends(owner_ctx),
+) -> BH.BestHour:
+    """⟨1.31⟩ §49 The hour this company's Instagram account does best at, from the posts IG-Hub
+    reports (read once a day): `hour` in the owner's zone and `at`, its next occurrence, once
+    there are enough posts over a month (`enough`); else why not yet (`note_fa`). What is
+    counted is likes and comments: IG-Hub reads no views or reach. `account`: one of the
+    company's registered accounts (left out: its only one)."""
+    from hq_api.domain import session_publish as SPB
+
+    company = await ctx.hub.companies.by_code(code)
+    async with ctx.tx() as tx:
+        accounts = (await SPB._route(tx, company.id))["accounts"]
+        handle = (account or "").strip().lstrip("@") or (accounts[0] if len(accounts) == 1 else "")
+        if handle and accounts and handle not in accounts:
+            raise ApiError(
+                422, "validation_failed",
+                fields={"account": "one of: " + ", ".join("@" + a for a in accounts[:20])},
+            )  # fmt: skip
+        return await BH.best(tx, company.id, handle or None, await owner_tz(tx))
 
 
 @router.get("/groups/{key}/runs", response_model=Page[GR.RoutineRun], responses=E)
@@ -569,3 +727,57 @@ async def agent_experiment(body: ExperimentIn, ctx: Ctx = Depends(internal_ctx))
             {"group": body.group, "experiment": str(row["id"]), "closed": bool(row["closed_at"])},
         )  # fmt: skip
     return GR.render_experiment(row)
+
+
+class TopicClaimIn(Model):
+    title_fa: str | None = Field(default=None, max_length=TP.TITLE_MAX)
+    kind: Literal["topic", "reference"] = "topic"
+    url: str | None = Field(default=None, max_length=TP.URL_MAX)
+    work: str | None = Field(default=None, pattern=r"^W-[0-9]{6,}$")
+
+
+class TopicClaimed(BaseModel):
+    """`new: false`: this run had named the same one already. `group`: the working group whose
+    ledger it is in (null: the session's own, until its working group is sealed)."""
+
+    entry: TP.TopicEntry
+    new: bool
+    group: str | None = None
+
+
+@internal_router.post("/topics/claim", response_model=TopicClaimed, status_code=201, responses=E)
+async def agent_topic_claim(body: TopicClaimIn, ctx: Ctx = Depends(internal_ctx)) -> TopicClaimed:
+    """⟨1.31⟩ topic.claim (A1, contract §47): the agent names today's topic (or, with `kind:
+    reference` and `url`, the outside sample it uses) for its run's work (or `work`, assigned to
+    it) BEFORE it writes or builds. The ledger is the working group's of the routine the work
+    belongs to (a session's own before its group is sealed). `409 topic_taken` when it was said
+    before (`fields.title_fa` names the line and its day, `fields.recent` the last ones): choose
+    another and claim again. A run names one topic and one reference; a second, different claim
+    of the same run replaces its first."""
+    from hq_api.domain import hands as HANDS
+
+    who = ctx.who
+    if not who.is_agent or who.company_id is None or who.role == "system":
+        raise ApiError(403, "policy_denied", "a working role only")
+    wide = await ctx.hub.companies.ids()
+    async with ctx.hub.db.tx(wide) as tx:
+        w = await HANDS.the_work(tx, who, body.work)
+    await allow(ctx, "topic.claim", {"company": who.company, "assigned": True})
+    async with ctx.hub.db.tx(wide) as tx:
+        scope = await TP.scope_of_work(tx, w)
+        row, new = await TP.claim(
+            tx, scope, kind=body.kind, title=body.title_fa, url=body.url, source="claim",
+            by=who.code, work_ref=w["ref"],
+        )  # fmt: skip
+        if new:
+            await ctx.audit(
+                tx,
+                company_id=scope["company_id"],
+                action="topic.claim",
+                action_class="A1",
+                target_kind="work",
+                target_ref=w["ref"],
+                summary=f"{body.kind} claimed in "
+                f"{scope.get('group_key') or scope.get('order_ref') or 'the company ledger'}",
+            )
+        return TopicClaimed(entry=TP.render(row), new=new, group=scope.get("group_key"))

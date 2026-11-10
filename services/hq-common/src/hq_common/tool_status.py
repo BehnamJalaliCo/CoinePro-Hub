@@ -158,6 +158,9 @@ GATEWAY_TOOLS: frozenset[str] = frozenset(
         "hub.ops",  # ⟨1.20⟩ §38: the hub run from the app (the holding's technical roles)
         "workshop.run",  # ⟨2026-11-09⟩ §43: any task with no tool, to the holding's workshop
         "workshop.stop",  # ⟨2026-11-10⟩ the caller stops its own running turn
+        # ⟨1.31⟩ §47, §48: today's topic in the ledger; a company's narrator, set in his session
+        "topic.claim",
+        "narrator.set",
     }
 )
 # Tools whose traffic leaves the hub through the egress service (contract §18.7).

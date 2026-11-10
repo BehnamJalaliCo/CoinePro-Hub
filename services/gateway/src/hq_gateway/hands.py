@@ -1,6 +1,6 @@
 """⟨2026-11-09⟩ The workshop: hands for any task (contract §43, agents/tools.md).
 
-    workshop.run   A2  {brief, title?, work?, task?, files?}
+    workshop.run   A2  {brief, title?, work?, task?, files?, effort?}
     workshop.stop  A1  {work?, reason?}     ⟨2026-11-10⟩ the caller stops its own running turn
 
 The owner: «اپ وسیله‌ی ارتباط است؛ سرور کامپیوتر است و Claude روی سرور مغز و دست دارد». Every
@@ -13,6 +13,8 @@ Nothing here waits for the turn: it may take up to 60 minutes.
 """
 
 from __future__ import annotations
+
+from typing import Literal
 
 from pydantic import Field
 
@@ -34,6 +36,8 @@ class WorkshopIn(T.In):
     # ⟨2026-11-10⟩ hub files the turn takes with it (the narration, a logo, the owner's upload):
     # the workshop finds them in `in/`
     files: list[str] = Field(default_factory=list, max_length=10)
+    # ⟨1.31⟩ §53 how hard the turn thinks; left out: the most the model can (`max`)
+    effort: Literal["low", "medium", "high", "xhigh", "max"] | None = None
 
 
 class WorkshopStopIn(T.In):
@@ -71,6 +75,8 @@ async def workshop_run(api: T.Api, call: T.Call, a: WorkshopIn) -> T.Result:
         body["task"] = a.task
     if a.files:
         body["files"] = a.files
+    if a.effort:
+        body["effort"] = a.effort
     resp = await api.request(
         "POST",
         "/internal/v1/workshop/runs",

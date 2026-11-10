@@ -219,6 +219,9 @@ async def series_propose(api: T.Api, call: T.Call, a: SeriesProposeIn) -> T.Resu
     return _shape(T.from_response(resp))
 
 
+NARRATOR_FA = "این صدا با گوینده‌ی ثابت همین شرکت ساخته شد (صدا و سبکش را مدیر کل ثبت کرده است)."
+
+
 async def speech_make(api: T.Api, call: T.Call, a: SpeechMakeIn) -> T.Result:
     if (a.job is None) == (a.text_fa is None) or (a.job and (a.voice or a.style)):
         return T.Result(
@@ -250,6 +253,9 @@ async def speech_make(api: T.Api, call: T.Call, a: SpeechMakeIn) -> T.Result:
         r.ref = str(r.data.get("file_id") or r.data.get("job") or "")
         if r.data.get("hint_fa"):
             r.hint_fa = str(r.data["hint_fa"])
+        elif r.data.get("narrator") and r.data.get("state") == "done":
+            # ⟨1.31⟩ §48 the company's own narrator spoke, whatever voice was asked for
+            r.hint_fa = NARRATOR_FA
     return r
 
 

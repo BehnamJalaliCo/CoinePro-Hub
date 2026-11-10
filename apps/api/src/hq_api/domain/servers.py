@@ -1589,6 +1589,9 @@ async def _apply(tx: Tx, hub: Any, j: dict[str, Any], data: dict[str, Any]) -> d
                 if box["state"] == "off"
                 else {"kind": str(box.get("kind") or "")[:40]}
             )
+        # ⟨1.31⟩ §53 how hard the session thought, as the runner passed it to the CLI (>= 0.3.5)
+        if data.get("effort") in ("low", "medium", "high", "xhigh", "max"):
+            out["effort"] = data["effort"]
         answer = mask(str(data.get("result_fa") or ""))
         out["result_fa"] = answer
         if len(answer) > INLINE_ANSWER:

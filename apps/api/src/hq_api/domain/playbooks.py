@@ -161,6 +161,8 @@ class PublishRuleIn(Model):
     story: bool = False
     # ⟨§46⟩ «HH:MM» in the owner's zone: the hour each day's package goes out at
     at: str | None = Field(default=None, max_length=5)
+    # ⟨§49⟩ the hour the account's own posts did best at, once there is a month of them
+    best: bool = False
 
 
 class PlaybookApplyIn(Model):
@@ -987,6 +989,11 @@ async def seal(tx: Tx, hub: Any, ref: str) -> dict[str, Any]:
             id=row["id"],
         )
     )
+    if company is not None and src.get("order"):
+        # ⟨§47⟩ what the session already said (its day one) is the group's from now on
+        from hq_api.domain import topics as TP
+
+        await TP.adopt(tx, str(src["order"]), company.id, grow["id"])
     rep = await OR.ensure(tx, str(src.get("order") or ""))
     if rep is not None:
         line = f"کارگروه {ref} مُهر شد و راه افتاد"

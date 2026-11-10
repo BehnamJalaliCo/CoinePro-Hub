@@ -106,8 +106,16 @@ async def automation_propose(api: T.Api, call: T.Call, a: AutomationIn) -> T.Res
     r = T.from_response(resp, None)
     if r.outcome == "ok" and isinstance(r.data, dict):
         r.ref = str(r.data.get("ref") or "")
+        on = r.data.get("state") == "on"
         r.data = {"automation": r.data.get("ref"), "state": r.data.get("state"),
                   "preview_fa": r.data.get("preview_fa")}  # fmt: skip
+        # ⟨1.31⟩ §50 a routine the owner asked for in this session runs from now: no seal
+        r.hint_fa = (
+            "روال دائمی ساخته شد و از همین حالا سر وقتش اجرا میشود؛ مُهر نمیخواهد. در یک خط به "
+            "مدیر کل بگو چه چیزی، کی، و اینکه با یک لمس خاموش میشود."
+            if on
+            else "پیشنهاد ثبت شد و منتظر مُهر مدیر کل است؛ تا آن وقت چیزی اجرا نمیشود."
+        )
     return r
 
 

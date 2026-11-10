@@ -38,6 +38,11 @@ from hq_api.workshop import server_sessions as SS
 RUNNER_MIN = "0.3.2"  # the runner that sends `out/` back
 INPUTS_RUNNER_MIN = "0.3.3"  # the runner that takes the hub's files into `in/`
 MODEL = "claude-opus-5-5"
+# ⟨1.31⟩ §53 the owner's order: «حتماً Opus 5.5 با بیشترین effort». Every turn of the workshop
+# thinks as hard as the model can unless the caller asks for less; the runner (>= 0.3.5) passes it
+# to Claude Code, an older one runs the turn as before
+EFFORT = "max"
+EFFORTS = ("low", "medium", "high", "xhigh", "max")
 PERMISSION_MODE = "acceptEdits"  # non-interactive: the tools below run without asking
 ALLOWED_TOOLS = (
     "Bash", "Read", "Write", "Edit", "MultiEdit", "NotebookEdit", "Glob", "Grep",
@@ -275,6 +280,7 @@ async def start(
     title: str | None,
     request_id: str | None = None,
     files: list[Any] | None = None,
+    effort: str | None = None,
 ) -> WorkshopRun:
     """The turn on the workshop for the work (its workspace made or resumed), or the turn that
     still runs (`state: working`, nothing new). 409 for a workspace the owner stopped or one on a
@@ -319,6 +325,7 @@ async def start(
         "workspace": w["ref"],
         "hands": True,
         "model": MODEL,
+        "effort": effort if effort in EFFORTS else EFFORT,
         "permission_mode": PERMISSION_MODE,
         "allowed_tools": list(ALLOWED_TOOLS),
         "timeout_s": SESSION_TIMEOUT_S,

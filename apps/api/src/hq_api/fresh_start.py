@@ -91,6 +91,8 @@ WIPE: tuple[str, ...] = (
     "owner.session_tasks",  # ⟨1.17⟩ §35 a session's plan goes with its order
     "owner.order_files",  # ⟨1.18⟩ §36.3 an order's files go with it (the files themselves stay)
     "growth.routine_runs", "growth.experiments", "growth.metrics_daily", "growth.home_mornings",
+    # ⟨1.31⟩ §49 the posts IG-Hub reported and the daily read of each account go (read again)
+    "growth.ig_posts", "growth.ig_post_reads",
     # ⟨1.13⟩ §31.6, §31.7: the ads' daily figures, campaigns' state, trips; the automations' runs
     "growth.ad_daily", "growth.ad_campaigns", "growth.ad_trips", "growth.automation_runs",
     # ⟨1.13⟩ prompt 22 part 3: the daily ranks and competitor figures, the competitor jumps,
@@ -166,6 +168,9 @@ KEEP: tuple[str, ...] = (
     # the companies' connections and their non-secret config) stays
     "growth.groups", "growth.group_versions", "growth.memberships", "growth.connections",
     "owner.playbooks",  # ⟨1.22⟩ §40.2 the working groups the owner's sessions made stay
+    # ⟨1.31⟩ §47, §48: what was already said stays said (the posts are still out there), and a
+    # company's narrator is the owner's setting
+    "growth.topics", "media.narrators",
     "growth.ad_rules", "growth.automations",  # ⟨1.13⟩ the owner's budget rules and automations
     # ⟨1.15⟩ §33.2, §33.4, §33.5: the sources the owner configured, the companies' lead stages,
     # what the owner said an exchange paid

@@ -776,6 +776,10 @@ class Automation(BaseModel):
     off_reason: Literal["owner", "failures"] | None = None
     sealed_at: datetime | None = None
     created_at: datetime
+    # ⟨1.31⟩ §50 a standing routine made from one sentence (`on` without a seal), and the
+    # session it was asked in
+    routine: bool = False
+    order: str | None = None
 
 
 class AutomationDetail(Automation):
@@ -790,7 +794,11 @@ def render(
     a: dict[str, Any], company: str | None, titles: dict[str, str] | None = None
 ) -> Automation:
     rule = a["rule"] if isinstance(a["rule"], dict) else json.loads(a["rule"])
+    src = a.get("source") or {}
+    src = json.loads(src) if isinstance(src, str) else src
     return Automation(
+        routine=bool(src.get("routine")),
+        order=src.get("order"),
         ref=a["ref"],
         company=company if a["scope"] == "company" else None,
         sentence_fa=a["sentence_fa"],

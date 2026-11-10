@@ -448,6 +448,14 @@ async def asked_in_session(tx: Tx, who: Principal, work_id: UUID | None) -> str 
     hire. The owner: «این برو بیا و هی مهر بکن و اینو مجوز بده … آزار و اذیت میده منو»: such a hire
     is his decision already. Needs a transaction that reaches every company (the order's report is
     the holding's row). The words are the owner's, stored by code: an agent cannot write them."""
+    got = await owner_words(tx, who, work_id)
+    return got[0] if got is not None and asks_for_a_hire(got[1]) else None
+
+
+async def owner_words(tx: Tx, who: Principal, work_id: UUID | None) -> tuple[str, list[str]] | None:
+    """(the order's ref, the owner's own words there) when the agent's work (`work_id`, else its
+    run's) belongs to an open order: the order's text, his words in the session and the plan
+    steps he wrote. Stored by code: an agent cannot write them. None otherwise."""
     from hq_api.domain import order_report as OR
 
     if not who.is_agent:
@@ -484,7 +492,7 @@ async def asked_in_session(tx: Tx, who: Principal, work_id: UUID | None) -> str 
             o=row["order_id"],
         )
     ]
-    return ref if asks_for_a_hire(said) else None
+    return ref, said
 
 
 async def approve_by_code(

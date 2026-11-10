@@ -67,6 +67,10 @@ SHARED_TOOLS = (
     "erase.propose",
     "workshop.run",
     "workshop.stop",  # ⟨2026-11-10⟩ whoever may start a turn may stop its own
+    # ⟨1.31⟩ §47 today's topic is named before it is made (the hub refuses one said before);
+    # §48 the narrator of a company, set by whoever works on the owner's order when he asks
+    "topic.claim",
+    "narrator.set",
 )
 
 

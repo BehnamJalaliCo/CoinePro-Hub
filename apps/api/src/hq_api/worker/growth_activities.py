@@ -53,6 +53,12 @@ class GrowthActivities:
             out = {**out, "journeys_changed": await JN.tick(self.hub)}
         except Exception:  # noqa: BLE001 - the journey never fails the connections' read
             out = {**out, "journeys_changed": None}
+        try:  # ⟨1.31⟩ §49: each Instagram account's posts from IG-Hub, for the best hour
+            from hq_api.domain import best_hour as BH
+
+            out = {**out, "ig_posts": await BH.read_due(self.hub)}
+        except Exception:  # noqa: BLE001 - the best hour never fails the connections' read
+            out = {**out, "ig_posts": None}
         return out
 
     @activity.defn(name="connection_test")

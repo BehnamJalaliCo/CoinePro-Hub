@@ -128,10 +128,26 @@ async def publish_from_session(
             scheduled_at=body.scheduled_at,
             comment=body.comment.model_dump() if body.comment is not None else None,
             first_comment=body.first_comment,
+            hub=ctx.hub,
         )
         if idem:
             await idem.store(tx, 202, out.model_dump(mode="json"))
     return out
+
+
+@router.post("/publishes/{job}/cancel", response_model=OR.SessionPublish, responses=E)
+async def cancel_publish(job: UUID, ctx: Ctx = Depends(owner_ctx)) -> OR.SessionPublish:
+    """⟨1.31⟩ §51 The owner takes back a publication that is not out yet (`scheduled`: set for a
+    time; `publishing`: IG-Hub is still preparing it). `job`: the publication's job, as
+    `SessionPublish.job` gives it. One that never reached IG-Hub is cancelled at once (`state:
+    cancelled`); one IG-Hub holds is cancelled there: the answer keeps its state with `note_fa`
+    «در حال لغو» until IG-Hub answers (`cancelled`, or `published` when it went out first; a
+    refusal is said in `note_fa` and the publication stands). His tap, no step-up. `409
+    not_cancellable` for one that is out, failed or cancelled already."""
+    from hq_api.domain import session_publish as SPB
+
+    async with ctx.tx() as tx:
+        return await SPB.cancel(tx, ctx.who, job, request_id=ctx.request_id)
 
 
 class ReplyIn(Model):

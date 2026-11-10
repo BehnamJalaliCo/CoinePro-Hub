@@ -89,12 +89,14 @@ from hq_api.routes import links as link_routes  # prompt 25: §35.6 company link
 from hq_api.routes import live as live_routes  # ⟨1.24⟩ §42.3 the live views' seed
 from hq_api.routes import media as media_routes  # prompt 13, the media half
 from hq_api.routes import money as money_routes  # prompt 24: §33.2-§33.3 payments, the board
+from hq_api.routes import narrators as narrator_routes  # ⟨1.31⟩ §48 a company's narrator
 from hq_api.routes import newsletter as newsletter_routes  # prompt 22 part 3: §31.3
 from hq_api.routes import office as office_routes  # prompt 25: §35.5 the owner's office
 from hq_api.routes import order_report as order_report_routes  # prompt 21: §29.1-§29.2, §29.6
 from hq_api.routes import playbooks as playbook_routes  # ⟨1.22⟩ §40 a session's playbook
 from hq_api.routes import reviews as review_routes
 from hq_api.routes import role_drafts as role_draft_routes  # prompt 13 §1.1
+from hq_api.routes import routines as routine_routes  # ⟨1.31⟩ §50 a routine from one sentence
 from hq_api.routes import rules as rule_routes  # prompt 21: the owner's rules
 from hq_api.routes import sales as sales_routes  # prompt 24: §33.1, §33.4-§33.5
 from hq_api.routes import seo as seo_routes  # prompt 22 part 3: §31.4
@@ -342,6 +344,11 @@ def create_app(
     app.include_router(linked_routes.internal_router, prefix="/internal/v1")
     # ⟨2026-11-06⟩ a voice from Google AI Studio for the media roles (speech.make, A1)
     app.include_router(speech_routes.internal_router, prefix="/internal/v1")
+    # ⟨1.31⟩ §48 a company's narrator (the owner's setting; narrator.set in his session), and
+    # §50 a standing routine from one sentence
+    app.include_router(narrator_routes.router, prefix="/api/v1")
+    app.include_router(narrator_routes.internal_router, prefix="/internal/v1")
+    app.include_router(routine_routes.router, prefix="/api/v1")
     # ⟨1.20⟩ §38: hub operations (hub.ops, its dispatcher) and the owner's services page
     app.include_router(hubops_routes.router, prefix="/api/v1")
     app.include_router(hubops_routes.internal_router, prefix="/internal/v1")

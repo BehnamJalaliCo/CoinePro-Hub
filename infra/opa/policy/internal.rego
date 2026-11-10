@@ -87,6 +87,8 @@ ops := {
 	"linked.read",
 	# ⟨2026-11-06⟩ (media.rego): a voice from Google AI Studio for the media roles
 	"speech.make",
+	# ⟨1.31⟩ (groups.rego): today's topic in the ledger (§47); a company's narrator (§48)
+	"topic.claim", "narrator.set",
 	# ⟨1.19⟩ prompt 26 (erase.rego): an agent proposes an erase for good (contract §37.3)
 	"erase.propose",
 	# ⟨1.20⟩ §38 (hubops.rego): hub operations and the hub-ops dispatcher's queue

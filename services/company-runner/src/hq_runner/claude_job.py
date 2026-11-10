@@ -45,6 +45,7 @@ import os
 import re
 import shlex
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -118,6 +119,41 @@ def find_claude(configured: str | None = None) -> str | None:
     ):
         if p.is_file() and os.access(p, os.X_OK):
             return str(p)
+    return None
+
+
+EFFORTS = ("low", "medium", "high", "xhigh", "max")
+_EFFORT_LEVELS: dict[str, tuple[str, ...]] = {}
+
+
+def effort_levels(claude: str) -> tuple[str, ...]:
+    """⟨0.3.5⟩ The effort levels this CLI takes with `--effort`, read once from its own
+    `--help` (an older CLI has no such option, or fewer levels): () when it takes none."""
+    if claude in _EFFORT_LEVELS:
+        return _EFFORT_LEVELS[claude]
+    levels: tuple[str, ...] = ()
+    try:
+        out = subprocess.run(
+            [claude, "--help"], capture_output=True, text=True, timeout=30, check=False
+        ).stdout
+        at = out.find("--effort")
+        if at >= 0:
+            near = out[at : at + 400]
+            levels = tuple(e for e in EFFORTS if re.search(rf"\b{e}\b", near))
+    except (OSError, subprocess.SubprocessError):
+        levels = ()
+    _EFFORT_LEVELS[claude] = levels
+    return levels
+
+
+def effort_for(wanted: Any, levels: tuple[str, ...]) -> str | None:
+    """The level to pass: the one asked for, else the highest this CLI has below it; None
+    when nothing was asked or the CLI takes none (the turn then runs as before)."""
+    if wanted not in EFFORTS or not levels:
+        return None
+    for e in reversed(EFFORTS[: EFFORTS.index(wanted) + 1]):
+        if e in levels:
+            return e
     return None
 
 
@@ -369,6 +405,12 @@ async def run_claude(ctx: JobContext) -> JobResult:
     if not claude:
         raise JobError("Claude Code روی این سرور پیدا نشد.", 127)
     resume = args.get("session_id") or args.get("resume")
+    # ⟨0.3.5⟩ §53 how hard the session thinks (the workshop asks for `max`), when this CLI can
+    effort = (
+        effort_for(args.get("effort"), await asyncio.to_thread(effort_levels, claude))
+        if args.get("effort")
+        else None
+    )
     # ⟨0.3.1⟩ the hub's own Claude account for this session (the companies have no subscription
     # of their own): only in this process's environment, never written, never logged; without
     # it, this server's own Claude login
@@ -493,6 +535,8 @@ async def run_claude(ctx: JobContext) -> JobResult:
             argv += ["--permission-mode", str(args["permission_mode"])]
         if args.get("max_turns"):
             argv += ["--max-turns", str(int(args["max_turns"]))]
+        if effort:
+            argv += ["--effort", effort]
         if allow:  # last: the option takes every value after it
             argv += ["--allowedTools", *allow]
         env = dict(ctx.env)
@@ -592,6 +636,8 @@ async def run_claude(ctx: JobContext) -> JobResult:
         output["token_cap_reached"] = capped
     if workspace is not None:
         output["workspace"] = {"ref": workspace, "path": cwd}
+    if effort:
+        output["effort"] = effort  # what was passed to the CLI (the hub shows it on the output)
     if walled:
         output["sandbox"] = (
             {"state": "on", "kind": "landlock"}

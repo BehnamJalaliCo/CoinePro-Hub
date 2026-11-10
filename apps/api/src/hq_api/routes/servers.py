@@ -1475,6 +1475,8 @@ class WorkshopRunIn(Model):
     # ⟨2026-11-10⟩ hub files the turn takes with it (the narration, a logo, the owner's uploads of
     # the session): downloaded by the runner into `in/` of the work's folder
     files: list[UUID] = Field(default_factory=list, max_length=10)
+    # ⟨1.31⟩ §53 how hard the turn thinks; left out: the most the model can (`max`)
+    effort: Literal["low", "medium", "high", "xhigh", "max"] | None = None
 
 
 class WorkshopStopIn(Model):
@@ -1576,7 +1578,7 @@ async def workshop_run(
         server = await SV.load_server(tx, server["id"])
         out = await HANDS.start(
             tx, who, server, w, brief=body.brief, title=body.title, request_id=ctx.request_id,
-            files=body.files,
+            files=body.files, effort=body.effort,
         )  # fmt: skip
         status = 200 if out.state == "working" else 201
         if idem:

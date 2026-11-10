@@ -205,5 +205,6 @@ async def make(hub: Any, job: dict[str, Any]) -> dict[str, Any]:
         "bytes": len(data),
         "voice": voice,
         "style": style,
+        "narrator": bool(job.get("narrator")),
         "engine": "aistudio",
     }

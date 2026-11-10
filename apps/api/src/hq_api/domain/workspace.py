@@ -339,6 +339,9 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                         "session": j.get("session_ref"),
                         **({"files": len(files)} if files else {}),
                         **({"sandbox": wall} if wall else {}),
+                        # ⟨1.31⟩ §53 the model the turn ran on and how hard it thought, as the
+                        # runner applied it (absent from a runner < 0.3.5)
+                        **made_with(j),
                     },
                     hub=hub,
                     attachments=files,
@@ -414,6 +417,18 @@ async def _wake_or_say(tx: Tx, w: dict[str, Any], reason: str) -> None:
     else:
         why = "کار راه نیفتاد؛ «ادامه بده» را بزنید"
     await OR._append_steps(tx, rep["id"], [OR._step(SA.SYSTEM_FA, f"کار کارگاه تمام شد ولی {why}")])
+
+
+def made_with(j: dict[str, Any]) -> dict[str, str]:
+    """⟨1.31⟩ §53 {model, effort} of a turn: the model the hub asked for and the effort its
+    runner says it passed to Claude Code (a runner older than 0.3.5 passes none and says none)."""
+    args, result = j.get("args") or {}, j.get("result") or {}
+    out: dict[str, str] = {}
+    if isinstance(args.get("model"), str) and args.get("hands"):
+        out["model"] = str(args["model"])[:64]
+    if result.get("effort") in ("low", "medium", "high", "xhigh", "max"):
+        out["effort"] = str(result["effort"])
+    return out
 
 
 def wall_of(j: dict[str, Any]) -> tuple[str | None, str | None]:

@@ -71,3 +71,51 @@ test_the_advisor_reads_any_companys_connections if {
 		"target": {"company": "FX", "charter": "advisor"},
 	}
 }
+
+# ⟨1.31⟩ §47, §48 -------------------------------------------------------------
+test_a_writer_claims_the_topic_of_its_own_work if {
+	internal.allow with input as {
+		"principal": group_agent("TY-MEDIA-01", "TY", "company", "employee", "MEDIA"),
+		"op": "topic.claim",
+		"target": {"company": "TY", "assigned": true},
+	}
+}
+
+test_no_topic_for_a_work_that_is_not_its_own if {
+	not internal.allow with input as {
+		"principal": group_agent("TY-MEDIA-01", "TY", "company", "employee", "MEDIA"),
+		"op": "topic.claim",
+		"target": {"company": "TY", "assigned": false},
+	}
+	not internal.allow with input as {
+		"principal": group_agent("TY-MEDIA-01", "TY", "company", "employee", "MEDIA"),
+		"op": "topic.claim",
+		"target": {"company": "FX", "assigned": true},
+	}
+}
+
+test_a_system_role_claims_no_topic if {
+	not internal.allow with input as {
+		"principal": group_agent("TY-SYS", "TY", "company", "system", null),
+		"op": "topic.claim",
+		"target": {"company": "TY", "assigned": true},
+	}
+}
+
+test_the_narrator_is_set_from_the_owners_order_only if {
+	internal.allow with input as {
+		"principal": group_agent("TY-MEDIA-MGR", "TY", "company", "manager", "MEDIA"),
+		"op": "narrator.set",
+		"target": {"company": "TY", "assigned": true},
+	}
+	not internal.allow with input as {
+		"principal": group_agent("TY-MEDIA-MGR", "TY", "company", "manager", "MEDIA"),
+		"op": "narrator.set",
+		"target": {"company": "TY", "assigned": false},
+	}
+	not internal.allow with input as {
+		"principal": {"kind": "service", "code": "groups", "role": "service"},
+		"op": "narrator.set",
+		"target": {"company": "TY", "assigned": true},
+	}
+}

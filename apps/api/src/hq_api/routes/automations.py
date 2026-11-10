@@ -265,6 +265,42 @@ async def propose_automation(
         if idem and idem.replay:
             return idem.replay
         co = await ctx.hub.companies.by_code(company) if company else holding
+        # ⟨1.31⟩ §50 «کارمند ۲۴ ساعته»: a plain routine the owner's own words in that open session
+        # ask for is his decision already: `on` in this request, no card and no seal
+        from hq_api.domain import hiring
+        from hq_api.domain import routines as RT
+
+        order = None
+        if RT.is_routine(rule):
+            said = await hiring.owner_words(tx, who, None)
+            if said is not None and RT.asks_for_a_routine(said[1]):
+                order = said[0]
+        if order is not None:
+            from hq_api.domain.gov_common import owner_tz
+
+            made = await RT.make(
+                tx, company_id=co.id, scoped=company is not None, sentence=sentence, rule=rule,
+                order=order, by=who,
+            )  # fmt: skip
+            await ctx.audit(
+                tx,
+                company_id=co.id,
+                action="automation.routine",
+                action_class="A1",
+                target_kind="automation",
+                target_ref=made["ref"],
+                summary=f"a standing routine the owner asked for in {order}, made by {who.code}",
+            )
+            titles = AU.role_titles(ctx.hub.charters)
+            shown = RT.view(made, company, titles, await owner_tz(tx))
+            await RT.say(
+                tx, order, RT.MADE_FOR_FA.format(what=f"{shown.when_fa}، {shown.preview_fa}"),
+                owner=False,
+            )  # fmt: skip
+            result = AU.render(made, company, titles)
+            if idem:
+                await idem.store(tx, 201, result.model_dump(mode="json"))
+            return result
         row = await tx.one(
             """INSERT INTO growth.automations (company_id, scope, sentence_fa, rule, n8n_workflow)
                VALUES (:co, :sc, :s, CAST(:r AS jsonb), :n8n) RETURNING *""",

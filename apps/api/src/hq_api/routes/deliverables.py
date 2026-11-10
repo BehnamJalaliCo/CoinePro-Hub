@@ -431,6 +431,7 @@ async def publish_output(
             scheduled_at=body.scheduled_at,
             comment=body.comment.model_dump() if body.comment is not None else None,
             first_comment=body.first_comment,
+            hub=ctx.hub,
         )
         if idem:
             await idem.store(tx, 202, out.model_dump(mode="json"))
