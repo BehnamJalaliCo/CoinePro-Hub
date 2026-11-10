@@ -19,7 +19,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -48,7 +50,11 @@ import com.coinepro.hq.core.data.routineTimeFa
 import com.coinepro.hq.core.data.seatTitleFa
 import com.coinepro.hq.core.format.Tone
 import com.coinepro.hq.core.format.plainOfMd
+import com.coinepro.hq.core.data.accountsNamed
+import com.coinepro.hq.core.data.publishes
+import com.coinepro.hq.core.net.ApiException
 import com.coinepro.hq.core.net.HubFeature
+import com.coinepro.hq.core.net.MemberPublish
 import com.coinepro.hq.core.net.Playbook
 import com.coinepro.hq.core.net.PlaybookRoutine
 import com.coinepro.hq.core.net.PlaybookSeat
@@ -58,8 +64,11 @@ import com.coinepro.hq.designsystem.BtnSize
 import com.coinepro.hq.designsystem.BtnVariant
 import com.coinepro.hq.designsystem.DIcon
 import com.coinepro.hq.designsystem.Divan
+import com.coinepro.hq.designsystem.Expand
+import com.coinepro.hq.designsystem.FilterChip
 import com.coinepro.hq.designsystem.HqButton
 import com.coinepro.hq.designsystem.HqCard
+import com.coinepro.hq.designsystem.HqSwitch
 import com.coinepro.hq.designsystem.IconBtn
 import com.coinepro.hq.designsystem.Md
 import com.coinepro.hq.designsystem.ModelMark
@@ -73,6 +82,7 @@ import com.coinepro.hq.ui.LocalToasts
 import com.coinepro.hq.ui.activity
 import com.coinepro.hq.ui.rememberAction
 import com.coinepro.hq.ui.rememberQuery
+import com.coinepro.hq.ui.v14.HqSheet
 import com.coinepro.hq.ui.v29.Para
 import com.coinepro.hq.ui.v29.plain
 import java.util.UUID
@@ -240,13 +250,103 @@ fun PlaybookCardView(card: TalkCard, pc: PlaybookCard, onRun: suspend (TalkCard,
             HqButton("باز کن", { nav.go("playbook/${pc.ref}") }, variant = if (rewrite || pb?.draft == true) BtnVariant.SILVER else BtnVariant.SECONDARY, size = BtnSize.SM, icon = DivanIcon.NEXT)
             if (!rewrite && pb?.draft == true) HqButton("مُهر کن", {
                 seal.run {
-                    val out = env.api.sealPlaybook(pc.ref) { a, t -> env.auth.stepUp(act, a, t) }
+                    // ⟨0.19.9⟩ §45 a working group that publishes is sealed with his standing word, as he asked; the line below says so
+                    val word = MemberPublish(mode = "auto").takeIf { publishes(pb) }
+                    val out = env.api.sealPlaybook(pc.ref, word) { a, t -> env.auth.stepUp(act, a, t) }
                     q?.set(out)
                     env.cache.invalidate(*PLAYBOOK_TAGS)
-                    toasts.ok("مُهر شد؛ کارهای روتینش از نوبت بعدی راه میافتند.")
+                    toasts.ok(sealedFa(out, word))
                 }
             }, variant = BtnVariant.PRIMARY, size = BtnSize.SM, icon = DivanIcon.SEAL, loading = seal.busy)
             if (rewrite && (card.state == "offered" || card.state == "failed")) HqButton("نه", { no.run { onDismiss(card) } }, variant = BtnVariant.TEXT, size = BtnSize.SM, loading = no.busy)
+        }
+        if (!rewrite && pb?.draft == true && publishes(pb)) Text(
+            "با مُهر، از نوبت بعد خروجی هر روز خودکار منتشر میشود؛ در صفحه‌ی کارگروه میشود خاموشش کرد.",
+            style = Divan.type.micro, color = c.textMuted,
+        )
+    }
+}
+
+/** What the seal's toast says: the routines start, and whether each day's output goes out by itself. */
+internal fun sealedFa(out: Playbook, word: MemberPublish?): String = when {
+    word?.auto != true -> "مُهر شد؛ کارهای روتینش از نوبت بعدی راه میافتند."
+    out.members.any { it.publish.auto } -> "مُهر شد؛ از نوبت بعد خودش میسازد و خودکار منتشر میکند."
+    // a hub before §45 seals it and does not know the standing word yet
+    else -> "مُهر شد. انتشار خودکار بعد از به‌روز شدن هاب روشن میشود؛ تا آن وقت هر خروجی منتظر تأیید تو است."
+}
+
+// ------------------------------------------------------- the standing word --
+/**
+ * ⟨0.19.9⟩ §45 The owner's standing word, asked where he seals a working group or gives it to a company (his words, 2026-11-10:
+ * «به صورت خودکار از روز دوم انجام بشه … نه اینکه هر بار من تایید کنم»). On: each day's package goes out by itself.
+ */
+@Composable
+fun StandingChoice(value: MemberPublish, onChange: (MemberPublish) -> Unit, modifier: Modifier = Modifier) {
+    val c = Divan.colors
+    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("انتشار خودکار", style = Divan.type.bodyStrong, color = c.textPrimary)
+                Text(
+                    if (value.auto) "خروجی هر روز بی تأیید تو منتشر میشود. هر وقت خواستی خاموشش کن."
+                    else "هر خروجی منتظر «تأیید و انتشار» تو میماند.",
+                    style = Divan.type.micro, color = c.textMuted,
+                )
+            }
+            HqSwitch(value.auto, { onChange(value.copy(mode = if (it) "auto" else "ask")) }, "انتشار خودکار")
+        }
+        Expand(value.auto) { FilterChip("استوری هم بشود", value.story, { onChange(value.copy(story = !value.story)) }) }
+    }
+}
+
+/** A member's standing word in one line: where its daily output goes by itself, or that each waits for him. */
+internal fun standingFa(p: MemberPublish): String = when {
+    !p.auto -> "هر بار بپرس"
+    else -> listOfNotNull("خودکار", p.account?.let { "\u2066@$it\u2069" }, "استوری هم".takeIf { p.story }).joinToString(" · ")
+}
+
+/**
+ * One member's standing word under its row: a switch, his tap, no passkey. A company with several accounts is asked which one (the
+ * hub names them); a hub before §45 has no such route, said once and then not offered.
+ */
+@Composable
+private fun StandingRow(group: String, company: String, value: MemberPublish, onChanged: (MemberPublish) -> Unit) {
+    val env = LocalEnv.current
+    val toasts = LocalToasts.current
+    val c = Divan.colors
+    val go = rememberAction()
+    var picking by remember { mutableStateOf<List<String>>(emptyList()) }
+    suspend fun say(next: MemberPublish) {
+        try {
+            val out = env.api.gated(HubFeature.STANDING_PUBLISH) { setMemberPublish(group, company, next) }
+            if (out == null) {
+                toasts.info("این نسخه‌ی هاب هنوز انتشار خودکار ندارد؛ بعد از به‌روز شدن هاب می‌آید.")
+                return
+            }
+            picking = emptyList()
+            env.cache.invalidate(*PLAYBOOK_TAGS)
+            onChanged(out.publish)
+            toasts.ok(if (out.publish.auto) "از نوبت بعد خودکار منتشر میشود." else "از این به بعد هر خروجی منتظر تأیید تو است.")
+        } catch (e: ApiException) {
+            val named = accountsNamed(e.fields["account"])
+            if (e.status != 422 || named.isEmpty()) throw e
+            e.logged?.let { env.api.failures?.forget(it) }
+            picking = named
+        }
+    }
+    Row(
+        Modifier.fillMaxWidth().padding(start = 24.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text("انتشار خودکار", style = Divan.type.caption, color = c.textSecondary)
+            Text(standingFa(value), style = Divan.type.micro, color = if (value.auto) c.goldInk else c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        HqSwitch(value.auto, { on -> go.run { say(value.copy(mode = if (on) "auto" else "ask")) } }, "انتشار خودکار", enabled = !go.busy)
+    }
+    if (picking.isNotEmpty()) HqSheet({ picking = emptyList() }, "کدام حساب؟", sub = "خروجی هر روز این کارگروه به همین حساب میرود") {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (a in picking) FilterChip("@$a", false, { go.run { say(value.copy(mode = "auto", account = a)) } }, figure = true)
         }
     }
 }
@@ -388,12 +488,20 @@ fun MembersBlock(pb: Playbook) {
     val nav = LocalNav.current
     val c = Divan.colors
     val companies = com.coinepro.hq.ui.rememberCompanies()
+    val gaps by LocalEnv.current.api.gaps.missing.collectAsState()
+    // what he just said, shown at once (the playbook is read again behind it)
+    val said = remember(pb.ref) { mutableStateMapOf<String, MemberPublish>() }
     Column {
         if (pb.members.isEmpty()) Text("هنوز هیچ شرکتی عضو نیست.", style = Divan.type.caption, color = c.textMuted, modifier = Modifier.padding(vertical = 8.dp))
         pb.members.forEachIndexed { i, m ->
             if (i > 0) HorizontalDivider(color = c.lineDivider)
             val name = m.nameFa.ifBlank { com.coinepro.hq.ui.companyOf(companies, m.company).nameFa }
             MemberRow(m.company, name, m.state, m.order?.let { o -> { nav.go("session/$o") } })
+            // ⟨0.19.9⟩ §45 his standing word for this company (a working group that publishes, on a hub that knows the route)
+            val group = pb.group
+            if (group != null && pb.sealed && publishes(pb) && HubFeature.STANDING_PUBLISH !in gaps) {
+                StandingRow(group, m.company, said[m.company] ?: m.publish) { said[m.company] = it }
+            }
         }
     }
 }

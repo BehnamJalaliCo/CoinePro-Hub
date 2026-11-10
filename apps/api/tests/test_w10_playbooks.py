@@ -364,20 +364,18 @@ async def test_the_holder_drafts_a_playbook_the_owner_edits_and_seals_it(
         "SELECT c.id FROM talk.cards c JOIN talk.conversations v ON v.id = c.conversation_id "
         "WHERE v.ref = $1 AND c.kind = 'playbook' AND c.payload->>'draft' IS NULL", conv))})  # fmt: skip
     assert r.status_code == 200 and r.json()["made"] == [pref]
-    # the seal: 🔏 playbook.seal on the ref
+    # the seal: the owner's tap (⟨§45⟩ no passkey since 2026-11-10: it is for money, deleting
+    # for good, keys and access, a destructive command)
     r = await client.post(f"/api/v1/playbooks/{pref}/seal", headers=owner)
-    assert r.status_code == 403 and r.json()["code"] == "step_up_required"
-    wrong = await step_up(hub, owner_session["session_id"], "playbook.seal", "PB-9999")
-    r = await client.post(f"/api/v1/playbooks/{pref}/seal", headers={**owner, **wrong})
-    assert r.status_code == 403
-    su_h = await step_up(hub, owner_session["session_id"], "playbook.seal", pref)
-    r = await client.post(f"/api/v1/playbooks/{pref}/seal", headers={**owner, **su_h})
     assert r.status_code == 200, r.text
     pb = r.json()
     gkey = PB.group_key(pref)
     assert pb["state"] == "sealed" and pb["sealed_at"] and pb["group"] == gkey
     [member] = pb["members"]
-    assert member == {"company": co, "name_fa": f"شرکت آزمایشی {co}", "state": "on", "order": ref}
+    # ⟨§45⟩ without his standing word each output waits for his tap
+    asks = {"mode": "ask", "account": None, "story": False, "since": None}
+    assert member == {"company": co, "name_fa": f"شرکت آزمایشی {co}", "state": "on", "order": ref,
+                      "publish": asks}  # fmt: skip
     # a working group in the database: eligibility `chosen`, on, version 1, the playbook named
     r = await client.get(f"/api/v1/groups/{gkey}", headers=owner)
     assert r.status_code == 200, r.text
@@ -440,14 +438,13 @@ async def test_the_holder_drafts_a_playbook_the_owner_edits_and_seals_it(
         )
         == 1
     )
-    # audited, with the step-up
-    assert (
-        await su.fetchval(
-            "SELECT step_up FROM audit.entries WHERE action = 'playbook.seal' AND target_ref = $1",
-            pref,
-        )
-        is True
+    # audited as the owner's (A3), without a step-up
+    row = await su.fetchrow(
+        "SELECT step_up, action_class, actor_kind FROM audit.entries "
+        "WHERE action = 'playbook.seal' AND target_ref = $1",
+        pref,
     )
+    assert (row["step_up"], row["action_class"], row["actor_kind"]) == (False, "A3", "owner")
 
 
 # ================================================= C. given to another company or platform ==
@@ -563,9 +560,8 @@ async def test_a_sealed_playbook_is_given_as_is_or_adapted_in_a_new_session_and_
     [m] = r.json()["members"]
     assert m["company"] == third["code"] and m["order"] == new_ref
     assert PB.group_key(child["ref"]) != gkey
-    # the retire: 🔏, the group off (its routines stop for every member), nothing deleted
-    r = await client.post(f"/api/v1/playbooks/{pref}/retire", headers=owner)
-    assert r.status_code == 403
+    # the retire: the owner's tap (⟨§45⟩), the group off (its routines stop for every member),
+    # nothing deleted; a client that still sends a step-up assertion is answered the same
     su_h = await step_up(hub, owner_session["session_id"], "playbook.retire", pref)
     r = await client.post(f"/api/v1/playbooks/{pref}/retire", headers={**owner, **su_h})
     assert r.status_code == 200, r.text

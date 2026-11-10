@@ -18,9 +18,11 @@ import { FaPara, FaText } from '@/components/v29/text';
 import { errText, field } from '@/components/v31/kit';
 import { useCompanies } from '@/lib/api/hooks';
 import {
-  HELPER_FA, PB_STATE_FA, PLATFORMS, PLATFORM_FA, useDraftPlaybook, usePlaybook, usePlaybookActions, usePlaybooks,
+  HELPER_FA, PB_STATE_FA, PLATFORMS, PLATFORM_FA, publishes, useDraftPlaybook, usePlaybook, usePlaybookActions, usePlaybooks,
   type Playbook, type PlaybookPatch, type PlaybookPlatform, type PlaybookRoutine, type PlaybookSeat, type PlaybookState,
 } from '@/lib/api/v40';
+import { accountsNamed, publishRule, standingFa, useMemberPublish, type MemberPublish } from '@/lib/api/v44';
+import { ApiError } from '@/lib/api/client';
 import { cx, jDate } from '@/lib/format';
 
 const DAY_FA: Record<string, string> = { SA: 'شنبه', SU: 'یکشنبه', MO: 'دوشنبه', TU: 'سه‌شنبه', WE: 'چهارشنبه', TH: 'پنجشنبه', FR: 'جمعه' };
@@ -177,10 +179,71 @@ export function PlaybookCard({ refId, fallback }: { refId: string; fallback: { t
         <Link href={`/playbooks/${encodeURIComponent(refId)}`} className="inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-strong px-3 text-[12px] font-semibold text-ink hover:bg-hover"><Icon name="next" size={16} />باز کن</Link>
         {pb?.state === 'draft' ? (
           <Button size="sm" variant="primary" icon="seal" loading={act.seal.isPending}
-            onClick={() => act.seal.mutate(undefined, { onSuccess: () => toast({ tone: 'ok', text: 'کارگروه مُهر شد.' }), onError: (e) => toast({ tone: 'error', text: errText(e, 'مُهر نشد.') }) })}>مُهر کن</Button>
+            onClick={() => act.seal.mutate(publishes(pb) ? { mode: 'auto' } : undefined, { onSuccess: (out) => toast({ tone: 'ok', text: sealedFa(out, publishes(pb)) }), onError: (e) => toast({ tone: 'error', text: errText(e, 'مُهر نشد.') }) })}>مُهر کن</Button>
         ) : null}
       </footer>
+      {pb?.state === 'draft' && publishes(pb) ? <p className="text-[11px] leading-5 text-muted">با مُهر، از نوبت بعد خروجی هر روز خودکار منتشر میشود؛ در صفحه‌ی کارگروه میشود خاموشش کرد.</p> : null}
     </section>
+  );
+}
+
+/** What the seal's toast says: the routines start, and whether each day's output goes out by itself (a hub before §45 does not know the word). */
+const sealedFa = (out: Playbook, auto: boolean) => (!auto ? 'کارگروه مُهر شد.'
+  : out.members?.some((m) => m.publish?.mode === 'auto') ? 'مُهر شد؛ از نوبت بعد خودش میسازد و خودکار منتشر میکند.'
+  : 'مُهر شد. انتشار خودکار بعد از به‌روز شدن هاب روشن میشود؛ تا آن وقت هر خروجی منتظر تأیید تو است.');
+
+// ====================================================================================== the standing word ==
+/**
+ * ⟨0.19.9⟩ §45 The owner's standing word, asked where he seals a working group or gives it to a company (his words, 2026-11-10:
+ * «به صورت خودکار از روز دوم انجام بشه … نه اینکه هر بار من تایید کنم»). On: each day's package goes out by itself.
+ */
+export function StandingChoice({ value, onChange }: { value: MemberPublish; onChange: (v: MemberPublish) => void }) {
+  const auto = value.mode === 'auto';
+  return (
+    <div className="flex flex-col gap-2 rounded-[12px] bg-tile p-3" data-testid="standing">
+      <label className="flex items-center gap-3">
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <b className="text-[14px] text-ink">انتشار خودکار</b>
+          <span className="text-[11px] leading-5 text-muted">{auto ? 'خروجی هر روز بی تأیید تو منتشر میشود. هر وقت خواستی خاموشش کن.' : 'هر خروجی منتظر «تأیید و انتشار» تو میماند.'}</span>
+        </span>
+        <input type="checkbox" checked={auto} onChange={(e) => onChange({ ...value, mode: e.target.checked ? 'auto' : 'ask' })} aria-label="انتشار خودکار" className="size-5 flex-none accent-[var(--hq-gold-ink)]" />
+      </label>
+      {auto ? <div><FilterChip selected={!!value.story} onClick={() => onChange({ ...value, story: !value.story })}>استوری هم بشود</FilterChip></div> : null}
+    </div>
+  );
+}
+
+/** One member's standing word: a switch, his tap, no passkey. A company with several accounts is asked which one. */
+function StandingRow({ group, company, value }: { group: string; company: string; value: MemberPublish | undefined }) {
+  const toast = useToast();
+  const set = useMemberPublish(group);
+  const [picking, setPicking] = useState<string[]>([]);
+  const cur: MemberPublish = value ?? { mode: 'ask' };
+  const say = (next: MemberPublish) => set.mutate({ company, publish: next }, {
+    onSuccess: (m) => { setPicking([]); toast({ tone: 'ok', text: m.publish.mode === 'auto' ? 'از نوبت بعد خودکار منتشر میشود.' : 'از این به بعد هر خروجی منتظر تأیید تو است.' }); },
+    onError: (e) => {
+      const named = e instanceof ApiError && e.status === 422 ? accountsNamed(e.fields?.account) : [];
+      if (named.length) setPicking(named);
+      else toast({ tone: 'error', text: errText(e, 'انجام نشد؛ دوباره بزن.') });
+    },
+  });
+  return (
+    <div className="flex flex-col gap-2 ps-7" data-standing={company}>
+      <label className="flex items-center gap-3">
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="text-[12px] text-sec">انتشار خودکار</span>
+          <span className={cx('truncate text-[11px]', cur.mode === 'auto' ? 'text-gold-ink' : 'text-muted')}>{standingFa(cur)}</span>
+        </span>
+        <input type="checkbox" checked={cur.mode === 'auto'} disabled={set.isPending} aria-label={`انتشار خودکار ${company}`}
+          onChange={(e) => say({ ...cur, mode: e.target.checked ? 'auto' : 'ask' })} className="size-5 flex-none accent-[var(--hq-gold-ink)]" />
+      </label>
+      {picking.length ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[12px] text-sec">کدام حساب؟</span>
+          {picking.map((a) => <FilterChip key={a} selected={false} onClick={() => say({ ...cur, mode: 'auto', account: a })}><bdi className="fig">@{a}</bdi></FilterChip>)}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -196,8 +259,11 @@ function ApplyDialog({ pb, open, onOpenChange }: { pb: Playbook; open: boolean; 
   const [note, setNote] = useState('');
   const [asIs, setAsIs] = useState(false);
   const sealed = pb.state === 'sealed';
+  // ⟨0.19.9⟩ §45 with «بدون تغییر», his standing word for that company (as the group's first member has it)
+  const [word, setWord] = useState<MemberPublish>({ mode: pb.members?.some((m) => m.publish?.mode === 'auto') ? 'auto' : 'ask', story: pb.members?.some((m) => m.publish?.story) });
+  const standing = sealed && asIs && publishes(pb);
   const go = () => act.apply.mutate(
-    { company, platform, note_fa: note.trim() || undefined, ...(sealed && asIs ? { as_is: true } : {}) },
+    { company, platform, note_fa: note.trim() || undefined, ...(sealed && asIs ? { as_is: true } : {}), ...(standing ? { publish: publishRule(word) } : {}) },
     {
       onSuccess: (r) => {
         onOpenChange(false);
@@ -230,6 +296,7 @@ function ApplyDialog({ pb, open, onOpenChange }: { pb: Playbook; open: boolean; 
         {sealed ? (
           <label className="flex items-center gap-2 text-[13px] text-ink"><input type="checkbox" checked={asIs} onChange={(e) => setAsIs(e.target.checked)} className="size-5 accent-[var(--hq-gold-ink)]" />بدون تغییر</label>
         ) : null}
+        {standing ? <StandingChoice value={word} onChange={setWord} /> : null}
         {asIs && sealed
           ? <p className="text-[12px] leading-5 text-muted">همین کارگروه، همان‌طور که هست، عضوی تازه میگیرد؛ جلسه‌ی تازه‌ای باز نمیشود.</p>
           : (
@@ -257,11 +324,15 @@ function Members({ pb }: { pb: Playbook }) {
       {members.length ? (
         <ul className="flex flex-col gap-1.5">
           {members.map((m) => (
-            <li key={m.company} className="flex items-center gap-2.5 rounded-[10px] bg-tile px-3 py-2" data-member={m.company}>
-              <CompanyMark code={m.company} height={14} mono />
-              <span className="min-w-0 flex-1 text-[13px] font-semibold">{m.name_fa}</span>
-              <Pill tone={m.state === 'on' ? 'pos' : 'warn'} dot>{m.state === 'on' ? 'فعال' : 'متوقف'}</Pill>
-              {m.order ? <Link href={`/s/${encodeURIComponent(m.order)}`} className="text-[12px] font-semibold text-gold-ink hover:underline">جلسه‌اش</Link> : null}
+            <li key={m.company} className="flex flex-col gap-2 rounded-[10px] bg-tile px-3 py-2" data-member={m.company}>
+              <div className="flex items-center gap-2.5">
+                <CompanyMark code={m.company} height={14} mono />
+                <span className="min-w-0 flex-1 text-[13px] font-semibold">{m.name_fa}</span>
+                <Pill tone={m.state === 'on' ? 'pos' : 'warn'} dot>{m.state === 'on' ? 'فعال' : 'متوقف'}</Pill>
+                {m.order ? <Link href={`/s/${encodeURIComponent(m.order)}`} className="text-[12px] font-semibold text-gold-ink hover:underline">جلسه‌اش</Link> : null}
+              </div>
+              {/* ⟨0.19.9⟩ §45 his standing word for this company (a sealed working group that publishes) */}
+              {pb.group && pb.state === 'sealed' && publishes(pb) ? <StandingRow group={pb.group} company={m.company} value={m.publish} /> : null}
             </li>
           ))}
         </ul>
@@ -299,9 +370,12 @@ function PlaybookView({ pb }: { pb: Playbook }) {
   const st = PB_STATE_FA[pb.state];
   const [sealingNow, setSealingNow] = useState(false);
   const save = (diff: PlaybookPatch) => act.patch.mutate(diff, { onSuccess: () => toast({ tone: 'ok', text: 'ذخیره شد.' }), onError: (e) => toast({ tone: 'error', text: errText(e, 'ذخیره نشد.') }) });
+  // ⟨0.19.9⟩ §45 his standing word, given with the seal: on, as he asked («به صورت خودکار از روز دوم انجام بشه»)
+  const [word, setWord] = useState<MemberPublish>({ mode: 'auto' });
   const seal = (before?: PlaybookPatch) => {
     setSealingNow(true);
-    const run = () => act.seal.mutate(undefined, { onSuccess: () => toast({ tone: 'ok', text: 'کارگروه مُهر شد.' }), onError: (e) => toast({ tone: 'error', text: errText(e, 'مُهر نشد.') }), onSettled: () => setSealingNow(false) });
+    const said = publishes(pb) ? word : undefined;
+    const run = () => act.seal.mutate(said, { onSuccess: (out) => toast({ tone: 'ok', text: sealedFa(out, said?.mode === 'auto') }), onError: (e) => toast({ tone: 'error', text: errText(e, 'مُهر نشد.') }), onSettled: () => setSealingNow(false) });
     if (before) act.patch.mutate(before, { onSuccess: run, onError: (e) => { setSealingNow(false); toast({ tone: 'error', text: errText(e, 'ذخیره نشد.') }); } });
     else run();
   };
@@ -330,7 +404,8 @@ function PlaybookView({ pb }: { pb: Playbook }) {
       {pb.note_fa ? <Card className="p-4" aria-label="یادداشت پیش‌نویس"><p className="text-[12px] leading-6 text-sec"><span className="font-semibold text-ink">چیزهایی که پیش‌نویس‌کننده کنار گذاشت: </span><FaText text={pb.note_fa} /></p></Card> : null}
 
       {draft ? (
-        <DraftEditor key={pb.version} pb={pb} saving={act.patch.isPending && !sealingNow} sealing={sealingNow} onSave={save} onSeal={seal} />
+        <DraftEditor key={pb.version} pb={pb} saving={act.patch.isPending && !sealingNow} sealing={sealingNow} onSave={save} onSeal={seal}
+          standing={publishes(pb) ? <StandingChoice value={word} onChange={setWord} /> : null} />
       ) : (
         <Card className="p-5" aria-label="کارگروه"><PlaybookBody pb={pb} /></Card>
       )}
@@ -356,7 +431,9 @@ function Area({ label, children }: { label: string; children: ReactNode }) {
   return <label className="flex flex-col gap-1.5"><span className="text-[12px] text-sec">{label}</span>{children}</label>;
 }
 
-function DraftEditor({ pb, saving, sealing, onSave, onSeal }: { pb: Playbook; saving: boolean; sealing: boolean; onSave: (diff: PlaybookPatch) => void; onSeal: (before?: PlaybookPatch) => void }) {
+function DraftEditor({ pb, saving, sealing, onSave, onSeal, standing }: {
+  pb: Playbook; saving: boolean; sealing: boolean; onSave: (diff: PlaybookPatch) => void; onSeal: (before?: PlaybookPatch) => void; standing?: ReactNode;
+}) {
   const [title, setTitle] = useState(pb.title_fa);
   const [purpose, setPurpose] = useState(pb.purpose_fa);
   const [platform, setPlatform] = useState<PlaybookPlatform>(pb.platform);
@@ -438,6 +515,8 @@ function DraftEditor({ pb, saving, sealing, onSave, onSeal }: { pb: Playbook; sa
       {pb.kpis?.length || pb.connections?.length ? (
         <Card className="p-5" aria-label="شاخص‌ها و اتصال‌ها"><PlaybookBody pb={{ ...pb, purpose_fa: '', seats: [], routines: [], rules_fa: [] }} /></Card>
       ) : null}
+
+      {standing}
 
       <div className="sticky bottom-3 z-10 flex flex-wrap items-center gap-2 rounded-[14px] border border-div bg-raised p-3 shadow-[0_8px_24px_rgba(0,0,0,.25)]">
         <Button variant="secondary" icon="edit" disabled={!dirty || bad} loading={saving} onClick={() => onSave(diff)}>ذخیره</Button>

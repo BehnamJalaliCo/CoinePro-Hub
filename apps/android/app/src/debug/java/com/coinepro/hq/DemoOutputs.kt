@@ -31,6 +31,8 @@ internal class OutputsDemo(private val store: MutableMap<String, Pair<Int, JsonE
     // ⟨0.19.8⟩ §44.5 «تأیید و انتشار»: the publishes of the session's outputs, newest first, and the accounts of its company.
     private val published = mutableMapOf<String, MutableList<JsonObject>>()
     private val sessionOutputs = mapOf("O-000950" to listOf("coineprofx", "coineprofx.academy"), "O-000951" to listOf("coineprofx"))
+    /** ⟨0.19.9⟩ §45 outputs a working group's routine made (no session), with the group's name. Declared before `init` fills it. */
+    private val groupOutputs = mutableMapOf<String, String>()
     private var nextJob = 10
 
     init {
@@ -68,6 +70,19 @@ internal class OutputsDemo(private val store: MutableMap<String, Pair<Int, JsonE
             )
             store["/deliverables/$ref"] = 200 to JsonObject(d + ("attachments" to JsonArray(files)))
         }
+        // ⟨0.19.9⟩ §45 a working group's daily output (no session): the package went out on the owner's standing word
+        val caption = file("/demo/fx-reel-levels-caption.txt", "caption.txt", "text/plain", "file")
+        val daily = deliverable(
+            "O-000952", "TY", "W-000340", agent("TY-MEDIA-02", "TY", "MEDIA", "سناریست"), "خروجی کارگاه: ریلز روز «حد ضرر در ۳۰ ثانیه»",
+            "ریلز امروز کارگروه با کاور و کپشن آماده شد.",
+            "ریلز **حد ضرر در ۳۰ ثانیه** آماده است: ویدیو، کاور و کپشن در همین خروجی.", at(40), produced = workshop,
+        )
+        store["/deliverables/O-000952"] = 200 to JsonObject(daily + ("attachments" to JsonArray(listOf(reel, cover, caption))))
+        groupOutputs["O-000952"] = "تولید محتوای روزانه‌ی اینستاگرام"
+        published["O-000952"] = mutableListOf(
+            publish("O-000952", "jp-9", reel, "story", "tradeyar", "publishing", at = at(38), auto = true),
+            publish("O-000952", "jp-8", reel, "reel", "tradeyar", "published", url = "https://www.instagram.com/reel/C9xStopLs/", at = at(38), cover = "gold-levels-cover.webp", auto = true),
+        )
         published["O-000951"] = mutableListOf(
             publish("O-000951", "jp-3", story, "story", "coineprofx", "failed", note = "حساب امروز به سقف انتشار رسیده است.", at = at(4)),
             publish("O-000951", "jp-2", cover, "post", "coineprofx", "publishing", at = at(1)),
@@ -88,7 +103,11 @@ internal class OutputsDemo(private val store: MutableMap<String, Pair<Int, JsonE
         if (poster != null) put("variants", buildJsonObject { put("poster", poster) })
     }
 
-    private fun publish(output: String, job: String, f: JsonObject, kind: String, account: String, state: String, url: String? = null, note: String? = null, at: String, cover: String? = null) = buildJsonObject {
+    private fun publish(
+        output: String, job: String, f: JsonObject, kind: String, account: String, state: String, url: String? = null, note: String? = null, at: String,
+        cover: String? = null, auto: Boolean = false,
+    ) = buildJsonObject {
+        put("auto", auto)
         put("job", job); put("output", output); put("file_id", f.str("id")); put("file_name", f.str("name")); put("channel", "instagram"); put("kind", kind)
         put("cover_name", cover?.let(::JsonPrimitive) ?: JsonNull)
         put("account", account); put("state", state); put("url", url?.let(::JsonPrimitive) ?: JsonNull); put("note_fa", note?.let(::JsonPrimitive) ?: JsonNull)
@@ -97,11 +116,17 @@ internal class OutputsDemo(private val store: MutableMap<String, Pair<Int, JsonE
 
     /** `GET` the panel of an output (an output of no session: `order` null), `POST` the owner's tap. */
     private fun publishRoute(method: String, ref: String, body: JsonObject?): Pair<Int, JsonElement>? {
-        val accounts = sessionOutputs[ref]
+        val group = groupOutputs[ref]
+        val accounts = sessionOutputs[ref] ?: group?.let { listOf("tradeyar") }
         if (method == "GET") return 200 to buildJsonObject {
-            put("order", if (accounts == null) JsonNull else JsonPrimitive("F-0100")); put("channel", "instagram")
+            put("order", if (accounts == null || group != null) JsonNull else JsonPrimitive("F-0100")); put("channel", "instagram")
             put("accounts", JsonArray(accounts.orEmpty().map(::JsonPrimitive))); put("ready", accounts != null)
             put("publishes", JsonArray(published[ref].orEmpty()))
+            // ⟨0.19.9⟩ §45 every output is tapped here; a working group's carries its caption and the owner's standing word
+            put("tap", true)
+            put("caption", if (group != null) JsonPrimitive("حد ضرر را در ۳۰ ثانیه یاد بگیر.\n#تریدیار #حد_ضرر") else JsonNull)
+            put("group", if (group != null) JsonPrimitive("pb_1") else JsonNull); put("group_fa", group?.let(::JsonPrimitive) ?: JsonNull)
+            put("mode", if (group != null) JsonPrimitive("auto") else JsonNull)
         }
         if (method != "POST" || accounts == null) return null
         val fileId = body?.str("file_id") ?: return null

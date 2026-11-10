@@ -60,7 +60,7 @@ seed({
   routines: [{ key: 'article', title_fa: 'نوشتن مقاله‌ی هفته', seat: 'writer', schedule: 'FREQ=WEEKLY;BYDAY=SU;BYHOUR=9;BYMINUTE=0', brief_md: 'یک مقاله‌ی ۱۲۰۰ کلمه‌ای درباره‌ی موضوع هفته بنویس.', max_tokens: 40000 }],
   kpis: [], connections: ['wordpress'], rules_fa: ['هر مقاله دست‌کم یک تصویر و سه پیوند داخلی دارد.'],
   source: { order: 'F-0006', company: 'FX', conversation: null },
-  members: [{ company: 'FX', name_fa: NAME.FX!, state: 'on', order: 'F-0006' }],
+  members: [{ company: 'FX', name_fa: NAME.FX!, state: 'on', order: 'F-0006', publish: { mode: 'ask', account: null, story: false, since: null } }],
 });
 
 const playbookMd = (pb: Pb): string => [
@@ -77,6 +77,20 @@ export type Hooks = {
 };
 
 const FIELDS = ['title_fa', 'purpose_fa', 'platform', 'seats', 'routines', 'kpis', 'connections', 'rules_fa'];
+
+// ⟨0.19.9⟩ §45 the standing word: the accounts each company registered (FX has two, so its word asks which), and what the hub answers.
+const ASK = { mode: 'ask', account: null, story: false, since: null };
+const ACCOUNTS: Record<string, string[]> = { TY: ['tradeyar'], FX: ['coineprofx', 'coineprofx.academy'], PC: ['pro.chart'] };
+/** The word a body carries: null when it says nothing, a string (the accounts to pick from) when the company has several and none is named. */
+function wordOf(company: string, b: any): Record<string, unknown> | string | null {
+  if (!b || typeof b !== 'object' || !b.mode) return null;
+  if (b.mode !== 'auto') return ASK;
+  const mine = ACCOUNTS[company] ?? [];
+  const asked = b.account ? String(b.account).replace(/^@/, '') : mine.length === 1 ? mine[0]! : null;
+  if (mine.length && (!asked || !mine.includes(asked))) return `one of: ${mine.map((a) => `@${a}`).join(', ')}`;
+  return { mode: 'auto', account: asked, story: !!b.story, since: NOW() };
+}
+const pick = (accounts: string) => new Response(JSON.stringify({ type: 'about:blank', title: 'validation_failed', status: 422, code: 'validation_failed', message_fa: 'این شرکت چند حساب دارد؛ یکی را انتخاب کنید.', fields: { account: accounts } }), { status: 422, headers: { 'Content-Type': 'application/problem+json' } });
 
 export async function handle40(req: Request, p: string, hooks: Hooks): Promise<Response | null> {
   const m = req.method;
@@ -103,6 +117,17 @@ export async function handle40(req: Request, p: string, hooks: Hooks): Promise<R
     const st = new URL(req.url).searchParams.get('state');
     return json([...playbooks.values()].filter((x) => !st || x.state === st).sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)));
   }
+  // ⟨0.19.9⟩ §45 the owner's standing word for one member of a playbook's group (his tap, no step-up)
+  const gm = /^\/groups\/(pb_\d+)\/members\/([A-Z][A-Z0-9]{1,9})\/publish$/.exec(p);
+  if (gm && m === 'PUT') {
+    const of = [...playbooks.values()].find((x) => x.group === gm[1]);
+    const member = of?.members.find((x: any) => x.company === gm[2]);
+    if (!of || !member) return problem(404, 'not_found', 'این شرکت عضو این کارگروه نیست.');
+    const said = wordOf(gm[2]!, await body<any>());
+    if (typeof said === 'string') return pick(said);
+    member.publish = said ?? ASK;
+    return json({ group: gm[1], company: gm[2], state: member.state, seats: [], publish: member.publish });
+  }
   const pm = /^\/playbooks\/(PB-\d+)(?:\/(seal|apply|retire))?$/.exec(p);
   if (!pm) return null;
   const pb = playbooks.get(pm[1]!);
@@ -128,7 +153,8 @@ export async function handle40(req: Request, p: string, hooks: Hooks): Promise<R
     if (pb.state !== 'draft') return problem(409, 'conflict', 'این کارگروه پیش‌نویس نیست.');
     pb.state = 'sealed'; pb.sealed_at = NOW(); pb.group = `pb_${pm[1]!.slice(3).replace(/^0+/, '')}`;
     const co = pb.source.company;
-    pb.members = co ? [{ company: co, name_fa: NAME[co] ?? co, state: 'on', order: pb.source.order }] : [];
+    const said = co ? wordOf(co, (await body<any>())?.publish) : null;
+    pb.members = co ? [{ company: co, name_fa: NAME[co] ?? co, state: 'on', order: pb.source.order, publish: typeof said === 'object' && said ? said : ASK }] : [];
     return json(pb);
   }
   if (act === 'retire' && m === 'POST') {
@@ -144,8 +170,10 @@ export async function handle40(req: Request, p: string, hooks: Hooks): Promise<R
     if (pb.state === 'retired') return problem(409, 'conflict', 'این کارگروه بازنشسته شده است.');
     if (b.as_is) {
       if (pb.state !== 'sealed') return problem(409, 'conflict', 'بدون تغییر فقط برای کارگروه مُهرشده است.');
+      const said = wordOf(b.company, b.publish);
+      if (typeof said === 'string') return pick(said);
       let member = pb.members.find((x: any) => x.company === b.company);
-      if (!member) { member = { company: b.company, name_fa: NAME[b.company], state: 'on', order: null }; pb.members.push(member); }
+      if (!member) { member = { company: b.company, name_fa: NAME[b.company], state: 'on', order: null, publish: said ?? ASK }; pb.members.push(member); }
       return json({ playbook: pb, member, order: null, conversation: null });
     }
     const note = String(b.note_fa ?? '').trim();

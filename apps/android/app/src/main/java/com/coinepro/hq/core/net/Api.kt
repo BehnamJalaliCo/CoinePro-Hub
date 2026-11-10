@@ -1910,13 +1910,24 @@ class Api(
     /** The owner's light edit of a draft ([com.coinepro.hq.core.data.playbookPatch]: only what changed); a sealed one is a 409. */
     suspend fun patchPlaybook(ref: String, body: JsonObject): Playbook =
         send("PATCH", "/playbooks/${seg(ref)}", json.encodeToString(JsonElement.serializer(), body))
-    /** 🔏 `playbook.seal` on the ref (a routine action: no fingerprint, the hub answers with the token itself). */
-    suspend fun sealPlaybook(ref: String, stepUp: StepUp): Playbook =
-        call(write("POST", "/playbooks/${seg(ref)}/seal", JsonObject(emptyMap()), stepUp("playbook.seal", ref)), serializer())
+    /**
+     * The owner's seal of a working group (a routine action: no fingerprint; ⟨0.19.9⟩ a hub of §45 asks no step-up at all and one
+     * before it takes the token the hub itself answers with). [publish]: his standing word for the session's company, given with
+     * the seal (§45; a hub before it ignores it).
+     */
+    suspend fun sealPlaybook(ref: String, publish: MemberPublish? = null, stepUp: StepUp): Playbook =
+        call(write("POST", "/playbooks/${seg(ref)}/seal", com.coinepro.hq.core.data.sealBody(publish), stepUp("playbook.seal", ref)), serializer())
     /** §40.3 give it to [company]: a new session that adapts it there ([PlaybookApplied.order]), or, sealed and [asIs], the membership
-     *  at once. [key] is the press's own UUID. A retired playbook is a 409. */
-    suspend fun applyPlaybook(ref: String, company: String, platform: String?, noteFa: String?, asIs: Boolean, key: String): PlaybookApplied =
-        call(write("POST", "/playbooks/${seg(ref)}/apply", com.coinepro.hq.core.data.applyBody(company, platform, noteFa, asIs), null, key), serializer())
+     *  at once (⟨0.19.9⟩ with his standing word on publishing, [publish]). [key] is the press's own UUID. A retired playbook is a 409. */
+    suspend fun applyPlaybook(ref: String, company: String, platform: String?, noteFa: String?, asIs: Boolean, key: String, publish: MemberPublish? = null): PlaybookApplied =
+        call(write("POST", "/playbooks/${seg(ref)}/apply", com.coinepro.hq.core.data.applyBody(company, platform, noteFa, asIs, publish), null, key), serializer())
+    /**
+     * ⟨0.19.9⟩ §45 The owner's standing permission to publish, for one company in one working group ([key] is the group's): `auto`,
+     * each day's package goes out by itself from the next run; `ask`, each waits for his tap. His tap, no passkey. A company with
+     * several accounts and none named is a 422 whose `account` field names them.
+     */
+    suspend fun setMemberPublish(key: String, company: String, publish: MemberPublish): Membership =
+        send("PUT", "/groups/${seg(key)}/members/${seg(company)}/publish", json.encodeToString(JsonElement.serializer(), com.coinepro.hq.core.data.publishRule(publish)))
     /** 🔏 `playbook.retire`: its routines stop for every member; nothing is deleted. */
     suspend fun retirePlaybook(ref: String, stepUp: StepUp): Playbook =
         call(write("POST", "/playbooks/${seg(ref)}/retire", JsonObject(emptyMap()), stepUp("playbook.retire", ref)), serializer())

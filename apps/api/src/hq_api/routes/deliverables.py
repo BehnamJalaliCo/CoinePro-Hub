@@ -382,12 +382,15 @@ class OutputPublishIn(Model):
 @router.get("/deliverables/{ref}/publish", response_model=OR.PublishPanel, responses=E)
 async def output_publish_panel(ref: str, ctx: Ctx = Depends(owner_ctx)) -> OR.PublishPanel:
     """⟨2026-11-10⟩ §44.5 What the output's page shows of «تأیید و انتشار»: the session it
-    belongs to (`order: null` for an output of no session: no button), the company's Instagram
-    accounts, whether the publish path is registered, and this output's publishes."""
+    belongs to (`order: null` for an output of no session), the company's Instagram accounts,
+    whether the publish path is registered, and this output's publishes. ⟨§45⟩ `tap`: it can be
+    published by a tap (every output; a working group's daily output is tapped here); `caption`:
+    the text of its `caption.txt`, for the sheet; `group`, `group_fa`, `mode`: the working group
+    whose routine made it and the owner's standing word (`auto`: it goes out by itself)."""
     from hq_api.domain import session_publish as SPB
 
     async with ctx.tx() as tx:
-        return await SPB.panel(tx, ref)
+        return await SPB.panel(tx, ref, ctx.hub)
 
 
 @router.post(
@@ -398,8 +401,9 @@ async def publish_output(
     ref: str, body: OutputPublishIn, request: Request, ctx: Ctx = Depends(owner_ctx)
 ) -> Any:
     """⟨2026-11-10⟩ §44.5 «تأیید و انتشار» on a file of this output: the same as
-    `POST /orders/{order}/publish` for the session the output belongs to (`409` for an output of
-    no session). No step-up, no card. Requires `Idempotency-Key`."""
+    `POST /orders/{order}/publish` for the session the output belongs to; ⟨§45⟩ an output of no
+    session (a working group's daily output) is published the same way, with nothing said in a
+    session. No step-up, no card. Requires `Idempotency-Key`."""
     from hq_api.domain import session_publish as SPB
 
     async with ctx.tx() as tx:

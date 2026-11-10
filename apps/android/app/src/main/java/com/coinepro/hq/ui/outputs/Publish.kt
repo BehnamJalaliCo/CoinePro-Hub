@@ -68,8 +68,21 @@ internal fun kindsOf(f: FileRef): List<String> = if (f.kind == "video") listOf("
 /** The files of an output that can be published at all. */
 internal fun publishable(d: Deliverable): List<FileRef> = d.attachments.map(::kindFromMime).filter { it.kind == "video" || it.kind == "image" }
 
-/** The newest publish of one file (the hub lists them newest first). */
-internal fun publishOf(panel: PublishPanel, fileId: String): SessionPublish? = panel.publishes.firstOrNull { it.fileId == fileId }
+/** The image chosen as a reel's cover before he touches anything: the one named `cover…`, else the only one. */
+internal fun coverOf(images: List<FileRef>): FileRef? = images.firstOrNull { it.name.lowercase().startsWith("cover") } ?: images.singleOrNull()
+
+/**
+ * Where one file stands (the hub lists its publishes newest first): its reel or its post when there is one, else its story. ⟨0.19.9⟩
+ * The same video can go out as a reel and as a story (the standing word's «استوری هم»): the reel is the row, the story a line under it.
+ */
+internal fun publishOf(panel: PublishPanel, fileId: String): SessionPublish? =
+    panel.publishes.firstOrNull { it.fileId == fileId && it.kind != "story" } ?: panel.publishes.firstOrNull { it.fileId == fileId }
+
+/** The story of a file that also went out as a reel or a post (null when the story is the row itself). */
+internal fun storyOf(panel: PublishPanel, fileId: String): SessionPublish? =
+    panel.publishes.firstOrNull { it.fileId == fileId && it.kind == "story" }?.takeIf { publishOf(panel, fileId)?.kind != "story" }
+
+internal val STATE_FA = mapOf("publishing" to "در حال انتشار", "published" to "منتشر شد", "failed" to "انجام نشد", "waiting_seal" to "منتظر مُهر")
 
 /**
  * Under an output's files: nothing for an output of no session (or a hub that does not know the route yet), else one row per video
@@ -82,7 +95,8 @@ internal fun PublishSection(d: Deliverable) {
     // a hub before §44.5 has no such route: learnt once, then nothing is asked and nothing is shown
     val q = rememberQuery("publish:${d.ref}", "publish", "orders") { gated(HubFeature.SESSION_PUBLISH) { publishPanel(d.ref) } ?: PublishPanel() }
     val panel = q.data ?: return
-    if (panel.order == null) return
+    // ⟨0.19.9⟩ §45 a working group's daily output is no session's and is tapped here all the same (a hub of §45 says `tap`)
+    if (panel.order == null && !panel.tap) return
     val c = Divan.colors
     var asking by remember { mutableStateOf<FileRef?>(null) }
     // what the hub said of a file whose publish path is not connected yet (no job to list): kept while the page is open
@@ -94,10 +108,14 @@ internal fun PublishSection(d: Deliverable) {
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(horizontal = 12.dp, vertical = 4.dp)) {
             files.forEachIndexed { i, f ->
                 if (i > 0) HorizontalDivider(color = c.lineDivider)
-                PublishRow(f, publishOf(panel, f.id), notes[f.id]) { asking = f }
+                PublishRow(f, publishOf(panel, f.id), notes[f.id], storyOf(panel, f.id)) { asking = f }
             }
         }
-        Text("با تأیید شما همین فایل منتشر میشود؛ کارت و اثر انگشت ندارد.", style = Divan.type.micro, color = c.textMuted)
+        Text(
+            if (panel.mode == "auto") "کارگروه «${panel.groupFa ?: "این خروجی"}» خروجی هر روز را خودکار منتشر میکند؛ وضعش همین‌جاست."
+            else "با تأیید شما همین فایل منتشر میشود؛ کارت و اثر انگشت ندارد.",
+            style = Divan.type.micro, color = c.textMuted,
+        )
     }
     asking?.let { f ->
         PublishSheet(d, f, panel, onDismiss = { asking = null }) { out ->
@@ -110,7 +128,7 @@ internal fun PublishSection(d: Deliverable) {
 
 /** One file: its name, where its publish stands, and the one action that fits. */
 @Composable
-private fun PublishRow(f: FileRef, p: SessionPublish?, note: String?, onAsk: () -> Unit) {
+private fun PublishRow(f: FileRef, p: SessionPublish?, note: String?, story: SessionPublish? = null, onAsk: () -> Unit) {
     val c = Divan.colors
     val uri = LocalUriHandler.current
     Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -118,7 +136,9 @@ private fun PublishRow(f: FileRef, p: SessionPublish?, note: String?, onAsk: () 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Fig(f.name.ifBlank { "فایل" }, style = Divan.type.figureSmall, color = c.textPrimary)
             // the handle is Latin inside a Persian line: isolated left-to-right, so «@» stays in front of it
-            val where = p?.let { listOfNotNull(KIND_FA[it.kind], it.account?.let { a -> "\u2066@$a\u2069" }, it.coverName?.let { "با کاور" }).joinToString(" · ") }
+            val where = p?.let {
+                listOfNotNull(KIND_FA[it.kind], it.account?.let { a -> "\u2066@$a\u2069" }, it.coverName?.let { "با کاور" }, "خودکار".takeIf { _ -> it.auto }).joinToString(" · ")
+            }
             when {
                 p == null && note != null -> Text(note, style = Divan.type.micro, color = c.textSecondary)
                 p == null -> Text(if (f.kind == "video") "ویدیو · آماده‌ی انتشار" else "تصویر · آماده‌ی انتشار", style = Divan.type.micro, color = c.textMuted)
@@ -126,6 +146,10 @@ private fun PublishRow(f: FileRef, p: SessionPublish?, note: String?, onAsk: () 
                 p.state == "waiting_seal" -> Text(p.noteFa ?: "منتظر مُهر شما", style = Divan.type.micro, color = c.textSecondary)
                 else -> if (!where.isNullOrEmpty()) Text(where, style = Divan.type.micro, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
+            if (story != null) Text(
+                "استوری: ${STATE_FA[story.state] ?: story.state}",
+                style = Divan.type.micro, color = if (story.state == "failed") c.negative else c.textMuted,
+            )
         }
         when (p?.state) {
             null -> HqButton(if (note == null) "تأیید و انتشار" else "دوباره", onAsk, variant = if (note == null) BtnVariant.PRIMARY else BtnVariant.SECONDARY, size = BtnSize.SM, icon = DivanIcon.SEND)
@@ -157,10 +181,11 @@ internal fun PublishForm(d: Deliverable, f: FileRef, panel: PublishPanel, onDone
     val kinds = remember(f) { kindsOf(f) }
     var kind by rememberSaveable(f.id) { mutableStateOf(kinds.first()) }
     var account by rememberSaveable(f.id) { mutableStateOf(panel.accounts.singleOrNull()) }
-    var caption by rememberSaveable(f.id) { mutableStateOf("") }
-    // a reel goes out with its cover: the output's images (the one there is, chosen already)
+    // ⟨0.19.9⟩ §45 the caption its package carries (`caption.txt`) is already in place; he edits it or just taps
+    var caption by rememberSaveable(f.id) { mutableStateOf(panel.caption.orEmpty()) }
+    // a reel goes out with its cover: the output's images (the one named `cover…`, else the one there is, chosen already)
     val covers = remember(d, f) { if (f.kind == "video") publishable(d).filter { it.kind == "image" } else emptyList() }
-    var cover by rememberSaveable(f.id) { mutableStateOf(covers.singleOrNull()?.id) }
+    var cover by rememberSaveable(f.id) { mutableStateOf(coverOf(covers)?.id) }
     val key = rememberSaveable(f.id) { UUID.randomUUID().toString() }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         @Composable fun Label(t: String) = Text(t, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)

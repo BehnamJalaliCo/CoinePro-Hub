@@ -29690,6 +29690,86 @@
         "title": "Member",
         "type": "object"
       },
+      "MemberPublish": {
+        "description": "⟨§45⟩ The owner's standing word for one company in one working group: `auto`, the hub\npublishes each routine's package by itself; `ask` (the default), each waits for his tap.",
+        "properties": {
+          "account": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account"
+          },
+          "mode": {
+            "default": "ask",
+            "enum": [
+              "ask",
+              "auto"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Since"
+          },
+          "story": {
+            "default": false,
+            "title": "Story",
+            "type": "boolean"
+          }
+        },
+        "title": "MemberPublish",
+        "type": "object"
+      },
+      "MemberPublishIn": {
+        "additionalProperties": false,
+        "description": "⟨§45⟩ The owner's standing word for a company in a working group.",
+        "properties": {
+          "account": {
+            "anyOf": [
+              {
+                "maxLength": 65,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account"
+          },
+          "mode": {
+            "enum": [
+              "ask",
+              "auto"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "story": {
+            "default": false,
+            "title": "Story",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "title": "MemberPublishIn",
+        "type": "object"
+      },
       "MemberSeat": {
         "properties": {
           "blocked": {
@@ -29789,6 +29869,9 @@
               }
             ],
             "title": "Plan At"
+          },
+          "publish": {
+            "$ref": "#/components/schemas/MemberPublish"
           },
           "seats": {
             "items": {
@@ -37089,6 +37172,16 @@
               }
             ],
             "title": "Platform"
+          },
+          "publish": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublishRuleIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -37145,6 +37238,9 @@
               }
             ],
             "title": "Order"
+          },
+          "publish": {
+            "$ref": "#/components/schemas/MemberPublish"
           },
           "state": {
             "enum": [
@@ -39009,7 +39105,7 @@
         "type": "object"
       },
       "PublishPanel": {
-        "description": "⟨2026-11-10⟩ §44.5 what the output's page shows of «تأیید و انتشار»: the session the\noutput belongs to (none: no button), the company's accounts, and this output's publishes.",
+        "description": "⟨2026-11-10⟩ §44.5 what the output's page shows of «تأیید و انتشار»: the session the\noutput belongs to, the company's accounts, and this output's publishes. ⟨§45⟩ `tap`: the\noutput can be published by a tap (any output of a company's work; `order` is null for one of\nno session, e.g. a working group's daily output); `caption`: the caption its package carries\n(`caption.txt` among its files), for the sheet; `group`, `mode`: the working group whose\nroutine made it and the owner's standing word for it (`auto`: it goes out by itself).",
         "properties": {
           "accounts": {
             "items": {
@@ -39018,11 +39114,59 @@
             "title": "Accounts",
             "type": "array"
           },
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
           "channel": {
             "const": "instagram",
             "default": "instagram",
             "title": "Channel",
             "type": "string"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
+          },
+          "group_fa": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Fa"
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ask",
+                  "auto"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
           },
           "order": {
             "anyOf": [
@@ -39046,9 +39190,50 @@
             "default": false,
             "title": "Ready",
             "type": "boolean"
+          },
+          "tap": {
+            "default": false,
+            "title": "Tap",
+            "type": "boolean"
           }
         },
         "title": "PublishPanel",
+        "type": "object"
+      },
+      "PublishRuleIn": {
+        "additionalProperties": false,
+        "description": "⟨§45⟩ The owner's standing word on publishing for one company in the working group.",
+        "properties": {
+          "account": {
+            "anyOf": [
+              {
+                "maxLength": 65,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account"
+          },
+          "mode": {
+            "enum": [
+              "ask",
+              "auto"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "story": {
+            "default": false,
+            "title": "Story",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "title": "PublishRuleIn",
         "type": "object"
       },
       "Published": {
@@ -45063,21 +45248,6 @@
         "title": "Seal",
         "type": "object"
       },
-      "SealIn": {
-        "additionalProperties": false,
-        "properties": {
-          "digest": {
-            "pattern": "^[0-9a-f]{64}$",
-            "title": "Digest",
-            "type": "string"
-          }
-        },
-        "required": [
-          "digest"
-        ],
-        "title": "SealIn",
-        "type": "object"
-      },
       "SearchHit": {
         "properties": {
           "attachments": {
@@ -47110,6 +47280,11 @@
               }
             ],
             "title": "At"
+          },
+          "auto": {
+            "default": false,
+            "title": "Auto",
+            "type": "boolean"
           },
           "channel": {
             "const": "instagram",
@@ -59653,6 +59828,21 @@
         "title": "CloseIn",
         "type": "object"
       },
+      "hq_api__routes__media__SealIn": {
+        "additionalProperties": false,
+        "properties": {
+          "digest": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Digest",
+            "type": "string"
+          }
+        },
+        "required": [
+          "digest"
+        ],
+        "title": "SealIn",
+        "type": "object"
+      },
       "hq_api__routes__media__StepIn": {
         "additionalProperties": false,
         "description": "media.item (agents/tools.md).",
@@ -60060,6 +60250,24 @@
           "seen"
         ],
         "title": "SeenOut",
+        "type": "object"
+      },
+      "hq_api__routes__playbooks__SealIn": {
+        "additionalProperties": false,
+        "description": "⟨§45⟩ The owner's standing word on publishing for the session's company, given with\nthe seal (`PUT /groups/{key}/members/{code}/publish` changes it later).",
+        "properties": {
+          "publish": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublishRuleIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "SealIn",
         "type": "object"
       },
       "hq_api__routes__runs__RunTokens": {
@@ -86727,7 +86935,7 @@
     },
     "/api/v1/deliverables/{ref}/publish": {
       "get": {
-        "description": "⟨2026-11-10⟩ §44.5 What the output's page shows of «تأیید و انتشار»: the session it\nbelongs to (`order: null` for an output of no session: no button), the company's Instagram\naccounts, whether the publish path is registered, and this output's publishes.",
+        "description": "⟨2026-11-10⟩ §44.5 What the output's page shows of «تأیید و انتشار»: the session it\nbelongs to (`order: null` for an output of no session), the company's Instagram accounts,\nwhether the publish path is registered, and this output's publishes. ⟨§45⟩ `tap`: it can be\npublished by a tap (every output; a working group's daily output is tapped here); `caption`:\nthe text of its `caption.txt`, for the sheet; `group`, `group_fa`, `mode`: the working group\nwhose routine made it and the owner's standing word (`auto`: it goes out by itself).",
         "operationId": "output_publish_panel",
         "parameters": [
           {
@@ -86748,12 +86956,17 @@
                   "accounts": [
                     "x"
                   ],
+                  "caption": "x",
                   "channel": "instagram",
+                  "group": "x",
+                  "group_fa": "x",
+                  "mode": "ask",
                   "order": "x",
                   "publishes": [
                     {
                       "account": "x",
                       "at": "2026-10-17T05:42:00Z",
+                      "auto": false,
                       "channel": "instagram",
                       "cover_name": "x",
                       "file_id": "x",
@@ -86767,7 +86980,8 @@
                       "url": "x"
                     }
                   ],
-                  "ready": false
+                  "ready": false,
+                  "tap": false
                 },
                 "schema": {
                   "$ref": "#/components/schemas/PublishPanel"
@@ -86838,7 +87052,7 @@
         ]
       },
       "post": {
-        "description": "⟨2026-11-10⟩ §44.5 «تأیید و انتشار» on a file of this output: the same as\n`POST /orders/{order}/publish` for the session the output belongs to (`409` for an output of\nno session). No step-up, no card. Requires `Idempotency-Key`.",
+        "description": "⟨2026-11-10⟩ §44.5 «تأیید و انتشار» on a file of this output: the same as\n`POST /orders/{order}/publish` for the session the output belongs to; ⟨§45⟩ an output of no\nsession (a working group's daily output) is published the same way, with nothing said in a\nsession. No step-up, no card. Requires `Idempotency-Key`.",
         "operationId": "publish_output",
         "parameters": [
           {
@@ -86875,6 +87089,7 @@
                 "example": {
                   "account": "x",
                   "at": "2026-10-17T05:42:00Z",
+                  "auto": false,
                   "channel": "instagram",
                   "cover_name": "x",
                   "file_id": "x",
@@ -92360,6 +92575,12 @@
                     "name_fa": "تریدیار",
                     "plan": {},
                     "plan_at": "2026-10-17T05:42:00Z",
+                    "publish": {
+                      "account": "x",
+                      "mode": "ask",
+                      "since": "2026-10-17T05:42:00Z",
+                      "story": false
+                    },
                     "seats": [
                       {
                         "blocked": {
@@ -92509,6 +92730,12 @@
                   "name_fa": "تریدیار",
                   "plan": {},
                   "plan_at": "2026-10-17T05:42:00Z",
+                  "publish": {
+                    "account": "x",
+                    "mode": "ask",
+                    "since": "2026-10-17T05:42:00Z",
+                    "story": false
+                  },
                   "seats": [
                     {
                       "blocked": {
@@ -92600,6 +92827,158 @@
           }
         },
         "summary": "Set Member",
+        "tags": [
+          "groups"
+        ]
+      }
+    },
+    "/api/v1/groups/{key}/members/{code}/publish": {
+      "put": {
+        "description": "⟨§45⟩ The owner's standing permission to publish, given once for this company in this\nworking group (2026-11-10: «نه اینکه هر بار من تایید کنم»). `auto`: the hub publishes the\npackage of each routine's delivered work by itself (the video, its cover and `caption.txt`\nof one output; as a reel, and as a story too with `story`), through the company's own publish\ncommand on IG-Hub, from the next run on. `ask`: each output waits for his «تأیید و انتشار».\n`account`: one of the company's registered accounts (`422` names them); left out for a\ncompany with one account. A tap, no step-up: what goes out can be taken back (§44.4).",
+        "operationId": "set_member_publish",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "account": "x",
+                "mode": "ask",
+                "story": false
+              },
+              "schema": {
+                "$ref": "#/components/schemas/MemberPublishIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "company": "TY",
+                  "group": "x",
+                  "joined_at": "2026-10-17T05:42:00Z",
+                  "name_fa": "تریدیار",
+                  "plan": {},
+                  "plan_at": "2026-10-17T05:42:00Z",
+                  "publish": {
+                    "account": "x",
+                    "mode": "ask",
+                    "since": "2026-10-17T05:42:00Z",
+                    "story": false
+                  },
+                  "seats": [
+                    {
+                      "blocked": {
+                        "code": "TY",
+                        "fix_fa": "x",
+                        "why_fa": "x"
+                      },
+                      "employee": "TY-GROWTH-01",
+                      "optional": false,
+                      "role": "x",
+                      "seat": "x",
+                      "title_fa": "گزارش هفتگی رشد"
+                    }
+                  ],
+                  "state": "on"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Membership"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Set Member Publish",
         "tags": [
           "groups"
         ]
@@ -106478,7 +106857,7 @@
                 "digest": "x"
               },
               "schema": {
-                "$ref": "#/components/schemas/SealIn"
+                "$ref": "#/components/schemas/hq_api__routes__media__SealIn"
               }
             }
           },
@@ -112343,6 +112722,7 @@
                     {
                       "account": "x",
                       "at": "2026-10-17T05:42:00Z",
+                      "auto": false,
                       "channel": "instagram",
                       "cover_name": "x",
                       "file_id": "x",
@@ -112923,6 +113303,7 @@
                     {
                       "account": "x",
                       "at": "2026-10-17T05:42:00Z",
+                      "auto": false,
                       "channel": "instagram",
                       "cover_name": "x",
                       "file_id": "x",
@@ -113298,6 +113679,7 @@
                     {
                       "account": "x",
                       "at": "2026-10-17T05:42:00Z",
+                      "auto": false,
                       "channel": "instagram",
                       "cover_name": "x",
                       "file_id": "x",
@@ -113790,6 +114172,7 @@
                     {
                       "account": "x",
                       "at": "2026-10-17T05:42:00Z",
+                      "auto": false,
                       "channel": "instagram",
                       "cover_name": "x",
                       "file_id": "x",
@@ -114168,6 +114551,7 @@
                     {
                       "account": "x",
                       "at": "2026-10-17T05:42:00Z",
+                      "auto": false,
                       "channel": "instagram",
                       "cover_name": "x",
                       "file_id": "x",
@@ -114541,6 +114925,7 @@
                     {
                       "account": "x",
                       "at": "2026-10-17T05:42:00Z",
+                      "auto": false,
                       "channel": "instagram",
                       "cover_name": "x",
                       "file_id": "x",
@@ -114748,6 +115133,12 @@
                       "company": "TY",
                       "name_fa": "تریدیار",
                       "order": "x",
+                      "publish": {
+                        "account": "x",
+                        "mode": "ask",
+                        "since": "2026-10-17T05:42:00Z",
+                        "story": false
+                      },
                       "state": "on"
                     }
                   ],
@@ -114901,6 +115292,7 @@
                 "example": {
                   "account": "x",
                   "at": "2026-10-17T05:42:00Z",
+                  "auto": false,
                   "channel": "instagram",
                   "cover_name": "x",
                   "file_id": "x",
@@ -115188,6 +115580,7 @@
                     {
                       "account": "x",
                       "at": "2026-10-17T05:42:00Z",
+                      "auto": false,
                       "channel": "instagram",
                       "cover_name": "x",
                       "file_id": "x",
@@ -115565,6 +115958,7 @@
                     {
                       "account": "x",
                       "at": "2026-10-17T05:42:00Z",
+                      "auto": false,
                       "channel": "instagram",
                       "cover_name": "x",
                       "file_id": "x",
@@ -115940,6 +116334,7 @@
                     {
                       "account": "x",
                       "at": "2026-10-17T05:42:00Z",
+                      "auto": false,
                       "channel": "instagram",
                       "cover_name": "x",
                       "file_id": "x",
@@ -116649,6 +117044,7 @@
                     {
                       "account": "x",
                       "at": "2026-10-17T05:42:00Z",
+                      "auto": false,
                       "channel": "instagram",
                       "cover_name": "x",
                       "file_id": "x",
@@ -121477,6 +121873,12 @@
                         "company": "TY",
                         "name_fa": "تریدیار",
                         "order": "x",
+                        "publish": {
+                          "account": "x",
+                          "mode": "ask",
+                          "since": "2026-10-17T05:42:00Z",
+                          "story": false
+                        },
                         "state": "on"
                       }
                     ],
@@ -121633,6 +122035,12 @@
                       "company": "TY",
                       "name_fa": "تریدیار",
                       "order": "x",
+                      "publish": {
+                        "account": "x",
+                        "mode": "ask",
+                        "since": "2026-10-17T05:42:00Z",
+                        "story": false
+                      },
                       "state": "on"
                     }
                   ],
@@ -121812,6 +122220,12 @@
                       "company": "TY",
                       "name_fa": "تریدیار",
                       "order": "x",
+                      "publish": {
+                        "account": "x",
+                        "mode": "ask",
+                        "since": "2026-10-17T05:42:00Z",
+                        "story": false
+                      },
                       "state": "on"
                     }
                   ],
@@ -121947,7 +122361,12 @@
                 "as_is": false,
                 "company": "TY",
                 "note_fa": "x",
-                "platform": "instagram"
+                "platform": "instagram",
+                "publish": {
+                  "account": "x",
+                  "mode": "ask",
+                  "story": false
+                }
               },
               "schema": {
                 "$ref": "#/components/schemas/PlaybookApplyIn"
@@ -121966,6 +122385,12 @@
                     "company": "TY",
                     "name_fa": "تریدیار",
                     "order": "x",
+                    "publish": {
+                      "account": "x",
+                      "mode": "ask",
+                      "since": "2026-10-17T05:42:00Z",
+                      "story": false
+                    },
                     "state": "on"
                   },
                   "order": "x",
@@ -121988,6 +122413,12 @@
                         "company": "TY",
                         "name_fa": "تریدیار",
                         "order": "x",
+                        "publish": {
+                          "account": "x",
+                          "mode": "ask",
+                          "since": "2026-10-17T05:42:00Z",
+                          "story": false
+                        },
                         "state": "on"
                       }
                     ],
@@ -122104,7 +122535,7 @@
     },
     "/api/v1/playbooks/{ref}/retire": {
       "post": {
-        "description": "🔏 `playbook.retire` (target = the ref): its routines stop for every member (the group\n`off`); nothing is deleted.",
+        "description": "The owner's tap (⟨§45⟩ no step-up): its routines stop for every member (the group `off`);\nnothing is deleted.",
         "operationId": "retire_playbook",
         "parameters": [
           {
@@ -122140,6 +122571,12 @@
                       "company": "TY",
                       "name_fa": "تریدیار",
                       "order": "x",
+                      "publish": {
+                        "account": "x",
+                        "mode": "ask",
+                        "since": "2026-10-17T05:42:00Z",
+                        "story": false
+                      },
                       "state": "on"
                     }
                   ],
@@ -122255,7 +122692,7 @@
     },
     "/api/v1/playbooks/{ref}/seal": {
       "post": {
-        "description": "🔏 `playbook.seal` (target = the ref): the draft becomes a working group stored in the\ndatabase (eligibility `chosen`: only the companies the owner gives it to) and the session's\ncompany its first member, the seats resolved to the people the session hired, the empty ones\nfilled by automatic hiring inside the envelope; its routines run from their next time.",
+        "description": "The owner's tap (⟨§45⟩ no step-up): the draft becomes a working group stored in the\ndatabase (eligibility `chosen`: only the companies the owner gives it to) and the session's\ncompany its first member, the seats resolved to the people the session hired, the empty ones\nfilled by automatic hiring inside the envelope; its routines run from their next time.\n`publish`: his standing word for that company (`auto`: each routine's package goes out by\nitself from the next run; left out: each waits for his tap).",
         "operationId": "seal_playbook",
         "parameters": [
           {
@@ -122268,6 +122705,30 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "publish": {
+                  "account": "x",
+                  "mode": "ask",
+                  "story": false
+                }
+              },
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/hq_api__routes__playbooks__SealIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -122291,6 +122752,12 @@
                       "company": "TY",
                       "name_fa": "تریدیار",
                       "order": "x",
+                      "publish": {
+                        "account": "x",
+                        "mode": "ask",
+                        "since": "2026-10-17T05:42:00Z",
+                        "story": false
+                      },
                       "state": "on"
                     }
                   ],
@@ -161695,6 +162162,7 @@
                     {
                       "account": "x",
                       "at": "2026-10-17T05:42:00Z",
+                      "auto": false,
                       "channel": "instagram",
                       "cover_name": "x",
                       "file_id": "x",
@@ -162083,6 +162551,7 @@
                     {
                       "account": "x",
                       "at": "2026-10-17T05:42:00Z",
+                      "auto": false,
                       "channel": "instagram",
                       "cover_name": "x",
                       "file_id": "x",
@@ -162474,6 +162943,7 @@
                     {
                       "account": "x",
                       "at": "2026-10-17T05:42:00Z",
+                      "auto": false,
                       "channel": "instagram",
                       "cover_name": "x",
                       "file_id": "x",

@@ -79,7 +79,10 @@ HOW = {
         "the owner's. Publishing, after the owner approves, goes on through IG-Hub: ⟨2026-11-10⟩ "
         "he taps «تأیید و انتشار» on the file in the session (no card, no passkey), so give the "
         "caption and hashtags ready in the same output and never say it is published before the "
-        "session says «منتشر شد»"
+        "session says «منتشر شد». The package is one output: the workshop turn leaves the video, "
+        "`cover.jpg`/`cover.png` and `caption.txt` in `out/`. A working group's routine with the "
+        "owner's standing permission (its brief says so) is published by the hub itself when the "
+        "work is delivered: never ask him to approve it"
     ),
     "narration": (
         "⟨2026-11-10⟩ the narrator of a reel or a video is ON (what the owner switched off is his "

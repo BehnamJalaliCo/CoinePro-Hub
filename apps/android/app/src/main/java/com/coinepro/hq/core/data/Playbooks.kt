@@ -3,6 +3,7 @@ package com.coinepro.hq.core.data
 import com.coinepro.hq.core.format.Tone
 import com.coinepro.hq.core.net.Api
 import com.coinepro.hq.core.net.Company
+import com.coinepro.hq.core.net.MemberPublish
 import com.coinepro.hq.core.net.Playbook
 import com.coinepro.hq.core.net.PlaybookRoutine
 import com.coinepro.hq.core.net.PlaybookSeat
@@ -127,14 +128,42 @@ fun applyTargets(pb: Playbook, companies: List<Company>): List<Company> =
 fun canApplyAsIs(pb: Playbook): Boolean = pb.sealed && pb.group != null
 
 /** The body of `POST /playbooks/{ref}/apply`: as is, only the company (the platform and the note go with a new session only). */
-fun applyBody(company: String, platform: String?, noteFa: String?, asIs: Boolean): JsonObject = buildJsonObject {
+fun applyBody(company: String, platform: String?, noteFa: String?, asIs: Boolean, publish: MemberPublish? = null): JsonObject = buildJsonObject {
     put("company", JsonPrimitive(company))
-    if (asIs) put("as_is", JsonPrimitive(true))
-    else {
+    if (asIs) {
+        put("as_is", JsonPrimitive(true))
+        // ⟨0.19.9⟩ §45 his standing word for that company, given with the gift
+        if (publish != null) put("publish", publishRule(publish))
+    } else {
         if (!platform.isNullOrBlank()) put("platform", JsonPrimitive(platform))
         noteFa?.trim()?.ifBlank { null }?.let { put("note_fa", JsonPrimitive(it.take(2000))) }
     }
 }
+
+/**
+ * ⟨0.19.9⟩ §45 The owner's standing word as the hub takes it (`PUT …/publish`, and `publish` of a seal or an as-is gift): the mode,
+ * the account only when he named one, `story` only on `auto`.
+ */
+fun publishRule(p: MemberPublish): JsonObject = buildJsonObject {
+    put("mode", JsonPrimitive(if (p.auto) "auto" else "ask"))
+    if (p.auto) {
+        p.account?.trim()?.removePrefix("@")?.ifBlank { null }?.let { put("account", JsonPrimitive(it)) }
+        if (p.story) put("story", JsonPrimitive(true))
+    }
+}
+
+/** A seal's body: empty, or his standing word for the session's company. */
+fun sealBody(publish: MemberPublish?): JsonObject = buildJsonObject { if (publish != null) put("publish", publishRule(publish)) }
+
+/**
+ * A working group publishes on Instagram (or on any platform): only then is the standing word offered, and offered **on**, as the
+ * owner asked («به صورت خودکار از روز دوم انجام بشه»).
+ */
+fun publishes(pb: Playbook): Boolean = pb.platform == "instagram" || pb.platform == "any"
+
+/** The accounts a refusal names («one of: @a, @b»): the company has several and he has to pick one. */
+fun accountsNamed(field: String?): List<String> =
+    Regex("@([A-Za-z0-9._]+)").findAll(field.orEmpty()).map { it.groupValues[1].trimEnd('.') }.distinct().toList()
 
 // -------------------------------------------------------------------- edit --
 /**

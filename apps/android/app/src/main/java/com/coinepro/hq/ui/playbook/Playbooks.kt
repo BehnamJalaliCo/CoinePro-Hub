@@ -38,13 +38,16 @@ import com.coinepro.hq.core.data.pbPlatformFa
 import com.coinepro.hq.core.data.pbPlatformLineFa
 import com.coinepro.hq.core.data.playbookPatch
 import com.coinepro.hq.core.data.playbookStateFa
+import com.coinepro.hq.core.data.publishes
 import com.coinepro.hq.core.data.withoutSeat
 import com.coinepro.hq.core.format.Tone
 import com.coinepro.hq.core.format.jDate
 import com.coinepro.hq.core.net.Company
 import com.coinepro.hq.core.net.HubFeature
+import com.coinepro.hq.core.net.MemberPublish
 import com.coinepro.hq.core.net.Playbook
 import com.coinepro.hq.core.net.PlaybookApplied
+import com.coinepro.hq.core.net.applyWithWord
 import com.coinepro.hq.designsystem.BtnSize
 import com.coinepro.hq.designsystem.BtnVariant
 import com.coinepro.hq.designsystem.DIcon
@@ -278,6 +281,7 @@ internal fun PlaybookBody(pb: Playbook, onSaved: (Playbook) -> Unit, onApply: ()
             Column(Modifier.padding(top = 4.dp)) { MembersBlock(pb) }
         }
         // ---- what the owner does with it
+        var word by rememberSaveable(pb.ref, stateSaver = StandingSaver) { mutableStateOf(MemberPublish(mode = "auto")) }
         when {
             pb.draft -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (patch != null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -291,11 +295,14 @@ internal fun PlaybookBody(pb: Playbook, onSaved: (Playbook) -> Unit, onApply: ()
                     }, Modifier.weight(1f), variant = BtnVariant.PRIMARY, icon = DivanIcon.EDIT, loading = save.busy)
                     HqButton("برگردان", { edit = pb; head = false }, variant = BtnVariant.TEXT)
                 }
+                // ⟨0.19.9⟩ §45 his standing word, given with the seal: on, as he asked («به صورت خودکار از روز دوم انجام بشه»)
+                if (publishes(pb)) StandingChoice(word, { word = it })
                 HqButton("مُهر کن", {
                     seal.run {
-                        val out = env.api.sealPlaybook(pb.ref) { a, t -> env.auth.stepUp(act, a, t) }
+                        val said = word.takeIf { publishes(pb) }
+                        val out = env.api.sealPlaybook(pb.ref, said) { a, t -> env.auth.stepUp(act, a, t) }
                         env.cache.invalidate(*PLAYBOOK_TAGS)
-                        toasts.ok("مُهر شد؛ کارهای روتینش از نوبت بعدی راه میافتند.")
+                        toasts.ok(sealedFa(out, said))
                         onSaved(out)
                     }
                 }, Modifier.fillMaxWidth(), variant = if (patch == null) BtnVariant.PRIMARY else BtnVariant.SECONDARY, size = BtnSize.LG, icon = DivanIcon.SEAL,
@@ -428,7 +435,12 @@ internal fun ApplyBody(pb: Playbook, companies: List<Company>, company0: String?
     var platform by rememberSaveable(pb.ref) { mutableStateOf(pb.platform) }
     var note by rememberSaveable(pb.ref) { mutableStateOf("") }
     var asIs by rememberSaveable(pb.ref) { mutableStateOf(asIs0 && canApplyAsIs(pb)) }
-    val key = remember(company, platform, note, asIs) { UUID.randomUUID().toString() }
+    // ⟨0.19.9⟩ §45 with «بدون تغییر», his standing word for that company (as the group's first member has it)
+    var word by rememberSaveable(pb.ref, stateSaver = StandingSaver) {
+        mutableStateOf(MemberPublish(mode = if (pb.members.any { it.publish.auto }) "auto" else "ask", story = pb.members.any { it.publish.story }))
+    }
+    val standing = asIs && publishes(pb) && env.api.gaps.has(HubFeature.STANDING_PUBLISH)
+    val key = remember(company, platform, note, asIs, word) { UUID.randomUUID().toString() }
     val go = rememberAction()
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("به کدام شرکت؟", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textMuted)
@@ -446,6 +458,7 @@ internal fun ApplyBody(pb: Playbook, companies: List<Company>, company0: String?
             }
             HqSwitch(asIs, { asIs = it }, "بدون تغییر")
         }
+        Expand(standing) { StandingChoice(word, { word = it }) }
         Expand(!asIs) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("روی کدام پلتفرم؟", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textMuted)
@@ -463,7 +476,7 @@ internal fun ApplyBody(pb: Playbook, companies: List<Company>, company0: String?
         HqButton(
             if (asIs) "عضوش کن" else "بده و جلسه‌اش را باز کن", {
                 val co = company ?: return@HqButton
-                go.run { onApplied(env.api.applyPlaybook(pb.ref, co, platform, note, asIs, key), name ?: co) }
+                go.run { onApplied(env.api.applyWithWord(pb.ref, co, platform, note, asIs, key, word.takeIf { standing }), name ?: co) }
             },
             Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = if (asIs) DivanIcon.ADD else DivanIcon.SEND,
             enabled = company != null, loading = go.busy,
@@ -494,3 +507,10 @@ private fun RetireBody(pb: Playbook, onCancel: () -> Unit, onDone: (Playbook) ->
     }, Modifier.fillMaxWidth(), variant = BtnVariant.DANGER, size = BtnSize.LG, icon = DivanIcon.PAUSE, loading = go.busy)
     HqButton("بیخیال", onCancel, Modifier.fillMaxWidth(), variant = BtnVariant.TEXT)
 }
+
+/** The standing word across a rotation: `mode`, `story` (the account is asked by the hub when there are several). */
+internal val StandingSaver = androidx.compose.runtime.saveable.Saver<MemberPublish, List<Any>>(
+    save = { listOf(it.mode, it.story) },
+    restore = { MemberPublish(mode = it[0] as String, story = it[1] as Boolean) },
+)
+

@@ -170,16 +170,52 @@ class PlaybooksTest {
     @Test
     fun sealAndRetireAreSealedOnTheRef() = runTest {
         server.enqueue(json(200, pb(state = "sealed", group = "pb_1")))
-        assertTrue(api.sealPlaybook("PB-0001", stepUp).sealed)
+        assertTrue(api.sealPlaybook("PB-0001", stepUp = stepUp).sealed)
         val seal = server.takeRequest()
         assertEquals("/api/v1/playbooks/PB-0001/seal", seal.url.encodedPath)
         assertEquals("su-token", seal.headers["X-Step-Up"])
+        assertEquals("{}", seal.body!!.utf8())
         server.enqueue(json(200, pb(state = "retired")))
         assertTrue(api.retirePlaybook("PB-0001", stepUp).retired)
         val retire = server.takeRequest()
         assertEquals("/api/v1/playbooks/PB-0001/retire", retire.url.encodedPath)
         assertEquals("su-token", retire.headers["X-Step-Up"])
         assertEquals(listOf("playbook.seal" to "PB-0001", "playbook.retire" to "PB-0001"), signed)
+    }
+
+    /** ⟨0.19.9⟩ §45 the owner's standing word: with the seal, with an as-is gift, and for one member afterwards. */
+    @Test
+    fun theStandingWordGoesWithTheSealTheGiftAndTheMember() = runTest {
+        val auto = com.coinepro.hq.core.net.MemberPublish(mode = "auto", story = true)
+        server.enqueue(json(200, pb(state = "sealed", group = "pb_1")))
+        api.sealPlaybook("PB-0001", auto, stepUp)
+        assertEquals("""{"publish":{"mode":"auto","story":true}}""", server.takeRequest().body!!.utf8())
+        // an as-is gift carries it; a new session for that company does not (its own seal will)
+        server.enqueue(json(200, """{"playbook":${pb(state = "sealed", group = "pb_1")},"member":{"company":"FX","name_fa":"کوینه‌پرو FX","state":"on","order":null,"publish":{"mode":"auto","account":"coineprofx","story":true,"since":"2026-11-10T08:00:00Z"}},"order":null,"conversation":null}"""))
+        val joined = api.applyPlaybook("PB-0001", "FX", null, null, true, "k1", auto.copy(account = "@coineprofx"))
+        assertTrue(joined.member!!.publish.auto)
+        assertEquals("coineprofx", joined.member!!.publish.account)
+        val gift = Api.json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject
+        assertEquals("""{"mode":"auto","account":"coineprofx","story":true}""", gift["publish"].toString())
+        assertEquals(setOf("company", "platform"), com.coinepro.hq.core.data.applyBody("FX", "youtube", null, false, auto).keys)
+        // one member, afterwards: his tap, no step-up header
+        server.enqueue(json(200, """{"group":"pb_1","company":"TY","state":"on","seats":[],"publish":{"mode":"ask","account":null,"story":false,"since":null}}"""))
+        val m = api.setMemberPublish("pb_1", "TY", com.coinepro.hq.core.net.MemberPublish(mode = "ask", story = true))
+        assertFalse(m.publish.auto)
+        val put = server.takeRequest()
+        assertEquals("PUT", put.method)
+        assertEquals("/api/v1/groups/pb_1/members/TY/publish", put.url.encodedPath)
+        assertNull(put.headers["X-Step-Up"])
+        assertEquals("""{"mode":"ask"}""", put.body!!.utf8())
+        // what the hub names when a company has several accounts
+        assertEquals(listOf("coineprofx", "coineprofx.academy"), com.coinepro.hq.core.data.accountsNamed("one of: @coineprofx, @coineprofx.academy"))
+        assertEquals(emptyList<String>(), com.coinepro.hq.core.data.accountsNamed(null))
+        // offered only where the working group publishes, and said in one line
+        val site = Api.json.decodeFromString(com.coinepro.hq.core.net.Playbook.serializer(), pb())
+        assertFalse(com.coinepro.hq.core.data.publishes(site))
+        assertTrue(com.coinepro.hq.core.data.publishes(site.copy(platform = "instagram")))
+        assertEquals("هر بار بپرس", com.coinepro.hq.ui.playbook.standingFa(com.coinepro.hq.core.net.MemberPublish()))
+        assertEquals("خودکار · \u2066@tradeyar\u2069 · استوری هم", com.coinepro.hq.ui.playbook.standingFa(auto.copy(account = "tradeyar")))
     }
 
     @Test

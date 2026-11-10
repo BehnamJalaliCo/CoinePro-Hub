@@ -79,8 +79,9 @@ async def test_the_chain_runs_through_prompt_11_then_prompt_12(su: Any) -> None:
     assert rev["0056"] == "0055"  # 26.1: the hub run from the app (hub jobs, the hub_op kind)
     assert rev["0057"] == "0056"  # W10: a session's memory, the playbooks, the `playbook` card kind
     assert rev["0058"] == "0057"  # W12: the holding live
-    assert heads == {"0058"}
-    assert await su.fetchval("SELECT version_num FROM alembic_version_api") == "0058"
+    assert rev["0059"] == "0058"  # 34: the owner's standing permission to publish (a membership's)
+    assert heads == {"0059"}
+    assert await su.fetchval("SELECT version_num FROM alembic_version_api") == "0059"
 
 
 async def test_the_kind_check_holds_every_kind_and_is_validated(su: Any) -> None:

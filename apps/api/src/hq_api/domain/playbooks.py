@@ -112,6 +112,8 @@ class PlaybookMember(BaseModel):
     name_fa: str
     state: Literal["on", "paused"]
     order: str | None = None
+    # ⟨§45⟩ the owner's standing word on publishing for this company (`ask` unless he said `auto`)
+    publish: GR.MemberPublish = Field(default_factory=GR.MemberPublish)
 
 
 class Playbook(BaseModel):
@@ -151,11 +153,21 @@ class PlaybookPatch(Model):
     rules_fa: list[str] | None = Field(default=None, max_length=MAX_RULES)
 
 
+class PublishRuleIn(Model):
+    """⟨§45⟩ The owner's standing word on publishing for one company in the working group."""
+
+    mode: Literal["ask", "auto"]
+    account: str | None = Field(default=None, max_length=65)
+    story: bool = False
+
+
 class PlaybookApplyIn(Model):
     company: str = Field(pattern=r"^[A-Z][A-Z0-9]{1,9}$")
     platform: Platform | None = None
     note_fa: str | None = Field(default=None, max_length=2000)
     as_is: bool = False
+    # ⟨§45⟩ with `as_is`: his standing word on publishing for that company
+    publish: PublishRuleIn | None = None
 
 
 class PlaybookApplied(BaseModel):
@@ -329,7 +341,7 @@ async def members_of(tx: Tx, row: dict[str, Any]) -> list[PlaybookMember]:
     if row.get("group_id") is None:
         return []
     rows = await tx.all(
-        """SELECT c.code, c.name_fa, m.state
+        """SELECT c.code, c.name_fa, m.state, m.publish
            FROM growth.memberships m JOIN core.companies c ON c.id = m.company_id
            WHERE m.group_id = :g ORDER BY m.joined_at""",
         g=row["group_id"],
@@ -353,6 +365,7 @@ async def members_of(tx: Tx, row: dict[str, Any]) -> list[PlaybookMember]:
                 name_fa=r["name_fa"] or r["code"],
                 state=r["state"],
                 order=order_ref,
+                publish=GR.member_publish(r["publish"]),
             )
         )
     return out

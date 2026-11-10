@@ -32,7 +32,21 @@ internal class V40Demo(private val v35: V35Demo) {
         jo("seat" to seat, "role" to role, "title_fa" to title, "duties_fa" to duties, "helpers" to JsonArray(helpers.map(::JsonPrimitive)), "model" to null)
     private fun routine(key: String, title: String, seat: String, rrule: String, brief: String) =
         jo("key" to key, "title_fa" to title, "seat" to seat, "schedule" to rrule, "brief_md" to brief, "max_tokens" to 40000)
-    private fun member(code: String, state: String, order: String? = null) = jo("company" to code, "name_fa" to names[code], "state" to state, "order" to order)
+    private fun member(code: String, state: String, order: String? = null, publish: JsonObject = word(false)) =
+        jo("company" to code, "name_fa" to names[code], "state" to state, "order" to order, "publish" to publish)
+    /** ⟨0.19.9⟩ §45 the owner's standing word on publishing, as the hub answers it. */
+    private fun word(auto: Boolean, account: String? = null, story: Boolean = false) =
+        jo("mode" to if (auto) "auto" else "ask", "account" to account.takeIf { auto }, "story" to (auto && story), "since" to if (auto) at(13_000) else null)
+    /** The Instagram accounts each company registered (FX has two: the standing word asks which). */
+    private val accounts = mapOf("TY" to listOf("tradeyar"), "FX" to listOf("coineprofx", "coineprofx.academy"), "PC" to listOf("pro.chart"))
+    private fun wordOf(code: String, body: JsonObject?): Pair<JsonObject?, String?> {
+        val p = body?.get("publish") as? JsonObject ?: body?.takeIf { it["mode"] != null } ?: return null to null
+        if (p.str("mode") != "auto") return word(false) to null
+        val mine = accounts[code].orEmpty()
+        val asked = p.str("account")?.removePrefix("@") ?: mine.singleOrNull()
+        if (mine.isNotEmpty() && asked !in mine) return null to ("one of: " + mine.joinToString(", ") { "@$it" })
+        return word(true, asked, (p["story"] as? JsonPrimitive)?.booleanOrNull == true) to null
+    }
     private fun strs(vararg s: String) = JsonArray(s.map(::JsonPrimitive))
 
     private val seoWriter = seat("writer", "content_writer", "نویسنده‌ی مقاله", "هفته‌ای دو مقاله‌ی آموزشی؛ موضوع را با ChatGPT پیدا میکند.", "gpt")
@@ -85,7 +99,7 @@ internal class V40Demo(private val v35: V35Demo) {
             "connections" to strs("instagram"),
             "rules_fa" to strs("هر ریلز زیر ۴۵ ثانیه.", "عددهای بازار با رقم لاتین.", "هیچ پیشنهاد ویژه‌ای بی مُهر مدیر کل منتشر نشود."),
             "source" to jo("order" to "F-0098", "company" to "TY", "conversation" to "CV-0598"),
-            "members" to JsonArray(listOf(member("TY", "on", "F-0098"), member("FX", "paused"))),
+            "members" to JsonArray(listOf(member("TY", "on", "F-0098", word(true, "tradeyar", story = true)), member("FX", "paused"))),
             "parent" to null, "created_at" to at(14_500), "sealed_at" to at(13_000), "retired_at" to null, "group" to "pb_1", "note_fa" to null,
         ),
         jo(
@@ -156,6 +170,19 @@ internal class V40Demo(private val v35: V35Demo) {
             v35.setCard(c.str("id")!!, upd)
             return 200 to jo("made" to upd["made"], "card" to upd)
         }
+        // ⟨0.19.9⟩ §45 the owner's standing word for one member of a playbook's group
+        Regex("^/groups/(pb_\\d+)/members/([A-Z]{2,5})/publish$").find(path)?.let { g ->
+            if (method != "PUT") return null
+            val (key, code) = g.destructured
+            val pb = books.firstOrNull { it.str("group") == key } ?: return 404 to problem(404, "not_found", "این کارگروه پیدا نشد.")
+            val mine = (pb["members"] as JsonArray).map { it as JsonObject }.firstOrNull { it.str("company") == code }
+                ?: return 404 to problem(404, "not_found", "این شرکت عضو این کارگروه نیست.")
+            val (said, refused) = wordOf(code, body)
+            if (refused != null) return 422 to pick(refused)
+            val next = JsonObject(mine + ("publish" to (said ?: word(false))))
+            put(JsonObject(pb + ("members" to JsonArray((pb["members"] as JsonArray).map { if ((it as JsonObject).str("company") == code) next else it }))))
+            return 200 to jo("group" to key, "company" to code, "state" to mine.str("state"), "joined_at" to at(13_000), "seats" to JsonArray(emptyList()), "publish" to next["publish"])
+        }
         val m = Regex("^/playbooks/(PB-\\d+)(/[a-z]+)?$").find(path) ?: return null
         val pb = find(m.groupValues[1]) ?: return 404 to problem(404, "not_found", "این کارگروه پیدا نشد.")
         val ref = pb.str("ref")!!
@@ -175,7 +202,7 @@ internal class V40Demo(private val v35: V35Demo) {
                 if (method != "POST") return null
                 if (state != "draft") return 409 to problem(409, "validation_failed", "فقط پیش‌نویس مُهر میشود.")
                 val src = (pb["source"] as JsonObject)
-                val first = src.str("company")?.takeIf { it != "HQ" }?.let { listOf(member(it, "on", src.str("order"))) }.orEmpty()
+                val first = src.str("company")?.takeIf { it != "HQ" }?.let { listOf(member(it, "on", src.str("order"), wordOf(it, body).first ?: word(false))) }.orEmpty()
                 200 to put(JsonObject(pb + mapOf(
                     "state" to JsonPrimitive("sealed"), "sealed_at" to JsonPrimitive(now.toString()), "group" to JsonPrimitive("pb_" + ref.removePrefix("PB-").trimStart('0')),
                     "members" to JsonArray(first),
@@ -188,9 +215,12 @@ internal class V40Demo(private val v35: V35Demo) {
                 val name = names[code]?.takeIf { code != "HQ" } ?: return 404 to problem(404, "not_found", "این شرکت را نمیشناسم.")
                 if ((body?.get("as_is") as? JsonPrimitive)?.booleanOrNull == true) {
                     if (state != "sealed") return 409 to problem(409, "validation_failed", "عضویت مستقیم فقط برای کارگروه مُهرشده است؛ این یکی را اول مُهر بزنید.")
-                    val members = (pb["members"] as JsonArray).filter { (it as JsonObject).str("company") != code } + member(code, "on")
+                    val (said, refused) = wordOf(code, body)
+                    if (refused != null) return 422 to pick(refused)
+                    val joined = member(code, "on", publish = said ?: word(false))
+                    val members = (pb["members"] as JsonArray).filter { (it as JsonObject).str("company") != code } + joined
                     val out = put(JsonObject(pb + ("members" to JsonArray(members))))
-                    return 200 to jo("playbook" to out, "member" to member(code, "on"), "order" to null, "conversation" to null)
+                    return 200 to jo("playbook" to out, "member" to joined, "order" to null, "conversation" to null)
                 }
                 val platform = body?.str("platform")
                 val where = platform?.let { " روی ${PLATFORM_FA[it] ?: it}" }.orEmpty()
@@ -261,4 +291,6 @@ internal class V40Demo(private val v35: V35Demo) {
         }
     })
     private fun problem(status: Int, code: String, fa: String) = jo("code" to code, "message_fa" to fa, "status" to status, "title" to code, "type" to "about:blank")
+    /** A company with several accounts and none named: the hub names them in `fields.account`. */
+    private fun pick(accounts: String) = JsonObject(problem(422, "validation_failed", "این شرکت چند حساب دارد؛ یکی را انتخاب کنید.") + ("fields" to jo("account" to accounts)))
 }

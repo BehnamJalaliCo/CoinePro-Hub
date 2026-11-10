@@ -65,6 +65,8 @@ class PlaybookScreensTest(private val name: String, private val night: Boolean) 
             "playbook-draft" to Scene { com.coinepro.hq.ui.playbook.PlaybookScreen("PB-0002") },
             "playbook-sealed" to Scene { com.coinepro.hq.ui.playbook.PlaybookScreen("PB-0001") },
             "playbook-apply" to Scene { Apply() },
+            // ⟨0.19.9⟩ §45 the owner's standing word where he seals (on, with «استوری هم») and where he gives a group as it is
+            "playbook-standing" to Scene { Standing() },
             "playbook-library" to Scene { com.coinepro.hq.ui.playbook.PlaybooksScreen() },
             "playbook-session-from" to Scene({ g ->
                 g.env.value.api.applyPlaybook("PB-0001", "PC", "youtube", "برای یوتیوب، ویدیوهای بلندتر.", false, java.util.UUID.randomUUID().toString()).order
@@ -79,6 +81,18 @@ class PlaybookScreensTest(private val name: String, private val night: Boolean) 
             ) {
                 Text(title, style = Divan.type.h2)
                 content()
+            }
+        }
+
+        @Composable
+        private fun Standing() {
+            val pb = com.coinepro.hq.ui.playbook.rememberPlaybook("PB-0001").data ?: return
+            val companies = com.coinepro.hq.ui.rememberCompanies()
+            Sheet("انتشار خودکار") {
+                com.coinepro.hq.ui.playbook.StandingChoice(com.coinepro.hq.core.net.MemberPublish(mode = "auto", story = true), {})
+                com.coinepro.hq.ui.playbook.StandingChoice(com.coinepro.hq.core.net.MemberPublish(), {})
+                Text("به شرکت دیگر بده", style = Divan.type.h3)
+                com.coinepro.hq.ui.playbook.ApplyBody(pb, companies, company0 = "PC", asIs0 = true) { _, _ -> }
             }
         }
 

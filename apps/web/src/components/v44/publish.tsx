@@ -14,15 +14,20 @@ import { Button } from '@/components/ui/button';
 import { Sheet } from '@/components/ui/overlay';
 import { FilterChip, Pill } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
-import { KIND_FA, kindsOf, publishOf, publishable, usePublish, usePublishPanel, type PublishKind, type PublishPanel, type SessionPublish } from '@/lib/api/v44';
+import {
+  KIND_FA, STATE_FA, coverOf, kindsOf, publishOf, publishable, storyOf, usePublish, usePublishPanel,
+  type PublishKind, type PublishPanel, type SessionPublish,
+} from '@/lib/api/v44';
 import { ApiError } from '@/lib/api/client';
 
 type FileLite = { id: string; name: string; mime: string };
 
-function Row({ f, p, note, onAsk }: { f: FileLite; p: SessionPublish | null; note: string | null; onAsk: () => void }) {
+function Row({ f, p, note, story, onAsk }: { f: FileLite; p: SessionPublish | null; note: string | null; story: SessionPublish | null; onAsk: () => void }) {
   const video = f.mime.startsWith('video/');
   // the handle is Latin inside a Persian line: isolated left-to-right, so «@» stays in front of it
-  const where = p ? [KIND_FA[p.kind], p.account ? `\u2066@${p.account}\u2069` : null, p.cover_name ? 'با کاور' : null].filter(Boolean).join(' · ') : null;
+  const where = p
+    ? [KIND_FA[p.kind], p.account ? `\u2066@${p.account}\u2069` : null, p.cover_name ? 'با کاور' : null, p.auto ? 'خودکار' : null].filter(Boolean).join(' · ')
+    : null;
   return (
     <div className="flex items-center gap-3 py-2.5">
       <span className="flex-none text-sec"><Icon name={video ? 'video' : 'image'} size={20} /></span>
@@ -33,6 +38,7 @@ function Row({ f, p, note, onAsk }: { f: FileLite; p: SessionPublish | null; not
           : p.state === 'failed' ? <span className="text-[11px] text-neg">{[where, p.note_fa].filter(Boolean).join(' · ')}</span>
           : p.state === 'waiting_seal' ? <span className="text-[11px] text-sec">{p.note_fa ?? 'منتظر مُهر شما'}</span>
           : where ? <span className="truncate text-[11px] text-sec">{where}</span> : null}
+        {story ? <span className={story.state === 'failed' ? 'text-[11px] text-neg' : 'text-[11px] text-muted'}>استوری: {STATE_FA[story.state] ?? story.state}</span> : null}
       </div>
       {p === null ? <Button variant={note ? 'secondary' : 'primary'} size="sm" icon="send" onClick={onAsk}>{note ? 'دوباره' : 'تأیید و انتشار'}</Button>
         : p.state === 'publishing' ? <Pill tone="gold" dot live>در حال انتشار</Pill>
@@ -54,9 +60,10 @@ function Confirm({ output, f, covers, panel, onClose, onDone }: { output: string
   const kinds = useMemo(() => kindsOf(f.mime), [f.mime]);
   const [kind, setKind] = useState<PublishKind>(kinds[0]!);
   const [account, setAccount] = useState<string | null>(panel.accounts.length === 1 ? panel.accounts[0]! : null);
-  const [caption, setCaption] = useState('');
-  // a reel goes out with its cover: the output's images (the one there is, chosen already)
-  const [cover, setCover] = useState<string | null>(covers.length === 1 ? covers[0]!.id : null);
+  // ⟨0.19.9⟩ §45 the caption its package carries (`caption.txt`) is already in place; he edits it or just taps
+  const [caption, setCaption] = useState(panel.caption ?? '');
+  // a reel goes out with its cover: the output's images (the one named `cover…`, else the one there is, chosen already)
+  const [cover, setCover] = useState<string | null>(coverOf(covers)?.id ?? null);
   const [key] = useState(() => crypto.randomUUID());
   const pick = panel.accounts.length > 1 && account === null;
   const go = async () => {
@@ -126,14 +133,19 @@ export function PublishSection({ output, files }: { output: string; files: Reado
   const [asking, setAsking] = useState<FileLite | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const panel = q.data;
-  if (!panel || panel.order === null || mine.length === 0) return null;
+  // ⟨0.19.9⟩ §45 a working group's daily output is no session's and is tapped here all the same (a hub of §45 says `tap`)
+  if (!panel || (panel.order === null && !panel.tap) || mine.length === 0) return null;
   return (
     <section className="flex flex-col gap-1.5" data-testid="publish">
       <h3 className="text-[12px] font-semibold text-gold-ink">انتشار در اینستاگرام</h3>
       <div className="flex flex-col divide-y divide-[var(--hq-div)] rounded-[12px] bg-tile px-3">
-        {mine.map((f) => <Row key={f.id} f={f} p={publishOf(panel, f.id)} note={notes[f.id] ?? null} onAsk={() => setAsking(f)} />)}
+        {mine.map((f) => <Row key={f.id} f={f} p={publishOf(panel, f.id)} story={storyOf(panel, f.id)} note={notes[f.id] ?? null} onAsk={() => setAsking(f)} />)}
       </div>
-      <p className="text-[11px] text-muted">با تأیید شما همین فایل منتشر میشود؛ کارت و اثر انگشت ندارد.</p>
+      <p className="text-[11px] text-muted">
+        {panel.mode === 'auto'
+          ? `کارگروه «${panel.group_fa ?? 'این خروجی'}» خروجی هر روز را خودکار منتشر میکند؛ وضعش همین‌جاست.`
+          : 'با تأیید شما همین فایل منتشر میشود؛ کارت و اثر انگشت ندارد.'}
+      </p>
       {asking ? (
         <Confirm
           output={output} f={asking} panel={panel} onClose={() => setAsking(null)}

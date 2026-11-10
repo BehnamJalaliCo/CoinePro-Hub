@@ -250,17 +250,28 @@ class SessionPublish(BaseModel):
     note_fa: str | None = None
     at: datetime | None = None
     published_at: datetime | None = None
+    # ⟨§45⟩ true: the hub sent it on the owner's standing permission (no tap)
+    auto: bool = False
 
 
 class PublishPanel(BaseModel):
     """⟨2026-11-10⟩ §44.5 what the output's page shows of «تأیید و انتشار»: the session the
-    output belongs to (none: no button), the company's accounts, and this output's publishes."""
+    output belongs to, the company's accounts, and this output's publishes. ⟨§45⟩ `tap`: the
+    output can be published by a tap (any output of a company's work; `order` is null for one of
+    no session, e.g. a working group's daily output); `caption`: the caption its package carries
+    (`caption.txt` among its files), for the sheet; `group`, `mode`: the working group whose
+    routine made it and the owner's standing word for it (`auto`: it goes out by itself)."""
 
     order: str | None = None
     channel: Literal["instagram"] = "instagram"
     accounts: list[str] = Field(default_factory=list)
     ready: bool = False
     publishes: list[SessionPublish] = Field(default_factory=list)
+    tap: bool = False
+    caption: str | None = None
+    group: str | None = None
+    group_fa: str | None = None
+    mode: Literal["ask", "auto"] | None = None
 
 
 class OrderReport(BaseModel):

@@ -866,6 +866,11 @@ async def deliver_work(
         if idem:
             await idem.store(tx, 200, result.model_dump(mode="json"))
     await _wake_order_holder(ctx, w, "delivered")  # ⟨1.23⟩ §41.3 the order's holder goes on
+    if status == "delivered" and w["parent_id"] is None:
+        # ⟨§45⟩ a routine's own work: its package goes out on the owner's standing word
+        from hq_api.domain import session_publish as SPB
+
+        await SPB.after_delivered(ctx.hub, w["id"])
     # ⟨1.5⟩ prompt 11 §2.6: a `rule` red line in a deliverable is a finding (PR-115)
     from hq_api.domain import charter as CH
 

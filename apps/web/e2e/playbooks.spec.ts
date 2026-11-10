@@ -66,9 +66,26 @@ test('a draft: edit lightly (title, a seat and a rule removed, a routine brief),
     await expect(page.getByRole('heading', { level: 1 })).toContainText('ریلز روزانه‌ی تریدیار');
     await expect(page.locator('[data-seat="publisher"]')).toHaveCount(0);
     await expect(page.getByLabel('شرح پیدا کردن موضوع روز')).toHaveValue('موضوع را فقط از اخبار همان روز بردار.');
+    // ⟨0.19.9⟩ §45 an Instagram working group is sealed with the owner's standing word, on (he asked for it automatic from day two)
+    const standing = page.getByTestId('standing');
+    await expect(standing.getByLabel('انتشار خودکار')).toBeChecked();
+    await standing.getByRole('button', { name: 'استوری هم بشود' }).click();
     await page.getByRole('button', { name: 'مُهر کن' }).click();
-    await expect(page.getByText('کارگروه مُهر شد.')).toBeVisible();
+    await expect(page.getByText('مُهر شد؛ از نوبت بعد خودش میسازد و خودکار منتشر میکند.')).toBeVisible();
     await expect(page.getByLabel('شرکت‌های عضو')).toContainText('تریدیار');
+    const mine = page.locator('[data-standing="TY"]');
+    await expect(mine).toContainText('خودکار');
+    await expect(mine).toContainText('@tradeyar');
+    await expect(mine).toContainText('استوری هم');
+    // he takes his word back with one tap, and gives it again
+    // (the box follows the hub's answer, so it is clicked, not «checked»)
+    await mine.getByLabel('انتشار خودکار TY').click();
+    await expect(page.getByText('از این به بعد هر خروجی منتظر تأیید تو است.')).toBeVisible();
+    await expect(mine).toContainText('هر بار بپرس');
+    await expect(mine.getByLabel('انتشار خودکار TY')).not.toBeChecked();
+    await mine.getByLabel('انتشار خودکار TY').click();
+    await expect(page.getByText('از نوبت بعد خودکار منتشر میشود.')).toBeVisible();
+    await expect(mine.getByLabel('انتشار خودکار TY')).toBeChecked();
     await expect(page.getByRole('button', { name: 'به شرکت دیگر بده' })).toBeVisible();
     await noRefs(page);
   });

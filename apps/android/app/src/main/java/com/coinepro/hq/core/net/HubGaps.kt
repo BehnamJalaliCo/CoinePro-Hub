@@ -66,6 +66,8 @@ enum class HubFeature {
     ORDER_PACE,
     /** ⟨0.19.8⟩ §44.5 `GET`/`POST /deliverables/{ref}/publish`; without them «تأیید و انتشار» is not shown under an output's files. */
     SESSION_PUBLISH,
+    /** ⟨0.19.9⟩ §45 `PUT /groups/{key}/members/{code}/publish`; without it the standing word on publishing is not offered. */
+    STANDING_PUBLISH,
 }
 
 /**
@@ -119,6 +121,28 @@ suspend fun Api.orderWithPace(text: String, source: String, fileId: String?, rou
     } catch (e: ApiException) {
         o
     }
+}
+
+/** A hub before §45 refuses an as-is gift's `publish` as an unknown field (`422`, `fields.publish` "Extra inputs are not permitted"). */
+val ApiException.applyPublishUnknown: Boolean
+    get() = status == 422 && fields["publish"]?.contains("extra", ignoreCase = true) == true
+
+/**
+ * ⟨0.19.9⟩ §45 Giving a working group to a company with the owner's standing word on publishing. A hub that does not take the word
+ * with the gift gets the gift alone (learnt once per app start; the refusal is taken back out of the error log): each output of that
+ * company then waits for his tap, as before.
+ */
+suspend fun Api.applyWithWord(ref: String, company: String, platform: String?, noteFa: String?, asIs: Boolean, key: String, publish: MemberPublish?): PlaybookApplied {
+    if (publish != null && gaps.has(HubFeature.STANDING_PUBLISH)) {
+        try {
+            return applyPlaybook(ref, company, platform, noteFa, asIs, key, publish)
+        } catch (e: ApiException) {
+            if (!e.applyPublishUnknown) throw e
+            e.logged?.let { failures?.forget(it) }
+            gaps.mark(HubFeature.STANDING_PUBLISH)
+        }
+    }
+    return applyPlaybook(ref, company, platform, noteFa, asIs, key)
 }
 
 /**

@@ -64,6 +64,10 @@ class PublishScreensTest(private val name: String, private val night: Boolean) {
             "output-publish" to Scene("O-000950", false, listOf("انتشار در اینستاگرام", "تأیید و انتشار", "gold-levels-reel.mp4", "کارت و اثر انگشت ندارد")),
             "output-publish-sheet" to Scene("O-000950", true, listOf("به شکل", "ریلز", "استوری", "@coineprofx.academy", "کاور", "gold-levels-cover.webp", "بدون کاور", "اول حساب را انتخاب کنید")),
             "output-publish-states" to Scene("O-000951", false, listOf("منتشر شد", "با کاور", "باز کن", "در حال انتشار", "سقف انتشار", "دوباره")),
+            // ⟨0.19.9⟩ §45 a working group's daily output (no session): it went out on the owner's standing word, and the sheet of a
+            // file of it opens with the package's own caption and cover
+            "output-publish-auto" to Scene("O-000952", false, listOf("خودکار", "منتشر شد", "استوری: در حال انتشار", "خروجی هر روز را خودکار منتشر میکند")),
+            "output-publish-auto-sheet" to Scene("O-000952", true, listOf("@tradeyar", "ریلز", "gold-levels-cover.webp", "حد ضرر را در ۳۰ ثانیه یاد بگیر")),
         )
 
         @JvmStatic
@@ -158,5 +162,16 @@ class PublishRulesTest {
         )
         assertEquals("published", publishOf(panel, "v")?.state)
         assertEquals(null, publishOf(panel, "i"))
+        // ⟨0.19.9⟩ the same video as a reel and (newer) as a story: the reel is the row, the story a line under it
+        val both = PublishPanel(publishes = listOf(
+            SessionPublish(job = "4", fileId = "v", kind = "story", state = "publishing", auto = true),
+            SessionPublish(job = "3", fileId = "v", kind = "reel", state = "published", auto = true),
+            SessionPublish(job = "5", fileId = "s", kind = "story", state = "failed"),
+        ))
+        assertEquals("reel", publishOf(both, "v")?.kind)
+        assertEquals("publishing", com.coinepro.hq.ui.outputs.storyOf(both, "v")?.state)
+        assertEquals("story", publishOf(both, "s")?.kind)
+        assertEquals(null, com.coinepro.hq.ui.outputs.storyOf(both, "s"))
+        assertEquals("cover.png", com.coinepro.hq.ui.outputs.coverOf(listOf(FileRef(id = "a", name = "chart.png", kind = "image"), FileRef(id = "b", name = "cover.png", kind = "image")))?.name)
     }
 }

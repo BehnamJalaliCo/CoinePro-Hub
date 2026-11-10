@@ -9,6 +9,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { call } from './v13';
 import { notServed } from './v28';
 import { withStepUp } from './v29';
+import { publishRule, type MemberPublish } from './v44';
 
 const enc = encodeURIComponent;
 async function served<T>(p: Promise<T>): Promise<T | null> {
@@ -21,7 +22,7 @@ export type Helper = 'gpt' | 'gemini' | 'deepseek' | 'aistudio';
 export type PlaybookSeat = { seat: string; role: string; title_fa: string; duties_fa?: string; helpers?: string[]; model?: string | null };
 export type PlaybookRoutine = { key: string; title_fa: string; seat: string; schedule: string; brief_md: string; max_tokens?: number };
 export type PlaybookKpi = { key: string; title_fa: string; source: string; unit?: string };
-export type PlaybookMember = { company: string; name_fa: string; state: 'on' | 'paused'; order?: string | null };
+export type PlaybookMember = { company: string; name_fa: string; state: 'on' | 'paused'; order?: string | null; publish?: MemberPublish };
 export type Playbook = {
   ref: string; title_fa: string; purpose_fa: string; state: PlaybookState; version: number; platform: PlaybookPlatform;
   seats?: PlaybookSeat[]; routines?: PlaybookRoutine[]; kpis?: PlaybookKpi[]; connections?: string[]; rules_fa?: string[];
@@ -30,7 +31,9 @@ export type Playbook = {
 };
 export type PlaybookPatch = Partial<Pick<Playbook, 'title_fa' | 'purpose_fa' | 'platform' | 'seats' | 'routines' | 'kpis' | 'connections' | 'rules_fa'>>;
 export type PlaybookApplied = { playbook: Playbook; member?: PlaybookMember | null; order?: string | null; conversation?: string | null };
-export type ApplyIn = { company: string; platform?: PlaybookPlatform | null; note_fa?: string | null; as_is?: boolean };
+export type ApplyIn = { company: string; platform?: PlaybookPlatform | null; note_fa?: string | null; as_is?: boolean; publish?: ReturnType<typeof publishRule> };
+/** ⟨0.19.9⟩ §45 a working group that publishes (Instagram, or any platform): only there is the standing word offered, and offered on. */
+export const publishes = (pb: Pick<Playbook, 'platform'>) => pb.platform === 'instagram' || pb.platform === 'any';
 
 export const PLATFORM_FA: Record<PlaybookPlatform, string> = { instagram: 'اینستاگرام', youtube: 'یوتیوب', telegram: 'تلگرام', site: 'سایت', any: 'همه' };
 export const PLATFORMS: PlaybookPlatform[] = ['instagram', 'youtube', 'telegram', 'site', 'any'];
@@ -70,7 +73,11 @@ export function usePlaybookActions(ref: string) {
   return {
     patch: useMutation({ mutationFn: (b: PlaybookPatch) => call<Playbook>('PATCH', `/playbooks/${enc(ref)}`, b), onSettled: settle }),
     // 🔏 `playbook.seal` and `playbook.retire`: routine, the hub answers the step-up with its own token (no fingerprint).
-    seal: useMutation({ mutationFn: () => withStepUp('playbook.seal', ref, (h) => call<Playbook>('POST', `/playbooks/${enc(ref)}/seal`, {}, h)), onSettled: settle }),
+    // ⟨0.19.9⟩ §45: a hub of §45 asks no step-up for either, and the seal carries the owner's standing word on publishing.
+    seal: useMutation({
+      mutationFn: (word?: MemberPublish) => withStepUp('playbook.seal', ref, (h) => call<Playbook>('POST', `/playbooks/${enc(ref)}/seal`, word ? { publish: publishRule(word) } : {}, h)),
+      onSettled: settle,
+    }),
     retire: useMutation({ mutationFn: () => withStepUp('playbook.retire', ref, (h) => call<Playbook>('POST', `/playbooks/${enc(ref)}/retire`, {}, h)), onSettled: settle }),
     apply: useMutation({ mutationFn: (b: ApplyIn) => call<PlaybookApplied>('POST', `/playbooks/${enc(ref)}/apply`, b, { 'Idempotency-Key': crypto.randomUUID() }), onSettled: settle }),
   };

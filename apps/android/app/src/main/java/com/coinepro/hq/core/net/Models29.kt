@@ -138,11 +138,16 @@ data class SessionPublish(
     val noteFa: String? = null,
     val at: String? = null,
     val publishedAt: String? = null,
+    /** ⟨0.19.9⟩ §45 the hub sent it on the owner's standing word (no tap). */
+    val auto: Boolean = false,
 )
 
 /**
- * ⟨0.19.8⟩ §44.5 What an output's page shows of «تأیید و انتشار»: the session it belongs to ([order] null: no button), the
- * company's Instagram accounts and this output's publishes, newest first.
+ * ⟨0.19.8⟩ §44.5 What an output's page shows of «تأیید و انتشار»: the session it belongs to, the company's Instagram accounts and
+ * this output's publishes, newest first. ⟨0.19.9⟩ §45 [tap]: it can be published by a tap ([order] is null for a working group's
+ * daily output, which is no session's; a hub before §45 leaves [tap] out and only a session's output has the button); [caption]:
+ * the caption its package carries; [group], [groupFa], [mode]: the working group whose routine made it and the owner's standing
+ * word for it (`auto`: it goes out by itself).
  */
 @Serializable
 data class PublishPanel(
@@ -151,7 +156,26 @@ data class PublishPanel(
     val accounts: List<String> = emptyList(),
     val ready: Boolean = false,
     val publishes: List<SessionPublish> = emptyList(),
+    val tap: Boolean = false,
+    val caption: String? = null,
+    val group: String? = null,
+    val groupFa: String? = null,
+    val mode: String? = null,
 )
+
+/**
+ * ⟨0.19.9⟩ §45 The owner's standing word for one company in one working group (his words, 2026-11-10: «نه اینکه هر بار من تایید
+ * کنم»): [mode] `auto`, the hub publishes each day's package by itself; `ask`, each output waits for his tap.
+ */
+@Serializable
+data class MemberPublish(
+    val mode: String = "ask",
+    val account: String? = null,
+    val story: Boolean = false,
+    val since: String? = null,
+) {
+    val auto: Boolean get() = mode == "auto"
+}
 
 /** ⟨0.19.6⟩ A card of the order that waits for a decision (the owner, in his session: «بیار مهر کنم»). */
 @Serializable
@@ -271,6 +295,8 @@ data class Membership(
     val state: String = "on",
     val joinedAt: String? = null,
     val seats: List<MemberSeat> = emptyList(),
+    /** ⟨0.19.9⟩ §45 the owner's standing word on publishing. */
+    val publish: MemberPublish = MemberPublish(),
 )
 
 @Serializable

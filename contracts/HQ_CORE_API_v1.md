@@ -17,6 +17,7 @@
 >
 > **v1.27 (۲۰۲۶-۱۱-۱۰):** جلسه‌ی مستقیم، قدم اول (§۴۴، پرامپت ۳۲): گوینده‌ی محتوا روشن است (آنچه مالک خاموش کرد گفتگوی صوتی خودش بود)؛ استخدامی که مالک در جلسه‌ی خودش خواسته همان‌جا با کد انجام میشود، بی کارت و بی اثر انگشت؛ مسئول جلسه کار را خودش با کارگاه انجام میدهد؛ و نوبت کارگاه فایل‌های ستاد را با خودش میبرد (`workshop.run {files}`، §۴۳.۸)؛ و دیوار کارگاه بین شرکت‌ها که هیچ‌وقت جلوی کار را نمیگیرد (§۴۳.۹، runner 0.3.4).
 >
+> **v1.29 (۲۰۲۶-۱۱-۱۰):** اجازه‌ی دائمی انتشار (§۴۵، پرامپت ۳۴؛ مالک: «به صورت خودکار از روز دوم انجام بشه … نه اینکه هر بار من تایید کنم»): مالک یک بار برای هر شرکت در یک کارگروه میگوید «خودکار»؛ از نوبت بعد، هاب بسته‌ی هر روال (ویدیو، کاور، `caption.txt`) را خودش از همان مسیر IG-Hub منتشر میکند. بدون آن، هر خروجی مثل قبل منتظر لمس اوست، حالا بیرون از جلسه هم. مُهر و بازنشستگی کارگروه دیگر اثر انگشت نمیخواهد.
 > **v1.28 (۲۰۲۶-۱۱-۱۰):** «تأیید و انتشار» (§۴۴.۴، §۴۴.۵، پرامپت ۳۳): مالک روی فایل خروجی جلسه یک بار میزند و همان فایل از راه runner سرور IG-Hub منتشر میشود، بی کارت و بی اثر انگشت؛ کارت `media_publish` هم دیگر اثر انگشت نمیخواهد. اثر انگشت فقط برای پول، حذف برای همیشه، کلید و دسترسی، و دستور ویرانگر سرور.
 
 > **v1.12 (۲۰۲۶-۱۱-۰۴):** «خط تولید» (§۳۰، پرامپت ۲۲): موتور عمومی تولید و انتشار محتوا برای هر شرکت و هر پلتفرم، از روی قالب، با مرحله‌های قابل ویرایش، کتابخانه، تقویم، n8n برای مرحله‌های قاعده‌ای، و حالت پیش‌نویس تا خودکار.
@@ -4650,3 +4651,67 @@ runner (§26.1b). The tap makes one `publish` job on IG-Hub's server; the job is
   still unpublished by the hub, §22.7.)
 - The common rules (v14) tell every role: a ready file is shown with its caption and «تأیید و انتشار؟»; no card for it; never
   «منتشر شد» before the session says so.
+
+## 45. The owner's standing permission to publish ⟨1.29⟩ (2026-11-10, prompt 34)
+
+The owner, the same day as §44: «پرامپتی که من برای کار گروه فرستاده بودم … نوشته بودم به صورت خودکار از روز دوم انجام بشه و
+به اتوماسیون تبدیل بشه نه اینکه هر بار من تایید کنم. ۱۰۰ تا کارگروه راه بندازم اونوقت باید روزی صد بار تایید بدم. پس جوری آپ
+رو باید طراحی بکنید که همه جور بشه باهاش کار کرد.» §44.5 made his word one tap on each output. Here that word can be given
+**once for a working group** instead: the same publish job, the same route through IG-Hub, no new way out of the hub.
+Nothing a model says can give this permission; only the owner's own routes below set it.
+
+### 45.1 The word: a membership's `publish`
+
+`growth.memberships.publish` (migration 0059), one per company in a working group (§29.11, §40.2):
+`{mode: "auto" | "ask", account?, story?, since, by}`. Absent or `ask` is the behaviour of §44.5: each output waits for his
+tap. `auto`: from the next run on, the hub publishes the package of each routine's delivered work by itself.
+
+- **`PUT /api/v1/groups/{key}/members/{code}/publish {mode, account?, story?}`** (owner; his tap, **no step-up**; audit
+  `group.publish`, A3) → `Membership`. `account`: one of the company's registered Instagram accounts (`422 fields.account`
+  names them); left out for a company with one account, and for a company whose path is not registered yet (checked when
+  it goes out). `story: true`: the same video also goes out as a story.
+- **With the seal:** `POST /api/v1/playbooks/{ref}/seal {publish?: {mode, account?, story?}}` sets it for the session's
+  company (the group's first member). **With the gift:** `POST /api/v1/playbooks/{ref}/apply {company, as_is: true,
+  publish?}` sets it for that company.
+- `Membership.publish` and `PlaybookMember.publish` answer `{mode, account, story, since}` (`ask` when he has not said
+  `auto`).
+- **Sealing and retiring a working group are his tap** (`POST /playbooks/{ref}/seal`, `/retire`: no step-up since v1.29;
+  audit A3 as before). The passkey is for money, deleting for good, keys and access, and a destructive command on a server
+  (§44.4); a seal hires inside the month's envelope and a retire deletes nothing. A client that still sends a step-up
+  assertion is answered the same.
+
+### 45.2 The package
+
+What a routine's work made to go out is **one output** of that work (or of a work under it): its newest finished output
+that carries **`caption.txt`** (or `caption.md`) and a video; the cover is an image of the same output (one named `cover…`
+first); without a video, an image with `caption.txt` goes out as a post. A workshop turn leaves these in `out/` (§43.3
+already accepts `.mp4`, images and `.txt`). `caption.txt` is the mark of a package: an output without it is never sent on
+a standing word.
+
+- The routine's work is **told** by code: on `auto`, its brief ends with a «Publishing: the owner gave this working group
+  his standing permission …» block (where it goes, the package, «never ask the owner to approve it»). The common rules
+  (v15) tell every role the same and that the package is one output.
+- `PublishPanel` (the output's page, §44.5) gains **`tap`** (true for every output: one of no session is tapped in
+  «خروجی‌ها» too; `POST /deliverables/{ref}/publish` no longer answers `409` for it), **`caption`** (the text of its
+  `caption.txt`, so the sheet opens with it), **`group`**, **`group_fa`** and **`mode`** (the working group whose routine
+  made it and his standing word). `SessionPublish` gains **`auto`** (true: sent on the standing word).
+
+### 45.3 Going out by itself
+
+- **When:** the routine's own work is delivered (`POST /internal/v1/work/{id}/deliver`, after its commit), and again on the
+  groups' tick for every run of the last 3 days with `auto` that has not gone out (a path that was not registered yet, a
+  lost hook). A run is sent **once**: its jobs carry `args.standing = {run, group, routine, occurrence, since}`.
+- **What:** one `publish` job as in §44.5 (`args.session.order: null`, actor the service `groups`): the video as a reel
+  with its cover and the caption, and with `story` a second job, the same video as a story. Audit `publish.standing` (A3,
+  on the company and on IG-Hub's, naming the day he gave his word), then `publish.standing_done` / `_failed`.
+- **Only what comes after his word:** a work delivered before `since` is never sent by it (an output that was already
+  waiting for his tap stays his to tap). **Never twice:** a file he already tapped himself (the same account, the same
+  kind) is not sent again. A paused member, a group that is off, the kill switch or a freeze (the launch gate): nothing
+  is sent.
+- **Never silent, never his chore:** the run's `note_fa` says where it stands («انتشار خودکار: ریلز به @… میرود»,
+  «خودکار منتشر شد: … · link»). A video without its caption is not sent: the run says so and the owner gets **one**
+  notification with the output («… منتظر شماست»), where one tap sends it. A company whose publish path is not registered
+  gets the technical work of §44.5 once, and the run goes out on a later tick. A publish Instagram refused is told to him
+  once, with the output and «دوباره». A work that made nothing to publish (a report) is no fault and tells nobody.
+- **Taking the word back:** `PUT … {mode: "ask"}`; pausing the member or retiring the group stops it as well.
+

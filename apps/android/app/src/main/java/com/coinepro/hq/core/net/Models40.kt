@@ -41,7 +41,14 @@ data class PlaybookSource(val order: String = "", val company: String? = null, v
 
 /** A company the sealed group runs in: `on` or `paused`; [order] the session it came from for that company. */
 @Serializable
-data class PlaybookMember(val company: String = "", val nameFa: String = "", val state: String = "on", val order: String? = null)
+data class PlaybookMember(
+    val company: String = "",
+    val nameFa: String = "",
+    val state: String = "on",
+    val order: String? = null,
+    /** ⟨0.19.9⟩ §45 the owner's standing word on publishing for this company. */
+    val publish: MemberPublish = MemberPublish(),
+)
 
 /** `GET /playbooks/{ref}` and every playbook route's answer. [ref] (`PB-0001`) is the app's key only: it is never shown. */
 @Serializable

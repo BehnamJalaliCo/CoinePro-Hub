@@ -34,7 +34,7 @@ from typing import Any, Literal
 from uuid import UUID
 
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from hq_api import events
 from hq_api.db import Tx
@@ -126,6 +126,16 @@ class MemberSeat(BaseModel):
     blocked: SeatBlocked | None = None
 
 
+class MemberPublish(BaseModel):
+    """⟨§45⟩ The owner's standing word for one company in one working group: `auto`, the hub
+    publishes each routine's package by itself; `ask` (the default), each waits for his tap."""
+
+    mode: Literal["ask", "auto"] = "ask"
+    account: str | None = None
+    story: bool = False
+    since: datetime | None = None
+
+
 class Membership(BaseModel):
     group: str
     company: str
@@ -136,6 +146,8 @@ class Membership(BaseModel):
     name_fa: str | None = None
     plan: dict[str, Any] | None = None
     plan_at: datetime | None = None
+    # ⟨§45⟩ the owner's standing permission to publish (PUT /groups/{key}/members/{code}/publish)
+    publish: MemberPublish = Field(default_factory=MemberPublish)
 
 
 class RoutineRun(BaseModel):
@@ -361,7 +373,18 @@ def render_member(r: dict[str, Any], g: Group | None = None) -> Membership:
         ],
         plan=r.get("plan"),
         plan_at=r.get("plan_at"),
+        publish=member_publish(r.get("publish")),
     )
+
+
+def member_publish(raw: Any) -> MemberPublish:
+    from hq_api.domain import session_publish as SPB
+
+    rule = SPB.rule_of(raw)
+    if rule["mode"] != "auto":
+        return MemberPublish()
+    return MemberPublish(mode="auto", account=rule["account"], story=rule["story"],
+                         since=rule["since"])  # fmt: skip
 
 
 async def members(tx: Tx, group_id: UUID) -> list[dict[str, Any]]:
@@ -589,13 +612,18 @@ def due_occurrence(rule: recurrence.Rule, tz: str, now: datetime) -> datetime | 
 
 
 def brief_for(r: Routine, g: Group, company: dict[str, Any], occurrence: datetime) -> str:
+    from hq_api.domain import session_publish as SPB
+
     code = str(company.get("company") or company.get("code"))
     name = company.get("name_fa") or code
     body = r.brief_md.replace("{company_name}", str(name)).replace("{company}", code)
+    # ⟨§45⟩ on the owner's standing word the work is told how its package goes out by itself
+    publishing = SPB.brief_block(company.get("publish"))
     return (
         f"{body.strip()}\n\n"
         f"(Working group «{g.title_fa}» ({g.key}), routine «{r.title_fa}» ({r.key}), "
         f"for {occurrence.isoformat()}; budget {r.max_tokens} tokens; contract §29.11.)"
+        + (f"\n\n{publishing}" if publishing else "")
     )
 
 
@@ -783,6 +811,10 @@ async def tick(
                         out["queued"] += 1
                     elif got == "skipped":
                         out["skipped"] += 1
+        # ⟨§45⟩ what the owner's standing word covers and has not gone out yet
+        from hq_api.domain import session_publish as SPB
+
+        out["published"] = await SPB.sweep(tx, hub)
     return out
 
 

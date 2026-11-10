@@ -50,6 +50,14 @@ class StateIn(Model):
     state: Literal["on", "paused"]
 
 
+class MemberPublishIn(Model):
+    """⟨§45⟩ The owner's standing word for a company in a working group."""
+
+    mode: Literal["ask", "auto"]
+    account: str | None = Field(default=None, max_length=65)
+    story: bool = False
+
+
 class KpiSeries(BaseModel):
     key: str
     title_fa: str
@@ -131,6 +139,54 @@ async def set_member(
                 data={"state": body.state},
             )
             await ctx.emit(tx, code, "group.run", None, {"group": key, "membership": body.state})
+        return GR.render_member(await GR.member(tx, grow["id"], company.id), GR.render(grow))
+
+
+@router.put("/groups/{key}/members/{code}/publish", response_model=GR.Membership, responses=E)
+async def set_member_publish(
+    key: str, code: str, body: MemberPublishIn, ctx: Ctx = Depends(owner_ctx)
+) -> GR.Membership:
+    """⟨§45⟩ The owner's standing permission to publish, given once for this company in this
+    working group (2026-11-10: «نه اینکه هر بار من تایید کنم»). `auto`: the hub publishes the
+    package of each routine's delivered work by itself (the video, its cover and `caption.txt`
+    of one output; as a reel, and as a story too with `story`), through the company's own publish
+    command on IG-Hub, from the next run on. `ask`: each output waits for his «تأیید و انتشار».
+    `account`: one of the company's registered accounts (`422` names them); left out for a
+    company with one account. A tap, no step-up: what goes out can be taken back (§44.4)."""
+    from hq_api.domain import session_publish as SPB
+
+    company = await ctx.hub.companies.by_code(code)
+    async with ctx.tx() as tx:
+        grow = await _group(ctx, tx, key)
+        await GR.member(tx, grow["id"], company.id, lock=True)
+        rule = await SPB.set_rule(
+            tx, grow["id"], company.id, mode=body.mode, account=body.account, story=body.story
+        )
+        said = (
+            f"auto to @{rule.get('account') or '(the company account)'}"
+            + (" + story" if rule.get("story") else "")
+            if rule["mode"] == "auto"
+            else "ask each time"
+        )
+        await ctx.audit(
+            tx,
+            company_id=company.id,
+            action="group.publish",
+            action_class="A3",
+            target_kind="group",
+            target_ref=f"{key}:{code}",
+            summary=f"the owner's standing permission to publish: {said}",
+        )
+        await ctx.interaction(
+            tx,
+            company_id=company.id,
+            kind="setting",
+            action="group.publish",
+            target_kind="group",
+            target_ref=f"{key}:{code}",
+            data={"mode": rule["mode"], "story": bool(rule.get("story"))},
+        )
+        await ctx.emit(tx, code, "group.run", None, {"group": key, "publish": rule["mode"]})
         return GR.render_member(await GR.member(tx, grow["id"], company.id), GR.render(grow))
 
 

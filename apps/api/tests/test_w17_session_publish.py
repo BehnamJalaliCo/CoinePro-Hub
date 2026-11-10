@@ -197,8 +197,12 @@ async def test_the_owners_tap_publishes_a_session_file_through_ig_hub(
     acts = [
         r["action"]
         for r in await su.fetch(
-            "SELECT action FROM audit.entries WHERE target_ref = $1 AND action LIKE 'publish.%'",
+            # (of this run's two companies: a test database that outlives a run sees the same
+            # order ref again after a fresh start, and the audit trail is never deleted)
+            "SELECT action FROM audit.entries WHERE target_ref = $1 AND action LIKE 'publish.%' "
+            "AND company_id = ANY($2::uuid[])",
             order,
+            [ig["id"], pc["id"]],
         )
     ]
     assert acts.count("publish.session") == 2 and "publish.session_done" in acts
