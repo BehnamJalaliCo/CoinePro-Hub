@@ -104,6 +104,17 @@ async def test_the_holding_map_keeps_to_its_room_however_many_companies(
     keys = list(b)
     assert keys.index("your_company") < keys.index("the_holding") == len(keys) - 1
     assert len(json.dumps(b, ensure_ascii=False, default=str)) <= runner.CAPS_CHARS
+    # ⟨2026-11-10⟩ the map takes what the rest of the brief left, so the brief stays inside its
+    # room whatever the «how» texts grow to: with them 1 500 characters longer it still fits
+    assert CAP.BRIEF_CHARS == runner.CAPS_CHARS
+    with monkeypatch.context() as m:
+        m.setitem(CAP.HOW, "video", CAP.HOW["video"] + " x" * 750)
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            longer = await CAP.brief(tx, co["id"], n8n_up=False)
+    assert len(json.dumps(longer, ensure_ascii=False, default=str)) <= runner.CAPS_CHARS
+    assert [c for c in longer["the_holding"] if "departments" in c][1]["code"] == co["code"]
+    left_out = (longer.get("the_holding_more") or {}).get("companies", 0)
+    assert len(longer["the_holding"]) + left_out == active
     # a small room: the rest by code and name, then only how many more
     monkeypatch.setattr(CAP, "MAP_CHARS", 1)
     monkeypatch.setattr(CAP, "MAP_NAMES_CHARS", 120)
@@ -346,6 +357,7 @@ async def test_the_brief_maps_the_whole_holding_and_ig_hubs_accounts(
     )  # fmt: skip
     # every company in full: a room for all of them (the room itself is the next test's)
     monkeypatch.setattr(CAP, "MAP_CHARS", 10**8)
+    monkeypatch.setattr(CAP, "BRIEF_CHARS", 10**8)  # ⟨2026-11-10⟩ the map lives inside the brief's
     async with hub.db.tx(await hub.companies.ids()) as tx:
         brief = await CAP.brief(tx, a["id"], n8n_up=True)
     by_code = {c["code"]: c for c in brief["the_holding"]}

@@ -79,10 +79,7 @@ HOW = {
         "the owner's. Publishing, after the owner approves, goes on through IG-Hub: ⟨2026-11-10⟩ "
         "he taps «تأیید و انتشار» on the file in the session (no card, no passkey), so give the "
         "caption and hashtags ready in the same output and never say it is published before the "
-        "session says «منتشر شد». The package is one output: the workshop turn leaves the video, "
-        "`cover.jpg`/`cover.png` and `caption.txt` in `out/`. A working group's routine with the "
-        "owner's standing permission (its brief says so) is published by the hub itself when the "
-        "work is delivered: never ask him to approve it"
+        "session says «منتشر شد»"
     ),
     "narration": (
         "⟨2026-11-10⟩ the narrator of a reel or a video is ON (what the owner switched off is his "
@@ -234,6 +231,13 @@ def _few(items: list[Any]) -> list[Any]:
 # comes last so a trim never reaches the reader's own company.
 MAP_CHARS = 5000
 MAP_NAMES_CHARS = 1500
+# ⟨2026-11-10⟩ The whole brief's room (agents.runner.CAPS_CHARS; a test keeps the two equal). The
+# map takes what the rest of the brief left of it, never its own fixed room on top: the «how»
+# texts grew with every prompt until the two fixed rooms no longer fitted inside the brief, and
+# the trim would have reached the map's last companies. MAP_SLACK: the map's own keys, the
+# «how many more» note and the separators around its entries.
+BRIEF_CHARS = 12_000
+MAP_SLACK = 220
 
 
 def _size(item: Any) -> int:
@@ -267,10 +271,15 @@ def _entry(p: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-async def _holding_map(tx: Tx, first: UUID | None = None) -> tuple[list[dict[str, Any]], int]:
+async def _holding_map(
+    tx: Tx, first: UUID | None = None, room: int | None = None
+) -> tuple[list[dict[str, Any]], int]:
     """Every active company in short, from linked.profile (masked, public handles only), within
-    MAP_CHARS (then by code and name within MAP_NAMES_CHARS); and how many are left out."""
+    MAP_CHARS (then by code and name within MAP_NAMES_CHARS); and how many are left out.
+    `room`: what the rest of the brief left for the whole map (both parts stay inside it)."""
     from hq_api.domain import linked as LK
+
+    left = MAP_CHARS + MAP_NAMES_CHARS if room is None else max(0, room)
 
     rows = await tx.all(
         """SELECT id, code, name_fa FROM core.companies WHERE status = 'active'
@@ -286,16 +295,17 @@ async def _holding_map(tx: Tx, first: UUID | None = None) -> tuple[list[dict[str
             if p is None:
                 continue
             entry = _entry(p)
-            if used + _size(entry) <= MAP_CHARS:
+            # (+2: the separator between two entries of the list)
+            if used + _size(entry) + 2 <= min(MAP_CHARS, left):
                 out.append(entry)
-                used += _size(entry)
+                used += _size(entry) + 2
                 continue
             full = False
         short = {"code": r["code"], "name_fa": r["name_fa"]}
-        if names + _size(short) > MAP_NAMES_CHARS:
+        if names + _size(short) + 2 > min(MAP_NAMES_CHARS, left - used):
             return out, len(rows) - i
         out.append(short)
-        names += _size(short)
+        names += _size(short) + 2
     return out, 0
 
 
@@ -494,7 +504,7 @@ async def brief(
     if lean or not holding_map:
         return out
     # the map last: a trim from the end never reaches the reader's own parts
-    mapped = await _safe(tx, _holding_map, company_id)
+    mapped = await _safe(tx, _holding_map, company_id, BRIEF_CHARS - _size(out) - MAP_SLACK)
     if mapped:
         holding, more = mapped
         if more:
