@@ -28,6 +28,11 @@ internal class OutputsDemo(private val store: MutableMap<String, Pair<Int, JsonE
     private val filed = mutableMapOf<String, String>()
     private var nextRecord = 97
 
+    // ⟨0.19.8⟩ §44.5 «تأیید و انتشار»: the publishes of the session's outputs, newest first, and the accounts of its company.
+    private val published = mutableMapOf<String, MutableList<JsonObject>>()
+    private val sessionOutputs = mapOf("O-000950" to listOf("coineprofx", "coineprofx.academy"), "O-000951" to listOf("coineprofx"))
+    private var nextJob = 10
+
     init {
         val now = HqClock.now()
         fun at(minutes: Long) = now.minus(minutes, ChronoUnit.MINUTES).toString()
@@ -47,6 +52,27 @@ internal class OutputsDemo(private val store: MutableMap<String, Pair<Int, JsonE
             "دقت هفته 68٪، در محدوده‌ی هدف؛ دو سیگنال طلا بی‌دلیل منقضی شدند.", "دقت هفته **68%**؛ جزئیات در پیوست پایش.", at(3 * 60 * 24 + 90),
         )
         for (d in listOf(morning, yesterday, earlier)) store["/deliverables/${d.str("ref")}"] = 200 to d
+        // ⟨0.19.8⟩ §44.5 two outputs of a session, made by the workshop (opened by their ref; not in the lists): a reel and its cover
+        // ready for «تأیید و انتشار», and the same with a story once the owner tapped (one published, one on its way, one refused).
+        val media = agent("FX-MEDIA-01", "FX", "MEDIA", "مدیر رسانه")
+        val reel = file("/demo/fx-reel-levels.mp4", "gold-levels-reel.mp4", "video/mp4", "video", "/demo/fx-reel-levels-poster.webp")
+        val cover = file("/demo/fx-reel-levels-poster.webp", "gold-levels-cover.webp", "image/webp", "image")
+        val story = file("/demo/ty-story-stoploss-poster.webp", "gold-levels-story.webp", "image/webp", "image")
+        val workshop = buildJsonObject { put("runtime", "workshop"); put("label_fa", "کارگاه هلدینگ · Opus 5.5") }
+        for ((ref, files) in listOf("O-000950" to listOf(reel, cover), "O-000951" to listOf(reel, cover, story))) {
+            val d = deliverable(
+                ref, "FX", "W-000311", media, "خروجی کارگاه: ریلز «سطوح کلیدی طلا»",
+                "ریلز ۶ ثانیه‌ای با گوینده آماده است؛ کاور و کپشن هم ساخته شد.",
+                "ریلز **سطوح کلیدی طلا** آماده است.\n\n- ویدیو: ۶ ثانیه، عمودی، با صدای گوینده\n- کاور: تیتر با IRANYekanX\n\n**کپشن پیشنهادی:** سه سطحی که این هفته طلا را جابه‌جا میکند. #طلا #فارکس\n\nتأیید و انتشار؟",
+                at(25), produced = workshop,
+            )
+            store["/deliverables/$ref"] = 200 to JsonObject(d + ("attachments" to JsonArray(files)))
+        }
+        published["O-000951"] = mutableListOf(
+            publish("O-000951", "jp-3", story, "story", "coineprofx", "failed", note = "حساب امروز به سقف انتشار رسیده است.", at = at(4)),
+            publish("O-000951", "jp-2", cover, "post", "coineprofx", "publishing", at = at(1)),
+            publish("O-000951", "jp-1", reel, "reel", "coineprofx", "published", url = "https://www.instagram.com/reel/C9xGoldLv/", at = at(18), cover = "gold-levels-cover.webp"),
+        )
         val all = listOf<JsonElement>(morning) + list() + yesterday + earlier
         store["/deliverables"] = 200 to page(all)
         // The demo's state: the earlier days read (one filed in the archive), and the polished morning report read this morning.
@@ -56,8 +82,41 @@ internal class OutputsDemo(private val store: MutableMap<String, Pair<Int, JsonE
         filed["O-000026"] = "AR-000092"
     }
 
+    private fun file(id: String, name: String, mime: String, kind: String, poster: String? = null) = buildJsonObject {
+        put("id", id); put("name", name); put("mime", mime); put("size", if (kind == "video") 1_200_000 else 90_000); put("sha256", "demo"); put("kind", kind); put("status", "ready")
+        if (kind == "video") { put("width", 1080); put("height", 1920); put("duration_s", 6) } else { put("width", 1080); put("height", 1350) }
+        if (poster != null) put("variants", buildJsonObject { put("poster", poster) })
+    }
+
+    private fun publish(output: String, job: String, f: JsonObject, kind: String, account: String, state: String, url: String? = null, note: String? = null, at: String, cover: String? = null) = buildJsonObject {
+        put("job", job); put("output", output); put("file_id", f.str("id")); put("file_name", f.str("name")); put("channel", "instagram"); put("kind", kind)
+        put("cover_name", cover?.let(::JsonPrimitive) ?: JsonNull)
+        put("account", account); put("state", state); put("url", url?.let(::JsonPrimitive) ?: JsonNull); put("note_fa", note?.let(::JsonPrimitive) ?: JsonNull)
+        put("at", at); put("published_at", if (state == "published") JsonPrimitive(at) else JsonNull)
+    }
+
+    /** `GET` the panel of an output (an output of no session: `order` null), `POST` the owner's tap. */
+    private fun publishRoute(method: String, ref: String, body: JsonObject?): Pair<Int, JsonElement>? {
+        val accounts = sessionOutputs[ref]
+        if (method == "GET") return 200 to buildJsonObject {
+            put("order", if (accounts == null) JsonNull else JsonPrimitive("F-0100")); put("channel", "instagram")
+            put("accounts", JsonArray(accounts.orEmpty().map(::JsonPrimitive))); put("ready", accounts != null)
+            put("publishes", JsonArray(published[ref].orEmpty()))
+        }
+        if (method != "POST" || accounts == null) return null
+        val fileId = body?.str("file_id") ?: return null
+        val files = (store["/deliverables/$ref"]?.second?.jsonObject?.get("attachments") as? JsonArray)?.map { it.jsonObject }.orEmpty()
+        val f = files.firstOrNull { it.str("id") == fileId } ?: return null
+        val kind = body.str("kind") ?: if (f.str("kind") == "video") "reel" else "post"
+        val cover = files.firstOrNull { it.str("id") == body.str("cover_file_id") }?.str("name")
+        val made = publish(ref, "jp-${nextJob++}", f, kind, body.str("account")?.removePrefix("@") ?: accounts.first(), "publishing", at = HqClock.now().toString(), cover = cover)
+        published.getOrPut(ref) { mutableListOf() }.add(0, made)
+        return 202 to made
+    }
+
     /** Answers the ⟨1.7.3⟩ reads and writes, or null to let the rest of the demo answer. */
     fun handle(method: String, path: String, query: Map<String, String?>, body: JsonObject?, stepUp: String? = null): Pair<Int, JsonElement>? {
+        Regex("^/deliverables/(O-\\d+)/publish$").find(path)?.let { m -> return publishRoute(method, m.groupValues[1], body) }
         if (method == "GET" && path == "/deliverables") return 200 to page(filter(query).map(::view))
         if (method == "GET" && path.matches(Regex("^/deliverables/O-\\d+$"))) return store[path]?.let { 200 to view(it.second) }
         if (method == "GET" && path == "/inbox/summary") {

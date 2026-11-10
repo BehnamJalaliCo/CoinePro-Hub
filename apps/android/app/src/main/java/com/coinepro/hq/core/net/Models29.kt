@@ -112,6 +112,45 @@ data class OrderReport(
     val memoryMd: String? = null,
     /** ⟨0.19.6⟩ the session's cards that wait for a decision, oldest first: shown in the session and sealed from it. */
     val cards: List<OrderCard> = emptyList(),
+    /** ⟨0.19.8⟩ §44.5 what the owner published from this session («تأیید و انتشار»), newest first. */
+    val publishes: List<SessionPublish> = emptyList(),
+)
+
+/**
+ * ⟨0.19.8⟩ §44.5 One «تأیید و انتشار» of a session: the owner's tap on a file, as the publish job on IG-Hub's server stands.
+ * [state]: `publishing` · `published` · `failed` ([noteFa] says why) · `waiting_seal` · `waiting_setup` (the technical team is
+ * connecting the company's publish path; no job yet).
+ */
+@Serializable
+data class SessionPublish(
+    val job: String? = null,
+    val output: String? = null,
+    val fileId: String = "",
+    val fileName: String? = null,
+    /** A reel's cover, when the owner chose one. */
+    val coverName: String? = null,
+    val channel: String = "instagram",
+    /** reel · post · story */
+    val kind: String = "post",
+    val account: String? = null,
+    val state: String = "publishing",
+    val url: String? = null,
+    val noteFa: String? = null,
+    val at: String? = null,
+    val publishedAt: String? = null,
+)
+
+/**
+ * ⟨0.19.8⟩ §44.5 What an output's page shows of «تأیید و انتشار»: the session it belongs to ([order] null: no button), the
+ * company's Instagram accounts and this output's publishes, newest first.
+ */
+@Serializable
+data class PublishPanel(
+    val order: String? = null,
+    val channel: String = "instagram",
+    val accounts: List<String> = emptyList(),
+    val ready: Boolean = false,
+    val publishes: List<SessionPublish> = emptyList(),
 )
 
 /** ⟨0.19.6⟩ A card of the order that waits for a decision (the owner, in his session: «بیار مهر کنم»). */

@@ -22,6 +22,7 @@ from hq_api import events, idempotency, pagination
 from hq_api.context import Ctx, owner_ctx
 from hq_api.db import Tx
 from hq_api.domain import files as F
+from hq_api.domain import order_report as OR
 from hq_api.domain import org, scoring, stories
 from hq_api.domain.gov_common import owner_tz
 from hq_api.errors import ApiError, responses
@@ -366,6 +367,60 @@ async def file_deliverable(ref: str, ctx: Ctx = Depends(owner_ctx)) -> FiledOut:
     async with ctx.tx() as tx:
         dl = await tx.one(DELIVERABLE_SQL + " WHERE dl.ref = :ref", ref=ref)
     return FiledOut(record=await _file_one(ctx, dict(dl)))
+
+
+class OutputPublishIn(Model):
+    """⟨2026-11-10⟩ §44.5 «تأیید و انتشار» from the output's own page: one of its files."""
+
+    file_id: UUID
+    kind: Literal["reel", "post", "story"] | None = None
+    caption: str | None = Field(default=None, max_length=2200)
+    account: str | None = Field(default=None, max_length=65)
+    cover_file_id: UUID | None = None  # a reel's cover: an image of the same output
+
+
+@router.get("/deliverables/{ref}/publish", response_model=OR.PublishPanel, responses=E)
+async def output_publish_panel(ref: str, ctx: Ctx = Depends(owner_ctx)) -> OR.PublishPanel:
+    """⟨2026-11-10⟩ §44.5 What the output's page shows of «تأیید و انتشار»: the session it
+    belongs to (`order: null` for an output of no session: no button), the company's Instagram
+    accounts, whether the publish path is registered, and this output's publishes."""
+    from hq_api.domain import session_publish as SPB
+
+    async with ctx.tx() as tx:
+        return await SPB.panel(tx, ref)
+
+
+@router.post(
+    "/deliverables/{ref}/publish", response_model=OR.SessionPublish, status_code=202,
+    responses=responses(401, 403, 404, 409, 422, 423),
+)  # fmt: skip
+async def publish_output(
+    ref: str, body: OutputPublishIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+) -> Any:
+    """⟨2026-11-10⟩ §44.5 «تأیید و انتشار» on a file of this output: the same as
+    `POST /orders/{order}/publish` for the session the output belongs to (`409` for an output of
+    no session). No step-up, no card. Requires `Idempotency-Key`."""
+    from hq_api.domain import session_publish as SPB
+
+    async with ctx.tx() as tx:
+        idem = await idempotency.claim(tx, request, ctx.who, required=True)
+        if idem and idem.replay:
+            return idem.replay
+        out = await SPB.start(
+            tx,
+            ctx.who,
+            await SPB.order_of_output(tx, ref),
+            output=ref,
+            file_id=body.file_id,
+            kind=body.kind,
+            caption=body.caption,
+            account=body.account,
+            cover_file_id=body.cover_file_id,
+            request_id=ctx.request_id,
+        )
+        if idem:
+            await idem.store(tx, 202, out.model_dump(mode="json"))
+    return out
 
 
 @router.get("/deliverables/{ref}", response_model=Deliverable, responses=E)

@@ -1,0 +1,162 @@
+package com.coinepro.hq
+
+import android.os.Looper
+import androidx.activity.ComponentActivity
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.unit.dp
+import androidx.test.core.app.ApplicationProvider
+import com.coinepro.hq.core.AppGraph
+import com.coinepro.hq.core.net.Decision
+import com.coinepro.hq.core.net.FileRef
+import com.coinepro.hq.core.net.PublishPanel
+import com.coinepro.hq.core.net.SessionPublish
+import com.coinepro.hq.designsystem.Divan
+import com.coinepro.hq.designsystem.DivanTheme
+import com.coinepro.hq.ui.LocalEnv
+import com.coinepro.hq.ui.LocalNav
+import com.coinepro.hq.ui.LocalToasts
+import com.coinepro.hq.ui.Nav
+import com.coinepro.hq.ui.Toasts
+import com.coinepro.hq.ui.cartable.needsStepUp
+import com.coinepro.hq.ui.outputs.PublishForm
+import com.coinepro.hq.ui.outputs.PublishSection
+import com.coinepro.hq.ui.outputs.kindsOf
+import com.coinepro.hq.ui.outputs.publishOf
+import com.coinepro.hq.ui.outputs.publishable
+import com.coinepro.hq.ui.rememberQuery
+import com.github.takahirom.roborazzi.RoborazziOptions
+import com.github.takahirom.roborazzi.captureRoboImage
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.ParameterizedRobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+
+/**
+ * ⟨0.19.8⟩ §44.5 «تأیید و انتشار» on a session's output, night and day, each on its own as the page shows it (the section sits
+ * under the output's files, far down a long page): the reel and its cover each with the one gold action; the sheet's content the tap
+ * opens (which account, as what, the caption); and where each publish stands once he tapped (one published with its link, one on
+ * its way, one Instagram refused, said plainly, with «دوباره»). Each is checked to show its words before it is drawn.
+ */
+@RunWith(ParameterizedRobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35], qualifiers = "w400dp-h560dp-xxhdpi")
+class PublishScreensTest(private val name: String, private val night: Boolean) {
+    private class Scene(val ref: String, val sheet: Boolean, val shows: List<String>)
+
+    companion object {
+        private val SCREENS: Map<String, Scene> = linkedMapOf(
+            "output-publish" to Scene("O-000950", false, listOf("انتشار در اینستاگرام", "تأیید و انتشار", "gold-levels-reel.mp4", "کارت و اثر انگشت ندارد")),
+            "output-publish-sheet" to Scene("O-000950", true, listOf("به شکل", "ریلز", "استوری", "@coineprofx.academy", "کاور", "gold-levels-cover.webp", "بدون کاور", "اول حساب را انتخاب کنید")),
+            "output-publish-states" to Scene("O-000951", false, listOf("منتشر شد", "با کاور", "باز کن", "در حال انتشار", "سقف انتشار", "دوباره")),
+        )
+
+        @JvmStatic
+        @ParameterizedRobolectricTestRunner.Parameters(name = "{0}-{1}")
+        fun params(): List<Array<Any>> = SCREENS.keys.flatMap { listOf(arrayOf<Any>(it, true), arrayOf<Any>(it, false)) }
+    }
+
+    @get:Rule
+    val compose = createAndroidComposeRule<ComponentActivity>()
+
+    private lateinit var graph: AppGraph
+
+    @Before
+    fun setUp() {
+        com.coinepro.hq.core.format.HqClock.fixed = java.time.Instant.parse("2026-11-06T08:30:00Z")
+        graph = (ApplicationProvider.getApplicationContext<HqApp>()).graph
+        graph.link.setForeground(false)
+        graph.enterDemo()
+        DemoLive.servers?.still = true
+    }
+
+    private fun settle(times: Int) = repeat(times) {
+        Thread.sleep(200)
+        shadowOf(Looper.getMainLooper()).idle()
+        compose.mainClock.advanceTimeBy(250)
+    }
+
+    @Test
+    fun screen() {
+        val nav = object : Nav {
+            override fun go(route: String) = Unit
+            override fun back() = Unit
+        }
+        val scene = SCREENS.getValue(name)
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            DivanTheme(night) {
+                CompositionLocalProvider(
+                    LocalEnv provides graph.env.value, LocalToasts provides Toasts(), LocalNav provides nav,
+                    com.coinepro.hq.designsystem.LocalReducedMotion provides true,
+                ) {
+                    val q = rememberQuery("deliverable:${scene.ref}", "deliverables") { deliverable(scene.ref) }
+                    val panel = rememberQuery("publish-panel:${scene.ref}", "publish") { publishPanel(scene.ref) }
+                    Column(
+                        Modifier.fillMaxSize().background(if (scene.sheet) Divan.colors.overlay else Divan.colors.page).padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        val d = q.data
+                        val p = panel.data
+                        if (d != null && scene.sheet && p != null) PublishForm(d, publishable(d).first(), p) {}
+                        else if (d != null) PublishSection(d)
+                    }
+                }
+            }
+        }
+        settle(16)
+        for (t in scene.shows) assertTrue("$name shows «$t»", compose.onAllNodesWithText(t, substring = true).fetchSemanticsNodes().isNotEmpty())
+        compose.onRoot().captureRoboImage(
+            "src/test/screenshots/$name-${if (night) "night" else "day"}.png",
+            roborazziOptions = RoborazziOptions(
+                recordOptions = RoborazziOptions.RecordOptions(resizeScale = 0.5),
+                compareOptions = RoborazziOptions.CompareOptions(changeThreshold = 0.002f),
+            ),
+        )
+    }
+}
+
+/** ⟨0.19.8⟩ §44.4, §44.5 the rules behind the section (no screen). */
+class PublishRulesTest {
+    private fun card(kind: String, cls: String) =
+        com.coinepro.hq.core.net.Api.json.decodeFromString(
+            Decision.serializer(),
+            """{"id":"d1","ref":"D-000001","company":"FX","kind":"$kind","title":"t","action_class":"$cls","status":"pending","proposer":{"kind":"agent","code":"FX-MEDIA-01"},"created_at":"2026-11-10T00:00:00Z"}""",
+        )
+
+    @Test
+    fun whatGoesOutAndCanBeTakenBackIsATap() {
+        assertFalse(needsStepUp(card("media_publish", "A3")))
+        // the passkey stays for money, deleting for good, keys and access, a destructive command
+        for ((kind, cls) in listOf("hire" to "A2", "budget_change" to "A2", "server_destructive" to "A3", "line_publish" to "A3", "a3_action" to "A3")) {
+            assertTrue(kind, needsStepUp(card(kind, cls)))
+        }
+    }
+
+    @Test
+    fun aVideoIsAReelOrAStoryAndTheNewestPublishOfAFileIsItsState() {
+        assertEquals(listOf("reel", "story"), kindsOf(FileRef(id = "v", kind = "video")))
+        assertEquals(listOf("post", "story"), kindsOf(FileRef(id = "i", kind = "image")))
+        val panel = PublishPanel(
+            order = "F-0100",
+            publishes = listOf(SessionPublish(job = "2", fileId = "v", state = "published"), SessionPublish(job = "1", fileId = "v", state = "failed")),
+        )
+        assertEquals("published", publishOf(panel, "v")?.state)
+        assertEquals(null, publishOf(panel, "i"))
+    }
+}

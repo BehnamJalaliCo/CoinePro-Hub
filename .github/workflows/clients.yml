@@ -75,7 +75,8 @@ jobs:
     if: needs.changes.outputs.web == 'true' && !inputs.record
     runs-on: ubuntu-24.04
     container: mcr.microsoft.com/playwright:v1.63.0-noble
-    timeout-minutes: 25
+    # 19 minutes on a good runner; the run of 0.19.7 was cut at 25 on a slow one (2026-11-10)
+    timeout-minutes: 40
     defaults:
       run:
         working-directory: apps/web

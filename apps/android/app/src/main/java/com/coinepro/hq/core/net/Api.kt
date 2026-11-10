@@ -263,6 +263,21 @@ class Api(
             "q" to q.text?.trim()?.ifEmpty { null }, "from" to q.from, "to" to q.to, "limit" to limit, "cursor" to cursor,
         ))
     suspend fun deliverable(ref: String): Deliverable = get("/deliverables/${seg(ref)}")
+    /** ⟨0.19.8⟩ §44.5 what the output's page shows of «تأیید و انتشار» (its session, the accounts, its publishes). */
+    suspend fun publishPanel(ref: String): PublishPanel = get("/deliverables/${seg(ref)}/publish")
+    /**
+     * ⟨0.19.8⟩ §44.5 The owner's «تأیید و انتشار» on one file of an output: his word in the session is the seal, so no passkey and no
+     * card. [key] is kept across retries of one press (the hub never sends the same file to the same account twice anyway).
+     */
+    suspend fun publishOutput(ref: String, fileId: String, kind: String?, caption: String?, account: String?, key: String, coverFileId: String? = null): SessionPublish =
+        call(write("POST", "/deliverables/${seg(ref)}/publish", buildJsonObject {
+            put("file_id", fileId)
+            if (kind != null) put("kind", kind)
+            if (!caption.isNullOrBlank()) put("caption", caption.trim())
+            if (account != null) put("account", account)
+            // a reel's cover: an image of the same output
+            if (coverFileId != null) put("cover_file_id", coverFileId)
+        }, null, key), serializer())
     /** ⟨1.7.3⟩ marks one or many seen (or unseen again); idempotent. A hub before ⟨1.7.3⟩ answers `404`: the caller keeps it on the phone. */
     suspend fun markSeen(refs: List<String>, seen: Boolean = true): SeenOut =
         post("/deliverables/seen", buildJsonObject { put("refs", ids(refs)); put("seen", seen) })

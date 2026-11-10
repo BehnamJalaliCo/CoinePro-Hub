@@ -20,6 +20,7 @@ from hq_api.domain import decisions as D
 from hq_api.hub import Hub
 
 from .conftest import idem
+from .test_p13a_media import mp4
 from .test_p17_runners import pair, take
 from .test_p21_secretary import no_model, post_order, words  # noqa: F401 - the fixture
 from .test_w11_connections import set_connection
@@ -55,7 +56,10 @@ async def an_output(
     job = await take(client, rn)
     files = []
     for i, name in enumerate(names):
-        r = await send_file(client, rn, job["id"], name, "image/png", a_png(i))
+        if name.endswith(".mp4"):
+            r = await send_file(client, rn, job["id"], name, "video/mp4", mp4(2))
+        else:
+            r = await send_file(client, rn, job["id"], name, "image/png", a_png(i))
         assert r.status_code == 201, r.text
         files.append(r.json()["id"])
     await refuse_queued(su, str(wid))
@@ -164,7 +168,7 @@ async def test_the_owners_tap_publishes_a_session_file_through_ig_hub(
     a = job["args"]
     assert a["command"] == command and a["caption"] == "هفته‌ی طلا #طلا"
     assert a["meta"] == {"channel": "instagram", "kind": "post", "account": "pro.chart",
-                         "company": co}  # fmt: skip
+                         "company": co, "cover": False}  # fmt: skip
     [f] = a["files"]
     assert f["url"] == f"/api/v1/runners/jobs/{job['id']}/inputs/{one}" and f["name"] == "cover.png"
     got = await client.get(f["url"], headers=ig_rn["h"])
@@ -202,9 +206,20 @@ async def test_the_owners_tap_publishes_a_session_file_through_ig_hub(
     again = await tap(client, owner, order, body)
     assert again.json()["state"] == "published" and again.json()["job"] == pub["job"]
 
+    # the output's own page reads the same: its session, the accounts, its publishes
+    panel = (await client.get(f"/api/v1/deliverables/{output}/publish", headers=owner)).json()
+    assert panel["order"] == order and panel["ready"] is True
+    assert panel["accounts"] == ["pro.chart", "pro.chart.edu"]
+    assert [x["job"] for x in panel["publishes"]] == [pub["job"]]
+
     # 5. a publish IG-Hub refused is said plainly, and the tap can be made again
     body2 = {"output": output, "file_id": two, "account": "pro.chart.edu", "kind": "story"}
-    r = await tap(client, owner, order, body2)
+    # (this one from the output's own page: the same tap)
+    r = await client.post(
+        f"/api/v1/deliverables/{output}/publish",
+        headers={**owner, **idem()},
+        json={k: v for k, v in body2.items() if k != "output"},
+    )
     assert r.status_code == 202 and r.json()["state"] == "publishing", r.text
     job2 = await take(client, ig_rn)
     r = await client.post(
@@ -265,3 +280,51 @@ async def test_only_a_file_of_the_session_and_never_past_the_kill_switch(
         async with hub.db.tx(await hub.companies.ids()) as tx:
             scope = await control.resolve_scope(tx, f"company:{pc['code']}")
             await control.set_kill_switch(tx, boss, scope, "released", "test")
+
+
+async def test_a_reel_goes_out_with_its_cover_and_caption(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+) -> None:
+    """The owner's own order: «ویدیو و کاور و کپشن رو میبریم به شرکت IG». The reel is the job's
+    first file and the cover he chose its second; a cover is an image of the same output and
+    belongs to a reel only."""
+    ig, pc = await new_company(), await new_company()
+    made = await an_output(client, hub, owner, owner_session, su, pc["code"],
+                           ("reel.mp4", "cover.png", "other.png"))  # fmt: skip
+    reel, cover, other = made["files"]
+    r = await set_connection(
+        client, f"{ig['code']}-TECH-MGR",
+        {"company": pc["code"], "kind": "instagram", "accounts": ["@pro.chart"], "via": "ig_hub",
+         "server": {"company": ig["code"], "name": "IG-Hub"}, "read_command": "cat /srv/ig/d.json",
+         "publish_command": "/srv/ig/bin/hq-publish"},
+    )  # fmt: skip
+    assert r.status_code == 200, r.text
+    ig_rn = await pair(client, hub, owner_session, ig, "IG-Hub")
+    base = {"output": made["output"]}
+    # a cover belongs to a reel, and is an image of this very output
+    r = await tap(client, owner, made["order"], {**base, "file_id": other, "cover_file_id": cover})
+    assert r.status_code == 422 and "cover_file_id" in r.json()["fields"], r.text
+    r = await tap(client, owner, made["order"], {**base, "file_id": reel, "cover_file_id": reel})
+    assert r.status_code == 422 and "cover_file_id" in r.json()["fields"], r.text
+    r = await tap(
+        client, owner, made["order"],
+        {**base, "file_id": reel, "cover_file_id": cover, "caption": "سه سطح طلا. کامنت کن «۳»"},
+    )  # fmt: skip
+    assert r.status_code == 202, r.text
+    pub = r.json()
+    assert pub["kind"] == "reel" and pub["file_name"] == "reel.mp4"
+    assert pub["cover_name"] == "cover.png" and pub["account"] == "pro.chart"
+    job = await take(client, ig_rn)
+    a = job["args"]
+    assert [f["name"] for f in a["files"]] == ["reel.mp4", "cover.png"]
+    assert a["files"][1]["role"] == "cover" and a["meta"]["cover"] is True
+    assert a["meta"]["kind"] == "reel" and a["caption"].endswith("کامنت کن «۳»")
+    for f in a["files"]:  # both come from the job's own route, with the runner's token
+        got = await client.get(f["url"], headers=ig_rn["h"])
+        assert got.status_code == 200, got.text

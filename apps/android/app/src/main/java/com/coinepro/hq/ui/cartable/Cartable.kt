@@ -119,7 +119,7 @@ private val STEP_UP_KINDS = setOf(
     // ⟨1.5⟩ §21.12: the monthly HR round's `evaluation` (payload v2), target = ref.
     "evaluation",
     // ⟨1.6⟩ §22.6: a media card, the counsel's email (sealed on the message digest, [sealTarget]) and a role written on demand.
-    "media_publish", "email_send", "role_new",
+    "email_send", "role_new",
     // ⟨1.7⟩ §23: the archive's two cards, target = ref.
     "archive_schema", "archive_disposal",
     // ⟨1.8⟩ §26.3: a destructive command on a company's server, 🔏 `server.destructive` on `<CODE>:<server>` ([sealAction]).
@@ -136,7 +136,13 @@ private val OWN_ROUTE: Map<String, Pair<(Decision) -> String, String>> = mapOf(
 )
 
 /** A3 actions and hire, dismissal and budget changes are approved with a fresh passkey (contract §4). */
-fun needsStepUp(d: Decision) = d.actionClass == "A3" || d.kind in STEP_UP_KINDS
+/**
+ * ⟨0.19.8⟩ §44.4 What goes out and can be taken back is the owner's tap: a `media_publish` card asks for no passkey. The passkey
+ * stays for money, deleting for good, keys and access, and a destructive command on a server.
+ */
+private val TAP_KINDS = setOf("media_publish")
+
+fun needsStepUp(d: Decision) = d.kind !in TAP_KINDS && (d.actionClass == "A3" || d.kind in STEP_UP_KINDS)
 
 /** One decision in a list: kind glyph, title, company, risk and time left. */
 @Composable

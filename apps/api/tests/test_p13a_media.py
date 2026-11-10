@@ -344,9 +344,8 @@ async def test_an_unsealed_series_publishes_nothing_and_an_edit_takes_the_seal_a
     # A draft makes no item and nothing it holds is published.
     async with _ScopedTx(hub) as tx:
         out = await S.tick_series(tx, hub)
-    assert not [r for r in out["made"] if r.startswith("MI-")] or all(
-        (await item(client, h, r))["series"] != s["ref"] for r in out["made"]
-    )
+    made = [(await item(client, h, r))["series"] for r in out["made"] if r.startswith("MI-")]
+    assert s["ref"] not in made
     one = await client.post("/api/v1/media/items", headers={**h, **idem()},
                             json={"company": co["code"], "kind": "reel", "brief_md": "یک ریلز", "series": s["ref"]})  # fmt: skip
     assert one.status_code == 201, one.text

@@ -64,6 +64,8 @@ enum class HubFeature {
     /** ⟨2026-11-09⟩ `POST /orders {pace}`, the owner's «با من / خودکار» given when the session is made; without it the order goes
      *  without and the pace is set on it at once (`POST /orders/{ref}/pace`). */
     ORDER_PACE,
+    /** ⟨0.19.8⟩ §44.5 `GET`/`POST /deliverables/{ref}/publish`; without them «تأیید و انتشار» is not shown under an output's files. */
+    SESSION_PUBLISH,
 }
 
 /**

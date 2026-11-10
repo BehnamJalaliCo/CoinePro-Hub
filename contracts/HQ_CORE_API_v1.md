@@ -4611,10 +4611,13 @@ The owner, 2026-11-10: «اثر انگشت فقط برای پول، حذف بر�
 Nothing here is a new way out of the hub: Instagram, for every company, lives on IG-Hub, and a server publishes through its own
 runner (§26.1b). The tap makes one `publish` job on IG-Hub's server; the job is the record.
 - **`POST /api/v1/orders/{ref}/publish`** (the owner's bearer; **no step-up, no card**; requires `Idempotency-Key`). Body:
-  `{output: "O-…", file_id, kind?: reel | post | story, caption? (≤ 2200), account?: "@handle"}`. `output` is an output of one
+  `{output: "O-…", file_id, kind?: reel | post | story, caption? (≤ 2200), account?: "@handle", cover_file_id?}`. `output` is an output of one
   of the order's works and `file_id` one of its attachments (an original video or image of that company): `404` / `422
   fields.file_id` otherwise. `kind` defaults to `reel` for a video and `post` for an image (`422 fields.kind` for a reel that
   is not a video). `423 company_locked` while the file's company is locked.
+- **A reel's cover** (`cover_file_id`): an image of the same output; it goes as the job's second file (`files[1].role:
+  "cover"`, `HQ_PUBLISH_FILE_2`, `meta.cover: true`). `422 fields.cover_file_id` for another kind or a file that is not an
+  image of this output. `SessionPublish.cover_name` names it.
 - **The company's Instagram connection** (`growth.connections`, kind `instagram`) gives the accounts, IG-Hub's server and the
   **`publish_command`**: a non-secret setting registered with `connection.set {…, publish_command}` (a secret-looking command
   and one the hub's classifier calls destructive are refused, `422 fields.publish_command`). With several accounts and none
@@ -4626,7 +4629,7 @@ runner (§26.1b). The tap makes one `publish` job on IG-Hub's server; the job is
   published, answers that publish; after a failure a tap is a new try.
 - **The job** (`infra.server_jobs`, kind `publish`, on IG-Hub's server, actor the owner): `args = {session: {order, output,
   work, company, file_id}, kind, placement: "instagram_<kind>", account, command, caption, title_fa, meta: {channel, kind,
-  account, company}, files: [{file_id, name, mime, kind}]}`. Its runner fetches each file with its own token from
+  account, company, cover}, files: [{file_id, name, mime, kind, role?}]}`. Its runner fetches each file with its own token from
   `GET /runners/jobs/{id}/inputs/{file_id}` (only the files the job names; a studio item's publish keeps its signed URLs) and
   runs the command with `HQ_PUBLISH_FILE_1`, `HQ_PUBLISH_CAPTION_FILE` and `HQ_PUBLISH_META`; the command prints
   `{"external_id", "url"}` (§26.1b). No runner change.
@@ -4638,6 +4641,11 @@ runner (§26.1b). The tap makes one `publish` job on IG-Hub's server; the job is
   waiting_setup` and a `note_fa`; the hub makes the technical work once per company (`run_meta.ig_publish`, P1: IG-Hub's CTO,
   else the holding's AIOPS; under the order's work, so its holder is woken when it is delivered) and the session says so. The
   work's brief names what the command gets and must print. The owner taps again when the session says it is connected.
+- **From the output's own page** (where its files are; apps 0.19.8): `GET /api/v1/deliverables/{ref}/publish` answers
+  `PublishPanel {order, channel, accounts, ready, publishes}` (`order: null` for an output of no session: the apps show no
+  button; `ready`: the accounts and the publish command are registered; `publishes`: this output's, newest first), and
+  `POST /api/v1/deliverables/{ref}/publish {file_id, kind?, caption?, account?, cover_file_id?}` is the same tap for the session the output
+  belongs to (`409 fields.output` for an output of no session).
 - **Taking it back:** Instagram's API deletes no post; a published post is removed in Instagram itself. (A Telegram message is
   still unpublished by the hub, §22.7.)
 - The common rules (v14) tell every role: a ready file is shown with its caption and «تأیید و انتشار؟»; no card for it; never

@@ -846,6 +846,8 @@ private fun OutputDetail(d: Deliverable, onDelete: () -> Unit = {}, onErase: () 
                 MessageMedia(d.attachments.map(::kindFromMime), labelled = true)
             }
         }
+        // ⟨0.19.8⟩ §44.5 «تأیید و انتشار» on each video or image of a session's output (nothing for an output of no session)
+        PublishSection(d)
         HorizontalDivider(color = c.lineDivider)
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(if (d.rating == null) "امتیاز تو" else "امتیاز تو (قابل تغییر)", style = Divan.type.h3)

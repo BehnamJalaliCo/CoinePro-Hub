@@ -244,9 +244,11 @@ def ig_publish_brief(company_code: str) -> str:
         f"to find how it publishes a reel, a post and a story for {company_code}'s account(s). "
         "(2) Find, or write there in the application's own folder, ONE command that publishes "
         "what the job gives it and prints one JSON line. The job sets: HQ_PUBLISH_FILE_1 (the "
-        "video or image, already downloaded), HQ_PUBLISH_CAPTION_FILE (UTF-8 text), "
+        "video or image, already downloaded), HQ_PUBLISH_FILE_2 (a reel's cover image, only "
+        'when meta "cover" is true), HQ_PUBLISH_CAPTION_FILE (UTF-8 text), '
         'HQ_PUBLISH_META (JSON: {"channel": "instagram", "kind": "reel" | "post" | "story", '
-        '"account": "<handle>", "company": "<code>"}). It must print {"external_id": "<id>", '
+        '"account": "<handle>", "company": "<code>", "cover": true | false}). It must print '
+        '{"external_id": "<id>", '
         '"url": "<permalink or null>"} and exit 0, or exit non-zero with one plain line of why. '
         "It never deletes, edits or messages anyone. Try it once with a dry run if the "
         f"application has one; never publish a test post. (3) connection.set {{company: "

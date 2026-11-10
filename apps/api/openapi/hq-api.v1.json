@@ -32986,6 +32986,74 @@
         "title": "OutputOut",
         "type": "object"
       },
+      "OutputPublishIn": {
+        "additionalProperties": false,
+        "description": "⟨2026-11-10⟩ §44.5 «تأیید و انتشار» from the output's own page: one of its files.",
+        "properties": {
+          "account": {
+            "anyOf": [
+              {
+                "maxLength": 65,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account"
+          },
+          "caption": {
+            "anyOf": [
+              {
+                "maxLength": 2200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "cover_file_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cover File Id"
+          },
+          "file_id": {
+            "format": "uuid",
+            "title": "File Id",
+            "type": "string"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "reel",
+                  "post",
+                  "story"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          }
+        },
+        "required": [
+          "file_id"
+        ],
+        "title": "OutputPublishIn",
+        "type": "object"
+      },
       "Overlay": {
         "additionalProperties": false,
         "properties": {
@@ -38894,6 +38962,18 @@
             ],
             "title": "Caption"
           },
+          "cover_file_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cover File Id"
+          },
           "file_id": {
             "format": "uuid",
             "title": "File Id",
@@ -38926,6 +39006,49 @@
           "file_id"
         ],
         "title": "PublishIn",
+        "type": "object"
+      },
+      "PublishPanel": {
+        "description": "⟨2026-11-10⟩ §44.5 what the output's page shows of «تأیید و انتشار»: the session the\noutput belongs to (none: no button), the company's accounts, and this output's publishes.",
+        "properties": {
+          "accounts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Accounts",
+            "type": "array"
+          },
+          "channel": {
+            "const": "instagram",
+            "default": "instagram",
+            "title": "Channel",
+            "type": "string"
+          },
+          "order": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order"
+          },
+          "publishes": {
+            "items": {
+              "$ref": "#/components/schemas/SessionPublish"
+            },
+            "title": "Publishes",
+            "type": "array"
+          },
+          "ready": {
+            "default": false,
+            "title": "Ready",
+            "type": "boolean"
+          }
+        },
+        "title": "PublishPanel",
         "type": "object"
       },
       "Published": {
@@ -46993,6 +47116,17 @@
             "default": "instagram",
             "title": "Channel",
             "type": "string"
+          },
+          "cover_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cover Name"
           },
           "file_id": {
             "title": "File Id",
@@ -86591,6 +86725,248 @@
         ]
       }
     },
+    "/api/v1/deliverables/{ref}/publish": {
+      "get": {
+        "description": "⟨2026-11-10⟩ §44.5 What the output's page shows of «تأیید و انتشار»: the session it\nbelongs to (`order: null` for an output of no session: no button), the company's Instagram\naccounts, whether the publish path is registered, and this output's publishes.",
+        "operationId": "output_publish_panel",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "accounts": [
+                    "x"
+                  ],
+                  "channel": "instagram",
+                  "order": "x",
+                  "publishes": [
+                    {
+                      "account": "x",
+                      "at": "2026-10-17T05:42:00Z",
+                      "channel": "instagram",
+                      "cover_name": "x",
+                      "file_id": "x",
+                      "file_name": "x",
+                      "job": "x",
+                      "kind": "reel",
+                      "note_fa": "x",
+                      "output": "x",
+                      "published_at": "2026-10-17T05:42:00Z",
+                      "state": "publishing",
+                      "url": "x"
+                    }
+                  ],
+                  "ready": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/PublishPanel"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Output Publish Panel",
+        "tags": [
+          "deliverables"
+        ]
+      },
+      "post": {
+        "description": "⟨2026-11-10⟩ §44.5 «تأیید و انتشار» on a file of this output: the same as\n`POST /orders/{order}/publish` for the session the output belongs to (`409` for an output of\nno session). No step-up, no card. Requires `Idempotency-Key`.",
+        "operationId": "publish_output",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "account": "x",
+                "caption": "x",
+                "cover_file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
+                "kind": "reel"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/OutputPublishIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "account": "x",
+                  "at": "2026-10-17T05:42:00Z",
+                  "channel": "instagram",
+                  "cover_name": "x",
+                  "file_id": "x",
+                  "file_name": "x",
+                  "job": "x",
+                  "kind": "reel",
+                  "note_fa": "x",
+                  "output": "x",
+                  "published_at": "2026-10-17T05:42:00Z",
+                  "state": "publishing",
+                  "url": "x"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/SessionPublish"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "Problem"
+          }
+        },
+        "summary": "Publish Output",
+        "tags": [
+          "deliverables"
+        ]
+      }
+    },
     "/api/v1/deliverables/{ref}/rating": {
       "post": {
         "description": "Owner rating 1..10 (+ optional comment). Re-rating within 7 days of the\nfirst rating adds a new version; the history is kept. The producer's score\nis recomputed. A delivered work becomes done. Requires `Idempotency-Key`.",
@@ -111968,6 +112344,7 @@
                       "account": "x",
                       "at": "2026-10-17T05:42:00Z",
                       "channel": "instagram",
+                      "cover_name": "x",
                       "file_id": "x",
                       "file_name": "x",
                       "job": "x",
@@ -112547,6 +112924,7 @@
                       "account": "x",
                       "at": "2026-10-17T05:42:00Z",
                       "channel": "instagram",
+                      "cover_name": "x",
                       "file_id": "x",
                       "file_name": "x",
                       "job": "x",
@@ -112921,6 +113299,7 @@
                       "account": "x",
                       "at": "2026-10-17T05:42:00Z",
                       "channel": "instagram",
+                      "cover_name": "x",
                       "file_id": "x",
                       "file_name": "x",
                       "job": "x",
@@ -113412,6 +113791,7 @@
                       "account": "x",
                       "at": "2026-10-17T05:42:00Z",
                       "channel": "instagram",
+                      "cover_name": "x",
                       "file_id": "x",
                       "file_name": "x",
                       "job": "x",
@@ -113789,6 +114169,7 @@
                       "account": "x",
                       "at": "2026-10-17T05:42:00Z",
                       "channel": "instagram",
+                      "cover_name": "x",
                       "file_id": "x",
                       "file_name": "x",
                       "job": "x",
@@ -114161,6 +114542,7 @@
                       "account": "x",
                       "at": "2026-10-17T05:42:00Z",
                       "channel": "instagram",
+                      "cover_name": "x",
                       "file_id": "x",
                       "file_name": "x",
                       "job": "x",
@@ -114500,6 +114882,7 @@
               "example": {
                 "account": "x",
                 "caption": "x",
+                "cover_file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                 "file_id": "0195f1d2-7a3b-7c4d-8e5f-6a7b8c9d0e1f",
                 "kind": "reel",
                 "output": "x"
@@ -114519,6 +114902,7 @@
                   "account": "x",
                   "at": "2026-10-17T05:42:00Z",
                   "channel": "instagram",
+                  "cover_name": "x",
                   "file_id": "x",
                   "file_name": "x",
                   "job": "x",
@@ -114805,6 +115189,7 @@
                       "account": "x",
                       "at": "2026-10-17T05:42:00Z",
                       "channel": "instagram",
+                      "cover_name": "x",
                       "file_id": "x",
                       "file_name": "x",
                       "job": "x",
@@ -115181,6 +115566,7 @@
                       "account": "x",
                       "at": "2026-10-17T05:42:00Z",
                       "channel": "instagram",
+                      "cover_name": "x",
                       "file_id": "x",
                       "file_name": "x",
                       "job": "x",
@@ -115555,6 +115941,7 @@
                       "account": "x",
                       "at": "2026-10-17T05:42:00Z",
                       "channel": "instagram",
+                      "cover_name": "x",
                       "file_id": "x",
                       "file_name": "x",
                       "job": "x",
@@ -116263,6 +116650,7 @@
                       "account": "x",
                       "at": "2026-10-17T05:42:00Z",
                       "channel": "instagram",
+                      "cover_name": "x",
                       "file_id": "x",
                       "file_name": "x",
                       "job": "x",
@@ -161308,6 +161696,7 @@
                       "account": "x",
                       "at": "2026-10-17T05:42:00Z",
                       "channel": "instagram",
+                      "cover_name": "x",
                       "file_id": "x",
                       "file_name": "x",
                       "job": "x",
@@ -161695,6 +162084,7 @@
                       "account": "x",
                       "at": "2026-10-17T05:42:00Z",
                       "channel": "instagram",
+                      "cover_name": "x",
                       "file_id": "x",
                       "file_name": "x",
                       "job": "x",
@@ -162085,6 +162475,7 @@
                       "account": "x",
                       "at": "2026-10-17T05:42:00Z",
                       "channel": "instagram",
+                      "cover_name": "x",
                       "file_id": "x",
                       "file_name": "x",
                       "job": "x",

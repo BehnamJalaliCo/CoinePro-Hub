@@ -10,8 +10,10 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-24.04
-    # With the light fuzz the whole check takes ~45 minutes (the API suite alone ~30): room to finish.
-    timeout-minutes: 60
+    # With the light fuzz the whole check took ~45 minutes (the API suite alone ~30) when this limit was 60; by
+    # 2026-11-10 it took 54-57 on a good runner and two pushes in a row were cut at 60 with every test green so far
+    # (the API suite at 73%): room to finish.
+    timeout-minutes: 90
     steps:
       - name: Checkout (full history for gitleaks)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -86,6 +86,7 @@ class PublishIn(Model):
     kind: Literal["reel", "post", "story"] | None = None
     caption: str | None = Field(default=None, max_length=2200)
     account: str | None = Field(default=None, max_length=65)
+    cover_file_id: UUID | None = None  # a reel's cover: an image of the same output
 
 
 @router.post(
@@ -115,6 +116,7 @@ async def publish_from_session(
             kind=body.kind,
             caption=body.caption,
             account=body.account,
+            cover_file_id=body.cover_file_id,
             request_id=ctx.request_id,
         )
         if idem:

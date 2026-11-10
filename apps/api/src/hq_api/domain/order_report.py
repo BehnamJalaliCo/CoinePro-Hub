@@ -241,6 +241,7 @@ class SessionPublish(BaseModel):
     output: str | None = None
     file_id: str
     file_name: str | None = None
+    cover_name: str | None = None  # a reel's cover, when the owner chose one
     channel: Literal["instagram"] = "instagram"
     kind: Literal["reel", "post", "story"]
     account: str | None = None
@@ -249,6 +250,17 @@ class SessionPublish(BaseModel):
     note_fa: str | None = None
     at: datetime | None = None
     published_at: datetime | None = None
+
+
+class PublishPanel(BaseModel):
+    """⟨2026-11-10⟩ §44.5 what the output's page shows of «تأیید و انتشار»: the session the
+    output belongs to (none: no button), the company's accounts, and this output's publishes."""
+
+    order: str | None = None
+    channel: Literal["instagram"] = "instagram"
+    accounts: list[str] = Field(default_factory=list)
+    ready: bool = False
+    publishes: list[SessionPublish] = Field(default_factory=list)
 
 
 class OrderReport(BaseModel):

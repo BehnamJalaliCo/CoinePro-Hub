@@ -15,6 +15,7 @@ import { RefChip, ScopeChips } from '@/components/v17/bits';
 import { RANGES, UndoBar, dayFa, inputCls, ownerDay, span, type Undo } from '@/components/v21/bits';
 import { EraseButton } from '@/components/erase/erase-button';
 import { MessageMedia } from '@/components/media/attachments';
+import { PublishSection } from '@/components/v44/publish';
 import type { FileKind, MediaRef } from '@/lib/api/v13';
 import { DeleteDialog, DeleteOne, RowCheck, SelectAll, SelectionBar, useCleanup, useSelection } from '@/components/v28/outputs';
 import { ApiError } from '@/lib/api/client';
@@ -156,6 +157,8 @@ function Detail({ refId, onSeen, onGone }: { refId: string; onSeen: (refs: strin
           <MessageMedia items={mediaOf(d.attachments)} />
         </section>
       ) : null}
+      {/* ⟨0.19.8⟩ §44.5 «تأیید و انتشار» on each video or image of a session's output (nothing for an output of no session) */}
+      {d.attachments?.length ? <PublishSection output={d.ref} files={d.attachments} /> : null}
       {Array.isArray(d.evidence) && d.evidence.length ? (
         <section className="flex flex-col gap-2">
           <h3 className="text-[12px] font-semibold text-gold-ink">شاهد</h3>

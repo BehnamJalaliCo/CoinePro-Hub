@@ -96,6 +96,9 @@ def view(j: dict[str, Any]) -> SessionPublish:
         output=s.get("output"),
         file_id=str(s.get("file_id") or ""),
         file_name=((args.get("files") or [{}])[0] or {}).get("name"),
+        cover_name=next(
+            (x.get("name") for x in args.get("files") or [] if x.get("role") == "cover"), None
+        ),
         kind=args.get("kind") if args.get("kind") in KIND_FA else "post",
         account=args.get("account"),
         state=state,
@@ -117,6 +120,44 @@ async def of_order(tx: Tx, ref: str) -> list[SessionPublish]:
     return [view(dict(r)) for r in rows]
 
 
+async def panel(tx: Tx, output: str) -> OR.PublishPanel:
+    """What the output's page shows: its session (none: the output is no session's, so there is
+    nothing to tap), the company's registered accounts, and the publishes of this output."""
+    d = await tx.first(
+        "SELECT ref, work_id, company_id FROM cartable.deliverables WHERE ref = :r", r=output
+    )
+    if d is None:
+        raise ApiError(404, "not_found", f"output {output}")
+    ref = await OR.order_of_work(tx, d["work_id"]) if d["work_id"] is not None else None
+    if ref is None:
+        return OR.PublishPanel()
+    cfg = _cfg(
+        await tx.first(
+            "SELECT config FROM growth.connections WHERE company_id = :co AND kind = 'instagram'",
+            co=d["company_id"],
+        )
+    )
+    accounts = [str(a).lstrip("@") for a in cfg.get("accounts") or []]
+    return OR.PublishPanel(
+        order=ref,
+        accounts=accounts,
+        ready=bool(accounts and str(cfg.get("publish_command") or "").strip()),
+        publishes=[p for p in await of_order(tx, ref) if p.output == output],
+    )
+
+
+async def order_of_output(tx: Tx, output: str) -> str:
+    """The session an output belongs to; 409 for an output that is no session's."""
+    work_id = await tx.scalar("SELECT work_id FROM cartable.deliverables WHERE ref = :r", r=output)
+    ref = await OR.order_of_work(tx, work_id) if work_id is not None else None
+    if ref is None:
+        raise ApiError(
+            409, "validation_failed", fields={"output": "not an output of a session"},
+            message_fa="این خروجی از یک جلسه نیست؛ انتشار از داخل جلسه انجام میشود.",
+        )  # fmt: skip
+    return ref
+
+
 async def start(
     tx: Tx,
     who: Principal,
@@ -127,6 +168,7 @@ async def start(
     kind: Kind | None = None,
     caption: str | None = None,
     account: str | None = None,
+    cover_file_id: UUID | None = None,
     request_id: str | None = None,
 ) -> SessionPublish:
     """The owner's tap. `tx` reaches every company (the session is the holding's, the file is
@@ -165,6 +207,23 @@ async def start(
     what: Kind = kind or ("reel" if media == "video" else "post")
     if what == "reel" and media != "video":
         raise ApiError(422, "validation_failed", fields={"kind": "a reel is a video"})
+    # ⟨2026-11-10⟩ the owner's own order: «ویدیو و کاور و کپشن رو میبریم به شرکت IG»: a reel goes out
+    # with its cover, an image of the same output
+    cover = None
+    if cover_file_id is not None:
+        if what != "reel":
+            raise ApiError(422, "validation_failed", fields={"cover_file_id": "a reel's cover"})
+        cover = await tx.first(
+            """SELECT id, name, mime FROM files.files
+               WHERE id = :id AND variant = 'original' AND company_id = :co AND mime LIKE 'image/%'""",
+            id=cover_file_id,
+            co=d["company_id"],
+        )
+        if cover is None or str(cover_file_id) not in {str(a) for a in d["attachments"] or []}:
+            raise ApiError(
+                422, "validation_failed",
+                fields={"cover_file_id": "an image of this output"},
+            )  # fmt: skip
     if await tx.scalar("SELECT control.lock_state(:co)", co=d["company_id"]) is not None:
         raise ApiError(423, "company_locked")
 
@@ -237,8 +296,25 @@ async def start(
                 "kind": what,
                 "account": wanted,
                 "company": d["company"],
+                # the cover, when the owner chose one, is the job's second file (HQ_PUBLISH_FILE_2)
+                "cover": cover is not None,
             },
-            "files": [{"file_id": str(f["id"]), "name": f["name"], "mime": mime, "kind": media}],
+            "files": [
+                {"file_id": str(f["id"]), "name": f["name"], "mime": mime, "kind": media},
+                *(
+                    [
+                        {
+                            "file_id": str(cover["id"]),
+                            "name": cover["name"],
+                            "mime": str(cover["mime"]),
+                            "kind": "image",
+                            "role": "cover",
+                        }
+                    ]
+                    if cover is not None
+                    else []
+                ),
+            ],
         },
         actor_kind=who.kind,
         actor_code=who.code,
