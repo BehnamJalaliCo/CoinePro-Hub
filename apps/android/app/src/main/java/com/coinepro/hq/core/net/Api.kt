@@ -269,7 +269,10 @@ class Api(
      * ⟨0.19.8⟩ §44.5 The owner's «تأیید و انتشار» on one file of an output: his word in the session is the seal, so no passkey and no
      * card. [key] is kept across retries of one press (the hub never sends the same file to the same account twice anyway).
      */
-    suspend fun publishOutput(ref: String, fileId: String, kind: String?, caption: String?, account: String?, key: String, coverFileId: String? = null): SessionPublish =
+    suspend fun publishOutput(
+        ref: String, fileId: String, kind: String?, caption: String?, account: String?, key: String, coverFileId: String? = null,
+        fileIds: List<String> = emptyList(), scheduledAt: String? = null, comment: PublishComment? = null,
+    ): SessionPublish =
         call(write("POST", "/deliverables/${seg(ref)}/publish", buildJsonObject {
             put("file_id", fileId)
             if (kind != null) put("kind", kind)
@@ -277,6 +280,14 @@ class Api(
             if (account != null) put("account", account)
             // a reel's cover: an image of the same output
             if (coverFileId != null) put("cover_file_id", coverFileId)
+            // ⟨0.20.0⟩ §46 a carousel's other files, the time he set (with its zone), the comment rule for this post alone
+            if (kind == "carousel" && fileIds.isNotEmpty()) put("file_ids", JsonArray(fileIds.map(::JsonPrimitive)))
+            if (scheduledAt != null) put("scheduled_at", scheduledAt)
+            if (comment != null && kind != "story") put("comment", buildJsonObject {
+                put("keywords", JsonArray(comment.keywords.map(::JsonPrimitive)))
+                put("reply", comment.reply)
+                comment.link?.let { put("link", it) }
+            })
         }, null, key), serializer())
     /** ⟨1.7.3⟩ marks one or many seen (or unseen again); idempotent. A hub before ⟨1.7.3⟩ answers `404`: the caller keeps it on the phone. */
     suspend fun markSeen(refs: List<String>, seen: Boolean = true): SeenOut =

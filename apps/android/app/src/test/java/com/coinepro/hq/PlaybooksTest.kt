@@ -216,6 +216,10 @@ class PlaybooksTest {
         assertTrue(com.coinepro.hq.core.data.publishes(site.copy(platform = "instagram")))
         assertEquals("هر بار بپرس", com.coinepro.hq.ui.playbook.standingFa(com.coinepro.hq.core.net.MemberPublish()))
         assertEquals("خودکار · \u2066@tradeyar\u2069 · استوری هم", com.coinepro.hq.ui.playbook.standingFa(auto.copy(account = "tradeyar")))
+        // ⟨0.20.0⟩ §46 the hour goes only when it reads as one, as «HH:MM»
+        assertEquals("""{"mode":"auto","story":true,"at":"18:30"}""", com.coinepro.hq.core.data.publishRule(auto.copy(at = "۱۸:۳۰")).toString())
+        assertEquals("""{"mode":"auto","story":true}""", com.coinepro.hq.core.data.publishRule(auto.copy(at = "عصر")).toString())
+        assertEquals("خودکار · ساعت 18:30", com.coinepro.hq.ui.playbook.standingFa(com.coinepro.hq.core.net.MemberPublish(mode = "auto", at = "18:30")))
     }
 
     @Test

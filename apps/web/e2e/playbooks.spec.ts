@@ -86,6 +86,15 @@ test('a draft: edit lightly (title, a seat and a rule removed, a routine brief),
     await mine.getByLabel('انتشار خودکار TY').click();
     await expect(page.getByText('از نوبت بعد خودکار منتشر میشود.')).toBeVisible();
     await expect(mine.getByLabel('انتشار خودکار TY')).toBeChecked();
+    // ⟨0.20.0⟩ §46 the hour each day's package goes out at: «تنظیم», Persian digits taken as they are typed
+    await mine.getByRole('button', { name: 'تنظیم' }).click();
+    await mine.getByLabel('ساعت انتشار').fill('25:00');
+    await expect(mine.getByText('ساعت را به شکل ۱۸:۳۰ بنویسید.')).toBeVisible();
+    await expect(mine.getByRole('button', { name: 'ذخیره' })).toBeDisabled();
+    await mine.getByLabel('ساعت انتشار').fill('۱۸:۳۰');
+    await mine.getByRole('button', { name: 'ذخیره' }).click();
+    await expect(mine).toContainText('ساعت 18:30');
+    await expect(mine.getByLabel('ساعت انتشار')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'به شرکت دیگر بده' })).toBeVisible();
     await noRefs(page);
   });

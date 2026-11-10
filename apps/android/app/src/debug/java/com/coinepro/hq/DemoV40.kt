@@ -35,8 +35,9 @@ internal class V40Demo(private val v35: V35Demo) {
     private fun member(code: String, state: String, order: String? = null, publish: JsonObject = word(false)) =
         jo("company" to code, "name_fa" to names[code], "state" to state, "order" to order, "publish" to publish)
     /** ⟨0.19.9⟩ §45 the owner's standing word on publishing, as the hub answers it. */
-    private fun word(auto: Boolean, account: String? = null, story: Boolean = false) =
-        jo("mode" to if (auto) "auto" else "ask", "account" to account.takeIf { auto }, "story" to (auto && story), "since" to if (auto) at(13_000) else null)
+    private fun word(auto: Boolean, account: String? = null, story: Boolean = false, hour: String? = null) =
+        jo("mode" to if (auto) "auto" else "ask", "account" to account.takeIf { auto }, "story" to (auto && story), "since" to if (auto) at(13_000) else null,
+            "at" to hour.takeIf { auto })
     /** The Instagram accounts each company registered (FX has two: the standing word asks which). */
     private val accounts = mapOf("TY" to listOf("tradeyar"), "FX" to listOf("coineprofx", "coineprofx.academy"), "PC" to listOf("pro.chart"))
     private fun wordOf(code: String, body: JsonObject?): Pair<JsonObject?, String?> {
@@ -45,7 +46,7 @@ internal class V40Demo(private val v35: V35Demo) {
         val mine = accounts[code].orEmpty()
         val asked = p.str("account")?.removePrefix("@") ?: mine.singleOrNull()
         if (mine.isNotEmpty() && asked !in mine) return null to ("one of: " + mine.joinToString(", ") { "@$it" })
-        return word(true, asked, (p["story"] as? JsonPrimitive)?.booleanOrNull == true) to null
+        return word(true, asked, (p["story"] as? JsonPrimitive)?.booleanOrNull == true, p.str("at")) to null
     }
     private fun strs(vararg s: String) = JsonArray(s.map(::JsonPrimitive))
 
@@ -99,7 +100,7 @@ internal class V40Demo(private val v35: V35Demo) {
             "connections" to strs("instagram"),
             "rules_fa" to strs("هر ریلز زیر ۴۵ ثانیه.", "عددهای بازار با رقم لاتین.", "هیچ پیشنهاد ویژه‌ای بی مُهر مدیر کل منتشر نشود."),
             "source" to jo("order" to "F-0098", "company" to "TY", "conversation" to "CV-0598"),
-            "members" to JsonArray(listOf(member("TY", "on", "F-0098", word(true, "tradeyar", story = true)), member("FX", "paused"))),
+            "members" to JsonArray(listOf(member("TY", "on", "F-0098", word(true, "tradeyar", story = true, hour = "18:30")), member("FX", "paused"))),
             "parent" to null, "created_at" to at(14_500), "sealed_at" to at(13_000), "retired_at" to null, "group" to "pb_1", "note_fa" to null,
         ),
         jo(

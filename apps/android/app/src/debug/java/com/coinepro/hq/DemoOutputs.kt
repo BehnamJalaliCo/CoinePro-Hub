@@ -30,7 +30,7 @@ internal class OutputsDemo(private val store: MutableMap<String, Pair<Int, JsonE
 
     // ⟨0.19.8⟩ §44.5 «تأیید و انتشار»: the publishes of the session's outputs, newest first, and the accounts of its company.
     private val published = mutableMapOf<String, MutableList<JsonObject>>()
-    private val sessionOutputs = mapOf("O-000950" to listOf("coineprofx", "coineprofx.academy"), "O-000951" to listOf("coineprofx"))
+    private val sessionOutputs = mutableMapOf("O-000950" to listOf("coineprofx", "coineprofx.academy"), "O-000951" to listOf("coineprofx"))
     /** ⟨0.19.9⟩ §45 outputs a working group's routine made (no session), with the group's name. Declared before `init` fills it. */
     private val groupOutputs = mutableMapOf<String, String>()
     private var nextJob = 10
@@ -83,6 +83,21 @@ internal class OutputsDemo(private val store: MutableMap<String, Pair<Int, JsonE
             publish("O-000952", "jp-9", reel, "story", "tradeyar", "publishing", at = at(38), auto = true),
             publish("O-000952", "jp-8", reel, "reel", "tradeyar", "published", url = "https://www.instagram.com/reel/C9xStopLs/", at = at(38), cover = "gold-levels-cover.webp", auto = true),
         )
+        // ⟨0.20.0⟩ §46 a reel set for this evening with its own comment word, and a carousel on its way
+        val slide = file("/demo/ty-story-stoploss-poster.webp", "levels-2.jpg", "image/jpeg", "image")
+        val timed = deliverable(
+            "O-000953", "FX", "W-000312", media, "خروجی کارگاه: ریلز «نقطه‌ی ورود طلا»",
+            "ریلز با کاور، کپشن و کلمه‌ی کامنت آماده است.", "ریلز **نقطه‌ی ورود طلا** آماده است.", at(20), produced = workshop,
+        )
+        store["/deliverables/O-000953"] = 200 to JsonObject(timed + ("attachments" to JsonArray(listOf(reel, cover, slide))))
+        sessionOutputs["O-000953"] = listOf("coineprofx")
+        published["O-000953"] = mutableListOf(
+            publish("O-000953", "jp-11", cover, "carousel", "coineprofx", "publishing", at = at(2), count = 2),
+            publish(
+                "O-000953", "jp-10", reel, "reel", "coineprofx", "scheduled", at = at(5), cover = "gold-levels-cover.webp",
+                scheduledAt = "2026-11-06T15:00:00Z", comment = "۷",
+            ),
+        )
         published["O-000951"] = mutableListOf(
             publish("O-000951", "jp-3", story, "story", "coineprofx", "failed", note = "حساب امروز به سقف انتشار رسیده است.", at = at(4)),
             publish("O-000951", "jp-2", cover, "post", "coineprofx", "publishing", at = at(1)),
@@ -105,9 +120,11 @@ internal class OutputsDemo(private val store: MutableMap<String, Pair<Int, JsonE
 
     private fun publish(
         output: String, job: String, f: JsonObject, kind: String, account: String, state: String, url: String? = null, note: String? = null, at: String,
-        cover: String? = null, auto: Boolean = false,
+        cover: String? = null, auto: Boolean = false, scheduledAt: String? = null, comment: String? = null, count: Int = 1,
     ) = buildJsonObject {
         put("auto", auto)
+        // ⟨0.20.0⟩ §46 the time it is set for, the word viewers comment, a carousel's files
+        put("scheduled_at", scheduledAt?.let(::JsonPrimitive) ?: JsonNull); put("comment", comment?.let(::JsonPrimitive) ?: JsonNull); put("files", count)
         put("job", job); put("output", output); put("file_id", f.str("id")); put("file_name", f.str("name")); put("channel", "instagram"); put("kind", kind)
         put("cover_name", cover?.let(::JsonPrimitive) ?: JsonNull)
         put("account", account); put("state", state); put("url", url?.let(::JsonPrimitive) ?: JsonNull); put("note_fa", note?.let(::JsonPrimitive) ?: JsonNull)
@@ -125,6 +142,11 @@ internal class OutputsDemo(private val store: MutableMap<String, Pair<Int, JsonE
             // ⟨0.19.9⟩ §45 every output is tapped here; a working group's carries its caption and the owner's standing word
             put("tap", true)
             put("caption", if (group != null) JsonPrimitive("حد ضرر را در ۳۰ ثانیه یاد بگیر.\n#تریدیار #حد_ضرر") else JsonNull)
+            // ⟨0.20.0⟩ §46 the comment rule the package carries (its `comment.txt`)
+            put("comment", if (group != null) buildJsonObject {
+                put("keywords", JsonArray(listOf(JsonPrimitive("۳۰")))); put("reply", "این هم آموزش کامل حد ضرر:"); put("link", "https://tradeyar.com/learn/stop-loss")
+                put("button", JsonNull); put("public_replies", JsonArray(emptyList()))
+            } else JsonNull)
             put("group", if (group != null) JsonPrimitive("pb_1") else JsonNull); put("group_fa", group?.let(::JsonPrimitive) ?: JsonNull)
             put("mode", if (group != null) JsonPrimitive("auto") else JsonNull)
         }
@@ -134,7 +156,12 @@ internal class OutputsDemo(private val store: MutableMap<String, Pair<Int, JsonE
         val f = files.firstOrNull { it.str("id") == fileId } ?: return null
         val kind = body.str("kind") ?: if (f.str("kind") == "video") "reel" else "post"
         val cover = files.firstOrNull { it.str("id") == body.str("cover_file_id") }?.str("name")
-        val made = publish(ref, "jp-${nextJob++}", f, kind, body.str("account")?.removePrefix("@") ?: accounts.first(), "publishing", at = HqClock.now().toString(), cover = cover)
+        val whenAt = body.str("scheduled_at")
+        val word = ((body["comment"] as? JsonObject)?.get("keywords") as? JsonArray)?.firstOrNull()?.let { (it as? JsonPrimitive)?.content }
+        val made = publish(
+            ref, "jp-${nextJob++}", f, kind, body.str("account")?.removePrefix("@") ?: accounts.first(), if (whenAt != null) "scheduled" else "publishing",
+            at = HqClock.now().toString(), cover = cover, scheduledAt = whenAt, comment = word, count = 1 + ((body["file_ids"] as? JsonArray)?.size ?: 0),
+        )
         published.getOrPut(ref) { mutableListOf() }.add(0, made)
         return 202 to made
     }

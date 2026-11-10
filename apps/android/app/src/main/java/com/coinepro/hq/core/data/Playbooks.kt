@@ -149,7 +149,16 @@ fun publishRule(p: MemberPublish): JsonObject = buildJsonObject {
     if (p.auto) {
         p.account?.trim()?.removePrefix("@")?.ifBlank { null }?.let { put("account", JsonPrimitive(it)) }
         if (p.story) put("story", JsonPrimitive(true))
+        // ⟨0.20.0⟩ §46 the hour, only when it reads as one («18:30»)
+        clockOf(p.at)?.let { put("at", JsonPrimitive(it)) }
     }
+}
+
+/** «HH:MM» as the hub takes it, from what he typed (Persian or Latin digits, «۱۸:۳۰», «9:5» is not one); null when it is no hour. */
+fun clockOf(raw: String?): String? {
+    val t = raw.orEmpty().trim().map { ch -> if (ch in '۰'..'۹') '0' + (ch - '۰') else if (ch in '٠'..'٩') '0' + (ch - '٠') else ch }.joinToString("")
+    val m = Regex("^([01]?\\d|2[0-3]):([0-5]\\d)$").find(t) ?: return null
+    return "%02d:%s".format(m.groupValues[1].toInt(), m.groupValues[2])
 }
 
 /** A seal's body: empty, or his standing word for the session's company. */

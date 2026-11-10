@@ -21,7 +21,7 @@ import {
   HELPER_FA, PB_STATE_FA, PLATFORMS, PLATFORM_FA, publishes, useDraftPlaybook, usePlaybook, usePlaybookActions, usePlaybooks,
   type Playbook, type PlaybookPatch, type PlaybookPlatform, type PlaybookRoutine, type PlaybookSeat, type PlaybookState,
 } from '@/lib/api/v40';
-import { accountsNamed, publishRule, standingFa, useMemberPublish, type MemberPublish } from '@/lib/api/v44';
+import { accountsNamed, clockOf, publishRule, standingFa, useMemberPublish, type MemberPublish } from '@/lib/api/v44';
 import { ApiError } from '@/lib/api/client';
 import { cx, jDate } from '@/lib/format';
 
@@ -208,7 +208,16 @@ export function StandingChoice({ value, onChange }: { value: MemberPublish; onCh
         </span>
         <input type="checkbox" checked={auto} onChange={(e) => onChange({ ...value, mode: e.target.checked ? 'auto' : 'ask' })} aria-label="انتشار خودکار" className="size-5 flex-none accent-[var(--hq-gold-ink)]" />
       </label>
-      {auto ? <div><FilterChip selected={!!value.story} onClick={() => onChange({ ...value, story: !value.story })}>استوری هم بشود</FilterChip></div> : null}
+      {auto ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <FilterChip selected={!!value.story} onClick={() => onChange({ ...value, story: !value.story })}>استوری هم بشود</FilterChip>
+          {/* ⟨0.20.0⟩ §46 the hour each day's package goes out at; empty: as soon as it is ready */}
+          <input
+            value={value.at ?? ''} onChange={(e) => onChange({ ...value, at: e.target.value.slice(0, 5) || null })} dir="ltr" inputMode="numeric" placeholder="ساعت انتشار، مثل 18:30" aria-label="ساعت انتشار"
+            className="fig h-9 min-w-0 flex-1 rounded-[10px] border border-strong bg-tile px-3 text-center text-[13px] text-ink outline-none transition-colors placeholder:text-muted focus:border-gold-ink"
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -218,9 +227,11 @@ function StandingRow({ group, company, value }: { group: string; company: string
   const toast = useToast();
   const set = useMemberPublish(group);
   const [picking, setPicking] = useState<string[]>([]);
+  // ⟨0.20.0⟩ §46 its hour and «استوری هم», changed in place
+  const [editing, setEditing] = useState<MemberPublish | null>(null);
   const cur: MemberPublish = value ?? { mode: 'ask' };
   const say = (next: MemberPublish) => set.mutate({ company, publish: next }, {
-    onSuccess: (m) => { setPicking([]); toast({ tone: 'ok', text: m.publish.mode === 'auto' ? 'از نوبت بعد خودکار منتشر میشود.' : 'از این به بعد هر خروجی منتظر تأیید تو است.' }); },
+    onSuccess: (m) => { setPicking([]); setEditing(null); toast({ tone: 'ok', text: m.publish.mode === 'auto' ? 'از نوبت بعد خودکار منتشر میشود.' : 'از این به بعد هر خروجی منتظر تأیید تو است.' }); },
     onError: (e) => {
       const named = e instanceof ApiError && e.status === 422 ? accountsNamed(e.fields?.account) : [];
       if (named.length) setPicking(named);
@@ -229,14 +240,22 @@ function StandingRow({ group, company, value }: { group: string; company: string
   });
   return (
     <div className="flex flex-col gap-2 ps-7" data-standing={company}>
-      <label className="flex items-center gap-3">
+      <div className="flex items-center gap-3">
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="text-[12px] text-sec">انتشار خودکار</span>
           <span className={cx('truncate text-[11px]', cur.mode === 'auto' ? 'text-gold-ink' : 'text-muted')}>{standingFa(cur)}</span>
         </span>
+        {cur.mode === 'auto' ? <button type="button" onClick={() => setEditing(editing ? null : cur)} className="h-8 flex-none rounded-[8px] px-2 text-[12px] font-semibold text-gold-ink hover:bg-gold-soft">تنظیم</button> : null}
         <input type="checkbox" checked={cur.mode === 'auto'} disabled={set.isPending} aria-label={`انتشار خودکار ${company}`}
           onChange={(e) => say({ ...cur, mode: e.target.checked ? 'auto' : 'ask' })} className="size-5 flex-none accent-[var(--hq-gold-ink)]" />
-      </label>
+      </div>
+      {editing ? (
+        <div className="flex flex-col gap-2">
+          <StandingChoice value={editing} onChange={setEditing} />
+          {editing.mode === 'auto' && editing.at && !clockOf(editing.at) ? <p className="text-[11px] text-muted">ساعت را به شکل ۱۸:۳۰ بنویسید.</p> : null}
+          <Button variant="primary" size="sm" disabled={editing.mode === 'auto' && !!editing.at && !clockOf(editing.at)} loading={set.isPending} onClick={() => say(editing)}>ذخیره</Button>
+        </div>
+      ) : null}
       {picking.length ? (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[12px] text-sec">کدام حساب؟</span>

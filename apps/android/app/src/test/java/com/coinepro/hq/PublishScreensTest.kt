@@ -55,7 +55,7 @@ import org.robolectric.annotation.GraphicsMode
  */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [35], qualifiers = "w400dp-h560dp-xxhdpi")
+@Config(sdk = [35], qualifiers = "w400dp-h900dp-xxhdpi")
 class PublishScreensTest(private val name: String, private val night: Boolean) {
     private class Scene(val ref: String, val sheet: Boolean, val shows: List<String>)
 
@@ -67,7 +67,13 @@ class PublishScreensTest(private val name: String, private val night: Boolean) {
             // ⟨0.19.9⟩ §45 a working group's daily output (no session): it went out on the owner's standing word, and the sheet of a
             // file of it opens with the package's own caption and cover
             "output-publish-auto" to Scene("O-000952", false, listOf("خودکار", "منتشر شد", "استوری: در حال انتشار", "خروجی هر روز را خودکار منتشر میکند")),
-            "output-publish-auto-sheet" to Scene("O-000952", true, listOf("@tradeyar", "ریلز", "gold-levels-cover.webp", "حد ضرر را در ۳۰ ثانیه یاد بگیر")),
+            "output-publish-auto-sheet" to Scene(
+                "O-000952", true,
+                // ⟨0.20.0⟩ §46 the time and the comment rule of this post, the package's own word and link already in place
+                listOf("@tradeyar", "ریلز", "gold-levels-cover.webp", "حد ضرر را در ۳۰ ثانیه یاد بگیر", "زمان", "ساعت مشخص", "کامنت و لینک", "۳۰", "tradeyar.com/learn"),
+            ),
+            // ⟨0.20.0⟩ §46 a reel set for this evening with its comment word, and a carousel of two files on its way
+            "output-publish-scheduled" to Scene("O-000953", false, listOf("زمان‌بندی شد", "ساعت 18:30", "کامنت «۷»", "اسلاید", "در حال انتشار")),
         )
 
         @JvmStatic
@@ -172,6 +178,22 @@ class PublishRulesTest {
         assertEquals("publishing", com.coinepro.hq.ui.outputs.storyOf(both, "v")?.state)
         assertEquals("story", publishOf(both, "s")?.kind)
         assertEquals(null, com.coinepro.hq.ui.outputs.storyOf(both, "s"))
+        // ⟨0.20.0⟩ §46 with other files in the output, a carousel too; the time he set, in the owner's zone; a comment rule needs both
+        assertEquals(listOf("reel", "story", "carousel"), kindsOf(FileRef(id = "v", kind = "video"), 2))
+        com.coinepro.hq.core.format.HqClock.fixed = java.time.Instant.parse("2026-11-06T08:30:00Z")
+        assertEquals("2026-11-06T18:30:00+03:30", com.coinepro.hq.ui.outputs.scheduledIso(0, "۱۸:۳۰"))
+        assertEquals("2026-11-07T09:05:00+03:30", com.coinepro.hq.ui.outputs.scheduledIso(1, "9:05"))
+        assertEquals(null, com.coinepro.hq.ui.outputs.scheduledIso(0, "25:00"))
+        com.coinepro.hq.core.format.HqClock.fixed = null
+        assertEquals(listOf("۷", "هفت"), com.coinepro.hq.ui.outputs.commentOf("۷، هفت", " لینک ", "http://x")!!.keywords)
+        assertEquals(null, com.coinepro.hq.ui.outputs.commentOf("۷", " لینک ", "http://x")!!.link)
+        assertTrue(com.coinepro.hq.ui.outputs.commentHalf("۷", "", ""))
+        assertTrue(com.coinepro.hq.ui.outputs.commentHalf("", "", "https://x.test"))
+        assertFalse(com.coinepro.hq.ui.outputs.commentHalf("", "", ""))
+        assertFalse(com.coinepro.hq.ui.outputs.commentHalf("۷", "سلام", ""))
+        assertEquals("18:30", com.coinepro.hq.core.data.clockOf(" ۱۸:۳۰ "))
+        assertEquals("09:05", com.coinepro.hq.core.data.clockOf("9:05"))
+        assertEquals(null, com.coinepro.hq.core.data.clockOf("18"))
         assertEquals("cover.png", com.coinepro.hq.ui.outputs.coverOf(listOf(FileRef(id = "a", name = "chart.png", kind = "image"), FileRef(id = "b", name = "cover.png", kind = "image")))?.name)
     }
 }

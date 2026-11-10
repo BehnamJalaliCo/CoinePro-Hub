@@ -508,9 +508,9 @@ private fun RetireBody(pb: Playbook, onCancel: () -> Unit, onDone: (Playbook) ->
     HqButton("بیخیال", onCancel, Modifier.fillMaxWidth(), variant = BtnVariant.TEXT)
 }
 
-/** The standing word across a rotation: `mode`, `story` (the account is asked by the hub when there are several). */
+/** The standing word across a rotation: `mode`, `story`, the hour (the account is asked by the hub when there are several). */
 internal val StandingSaver = androidx.compose.runtime.saveable.Saver<MemberPublish, List<Any>>(
-    save = { listOf(it.mode, it.story) },
-    restore = { MemberPublish(mode = it[0] as String, story = it[1] as Boolean) },
+    save = { listOf(it.mode, it.story, it.at.orEmpty()) },
+    restore = { MemberPublish(mode = it[0] as String, story = it[1] as Boolean, at = (it[2] as String).ifBlank { null }) },
 )
 

@@ -88,7 +88,7 @@ function wordOf(company: string, b: any): Record<string, unknown> | string | nul
   const mine = ACCOUNTS[company] ?? [];
   const asked = b.account ? String(b.account).replace(/^@/, '') : mine.length === 1 ? mine[0]! : null;
   if (mine.length && (!asked || !mine.includes(asked))) return `one of: ${mine.map((a) => `@${a}`).join(', ')}`;
-  return { mode: 'auto', account: asked, story: !!b.story, since: NOW() };
+  return { mode: 'auto', account: asked, story: !!b.story, since: NOW(), at: typeof b.at === 'string' && /^\d\d:\d\d$/.test(b.at) ? b.at : null };
 }
 const pick = (accounts: string) => new Response(JSON.stringify({ type: 'about:blank', title: 'validation_failed', status: 422, code: 'validation_failed', message_fa: 'این شرکت چند حساب دارد؛ یکی را انتخاب کنید.', fields: { account: accounts } }), { status: 422, headers: { 'Content-Type': 'application/problem+json' } });
 

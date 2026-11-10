@@ -51,6 +51,7 @@ import com.coinepro.hq.core.data.seatTitleFa
 import com.coinepro.hq.core.format.Tone
 import com.coinepro.hq.core.format.plainOfMd
 import com.coinepro.hq.core.data.accountsNamed
+import com.coinepro.hq.core.data.clockOf
 import com.coinepro.hq.core.data.publishes
 import com.coinepro.hq.core.net.ApiException
 import com.coinepro.hq.core.net.HubFeature
@@ -69,6 +70,7 @@ import com.coinepro.hq.designsystem.FilterChip
 import com.coinepro.hq.designsystem.HqButton
 import com.coinepro.hq.designsystem.HqCard
 import com.coinepro.hq.designsystem.HqSwitch
+import com.coinepro.hq.designsystem.HqTextField
 import com.coinepro.hq.designsystem.IconBtn
 import com.coinepro.hq.designsystem.Md
 import com.coinepro.hq.designsystem.ModelMark
@@ -295,14 +297,21 @@ fun StandingChoice(value: MemberPublish, onChange: (MemberPublish) -> Unit, modi
             }
             HqSwitch(value.auto, { onChange(value.copy(mode = if (it) "auto" else "ask")) }, "انتشار خودکار")
         }
-        Expand(value.auto) { FilterChip("استوری هم بشود", value.story, { onChange(value.copy(story = !value.story)) }) }
+        Expand(value.auto) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip("استوری هم بشود", value.story, { onChange(value.copy(story = !value.story)) })
+                // ⟨0.20.0⟩ §46 the hour each day's package goes out at; empty: as soon as it is ready
+                HqTextField(value.at.orEmpty(), { onChange(value.copy(at = it.ifBlank { null })) }, "ساعت انتشار، مثل ۱۸:۳۰", Modifier.weight(1f), maxLength = 5, figure = true)
+            }
+        }
     }
 }
 
 /** A member's standing word in one line: where its daily output goes by itself, or that each waits for him. */
 internal fun standingFa(p: MemberPublish): String = when {
     !p.auto -> "هر بار بپرس"
-    else -> listOfNotNull("خودکار", p.account?.let { "\u2066@$it\u2069" }, "استوری هم".takeIf { p.story }).joinToString(" · ")
+    // the hour first: the line is one row, and the hour is what he looks for
+    else -> listOfNotNull("خودکار", clockOf(p.at)?.let { "ساعت $it" }, p.account?.let { "\u2066@$it\u2069" }, "استوری هم".takeIf { p.story }).joinToString(" · ")
 }
 
 /**
@@ -316,6 +325,7 @@ private fun StandingRow(group: String, company: String, value: MemberPublish, on
     val c = Divan.colors
     val go = rememberAction()
     var picking by remember { mutableStateOf<List<String>>(emptyList()) }
+    var editing by remember { mutableStateOf<MemberPublish?>(null) }
     suspend fun say(next: MemberPublish) {
         try {
             val out = env.api.gated(HubFeature.STANDING_PUBLISH) { setMemberPublish(group, company, next) }
@@ -342,7 +352,19 @@ private fun StandingRow(group: String, company: String, value: MemberPublish, on
             Text("انتشار خودکار", style = Divan.type.caption, color = c.textSecondary)
             Text(standingFa(value), style = Divan.type.micro, color = if (value.auto) c.goldInk else c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
+        // ⟨0.20.0⟩ §46 its hour and «استوری هم», changed in a small sheet
+        if (value.auto) HqButton("تنظیم", { editing = value }, variant = BtnVariant.TEXT, size = BtnSize.SM)
         HqSwitch(value.auto, { on -> go.run { say(value.copy(mode = if (on) "auto" else "ask")) } }, "انتشار خودکار", enabled = !go.busy)
+    }
+    editing?.let { draft ->
+        HqSheet({ editing = null }, "انتشار خودکار", sub = "ساعت و استوری همین شرکت در این کارگروه") {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                StandingChoice(draft, { editing = it })
+                val badHour = draft.auto && !draft.at.isNullOrBlank() && clockOf(draft.at) == null
+                HqButton("ذخیره", { go.run { say(draft); editing = null } }, Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, enabled = !badHour, loading = go.busy)
+                if (badHour) Text("ساعت را به شکل ۱۸:۳۰ بنویسید.", style = Divan.type.micro, color = c.textMuted)
+            }
+        }
     }
     if (picking.isNotEmpty()) HqSheet({ picking = emptyList() }, "کدام حساب؟", sub = "خروجی هر روز این کارگروه به همین حساب میرود") {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

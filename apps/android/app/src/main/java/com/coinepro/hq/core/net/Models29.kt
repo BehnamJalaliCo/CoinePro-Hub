@@ -140,6 +140,23 @@ data class SessionPublish(
     val publishedAt: String? = null,
     /** ⟨0.19.9⟩ §45 the hub sent it on the owner's standing word (no tap). */
     val auto: Boolean = false,
+    /** ⟨0.20.0⟩ §46 the time it is set for ([state] `scheduled` till then); the word viewers comment for its link; a carousel's files. */
+    val scheduledAt: String? = null,
+    val comment: String? = null,
+    val files: Int = 1,
+)
+
+/**
+ * ⟨0.20.0⟩ §46 A comment rule for one post (the owner: «هر بار شاید یک کامنت باشد»): who comments one of [keywords] on it gets
+ * [reply] in private, with [link] as a button.
+ */
+@Serializable
+data class PublishComment(
+    val keywords: List<String> = emptyList(),
+    val reply: String = "",
+    val link: String? = null,
+    val button: String? = null,
+    val publicReplies: List<String> = emptyList(),
 )
 
 /**
@@ -158,6 +175,8 @@ data class PublishPanel(
     val publishes: List<SessionPublish> = emptyList(),
     val tap: Boolean = false,
     val caption: String? = null,
+    /** ⟨0.20.0⟩ §46 the comment rule its package carries (`comment.txt`): the sheet opens with it. */
+    val comment: PublishComment? = null,
     val group: String? = null,
     val groupFa: String? = null,
     val mode: String? = null,
@@ -173,6 +192,8 @@ data class MemberPublish(
     val account: String? = null,
     val story: Boolean = false,
     val since: String? = null,
+    /** ⟨0.20.0⟩ §46 the hour each day's package goes out at («HH:MM», the owner's zone); null: as soon as it is ready. */
+    val at: String? = null,
 ) {
     val auto: Boolean get() = mode == "auto"
 }

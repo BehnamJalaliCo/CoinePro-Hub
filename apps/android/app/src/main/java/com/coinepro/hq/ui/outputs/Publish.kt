@@ -24,11 +24,15 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.coinepro.hq.core.data.faNum
+import com.coinepro.hq.core.format.HqClock
 import com.coinepro.hq.core.format.Tone
+import com.coinepro.hq.core.format.jTime
 import com.coinepro.hq.core.net.Deliverable
 import com.coinepro.hq.core.net.FileRef
 import com.coinepro.hq.core.net.HubFeature
 import com.coinepro.hq.core.net.gated
+import com.coinepro.hq.core.net.PublishComment
 import com.coinepro.hq.core.net.PublishPanel
 import com.coinepro.hq.core.net.SessionPublish
 import com.coinepro.hq.designsystem.BtnSize
@@ -60,10 +64,36 @@ import java.util.UUID
  * stands; a company whose publish path is not connected yet is the technical team's work, said in one calm line.
  */
 
-internal val KIND_FA = mapOf("reel" to "ریلز", "post" to "پست", "story" to "استوری")
+internal val KIND_FA = mapOf("reel" to "ریلز", "post" to "پست", "story" to "استوری", "carousel" to "اسلاید")
 
-/** The kinds a file may go out as: a video is a reel or a story, an image a post or a story. */
-internal fun kindsOf(f: FileRef): List<String> = if (f.kind == "video") listOf("reel", "story") else listOf("post", "story")
+/**
+ * The kinds a file may go out as: a video is a reel or a story, an image a post or a story. ⟨0.20.0⟩ §46 With other videos or
+ * images in the same output ([others]), also a carousel of them all, this file first.
+ */
+internal fun kindsOf(f: FileRef, others: Int = 0): List<String> =
+    (if (f.kind == "video") listOf("reel", "story") else listOf("post", "story")) + (if (others > 0) listOf("carousel") else emptyList())
+
+/**
+ * ⟨0.20.0⟩ §46 The time he set, as the hub takes it (with the owner's zone): today ([day] 0) or tomorrow (1) at [clock] («18:30»,
+ * Persian digits too). Null when [clock] is no hour.
+ */
+internal fun scheduledIso(day: Int, clock: String): String? {
+    val hm = com.coinepro.hq.core.data.clockOf(clock) ?: return null
+    val zone = java.time.ZoneId.of(com.coinepro.hq.core.format.OWNER_TZ)
+    val at = HqClock.today(zone).plusDays(day.toLong()).atTime(hm.substringBefore(':').toInt(), hm.substringAfter(':').toInt()).atZone(zone)
+    return at.toOffsetDateTime().format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+}
+
+/** The comment rule from the three fields: null when all are empty; a word and its reply are both needed ([commentHalf]). */
+internal fun commentOf(word: String, reply: String, link: String): PublishComment? {
+    val words = word.split(',', '،').map { it.trim() }.filter { it.isNotEmpty() }
+    if (words.isEmpty() || reply.isBlank()) return null
+    return PublishComment(keywords = words.take(10), reply = reply.trim(), link = link.trim().takeIf { it.startsWith("https://") })
+}
+
+/** He began a comment rule and left it half: a word without its reply, a reply or a link without the word. */
+internal fun commentHalf(word: String, reply: String, link: String): Boolean =
+    (word.isNotBlank() || reply.isNotBlank() || link.isNotBlank()) && commentOf(word, reply, link) == null
 
 /** The files of an output that can be published at all. */
 internal fun publishable(d: Deliverable): List<FileRef> = d.attachments.map(::kindFromMime).filter { it.kind == "video" || it.kind == "image" }
@@ -82,7 +112,9 @@ internal fun publishOf(panel: PublishPanel, fileId: String): SessionPublish? =
 internal fun storyOf(panel: PublishPanel, fileId: String): SessionPublish? =
     panel.publishes.firstOrNull { it.fileId == fileId && it.kind == "story" }?.takeIf { publishOf(panel, fileId)?.kind != "story" }
 
-internal val STATE_FA = mapOf("publishing" to "در حال انتشار", "published" to "منتشر شد", "failed" to "انجام نشد", "waiting_seal" to "منتظر مُهر")
+internal val STATE_FA = mapOf(
+    "publishing" to "در حال انتشار", "scheduled" to "زمان‌بندی شد", "published" to "منتشر شد", "failed" to "انجام نشد", "waiting_seal" to "منتظر مُهر",
+)
 
 /**
  * Under an output's files: nothing for an output of no session (or a hub that does not know the route yet), else one row per video
@@ -137,7 +169,13 @@ private fun PublishRow(f: FileRef, p: SessionPublish?, note: String?, story: Ses
             Fig(f.name.ifBlank { "فایل" }, style = Divan.type.figureSmall, color = c.textPrimary)
             // the handle is Latin inside a Persian line: isolated left-to-right, so «@» stays in front of it
             val where = p?.let {
-                listOfNotNull(KIND_FA[it.kind], it.account?.let { a -> "\u2066@$a\u2069" }, it.coverName?.let { "با کاور" }, "خودکار".takeIf { _ -> it.auto }).joinToString(" · ")
+                listOfNotNull(
+                    KIND_FA[it.kind],
+                    // ⟨0.20.0⟩ §46 the hour it is set for (first: the line is one row), and the word viewers comment for its link
+                    it.scheduledAt?.takeIf { _ -> it.state == "scheduled" }?.let { t -> "ساعت ${jTime(t)}" },
+                    it.account?.let { a -> "\u2066@$a\u2069" }, it.coverName?.let { "با کاور" }, "خودکار".takeIf { _ -> it.auto },
+                    it.comment?.let { w -> "کامنت «$w»" },
+                ).joinToString(" · ")
             }
             when {
                 p == null && note != null -> Text(note, style = Divan.type.micro, color = c.textSecondary)
@@ -154,6 +192,7 @@ private fun PublishRow(f: FileRef, p: SessionPublish?, note: String?, story: Ses
         when (p?.state) {
             null -> HqButton(if (note == null) "تأیید و انتشار" else "دوباره", onAsk, variant = if (note == null) BtnVariant.PRIMARY else BtnVariant.SECONDARY, size = BtnSize.SM, icon = DivanIcon.SEND)
             "publishing" -> Pill("در حال انتشار", Tone.GOLD, dot = true, live = true)
+            "scheduled" -> Pill("زمان‌بندی شد", Tone.GOLD, dot = true)
             "published" -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Pill("منتشر شد", Tone.POS, dot = true)
                 val url = p.url
@@ -178,7 +217,9 @@ internal fun PublishForm(d: Deliverable, f: FileRef, panel: PublishPanel, onDone
     val toasts = LocalToasts.current
     val c = Divan.colors
     val action = rememberAction()
-    val kinds = remember(f) { kindsOf(f) }
+    // ⟨0.20.0⟩ §46 the output's other videos and images: with them this file can go out as a carousel
+    val others = remember(d, f) { publishable(d).filter { it.id != f.id } }
+    val kinds = remember(f, others) { kindsOf(f, others.size.coerceAtMost(9)) }
     var kind by rememberSaveable(f.id) { mutableStateOf(kinds.first()) }
     var account by rememberSaveable(f.id) { mutableStateOf(panel.accounts.singleOrNull()) }
     // ⟨0.19.9⟩ §45 the caption its package carries (`caption.txt`) is already in place; he edits it or just taps
@@ -186,7 +227,15 @@ internal fun PublishForm(d: Deliverable, f: FileRef, panel: PublishPanel, onDone
     // a reel goes out with its cover: the output's images (the one named `cover…`, else the one there is, chosen already)
     val covers = remember(d, f) { if (f.kind == "video") publishable(d).filter { it.kind == "image" } else emptyList() }
     var cover by rememberSaveable(f.id) { mutableStateOf(coverOf(covers)?.id) }
-    val key = rememberSaveable(f.id) { UUID.randomUUID().toString() }
+    // ⟨0.20.0⟩ §46 the time (now, or today/tomorrow at an hour) and the comment rule of this post (its package's, already in place)
+    var later by rememberSaveable(f.id) { mutableStateOf(false) }
+    var day by rememberSaveable(f.id) { mutableStateOf(0) }
+    var clock by rememberSaveable(f.id) { mutableStateOf("") }
+    var word by rememberSaveable(f.id) { mutableStateOf(panel.comment?.keywords.orEmpty().joinToString("، ")) }
+    var reply by rememberSaveable(f.id) { mutableStateOf(panel.comment?.reply.orEmpty()) }
+    var link by rememberSaveable(f.id) { mutableStateOf(panel.comment?.link.orEmpty()) }
+    val whenIso = if (later) scheduledIso(day, clock) else null
+    val key = rememberSaveable(f.id, kind, later, day, clock) { UUID.randomUUID().toString() }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         @Composable fun Label(t: String) = Text(t, style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -216,25 +265,56 @@ internal fun PublishForm(d: Deliverable, f: FileRef, panel: PublishPanel, onDone
             Label("کپشن")
             HqTextField(caption, { caption = it }, "کپشن و هشتگ‌ها (اختیاری)", Modifier.fillMaxWidth(), singleLine = false, minLines = 3, maxLength = 2200)
         }
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Label("زمان")
+            ChipRow {
+                FilterChip("الان", !later, { later = false })
+                FilterChip("ساعت مشخص", later, { later = true })
+            }
+            if (later) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip("امروز", day == 0, { day = 0 })
+                FilterChip("فردا", day == 1, { day = 1 })
+                HqTextField(clock, { clock = it }, "۱۸:۳۰", Modifier.weight(1f), maxLength = 5, figure = true)
+            }
+        }
+        if (kind != "story") Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Label("کامنت و لینک (اختیاری)")
+            HqTextField(word, { word = it }, "کلمه یا عددی که مخاطب کامنت میکند", Modifier.fillMaxWidth(), maxLength = 100)
+            HqTextField(reply, { reply = it }, "پیام خصوصی برای او", Modifier.fillMaxWidth(), singleLine = false, minLines = 2, maxLength = 1000)
+            HqTextField(link, { link = it }, "https://…", Modifier.fillMaxWidth(), maxLength = 1900, figure = true)
+        }
         val pick = panel.accounts.size > 1 && account == null
+        val noHour = later && whenIso == null
+        val half = kind != "story" && commentHalf(word, reply, link)
         HqButton(
-            "تأیید و انتشار",
+            if (later) "تأیید و زمان‌بندی" else "تأیید و انتشار",
             {
                 action.run {
-                    val out = env.api.publishOutput(d.ref, f.id, kind, caption.takeIf { kind != "story" }, account, key, cover.takeIf { kind == "reel" })
+                    val out = env.api.publishOutput(
+                        d.ref, f.id, kind, caption.takeIf { kind != "story" }, account, key, cover.takeIf { kind == "reel" },
+                        fileIds = if (kind == "carousel") others.take(9).map { it.id } else emptyList(),
+                        scheduledAt = whenIso, comment = commentOf(word, reply, link),
+                    )
                     env.cache.invalidate("publish", "orders")
                     when (out.state) {
                         "waiting_setup" -> toasts.info(out.noteFa ?: "تیم فنی هلدینگ مسیر انتشار را وصل میکند.")
                         "published" -> toasts.ok("منتشر شده است.")
+                        "scheduled" -> toasts.ok("${KIND_FA[out.kind] ?: "فایل"} زمان‌بندی شد؛ سر ساعت خودش منتشر میشود.")
                         else -> toasts.ok("${KIND_FA[out.kind] ?: "فایل"} به اینستاگرام رفت؛ نتیجه همین‌جا می‌آید.")
                     }
                     onDone(out)
                 }
             },
-            Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.SEND, enabled = !pick, loading = action.busy,
+            Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.SEND, enabled = !pick && !noHour && !half, loading = action.busy,
         )
         Text(
-            if (pick) "اول حساب را انتخاب کنید." else "برداشتن پست از خود اینستاگرام انجام میشود.",
+            when {
+                pick -> "اول حساب را انتخاب کنید."
+                noHour -> "ساعت را به شکل ۱۸:۳۰ بنویسید."
+                half -> "برای کامنت، هم کلمه لازم است و هم پیام."
+                kind == "carousel" -> "هر ${faNum(others.take(9).size + 1)} فایل این خروجی با هم، به همین ترتیب، میروند."
+                else -> "برداشتن پست از خود اینستاگرام انجام میشود."
+            },
             style = Divan.type.micro, color = c.textMuted, modifier = Modifier.fillMaxWidth(),
         )
     }

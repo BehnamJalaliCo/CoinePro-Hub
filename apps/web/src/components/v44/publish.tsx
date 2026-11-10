@@ -15,10 +15,12 @@ import { Sheet } from '@/components/ui/overlay';
 import { FilterChip, Pill } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
 import {
-  KIND_FA, STATE_FA, coverOf, kindsOf, publishOf, publishable, storyOf, usePublish, usePublishPanel,
+  CAROUSEL_OTHERS, KIND_FA, STATE_FA, commentHalf, commentOf, coverOf, kindsOf, publishOf, publishable, scheduledIso, storyOf, usePublish, usePublishPanel,
   type PublishKind, type PublishPanel, type SessionPublish,
 } from '@/lib/api/v44';
 import { ApiError } from '@/lib/api/client';
+import { faDigits } from '@/lib/alerts';
+import { jTime } from '@/lib/format';
 
 type FileLite = { id: string; name: string; mime: string };
 
@@ -26,7 +28,13 @@ function Row({ f, p, note, story, onAsk }: { f: FileLite; p: SessionPublish | nu
   const video = f.mime.startsWith('video/');
   // the handle is Latin inside a Persian line: isolated left-to-right, so «@» stays in front of it
   const where = p
-    ? [KIND_FA[p.kind], p.account ? `\u2066@${p.account}\u2069` : null, p.cover_name ? 'با کاور' : null, p.auto ? 'خودکار' : null].filter(Boolean).join(' · ')
+    ? [
+      KIND_FA[p.kind],
+      // ⟨0.20.0⟩ §46 the hour it is set for (first: the line is one row), and the word viewers comment for its link
+      p.state === 'scheduled' && p.scheduled_at ? `ساعت ${jTime(p.scheduled_at)}` : null,
+      p.account ? `\u2066@${p.account}\u2069` : null, p.cover_name ? 'با کاور' : null, p.auto ? 'خودکار' : null,
+      p.comment ? `کامنت «${p.comment}»` : null,
+    ].filter(Boolean).join(' · ')
     : null;
   return (
     <div className="flex items-center gap-3 py-2.5">
@@ -42,6 +50,7 @@ function Row({ f, p, note, story, onAsk }: { f: FileLite; p: SessionPublish | nu
       </div>
       {p === null ? <Button variant={note ? 'secondary' : 'primary'} size="sm" icon="send" onClick={onAsk}>{note ? 'دوباره' : 'تأیید و انتشار'}</Button>
         : p.state === 'publishing' ? <Pill tone="gold" dot live>در حال انتشار</Pill>
+        : p.state === 'scheduled' ? <Pill tone="gold" dot>زمان‌بندی شد</Pill>
         : p.state === 'published' ? (
           <span className="flex flex-none items-center gap-1.5">
             <Pill tone="pos" dot>منتشر شد</Pill>
@@ -54,24 +63,50 @@ function Row({ f, p, note, story, onAsk }: { f: FileLite; p: SessionPublish | nu
   );
 }
 
-function Confirm({ output, f, covers, panel, onClose, onDone }: { output: string; f: FileLite; covers: ReadonlyArray<FileLite>; panel: PublishPanel; onClose: () => void; onDone: (out: SessionPublish) => void }) {
+const FIELD = 'w-full rounded-[10px] border border-strong bg-tile p-3 text-[14px] leading-7 text-ink outline-none transition-colors focus:border-gold-ink';
+
+function Confirm({ output, f, covers, others, panel, onClose, onDone }: {
+  output: string; f: FileLite; covers: ReadonlyArray<FileLite>; others: ReadonlyArray<FileLite>; panel: PublishPanel; onClose: () => void; onDone: (out: SessionPublish) => void;
+}) {
   const toast = useToast();
   const publish = usePublish(output);
-  const kinds = useMemo(() => kindsOf(f.mime), [f.mime]);
+  // ⟨0.20.0⟩ §46 the output's other videos and images: with them this file can go out as a carousel
+  const more = useMemo(() => others.slice(0, CAROUSEL_OTHERS), [others]);
+  const kinds = useMemo(() => kindsOf(f.mime, more.length), [f.mime, more.length]);
   const [kind, setKind] = useState<PublishKind>(kinds[0]!);
   const [account, setAccount] = useState<string | null>(panel.accounts.length === 1 ? panel.accounts[0]! : null);
   // ⟨0.19.9⟩ §45 the caption its package carries (`caption.txt`) is already in place; he edits it or just taps
   const [caption, setCaption] = useState(panel.caption ?? '');
   // a reel goes out with its cover: the output's images (the one named `cover…`, else the one there is, chosen already)
   const [cover, setCover] = useState<string | null>(coverOf(covers)?.id ?? null);
-  const [key] = useState(() => crypto.randomUUID());
+  // ⟨0.20.0⟩ §46 the time (now, or today/tomorrow at an hour) and the comment rule of this post (its package's, already in place)
+  const [later, setLater] = useState(false);
+  const [day, setDay] = useState<0 | 1>(0);
+  const [clock, setClock] = useState('');
+  const [word, setWord] = useState((panel.comment?.keywords ?? []).join('، '));
+  const [reply, setReply] = useState(panel.comment?.reply ?? '');
+  const [link, setLink] = useState(panel.comment?.link ?? '');
+  const whenIso = later ? scheduledIso(day, clock) : null;
+  // one key for one press: a different kind or time is another publish
+  const stamp = `${kind}|${later ? `${day}|${clock}` : 'now'}`;
+  const [keys, setKeys] = useState<Record<string, string>>({});
   const pick = panel.accounts.length > 1 && account === null;
+  const noHour = later && whenIso === null;
+  const half = kind !== 'story' && commentHalf(word, reply, link);
   const go = async () => {
+    const key = keys[stamp] ?? crypto.randomUUID();
+    if (!keys[stamp]) setKeys((k) => ({ ...k, [stamp]: key }));
     try {
-      const out = await publish.mutateAsync({ file_id: f.id, kind, caption: kind === 'story' ? undefined : caption, account, cover_file_id: kind === 'reel' ? cover : null, key });
+      const out = await publish.mutateAsync({
+        file_id: f.id, kind, caption: kind === 'story' ? undefined : caption, account, cover_file_id: kind === 'reel' ? cover : null, key,
+        file_ids: kind === 'carousel' ? more.map((x) => x.id) : undefined, scheduled_at: whenIso, comment: commentOf(word, reply, link),
+      });
       toast({
         tone: out.state === 'waiting_setup' ? 'info' : 'ok',
-        text: out.state === 'waiting_setup' ? (out.note_fa ?? 'تیم فنی هلدینگ مسیر انتشار را وصل میکند.') : out.state === 'published' ? 'منتشر شده است.' : `${KIND_FA[out.kind]} به اینستاگرام رفت؛ نتیجه همین‌جا می‌آید.`,
+        text: out.state === 'waiting_setup' ? (out.note_fa ?? 'تیم فنی هلدینگ مسیر انتشار را وصل میکند.')
+          : out.state === 'published' ? 'منتشر شده است.'
+          : out.state === 'scheduled' ? `${KIND_FA[out.kind]} زمان‌بندی شد؛ سر ساعت خودش منتشر میشود.`
+          : `${KIND_FA[out.kind]} به اینستاگرام رفت؛ نتیجه همین‌جا می‌آید.`,
       });
       onDone(out);
     } catch (e) {
@@ -83,8 +118,14 @@ function Confirm({ output, f, covers, panel, onClose, onDone }: { output: string
       open onOpenChange={(v) => { if (!v) onClose(); }} title="تأیید و انتشار" description="اینستاگرام، از راه IG-Hub · بی کارت و بی اثر انگشت"
       footer={(
         <div className="flex flex-col gap-2">
-          <Button variant="primary" size="lg" icon="send" className="w-full" disabled={pick} loading={publish.isPending} onClick={go}>تأیید و انتشار</Button>
-          <p className="text-[11px] text-muted">{pick ? 'اول حساب را انتخاب کنید.' : 'برداشتن پست از خود اینستاگرام انجام میشود.'}</p>
+          <Button variant="primary" size="lg" icon="send" className="w-full" disabled={pick || noHour || half} loading={publish.isPending} onClick={go}>{later ? 'تأیید و زمان‌بندی' : 'تأیید و انتشار'}</Button>
+          <p className="text-[11px] text-muted">
+            {pick ? 'اول حساب را انتخاب کنید.'
+              : noHour ? 'ساعت را به شکل ۱۸:۳۰ بنویسید.'
+              : half ? 'برای کامنت، هم کلمه لازم است و هم پیام.'
+              : kind === 'carousel' ? `هر ${faDigits(String(more.length + 1))} فایل این خروجی با هم، به همین ترتیب، میروند.`
+              : 'برداشتن پست از خود اینستاگرام انجام میشود.'}
+          </p>
         </div>
       )}
     >
@@ -115,11 +156,30 @@ function Confirm({ output, f, covers, panel, onClose, onDone }: { output: string
         {kind !== 'story' ? (
           <label className="flex flex-col gap-2">
             <span className="text-[12px] font-semibold text-sec">کپشن</span>
-            <textarea
-              value={caption} onChange={(e) => setCaption(e.target.value.slice(0, 2200))} rows={4} dir="auto" placeholder="کپشن و هشتگ‌ها (اختیاری)"
-              className="w-full rounded-[10px] border border-strong bg-tile p-3 text-[14px] leading-7 text-ink outline-none transition-colors focus:border-gold-ink"
-            />
+            <textarea value={caption} onChange={(e) => setCaption(e.target.value.slice(0, 2200))} rows={4} dir="auto" placeholder="کپشن و هشتگ‌ها (اختیاری)" className={FIELD} />
           </label>
+        ) : null}
+        <div className="flex flex-col gap-2" data-testid="publish-time">
+          <span className="text-[12px] font-semibold text-sec">زمان</span>
+          <div className="flex flex-wrap gap-2">
+            <FilterChip selected={!later} onClick={() => setLater(false)}>الان</FilterChip>
+            <FilterChip selected={later} onClick={() => setLater(true)}>ساعت مشخص</FilterChip>
+          </div>
+          {later ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <FilterChip selected={day === 0} onClick={() => setDay(0)}>امروز</FilterChip>
+              <FilterChip selected={day === 1} onClick={() => setDay(1)}>فردا</FilterChip>
+              <input value={clock} onChange={(e) => setClock(e.target.value.slice(0, 5))} dir="ltr" inputMode="numeric" placeholder="18:30" aria-label="ساعت انتشار" className={`${FIELD} fig h-10 min-w-0 flex-1 py-0 text-center`} />
+            </div>
+          ) : null}
+        </div>
+        {kind !== 'story' ? (
+          <div className="flex flex-col gap-2" data-testid="publish-comment">
+            <span className="text-[12px] font-semibold text-sec">کامنت و لینک (اختیاری)</span>
+            <input value={word} onChange={(e) => setWord(e.target.value.slice(0, 100))} dir="auto" placeholder="کلمه یا عددی که مخاطب کامنت میکند" aria-label="کلمه‌ی کامنت" className={`${FIELD} h-11 py-0`} />
+            <textarea value={reply} onChange={(e) => setReply(e.target.value.slice(0, 1000))} rows={2} dir="auto" placeholder="پیام خصوصی برای او" aria-label="پیام خصوصی" className={FIELD} />
+            <input value={link} onChange={(e) => setLink(e.target.value.slice(0, 1900))} dir="ltr" placeholder="https://…" aria-label="لینک" className={`${FIELD} fig h-11 py-0`} />
+          </div>
         ) : null}
       </div>
     </Sheet>
@@ -150,6 +210,7 @@ export function PublishSection({ output, files }: { output: string; files: Reado
         <Confirm
           output={output} f={asking} panel={panel} onClose={() => setAsking(null)}
           covers={asking.mime.startsWith('video/') ? mine.filter((x) => x.mime.startsWith('image/')) : []}
+          others={mine.filter((x) => x.id !== asking.id)}
           onDone={(out) => {
             const id = asking.id;
             setNotes((n) => { const { [id]: _gone, ...rest } = n; return out.job === null ? { ...rest, [id]: out.note_fa ?? 'تیم فنی هلدینگ مسیر انتشار را وصل میکند.' } : rest; });
