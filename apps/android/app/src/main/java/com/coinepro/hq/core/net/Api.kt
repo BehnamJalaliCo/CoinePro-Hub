@@ -1670,7 +1670,8 @@ class Api(
         items("/talk/conversations", TalkConversation.serializer(), mapOf("persona" to persona, "q" to q?.takeIf { it.isNotBlank() }, "cursor" to cursor))
     suspend fun newTalkConversation(persona: String, role: String? = null, company: String? = null, mode: String? = null): TalkConversation =
         post("/talk/conversations", buildJsonObject { put("persona", persona); if (role != null) put("role", role); if (company != null) put("company", company); if (mode != null) put("mode", mode) })
-    suspend fun talkConversation(ref: String): TalkDetail = TalkDetail.parse(get<JsonElement>("/talk/conversations/${seg(ref)}"))
+    /** ⟨0.19.6⟩ `limit=200` (the hub's most): a long session opened with only its last 50 turns. */
+    suspend fun talkConversation(ref: String): TalkDetail = TalkDetail.parse(get<JsonElement>("/talk/conversations/${seg(ref)}?limit=200"))
     suspend fun patchTalkConversation(ref: String, mode: String? = null, titleFa: String? = null): TalkConversation =
         send("PATCH", "/talk/conversations/${seg(ref)}", json.encodeToString(JsonElement.serializer(), buildJsonObject { if (mode != null) put("mode", mode); if (titleFa != null) put("title_fa", titleFa) }))
     /** A turn of the owner (`Idempotency-Key` = [clientId], kept across a retry of one press); the answer streams on [TalkTurnOut.events]. */

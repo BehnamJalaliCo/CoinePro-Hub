@@ -59,6 +59,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.coinepro.hq.core.Env
 import com.coinepro.hq.core.format.HqClock
 import com.coinepro.hq.core.format.OWNER_TZ
+import com.coinepro.hq.ui.media.MessageMedia
 import com.coinepro.hq.core.format.Tone
 import com.coinepro.hq.core.format.agentKindOf
 import com.coinepro.hq.core.format.jDate
@@ -840,7 +841,9 @@ private fun OutputDetail(d: Deliverable, onDelete: () -> Unit = {}, onErase: () 
         if (d.attachments.isNotEmpty()) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("پیوست‌ها", style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.goldInk)
-                d.attachments.forEach { f -> Fig("${f.name} · ${f.size / 1024} KB", style = Divan.type.figureSmall, color = c.textSecondary) }
+                // ⟨0.19.6⟩ opened, played and downloaded here (they were names only): a workshop's video, image, PDF. An output's
+                // attachment carries its type only as its mime, so the kind is read from it.
+                MessageMedia(d.attachments.map(::kindFromMime), labelled = true)
             }
         }
         HorizontalDivider(color = c.lineDivider)
@@ -860,3 +863,12 @@ private fun OutputDetail(d: Deliverable, onDelete: () -> Unit = {}, onErase: () 
         }
     }
 }
+
+/** ⟨0.19.6⟩ An attachment whose kind was not sent (an output's file): image, video or audio by its mime, else as it is. */
+internal fun kindFromMime(f: com.coinepro.hq.core.net.FileRef): com.coinepro.hq.core.net.FileRef =
+    if (f.kind != "document") f else when {
+        f.mime.startsWith("video/") -> f.copy(kind = "video")
+        f.mime.startsWith("image/") -> f.copy(kind = "image")
+        f.mime.startsWith("audio/") -> f.copy(kind = "audio")
+        else -> f
+    }

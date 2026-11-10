@@ -153,6 +153,7 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
   const files = useAttachments(10, true);
   const pick = useRef<HTMLInputElement | null>(null);
   const filesRef = useRef(files);
+  const sending = useRef(false); // a word on its way to the hub: Enter twice is one word
   useEffect(() => { filesRef.current = files; });
   const audio = useAudioQueue();
   const abort = useRef<AbortController | null>(null);
@@ -237,11 +238,17 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
   const send = useCallback(async (raw: string, source: TurnSource = 'typed', withFiles = false) => {
     const att = withFiles ? filesRef.current : null;
     const ids = att?.ids ?? [];
-    if (att?.uploading) return;
+    if (att?.uploading || sending.current) return;
+    if (att?.items.some((x) => x.state === 'failed')) {
+      toast({ tone: 'error', text: 'یک فایل بالا نرفت؛ آن را بردار یا دوباره بفرست.' });
+      return;
+    }
     const t = raw.trim() || (ids.length ? FILE_WORD : '');
     if (!t || readOnly) return;
     // A key-shaped string is never a message: it moves into the key sheet (the server also scrubs one that slips through).
     if (looksLikeKey(t, engines.data)) { setText(''); openKey(t); return; }
+    let taken = false; // the hub took the word (a turn exists)
+    sending.current = true;
     try {
       interrupt();
       pinned.current = true; // what he says, and the answer to it, are seen
@@ -250,6 +257,8 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
       setText('');
       setLive({ owner: t, files: (att?.items ?? []).flatMap((x) => (x.ref ? [x.ref] : [])), id: null, answer: '', cards: [], error: null, streaming: true });
       const { turn } = await postTurn(cv, { text: t, source, client_id: crypto.randomUUID(), ...(to ? { to } : {}), ...(ids.length ? { file_ids: ids } : {}) });
+      taken = true;
+      sending.current = false;
       if (ids.length) att?.clear();
       liveId.current = turn.id;
       setLive((l) => l && { ...l, id: turn.id });
@@ -274,7 +283,11 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
       if (to === 'all') for (const ms of [2500, 6000]) setTimeout(() => void qc.invalidateQueries({ queryKey: ['talk', 'conversation', cv] }), ms);
     } catch (e) {
       setLive(null);
+      // the word was not taken: it goes back into the composer (never over something typed meanwhile)
+      if (!taken && source === 'typed' && raw.trim()) setText((cur) => cur || raw);
       toast({ tone: 'error', text: errText(e, 'گفته‌ات فرستاده نشد؛ دوباره بزن.') });
+    } finally {
+      sending.current = false;
     }
   }, [act.invite, audio, engines.data, ensure, interrupt, onMeter, qc, readOnly, ref, to, toast]);
 
@@ -377,7 +390,6 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
               <span aria-hidden>بی‌دست</span>
             </span>
             {files.uploading ? <span role="status" className="min-w-0 truncate text-[12px] text-muted">صبر کن فایل‌ها بالا بروند…</span> : null}
-            {!recSupported ? <span className="min-w-0 truncate text-[11px] text-muted">این مرورگر گفتار را نمیشناسد؛ بنویس.</span> : null}
             <span className="flex-1" />
             {hasText && !holding ? (
               <button type="button" aria-label="بفرست" disabled={files.uploading || busy} onClick={() => void send(text, 'typed', true)}

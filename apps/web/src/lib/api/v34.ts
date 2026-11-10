@@ -34,10 +34,24 @@ export type SessionCard = {
   source?: string | null;
 };
 /** What §35.2 adds to `OrderReport`. */
+/** ⟨0.19.6⟩ A card of the order that waits for a decision, shown in its session (`OrderReport.cards`). */
+export interface OrderCard {
+  ref: string;
+  kind: string;
+  title_fa: string;
+  by_fa?: string | null;
+  waits_fa: string;
+  with_owner: boolean;
+  seal: 'passkey' | 'tap';
+  created_at: string;
+}
+
 export type SessionExtras = {
   session: { state: 'open' | 'closed'; badge: Badge; reason_fa: string; closed_at: string | null; hidden: boolean; source?: string | null };
   /** ⟨1.22⟩ §40.1 what the session remembers («تا اینجا»). */
   memory_md?: string | null;
+  /** ⟨0.19.6⟩ the session's cards that wait for a decision, oldest first (sealed from the session). */
+  cards?: OrderCard[];
   brief: SessionBrief; tasks: SessionTask[]; participants: Participant[];
   pace?: Pace; talk_ref?: string | null; conversation_ref?: string | null;
   turn?: { question_fa: string; at: string; by: { kind: string; code: string; display_fa?: string | null }; who_fa: string } | null;

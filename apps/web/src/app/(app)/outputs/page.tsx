@@ -14,6 +14,8 @@ import { useToast } from '@/components/ui/toast';
 import { RefChip, ScopeChips } from '@/components/v17/bits';
 import { RANGES, UndoBar, dayFa, inputCls, ownerDay, span, type Undo } from '@/components/v21/bits';
 import { EraseButton } from '@/components/erase/erase-button';
+import { MessageMedia } from '@/components/media/attachments';
+import type { FileKind, MediaRef } from '@/lib/api/v13';
 import { DeleteDialog, DeleteOne, RowCheck, SelectAll, SelectionBar, useCleanup, useSelection } from '@/components/v28/outputs';
 import { ApiError } from '@/lib/api/client';
 import { handled } from '@/lib/api/observe';
@@ -33,6 +35,12 @@ const CATEGORY_FA: Record<Category, string> = { report: 'گزارش', work: 'ک�
 type Tab = 'new' | 'seen' | 'all';
 
 /** `usage` as the hub writes it (§5.2: input, output and cache tokens, cost and equivalent cost), or the older `{tokens, usd}`. */
+
+/** An output's files as the media components read them (§43.4): the hub's FileRef carries `kind` and `status`; a file without them is read by its type. */
+function mediaOf(files: ReadonlyArray<{ id: string; name: string; mime: string; size: number; sha256: string }>): MediaRef[] {
+  const kind = (m: string): FileKind => (m.startsWith('image/') ? 'image' : m.startsWith('video/') ? 'video' : m.startsWith('audio/') ? 'audio' : 'document');
+  return files.map((f) => ({ kind: kind(f.mime), status: 'ready' as const, ...f }));
+}
 function usageOf(d: Output): { used: number | null; cost: string | null } {
   const u = (d.usage ?? {}) as Record<string, unknown>;
   const n = (k: string) => (typeof u[k] === 'number' ? (u[k] as number) : null);
@@ -145,7 +153,7 @@ function Detail({ refId, onSeen, onGone }: { refId: string; onSeen: (refs: strin
       {d.attachments?.length ? (
         <section className="flex flex-col gap-1.5">
           <h3 className="text-[12px] font-semibold text-gold-ink">پیوست‌ها</h3>
-          {d.attachments.map((f) => <span key={f.id} className="fig text-[12px] text-sec">{f.name} · {Math.round(f.size / 1024)} KB</span>)}
+          <MessageMedia items={mediaOf(d.attachments)} />
         </section>
       ) : null}
       {Array.isArray(d.evidence) && d.evidence.length ? (

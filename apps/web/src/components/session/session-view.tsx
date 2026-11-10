@@ -67,7 +67,7 @@ export function SessionView({ refId }: { refId: string }) {
   const q = useOrderSession(refId);
   const r = q.data;
   if (q.isLoading) return <><Skeleton className="h-16 w-2/3" /><Skeleton className="h-32 rounded-[16px]" /><Skeleton className="h-96 rounded-[16px]" /></>;
-  if (q.error) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
+  if (q.error && !r) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   if (!r) {
     return (
       <>
@@ -110,7 +110,7 @@ function Session({ refId, r }: { refId: string; r: Full }) {
   const askClose = () => { setDetails(false); setClosing(true); };
   const ready = r.session.badge === 'ready' && !closed;
   // ⟨1.23⟩ §41.2 the pace switch is back in the header; «کار n از m» opens the drawer at the plan.
-  const setPace = (v: Pace) => act.pace.mutate(v, { onSuccess: () => toast({ tone: 'ok', text: v === 'step' ? 'از این به بعد قدم‌به‌قدم با تو.' : 'از این به بعد خودش تا آخر میرود.' }), onError: (e) => failed(e, 'عوض نشد؛ دوباره بزن.') });
+  const setPace = (v: Pace) => v === (r.pace ?? 'auto') || act.pace.isPending ? undefined : act.pace.mutate(v, { onSuccess: () => toast({ tone: 'ok', text: v === 'step' ? 'از این به بعد قدم‌به‌قدم با تو.' : 'از این به بعد خودش تا آخر میرود.' }), onError: (e) => failed(e, 'عوض نشد؛ دوباره بزن.') });
   const openPlan = () => { setDetails(true); setTimeout(() => document.getElementById('session-plan')?.scrollIntoView({ block: 'start' }), 250); };
 
   // The talk is the body: the order's system steps sit in it as small grey lines at their time, and what was delivered as compact cards at its end.
@@ -142,13 +142,13 @@ function Session({ refId, r }: { refId: string; r: Full }) {
         </div>
       </header>
 
-      {r.turn && !closed ? <OpenTurn r={r} onReply={(text) => act.reply.mutate(text, { onSuccess: () => toast({ tone: 'ok', text: 'جوابت رفت.' }), onError: (e) => failed(e, 'جوابت نرفت؛ دوباره بزن.') })} busy={act.reply.isPending} /> : null}
+      {r.turn && !closed ? <OpenTurn r={r} onReply={(text, sent) => act.reply.mutate(text, { onSuccess: () => { sent(); toast({ tone: 'ok', text: 'جوابت رفت.' }); }, onError: (e) => failed(e, 'جوابت نرفت؛ دوباره بزن.') })} busy={act.reply.isPending} /> : null}
 
 
       <Room r={r} closed={closed} to={target} onTo={setTo} />
       {talk ? (
         <ConversationPane
-          conversationRef={talk} face={holder?.key ?? 'secretary'} to={target || null} titleOf={titleOf} readOnly={closed || !!conv.data?.closed_at} onApi={bindPane} above={<><BlockerBanner blockers={closed ? [] : r.blockers} company={company} run={runFix} /><LiveWork refId={refId} closed={closed} /></>}
+          conversationRef={talk} face={holder?.key ?? 'secretary'} to={target || null} titleOf={titleOf} readOnly={closed || !!conv.data?.closed_at} onApi={bindPane} above={<><WaitingCards cards={closed ? [] : (r.cards ?? [])} /><BlockerBanner blockers={closed ? [] : r.blockers} company={company} run={runFix} /><LiveWork refId={refId} closed={closed} /></>}
           talkHeight="h-[calc(100dvh-20rem)]" timeline={timeline} tail={tail} placeholder="به مسئول بگو چه بکند، یا از همین‌جا بسپار، استخدام کن، گروه و خط تولید راه بینداز…"
           emptyTitle="هنوز حرفی زده نشده" emptyBody="هر چه بگویی همین‌جا به مسئول فرمان میرسد؛ هر کاری که از دل گفتگو بیرون بیاید فقط با کارتی که تو میزنی انجام میشود." />
       ) : (
@@ -210,22 +210,50 @@ function Session({ refId, r }: { refId: string; r: Full }) {
 }
 
 /** What was delivered, one compact card in the talk: a single output or several that arrived together, each with «باز کن». */
+const OUT_FA: Record<string, string> = { final: 'خروجی', part: 'بخشی از کار', partial: 'خروجی ناقص' };
+const outKindFa = (kind: string) => OUT_FA[kind] ?? OUTPUT_KIND_FA[kind as OutputKind] ?? 'خروجی';
+
 function OutputsCard({ outputs }: { outputs: SessionReport['outputs'] }) {
-  const n = outputs.length;
+  const n = outputs.filter((o) => o.kind !== 'partial').length;
   return (
     <section className="flex w-full max-w-[46rem] flex-col gap-2 self-start rounded-[12px] border border-div bg-tile p-3" aria-label="نتیجه‌های رسیده" data-outputs={n}>
-      <h3 className="flex items-center gap-2 text-[12px] font-semibold text-pos"><Icon name="seal" size={14} />{n > 1 ? `${n.toLocaleString('fa-IR')} خروجی تحویل شد` : 'خروجی تحویل شد'}</h3>
+      <h3 className="flex items-center gap-2 text-[12px] font-semibold text-pos"><Icon name="seal" size={14} />{n > 1 ? `${n.toLocaleString('fa-IR')} خروجی تحویل شد` : n === 1 ? 'خروجی تحویل شد' : 'خروجی ناقص رسید'}</h3>
       <ul className="flex flex-col gap-2">
         {outputs.map((o) => (
           <li key={o.ref} data-output className="flex items-center gap-2 text-[13px]">
             <Icon name={o.kind === 'reel' ? 'video' : o.kind === 'post' || o.kind === 'story' ? 'image' : 'deliverable'} size={16} className="flex-none text-silver-ink" />
             <span className="min-w-0 flex-1 break-words"><PlainText text={o.title_fa} /></span>
-            <span className="flex-none text-[11px] text-muted">{OUTPUT_KIND_FA[o.kind as OutputKind] ?? 'خروجی'}</span>
+            <span className="flex-none text-[11px] text-muted">{outKindFa(o.kind)}</span>
             <Link href={`/outputs?ref=${o.ref}&tab=all`} className="flex-none rounded-full px-2.5 py-1 text-[12px] font-semibold text-gold-ink hover:bg-hover">باز کن</Link>
           </li>
         ))}
       </ul>
     </section>
+  );
+}
+
+/**
+ * ⟨0.19.6⟩ The cards of this session that wait for a decision, here in the session (the owner, in his own session: «بیار مهر کنم» — the
+ * holder had said «کارت منتظر مُهر شماست» and the card was on another page). «مُهر» opens that very card.
+ */
+function WaitingCards({ cards }: { cards: NonNullable<Full['cards']> }) {
+  const router = useRouter();
+  if (!cards.length) return null;
+  return (
+    <Card as="section" className="flex flex-col gap-2 p-3 ring-1 ring-[var(--hq-line)]" aria-label="کارت‌های منتظر تصمیم" data-testid="waiting-cards" data-count={cards.length}>
+      <ul className="flex flex-col gap-2">
+        {cards.map((c) => (
+          <li key={c.ref} className="flex flex-wrap items-center gap-2 text-[13px]" data-card={c.ref}>
+            <Icon name="seal" size={16} className="flex-none text-gold-ink" />
+            <span className="min-w-0 flex-[1_1_12rem]">
+              <span className="block break-words font-semibold"><PlainText text={c.title_fa} /></span>
+              <span className="block text-[12px] text-muted"><PlainText text={c.by_fa ? `${c.by_fa} · ${c.waits_fa}` : c.waits_fa} /></span>
+            </span>
+            <Button variant="primary" size="sm" data-seal={c.seal} onClick={() => router.push(`/cartable?ref=${encodeURIComponent(c.ref)}`)}>مُهر</Button>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }
 
@@ -271,14 +299,14 @@ function Brief({ r }: { r: Full }) {
 }
 
 // ============================================================================================ the open question ==
-function OpenTurn({ r, onReply, busy }: { r: Full; onReply: (t: string) => void; busy: boolean }) {
+function OpenTurn({ r, onReply, busy }: { r: Full; onReply: (t: string, sent: () => void) => void; busy: boolean }) {
   const [text, setText] = useState('');
   const t = r.turn!;
   return (
     <Card as="section" className="flex flex-col gap-3 p-5 ring-1 ring-[var(--hq-gold-ink)]" aria-label="نوبت تو">
       <div className="flex items-center gap-2"><Pill tone="gold" live>نوبت تو</Pill><span className="text-[13px] text-sec">{t.who_fa} میپرسد</span></div>
       <PlainPara text={t.question_fa} className="text-[15px] font-semibold leading-7" />
-      <form className="flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); if (text.trim()) { onReply(text.trim()); setText(''); } }}>
+      <form className="flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); if (text.trim() && !busy) onReply(text.trim(), () => setText('')); }}>
         <input value={text} onChange={(e) => setText(e.target.value)} dir="auto" aria-label="جواب تو" placeholder="جوابت را بنویس…" className={cx(field, 'h-11 min-w-0 flex-[1_1_16rem]')} />
         <Button type="submit" variant="primary" icon="send" disabled={!text.trim()} loading={busy}>جواب بده</Button>
       </form>
@@ -445,7 +473,7 @@ function Results({ r, closed }: { r: Full; closed: boolean }) {
               <Link href={`/outputs?ref=${o.ref}&tab=all`} className="flex items-center gap-2 rounded-[10px] bg-tile px-3 py-2.5 text-[13px] hover:bg-hover">
                 <Icon name={o.kind === 'reel' ? 'video' : o.kind === 'post' || o.kind === 'story' ? 'image' : 'deliverable'} size={16} className="text-silver-ink" />
                 <span className="min-w-0 flex-1 truncate"><PlainText text={o.title_fa} /></span>
-                <span className="text-[11px] text-muted">{OUTPUT_KIND_FA[o.kind as OutputKind] ?? 'خروجی'}</span>
+                <span className="text-[11px] text-muted">{outKindFa(o.kind)}</span>
               </Link>
             </li>
           ))}

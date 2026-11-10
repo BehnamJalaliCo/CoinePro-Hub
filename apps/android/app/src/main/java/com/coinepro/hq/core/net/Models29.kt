@@ -110,6 +110,24 @@ data class OrderReport(
     val files: List<FileRef> = emptyList(),
     /** ⟨1.22⟩ §40.1 the session's memory («تا اینجا»): what was decided, who does what, the helpers chosen, open points. Read-only. */
     val memoryMd: String? = null,
+    /** ⟨0.19.6⟩ the session's cards that wait for a decision, oldest first: shown in the session and sealed from it. */
+    val cards: List<OrderCard> = emptyList(),
+)
+
+/** ⟨0.19.6⟩ A card of the order that waits for a decision (the owner, in his session: «بیار مهر کنم»). */
+@Serializable
+data class OrderCard(
+    val ref: String,
+    val kind: String = "",
+    val titleFa: String = "",
+    /** Who proposed it. */
+    val byFa: String? = null,
+    /** «منتظر مُهر شما» · «منتظر تصمیم مدیرعامل …؛ شما هم میتوانید مُهر کنید». */
+    val waitsFa: String = "",
+    val withOwner: Boolean = true,
+    /** passkey · tap */
+    val seal: String = "passkey",
+    val createdAt: String = "",
 )
 
 // ------------------------------------------------------------- §29.3 rules --

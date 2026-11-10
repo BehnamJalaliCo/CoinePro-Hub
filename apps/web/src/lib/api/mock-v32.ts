@@ -206,7 +206,7 @@ export async function handle32(req: Request, p: string): Promise<Response | null
   if (cv) {
     const c = convs.find((x) => x.ref === cv[1]);
     if (!c) return problem(404, 'not_found', 'این گفتگو پیدا نشد.');
-    if (!cv[2] && m === 'GET') return json({ ...c, turns_page: turnsOf[c.ref] ?? [], next: null });
+    if (!cv[2] && m === 'GET') return json({ ...c, turns_page: { items: turnsOf[c.ref] ?? [], next_cursor: null } });
     if (!cv[2] && m === 'PATCH') { const b = await body<any>(); if (b.mode) c.mode = b.mode; if (b.title_fa) c.title_fa = b.title_fa; return json(c); }
     if (cv[2] === 'turns' && m === 'POST') {
       const b = await body<any>();

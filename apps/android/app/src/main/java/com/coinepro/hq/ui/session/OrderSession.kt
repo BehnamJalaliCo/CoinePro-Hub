@@ -374,6 +374,8 @@ fun OrderSessionScreen(ref: String) {
                     nudgeFirst = o.blockers.isEmpty(),
                 )
             }
+            // ⟨0.19.6⟩ the session's cards that wait for a decision, here, each with «مُهر» (never «برو پیدایش کن»).
+            if (!closed) WaitingCards(o.cards)
             // ⟨0.19.0⟩ what blocks the work: one compact banner with its fix (several: «۲ گیر», opened to each).
             if (blockersShown.isNotEmpty()) BlockersBanner(
                 blockersShown, company, o.ref, o.route?.budgetTokens,

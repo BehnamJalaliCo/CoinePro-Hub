@@ -43,6 +43,7 @@ import com.coinepro.hq.core.format.ago
 import com.coinepro.hq.core.format.jDateTime
 import com.coinepro.hq.core.format.jTime
 import com.coinepro.hq.core.net.Blocker
+import com.coinepro.hq.core.net.OrderCard
 import com.coinepro.hq.designsystem.BtnSize
 import com.coinepro.hq.designsystem.BtnVariant
 import com.coinepro.hq.designsystem.Chevron
@@ -228,6 +229,35 @@ internal fun BlockersBanner(
                     }
                     b.fix?.let { FixButton(it, company, orderRef, budgetTokens = budgetOf(b)) }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * ⟨0.19.6⟩ The cards of this session that wait for a decision, over the composer: each with who raised it, whom it waits for, and «مُهر»,
+ * which opens that very card. The owner, in his own session: «بیار مهر کنم» — the holder had said «کارت منتظر مُهر شماست» and the card
+ * was on another page.
+ */
+@Composable
+internal fun WaitingCards(cards: List<OrderCard>) {
+    if (cards.isEmpty()) return
+    val c = Divan.colors
+    val nav = LocalNav.current
+    Column(
+        Modifier.fillMaxWidth().testTag("waiting-cards").clip(ROW).background(c.tile).smoothSize().padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        cards.forEachIndexed { i, card ->
+            if (i > 0) HorizontalDivider(color = c.lineDivider)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DIcon(DivanIcon.SEAL, size = 18.dp, tint = c.goldInk)
+                Column(Modifier.weight(1f)) {
+                    Text(timesFig(quietLine(card.titleFa)), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
+                    val sub = listOfNotNull(card.byFa?.ifBlank { null }, card.waitsFa.ifBlank { null }).joinToString(" · ")
+                    if (sub.isNotEmpty()) Text(timesFig(quietLine(sub)), style = Divan.type.micro, color = c.textSecondary)
+                }
+                HqButton("مُهر", { nav.go("cartable/${card.ref}") }, variant = BtnVariant.PRIMARY, size = BtnSize.SM)
             }
         }
     }

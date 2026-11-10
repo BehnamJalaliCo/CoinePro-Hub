@@ -79,6 +79,6 @@ export function useNudge(ref: string) {
   return useMutation({
     mutationFn: () => call<SessionActivity>('POST', `/orders/${enc(ref)}/nudge`, {}, { 'Idempotency-Key': crypto.randomUUID() }),
     onSuccess: (a) => { if (a) qc.setQueryData(key(ref), a); },
-    onSettled: () => Promise.all(['orders', 'office'].map((k) => qc.invalidateQueries({ queryKey: [k] }))),
+    onSettled: () => Promise.all(['orders', 'office', 'talk'].map((k) => qc.invalidateQueries({ queryKey: [k] }))),
   });
 }

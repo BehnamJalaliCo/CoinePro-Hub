@@ -43,6 +43,7 @@
 @theme inline {
   --font-sans: "IRANYekanXFaNum", "IRANYekanX", Tahoma, sans-serif;
   --font-fig: "IRANYekanX", "IRANYekanXFaNum", Tahoma, sans-serif;
+  --font-mono: var(--font-fig); /* one typeface: `font-mono` never falls to the system monospace */
 
   --color-page: var(--hq-surface-page);
   --color-card: var(--hq-surface-card);

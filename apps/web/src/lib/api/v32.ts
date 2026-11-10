@@ -49,7 +49,7 @@ export type Turn = {
   voice: { engine: string; seconds: number; audio_tokens: number; usd: number } | null; state: TurnState; files?: MediaRef[]; reason_fa: string | null; at: string;
 };
 /** The page of a conversation: the conversation itself and its turns (assumed flat, like the list rows, with the turns beside). */
-export type ConversationPage = Conversation & { turns_page?: Turn[]; items?: Turn[]; next?: string | null };
+export type ConversationPage = Conversation & { turns_page?: Turn[] | { items?: Turn[]; next_cursor?: string | null }; items?: Turn[]; next?: string | null };
 export const MODE_FA: Record<Mode, string> = { consult: 'مشورت', work: 'جلسه‌ی کاری' };
 export const CARD_FA: Record<CardKind, { fa: string; icon: 'task' | 'advisor' | 'hire' | 'decision' | 'planner' | 'seal' | 'refresh' | 'report' | 'agent' | 'delegate' | 'treasury' | 'companies'; run: string }> = {
   order: { fa: 'فرمان', icon: 'task', run: 'فرمان را بفرست' },
@@ -84,10 +84,15 @@ export const useConversations = (f: { q?: string; persona?: string } = {}) => us
   queryKey: ['talk', 'conversations', f.q ?? '', f.persona ?? ''], staleTime: 10_000,
   queryFn: list<Conversation>(`/talk/conversations?${new URLSearchParams({ ...(f.q ? { q: f.q } : {}), ...(f.persona ? { persona: f.persona } : {}) })}`),
 });
-export const turnsOf = (c: ConversationPage | null | undefined): Turn[] => c?.turns_page ?? c?.items ?? [];
+/** The conversation's turns: the hub sends a page `{items, next_cursor}` (TalkTurnPage); an older one a bare list. */
+export const turnsOf = (c: ConversationPage | null | undefined): Turn[] => {
+  const page = c?.turns_page;
+  if (Array.isArray(page)) return page;
+  return page?.items ?? c?.items ?? [];
+};
 export const useConversation = (ref: string | null) => useQuery({
   queryKey: ['talk', 'conversation', ref], enabled: !!ref, staleTime: 5_000,
-  queryFn: () => served(call<ConversationPage>('GET', `/talk/conversations/${enc(ref!)}`)),
+  queryFn: () => served(call<ConversationPage>('GET', `/talk/conversations/${enc(ref!)}?limit=200`)),
 });
 export function useTalkActions() {
   const qc = useQueryClient();

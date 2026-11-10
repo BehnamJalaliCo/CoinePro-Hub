@@ -44,7 +44,7 @@ function PairForm({ company0, onDone }: { company0: string | null; onDone: (s: H
   const qc = useQueryClient();
   const toast = useToast();
   const { data: all } = useCompanies();
-  const companies = (all ?? []).filter((c) => c.kind !== 'holding' && c.status !== 'archived');
+  const companies = (all ?? []).filter((c) => c.status !== 'archived');
   const [company, setCompany] = useState<string | null>(company0);
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);

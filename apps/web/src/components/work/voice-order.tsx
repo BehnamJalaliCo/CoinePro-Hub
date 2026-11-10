@@ -200,7 +200,9 @@ export function VoiceOrder({ open, onOpenChange, initial }: { open: boolean; onO
   const sendOrder = async () => {
     setBusy(true);
     try {
+      const { preview_fa: _p, confidence: _c, why_fa: _w, ...read } = (preview ?? {}) as Record<string, unknown>;
       const route = preview ? {
+        ...read,
         companies: edits.companies ?? preview.companies, department: edits.department !== undefined ? edits.department : preview.department,
         collaborators: edits.collaborators ?? preview.collaborators, output_kind: edits.output_kind ?? preview.output_kind,
         count: edits.count !== undefined ? edits.count : preview.count, budget_tokens: preview.budget_tokens, mode: option.mode, player: option.player,

@@ -115,8 +115,12 @@ class TalkSession(private val env: Env, private val scope: CoroutineScope, priva
     }
 
     /** Opens conversation [ref]. */
+    /** ⟨0.19.6⟩ The conversation this session was asked to open: a turn goes to it even when reading it failed. */
+    private var openRef: String? = null
+
     suspend fun open(ref: String) {
         loading = true; error = null
+        openRef = ref
         try {
             val d = env.api.talkConversation(ref)
             conv = d.conversation.takeIf { it.ref.isNotBlank() } ?: TalkConversation(ref = ref)
@@ -211,7 +215,9 @@ class TalkSession(private val env: Env, private val scope: CoroutineScope, priva
 
     private suspend fun turn(body: String, source: String, files: List<FileRef>): Boolean {
         if (busy) bargeIn()
-        val c = conv ?: run {
+        // ⟨0.19.6⟩ the session's own talk when it could not be read just now (a failed GET): the owner's word went to a NEW
+        // conversation with the secretary instead of the session he was in
+        val c = conv ?: openRef?.let { r -> TalkConversation(ref = r).also { conv = it } } ?: run {
             startNew("secretary")
             conv ?: return false
         }

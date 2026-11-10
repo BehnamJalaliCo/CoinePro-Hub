@@ -3,9 +3,12 @@
 // that used to print a ref. A ref is dropped with its brackets and joiners, so a sentence still reads whole.
 
 const REF = /\b[A-Z]{1,3}-\d{3,}\b/g;
-const CODE = /\b[A-Z]{2,5}(?:-[A-Z0-9]{1,12}){1,3}\b/g;
+// An employee code: CO-DEPT-MGR, CO-DEPT-01, CO-CEO and the holding's fixed seats; never a market pair (BTC-USDT, EUR-USD), a model
+// name (GPT-5.5) or an encoding (UTF-8): those are the owner's own words.
+const CODE = /\b[A-Z][A-Z0-9]{1,9}-(?:[A-Z]{2,12}-(?:MGR|\d{1,3})|CEO|ADV|OVR|AST|SYS|LIB|ARC|SEC|SRE)\b/g;
 const PERSONA = /\b[a-z_]+@[A-Z]{2,5}\b/g;
-const WORD: Array<[RegExp, string]> = [[/توکن‌ها/g, 'واحدها'], [/توکن/g, 'واحد']];
+// «توکن» as a unit of spending (after a figure) reads «واحد»; a crypto token keeps its name.
+const WORD: Array<[RegExp, string]> = [[/([0-9۰-۹][0-9۰-۹٬,.]*\s*(?:[KkMm]|هزار|میلیون)?\s*)توکن(?:‌ها)?/g, '$1واحد']];
 
 /** [text] without refs, codes and the word «token»; the rest untouched. */
 export function plain(text: string | null | undefined): string {
