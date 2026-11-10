@@ -404,21 +404,113 @@ async def return_to_owner(tx: Tx) -> list[str]:
     return refs
 
 
-async def approve_by_code(tx: Tx, d: dict[str, Any], charters: Any) -> dict[str, Any]:
+# ⟨2026-11-10⟩ the owner's own words that ask for a hire (his order, his turns, his plan steps)
+HIRE_WORDS = ("استخدام", "hire")
+# his words that say the opposite: taken out before the words above are looked for, so «استخدام
+# نکن» is never read as a hire (a missed one only falls back to the usual card)
+NO_HIRE_WORDS = (
+    "استخدام نکن",
+    "استخدام نشود",
+    "استخدام نشه",
+    "استخدام نباشد",
+    "استخدام نباشه",
+    "استخدام نمیخوا",
+    "استخدام نمی خوا",
+    "استخدام لازم نیست",
+    "استخدام نیاز نیست",
+    "استخدام نیازی نیست",
+    "به استخدام نیست",
+    "بدون استخدام",
+    "don't hire",
+    "do not hire",
+    "not hire",
+    "no hire",
+    "no hiring",
+    "without hiring",
+)
+OWNER_FA = "مدیر کل"
+
+
+def asks_for_a_hire(said: list[str]) -> bool:
+    """Whether the owner's own words ask for a hire: a hire word that is left once every «don't
+    hire» phrase is taken out."""
+    text = " ".join(said).replace("\u200c", " ").replace("ي", "ی").replace("ك", "ک").lower()
+    text = " ".join(text.split())
+    for no in NO_HIRE_WORDS:
+        text = text.replace(no, " ")
+    return any(w in text for w in HIRE_WORDS)
+
+
+async def asked_in_session(tx: Tx, who: Principal, work_id: UUID | None) -> str | None:
+    """⟨2026-11-10⟩ The order (its ref) when this hire is one the owner asked for in his own
+    session: the proposer's work (the card's, else its run's) belongs to an open order, and the
+    owner's own words there (the order's text, his words in the session, his plan steps) ask for a
+    hire. The owner: «این برو بیا و هی مهر بکن و اینو مجوز بده … آزار و اذیت میده منو»: such a hire
+    is his decision already. Needs a transaction that reaches every company (the order's report is
+    the holding's row). The words are the owner's, stored by code: an agent cannot write them."""
+    from hq_api.domain import order_report as OR
+
+    if not who.is_agent:
+        return None
+    wid = work_id
+    if wid is None and who.run_id:
+        wid = await tx.scalar(
+            "SELECT work_id FROM agents.runs WHERE id = CAST(:r AS uuid) AND employee_id = :e",
+            r=who.run_id,
+            e=who.employee_id,
+        )
+    if wid is None:
+        return None
+    ref = await OR.order_of_work(tx, wid)
+    if ref is None:
+        return None
+    row = await tx.first(
+        """SELECT r.order_id, r.steps, o.text FROM owner.order_reports r
+           JOIN owner.orders o ON o.id = r.order_id WHERE r.ref = :r AND r.ended_at IS NULL""",
+        r=ref,
+    )
+    if row is None:
+        return None
+    said = [str(row["text"] or "")]
+    said += [
+        str(s.get("what_fa") or "")
+        for s in OR._j(row["steps"]) or []
+        if isinstance(s, dict) and s.get("who_fa") == OWNER_FA
+    ]
+    said += [
+        str(t["title_fa"])
+        for t in await tx.all(
+            "SELECT title_fa FROM owner.session_tasks WHERE order_id = :o AND by = 'owner'",
+            o=row["order_id"],
+        )
+    ]
+    return ref if asks_for_a_hire(said) else None
+
+
+async def approve_by_code(
+    tx: Tx, d: dict[str, Any], charters: Any, *, owner_order: str | None = None
+) -> dict[str, Any]:
     """⟨21⟩ §29.10: a hire card approved by code (hiring `auto`): every hard
     check of an approval, the company's month envelope required and kept
     (409 envelope_exceeded, 422 envelope_required: nothing is made), then the
-    employee at once. A story tells the owner; the weekly summary lists it."""
+    employee at once. A story tells the owner; the weekly summary lists it.
+    ⟨2026-11-10⟩ `owner_order`: a hire the owner asked for in that session (asked_in_session):
+    his own decision, so checked as his approval is (the model offered, the estimate, the five a
+    day), with no card for anyone and no month envelope required."""
     from hq_api.domain import decisions as D
 
     lib = await D.company_charters(tx, charters, d["company_id"])
-    await check_approval(tx, d, d["payload"], lib, by_ceo=True)
+    await check_approval(tx, d, d["payload"], lib, by_ceo=owner_order is None)
     await D.decide(
         tx,
         SERVICE,
         d,
         "approved",
-        note="استخدام خودکار در پاکت ماه شرکت (§29.10)",
+        note=(
+            f"استخدام به خواست مدیر کل در جلسه‌ی {owner_order}"
+            if owner_order
+            else "استخدام خودکار در پاکت ماه شرکت (§29.10)"
+        ),
         charters=charters,
     )
     await D.apply_effect(tx, d["ref"], SERVICE)

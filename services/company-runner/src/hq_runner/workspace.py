@@ -198,6 +198,8 @@ def sweep(cfg_path: Path | None = None, now: float | None = None) -> list[str]:
         except OSError as exc:
             log.error("workspace %s: not removed (%s)", ref, type(exc).__name__)
             continue
+        # ⟨0.3.4⟩ the work's private area behind the workshop's wall (its home, its sessions)
+        shutil.rmtree(root() / ".hq" / ref, ignore_errors=True)
         del state[ref]
         removed.append(ref)
         log.info("workspace %s removed (its work closed at %s)", ref, entry.get("closed_at"))

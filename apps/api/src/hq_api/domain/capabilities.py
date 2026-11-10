@@ -75,9 +75,17 @@ HOW = {
         "slideshow): workshop.run renders it and the MP4 comes back into the session. A filmed "
         "video (a person on camera): the «بسته‌ی ساخت ویدیو» with `deliver`: script, shot list, "
         "on-screen text, voice text (what the narrator reads), caption, hashtags, cover prompt, for "
-        "the owner to shoot. No render, ffmpeg or voice is ever a blocker, a readiness item or a "
-        "step of the owner's; voice is off. Publishing, after the owner approves, goes on through "
-        "IG-Hub"
+        "the owner to shoot. No render or ffmpeg is ever a blocker, a readiness item or a step of "
+        "the owner's. Publishing, after the owner approves, goes on through IG-Hub"
+    ),
+    "narration": (
+        "⟨2026-11-10⟩ the narrator of a reel or a video is ON (what the owner switched off is his "
+        "own voice talk with the app): speech.make {text_fa, voice?, style?} makes the voice with "
+        "Google AI Studio on his account and answers an audio file; deliver it so he hears it, "
+        "then give it to the workshop as an input: workshop.run {brief, files: [<file id>]} (the "
+        "workshop finds it in in/ and cuts the picture to it). Never a silent video in place of a "
+        "narrated one. `narration.state` below says whether AI Studio is signed in; signed out: "
+        "say so in one line (he signs in once) and do what does not need the voice"
     ),
     "instagram": (
         "Instagram, for every company, is read and published through IG-Hub (company IG's server, "
@@ -394,6 +402,15 @@ async def technical(
 LEAN_HOW = ("owner", "hub", "delegate")  # what a watcher's run still needs of HOW
 
 
+async def _narration(tx: Tx) -> dict[str, Any]:
+    """⟨2026-11-10⟩ speech.make: whether Google AI Studio answered signed in the last time it was
+    asked (signed_in · signed_out · unknown: nothing in the last days, try it)."""
+    from hq_api.domain import speech_make as SM
+
+    state = (await SM.speech_state(tx)).get("aistudio", "unknown")
+    return {"state": state, "tool": "speech.make"}
+
+
 async def _workshop(tx: Tx) -> dict[str, Any]:
     """⟨2026-11-09⟩ §43 the holding's workshop: ready (a paired holding server on a runner that
     sends files back, online now or not) or not set up yet."""
@@ -443,7 +460,12 @@ async def brief(
             # ⟨2026-11-09⟩ §43 whether the workshop takes work now (never a reason to say «no tool»)
             "workshop": await _safe(tx, _workshop) or {"state": "not set up yet"},
         }
-        # (⟨2026-11-08⟩ no `voice` block: voice is off by the owner's decision and never mentioned)
+        # ⟨2026-11-10⟩ the narrator of content (speech.make): on. What the owner switched off
+        # (2026-11-08) is his own voice talk with the app, which is never mentioned here.
+        out["narration"] = await _safe(tx, _narration) or {
+            "state": "unknown",
+            "tool": "speech.make",
+        }
         if company_id is not None:
             company = await _safe(tx, _company, company_id)
             if company is not None:

@@ -133,3 +133,46 @@ async def send(
         marks[rel] = digest
         ctx.sink.emit("progress", {"text": f"out/{rel} sent"})
     return ids, skipped, marks
+
+
+# ------------------------------------------------------------------ inputs --
+IN = "in"
+MAX_INPUTS = 10
+MAX_INPUT_BYTES = 200 * MB
+INPUT_FA = "فایل ورودی «{name}» از ستاد دریافت نشد."
+
+
+def safe_name(name: Any, i: int) -> str:
+    """A file name of its own inside `in/`: no folder, nothing hidden, never empty."""
+    base = Path(str(name or "")).name.strip().lstrip(".")
+    base = "".join(c for c in base if c >= " " and c not in '\\/:*?"<>|')[:120].strip()
+    return base or f"input-{i}"
+
+
+async def fetch(ctx: Any, folder: Path, inputs: Any) -> list[str]:
+    """⟨0.3.3⟩ contract §43.8: the hub files a turn takes with it (the narration, a logo, the
+    owner's upload of the session) are downloaded into `in/` of the work's folder before the
+    session starts, from the job's own route with the runner's token. Returns their names;
+    raises HubError when one cannot be fetched (the turn does not start half-fed)."""
+    if not isinstance(inputs, list) or not inputs:
+        return []
+    box = folder / IN
+    if box.is_symlink():
+        raise HubError(0, "bad_input_dir", "in/ is a symbolic link")
+    box.mkdir(exist_ok=True, mode=0o700)
+    names: list[str] = []
+    for i, f in enumerate(inputs[:MAX_INPUTS], 1):
+        if not isinstance(f, dict) or not isinstance(f.get("url"), str):
+            continue
+        name = safe_name(f.get("name"), i)
+        while name in names:
+            name = f"{i}-{name}"
+        part = box / f".{name}.part"
+        try:
+            await with_retry(functools.partial(ctx.hub.download, f["url"], part, MAX_INPUT_BYTES))
+            part.replace(box / name)
+        finally:
+            part.unlink(missing_ok=True)
+        names.append(name)
+        ctx.sink.emit("progress", {"text": f"in/{name} received"})
+    return names

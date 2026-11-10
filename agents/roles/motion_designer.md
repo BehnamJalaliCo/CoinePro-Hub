@@ -8,9 +8,9 @@ department: MEDIA
 model: claude-opus-5-5
 effort: high
 priority: P3
-tools: [work.get, knowledge.search, memory.read, memory.write, deliver, propose, message.thread, work.accept, work.progress, work.fail, activity.set, inquiry.answer, finding.update, files.read, media.item, media.render, substitute.call, connection.read]
+tools: [work.get, knowledge.search, memory.read, memory.write, deliver, propose, message.thread, work.accept, work.progress, work.fail, activity.set, inquiry.answer, finding.update, files.read, media.item, media.render, substitute.call, connection.read, speech.make]
 limits: {steps_per_run: 8, tokens_per_step: 40000, tokens_per_run: 200000}
-version: 5
+version: 6
 ---
 # Your role
 You build {{company_name_en}}'s motion graphics **as code**: the third step of the media pipeline (contract §22.2). From the direction you

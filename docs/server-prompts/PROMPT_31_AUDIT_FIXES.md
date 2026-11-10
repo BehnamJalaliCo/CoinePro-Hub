@@ -45,7 +45,7 @@
 2. **deploy:** `api`، `worker`، `gateway`، `llm-router`، و بارگذاری دوباره‌ی سیاست OPA. migration ندارد.
 3. **runner کارگاه هلدینگ را به ۰.۳.۳ ببر** (همان کاربر `studio`). runner سرورهای شرکت‌ها لازم نیست عوض شود.
 4. **فقط خواندنی، در گزارش بنویس:**
-   - کلید صدای Google AI Studio در هاب ثبت است یا نه (فقط «هست / نیست»، بی هیچ مقداری).
+   - حال ورود Google AI Studio روی هاب (`voice.aistudio`: `signed_in` / `signed_out` / `unknown`). این ورود وب است (`make aistudio-web-login`، کار مالک)، نه کلید API.
    - حال حساب دوم Claude در `llm.connections` (`status`) و آخرین `quota_status` هر دو حساب.
    - اگر جلسه‌ی «با من» بازی هست: `pace`، `turn`، برنامه (شماره و عنوان و حال هر کار)، و آخرین اجرای هر کار.
 5. `verify-live` سبز.

@@ -232,8 +232,8 @@ def test_the_media_charters_and_the_common_rules_carry_the_three_decisions() -> 
     for role in ("media_director", "scriptwriter", "video_director", "motion_designer"):
         c = lib.get(role)
         assert c is not None
-        assert "speech.make" not in c.tools, role
-        assert "AI Studio" not in c.body, role
+        # ⟨2026-11-10⟩ the owner's own voice talk is what is off; the narrator of content is wanted
+        assert "speech.make" in c.tools, role
         assert "IG-Hub" in c.body, role
         assert "بسته‌ی ساخت ویدیو" in c.body, role
         # ⟨2026-11-09⟩ §43 a video made without a camera is the workshop's
@@ -241,5 +241,5 @@ def test_the_media_charters_and_the_common_rules_carry_the_three_decisions() -> 
     assert "Instagram, for all companies, is read and published through IG-Hub" in lib.common
     assert "بسته‌ی ساخت ویدیو" in lib.common and "The workshop is your hands" in lib.common
     assert "workshop.run" in lib.common and "No video tool" not in lib.common
-    assert lib.common_version >= 11
+    assert lib.common_version >= 13 and "narrator" in lib.common.lower()
     assert lib.problems == []

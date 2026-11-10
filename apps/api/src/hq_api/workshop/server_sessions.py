@@ -37,7 +37,7 @@ TURN_TIMEOUT_S = 3600
 
 
 # what makes a turn a workshop turn (domain/hands.py): carried from one turn to the next
-HANDS_KEYS = ("hands", "model", "permission_mode", "allowed_tools", "timeout_s")
+HANDS_KEYS = ("hands", "model", "permission_mode", "allowed_tools", "timeout_s", "sandbox")
 
 
 def default_cwd(server: dict[str, Any]) -> str | None:

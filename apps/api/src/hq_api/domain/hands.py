@@ -36,6 +36,7 @@ from hq_api.workshop import domain as WD
 from hq_api.workshop import server_sessions as SS
 
 RUNNER_MIN = "0.3.2"  # the runner that sends `out/` back
+INPUTS_RUNNER_MIN = "0.3.3"  # the runner that takes the hub's files into `in/`
 MODEL = "claude-opus-5-5"
 PERMISSION_MODE = "acceptEdits"  # non-interactive: the tools below run without asking
 ALLOWED_TOOLS = (
@@ -161,7 +162,70 @@ async def _owner_said_since(tx: Tx, who: Principal, ws: dict[str, Any]) -> bool:
     )
 
 
-def compose(w: dict[str, Any], who: Principal, ask: str, first: bool) -> str:
+INPUTS_MAX = 10
+IN_DIR = "in"
+
+
+def input_name(name: Any, i: int, taken: list[str]) -> str:
+    """The name a file has inside `in/`: the runner's own rule (hq_runner.outbox.safe_name), so
+    the brief names the files as they are on the disk: no folder, nothing hidden, never empty,
+    and a second file of the same name gets its number in front."""
+    base = str(name or "").rstrip("/").rsplit("/", 1)[-1].strip().lstrip(".")
+    base = "".join(c for c in base if c >= " " and c not in '\\/:*?"<>|')[:120].strip()
+    base = base or f"input-{i}"
+    while base in taken:
+        base = f"{i}-{base}"
+    return base
+
+
+async def inputs_of(
+    tx: Tx, who: Principal, w: dict[str, Any], file_ids: list[Any]
+) -> list[dict[str, Any]]:
+    """⟨2026-11-10⟩ The hub files a turn takes with it (the narration `speech.make` made, a logo,
+    the owner's font or footage from the session): originals of the work's own company, of the
+    caller's, or the owner's uploads of the work's order. Each `{file_id, name, mime, size}`; the
+    runner downloads them into `in/` of the work's folder from the job's own route, with its
+    own token (§43.8). 422 for a file that is none of these."""
+    from hq_api.domain import order_report as OR
+
+    ids = list(dict.fromkeys(str(x) for x in file_ids))[:INPUTS_MAX]
+    if not ids:
+        return []
+    order_id = None
+    ref = await OR.order_of_work(tx, w["id"])
+    if ref is not None:
+        order_id = await tx.scalar("SELECT order_id FROM owner.order_reports WHERE ref = :r", r=ref)
+    rows = await tx.all(
+        """SELECT f.id, f.name, f.mime, f.size FROM files.files f
+           WHERE f.id = ANY(CAST(:ids AS uuid[])) AND f.variant = 'original'
+             AND (f.company_id = ANY(:cos)
+                  OR (CAST(:o AS uuid) IS NOT NULL AND f.id IN (
+                        SELECT of.file_id FROM owner.order_files of
+                        WHERE of.order_id = CAST(:o AS uuid))))""",
+        ids=ids,
+        cos=[x for x in dict.fromkeys((w["company_id"], who.company_id)) if x is not None],
+        o=str(order_id) if order_id else None,
+    )
+    found = {str(r["id"]): r for r in rows}
+    missing = [i for i in ids if i not in found]
+    if missing:
+        raise ApiError(
+            422,
+            "validation_failed",
+            fields={"files": f"not a file of this work's company or session: {missing[0]}"},
+        )
+    out: list[dict[str, Any]] = []
+    for n, i in enumerate(ids, 1):
+        name = input_name(found[i]["name"], n, [f["name"] for f in out])
+        out.append({"file_id": i, "name": name, "mime": str(found[i]["mime"]),
+                    "size": int(found[i]["size"] or 0)})  # fmt: skip
+    return out
+
+
+def compose(
+    w: dict[str, Any], who: Principal, ask: str, first: bool,
+    inputs: list[dict[str, Any]] | None = None,
+) -> str:  # fmt: skip
     """The turn's brief: the workshop's ground rules (plain), then the agent's ask as written."""
     lines = [
         f"# کار {w['ref']}: {w['title']}",
@@ -182,6 +246,18 @@ def compose(w: dict[str, Any], who: Principal, ask: str, first: bool) -> str:
         "میخواهد.",
         "منتشر نکن، پول نده، به کسی پیام نده و حساب نساز: انتشار بعد از تأیید مالک از راه ستاد است. "
         "بیرون از این پوشه کاری نکن. هیچ رمزی را چاپ نکن. هر دستور ویرانگر منتظر مُهر مالک میماند.",
+        # ⟨2026-11-10⟩ §43.9 the turns of other companies share this server: /tmp is not private
+        "فایل موقت را هم در همین پوشه یا در $TMPDIR بگذار، نه در /tmp (آن‌جا با کارهای دیگر "
+        "مشترک است). پوشه‌ی کارهای دیگر برایت بسته است و لازمش نداری.",
+        *(
+            [
+                f"**فایل‌های ورودی این نوبت در پوشه‌ی {IN_DIR}/ هستند** (از ستاد رسیده‌اند؛ همان‌ها را "
+                "به کار ببر، مثلاً صدای گوینده را زیر تصویر بگذار و تصویر را با آن هم‌زمان کن):",
+                *[f"- {IN_DIR}/{i['name']} ({i['mime']})" for i in inputs],
+            ]
+            if inputs
+            else []
+        ),
         "",
         "## خواسته" if first else "## خواسته‌ی تازه (ادامه‌ی همین کار، همین پوشه)",
         ask[:BRIEF_CHARS],
@@ -198,6 +274,7 @@ async def start(
     brief: str,
     title: str | None,
     request_id: str | None = None,
+    files: list[Any] | None = None,
 ) -> WorkshopRun:
     """The turn on the workshop for the work (its workspace made or resumed), or the turn that
     still runs (`state: working`, nothing new). 409 for a workspace the owner stopped or one on a
@@ -224,6 +301,20 @@ async def start(
     if ws is not None and ws.get("session_id") is not None and ws["state"] not in WS.ENDED:
         s = await WD.load(tx, ws["session_id"])
         session = s if s["state"] not in WD.FINAL else None
+    inputs = await inputs_of(tx, who, w, files or [])
+    if inputs and not WS.version_ok(server.get("runner_version"), INPUTS_RUNNER_MIN):
+        # an older runner would start the turn without them (a reel made silent again): said
+        # at once, to the agent, in place of a turn that cannot do what was asked
+        raise ApiError(
+            409,
+            "workshop_unavailable",
+            fields={
+                "files": f"the workshop's runner is older than {INPUTS_RUNNER_MIN}: it cannot "
+                "take input files yet"
+            },
+            message_fa="کارگاه هنوز فایل ورودی نمیگیرد (به‌روز شدنش کار تیم فنی هلدینگ است). آنچه "
+            "به این فایل نیاز ندارد را بساز و همین را در یک خط بگو.",
+        )
     extra = {
         "workspace": w["ref"],
         "hands": True,
@@ -231,8 +322,12 @@ async def start(
         "permission_mode": PERMISSION_MODE,
         "allowed_tools": list(ALLOWED_TOOLS),
         "timeout_s": SESSION_TIMEOUT_S,
+        # ⟨2026-11-10⟩ §43.9 the wall between the companies' turns: the runner puts it up when
+        # its server can (>= 0.3.4), and runs the turn without it when it cannot
+        "sandbox": "auto",
+        **({"inputs": inputs} if inputs else {}),
     }
-    text = compose(w, who, brief, first=session is None)
+    text = compose(w, who, brief, first=session is None, inputs=inputs)
     if session is None:
         s, job = await SS.open_session(
             tx,

@@ -164,3 +164,38 @@ def test_a_file_is_recorded_as_sent_only_when_the_result_arrived(
     run(drive(runner_for(fake_hub, cfg, cfg_path), lambda: "h8" in fake_hub.results, within=60))
     assert [u["name"] for u in fake_hub.uploads["h8"]] == ["a.txt"]
     assert set(W.sent_of(REF, cfg_path)) == {"a.txt"}
+
+
+def test_a_turn_finds_its_input_files_in_the_in_folder(
+    fake_hub: FakeHub, cfg: Config, cfg_path: Path, spaces: Path
+) -> None:
+    """⟨0.3.3⟩ contract §43.8: the narration the hub made (or a logo, the owner's upload) is in
+    `in/` of the work's folder before the session starts; a name is never a path; an input the
+    hub does not serve stops the turn before it starts."""
+    fid = "00000000-0000-4000-8000-0000000000aa"
+    fake_hub.inputs[f"h9/{fid}"] = b"RIFF....WAVEfmt "
+    fake_hub.inputs["h9/x"] = b"font-bytes"
+    job = turn("h9")
+    job["args"]["inputs"] = [  # type: ignore[index]
+        {"file_id": fid, "name": "گوینده.wav", "mime": "audio/wav", "size": 16,
+         "url": f"/api/v1/runners/jobs/h9/inputs/{fid}"},
+        {"file_id": "x", "name": "../../.ssh/authorized_keys", "mime": "font/ttf", "size": 10,
+         "url": "/api/v1/runners/jobs/h9/inputs/x"},
+    ]  # fmt: skip
+    fake_hub.jobs.append(job)
+    run(drive(runner_for(fake_hub, cfg, cfg_path), lambda: "h9" in fake_hub.results, within=60))
+    assert fake_hub.results["h9"]["exit_code"] == 0, fake_hub.results["h9"]
+    box = spaces / REF / "in"
+    assert (box / "گوینده.wav").read_bytes() == b"RIFF....WAVEfmt "
+    assert sorted(p.name for p in box.iterdir()) == ["authorized_keys", "گوینده.wav"]
+    assert not (spaces.parent / ".ssh").exists()
+    assert O.safe_name("..", 3) == "input-3" and O.safe_name("a/b\\c:d.png", 1) == "bcd.png"
+
+    missing = turn("h10")
+    missing["args"]["inputs"] = [  # type: ignore[index]
+        {"file_id": "nope", "name": "v.mp4", "url": "/api/v1/runners/jobs/h10/inputs/nope"}
+    ]
+    fake_hub.jobs.append(missing)
+    run(drive(runner_for(fake_hub, cfg, cfg_path), lambda: "h10" in fake_hub.results, within=60))
+    assert fake_hub.results["h10"]["exit_code"] != 0
+    assert "ورودی" in fake_hub.results["h10"]["summary_fa"]

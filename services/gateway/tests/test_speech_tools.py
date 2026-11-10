@@ -22,7 +22,9 @@ from hq_gateway.gateway import Gateway, Opa
 PRODUCER = gate(employee="TY-MEDIA-04", kind="employee", role="voice_producer", department="MEDIA")
 PUBLISHER = gate(employee="TY-MEDIA-06", kind="employee", role="publisher", department="MEDIA")
 JOB = "0193e7a1-0000-7000-8000-0000000000aa"
-ROLES = {"voice_producer"}
+# ⟨2026-11-10⟩ the owner made it clear that what he switched off is his own voice talk with the
+# app: the narrator of content is on, and the media roles hold the tool again
+ROLES = {"media_director", "voice_producer", "video_director", "motion_designer", "scriptwriter"}
 
 
 @pytest.fixture

@@ -486,6 +486,48 @@ RAW_BODY = {
 RUNNER_FILE_KINDS = {"video", "image", "audio", "document"}
 
 
+@router.get("/runners/jobs/{id}/inputs/{file_id}", responses=ER, include_in_schema=True)
+async def runner_input(
+    id: UUID,
+    file_id: UUID,
+    r: dict[str, Any] = Depends(runner),
+    hub: Hub = Depends(get_hub),
+) -> Any:
+    """⟨2026-11-10⟩ §43.8: one input file of a workspace turn (the narration, a logo, the owner's
+    upload), for the runner of that job's server while the job runs. Only a file the job's own
+    `args.inputs` names (checked when the turn was made); `404` for any other, `409` once the job
+    ended. The bytes as stored."""
+    async with hub.db.tx(_scope(r)) as tx:
+        j = await _runner_job(tx, r, id)
+        _still_running(j)
+    named = {
+        str(f.get("file_id"))
+        for f in (j.get("args") or {}).get("inputs") or []
+        if isinstance(f, dict)
+    }
+    if j["kind"] != "claude" or str(file_id) not in named:
+        raise ApiError(404, "not_found", "not an input of this job")
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        f = await tx.first(
+            "SELECT storage_key, mime, size FROM files.files WHERE id = :id AND variant = 'original'",
+            id=file_id,
+        )
+    if f is None:
+        raise ApiError(404, "not_found", "no such file")
+    path = hub.storage.local_path(f["storage_key"])
+
+    def chunks() -> Any:
+        with open(path, "rb") as fh:
+            while block := fh.read(1024 * 1024):
+                yield block
+
+    return StreamingResponse(
+        chunks(),
+        media_type=f["mime"],
+        headers={"Cache-Control": "no-store", "Content-Length": str(f["size"])},
+    )
+
+
 @router.post(
     "/runners/jobs/{id}/files",
     response_model=FileRef,
@@ -1421,6 +1463,9 @@ class WorkshopRunIn(Model):
     work: str | None = Field(default=None, pattern=r"^W-[0-9]{6,}$")
     # ⟨2026-11-10⟩ the plan task this turn is for: required in a step-by-step order («با من»)
     task: int | None = Field(default=None, ge=1, le=99)
+    # ⟨2026-11-10⟩ hub files the turn takes with it (the narration, a logo, the owner's uploads of
+    # the session): downloaded by the runner into `in/` of the work's folder
+    files: list[UUID] = Field(default_factory=list, max_length=10)
 
 
 class WorkshopStopIn(Model):
@@ -1521,8 +1566,9 @@ async def workshop_run(
             return idem.replay
         server = await SV.load_server(tx, server["id"])
         out = await HANDS.start(
-            tx, who, server, w, brief=body.brief, title=body.title, request_id=ctx.request_id
-        )
+            tx, who, server, w, brief=body.brief, title=body.title, request_id=ctx.request_id,
+            files=body.files,
+        )  # fmt: skip
         status = 200 if out.state == "working" else 201
         if idem:
             await idem.store(tx, status, out.model_dump(mode="json"))

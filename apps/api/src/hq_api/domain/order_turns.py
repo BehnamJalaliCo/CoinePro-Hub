@@ -765,6 +765,22 @@ def _company_of(order: dict[str, Any]) -> str | None:
     return None
 
 
+# ⟨2026-11-10⟩ the owner: «جلسه‌ها پیش‌فرض مستقیم باشند» («این برو بیا و هی مهر بکن و اینو مجوز بده و
+# بروکراسی اداری بازی … آزار و اذیت میده منو … مثل همین سشنی که من با تو صحبت میکنم»)
+DIRECT_RULE = (
+    "This session is DIRECT (the owner's default): you are the one who does this order, as one "
+    "capable person with hands would. Read what you need, make it with your own tools and the "
+    "workshop (`workshop.run`), show him the result and ask only what is truly his to decide. Do "
+    "not delegate or split a step, do not raise a card for an internal thing, and do not send a "
+    "part to the CEO, the CTO or another team when a tool of yours or the workshop does it. Hand "
+    "a part over only when the owner names who should do it, or when the step needs a right you "
+    "do not have (say which, in one line). A hire happens only when his own words ask for one: "
+    "then `propose` it once and go on (the hub decides it at once, with no card for him). His "
+    "«تأیید» in this session is his approval of what you showed him: never tell him to go and "
+    "seal something elsewhere for an internal step."
+)
+
+
 def step_rule(nxt: dict[str, Any] | None) -> str:
     """⟨2026-11-10⟩ What a step-by-step order («با من») binds its holder to, said by code with the
     plan's next task in it (the owner: «چرا باید با من قدم‌به‌قدم جلو نره؟» — the holder read his
@@ -842,6 +858,9 @@ async def talk_brief(tx: Tx, order_ref: str) -> dict[str, Any] | None:
         "plan": [{"n": t["n"], "title": t["title_fa"], "state": t["state"]} for t in tasks],
         "plan_next": nxt["n"] if nxt else None,
         "plan_instruction": PLAN_INSTRUCTION,
+        # ⟨2026-11-10⟩ every session of the owner is direct by default (his decision)
+        "direct": True,
+        "direct_rule": DIRECT_RULE,
         # ⟨2026-11-10⟩ «با من»: the rule of this run, by code, with the next task named
         **({"step_rule": step_rule(nxt)} if (order.get("pace") or "auto") == "step" else {}),
         # ⟨2026-11-08⟩ audit B1: the owner's last words in the session, verbatim

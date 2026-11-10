@@ -286,6 +286,22 @@ async def after_job(hub: Any, job_id: UUID) -> None:
         w = await W.load(tx, ws["work_id"], lock=True)
         tokens = W.effective_tokens(*_usage(j.get("usage") or {}))
         hands = bool((j.get("args") or {}).get("hands"))  # ⟨2026-11-09⟩ §43 the workshop
+        # ⟨2026-11-10⟩ §43.9 the wall between the companies' turns: what the runner says of it
+        wall, wall_why = wall_of(j) if hands else (None, None)
+        if wall == "off":
+            # never in the way of the work (the owner: «کار راه بیفته نه اینکه گیر بکنه»); said
+            # where the holding's technical team reads, never to the owner
+            await audit.record(
+                tx,
+                SERVICE,
+                company_id=(await hub.companies.holding()).id,
+                action="workshop.sandbox_off",
+                action_class="A1",
+                target_kind="work",
+                target_ref=w["ref"],
+                summary=f"a workshop turn of {w['ref']} ran without the wall between companies"
+                f" on {j['server_name']}: {wall_why}"[:500],
+            )
         if tokens:
             await W.add_usage(
                 tx, w, tokens, Decimal(0)
@@ -322,6 +338,7 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                         "job": str(j["id"]),
                         "session": j.get("session_ref"),
                         **({"files": len(files)} if files else {}),
+                        **({"sandbox": wall} if wall else {}),
                     },
                     hub=hub,
                     attachments=files,
@@ -362,6 +379,7 @@ async def after_job(hub: Any, job_id: UUID) -> None:
                             "session": j.get("session_ref"),
                             "files": len(files),
                             "unfinished": True,
+                            **({"sandbox": wall} if wall else {}),
                         },
                         hub=hub,
                         attachments=files,
@@ -396,6 +414,16 @@ async def _wake_or_say(tx: Tx, w: dict[str, Any], reason: str) -> None:
     else:
         why = "کار راه نیفتاد؛ «ادامه بده» را بزنید"
     await OR._append_steps(tx, rep["id"], [OR._step(SA.SYSTEM_FA, f"کار کارگاه تمام شد ولی {why}")])
+
+
+def wall_of(j: dict[str, Any]) -> tuple[str | None, str | None]:
+    """⟨2026-11-10⟩ §43.9 (state, why) of a workshop turn's wall, as its runner reported it:
+    `on`, `off` with the reason, or (None, None) from a runner that does not know it (< 0.3.4)."""
+    box = (j.get("result") or {}).get("sandbox")
+    if not isinstance(box, dict) or box.get("state") not in ("on", "off"):
+        return None, None
+    why = str(box.get("why") or "")[:300] if box["state"] == "off" else None
+    return str(box["state"]), why
 
 
 async def made_files(tx: Tx, j: dict[str, Any], company_id: Any) -> list[str]:

@@ -14,6 +14,8 @@
 > **v1.25 (۲۰۲۶-۱۱-۰۹):** کارگاه با دست: هر نقش هر شرکت هر کاری را که ابزارش را ندارد به Claude Code روی سرور هاب میدهد (`workshop.run`)، و فایل‌های `out/` با لینک در جلسه برمیگردند (§۴۳).
 >
 > **v1.26 (۲۰۲۶-۱۱-۱۰):** «با من» واقعاً قدم‌به‌قدم (§۳۴.۱، §۴۱.۲): گام‌های شماره‌دار مالک خودِ برنامه‌اند و به ترتیب خودش؛ کارگاه در «با من» فقط کار بعدی برنامه را شروع میکند؛ مسئول میتواند نوبت کارگاه خودش را متوقف کند (`workshop.stop`)؛ و اصلاح‌های بازبینی عمیق (§۴۳.۶، §۴۳.۷).
+>
+> **v1.27 (۲۰۲۶-۱۱-۱۰):** جلسه‌ی مستقیم، قدم اول (§۴۴، پرامپت ۳۲): گوینده‌ی محتوا روشن است (آنچه مالک خاموش کرد گفتگوی صوتی خودش بود)؛ استخدامی که مالک در جلسه‌ی خودش خواسته همان‌جا با کد انجام میشود، بی کارت و بی اثر انگشت؛ مسئول جلسه کار را خودش با کارگاه انجام میدهد؛ و نوبت کارگاه فایل‌های ستاد را با خودش میبرد (`workshop.run {files}`، §۴۳.۸)؛ و دیوار کارگاه بین شرکت‌ها که هیچ‌وقت جلوی کار را نمیگیرد (§۴۳.۹، runner 0.3.4).
 
 > **v1.12 (۲۰۲۶-۱۱-۰۴):** «خط تولید» (§۳۰، پرامپت ۲۲): موتور عمومی تولید و انتشار محتوا برای هر شرکت و هر پلتفرم، از روی قالب، با مرحله‌های قابل ویرایش، کتابخانه، تقویم، n8n برای مرحله‌های قاعده‌ای، و حالت پیش‌نویس تا خودکار.
 >
@@ -4502,3 +4504,94 @@ Design: `docs/WORKSHOP_HANDS.md`; the review: `docs/ops/reports/WORKSHOP_REVIEW.
 - llm-router: a subscription out of quota stays a fallback candidate (its breaker decides); `near_full` reads every window that
   holds and ignores an `ok` reading older than six hours. A `claude` job waits when every stored account is refused (it was sent
   out with no token).
+
+### 43.8 ⟨2026-11-10⟩ A turn takes hub files with it (`workshop.run {…, files?}`)
+The reel of the owner's recording came back silent because the narration the hub can make had no way into the workshop's folder.
+- **`workshop.run {brief, title?, work?, task?, files?}`**: `files` is up to 10 file ids. Each must be an **original** of the
+  work's own company, of the caller's company, or one of the owner's uploads of the work's order (`owner.order_files`); any other
+  answers `422 fields.files`. The job's args carry `inputs: [{file_id, name, mime, size}]`; `name` is the name the file has on
+  the disk (no folder, nothing hidden, never empty; a second file of the same name gets its number in front).
+- The workshop's brief lists them («فایل‌های ورودی این نوبت در پوشه‌ی in/ هستند») as `in/<name> (<mime>)`.
+- **`GET /runners/jobs/{id}/inputs/{file_id}`** (runner, bearer): the bytes of one input, as stored, for the runner of that job's
+  server while the job runs. Only a file the job's own `args.inputs` names (checked when the turn was made); `404` for any other
+  file or a job that is not a `claude` job, `409` once the job ended. `runners/next` gives each input its `url` (this route).
+- A workshop whose runner is older than 0.3.3 cannot take them: `files` then answers `409 workshop_unavailable` at once
+  (`fields.files` and `message_fa` say why), in place of a turn that would start without them.
+- The runner (≥ 0.3.3) downloads them into `in/` of the work's folder before the session starts (≤ 200 MB each; `in/` a symbolic
+  link is refused). One that cannot be fetched fails the turn before it starts («یک فایل ورودی این نوبت از ستاد دریافت نشد؛ نوبت
+  شروع نشد.»): a turn never starts half-fed, and the holder is woken with the reason as for any failed turn (§43.4).
+
+### 43.9 ⟨2026-11-10⟩ The wall between the companies' turns (`args.sandbox`, runner 0.3.4)
+The owner, 2026-11-10: «نکته امنیتی هم اجرا بشه و کار راه بیفته نه اینکه گیر بکنه». Every turn of the workshop runs as the same
+Linux user, so a turn of one company could read another company's work folder, its Claude transcripts and the runner's token.
+- **The hub asks:** every workshop turn's args carry `sandbox: "auto"` (carried to the owner's own messages in that session, as
+  `hands` is). A company's own server (`mode: on_server`) is never walled: its Claude works on that server itself.
+- **The runner (≥ 0.3.4) puts the wall up when its server can:** Landlock, in the kernel (used from Linux 5.19; Ubuntu 24.04 has
+  it): no root, no package. For the turn's whole process tree:
+  - **closed:** every other work's folder (`~/hq-workspace/*`), the runner's own folder (its token, `workspaces.json`), this
+    server's own `~/.claude` and `~/.claude.json` (other turns' transcripts, a login);
+  - **open:** everything else as before, the work's own folder, and its private area `~/hq-workspace/.hq/<W-ref>/`: `home/` (the
+    turn's `HOME`: a link to every entry of the real home that is not closed; a small file is copied, so a tool that rewrites its
+    dotfile does it in the work's own home; anything new lands here), `tmp/` (`TMPDIR`), `job/` (settings, the hook's log and
+    socket; `tmp/` and `job/` are emptied after the turn). The private area goes with the work's folder (30 days after its close).
+  - The brief goes in on stdin (a process's command line is readable by every process of the user). The PreToolUse hook asks the
+    runner over the job's own unix socket and the runner asks the hub (`POST /runners/classify`): the runner's token never goes in.
+  - Claude's sessions live in the work's own home; a session begun on one side of the wall is carried to the other for `--resume`.
+- **Never in the way of the work (`auto`):** the turn runs **without** the wall, and says why, when the server is switched off
+  (`HQ_RUNNER_SANDBOX=off`), the kernel has no Landlock, the hub sent no Claude account for the turn (the server's own login is
+  behind the wall), the probe failed (a walled process must work in its folder, fail to list what is closed, start the hook and
+  the CLI; remembered for an hour), or the walled session did not start (no assistant message and an error: the same turn is
+  started once more without the wall, and when that one starts the wall stays down on the server for an hour).
+- **The result says which:** `data.sandbox: {state: "on", kind: "landlock"} | {state: "off", why}` (absent from a runner < 0.3.4).
+  The hub keeps it on the output (`produced_with.sandbox: on | off`) and, when off, writes one audit entry on the holding
+  (`workshop.sandbox_off`, A1, the work's ref, the server and the reason). It is never a blocker, a readiness item, a line of the
+  session or a step of the owner's.
+- **What it does not close:** the network, `/tmp` (shared; the workshop's brief says to keep temporary files in the work's folder or `$TMPDIR`), the tool folders the turns share
+  in the real home (`~/.cache`, `~/.npm`, `~/.local`), and, before Linux 6.12, a signal to a process outside. `hq-runner
+  sandbox-check` prints whether the wall works on a server, and why not.
+
+## 44. Sessions are direct, and nothing sends the owner elsewhere ⟨1.27⟩ (2026-11-10, prompt 32)
+The owner, 2026-11-10: «این برو بیا و هی مهر بکن و اینو مجوز بده و بروکراسی اداری بازی توی شرکت آزار و اذیت میده منو … مثل همین
+سشنی که من با تو صحبت میکنم.» His decisions (`docs/SIMPLIFY_2026-11-10_DIRECT_SESSIONS.md`): his «تأیید» in the session is the
+seal for what goes out and can be taken back; sessions are direct by default; hiring stays, without paperwork; the workshop's
+isolation never blocks work (§43.9). This section is the first step; the publish wire follows (prompt 33).
+
+### 44.1 The narrator of content is on
+- The owner made it clear (2026-11-10): what he switched off on 2026-11-08 is **his own voice talk with the app** (§32:
+  `voice.enabled`, default false, never a blocker or a readiness item). The **narrator of a reel or a video** is wanted.
+- `speech.make` (A1, Google AI Studio's web page on the owner's account, §27/§38) is held by `media_director`, `voice_producer`,
+  `video_director`, `motion_designer` and `scriptwriter`.
+- The holder's brief (`capabilities.brief`) carries `narration: {state: signed_in | signed_out | unknown, tool: "speech.make"}`
+  and `how.narration` (make the voice, deliver it so the owner hears it, give it to the workshop with `files`, never a silent
+  video in place of a narrated one). `how.video` no longer says the voice is off.
+- `speech.make` left `SILENT_TOOLS`: a refusal of it (`signed_out`, `expired`, a connection code) is a blocker of the session
+  **only while AI Studio is signed out now** («گوینده وارد حسابش نیست»: the owner's one sign-in, `make aistudio-web-login`), and
+  it is gone once a voice was made. The activity line of such a run says the same in one sentence. `media.render`, `media.item`
+  and `media.on` stay silent.
+
+### 44.2 A hire the owner asked for in his session
+- `POST /internal/v1/decisions` with `kind: hire`: when the proposer's work (the card's `work_id`, else its run's work) belongs to
+  an **open order**, and the owner's own words in that session ask for a hire (the order's text, his words in the session, the
+  plan steps he wrote; a hire word left once every «استخدام نکن» phrase is taken out), the hire is **his decision already**:
+  - hiring `closed` does not refuse it (`403 hiring_closed` stays for every other hire), and the hiring mode is not read;
+  - no approver: no CEO card, no owner card, no passkey. The card is approved by code in the same request (`note_fa`:
+    «استخدام به خواست مدیر کل در جلسه‌ی O-…») and the employee is made at once;
+  - the hard checks of every approval still hold (an enabled connection offers the model, the monthly estimate, the company's
+    month envelope when it has one, the kill switch, the hires a day); a month envelope is not required;
+  - when a hard check refuses it, nothing is made and the card stays **the owner's own**, shown in that session (§34.1 `cards`);
+  - the newcomer joins that session (one line; the holder is woken, reason `joined:`), as a hire from a talk card does (§39).
+- The words are the owner's, stored by code: an agent cannot write them. A hire nobody asked for goes the usual way (§18.11).
+- «کارمند ۲۴ ساعته» is, by the owner's decision, a standing routine made from one sentence (§31, automations), not a hire; this
+  step adds no surface for it.
+
+### 44.3 The holder works directly
+- `talk_brief` (the holder's run for the owner's word, §34) carries `direct: true` and `direct_rule`: the holder is the one who
+  does the order, with its own tools and the workshop; it does not delegate or split a step, raise a card for an internal thing,
+  or send a part to the CEO, the CTO or another team when a tool of its own or the workshop does it. It hands a part over only
+  when the owner names who should do it, or the step needs a right it does not have (said in one line). A hire happens only when
+  the owner's own words ask for one (§44.2). His «تأیید» in the session is his approval of what he was shown; the holder never
+  tells him to go and seal something elsewhere for an internal step.
+- The common rules (`agents/roles/_common.md` v13) say the same to every role.
+
+### 44.4 Not in this step
+The approval levels on the publish path (his tap in the session as the seal, an unpublish path) are prompt 33. Until then A3 publishing stays a decision card, shown in the session (§34.1 `cards`, `seal: tap | passkey`).

@@ -705,6 +705,33 @@ async def join_hired(
     return joined
 
 
+async def join_from_order(
+    tx: Tx, order_ref: str, company_id: Any, company_code: str, role: str | None
+) -> list[str]:
+    """⟨2026-11-10⟩ A hire the owner asked for in his session was made by code: the newest active
+    employee of that role in the company joins that session (one line, the holder woken), as a
+    hire from a talk card does. Needs a transaction that reaches every company."""
+    if not role:
+        return []
+    emp = await tx.first(
+        """SELECT code, title_fa FROM core.employees
+           WHERE company_id = :co AND role = :r AND status = 'active'
+           ORDER BY hired_at DESC LIMIT 1""",
+        co=company_id,
+        r=role,
+    )
+    conv = await tx.scalar(
+        """SELECT c.id FROM talk.conversations c JOIN owner.order_reports r
+             ON r.conversation_ref = c.ref WHERE r.ref = :ref AND c.closed_at IS NULL""",
+        ref=order_ref,
+    )
+    if emp is None or conv is None:
+        return []
+    return await join_hired(
+        tx, str(emp["code"]), role, company_code, str(emp["title_fa"]), conversation_id=conv
+    )
+
+
 async def remove_participant(ctx: Any, tx: Tx, ref: str, key: str) -> None:
     """DELETE /orders/{ref}/participants/{key}: never the holder."""
     rep = await _open(tx, ref)

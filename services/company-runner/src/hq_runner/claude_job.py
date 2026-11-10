@@ -52,12 +52,14 @@ from pathlib import Path
 from typing import Any
 
 import hq_runner
-from hq_runner import outbox
+from hq_runner import hook as hook_module
+from hq_runner import outbox, sandbox
 from hq_runner import workspace as workspace_state
 from hq_runner.config import config_path
+from hq_runner.hub import HubError
 from hq_runner.jobs import JobContext, JobError, JobResult, _cwd, _timeout
 from hq_runner.mask import Masker, StreamMasker
-from hq_runner.proc import run_streamed
+from hq_runner.proc import ProcResult, run_streamed
 from hq_runner.workspace import WorkspaceError, prepare
 
 CLAUDE_DEFAULT_TIMEOUT_S = 3600
@@ -317,6 +319,27 @@ def usage_from_result(obj: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+async def _wall(
+    ctx: JobContext, ref: str, cwd: Path, claude: str, has_oauth: bool
+) -> tuple[sandbox.Plan | None, str | None]:
+    """⟨0.3.4⟩ The wall for this turn, or why it stays down (English, for the report)."""
+    if sandbox.switched_off(ctx.env):
+        return None, "switched off on this server (HQ_RUNNER_SANDBOX)"
+    if not has_oauth:
+        return None, "the hub sent no Claude account for this turn"
+    if sandbox.abi() < sandbox.MIN_ABI:
+        return None, "this kernel has no Landlock"
+    try:
+        plan = sandbox.plan(
+            ref, cwd, workspace_state.root(), (ctx.cfg_path or config_path()).resolve(), claude
+        )
+        await asyncio.to_thread(sandbox.prepare, plan)
+        why = await sandbox.probe(plan, dict(ctx.env), claude)
+    except (sandbox.SandboxError, OSError) as exc:
+        return None, str(exc) or type(exc).__name__
+    return (plan, None) if why is None else (None, why)
+
+
 async def run_claude(ctx: JobContext) -> JobResult:
     args = ctx.args
     brief = args.get("brief")
@@ -332,6 +355,11 @@ async def run_claude(ctx: JobContext) -> JobResult:
                 "نام محیط کاری (workspace) باید شماره‌ی یک کار باشد، مثل W-000123."
             ) from None
         ctx.sink.emit("progress", {"text": f"workspace {workspace}"})
+        # ⟨0.3.3⟩ §43.8 the hub files the turn takes with it, into in/ before the session starts
+        try:
+            await outbox.fetch(ctx, Path(cwd), args.get("inputs"))
+        except HubError as exc:
+            raise JobError("یک فایل ورودی این نوبت از ستاد دریافت نشد؛ نوبت شروع نشد.") from exc
     else:
         cwd = _cwd(args.get("cwd"))
     timeout = _timeout(args, CLAUDE_DEFAULT_TIMEOUT_S, CLAUDE_MAX_TIMEOUT_S)
@@ -340,48 +368,31 @@ async def run_claude(ctx: JobContext) -> JobResult:
     claude = find_claude(ctx.cfg.claude_bin)
     if not claude:
         raise JobError("Claude Code روی این سرور پیدا نشد.", 127)
-    tmp = Path(tempfile.mkdtemp(prefix="hq-claude-"))
-    os.chmod(tmp, 0o700)
-    settings = tmp / "settings.json"
-    hook_log = tmp / "hook-events.jsonl"
-    settings.write_text(json.dumps(hook_settings(ctx.id, allow)), encoding="utf-8")
-    argv = [
-        claude,
-        "-p",
-        brief,
-        "--output-format",
-        "stream-json",
-        "--verbose",
-        "--settings",
-        str(settings),
-    ]
     resume = args.get("session_id") or args.get("resume")
-    if resume:
-        argv += ["--resume", str(resume)]
-    if args.get("model"):
-        argv += ["--model", str(args["model"])]
-    if args.get("permission_mode") in PERMISSION_MODES:
-        argv += ["--permission-mode", str(args["permission_mode"])]
-    if args.get("max_turns"):
-        argv += ["--max-turns", str(int(args["max_turns"]))]
-    if allow:  # last: the option takes every value after it
-        argv += ["--allowedTools", *allow]
-    env = dict(ctx.env)
     # ⟨0.3.1⟩ the hub's own Claude account for this session (the companies have no subscription
     # of their own): only in this process's environment, never written, never logged; without
     # it, this server's own Claude login
     oauth = ctx.job.get("claude_oauth")
-    if isinstance(oauth, str) and OAUTH_RE.fullmatch(oauth):
-        env["CLAUDE_CODE_OAUTH_TOKEN"] = oauth
-        ctx.masker.literals = sorted({*ctx.masker.literals, oauth}, key=len, reverse=True)
-    env.update(
-        {
-            "HQ_RUNNER_CONFIG": str((ctx.cfg_path or config_path()).resolve()),
-            "HQ_RUNNER_VIA": ctx.via,
-            "HQ_RUNNER_HOOK_EVENTS": str(hook_log),
-            "HQ_RUNNER_JOB_ID": ctx.id,
-        }
-    )
+    has_oauth = isinstance(oauth, str) and bool(OAUTH_RE.fullmatch(oauth))
+    if has_oauth:
+        ctx.masker.literals = sorted({*ctx.masker.literals, str(oauth)}, key=len, reverse=True)
+    # ⟨0.3.4⟩ §43.9 the wall between the companies' turns of the workshop: `auto` puts it up
+    # when this server can, and never keeps the turn from running
+    walled = workspace is not None and args.get("sandbox") == "auto"
+    wall: sandbox.Plan | None = None
+    wall_why: str | None = None
+    if walled:
+        wall, wall_why = await _wall(ctx, str(workspace), Path(cwd), claude, has_oauth)
+        ctx.sink.emit(
+            "progress", {"text": "sandbox on" if wall is not None else f"sandbox off: {wall_why}"}
+        )
+    hook_log = Path(os.devnull)
+
+    async def classify_for_hook(cmd: str) -> tuple[str | None, str | None]:
+        return await asyncio.to_thread(
+            hook_module.category_for, ctx.cfg, cmd, via=ctx.via, job_id=ctx.id
+        )
+
     final: dict[str, Any] = {}
     meter = TokenMeter()
     capped = False
@@ -454,21 +465,107 @@ async def run_claude(ctx: JobContext) -> JobResult:
                     files_changed.append(path)
             ctx.sink.emit("session_event", item)
 
-    try:
-        res = await run_streamed(
-            argv,
-            cwd=cwd,
-            env=env,
-            limit_s=timeout,
-            cancel=stop,
-            on_stdout=on_stdout,
-            on_stderr=ctx.line_sink("stderr"),
-            max_line=JSON_LINE_BYTES,
+    async def session(plan: sandbox.Plan | None) -> ProcResult:
+        """One start of the CLI on this turn, behind the wall (`plan`) or as before."""
+        nonlocal hook_log, hook_seen, meter, session_id
+        final.clear()
+        files_changed.clear()
+        meter = TokenMeter()
+        hook_seen = 0
+        session_id = None
+        if plan is None:
+            tmp = Path(tempfile.mkdtemp(prefix="hq-claude-"))
+            os.chmod(tmp, 0o700)
+        else:
+            tmp = plan.job
+        settings = tmp / "settings.json"
+        hook_log = tmp / "hook-events.jsonl"
+        settings.write_text(json.dumps(hook_settings(ctx.id, allow)), encoding="utf-8")
+        # behind the wall the brief goes in on stdin: a turn's argv is readable by every
+        # process of this user (/proc), and the other turns are other companies'
+        argv = [claude, "-p", *([] if plan is not None else [brief])]
+        argv += ["--output-format", "stream-json", "--verbose", "--settings", str(settings)]
+        if resume:
+            argv += ["--resume", str(resume)]
+        if args.get("model"):
+            argv += ["--model", str(args["model"])]
+        if args.get("permission_mode") in PERMISSION_MODES:
+            argv += ["--permission-mode", str(args["permission_mode"])]
+        if args.get("max_turns"):
+            argv += ["--max-turns", str(int(args["max_turns"]))]
+        if allow:  # last: the option takes every value after it
+            argv += ["--allowedTools", *allow]
+        env = dict(ctx.env)
+        if has_oauth:
+            env["CLAUDE_CODE_OAUTH_TOKEN"] = str(oauth)
+        if plan is None:
+            env["HQ_RUNNER_CONFIG"] = str((ctx.cfg_path or config_path()).resolve())
+        else:
+            env = sandbox.env_of(plan, env)
+        env.update(
+            {
+                "HQ_RUNNER_VIA": ctx.via,
+                "HQ_RUNNER_HOOK_EVENTS": str(hook_log),
+                "HQ_RUNNER_JOB_ID": ctx.id,
+            }
         )
-        drain_hook_log()
+        server: asyncio.AbstractServer | None = None
+        try:
+            if plan is not None:
+                if resume:
+                    await asyncio.to_thread(
+                        sandbox.carry_session, Path.home(), plan.home, cwd, str(resume)
+                    )
+                server = await sandbox.serve_hook(plan.sock, classify_for_hook)
+                argv = sandbox.wrap(plan, argv)
+            elif resume and workspace is not None:
+                # a session that began behind the wall is found again without it
+                was = workspace_state.root() / sandbox.PRIVATE / str(workspace) / "home"
+                if was.is_dir():
+                    await asyncio.to_thread(
+                        sandbox.carry_session, was, Path.home(), cwd, str(resume)
+                    )
+            out = await run_streamed(
+                argv,
+                cwd=cwd,
+                env=env,
+                limit_s=timeout,
+                cancel=stop,
+                on_stdout=on_stdout,
+                on_stderr=ctx.line_sink("stderr"),
+                max_line=JSON_LINE_BYTES,
+                stdin_data=brief.encode("utf-8") if plan is not None else None,
+            )
+            drain_hook_log()
+            return out
+        finally:
+            if server is not None:
+                server.close()
+                with contextlib.suppress(Exception):
+                    await server.wait_closed()
+            shutil.rmtree(tmp, ignore_errors=True)
+            if plan is not None:
+                shutil.rmtree(plan.tmp, ignore_errors=True)
+
+    try:
+        res = await session(wall)
+        if (
+            wall is not None
+            and res.reason is None
+            and not capped
+            and not ctx.cancel.is_set()
+            and not meter.by_message
+            and (res.exit_code != 0 or not final or final.get("is_error"))
+        ):
+            # the walled session did not start: the turn is never lost to the wall
+            tried = wall
+            wall, wall_why = None, "the walled session did not start"
+            ctx.sink.emit("progress", {"text": f"sandbox off: {wall_why}; starting without it"})
+            res = await session(None)
+            if meter.by_message:  # without the wall it started: the wall was the difference
+                sandbox.distrust(tried, wall_why)
     finally:
         relay.cancel()
-        shutil.rmtree(tmp, ignore_errors=True)
     if final:
         usage: dict[str, Any] | None = usage_from_result(final)
     else:  # stopped (cap, cancel, timeout): what the messages counted so far
@@ -495,6 +592,12 @@ async def run_claude(ctx: JobContext) -> JobResult:
         output["token_cap_reached"] = capped
     if workspace is not None:
         output["workspace"] = {"ref": workspace, "path": cwd}
+    if walled:
+        output["sandbox"] = (
+            {"state": "on", "kind": "landlock"}
+            if wall is not None
+            else {"state": "off", "why": wall_why or "unknown"}
+        )
     sent_n = 0
     after_post = None
     timed_out = res.reason == "timeout"

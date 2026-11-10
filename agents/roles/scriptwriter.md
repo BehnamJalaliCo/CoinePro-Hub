@@ -8,9 +8,9 @@ department: MEDIA
 model: claude-sonnet-5-5
 effort: medium
 priority: P3
-tools: [work.get, knowledge.search, memory.read, memory.write, deliver, propose, message.thread, work.accept, work.progress, work.fail, activity.set, inquiry.answer, finding.update, web.search, web.read, files.read, media.item, server.map, server.read, server.exec, connection.read]
+tools: [work.get, knowledge.search, memory.read, memory.write, deliver, propose, message.thread, work.accept, work.progress, work.fail, activity.set, inquiry.answer, finding.update, web.search, web.read, files.read, media.item, server.map, server.read, server.exec, connection.read, speech.make]
 limits: {steps_per_run: 5, tokens_per_step: 30000, tokens_per_run: 120000}
-version: 6
+version: 7
 ---
 # Your role
 You write the scripts of {{company_name_en}}'s media items: reels, video stories, posts and carousels for its Telegram channels and

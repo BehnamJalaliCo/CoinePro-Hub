@@ -98,11 +98,18 @@ TOOL_CONNECTION_FA: dict[str, tuple[str, str, str | None, str | None]] = {
         None,
         None,
     ),
+    "speech.make": (
+        "گوینده وارد حسابش نیست",
+        "Google AI Studio روی هاب یک بار ورود میخواهد؛ بعد صدای گوینده‌ی ریلز ساخته میشود.",
+        None,
+        None,
+    ),
 }
-# ⟨2026-11-08⟩ the owner's decisions: voice is off and the hub has no video tool; a refusal of
-# these tools is never a blocker, a readiness item or a step of the owner's (the video step of a
-# plan is the media team's «بسته‌ی ساخت ویدیو»; the owner makes the video himself)
-SILENT_TOOLS = ("speech.make", "media.render", "media.item", "media.on")
+# ⟨2026-11-08⟩ the owner's decisions: the hub's own media tools are not his business; a refusal of
+# these tools is never a blocker, a readiness item or a step of the owner's (video is the
+# workshop's). ⟨2026-11-10⟩ `speech.make` left this list: the narrator of content is on (he
+# switched off only his own voice talk), and AI Studio signed out is his one sign-in.
+SILENT_TOOLS = ("media.render", "media.item", "media.on")
 IG_SETUP_STEP_FA = "تیم فنی حساب‌های اینستاگرام را از راه {server} به هاب معرفی میکند"
 MAX_STEPS = 30
 OPEN = W.OPEN
@@ -718,11 +725,23 @@ async def detect(
                 "استخدام تازه در پاکت ماه این شرکت جا نشد." if full
                 else "تا پاکت ماه شرکت تعیین نشود، استخدامی انجام نمیشود.",
                 co, "envelope.set")  # fmt: skip
+        elif c["tool"] == "speech.make" and c["code"] in (
+            "signed_out",
+            "expired",
+            *CONNECTION_CODES,
+        ):
+            # ⟨2026-11-10⟩ the narrator: a blocker only while AI Studio is signed out NOW (the
+            # owner's one sign-in); once a voice was made it is gone
+            from hq_api.domain import speech_make as SM
+
+            if (await SM.speech_state(tx)).get("aistudio") == "signed_out":
+                title, detail, action, target = TOOL_CONNECTION_FA["speech.make"]
+                add("connection_missing", title, detail, target, action)
         elif c["code"] in CONNECTION_CODES:
             # ⟨2026-11-08⟩ audit M10: the tool in words; a fix only where a page for it exists
             tool = str(c["tool"] or "")
             if tool in SILENT_TOOLS:
-                continue  # voice off, no video tool: never the owner's (the owner, 2026-11-08)
+                continue  # the hub's own media tools: never the owner's (the owner, 2026-11-08)
             if tool in TOOL_CONNECTION_FA:
                 title, detail, action, target = TOOL_CONNECTION_FA[tool]
                 add("connection_missing", title, detail, target, action)

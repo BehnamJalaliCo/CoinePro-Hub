@@ -1099,6 +1099,12 @@ async def propose_decision(
         body = body.model_copy(
             update={"payload": await deploy_diff.attach(ctx.hub, body.payload, ctx.who.company_id)}
         )
+    # ⟨2026-11-10⟩ a hire the owner asked for in his own session is his decision already (read in
+    # every company's view: the order's report is the holding's row)
+    owner_order: str | None = None
+    if body.kind == "hire":
+        async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as wide:
+            owner_order = await hiring.asked_in_session(wide, ctx.who, body.work_id)
     async with ctx.tx() as tx:
         # The key first: a retried request gets the answer it already got.
         idem = await idempotency.claim(tx, request, ctx.who, required=True)
@@ -1107,7 +1113,7 @@ async def propose_decision(
         # Hiring starts with the owner (§18.11): a hire while closed is refused
         # before anything else; OPA gets the state too (a second, fail-closed
         # layer), and D.propose reads it again FOR SHARE (a close waits).
-        hiring_state = await hiring.state(tx)
+        hiring_state = "open" if owner_order else await hiring.state(tx)
         if body.kind == "hire" and hiring_state != "open":
             raise ApiError(403, "hiring_closed")
         payload = D.validate_payload(body.kind, body.payload)  # 422 before the policy
@@ -1133,6 +1139,7 @@ async def propose_decision(
             ),
             charters=ctx.hub.charters,
             company_kind=(await ctx.hub.companies.by_id(ctx.who.company_id)).kind,
+            owner_order=owner_order,
         )
         if body.kind == "errand_action":  # ⟨1.4⟩ the errand waits for the owner
             await errands.on_proposed(tx, payload["errand"], d["id"])
@@ -1151,6 +1158,17 @@ async def propose_decision(
             await idem.store(tx, 201, result.model_dump(mode="json"))
     if body.kind == "deploy":
         await _review_deploy(ctx, d)
+    if owner_order is not None and d["status"] == "approved":
+        # ⟨2026-11-10⟩ hired by the owner's word in his session: the newcomer joins it now
+        from hq_api.domain import sessions as SE
+
+        try:
+            async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as wide:
+                await SE.join_from_order(
+                    wide, owner_order, ctx.who.company_id, ctx.who.company, payload.get("role")
+                )
+        except Exception:
+            log.exception("the hired employee could not join its session", extra={"ref": d["ref"]})
     await workflows_client.decision_created(ctx.hub, result.ref)
     return result
 

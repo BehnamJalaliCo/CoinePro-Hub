@@ -1,5 +1,5 @@
-"""Command line: pair, run, status, unpair, ledger-check (and the internal
-classify-hook).
+"""Command line: pair, run, status, unpair, ledger-check, sandbox-check (and the
+internal classify-hook and sandbox-exec).
 
 Output is English; the one instruction the owner acts on is also in Persian.
 The runner token is never printed.
@@ -274,6 +274,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     hp = sub.add_parser("classify-hook", help=argparse.SUPPRESS)
     hp.add_argument("--job")
+    sx = sub.add_parser("sandbox-exec", help=argparse.SUPPRESS)
+    sx.add_argument("--protect", action="append", default=[])
+    sx.add_argument("--allow", action="append", default=[])
+    sx.add_argument("command", nargs=argparse.REMAINDER)
+    sub.add_parser(
+        "sandbox-check",
+        help="whether the workshop's wall between companies works on this server (prints why not)",
+    )
     return p
 
 
@@ -324,4 +332,19 @@ def main(argv: list[str] | None = None) -> int:
         from hq_runner import hook
 
         return hook.main(args.job)
+    if args.cmd == "sandbox-exec":
+        from hq_runner import sandbox
+
+        command = args.command[1:] if args.command[:1] == ["--"] else args.command
+        return sandbox.exec_main(args.protect, args.allow, command)
+    if args.cmd == "sandbox-check":
+        from hq_runner import sandbox
+
+        why = asyncio.run(sandbox.check(cfg_path))
+        if why is None:
+            print(f"sandbox: on (Landlock ABI {sandbox.abi()})")
+            return 0
+        print(f"sandbox: off ({why})")
+        print("  the workshop still runs every turn, without the wall between companies")
+        return 1
     return EXIT_USAGE  # pragma: no cover

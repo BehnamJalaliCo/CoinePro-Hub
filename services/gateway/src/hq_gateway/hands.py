@@ -1,6 +1,6 @@
 """⟨2026-11-09⟩ The workshop: hands for any task (contract §43, agents/tools.md).
 
-    workshop.run   A2  {brief, title?, work?, task?}
+    workshop.run   A2  {brief, title?, work?, task?, files?}
     workshop.stop  A1  {work?, reason?}     ⟨2026-11-10⟩ the caller stops its own running turn
 
 The owner: «اپ وسیله‌ی ارتباط است؛ سرور کامپیوتر است و Claude روی سرور مغز و دست دارد». Every
@@ -31,6 +31,9 @@ class WorkshopIn(T.In):
     work: str | None = Field(default=None, pattern=T.WORK_REF)
     # ⟨2026-11-10⟩ the plan task the turn is for (required in a step-by-step order, «با من»)
     task: int | None = Field(default=None, ge=1, le=99)
+    # ⟨2026-11-10⟩ hub files the turn takes with it (the narration, a logo, the owner's upload):
+    # the workshop finds them in `in/`
+    files: list[str] = Field(default_factory=list, max_length=10)
 
 
 class WorkshopStopIn(T.In):
@@ -66,6 +69,8 @@ async def workshop_run(api: T.Api, call: T.Call, a: WorkshopIn) -> T.Result:
         body["work"] = a.work
     if a.task is not None:
         body["task"] = a.task
+    if a.files:
+        body["files"] = a.files
     resp = await api.request(
         "POST",
         "/internal/v1/workshop/runs",

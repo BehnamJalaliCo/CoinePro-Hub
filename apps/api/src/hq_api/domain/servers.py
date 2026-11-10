@@ -1261,6 +1261,14 @@ def runner_job(j: dict[str, Any], hub: Any, *, claude_token: str = "") -> dict[s
             {**f, "url": P.public_url(hub, UUID(str(f["file_id"])))}
             for f in args.get("files") or []
         ]
+    if j["kind"] == "claude" and args.get("inputs"):
+        # ⟨2026-11-10⟩ §43.8 a workshop turn's input files: fetched by the runner, with its own
+        # token, from the job's own route (GET /runners/jobs/{id}/inputs/{file}) into `in/`
+        args["inputs"] = [
+            {**f, "url": f"/api/v1/runners/jobs/{j['id']}/inputs/{f['file_id']}"}
+            for f in args["inputs"]
+            if isinstance(f, dict) and f.get("file_id")
+        ]
     out = {
         "id": str(j["id"]),
         "kind": j["kind"],
@@ -1566,6 +1574,14 @@ async def _apply(tx: Tx, hub: Any, j: dict[str, Any], data: dict[str, Any]) -> d
                 [{"name": str(x.get("name"))[:300], "why": str(x.get("why"))[:200]}
                  for x in skipped if isinstance(x, dict)][:40]
             )  # fmt: skip
+        # ⟨2026-11-10⟩ §43.9 the wall between the companies' turns, as the runner reports it
+        box = data.get("sandbox")
+        if isinstance(box, dict) and box.get("state") in ("on", "off"):
+            out["sandbox"] = {"state": box["state"]} | (
+                {"why": mask(str(box.get("why") or ""))[:300]}
+                if box["state"] == "off"
+                else {"kind": str(box.get("kind") or "")[:40]}
+            )
         answer = mask(str(data.get("result_fa") or ""))
         out["result_fa"] = answer
         if len(answer) > INLINE_ANSWER:

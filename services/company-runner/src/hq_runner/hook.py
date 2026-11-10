@@ -69,6 +69,27 @@ def classify(
     return str(cat) if cat else None
 
 
+def category_for(
+    cfg: Config,
+    cmd: str,
+    *,
+    via: str,
+    job_id: str | None,
+    transport: httpx.BaseTransport | None = None,
+) -> tuple[str | None, str | None]:
+    """(category, error): the hub's category for `cmd`, over the private route and then the
+    public one. An error means the hub could not be asked (the caller fails closed)."""
+    try:
+        return classify(cfg, cmd, via=via, job_id=job_id, transport=transport), None
+    except RuntimeError as exc:
+        if via == "private" and transport is None:
+            try:
+                return classify(cfg, cmd, via="public", job_id=job_id), None
+            except RuntimeError as exc2:
+                return None, str(exc2)
+        return None, str(exc)
+
+
 def _record(cmd: str, category: str) -> None:
     path = os.environ.get("HQ_RUNNER_HOOK_EVENTS")
     if not path:
@@ -98,33 +119,28 @@ def main(
     cmd = str((payload.get("tool_input") or {}).get("command") or "")
     if not cmd.strip():
         return 0
-    try:
-        env_cfg = os.environ.get("HQ_RUNNER_CONFIG")
-        cfg = load(Path(env_cfg) if env_cfg else None)
-    except (OSError, ValueError):
-        cfg = None
-    if cfg is None:
-        print(UNREACHABLE.format(reason="runner not paired"), file=err_out)
-        return 2
-    via = os.environ.get("HQ_RUNNER_VIA") or ("private" if cfg.hub_ip else "public")
-    try:
-        category = classify(
-            cfg,
-            cmd,
-            via=via,
-            job_id=job_id or os.environ.get("HQ_RUNNER_JOB_ID"),
-            transport=transport,
-        )
-    except RuntimeError as exc:
-        if via == "private" and transport is None:
-            try:
-                category = classify(cfg, cmd, via="public", job_id=job_id)
-            except RuntimeError as exc2:
-                print(UNREACHABLE.format(reason=str(exc2)), file=err_out)
-                return 2
-        else:
-            print(UNREACHABLE.format(reason=str(exc)), file=err_out)
+    job = job_id or os.environ.get("HQ_RUNNER_JOB_ID")
+    sock = os.environ.get("HQ_RUNNER_HOOK_SOCK")
+    if sock and transport is None:
+        # ⟨0.3.4⟩ behind the workshop's wall the runner's token cannot be read: the runner
+        # itself asks the hub, over the job's own socket
+        from hq_runner.sandbox import ask_hook_socket
+
+        category, error = ask_hook_socket(sock, cmd)
+    else:
+        try:
+            env_cfg = os.environ.get("HQ_RUNNER_CONFIG")
+            cfg = load(Path(env_cfg) if env_cfg else None)
+        except (OSError, ValueError):
+            cfg = None
+        if cfg is None:
+            print(UNREACHABLE.format(reason="runner not paired"), file=err_out)
             return 2
+        via = os.environ.get("HQ_RUNNER_VIA") or ("private" if cfg.hub_ip else "public")
+        category, error = category_for(cfg, cmd, via=via, job_id=job, transport=transport)
+    if error:
+        print(UNREACHABLE.format(reason=error), file=err_out)
+        return 2
     if category:
         _record(cmd, category)
         print(BLOCKED.format(category=category), file=err_out)

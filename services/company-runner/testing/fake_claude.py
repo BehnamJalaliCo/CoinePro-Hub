@@ -72,6 +72,12 @@ def main() -> int:
         print("2.1.294 (Claude Code)")
         return 0
     brief = arg("-p") or ""
+    from_stdin = not brief or brief.startswith("--")
+    if from_stdin:  # ⟨0.3.4⟩ behind the wall the brief comes on stdin, never in argv
+        brief = sys.stdin.read()
+    if "[[fake:wallfail]]" in brief and os.environ.get("HQ_RUNNER_SANDBOX_STATE") == "on":
+        print("fake: cannot start behind the wall", file=sys.stderr)
+        return 1
     settings_path = arg("--settings")
     settings = json.load(open(settings_path)) if settings_path else {}  # noqa: SIM115
     session = arg("--resume") or str(uuid.uuid4())
@@ -83,6 +89,10 @@ def main() -> int:
                     "argv": sys.argv[1:],
                     "cwd": os.getcwd(),
                     "settings": settings,
+                    "brief_on_stdin": from_stdin,
+                    "home": os.environ.get("HOME"),
+                    "tmpdir": os.environ.get("TMPDIR"),
+                    "runner_config_env": os.environ.get("HQ_RUNNER_CONFIG"),
                     # which account ran it (a digest, never the token)
                     "oauth_sha8": hashlib.sha256(
                         os.environ.get("CLAUDE_CODE_OAUTH_TOKEN", "").encode()
@@ -159,6 +169,34 @@ def main() -> int:
                             "is_error": is_error,
                         }
                     ],
+                },
+            }
+        )
+    seen = []
+    for path in re.findall(r"\[\[fake:read:(.+?)\]\]", brief):
+        try:
+            with open(path) as fh:
+                seen.append(f"read {path} -> {fh.read().strip()}")
+        except OSError as exc:
+            seen.append(f"read {path} -> {type(exc).__name__}")
+    for path in re.findall(r"\[\[fake:write:(.+?)\]\]", brief):
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w") as fh:
+                fh.write("made")
+            seen.append(f"write {path} -> ok")
+        except OSError as exc:
+            seen.append(f"write {path} -> {type(exc).__name__}")
+    if seen:
+        emit(
+            {
+                "type": "assistant",
+                "session_id": session,
+                "message": {
+                    "id": "msg_seen",
+                    "model": model,
+                    "content": [{"type": "text", "text": "\n".join(seen)}],
+                    "usage": {"input_tokens": 1, "output_tokens": 1},
                 },
             }
         )

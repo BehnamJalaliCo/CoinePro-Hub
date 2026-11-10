@@ -1062,10 +1062,17 @@ async def propose(
     company_kind: str = "company",
     notify_owner: bool = True,
     system: bool = False,
+    owner_order: str | None = None,
 ) -> dict[str, Any]:
     """`system`: the card is code's even when an agent proposes it (⟨1.19⟩ `erase`, made by
-    erase.propose with its preview; a plain `propose` of such a kind is refused)."""
-    await hiring.require_open(tx, who, body.kind)  # before any card exists (§18.11)
+    erase.propose with its preview; a plain `propose` of such a kind is refused).
+    ⟨2026-11-10⟩ `owner_order`: the order in whose session the owner himself asked for this hire
+    (hiring.asked_in_session, read by the route): approved by code at once, whatever the
+    holding's hiring mode; when a hard check refuses it, it stays the owner's own card, shown in
+    that session."""
+    if owner_order is None or body.kind != "hire":
+        owner_order = None
+        await hiring.require_open(tx, who, body.kind)  # before any card exists (§18.11)
     payload = validate_payload(body.kind, body.payload)
     if body.kind == "hire":
         # ⟨1.6⟩ a role written on demand is a charter of its company (§22.5)
@@ -1239,7 +1246,7 @@ async def propose(
     # CEO's to decide (contract §18.11); the owner's own cards stay the owner's.
     approver = (
         await hiring.approver_for(tx, company_id, company_kind)
-        if body.kind == "hire" and who.is_agent
+        if body.kind == "hire" and who.is_agent and owner_order is None
         else None
     )
     if body.kind == "server_destructive":
@@ -1329,6 +1336,13 @@ async def propose(
             ref=payload["lesson"],
             co=company_id,
         )
+    if owner_order is not None:
+        # ⟨2026-11-10⟩ the owner asked for this hire in his own session: decided by code now
+        try:
+            async with tx.conn.begin_nested():
+                return await hiring.approve_by_code(tx, d, charters, owner_order=owner_order)
+        except ApiError:
+            pass  # a hard check refused it: his own card, shown in that session
     if approver and body.kind == "hire" and await hiring.mode(tx) == "auto":
         # ⟨21⟩ §29.10: a CEO's own hire inside the month envelope is approved by
         # code (no card for anyone); over the envelope it is refused

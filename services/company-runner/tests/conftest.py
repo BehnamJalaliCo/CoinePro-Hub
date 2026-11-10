@@ -55,6 +55,8 @@ class FakeHub:
     refuse_names: set[str] = field(default_factory=set)
     on_events: Callable[[str, list[dict[str, Any]]], None] | None = None
     on_upload: Callable[[str], None] | None = None  # ⟨0.3.3⟩ after a file of a job is stored
+    # ⟨0.3.3⟩ §43.8 a job's input files: {"<job>/<file id>": bytes}
+    inputs: dict[str, bytes] = field(default_factory=dict)
 
     def transport(self) -> httpx.MockTransport:
         return httpx.MockTransport(self.handle)
@@ -125,6 +127,13 @@ class FakeHub:
             jid, what = path.split("/")[5], path.split("/")[6]
             if jid in self.gone_jobs:
                 return problem(409, "job_not_running")
+            if what == "inputs":
+                data = self.inputs.get(f"{jid}/{path.split('/')[7]}")
+                return (
+                    httpx.Response(200, content=data)
+                    if data is not None
+                    else problem(404, "not_found")
+                )
             if what == "events":
                 assert set(body) == {"events"}
                 self.events.setdefault(jid, []).extend(body["events"])

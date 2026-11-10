@@ -624,7 +624,14 @@ async def stuck_cause(
     for a in bad:
         tool, code = str(a["tool"] or ""), str(a["code"] or "")
         if tool == "speech.make":
-            continue  # the owner's decision (2026-11-08): voice is off and never a cause
+            # ⟨2026-11-10⟩ the narrator of content is on (what the owner switched off is his own
+            # voice talk): AI Studio signed out is his one sign-in, said plainly
+            if code in ("signed_out", "channel_not_configured", "expired"):
+                return (
+                    "گوینده (Google AI Studio) روی هاب وارد حسابش نیست؛ یک بار ورود لازم است "
+                    "و بعد صدا ساخته میشود."
+                )
+            continue
         if code in OR.CONNECTION_CODES:
             # (2026-11-08) never «اینستاگرام وصل نیست» and never the owner's step
             return "یک اتصال فنی هنوز آماده نیست؛ تیم فنی هلدینگ خودش آن را تنظیم میکند."

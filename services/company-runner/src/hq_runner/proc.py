@@ -54,6 +54,15 @@ async def _pump(stream: asyncio.StreamReader, on_line: LineFn, max_line: int = M
         on_line(pending.decode("utf-8", "replace").rstrip("\r"))
 
 
+async def _feed(stdin: asyncio.StreamWriter, data: bytes) -> None:
+    with contextlib.suppress(OSError, ConnectionError):
+        stdin.write(data)
+        await stdin.drain()
+    with contextlib.suppress(OSError, ConnectionError):
+        stdin.close()
+        await stdin.wait_closed()
+
+
 async def run_streamed(
     argv: list[str],
     *,
@@ -64,17 +73,19 @@ async def run_streamed(
     on_stdout: LineFn,
     on_stderr: LineFn,
     max_line: int = MAX_LINE,
+    stdin_data: bytes | None = None,
 ) -> ProcResult:
     """Runs argv in a new session (its own process group). On timeout or
     cancel the group gets SIGTERM, then SIGKILL after a grace period. A line
     longer than `max_line` comes in pieces (⟨0.2.0⟩ the claude job's stream
-    of JSON lines raises it so its final answer is one whole line)."""
+    of JSON lines raises it so its final answer is one whole line).
+    ⟨0.3.4⟩ `stdin_data` is written to the process and its stdin closed."""
     start = time.monotonic()
     proc = await asyncio.create_subprocess_exec(
         *argv,
         cwd=cwd,
         env=dict(env) if env is not None else None,
-        stdin=asyncio.subprocess.DEVNULL,
+        stdin=asyncio.subprocess.DEVNULL if stdin_data is None else asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         start_new_session=True,
@@ -85,6 +96,9 @@ async def run_streamed(
         asyncio.create_task(_pump(proc.stdout, on_stdout, max_line)),
         asyncio.create_task(_pump(proc.stderr, on_stderr)),
     ]
+    feeder: asyncio.Task[None] | None = None
+    if stdin_data is not None and proc.stdin is not None:
+        feeder = asyncio.create_task(_feed(proc.stdin, stdin_data))
     waiter = asyncio.create_task(proc.wait())
     cancelled = asyncio.create_task(cancel.wait())
     reason: str | None = None
@@ -110,6 +124,8 @@ async def run_streamed(
             await asyncio.wait(open_pumps, timeout=KILL_GRACE_S)
     finally:
         cancelled.cancel()
+        if feeder is not None:
+            feeder.cancel()
         for p in pumps:
             p.cancel()
         if proc.returncode is None:  # the runner itself is being cancelled
