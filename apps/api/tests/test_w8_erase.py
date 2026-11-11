@@ -28,6 +28,7 @@ from hq_api.hub import Hub
 from .conftest import agent_headers, idem, step_up
 from .p14_support import filed
 from .test_p21_routing_orders import deliver, report
+from .test_p15_app_feedback import _deliverable
 from .test_p21_secretary import no_model, post_order, words  # noqa: F401 - the fixture
 from .test_w7_sessions import WORK_TEXT, cards, refuse_queued, woken
 
@@ -494,6 +495,22 @@ async def test_one_output_is_erased_and_its_work_stays(
     assert await su.fetchval(
         "SELECT count(*) FROM audit.entries WHERE action = 'output.erase' AND target_ref = $1", output
     ) == 1  # fmt: skip
+
+
+async def test_an_output_filed_in_the_archive_is_named_in_its_erase_preview(
+    client: httpx.AsyncClient, hub: Hub, su: Any, owner: dict[str, str]
+) -> None:
+    """The archived copy of an output stays: the preview says so (it was never found: the
+    query asked for source_kind 'deliverable', which the CHECK forbids)."""
+    holding = await hub.companies.holding()
+    dl = await _deliverable(su, holding.id, system=True)
+    url = f"/api/v1/deliverables/{dl['ref']}/erase/preview"
+    pv = (await client.get(url, headers=owner)).json()
+    assert not any("بایگانی" in k for k in pv["keeps_fa"])
+    r = await client.post(f"/api/v1/deliverables/{dl['ref']}/file", headers=owner)
+    assert r.status_code == 200, r.text
+    pv = (await client.get(url, headers=owner)).json()
+    assert any("بایگانی" in k for k in pv["keeps_fa"])
 
 
 # ============================================================ §37.3 an agent proposes ==
