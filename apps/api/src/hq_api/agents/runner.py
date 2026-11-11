@@ -1696,6 +1696,8 @@ class Runner:
             note=(note or "")[:1000] or None,
             partial=partial,
         )
+        # an open direct turn counts here (unlike claim's busy): its holder is shown working until
+        # the turn ends, and direct.close_run sets him at rest then
         busy = await tx.scalar(
             """SELECT 1 FROM agents.runs WHERE employee_id = :e AND state = 'running' AND id <> :id
                AND trigger <> 'talk'""",
