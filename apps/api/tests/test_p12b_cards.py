@@ -354,6 +354,14 @@ def test_reminder_thresholds() -> None:
     assert N.due_kinds(t0, None, t0 + timedelta(days=8), cfg)[-1] == "age_7d"
 
 
+
+def test_before_expiry_text_follows_the_owners_threshold() -> None:
+    """Audit: the reminder says the configured hours, not a fixed six."""
+    assert "کمتر از ۶ ساعت" in N._body("before_expiry", 0)
+    assert "کمتر از ۲۴ ساعت" in N._body("before_expiry", 0, 24)
+    assert "کمتر از ۱٫۵ ساعت" in N._body("before_expiry", 0, 1.5)
+
+
 async def _card(su: Any, company_id: Any, **kw: Any) -> dict[str, Any]:
     return dict(
         await su.fetchrow(

@@ -25,6 +25,7 @@ from hq_api.db import Tx
 from hq_api.domain import notify
 
 DEFAULT = {"enabled": True, "fraction": 0.5, "before_expiry_h": 6, "ages_h": [24, 72, 168]}
+_FA_DIGITS = str.maketrans("0123456789.", "۰۱۲۳۴۵۶۷۸۹٫")
 
 NOTE_SQL = "SELECT n.* FROM owner.notes n"
 
@@ -136,7 +137,7 @@ async def remind(tx: Tx, now: datetime | None = None) -> list[dict[str, Any]]:
                 company_code=d["company"],
                 level="decision",
                 title_fa=f"یادآوری {d['ref']}: {d['title'][:100]}",
-                body_fa=_body(kind, waiting),
+                body_fa=_body(kind, waiting, cfg["before_expiry_h"]),
                 link_kind="decision",
                 link_ref=d["ref"],
             )
@@ -170,11 +171,13 @@ async def remind(tx: Tx, now: datetime | None = None) -> list[dict[str, Any]]:
     return raised
 
 
-def _body(kind: str, waiting_h: int) -> str:
+def _body(kind: str, waiting_h: int, before_expiry_h: float = 6) -> str:
     if kind == "half":
         return f"نیمی از مهلت این کارت گذشته است ({waiting_h} ساعت منتظر)."
     if kind == "before_expiry":
-        return "کمتر از ۶ ساعت به پایان مهلت این کارت مانده است."
+        # The owner's own threshold (owner.settings.reminders), not a fixed six hours.
+        hours = f"{float(before_expiry_h):g}".translate(_FA_DIGITS)
+        return f"کمتر از {hours} ساعت به پایان مهلت این کارت مانده است."
     return f"این کارت {waiting_h} ساعت است که منتظر تصمیم توست."
 
 
