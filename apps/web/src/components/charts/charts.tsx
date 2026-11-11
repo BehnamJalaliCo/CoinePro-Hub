@@ -28,7 +28,7 @@ export function StackedBar({ segs, height = 14, label }: { segs: Seg[]; height?:
             <span className="size-2.5 rounded-[3px]" style={{ background: s.color }} />
             <span className="text-sec">{s.label}</span>
             <span className="fig text-ink">{s.fmt ?? s.value}</span>
-            <span className="text-muted">{Math.round((s.value / total) * 100)}٪</span>
+            <span className="fig text-muted">{Math.round((s.value / total) * 100)}%</span>
           </li>
         ))}
       </ul>

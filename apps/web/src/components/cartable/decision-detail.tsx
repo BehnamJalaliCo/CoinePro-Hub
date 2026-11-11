@@ -15,7 +15,7 @@ import { ApiError, type Schemas } from '@/lib/api/client';
 import { useAskAboutDecision, useCompanies, useDecide, useReviewWithAdvisor } from '@/lib/api/hooks';
 import { stepUp } from '@/lib/auth';
 import { useNow } from '@/lib/store';
-import { plain } from '@/lib/plain';
+import { ownerWords, plain } from '@/lib/plain';
 import { companyOf } from '@/lib/company';
 import type { LifecycleRule, ShadowReport, Template } from '@/lib/api/v16';
 import { AUTO_SEND, CHANNEL_FA, PURPOSE_FA, triggerFa } from '@/components/v16/bits';
@@ -31,6 +31,9 @@ import { ImpactBlock } from '@/components/v33/bits';
 import { SERVER_DESTRUCTIVE, sealCardOf } from '@/lib/api/v26';
 import { ACTOR_FA, DECISION_KIND, DECISION_STATUS, RISK } from '@/lib/labels';
 import { ago, cx, jDateTime, modelLabel, tokens, until, usd } from '@/lib/format';
+
+/** The cards about what goes out (§22.6): a publication and a publishing series. */
+const PUBLISH_KINDS = new Set(['media_publish', 'media_series']);
 
 type Decision = Schemas['Decision'];
 // code_session: its seal creates a Code Workshop grant (contract §5.1 ⟨1.4.3⟩). The round-two kinds are sealed the same way, each card
@@ -259,8 +262,9 @@ export function DecisionDetail({ d, onDone }: { d: Decision; onDone?: () => void
       {/* ⟨1.5⟩ §21.8: how long it has waited and which reminders went out. */}
       <WaitingLine d={d as unknown as Decision18} />
 
-      <Section title="چی"><Md text={d.what} /></Section>
-      <Section title="چرا"><Md text={d.why} /></Section>
+      {/* ⟨1.0.1⟩ C1.4 a media card never tells the owner an Instagram account «has no key»: that is the technical team's work. */}
+      <Section title="چی"><Md text={PUBLISH_KINDS.has(d.kind) ? ownerWords(d.what) : d.what} /></Section>
+      <Section title="چرا"><Md text={PUBLISH_KINDS.has(d.kind) ? ownerWords(d.why) : d.why} /></Section>
       <Payload d={d} />
       {/* ⟨1.5⟩ §20.6: what the card promises, and its 30/60/90-day reviews once sealed. */}
       <ImpactBlock d={d} />

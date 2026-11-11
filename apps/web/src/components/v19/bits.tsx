@@ -1,8 +1,9 @@
 'use client';
 
-import { ROUTE_NOT_READY_SHORT_FA } from '@/lib/plain';
+import { ROUTE_NOT_READY_SHORT_FA, ownerNote } from '@/lib/plain';
 import { type ComponentProps, type ReactNode } from 'react';
 import { Icon } from '@/components/icon';
+import { MdInline } from '@/components/ui/md';
 import { Pill } from '@/components/ui/primitives';
 import type { IconName } from '@/generated/icons';
 import { fileUrl } from '@/lib/api/v13';
@@ -218,4 +219,23 @@ export function LicenceBadge({ commercial, licence }: { commercial: boolean; lic
   return commercial
     ? <span className="inline-flex items-center gap-1 rounded-full bg-tile px-2 py-0.5 text-[11px] text-sec"><Icon name="lock" size={11} /><span className="fig">{licence}</span></span>
     : <span className="inline-flex items-center gap-1 rounded-full bg-warn-soft px-2 py-0.5 text-[11px] font-semibold text-warn"><Icon name="urgent" size={11} />غیرتجاری · <span className="fig font-normal">{licence}</span></span>;
+}
+
+/**
+ * ⟨1.0.1⟩ The hub's note as the owner reads it (C1.4): a sentence that carries a terminal command, or that tells him an Instagram
+ * account has no key, is the technical team's; it goes one tap away under «جزئیات فنی» and the calm line takes its place.
+ */
+export function StateNote({ text, className }: { text: string; className?: string }) {
+  const n = ownerNote(text);
+  return (
+    <span className={cx('flex min-w-0 flex-1 flex-col gap-1', className)}>
+      {n.fa ? <span><MdInline text={n.fa} /></span> : null}
+      {n.technical ? (
+        <details className="text-[12px] text-muted">
+          <summary className="w-fit cursor-pointer select-none">جزئیات فنی</summary>
+          <p className="pt-1 leading-5"><MdInline text={n.technical} /></p>
+        </details>
+      ) : null}
+    </span>
+  );
 }

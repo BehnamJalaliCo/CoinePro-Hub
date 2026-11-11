@@ -8,7 +8,9 @@
  * stays in use. What is counted is likes and comments, and the hub's own note says so. The switch sits in the standing word's settings
  * (at the seal, at «به شرکت دیگر بده» and in a member's row); it is not offered on a hub before §49.
  */
+import { Switch } from '@/components/ui/primitives';
 import { FaText } from '@/components/v29/text';
+import { Ltr } from '@/components/look/text';
 import { clockOf, type MemberPublish } from '@/lib/api/v44';
 import { bestHourOf, useBestHour } from '@/lib/api/v47';
 
@@ -21,13 +23,13 @@ export function BestHourChoice({ company, value, onChange }: { company: string |
   const hour = bestHourOf(b);
   return (
     <div className="flex flex-col gap-1" data-testid="best-hour" data-enough={hour ? 'true' : 'false'}>
-      <label className="flex items-center gap-3">
+      <div className="flex items-center gap-3">
         <span className="min-w-0 flex-1 text-[13px] text-ink">بهترین ساعت، خودکار</span>
-        <input type="checkbox" checked={on} onChange={(e) => onChange({ ...value, best: e.target.checked })} aria-label="بهترین ساعت، خودکار" className="size-5 flex-none accent-[var(--hq-gold-ink)]" />
-      </label>
+        <Switch checked={on} onChange={(v) => onChange({ ...value, best: v })} label="بهترین ساعت، خودکار" />
+      </div>
       {hour ? (
         <>
-          <p className="text-[12px] text-sec">بهترین ساعت این حساب: {hour}</p>
+          <p className="text-[12px] text-sec">بهترین ساعت این حساب: <Ltr>{hour}</Ltr></p>
           {b.note_fa ? <p className="text-[11px] leading-5 text-muted"><FaText text={b.note_fa} /></p> : null}
         </>
       ) : (

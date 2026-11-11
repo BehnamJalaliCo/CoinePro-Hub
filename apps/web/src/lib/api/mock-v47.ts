@@ -146,20 +146,56 @@ type Publish = {
   busy?: boolean; held?: boolean; key?: string; since?: number;
 };
 const file = (id: string, name: string, mime: string, size: number): File47 => ({ id, name, mime, size, sha256: '' });
-const OUTPUTS: Record<string, { order: string; company: string; files: File47[]; produced_with?: Record<string, unknown>; caption: string }> = {
+type Out47 = {
+  order: string | null; company: string; files: File47[]; produced_with?: Record<string, unknown>; caption: string;
+  /** ⟨1.0.1⟩ §55.2 what the desk says of it: its title, when it was made, and the working group whose routine made it. */
+  title_fa: string; at: string; group?: string; group_fa?: string; mode?: 'ask' | 'auto';
+};
+const NAME: Record<string, string> = { TY: 'تریدیار', FX: 'کوینه‌پرو اف‌ایکس', PC: 'پرو-چارت' };
+const OUTPUTS: Record<string, Out47> = {
   'O-000061': {
-    order: 'F-0007', company: 'TY', caption: 'سه اشتباهی که تازه‌کارها در هفته‌ی اول میکنند.\n#تریدیار #آموزش_ترید',
+    order: 'F-0007', company: 'TY', title_fa: 'ریلز ۱: سه اشتباه رایج تازه‌کارها', at: minsAgo(8 * 60), caption: 'سه اشتباهی که تازه‌کارها در هفته‌ی اول میکنند.\n#تریدیار #آموزش_ترید',
     files: [file('/demo/ty-story-stoploss.mp4', 'reel-01.mp4', 'video/mp4', 32_183), file('/demo/ty-story-stoploss-poster.webp', 'cover-01.png', 'image/png', 11_962), file('/demo/pc-landing-redesign.webp', 'frame-01.jpg', 'image/jpeg', 19_810)],
     produced_with: { runtime: 'workshop', files: 3, model: 'claude-opus-5-5', effort: 'max' },
   },
   'O-000062': {
-    order: 'F-0007', company: 'TY', caption: 'حد ضرر را کجا بگذاریم؟ یک دقیقه، یک قانون.\n#تریدیار #حد_ضرر',
+    order: 'F-0007', company: 'TY', title_fa: 'ریلز ۲: حد ضرر در یک دقیقه', at: minsAgo(8 * 60 + 5), caption: 'حد ضرر را کجا بگذاریم؟ یک دقیقه، یک قانون.\n#تریدیار #حد_ضرر',
     files: [file('/demo/fx-reel-levels.mp4', 'reel-02.mp4', 'video/mp4', 110_561), file('/demo/fx-reel-levels-poster.webp', 'post-02.jpg', 'image/jpeg', 8_530), file('/demo/fx-reel-resist-poster.webp', 'slide-02.webp', 'image/webp', 8_560)],
     produced_with: { runtime: 'workshop', files: 3, model: 'claude-opus-5-5', effort: 'xhigh' },
   },
   'O-000063': {
-    order: 'F-0007', company: 'TY', caption: 'کارمزد هر معامله را کجا ببینیم.\n#تریدیار',
+    order: 'F-0007', company: 'TY', title_fa: 'ریلز ۳: کارمزد را کجا ببینیم', at: minsAgo(8 * 60 + 10), caption: 'کارمزد هر معامله را کجا ببینیم.\n#تریدیار',
     files: [file('/demo/fx-reel-resist.mp4', 'reel-03.mp4', 'video/mp4', 108_223), file('/demo/pc-landing-redesign.webp?post=3', 'post-03.jpg', 'image/jpeg', 19_810)],
+  },
+  // ⟨1.0.1⟩ §55.2 for the publish desk, in every state: a picture post, a carousel that was taken back, a reel of a company whose
+  // publishing path is not set yet, two daily packages of a working group that publishes by itself (one out, one failed), and the
+  // reel the session F-0012 waits on.
+  'O-000059': {
+    order: 'F-0005', company: 'PC', title_fa: 'پست ۱: خط روند در یک نگاه', at: minsAgo(26 * 60), caption: 'خط روند را با یک مثال واقعی ببین.\n#پروچارت #تحلیل_تکنیکال',
+    files: [file('/demo/pc-landing-redesign.webp', 'post-01.jpg', 'image/jpeg', 19_810)],
+  },
+  'O-000060': {
+    order: 'F-0005', company: 'PC', title_fa: 'پست ۲: هشدار قیمت', at: minsAgo(30 * 60), caption: 'ساختن هشدار قیمت در سه قدم.\n#پروچارت #هشدار_قیمت',
+    files: [file('/demo/fx-reel-levels-poster.webp', 'slide-1.jpg', 'image/jpeg', 8_530), file('/demo/fx-reel-resist-poster.webp', 'slide-2.jpg', 'image/jpeg', 8_560), file('/demo/ty-story-stoploss-poster.webp', 'slide-3.jpg', 'image/jpeg', 11_962)],
+  },
+  'O-000064': {
+    order: null, company: 'FX', title_fa: 'ریلز: مقاومت هفته', at: minsAgo(5 * 60), caption: 'مقاومت این هفته کجاست؟\n#فارکس',
+    files: [file('/demo/fx-reel-resist.mp4', 'reel-fx.mp4', 'video/mp4', 108_223)],
+  },
+  'O-000065': {
+    order: null, company: 'PC', group: 'pb_3', group_fa: 'موشن‌گرافی روزانه‌ی پرو-چارت', mode: 'auto', title_fa: 'موشن‌گرافی روز: واگرایی در RSI', at: minsAgo(26 * 60),
+    caption: 'واگرایی در RSI را در سی ثانیه ببین.\n#پروچارت #RSI', files: [file('/demo/fx-reel-levels.mp4', 'motion-12.mp4', 'video/mp4', 110_561), file('/demo/fx-reel-levels-poster.webp', 'cover-12.jpg', 'image/jpeg', 8_530)],
+    produced_with: { runtime: 'workshop', files: 2, model: 'claude-opus-5-5', effort: 'max' },
+  },
+  'O-000066': {
+    order: null, company: 'PC', group: 'pb_3', group_fa: 'موشن‌گرافی روزانه‌ی پرو-چارت', mode: 'auto', title_fa: 'موشن‌گرافی روز: باند بولینگر', at: minsAgo(3 * 60),
+    caption: 'باند بولینگر چه میگوید؟\n#پروچارت', files: [file('/demo/ty-story-stoploss.mp4', 'motion-13.mp4', 'video/mp4', 32_183)],
+    produced_with: { runtime: 'workshop', files: 1, model: 'claude-opus-5-5', effort: 'max' },
+  },
+  'O-000067': {
+    order: 'F-0012', company: 'TY', title_fa: 'ریلز: حد ضرر را کجا بگذاریم', at: minsAgo(40), caption: 'حد ضرر را کجا بگذاریم؟ سه قانون ساده.\n#تریدیار #حد_ضرر',
+    files: [file('/demo/ty-story-stoploss.mp4', 'reel-stoploss.mp4', 'video/mp4', 32_183), file('/demo/ty-story-stoploss-poster.webp', 'cover.png', 'image/png', 11_962)],
+    produced_with: { runtime: 'workshop', files: 2, model: 'claude-opus-5-5', effort: 'max' },
   },
 };
 let pubSeq = 400;
@@ -173,6 +209,10 @@ const publishes: Publish[] = [
   pub({ output: 'O-000062', file_id: '/demo/fx-reel-resist-poster.webp', file_name: 'slide-02.webp', kind: 'post', state: 'scheduled', scheduled_at: nextAt('20:00', 1), note_fa: 'در حال لغو', held: true, at: minsAgo(60) }),
   pub({ output: 'O-000063', file_id: '/demo/fx-reel-resist.mp4', file_name: 'reel-03.mp4', kind: 'reel', state: 'publishing', busy: true, at: minsAgo(70) }),
   pub({ output: 'O-000063', file_id: '/demo/pc-landing-redesign.webp?post=3', file_name: 'post-03.jpg', kind: 'post', state: 'published', url: 'https://www.instagram.com/p/demo-post-03/', published_at: minsAgo(1440), at: minsAgo(1442) }),
+  // ⟨1.0.1⟩ §55.2 the desk's «منتشرشده»: a carousel taken back, a package the working group sent by itself, and one that failed
+  pub({ output: 'O-000060', file_id: '/demo/fx-reel-levels-poster.webp', file_name: 'slide-1.jpg', kind: 'carousel', account: 'pro.chart', state: 'cancelled', scheduled_at: nextAt('17:00', 1), at: minsAgo(20 * 60), files: 3 }),
+  pub({ output: 'O-000065', file_id: '/demo/fx-reel-levels.mp4', file_name: 'motion-12.mp4', cover_name: 'cover-12.jpg', kind: 'reel', account: 'pro.chart', state: 'published', url: 'https://www.instagram.com/reel/demo-motion-12/', published_at: minsAgo(22 * 60), at: minsAgo(22 * 60 + 2), auto: true }),
+  pub({ output: 'O-000066', file_id: '/demo/ty-story-stoploss.mp4', file_name: 'motion-13.mp4', kind: 'reel', account: 'pro.chart', state: 'failed', note_fa: 'اینستاگرام این ویدیو را نپذیرفت: طولش باید دست‌کم ۳ ثانیه باشد.', at: minsAgo(120), auto: true }),
 ];
 const publishView = ({ busy: _b, held: _h, key: _k, since: _s, ...p }: Publish) => p;
 /** A publish of the demo goes out a few seconds after the tap. */
@@ -184,13 +224,58 @@ function settle() {
 const publishesOf = (pick: (p: Publish) => boolean) => { settle(); return publishes.filter(pick).sort((a, b) => b.at.localeCompare(a.at)).map(publishView); };
 const panelOf = (ref: string) => {
   const o = OUTPUTS[ref]!;
-  const accounts = ACCOUNTS[o.company] ?? [];
+  // A company whose publishing path the team has not set yet: no account, `ready` false (the desk says the same of it).
+  const ok = routeReady(o.company);
+  const accounts = ok ? ACCOUNTS[o.company] ?? [] : [];
   const best = bestOf(o.company, null);
   return {
-    order: o.order, channel: 'instagram', accounts, ready: true, publishes: publishesOf((p) => p.output === ref), tap: true, caption: o.caption, group: null, group_fa: null, mode: null,
-    comment: null, best: best.enough ? best : null,
+    order: o.order, channel: 'instagram', accounts, ready: ok, publishes: publishesOf((p) => p.output === ref), tap: true, caption: o.caption, group: o.group ?? null, group_fa: o.group_fa ?? null,
+    mode: o.mode ?? null, comment: null, best: best.enough ? best : null,
   };
 };
+
+// ================================================================================== ⟨1.0.1⟩ §55.2 for ./mock-v55: the desk ==
+/** The files of an output of the demo that carries a package (so a list of outputs can show its poster). */
+export const outputFiles = (ref: string): File47[] | null => OUTPUTS[ref]?.files ?? null;
+/** The companies whose publishing path is set: CoinePro FX's is not yet (the technical team's work, never the owner's). */
+const routeReady = (company: string) => company !== 'FX';
+const WEEK = 7 * 86_400_000;
+/**
+ * Everything that can go out, is set to go out, or went out (§55.2): an output's video with its cover, else its picture, else its
+ * pictures together as a carousel; `ready` has no publication that stands, `queue` is held for its hour or on its way, `done` is what
+ * went out, failed or was taken back in the last seven days (a failed or cancelled one is in `ready` again).
+ */
+export function deskOf(company: string | null) {
+  settle();
+  const lite = ({ id, name, mime, size }: File47) => ({ id, name, mime, size });
+  const ready: Array<Record<string, unknown> & { at: string }> = [];
+  const queue: typeof ready = [];
+  const done: typeof ready = [];
+  for (const [ref, o] of Object.entries(OUTPUTS)) {
+    if (company && o.company !== company) continue;
+    const video = o.files.find((f) => f.mime.startsWith('video/'));
+    const images = o.files.filter((f) => f.mime.startsWith('image/'));
+    const main = video ?? images[0];
+    if (!main) continue;
+    const cover = video ? images.find((x) => x.name.toLowerCase().startsWith('cover')) ?? (images.length === 1 ? images[0]! : null) : null;
+    const kind = video ? 'reel' : images.length > 1 ? 'carousel' : 'post';
+    const cur = publishes.filter((p) => p.output === ref && p.file_id === main.id && p.kind !== 'story').sort((a, b) => b.at.localeCompare(a.at))[0] ?? null;
+    const ok = routeReady(o.company);
+    const accounts = ok ? ACCOUNTS[o.company] ?? [] : [];
+    const best = ok ? bestOf(o.company, null) : null;
+    const base = {
+      output: ref, title_fa: o.title_fa, company: o.company, company_fa: NAME[o.company] ?? o.company, order: o.order, group_fa: o.group_fa ?? null, file: lite(main), cover: cover ? lite(cover) : null,
+      files: kind === 'carousel' ? Math.min(10, images.length) : 1, kind, channel: 'instagram', account: accounts.length === 1 ? accounts[0]! : null, accounts, route_ready: ok, caption: o.caption,
+      best: best?.enough ? best : null, mode: o.mode ?? null,
+    };
+    const state = cur?.state ?? null;
+    if (!state || state === 'failed' || state === 'cancelled') ready.push({ ...base, state: 'ready', publish: null, at: o.at });
+    if (cur && (state === 'scheduled' || state === 'publishing' || state === 'waiting_setup' || state === 'waiting_seal')) queue.push({ ...base, state, publish: publishView(cur), at: cur.scheduled_at ?? cur.at });
+    if (cur && (state === 'published' || state === 'failed' || state === 'cancelled') && Date.now() - Date.parse(cur.published_at ?? cur.at) < WEEK) done.push({ ...base, state, publish: publishView(cur), at: cur.published_at ?? cur.at });
+  }
+  const newest = (a: { at: string }, b: { at: string }) => Date.parse(b.at) - Date.parse(a.at);
+  return { ready: ready.sort(newest).slice(0, 30), queue: queue.sort((a, b) => -newest(a, b)).slice(0, 30), done: done.sort(newest).slice(0, 30) };
+}
 
 // ============================================================================================================ routes ==
 type Next = (r: Request) => Promise<Response>;

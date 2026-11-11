@@ -7,7 +7,16 @@
 // - C2.1 the command sheet's order: an order that names its company (`company`) goes to that company, whatever its words say; with
 //   `hq.e2e.order-fail` the hub refuses it (503 with its Persian sentence), so the sheet's failure is seen.
 // - `hq.e2e.old55`: a hub before §55 (its routes answer 404 further on).
+// - §55.2 `GET /publish-desk?company=`: the desk in every state, built from the outputs and publications of ./mock-v47 (so a publish
+//   or a cancel shows on it at once): cards ready to go out (a reel with its cover, a picture, a carousel, a daily package of a working
+//   group, one of a company whose publishing path is not set yet), a post set for its hour and one on its way, and what went out,
+//   failed or was taken back. `hq.e2e.desk=empty`: nothing on it.
+// - A list of outputs carries the files of the session's reels, so their cards show a poster.
+// - «نگه دار» of a session: the live work's ref is found through the list's search and stopped (`POST /work/{id}/stop`).
 // Kept in memory, never bundled in production (reached only through ./mock-v21 when NEXT_PUBLIC_HQ_MOCK=1).
+
+import { LIVE_WORKS, stopLiveWork } from './mock-v34';
+import { deskOf, outputFiles } from './mock-v47';
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const refuse = (status: number, code: string, message_fa: string) => json({ type: 'about:blank', title: code, status, code, message_fa }, status);
@@ -52,6 +61,14 @@ function limits() {
   }
 }
 
+/** Two outputs of the demo's list that carry media of their own: a picture, and a short film with a picture. */
+const media = (id: string, name: string, mime: string, size: number) => ({ id, name, mime, size, sha256: '' });
+const LIST_MEDIA: Record<string, ReturnType<typeof media>[]> = {
+  'O-000028': [media('/demo/pc-landing-redesign.webp', 'landing-autumn.jpg', 'image/jpeg', 19_810)],
+  'O-000046': [media('/demo/fx-reel-levels.mp4', 'competitor-app.mp4', 'video/mp4', 110_561), media('/demo/fx-reel-resist-poster.webp', 'pricing-table.jpg', 'image/jpeg', 8_560)],
+};
+const filesOf = (ref: string) => outputFiles(ref) ?? LIST_MEDIA[ref] ?? null;
+
 /** §55 and the command sheet's order; what is not its own goes on to [next] (the rest of the demo). */
 export async function handle55(req: Request, p: string, next: Next): Promise<Response | null> {
   const m = req.method;
@@ -68,7 +85,36 @@ export async function handle55(req: Request, p: string, next: Next): Promise<Res
   }
   // A hub before part A has no routine route at all (the demo's fallback would answer it with an empty success).
   if (p === '/routines' && m === 'POST' && flag('hq.e2e.old47') === '1') return refuse(404, 'not_found', 'پیدا نشد.');
+  // «نگه دار»: the session's live work, named by ref, is resolved to its id and stopped (§33.10, §43; the work stays open).
+  const q = new URL(req.url).searchParams;
+  if (p === '/work' && m === 'GET' && LIVE_WORKS[q.get('q') ?? '']) {
+    const ref = q.get('q')!;
+    return json({ items: [{ id: LIVE_WORKS[ref], ref, company: 'TY', title: ref, status: 'in_progress' }], next_cursor: null });
+  }
+  const stop = /^\/work\/([^/]+)\/stop$/.exec(p);
+  if (stop && m === 'POST') {
+    const ref = Object.keys(LIVE_WORKS).find((k) => LIVE_WORKS[k] === stop[1]);
+    if (ref) return json(stopLiveWork(ref) ?? { work_ref: ref, workspace: null, jobs_stopped: 0 });
+  }
+  // The outputs that carry media show it (§43.4 an output's attachments): in the list as a poster, on its page as the thing itself.
+  const one = /^\/deliverables\/(O-\d+)$/.exec(p);
+  if ((p === '/deliverables' || (one && LIST_MEDIA[one[1]!])) && m === 'GET' && flag('hq.e2e.old47') !== '1') {
+    const res = await next(req);
+    if (!res.ok) return res;
+    type D = { ref: string; attachments?: unknown[] };
+    const withFiles = (d: D): D => { const f = filesOf(d.ref); return f && !d.attachments?.length ? { ...d, attachments: f } : d; };
+    const data = (await res.json()) as D & { items?: D[] };
+    return json(one ? withFiles(data) : { ...data, items: (data.items ?? []).map(withFiles) });
+  }
   if (olderHub()) return null;
   if (p === '/treasury/limits' && m === 'GET') return json(limits());
+  // §55.2 the publish desk. A hub before §47 knows nothing of it either.
+  if (p === '/publish-desk' && m === 'GET') {
+    if (flag('hq.e2e.old47') === '1') return refuse(404, 'not_found', 'پیدا نشد.');
+    if (flag('hq.e2e.desk') === 'empty') return json({ ready: [], queue: [], done: [] });
+    const company = q.get('company');
+    if (company && !['TY', 'FX', 'PC'].includes(company)) return refuse(404, 'not_found', 'این شرکت پیدا نشد.');
+    return json(deskOf(company));
+  }
   return null;
 }

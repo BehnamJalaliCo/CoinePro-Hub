@@ -121,9 +121,11 @@ export const coverOf = <T extends { name: string }>(images: ReadonlyArray<T>): T
   images.find((x) => x.name.toLowerCase().startsWith('cover')) ?? (images.length === 1 ? images[0]! : null);
 
 /** `GET /deliverables/{ref}/publish`; null on a hub before §44.5. Refreshed while a publish is on its way. */
+export const publishPanelKey = (ref: string | null) => ['publish', ref] as const;
+export const readPublishPanel = (ref: string) => served(call<PublishPanel>('GET', `/deliverables/${encodeURIComponent(ref)}/publish`));
 export const usePublishPanel = (ref: string | null, enabled = true) => useQuery({
-  queryKey: ['publish', ref], enabled: !!ref && enabled, staleTime: 5_000,
-  queryFn: () => served(call<PublishPanel>('GET', `/deliverables/${encodeURIComponent(ref!)}/publish`)),
+  queryKey: publishPanelKey(ref), enabled: !!ref && enabled, staleTime: 5_000,
+  queryFn: () => readPublishPanel(ref!),
   // on its way: every 5s; ⟨0.20.0⟩ §46 set for an hour: once a minute, so the row turns when it goes out
   refetchInterval: (q) => (q.state.data?.publishes.some((p) => p.state === 'publishing') ? 5_000 : q.state.data?.publishes.some((p) => p.state === 'scheduled') ? 60_000 : false),
 });

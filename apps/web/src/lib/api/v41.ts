@@ -12,7 +12,19 @@ import { useLive } from '@/lib/live';
 
 const enc = encodeURIComponent;
 
-export type Worker = { who_fa: string; company_fa: string; work_title_fa: string; started_at: string; step: number; doing_fa: string };
+/** ⟨1.0.1⟩ §55.1 «چراغ حال»: the session's mood, by the hub's own code. */
+export type Mood = 'thinking' | 'working' | 'waiting' | 'stuck' | 'idle';
+/** ⟨1.0.1⟩ §55.1 what works: an agent's run, the workshop's turn, the holder's own direct turn (§54), a company server's turn. */
+export type WorkerKind = 'run' | 'workshop' | 'direct' | 'server';
+/**
+ * ⟨1.0.1⟩ §55.1 adds `kind`, `cap_s` (a turn's time cap in seconds, null for a run: the build ring fills against it) and `last_fa`,
+ * `last_at` (the last thing a live turn did, in the owner's words; null when it said nothing he can read: `doing_fa` is shown). An
+ * older hub sends none of them.
+ */
+export type Worker = {
+  who_fa: string; company_fa: string; work_title_fa: string; started_at: string; step: number; doing_fa: string;
+  kind?: WorkerKind | null; cap_s?: number | null; last_fa?: string | null; last_at?: string | null;
+};
 /** ⟨1.24⟩ §42.2 adds `id` (run id + step n: a step's end updates its own line), `kind`, `state` and `task_n`; an older hub sends none. */
 export type ActivityLine = {
   at: string; who_fa: string; text_fa: string;
@@ -28,7 +40,11 @@ export function foldLine(lines: ActivityLine[], line: ActivityLine): ActivityLin
   } else if (lines.some((l) => l.at === line.at && l.text_fa === line.text_fa)) return lines;
   return [...lines, line].slice(-LINES_MAX);
 }
-export type SessionActivity = { working: Worker[]; last: ActivityLine[]; idle_since?: string | null; waiting_fa?: string | null; stuck_fa?: string | null };
+/** ⟨1.0.1⟩ §55.1 adds `mood` and `mood_fa`; on an older hub the mood is read from the rest (stuck, waiting, working, else calm). */
+export type SessionActivity = {
+  working: Worker[]; last: ActivityLine[]; idle_since?: string | null; waiting_fa?: string | null; stuck_fa?: string | null;
+  mood?: Mood | null; mood_fa?: string | null;
+};
 
 /** The hub keeps at most this many lines; so does the panel. */
 export const LINES_MAX = 30;
@@ -61,7 +77,9 @@ export function useSessionActivity(ref: string, on = true) {
         const n = d.working ?? a.working.length;
         // ⟨1.24⟩ A step's end only updates its line; a new step (or a line from an older hub) moves the worker on.
         const ended = !!line.id && last.length === a.last.length && a.last.some((l) => l.id === line.id);
-        const working = n === 0 ? [] : ended ? a.working : a.working.map((w) => (w.who_fa === line.who_fa ? { ...w, step: w.step + 1, doing_fa: line.text_fa } : w));
+        // ⟨1.0.1⟩ §55.1 a live turn (the workshop's, the holder's own) says its newest line as `last_fa`; a run moves to its next step.
+        const working = n === 0 ? [] : ended ? a.working : a.working.map((w) => (w.who_fa !== line.who_fa ? w
+          : w.kind === 'workshop' || w.kind === 'direct' ? { ...w, step: w.step + 1, last_fa: line.text_fa, last_at: line.at } : { ...w, step: w.step + 1, doing_fa: line.text_fa }));
         drift = n !== working.length;
         return { ...a, last, working, ...(n === 0 ? { idle_since: line.at } : { idle_since: null, stuck_fa: null }) };
       });

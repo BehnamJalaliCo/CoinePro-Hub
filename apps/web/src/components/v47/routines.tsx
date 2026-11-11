@@ -9,17 +9,18 @@
  * §50 says nothing of routines in the session's report, and the card is not shown.
  */
 import { useRef, useState } from 'react';
+import { DecisionBar } from '@/components/look/decision-bar';
+import { WhenAt } from '@/components/look/group';
+import { SpringSheet } from '@/components/look/spring-sheet';
 import { Button } from '@/components/ui/button';
-import { Sheet } from '@/components/ui/overlay';
-import { Card, Pill, SectionTitle, Switch } from '@/components/ui/primitives';
+import { Card, SectionTitle, Switch } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
 import { PlainText } from '@/components/v29/text';
 import { ApiError } from '@/lib/api/client';
 import { notServed } from '@/lib/api/v28';
 import { SENTENCE_MAX, markAbsent, useAbsent, useMakeRoutine, useRoutineState, type SessionRoutine } from '@/lib/api/v47';
-import { jDateTime } from '@/lib/format';
 
-const FIELD = 'w-full rounded-[10px] border border-strong bg-tile p-3 text-[14px] leading-7 text-ink outline-none transition-colors placeholder:text-muted focus:border-gold-ink';
+const FIELD = 'w-full rounded-[10px] border border-strong bg-tile p-3 text-[14px] leading-7 text-ink outline-none transition-colors placeholder:text-muted focus:border-[var(--hq-silver-ink)]';
 
 function Row({ order, x, closed }: { order: string; x: SessionRoutine; closed: boolean }) {
   const toast = useToast();
@@ -35,13 +36,13 @@ function Row({ order, x, closed }: { order: string; x: SessionRoutine; closed: b
           <b className="text-[13px] font-semibold leading-6 text-ink"><PlainText text={x.when_fa || x.sentence_fa} /></b>
           <span className="text-[12px] leading-5 text-sec [overflow-wrap:anywhere]"><PlainText text={x.preview_fa || x.sentence_fa} /></span>
         </span>
-        {x.state === 'proposed' ? <Pill tone="warn" dot>منتظر مُهر</Pill>
+        {x.state === 'proposed' ? <span className="flex-none text-[12px] font-semibold text-sec">منتظر مُهر</span>
           : <Switch checked={x.state === 'on'} disabled={closed || set.isPending} onChange={turn} label={`روال ${x.when_fa || x.sentence_fa}`} />}
       </div>
       <span className="text-[11px] text-muted">
-        {x.state === 'on' ? (x.next_at ? `نوبت بعد: ${jDateTime(x.next_at)}` : 'روشن') : x.state === 'off' ? 'خاموش' : 'با مُهر شما روشن میشود'}
+        {x.state === 'on' ? (x.next_at ? <>نوبت بعد: <WhenAt iso={x.next_at} /></> : 'روشن') : x.state === 'off' ? 'خاموش' : 'با مُهر شما روشن میشود'}
       </span>
-      {x.note_fa ? <span className="text-[11px] leading-5 text-warn"><PlainText text={x.note_fa} /></span> : null}
+      {x.note_fa ? <span className="text-[11px] leading-5 text-sec"><PlainText text={x.note_fa} /></span> : null}
     </li>
   );
 }
@@ -69,19 +70,18 @@ function MakeSheet({ order, onClose }: { order: string; onClose: () => void }) {
     });
   };
   return (
-    <Sheet
-      open onOpenChange={(v) => { if (!v) onClose(); }} title="روال دائمی" description="با یک جمله بگو چه کاری، هر چند وقت یک بار" width={460}
-      footer={<Button variant="primary" size="lg" icon="add" className="w-full" disabled={sentence.length < 3} loading={make.isPending} onClick={go}>بساز</Button>}
-    >
+    <SpringSheet open onOpenChange={(v) => { if (!v) onClose(); }} title="روال دائمی" description="با یک جمله بگو چه کاری، هر چند وقت یک بار" width={460} testid="routine-sheet"
+      bar={(
+        <DecisionBar label="ساختن روال" error={refused} context="بی کارت و بی اثر انگشت ساخته میشود؛ هر وقت خواستی با یک لمس خاموشش کن."
+          primary={{ label: 'بساز', onClick: go, disabled: sentence.length < 3 }} state={make.isPending ? 'working' : 'idle'} />
+      )}>
       <div className="flex flex-col gap-2">
         <textarea
           value={text} onChange={(e) => { setText(e.target.value.slice(0, SENTENCE_MAX)); setRefused(null); }} rows={3} dir="auto" maxLength={SENTENCE_MAX} aria-label="جمله‌ی روال"
           placeholder="مثلاً: هر روز ساعت ۹ رتبه‌های سئوی سایت را ببین و خلاصه بده" className={FIELD}
         />
-        {refused ? <p role="alert" className="text-[12px] leading-5 text-neg"><PlainText text={refused} /></p>
-          : <p className="text-[11px] leading-5 text-muted">بی کارت و بی اثر انگشت ساخته میشود؛ هر وقت خواستی با یک لمس خاموشش کن.</p>}
       </div>
-    </Sheet>
+    </SpringSheet>
   );
 }
 

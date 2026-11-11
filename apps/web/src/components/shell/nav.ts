@@ -1,5 +1,8 @@
 import type { IconName } from '@/generated/icons';
 
+/** «میز انتشار» (⟨1.0.1⟩ §55.2), the other half of where outputs live. */
+export const DESK_HREF = '/outputs/desk';
+
 /** `exact`: active only on its own path, when a deeper page has an entry of its own (/media and /media/series). */
 export type NavItem = { href: string; label: string; icon: IconName; badge?: 'decisions' | 'deliverables' | 'messages' | 'sessions'; exact?: boolean };
 
@@ -12,7 +15,9 @@ export const NAV_MAIN: NavItem[] = [
   // ⟨1.22⟩ §40: the working groups a session made, ready to give to any company or platform.
   { href: '/playbooks', label: 'کارگروه‌های آماده', icon: 'seal' },
   { href: '/messages', label: 'پیام‌ها', icon: 'messages', badge: 'messages' },
-  { href: '/outputs', label: 'خروجی‌ها', icon: 'deliverable', badge: 'deliverables' },
+  { href: '/outputs', label: 'خروجی‌ها', icon: 'deliverable', badge: 'deliverables', exact: true },
+  // ⟨1.0.1⟩ §55.2: everything that can go out, is set to go out, or went out. Hidden on a hub that does not serve the desk.
+  { href: DESK_HREF, label: 'میز انتشار', icon: 'send' },
 ];
 
 // The business, beside the office: talk, the working groups, the connections that measure them, the owner's rules, the people who advise.

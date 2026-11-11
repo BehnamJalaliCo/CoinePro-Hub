@@ -15,7 +15,7 @@ import { CHECKS, faError, usePlatformLimits, useSeriesAction, useVoices, type As
 import { companyOf } from '@/lib/company';
 import { ACTOR_FA } from '@/lib/labels';
 import { cx, jDateTime, until } from '@/lib/format';
-import { CHANNEL_FA, CHECK_FA, DAY_FA, DAY_SHORT, KIND_FA, LicenceBadge, PLACEMENT_FA, SERIES_STATUS, Schedule, buildRrule, hhmm, parseRrule, type Rule } from './bits';
+import { CHANNEL_FA, CHECK_FA, DAY_FA, DAY_SHORT, KIND_FA, LicenceBadge, PLACEMENT_FA, SERIES_STATUS, Schedule, StateNote, buildRrule, hhmm, parseRrule, type Rule } from './bits';
 
 const field = 'h-10 w-full rounded-[10px] border border-strong bg-card px-3 text-[14px] text-ink outline-none focus:border-gold-ink';
 const DAYS = ['SA', 'SU', 'MO', 'TU', 'WE', 'TH', 'FR'];
@@ -66,7 +66,7 @@ export function SeriesCard({ s, focus, onEdit }: { s: Series; focus?: boolean; o
           <div className="flex flex-wrap items-center gap-2"><Pill tone={st.tone} icon={st.icon}>{st.fa}</Pill>{s.auto_publish ? <Pill tone="silver" icon="send">انتشار خودکار</Pill> : <Pill tone="neutral" icon="cartable">هر آیتم کارت</Pill>}</div>
         </div>
       </div>
-      {s.status_note_fa ? <p className={cx('flex items-start gap-2 rounded-[12px] p-3 text-[13px] leading-6 text-ink', s.status === 'paused' ? 'bg-warn-soft' : 'bg-tile')}><span className="text-warn"><Icon name="info" size={16} /></span>{s.status_note_fa}</p> : null}
+      {s.status_note_fa ? <div className={cx('flex items-start gap-2 rounded-[12px] p-3 text-[13px] leading-6 text-ink', s.status === 'paused' ? 'bg-warn-soft' : 'bg-tile')}><span className="text-warn"><Icon name="info" size={16} /></span><StateNote text={s.status_note_fa} /></div> : null}
       <dl className="grid gap-3 text-[13px] sm:grid-cols-2">
         <div className="flex flex-col gap-1"><dt className="text-[11px] text-muted">زمان‌بندی (منطقه‌ی زمانی تو)</dt><dd className="text-ink"><Schedule rrule={s.schedule} /> · سقف روزانه {s.max_per_day}</dd></div>
         <div className="flex flex-col gap-1"><dt className="text-[11px] text-muted">قالب</dt><dd className="text-ink"><span className="fig">{s.format.aspect}</span>{s.format.duration_s ? <>، <span className="fig">{s.format.duration_s}s</span></> : null}{s.format.voice ? '، با صدای هاب' : '، بی‌صدا'}{s.format.captions ? '، زیرنویس سوخته' : ''}، {s.format.music === 'none' ? 'بی‌موسیقی' : 'موسیقی کتابخانه'}</dd></div>
@@ -191,7 +191,7 @@ export function LimitsCard() {
                     <span className="text-[11px] text-muted"><span className="fig text-sec">{l.used_24h} / {l.per_24h}</span> پست API در ۲۴ ساعت{l.resets_at ? ` · ریست ${until(l.resets_at)}` : ''}</span>
                   </>
                 ) : <span className="text-[11px] text-muted"><span className="fig text-sec">{l.used_24h}</span> ارسال در ۲۴ ساعت</span>}
-                {l.note_fa ? <span className="text-[11px] leading-5 text-muted"><MdInline text={l.note_fa} /></span> : null}
+                {l.note_fa ? <StateNote text={l.note_fa} className="text-[11px] leading-5 text-muted" /> : null}
               </li>
             );
           })}

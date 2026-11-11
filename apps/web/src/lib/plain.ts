@@ -37,12 +37,18 @@ const COMMAND = /`[^`]+`|\bmake\s+[a-z][a-z0-9-]*/i;
 export const ROUTE_NOT_READY_FA = 'مسیر انتشار این شرکت را تیم فنی وصل میکند؛ بعد خودش منتشر میشود.';
 export const ROUTE_NOT_READY_SHORT_FA = 'تیم فنی مسیر انتشار را وصل میکند';
 /** [text] split into what the owner reads and the technical sentences (with their commands) that go one tap away. */
+/** A sentence that tells the owner an Instagram account has no key (or is not set up): the technical team's work, never his step. */
+const NO_KEY = /(اینستاگرام|instagram)[^.!؟]*(کلید ندارد|تنظیم نشده)|(کلید ندارد|تنظیم نشده)[^.!؟]*(اینستاگرام|instagram)/i;
+const SENTENCE = /(?<=[.!؟])\s+/;
 export function ownerNote(text: string | null | undefined): { fa: string; technical: string | null } {
   const t = (text ?? '').trim();
-  if (!t || !COMMAND.test(t)) return { fa: t, technical: null };
-  const sentences = t.split(/(?<=[.!؟])\s+/);
-  const tech = sentences.filter((s) => COMMAND.test(s));
-  const keep = sentences.filter((s) => !COMMAND.test(s));
+  if (!t || !(COMMAND.test(t) || NO_KEY.test(t))) return { fa: t, technical: null };
+  const sentences = t.split(SENTENCE);
+  const away = (s: string) => COMMAND.test(s) || NO_KEY.test(s);
+  const tech = sentences.filter(away);
+  const keep = sentences.filter((s) => !away(s));
   if (tech.some((s) => /کلید|حساب|اینستاگرام|account|key/i.test(s))) keep.push(ROUTE_NOT_READY_FA);
   return { fa: keep.join(' ').trim(), technical: tech.join(' ').trim() || null };
 }
+/** The same for a place that shows one text and has no fold for the technical part (a card's «چرا»). */
+export const ownerWords = (text: string | null | undefined): string => ownerNote(text).fa;

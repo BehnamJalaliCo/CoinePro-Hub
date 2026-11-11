@@ -6,7 +6,7 @@
 // in a session it is the order's own talk, and `to` aims a word at one participant or at everyone (§35.4).
 
 import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Avatar, Orb } from '@/components/brand/avatar';
 import { Icon } from '@/components/icon';
 import { AttachmentTray, MessageMedia, RICH_ACCEPT, useAttachments } from '@/components/media/attachments';
@@ -27,7 +27,8 @@ import {
 import type { MediaRef } from '@/lib/api/v13';
 import { PLAYERS } from '@/lib/api/v34';
 import { SystemGroup } from './system-group';
-import { cx } from '@/lib/format';
+import { Ltr } from '@/components/look/text';
+import { cx, jTime } from '@/lib/format';
 import { LONG_VOICE_ERROR, recognizer, useLongVoice } from '@/lib/long-voice';
 import { useAudioQueue } from '@/lib/talk-audio';
 import { useHandsFree } from '@/lib/talk-handsfree';
@@ -57,42 +58,56 @@ type Live = { owner: string; files: MediaRef[]; id: string | null; answer: strin
 /** A system line (a step of the order): consecutive ones between two real turns fold into one quiet row. */
 export type SysLine = { who: string; text: string };
 
-/** What a page can ask of the pane from outside. */
-export type PaneApi = { send: (text: string) => Promise<void> };
+/** What a page can ask of the pane from outside: say a word for the owner, or put words in his composer for him to finish. */
+export type PaneApi = { send: (text: string) => Promise<void>; draft: (text: string) => void };
 
-export function Bubble({ children, own }: { children: React.ReactNode; own?: boolean }) {
-  return <div className={cx('max-w-[46rem] rounded-[14px] px-3.5 py-2.5 text-[14px] leading-7', own ? 'self-start bg-gold-soft text-ink' : 'bg-tile text-ink')}>{children}</div>;
+/** ⟨1.0.1⟩ [session]: the session's look (C2.2): the owner's words carry a thin gold edge, the holder's a silver mark; nothing is filled gold. */
+export function Bubble({ children, own, session }: { children: React.ReactNode; own?: boolean; session?: boolean }) {
+  const tone = session ? (own ? 'hq-edge self-start bg-raised text-ink' : 'bg-tile text-ink') : own ? 'self-start bg-gold-soft text-ink' : 'bg-tile text-ink';
+  return <div className={cx('max-w-[46rem] rounded-[14px] px-3.5 py-2.5 text-[14px] leading-7', tone)}>{children}</div>;
+}
+/**
+ * ⟨1.0.1⟩ In a session «کپی» and the time do not sit under every bubble: they come with the pointer over the turn, or once the turn has
+ * the focus (a tap on it), as one small bar at its corner.
+ */
+function TurnTools({ target, at }: { target: RefObject<HTMLElement | null>; at?: string | null }) {
+  return (
+    <span data-turn-tools className="pointer-events-none absolute -top-3 end-2 z-[1] flex items-center gap-0.5 rounded-full bg-raised px-1.5 opacity-0 shadow-[0_2px_10px_rgba(0,0,0,.28)] ring-1 ring-div transition-opacity group-focus-within/turn:pointer-events-auto group-focus-within/turn:opacity-100 group-hover/turn:pointer-events-auto group-hover/turn:opacity-100">
+      {at ? <Ltr className="px-1 text-[11px] text-muted">{jTime(at)}</Ltr> : null}
+      <CopyButton target={target} className="self-center" />
+    </span>
+  );
 }
 // ⟨1.18⟩ §36.2 the owner's files sit in his bubble: pictures as thumbnails, the rest as rows with a download. The word «فایل» that stands in
 // for an empty text is not shown when files are there.
 export const FILE_WORD = 'فایل';
-export function OwnerBubble({ text, files }: { text: string; files?: MediaRef[] }) {
+export function OwnerBubble({ text, files, session, at }: { text: string; files?: MediaRef[]; session?: boolean; at?: string | null }) {
   const has = !!files?.length;
   const body = useRef<HTMLSpanElement | null>(null);
   const showText = !(has && text === FILE_WORD);
   return (
-    <div className="flex flex-col items-start gap-0.5" data-by="owner">
-      <Bubble own>
+    <div className={cx('flex flex-col items-start gap-0.5', session && 'group/turn relative rounded-[14px]')} data-by="owner" tabIndex={session ? 0 : undefined}>
+      <Bubble own session={session}>
         <div className="flex flex-col gap-2">
           {has ? <div aria-label="فایل‌های فرستاده‌شده"><MessageMedia items={files!} /></div> : null}
           {showText ? <span ref={body} dir="auto" className="whitespace-pre-wrap"><FaText text={text} /></span> : null}
         </div>
       </Bubble>
-      {showText ? <CopyButton target={body} /> : null}
+      {showText ? (session ? <TurnTools target={body} at={at} /> : <CopyButton target={body} />) : null}
     </div>
   );
 }
 
-export function TurnView({ t, persona, title }: { t: Turn; persona: Persona | null; title?: string }) {
+export function TurnView({ t, persona, title, session }: { t: Turn; persona: Persona | null; title?: string; session?: boolean }) {
   const bodyRef = useRef<HTMLDivElement | null>(null);
-  if (t.by === 'owner') return <OwnerBubble text={t.text} files={t.files} />;
+  if (t.by === 'owner') return <OwnerBubble text={t.text} files={t.files} session={session} at={t.at} />;
   const body = t.show_md ?? t.say_fa ?? t.text;
   return (
-    <div className="flex gap-2.5" data-by={t.by} data-state={t.state}>
-      <Face k={t.by.includes('@') && !t.by.startsWith('player:') ? 'manager' : t.by} size={32} />
+    <div className={cx('flex gap-2.5', session && 'group/turn relative rounded-[14px]')} data-by={t.by} data-state={t.state} tabIndex={session ? 0 : undefined}>
+      <Face k={t.by.includes('@') && !t.by.startsWith('player:') ? 'manager' : t.by} size={session ? 28 : 32} />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <span className="text-[11px] font-semibold text-muted">{title ?? persona?.title_fa ?? (t.by.startsWith('player:') ? playerName(t.by) : personaFa(t.by))}</span>
-        {body ? <><Bubble><div ref={bodyRef}><Md text={body} /></div></Bubble><CopyButton target={bodyRef} /></> : null}
+        {body ? <><Bubble session={session}><div ref={bodyRef}><Md text={body} /></div></Bubble>{session ? <TurnTools target={bodyRef} at={t.at} /> : <CopyButton target={bodyRef} />}</> : null}
         {t.state === 'stopped' ? <span className="text-[12px] text-muted">قطع شد.</span> : null}
         {t.state === 'failed' ? <p className="rounded-[10px] bg-warn-soft px-3 py-2 text-[13px] leading-6"><FaText text={t.reason_fa ?? 'جواب کامل نشد؛ دوباره بپرس.'} /></p> : null}
         {t.cards.map((cd) => <TalkCardView key={cd.id} card={cd} />)}
@@ -130,6 +145,14 @@ export type PaneProps = {
   tail?: ReactNode;
   /** What sits just above the composer (a session's live work panel). */
   above?: ReactNode;
+  /** ⟨1.0.1⟩ `session`: the session's look (C2.2); `talk` (the default) is «گفتگو» as it was. */
+  variant?: 'talk' | 'session';
+  /** The pane fills its flex column: the talk takes what is left and scrolls inside, the composer keeps its place under it. */
+  fill?: boolean;
+  /** The page carries its one full gold elsewhere (a decision bar, a knot's action): the send button is then quiet. */
+  quietSend?: boolean;
+  /** Whether the talk has scrolled away from its start (the page's header then folds to one line, M18). */
+  onScrolled?: (scrolled: boolean) => void;
 };
 
 /** The composer's textarea grows to this many lines, then scrolls. */
@@ -138,7 +161,8 @@ const LINE_PX = 24;
 /** How near the end counts as «at the end» (px). */
 const END_SLACK = 80;
 
-export function ConversationPane({ conversationRef: ref, face, ensure, to, titleOf, readOnly, onBusy, onMeter, onApi, emptyTitle, emptyBody, talkHeight = 'max-h-[calc(100dvh-22rem)]', placeholder, timeline, tail, above }: PaneProps) {
+export function ConversationPane({ conversationRef: ref, face, ensure, to, titleOf, readOnly, onBusy, onMeter, onApi, emptyTitle, emptyBody, talkHeight = 'max-h-[calc(100dvh-22rem)]', placeholder, timeline, tail, above, variant = 'talk', fill, quietSend, onScrolled }: PaneProps) {
+  const session = variant === 'session';
   const qc = useQueryClient();
   const toast = useToast();
   const act = useTalkActions();
@@ -186,12 +210,15 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
     if (!el || typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(() => { if (pinned.current) toEnd(); });
     ro.observe(el);
+    // ⟨1.0.1⟩ the frame itself too: a bar that comes above the composer makes it shorter, and the end must stay in sight
+    if (scroller.current) ro.observe(scroller.current);
     return () => ro.disconnect();
   }, [toEnd]);
   const onScroll = () => {
     const el = scroller.current;
     if (!el) return;
     const near = el.scrollHeight - el.scrollTop - el.clientHeight < END_SLACK;
+    onScrolled?.(el.scrollTop > 24);
     pinned.current = near;
     setLeave((l) => (near ? (l ? null : l) : l && l.ref === ref ? l : { ref, at: turnsLen.current }));
   };
@@ -210,7 +237,7 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
 
   const items = (() => {
     const all = [
-      ...turns.map((t, i) => ({ key: t.id, at: Date.parse(t.at), i, node: <TurnView t={t} persona={personaOf(t.by)} title={titleOf?.(t.by)} />, sys: undefined as (SysLine & { iso: string }) | undefined })),
+      ...turns.map((t, i) => ({ key: t.id, at: Date.parse(t.at), i, node: <TurnView t={t} persona={personaOf(t.by)} title={titleOf?.(t.by)} session={session} />, sys: undefined as (SysLine & { iso: string }) | undefined })),
       ...(timeline ?? []).map((x, i) => ({ key: x.key, at: Date.parse(x.at), i: turns.length + i, node: x.node, sys: x.sys ? { ...x.sys, iso: x.at } : undefined })),
     ].sort((a, b) => (Number.isNaN(a.at) || Number.isNaN(b.at) ? a.i - b.i : a.at - b.at || a.i - b.i));
     // Consecutive system lines between two real turns fold into one row (a lone one stays as it is).
@@ -295,7 +322,10 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
   const sendRef = useRef(send);
   useEffect(() => { sendRef.current = send; });
   useEffect(() => {
-    onApi?.({ send: (t) => sendRef.current(t) });
+    onApi?.({
+      send: (t) => sendRef.current(t),
+      draft: (t) => { setText(t); requestAnimationFrame(() => { const el = area.current; if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }); },
+    });
     return () => onApi?.(null);
   }, [onApi]);
 
@@ -320,9 +350,9 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
   const hasText = !!text.trim() || files.items.length > 0;
   return (
     <>
-      <div className="relative">
-        <Card as="section" className="p-0" aria-label="گفتگو" aria-live="polite">
-          <div ref={scroller} onScroll={onScroll} data-testid="talk-scroll" className={cx('min-h-[320px] overflow-y-auto overscroll-contain p-4', talkHeight)}>
+      <div className={cx('relative', fill && 'flex min-h-0 flex-1 flex-col')}>
+        <Card as="section" className={cx('p-0', fill && 'flex min-h-0 flex-1 flex-col')} aria-label="گفتگو" aria-live="polite">
+          <div ref={scroller} onScroll={onScroll} data-testid="talk-scroll" className={cx('overflow-y-auto overscroll-contain p-4', fill ? 'min-h-0 flex-1' : cx('min-h-[320px]', talkHeight))}>
             <div ref={inner} className="flex flex-col gap-3">
               {ref && conv.isLoading ? <Skeleton className="h-40 rounded-[14px]" /> : null}
               {!ref && !live ? <Empty icon="messages" title={emptyTitle ?? `با ${FACE_FA[face] ?? 'مدیر'} حرف بزن`} body={emptyBody ?? 'بنویس یا دکمه‌ی میکروفون را نگه دار و بگو. کاری که از دل گفتگو بیرون میآید، فقط با کارتی که تو میزنی اجرا میشود.'} /> : null}
@@ -331,11 +361,11 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
               {tail}
               {live ? (
                 <>
-                  <OwnerBubble text={live.owner} files={live.files} />
+                  <OwnerBubble text={live.owner} files={live.files} session={session} />
                   <div className="flex gap-2.5" aria-label="پاسخ در حال نوشته شدن">
-                    <Face k={to && to !== 'all' && to.startsWith('player:') ? to : liveFace} size={32} state={live.streaming ? 'working' : 'idle'} />
+                    <Face k={to && to !== 'all' && to.startsWith('player:') ? to : liveFace} size={session ? 28 : 32} state={live.streaming ? 'working' : 'idle'} />
                     <div className="flex min-w-0 flex-1 flex-col gap-2">
-                      {live.answer ? <Bubble><Md text={live.answer} /></Bubble> : live.streaming ? <Bubble><span className="text-[13px] text-muted" role="status">دارم فکر میکنم…</span></Bubble> : null}
+                      {live.answer ? <Bubble session={session}><Md text={live.answer} /></Bubble> : live.streaming ? <Bubble session={session}><span className="text-[13px] text-muted" role="status">دارم فکر میکنم…</span></Bubble> : null}
                       {live.cards.map((cd) => <TalkCardView key={cd.id} card={cd} />)}
                       {live.error ? <p className="rounded-[10px] bg-warn-soft px-3 py-2 text-[13px] leading-6" role="alert"><FaText text={live.error} /></p> : null}
                       {live.streaming ? <div><Button size="sm" icon="stop" onClick={() => { interrupt(); }}>ساکت شو</Button></div> : null}
@@ -343,14 +373,14 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
                   </div>
                 </>
               ) : null}
-              {audio.playing ? <span className="self-start"><Pill tone="gold" live icon="mic">در حال گفتن</Pill></span> : null}
+              {audio.playing ? <span className="self-start"><Pill tone="silver" icon="mic">در حال گفتن</Pill></span> : null}
             </div>
           </div>
         </Card>
         {!atEnd ? (
           <button type="button" aria-label={unseen ? `برو به آخر گفتگو، ${unseen} نوبت تازه` : 'برو به آخر گفتگو'} onClick={() => { pinned.current = true; toEnd(true); }}
             className="absolute bottom-3 left-3 flex h-10 min-w-10 items-center justify-center gap-1 rounded-full border border-strong bg-page px-2.5 text-[18px] leading-none text-ink shadow-[0_6px_20px_rgba(0,0,0,.3)] hover:bg-hover">
-            {unseen ? <span className="fig rounded-full bg-gold px-1.5 text-[11px] font-semibold leading-5 text-on-gold">{unseen}</span> : null}
+{unseen ? <span className="fig rounded-full bg-raised px-1.5 text-[11px] font-semibold leading-5 text-ink shadow-[inset_0_0_0_1px_var(--hq-silver-line)]">{unseen}</span> : null}
             <span aria-hidden>↓</span>
           </button>
         ) : null}
@@ -359,9 +389,9 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
       {above}
 
       {readOnly ? (
-        <Card as="section" className="p-3 text-[13px] text-sec" aria-label="نوشتن">این جلسه بسته شده و فقط خواندنی است؛ برای ادامه، دوباره بازش کن.</Card>
+        <Card as="section" className="flex-none p-3 text-[13px] text-sec" aria-label="نوشتن">این جلسه بسته شده و فقط خواندنی است؛ برای ادامه، دوباره بازش کن.</Card>
       ) : (
-        <Card as="section" className={cx('flex flex-col gap-2 p-3 transition-colors', drag && 'bg-gold-soft ring-1 ring-[var(--hq-gold-ink)]')} aria-label="نوشتن"
+        <Card as="section" className={cx('flex flex-none flex-col gap-2 p-3 transition-colors', drag && 'bg-raised ring-1 ring-[var(--hq-silver-line)]')} aria-label="نوشتن"
           onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDrag(true); } }}
           onDragLeave={() => setDrag(false)}
           onDrop={(e) => { e.preventDefault(); setDrag(false); void files.add(e.dataTransfer.files); }}>
@@ -393,15 +423,15 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
             <span className="flex-1" />
             {hasText && !holding ? (
               <button type="button" aria-label="بفرست" disabled={files.uploading || busy} onClick={() => void send(text, 'typed', true)}
-                className="flex size-10 flex-none items-center justify-center rounded-full bg-gold text-on-gold hover:bg-gold-bright disabled:bg-disabled-fill disabled:text-disabled">
+                className={cx('flex size-10 flex-none items-center justify-center rounded-full disabled:bg-disabled-fill disabled:text-disabled', quietSend ? 'bg-[var(--hq-silver-soft)] text-ink hover:bg-[var(--hq-silver-soft-hover)]' : 'bg-gold text-on-gold hover:bg-gold-bright')}>
                 <Icon name="send" size={20} mirror />
               </button>
             ) : (
-              <button type="button" aria-label="نگه‌دار و بگو" title="دکمه‌ی طلایی را نگه دار، بگو و رها کن." aria-pressed={holding} disabled={!recSupported && typeof MediaRecorder === 'undefined'}
+              <button type="button" aria-label="نگه‌دار و بگو" title="نگه دار، بگو و رها کن." aria-pressed={holding} disabled={!recSupported && typeof MediaRecorder === 'undefined'}
                 onPointerDown={(e) => { e.preventDefault(); (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); interrupt(); void lv.start(); }}
                 onPointerUp={() => lv.finish()} onPointerCancel={() => lv.cancel()}
                 onKeyDown={(e) => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) { e.preventDefault(); if (holding) lv.finish(); else { interrupt(); void lv.start(); } } }}
-                className={cx('flex size-10 flex-none touch-none select-none items-center justify-center rounded-full', holding ? 'bg-neg text-white' : 'bg-gold text-on-gold hover:bg-gold-bright disabled:bg-disabled-fill disabled:text-disabled')}>
+                className={cx('flex size-10 flex-none touch-none select-none items-center justify-center rounded-full', holding ? 'bg-neg text-white' : 'bg-[var(--hq-silver-soft)] text-silver-ink hover:bg-[var(--hq-silver-soft-hover)] disabled:bg-disabled-fill disabled:text-disabled')}>
                 <Icon name="mic" size={20} />
               </button>
             )}

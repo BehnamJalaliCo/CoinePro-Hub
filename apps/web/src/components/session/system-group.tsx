@@ -1,10 +1,12 @@
 'use client';
 
-// The order's system steps in the session's talk: small, grey, and never a ref. One alone is a quiet line; two or more between the same
-// two real turns fold into one row «۳ رویداد · 05:34–05:40» that opens to the lines (wrapped in full, the time at the row's end).
+// The order's system steps in the session's talk. ⟨1.0.1⟩ C2.2 «خط زمان کار»: each is a thin centred line without a box («مدیر رسانه آمد»
+// and its clock time, parted by the hairline), never a ref. One alone is a quiet line; two or more between the same two real turns
+// fold into one row («۳ رویداد» and their span of time) that opens to the lines, each wrapped in full.
 
 import { useState } from 'react';
 import { Icon } from '@/components/icon';
+import { Ltr, Sep } from '@/components/look/text';
 import { FaText } from '@/components/v29/text';
 import { cx, jTime } from '@/lib/format';
 import { plain } from '@/lib/plain';
@@ -15,9 +17,10 @@ export type SysItem = { at: string; who: string; text: string };
 export function SysRow({ at, who, text }: SysItem) {
   const t = plain(text);
   return (
-    <div className="flex items-baseline gap-2 px-2 text-[11px] leading-5 text-muted" data-step title={`${who}: ${t}`}>
-      <span className="min-w-0 flex-1 break-words">{who}: <FaText text={t} /></span>
-      <span className="fig flex-none">{jTime(at)}</span>
+    <div className="mx-auto flex max-w-[40rem] items-baseline justify-center px-2 text-center text-[11px] leading-5 text-muted" data-step title={`${who}: ${t}`}>
+      <span className="min-w-0 break-words">{who}: <FaText text={t} /></span>
+      <Sep />
+      <Ltr className="flex-none">{jTime(at)}</Ltr>
     </div>
   );
 }
@@ -30,13 +33,13 @@ export function SystemGroup({ lines }: { lines: SysItem[] }) {
   return (
     <div className="flex flex-col gap-1" data-sys-group data-count={lines.length}>
       <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}
-        className="mx-auto flex max-w-full items-center gap-1.5 rounded-full px-3 py-1 text-[11px] leading-5 text-muted hover:bg-hover hover:text-ink">
+        className="mx-auto flex max-w-full items-center rounded-full px-3 py-1 text-[11px] leading-5 text-muted hover:bg-hover hover:text-ink">
         <span>{lines.length.toLocaleString('fa-IR')} رویداد</span>
-        <span aria-hidden>·</span>
-        <span className="fig">{span}</span>
-        <Icon name="next" size={12} className={cx('flex-none transition-transform', open ? 'rotate-90' : '-rotate-90')} />
+        <Sep />
+        <Ltr>{span}</Ltr>
+        <Icon name="next" size={12} className={cx('ms-1.5 flex-none transition-transform', open ? 'rotate-90' : '-rotate-90')} />
       </button>
-      {open ? <div className="flex flex-col gap-1 rounded-[12px] bg-tile/50 p-2" data-sys-lines>{lines.map((l, i) => <SysRow key={`${l.at}-${i}`} {...l} />)}</div> : null}
+      {open ? <div className="flex flex-col gap-1 py-1" data-sys-lines>{lines.map((l, i) => <SysRow key={`${l.at}-${i}`} {...l} />)}</div> : null}
     </div>
   );
 }

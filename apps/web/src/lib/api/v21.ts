@@ -77,11 +77,11 @@ export const useOutputs = (q: OutputQuery) =>
     placeholderData: keepPreviousData,
   });
 /** One output; null when it is not there (deleted for good, or a link to one that never was): the page says so, «خطاخوان» keeps nothing. */
-export const useOutput = (ref: string | null) =>
-  useQuery({
-    queryKey: ['deliverables', 'one', ref], enabled: !!ref,
-    queryFn: async () => { try { return await call<Output>('GET', `/deliverables/${enc(ref!)}`); } catch (e) { if (e instanceof ApiError && e.status === 404) { handled(e); return null; } throw e; } },
-  });
+export const outputKey = (ref: string | null) => ['deliverables', 'one', ref] as const;
+export async function readOutput(ref: string): Promise<Output | null> {
+  try { return await call<Output>('GET', `/deliverables/${enc(ref)}`); } catch (e) { if (e instanceof ApiError && e.status === 404) { handled(e); return null; } throw e; }
+}
+export const useOutput = (ref: string | null) => useQuery({ queryKey: outputKey(ref), enabled: !!ref, queryFn: () => readOutput(ref!) });
 
 /** `GET /inbox/summary` with ⟨1.7.3⟩ `deliverables_unseen`. */
 export type Inbox21 = Schemas['InboxSummary'] & { deliverables_unseen?: number | null };

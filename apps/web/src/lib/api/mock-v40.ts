@@ -76,9 +76,28 @@ seed({
   source: { order: 'F-0009', company: 'PC', conversation: null },
   members: [
     { company: 'PC', name_fa: NAME.PC!, state: 'on', order: 'F-0009', publish: { mode: 'auto', account: 'pro.chart', story: false, since: '2026-09-29T09:30:00Z', at: '18:30', best: true } },
-    { company: 'FX', name_fa: NAME.FX!, state: 'on', order: null, publish: { mode: 'ask', account: null, story: false, since: null } },
+    // ⟨1.0.1⟩ it stands still here (its last runs failed): the member's tile says why and offers «راه بینداز»
+    { company: 'FX', name_fa: NAME.FX!, state: 'paused', order: null, publish: { mode: 'ask', account: null, story: false, since: null } },
   ],
 });
+
+// ⟨1.0.1⟩ The runs of a playbook's group (§29.11 `GET /groups/{key}/runs`), newest first: Pro-Chart's daily motion graphic ran each of
+// the last days (one failed), CoinePro FX's last three failed and it was stopped; the weekly article ran twice. With `hq.e2e.group-run`
+// a run of Pro-Chart is in the queue right now (its tile then shows the work line).
+const runAt = (hoursAgo: number) => new Date(Date.now() - hoursAgo * 3_600_000).toISOString();
+let runSeq = 0;
+const run = (group: string, company: string, routine: string, hoursAgo: number, state: 'done' | 'failed' | 'skipped' | 'queued', note_fa = '') =>
+  ({ id: `rr-${String(++runSeq).padStart(4, '0')}`, group, company, routine, at: runAt(hoursAgo), work_ref: null, state, note_fa });
+const RUNS = [
+  ...[3, 27, 51, 75, 99, 123, 147, 171].map((h, i) => run('pb_3', 'PC', 'daily', h, i === 3 ? 'failed' : 'done', i === 3 ? 'کارگاه در سقف زمان تمام نشد؛ فردا دوباره ساخته شد.' : 'بسته‌ی روز تحویل شد.')),
+  ...[30, 54, 78].map((h) => run('pb_3', 'FX', 'daily', h, 'failed', 'سه نوبت پشت هم بسته‌ای تحویل نشد؛ کارگروه در این شرکت ایستاد.')),
+  run('pb_2', 'FX', 'article', 60, 'done', 'مقاله‌ی هفته نوشته شد.'), run('pb_2', 'FX', 'article', 228, 'done', 'مقاله‌ی هفته نوشته شد.'),
+];
+const runsOf = (group: string, company: string | null) => {
+  const live = (() => { try { return window.localStorage.getItem('hq.e2e.group-run') === '1'; } catch { return false; } })();
+  const all = live && group === 'pb_3' ? [run('pb_3', 'PC', 'daily', 0, 'queued', 'در صف کارگاه'), ...RUNS] : RUNS;
+  return all.filter((r) => r.group === group && (!company || r.company === company)).sort((a, b) => b.at.localeCompare(a.at));
+};
 
 const playbookMd = (pb: Pb): string => [
   `# ${pb.title_fa}`, '', pb.purpose_fa, '', `پلتفرم: ${PLATFORM_FA[pb.platform] ?? pb.platform}`, '', '## جایگاه‌ها',
@@ -144,6 +163,21 @@ export async function handle40(req: Request, p: string, hooks: Hooks): Promise<R
     if (typeof said === 'string') return pick(said);
     member.publish = said ?? ASK;
     return json({ group: gm[1], company: gm[2], state: member.state, seats: [], publish: member.publish });
+  }
+  // ⟨1.0.1⟩ a playbook's group as a working group (§29.11): its runs, and a member stopped or started again (his tap, no step-up)
+  const gr = /^\/groups\/(pb_\d+)\/runs$/.exec(p);
+  if (gr && m === 'GET') {
+    if (![...playbooks.values()].some((x) => x.group === gr[1])) return problem(404, 'not_found', 'این کارگروه پیدا نشد.');
+    return json(runsOf(gr[1]!, new URL(req.url).searchParams.get('company')));
+  }
+  const gs = /^\/groups\/(pb_\d+)\/members\/([A-Z][A-Z0-9]{1,9})$/.exec(p);
+  if (gs && m === 'PUT') {
+    const member = [...playbooks.values()].find((x) => x.group === gs[1])?.members.find((x: any) => x.company === gs[2]);
+    if (!member) return problem(404, 'not_found', 'این شرکت عضو این کارگروه نیست.');
+    const b = await body<any>();
+    if (b.state !== 'on' && b.state !== 'paused') return problem(422, 'validation_failed', 'یا فعال یا متوقف.');
+    member.state = b.state;
+    return json({ group: gs[1], company: gs[2], state: member.state, joined_at: NOW(), seats: [] });
   }
   const pm = /^\/playbooks\/(PB-\d+)(?:\/(seal|apply|retire))?$/.exec(p);
   if (!pm) return null;

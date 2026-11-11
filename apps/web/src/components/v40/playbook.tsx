@@ -3,16 +3,27 @@
 // ⟨1.22⟩ Contract §40 «یک جلسه میشود کارگروهی که به هر شرکت و پلتفرم میدهی»: the session's memory («تا اینجا») and the button that drafts a playbook
 // from it, the playbook card in the chat, the playbook's own page (edit the draft lightly, seal, give it to another company or platform,
 // retire it) and the library of every playbook. The owner never reads a ref: a playbook is its title, a session is a link.
+//
+// ⟨1.0.1⟩ Part C (C3.4), the page in the app's look. A sealed working group opens with its member companies as tiles (state, last run,
+// next run, a silver work line only while something of it runs; one that stands still says why in one line and has a quiet
+// «راه بینداز»), then each routine with its last seven runs as dots; what it is (goal, seats, rules, connections) folds under
+// «تعریف کارگروه». Each member's settings are one grouped block: «انتشار خودکار» (a silver switch, with «بهترین ساعت، خودکار» and the
+// fixed hour), «گوینده‌ی محتوا», «دفتر موضوع‌ها». A draft's «مُهر کارگروه» lives in the decision bar with a one-line summary: one tap,
+// no fingerprint. The header folds to its title once the page has scrolled under it (M18).
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
-import { CompanyMark } from '@/components/brand/marks';
 import { Icon } from '@/components/icon';
+import { DecisionBar } from '@/components/look/decision-bar';
+import { GroupHeader, MemberHead, QUIET_ACTION, QuietLink, RunDots, SETTING_ROW, SealSummary, StateWord, WhenAt, nextRun } from '@/components/look/group';
+import { SpringSheet } from '@/components/look/spring-sheet';
+import { stagger } from '@/components/look/stagger';
+import { Facts, Ltr, faCount } from '@/components/look/text';
 import { Button, IconButton } from '@/components/ui/button';
 import { Md } from '@/components/ui/md';
 import { Dialog } from '@/components/ui/overlay';
-import { Card, Empty, ErrorState, FilterChip, PageHeader, Pill, SectionTitle, Skeleton } from '@/components/ui/primitives';
+import { Card, Empty, ErrorState, FilterChip, PageHeader, SectionTitle, Skeleton, Switch } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
 import { FaPara, FaText } from '@/components/v29/text';
 import { errText, field } from '@/components/v31/kit';
@@ -21,13 +32,20 @@ import {
   HELPER_FA, PB_STATE_FA, PLATFORMS, PLATFORM_FA, publishes, useDraftPlaybook, usePlaybook, usePlaybookActions, usePlaybooks,
   type Playbook, type PlaybookPatch, type PlaybookPlatform, type PlaybookRoutine, type PlaybookSeat, type PlaybookState,
 } from '@/lib/api/v40';
-import { accountsNamed, clockOf, publishRule, standingFa, useMemberPublish, type MemberPublish } from '@/lib/api/v44';
+import { CONNECTION_FA, useGroupActions } from '@/lib/api/v29';
+import { accountsNamed, clockOf, publishRule, useMemberPublish, type MemberPublish } from '@/lib/api/v44';
 import { bestHourOf, useBestHour } from '@/lib/api/v47';
+import { useGroupRunsLook } from '@/lib/api/v55';
 import { BestHourChoice } from '@/components/v47/best-hour';
 import { LedgerRow } from '@/components/v47/ledger';
 import { NarratorRow } from '@/components/v47/narrator';
 import { ApiError } from '@/lib/api/client';
 import { cx, jDate } from '@/lib/format';
+
+// One look for every text field of these pages (the focus ring is silver: a field is not the owner's act).
+const INPUT = cx(field, 'focus:border-[var(--hq-silver-ink)]');
+const LINK = 'font-semibold text-silver-ink hover:text-ink hover:underline';
+const STATE_KIND: Record<PlaybookState, 'on' | 'wait' | 'off'> = { draft: 'wait', sealed: 'on', retired: 'off' };
 
 const DAY_FA: Record<string, string> = { SA: 'شنبه', SU: 'یکشنبه', MO: 'دوشنبه', TU: 'سه‌شنبه', WE: 'چهارشنبه', TH: 'پنجشنبه', FR: 'جمعه' };
 
@@ -51,7 +69,7 @@ const seatTitle = (pb: Pick<Playbook, 'seats'>, key: string) => pb.seats?.find((
 // ===================================================================================== what a playbook says ==
 function HelperChips({ helpers }: { helpers?: string[] }) {
   if (!helpers?.length) return null;
-  return <span className="flex flex-wrap gap-1" aria-label="کمک‌ها">{helpers.map((h) => <span key={h} className="inline-flex h-5 items-center rounded-full bg-gold-soft px-2 text-[11px] font-semibold text-gold-ink">{HELPER_FA[h] ?? h}</span>)}</span>;
+  return <span className="flex flex-wrap gap-1" aria-label="کمک‌ها">{helpers.map((h) => <span key={h} className="inline-flex h-5 items-center rounded-full border border-div px-2 text-[11px] font-semibold text-sec">{HELPER_FA[h] ?? h}</span>)}</span>;
 }
 
 /** Every field of a playbook, read-only: its purpose, seats with their helpers, routines in plain times, KPIs, connections and rules. */
@@ -83,11 +101,8 @@ export function PlaybookBody({ pb, compact }: { pb: Playbook; compact?: boolean 
           <ul className="flex flex-col gap-1.5">
             {routines.map((r) => (
               <li key={r.key} className="flex flex-col gap-0.5 rounded-[10px] bg-tile px-3 py-2" data-routine={r.key}>
-                <span className="flex flex-wrap items-center gap-x-2 text-[13px]">
-                  <b className="font-semibold"><FaText text={r.title_fa} /></b>
-                  <span className="fig text-[12px] text-gold-ink">{whenFa(r.schedule)}</span>
-                  <span className="text-[12px] text-muted">{seatTitle(pb, r.seat)}</span>
-                </span>
+                <b className="text-[13px] font-semibold"><FaText text={r.title_fa} /></b>
+                <span className="text-[12px] text-sec"><Facts><span className="fig">{whenFa(r.schedule)}</span>{seatTitle(pb, r.seat)}</Facts></span>
                 {!compact && r.brief_md ? <Md text={r.brief_md} className="flex flex-col gap-1 text-[12px] leading-6 text-sec" /> : null}
               </li>
             ))}
@@ -101,7 +116,7 @@ export function PlaybookBody({ pb, compact }: { pb: Playbook; compact?: boolean 
         </section>
       ) : null}
       {!compact && pb.connections?.length ? (
-        <section aria-label="اتصال‌ها" className="flex flex-wrap items-center gap-1.5 text-[12px] text-sec"><span className="text-muted">اتصال‌ها:</span>{pb.connections.map((c) => <Pill key={c} tone="neutral">{c}</Pill>)}</section>
+        <section aria-label="اتصال‌ها" className="flex flex-wrap items-center gap-1.5 text-[12px] text-sec"><span className="text-muted">اتصال‌ها:</span>{pb.connections.map((c) => <span key={c} className="inline-flex h-6 items-center rounded-full bg-tile px-2.5"><FaText text={(CONNECTION_FA as Record<string, string>)[c] ?? c} /></span>)}</section>
       ) : null}
       {rules.length ? (
         <section aria-label="قانون‌ها" className="flex flex-col gap-1.5">
@@ -121,7 +136,7 @@ export function MemoryCard({ md }: { md: string | null | undefined }) {
   return (
     <Card className="flex flex-col gap-2 p-4" aria-label="تا اینجا">
       <button type="button" aria-expanded={open} aria-controls="session-memory" onClick={() => setOpen(!open)} disabled={!text} className="flex items-center gap-2 text-start disabled:cursor-default">
-        <Icon name="report" size={16} className="flex-none text-gold-ink" />
+        <Icon name="report" size={16} className="flex-none text-silver-ink" />
         <span className="flex-1 text-[14px] font-semibold">تا اینجا</span>
         {text ? <span className="text-[12px] text-muted">{open ? 'ببند' : 'بخوان'}</span> : null}
       </button>
@@ -156,7 +171,7 @@ export function MakePlaybook({ order, onDone }: { order: string; onDone?: () => 
 export function FromPlaybook({ refId }: { refId: string }) {
   const q = usePlaybook(refId);
   return (
-    <Link href={`/playbooks/${encodeURIComponent(refId)}`} data-from-playbook className="inline-flex h-6 max-w-[16rem] flex-none items-center gap-1.5 rounded-full bg-gold-soft px-2.5 text-[12px] font-semibold text-gold-ink hover:underline">
+    <Link href={`/playbooks/${encodeURIComponent(refId)}`} data-from-playbook className="inline-flex h-6 max-w-[16rem] flex-none items-center gap-1.5 rounded-full bg-[var(--hq-silver-soft)] px-2.5 text-[12px] font-semibold text-silver-ink hover:underline">
       <Icon name="companies" size={13} className="flex-none" /><span className="truncate">از کارگروه{q.data ? ` «${q.data.title_fa}»` : ''}</span>
     </Link>
   );
@@ -170,19 +185,20 @@ export function PlaybookCard({ refId, fallback }: { refId: string; fallback: { t
   const toast = useToast();
   const pb = q.data;
   return (
-    <section aria-label={`کارگروه: ${pb?.title_fa ?? fallback.title_fa}`} data-kind="playbook" data-state={pb?.state ?? 'offered'} className={cx('flex flex-col gap-3 rounded-[14px] border p-3.5', pb?.state === 'sealed' ? 'border-div bg-pos-soft' : 'border-div bg-tile')}>
-      <header className="flex flex-wrap items-center gap-2">
-        <span className="text-gold-ink"><Icon name="companies" size={18} /></span>
-        <Pill tone="neutral">کارگروه از این جلسه</Pill>
-        <b className="min-w-0 flex-1 text-[14px] leading-6 text-ink"><FaText text={pb?.title_fa ?? fallback.title_fa} /></b>
-        {pb ? <Pill tone="neutral" icon="globe">{PLATFORM_FA[pb.platform]}</Pill> : null}
-        {pb ? <Pill tone={PB_STATE_FA[pb.state].tone} dot>{PB_STATE_FA[pb.state].fa}</Pill> : null}
+    <section aria-label={`کارگروه: ${pb?.title_fa ?? fallback.title_fa}`} data-kind="playbook" data-state={pb?.state ?? 'offered'} className="flex flex-col gap-3 rounded-[14px] border border-div bg-tile p-3.5">
+      <header className="flex flex-col gap-1">
+        <span className="flex items-center gap-2 text-[12px] text-sec">
+          <span className="flex-none text-silver-ink"><Icon name="companies" size={16} /></span>
+          <span className="min-w-0 flex-1"><Facts>{'کارگروه از این جلسه'}{pb ? PLATFORM_FA[pb.platform] : null}</Facts></span>
+          {pb ? <StateWord kind={STATE_KIND[pb.state]}>{PB_STATE_FA[pb.state].fa}</StateWord> : null}
+        </span>
+        <b className="text-[14px] leading-6 text-ink"><FaText text={pb?.title_fa ?? fallback.title_fa} /></b>
       </header>
       {pb ? <PlaybookBody pb={pb} compact /> : q.isLoading ? <Skeleton className="h-16 rounded-[10px]" /> : <FaPara text={fallback.body_fa} className="text-[13px] leading-6 text-sec" />}
       <footer className="flex flex-wrap gap-2">
         <Link href={`/playbooks/${encodeURIComponent(refId)}`} className="inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-strong px-3 text-[12px] font-semibold text-ink hover:bg-hover"><Icon name="next" size={16} />باز کن</Link>
         {pb?.state === 'draft' ? (
-          <Button size="sm" variant="primary" icon="seal" loading={act.seal.isPending}
+          <Button size="sm" variant="secondary" icon="seal" loading={act.seal.isPending}
             onClick={() => act.seal.mutate(publishes(pb) ? { mode: 'auto' } : undefined, { onSuccess: (out) => toast({ tone: 'ok', text: sealedFa(out, publishes(pb)) }), onError: (e) => toast({ tone: 'error', text: errText(e, 'مُهر نشد.') }) })}>مُهر کن</Button>
         ) : null}
       </footer>
@@ -204,27 +220,42 @@ const sealedFa = (out: Playbook, auto: boolean) => (!auto ? 'کارگروه مُ
 export function StandingChoice({ value, onChange, company }: { value: MemberPublish; onChange: (v: MemberPublish) => void; company?: string | null }) {
   const auto = value.mode === 'auto';
   return (
-    <div className="flex flex-col gap-2 rounded-[12px] bg-tile p-3" data-testid="standing">
-      <label className="flex items-center gap-3">
+    <div className="flex flex-col gap-2.5 rounded-[12px] bg-tile p-3" data-testid="standing">
+      <div className="flex items-center gap-3">
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <b className="text-[14px] text-ink">انتشار خودکار</b>
           <span className="text-[11px] leading-5 text-muted">{auto ? 'خروجی هر روز بی تأیید تو منتشر میشود. هر وقت خواستی خاموشش کن.' : 'هر خروجی منتظر «تأیید و انتشار» تو میماند.'}</span>
         </span>
-        <input type="checkbox" checked={auto} onChange={(e) => onChange({ ...value, mode: e.target.checked ? 'auto' : 'ask' })} aria-label="انتشار خودکار" className="size-5 flex-none accent-[var(--hq-gold-ink)]" />
-      </label>
+        <Switch checked={auto} onChange={(v) => onChange({ ...value, mode: v ? 'auto' : 'ask' })} label="انتشار خودکار" />
+      </div>
       {auto ? (
         <div className="flex flex-wrap items-center gap-2">
           <FilterChip selected={!!value.story} onClick={() => onChange({ ...value, story: !value.story })}>استوری هم بشود</FilterChip>
           {/* ⟨0.20.0⟩ §46 the hour each day's package goes out at; empty: as soon as it is ready */}
           <input
             value={value.at ?? ''} onChange={(e) => onChange({ ...value, at: e.target.value.slice(0, 5) || null })} dir="ltr" inputMode="numeric" placeholder="ساعت انتشار، مثل 18:30" aria-label="ساعت انتشار"
-            className="fig h-9 min-w-0 flex-1 rounded-[10px] border border-strong bg-tile px-3 text-center text-[13px] text-ink outline-none transition-colors placeholder:text-muted focus:border-gold-ink"
+            className="fig h-9 min-w-0 flex-1 rounded-[10px] border border-strong bg-tile px-3 text-center text-[13px] text-ink outline-none transition-colors placeholder:text-muted focus:border-[var(--hq-silver-ink)]"
           />
         </div>
       ) : null}
       {/* ⟨1.0.1⟩ §49 the account's best hour instead of a fixed one; the fixed hour above stays for until the hub knows it */}
       {auto ? <BestHourChoice company={company} value={value} onChange={onChange} /> : null}
     </div>
+  );
+}
+
+/** The standing word in words: «خودکار | بهترین ساعت 19:00 | @account | استوری هم», or «هر بار بپرس». Every hour a Latin figure. */
+function StandingLine({ p, hour }: { p: MemberPublish; hour: string | null }) {
+  if (p.mode !== 'auto') return <>هر بار بپرس</>;
+  const at = clockOf(p.at);
+  return (
+    <Facts>
+      خودکار
+      {p.best ? (hour ? <>بهترین ساعت <Ltr>{hour}</Ltr></> : 'بهترین ساعت') : null}
+      {at && !(p.best && hour) ? <>{p.best ? 'تا آن وقت ساعت' : 'ساعت'} <Ltr>{at}</Ltr></> : null}
+      {p.account ? <Ltr tabular={false}>@{p.account}</Ltr> : null}
+      {p.story ? 'استوری هم' : null}
+    </Facts>
   );
 }
 
@@ -246,28 +277,28 @@ function StandingRow({ group, company, value }: { group: string; company: string
       else toast({ tone: 'error', text: errText(e, 'انجام نشد؛ دوباره بزن.') });
     },
   });
+  const badHour = !!editing && editing.mode === 'auto' && !!editing.at && !clockOf(editing.at);
   return (
-    <div className="flex flex-col gap-2 ps-7" data-standing={company}>
+    <div className={SETTING_ROW} data-standing={company}>
       <div className="flex items-center gap-3">
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className="text-[12px] text-sec">انتشار خودکار</span>
-          <span className={cx('truncate text-[11px]', cur.mode === 'auto' ? 'text-gold-ink' : 'text-muted')}>{standingFa(cur, bestHourOf(best.data))}</span>
+          <span className="text-[13px] text-ink">انتشار خودکار</span>
+          <span className={cx('text-[12px] leading-5', cur.mode === 'auto' ? 'text-sec' : 'text-muted')} data-standing-line><StandingLine p={cur} hour={bestHourOf(best.data)} /></span>
         </span>
-        {cur.mode === 'auto' ? <button type="button" onClick={() => setEditing(editing ? null : cur)} className="h-8 flex-none rounded-[8px] px-2 text-[12px] font-semibold text-gold-ink hover:bg-gold-soft">تنظیم</button> : null}
-        <input type="checkbox" checked={cur.mode === 'auto'} disabled={set.isPending} aria-label={`انتشار خودکار ${company}`}
-          onChange={(e) => say({ ...cur, mode: e.target.checked ? 'auto' : 'ask' })} className="size-5 flex-none accent-[var(--hq-gold-ink)]" />
+        {cur.mode === 'auto' ? <button type="button" aria-expanded={!!editing} onClick={() => setEditing(editing ? null : cur)} className={QUIET_ACTION}>تنظیم</button> : null}
+        <Switch checked={cur.mode === 'auto'} disabled={set.isPending} label={`انتشار خودکار ${company}`} onChange={(v) => say({ ...cur, mode: v ? 'auto' : 'ask' })} />
       </div>
       {editing ? (
         <div className="flex flex-col gap-2">
           <StandingChoice value={editing} onChange={setEditing} company={company} />
-          {editing.mode === 'auto' && editing.at && !clockOf(editing.at) ? <p className="text-[11px] text-muted">ساعت را به شکل ۱۸:۳۰ بنویسید.</p> : null}
-          <Button variant="primary" size="sm" disabled={editing.mode === 'auto' && !!editing.at && !clockOf(editing.at)} loading={set.isPending} onClick={() => say(editing)}>ذخیره</Button>
+          {badHour ? <p className="text-[11px] text-muted">ساعت را به شکل ۱۸:۳۰ بنویسید.</p> : null}
+          <Button variant="secondary" size="sm" className="self-start" disabled={badHour} loading={set.isPending} onClick={() => say(editing)}>ذخیره</Button>
         </div>
       ) : null}
       {picking.length ? (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[12px] text-sec">کدام حساب؟</span>
-          {picking.map((a) => <FilterChip key={a} selected={false} onClick={() => say({ ...cur, mode: 'auto', account: a })}><bdi className="fig">@{a}</bdi></FilterChip>)}
+          {picking.map((a) => <FilterChip key={a} selected={false} onClick={() => say({ ...cur, mode: 'auto', account: a })}><Ltr tabular={false}>@{a}</Ltr></FilterChip>)}
         </div>
       ) : null}
     </div>
@@ -301,39 +332,36 @@ function ApplyDialog({ pb, open, onOpenChange }: { pb: Playbook; open: boolean; 
     },
   );
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title="به شرکت دیگر بده"
-      actions={(
-        <>
-          <Button variant="primary" icon="send" disabled={!company} loading={act.apply.isPending} onClick={go}>{asIs && sealed ? 'عضوش کن' : 'بده'}</Button>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>بعداً</Button>
-        </>
+    <SpringSheet open={open} onOpenChange={onOpenChange} title="به شرکت دیگر بده" width={480} testid="apply-sheet"
+      bar={(
+        <DecisionBar label="دادن کارگروه" context={asIs && sealed ? 'همین کارگروه، همان‌طور که هست، عضوی تازه میگیرد.' : 'مسئول آن شرکت جلسه‌ای تازه باز میکند و کارگروه را تطبیق میدهد.'}
+          primary={{ label: asIs && sealed ? 'عضوش کن' : 'بده', onClick: go, disabled: !company }} quiet={[{ label: 'بعداً', onClick: () => onOpenChange(false) }]} state={act.apply.isPending ? 'working' : 'idle'} />
       )}>
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3 pb-1">
         <label className="flex flex-col gap-1.5"><span className="text-[12px] text-sec">شرکت</span>
-          <select value={company} onChange={(e) => setCompany(e.target.value)} aria-label="شرکت" className={cx(field, 'h-10')}>
+          <select value={company} onChange={(e) => setCompany(e.target.value)} aria-label="شرکت" className={cx(INPUT, 'h-11')}>
             <option value="">انتخاب کن…</option>
             {list.map((c) => <option key={c.code} value={c.code}>{c.name_fa}</option>)}
           </select>
         </label>
         <label className="flex flex-col gap-1.5"><span className="text-[12px] text-sec">پلتفرم</span>
-          <select value={platform} onChange={(e) => setPlatform(e.target.value as PlaybookPlatform)} aria-label="پلتفرم" className={cx(field, 'h-10')}>
+          <select value={platform} onChange={(e) => setPlatform(e.target.value as PlaybookPlatform)} aria-label="پلتفرم" className={cx(INPUT, 'h-11')}>
             {PLATFORMS.map((p) => <option key={p} value={p}>{PLATFORM_FA[p]}</option>)}
           </select>
         </label>
         {sealed ? (
-          <label className="flex items-center gap-2 text-[13px] text-ink"><input type="checkbox" checked={asIs} onChange={(e) => setAsIs(e.target.checked)} className="size-5 accent-[var(--hq-gold-ink)]" />بدون تغییر</label>
+          <div className="flex items-center gap-3 text-[13px] text-ink"><span className="min-w-0 flex-1">بدون تغییر</span><Switch checked={asIs} onChange={setAsIs} label="بدون تغییر" /></div>
         ) : null}
         {standing ? <StandingChoice value={word} onChange={setWord} company={company || null} /> : null}
         {asIs && sealed
-          ? <p className="text-[12px] leading-5 text-muted">همین کارگروه، همان‌طور که هست، عضوی تازه میگیرد؛ جلسه‌ی تازه‌ای باز نمیشود.</p>
+          ? <p className="text-[12px] leading-5 text-muted">جلسه‌ی تازه‌ای باز نمیشود.</p>
           : (
             <label className="flex flex-col gap-1.5"><span className="text-[12px] text-sec">یادداشت برای مسئول (اختیاری)</span>
-              <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} dir="auto" aria-label="یادداشت" placeholder="لحن، حساب‌ها، چیزی که باید فرق کند…" className={cx(field, 'py-2 leading-6')} />
-              <span className="text-[11px] text-muted">مسئول شرکت جلسه‌ای تازه باز میکند و کارگروه را برای آن شرکت و پلتفرم تطبیق میدهد.</span>
+              <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} dir="auto" aria-label="یادداشت" placeholder="لحن، حساب‌ها، چیزی که باید فرق کند…" className={cx(INPUT, 'py-2 leading-6')} />
             </label>
           )}
       </div>
-    </Dialog>
+    </SpringSheet>
   );
 }
 
@@ -343,32 +371,77 @@ function useCompanyName() {
   return (code: string | null | undefined) => (code ? data?.find((c) => c.code === code)?.name_fa ?? code : null);
 }
 
+/** When the group's next routine runs (the soonest of its schedules). */
+const soonest = (pb: Pick<Playbook, 'routines'>): string | null =>
+  (pb.routines ?? []).map((r) => nextRun(r.schedule)).filter((x): x is string => !!x).sort()[0] ?? null;
+
+/** The member companies as tiles: state, last run, next run, the work line, and each one's settings as one grouped block. */
 function Members({ pb }: { pb: Playbook }) {
+  const toast = useToast();
   const members = pb.members ?? [];
+  const sealed = pb.state === 'sealed' && !!pb.group;
+  const runs = useGroupRunsLook(sealed ? pb.group : null);
+  const act = useGroupActions(pb.group ?? '');
+  const next = sealed ? soonest(pb) : null;
+  const start = (company: string, nameFa: string) => act.member.mutate({ company, state: 'on' }, {
+    onSuccess: () => toast({ tone: 'ok', text: `کارگروه در ${nameFa} دوباره راه افتاد.` }),
+    onError: (e) => toast({ tone: 'error', text: errText(e, 'راه نیفتاد؛ دوباره بزن.') }),
+  });
   return (
-    <Card className="flex flex-col gap-2 p-5" aria-label="شرکت‌های عضو">
+    <section className="flex flex-col gap-2.5" aria-label="شرکت‌های عضو">
       <SectionTitle title="شرکت‌های عضو" note={members.length ? undefined : 'هنوز شرکتی عضو نیست'} />
       {members.length ? (
-        <ul className="flex flex-col gap-1.5">
-          {members.map((m) => (
-            <li key={m.company} className="flex flex-col gap-2 rounded-[10px] bg-tile px-3 py-2" data-member={m.company}>
-              <div className="flex items-center gap-2.5">
-                <CompanyMark code={m.company} height={14} mono />
-                <span className="min-w-0 flex-1 text-[13px] font-semibold">{m.name_fa}</span>
-                <Pill tone={m.state === 'on' ? 'pos' : 'warn'} dot>{m.state === 'on' ? 'فعال' : 'متوقف'}</Pill>
-                {m.order ? <Link href={`/s/${encodeURIComponent(m.order)}`} className="text-[12px] font-semibold text-gold-ink hover:underline">جلسه‌اش</Link> : null}
-              </div>
-              {/* ⟨0.19.9⟩ §45 his standing word for this company (a sealed working group that publishes) */}
-              {pb.group && pb.state === 'sealed' && publishes(pb) ? <StandingRow group={pb.group} company={m.company} value={m.publish} /> : null}
-              {/* ⟨1.0.1⟩ §47, §48 what this company already said in this group, and who speaks for it (nothing on an older hub) */}
-              {pb.group && pb.state === 'sealed' ? <LedgerRow group={pb.group} company={m.company} nameFa={m.name_fa} /> : null}
-              {pb.group && pb.state === 'sealed' ? <NarratorRow company={m.company} nameFa={m.name_fa} className="ps-7" /> : null}
-            </li>
-          ))}
+        <ul className="grid items-start gap-3 lg:grid-cols-2">
+          {members.map((m, i) => {
+            const item = stagger(i);
+            return (
+              <li key={m.company} {...item} data-member={m.company} className={cx('flex min-w-0 flex-col gap-3 rounded-[16px] bg-card p-4', item.className)}>
+                <MemberHead m={m} runs={sealed ? runs.data : undefined} next={m.state === 'on' ? next : null}
+                  onStart={sealed ? () => start(m.company, m.name_fa) : undefined} starting={act.member.isPending && act.member.variables?.company === m.company}
+                  action={m.order ? <QuietLink href={`/s/${encodeURIComponent(m.order)}`}>جلسه‌اش</QuietLink> : null} />
+                {sealed ? (
+                  // §45 his standing word, §48 who speaks for it, §47 what it already said: one block, each a row (nothing of a row the hub does not serve).
+                  <div className="flex flex-col divide-y divide-[var(--hq-line-divider)] rounded-[12px] bg-tile px-3 empty:hidden" data-member-settings>
+                    {publishes(pb) ? <StandingRow group={pb.group!} company={m.company} value={m.publish} /> : null}
+                    <NarratorRow company={m.company} nameFa={m.name_fa} />
+                    <LedgerRow group={pb.group!} company={m.company} nameFa={m.name_fa} />
+                  </div>
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
       ) : null}
-      {pb.group ? <Link href={`/groups/${encodeURIComponent(pb.group)}`} className="self-start text-[12px] font-semibold text-gold-ink hover:underline">روال‌ها و عددهایش در «کارگروه‌ها»</Link> : null}
-    </Card>
+    </section>
+  );
+}
+
+/** Each routine with when it runs, who does it, its last seven runs as dots and its next turn. */
+function RoutineRuns({ pb }: { pb: Playbook }) {
+  const routines = pb.routines ?? [];
+  const runs = useGroupRunsLook(pb.state === 'sealed' ? pb.group : null);
+  const live = pb.state === 'sealed' && (pb.members ?? []).some((m) => m.state === 'on');
+  if (!routines.length) return null;
+  return (
+    <section className="flex flex-col gap-2.5" aria-label="روال‌ها و نوبت‌ها" data-testid="routine-runs">
+      <SectionTitle title="روال‌ها" note={runs.data ? 'هفت نوبت آخر هر روال' : undefined} />
+      <ul className="flex flex-col divide-y divide-[var(--hq-line-divider)] rounded-[16px] bg-card px-4">
+        {routines.map((r) => {
+          const next = live ? nextRun(r.schedule) : null;
+          return (
+            <li key={r.key} className="flex flex-col gap-1 py-3" data-routine-run={r.key}>
+              <div className="flex items-center gap-3">
+                <b className="min-w-0 flex-1 text-[14px] font-semibold leading-6 text-ink"><FaText text={r.title_fa} /></b>
+                {runs.data ? <RunDots runs={runs.data.filter((x) => x.routine === r.key)} label={r.title_fa} /> : null}
+              </div>
+              <span className="text-[12px] leading-5 text-sec">
+                <Facts><span className="fig">{whenFa(r.schedule)}</span>{seatTitle(pb, r.seat)}{next ? <>نوبت بعد <WhenAt iso={next} /></> : null}</Facts>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 
@@ -381,7 +454,7 @@ export function PlaybookPage({ refId }: { refId: string }) {
     return (
       <>
         <PageHeader eyebrow={<Link href="/playbooks" className="hover:text-ink">کارگروه‌های آماده</Link>} title="کارگروه" />
-        <Card><Empty icon="companies" title="این کارگروه پیدا نشد" body="یا هنوز ستاد به‌روز نشده، یا کارگروه دیگر نیست." action={<Link href="/playbooks" className="text-[13px] font-semibold text-gold-ink hover:underline">کتابخانه‌ی کارگروه‌ها</Link>} /></Card>
+        <Card><Empty icon="companies" title="این کارگروه پیدا نشد" body="یا هنوز ستاد به‌روز نشده، یا کارگروه دیگر نیست." action={<Link href="/playbooks" className={cx('text-[13px]', LINK)}>کتابخانه‌ی کارگروه‌ها</Link>} /></Card>
       </>
     );
   }
@@ -411,35 +484,49 @@ function PlaybookView({ pb }: { pb: Playbook }) {
   };
   return (
     <div className="mx-auto flex w-full max-w-[58rem] flex-col gap-4">
-      <PageHeader
+      <GroupHeader
         eyebrow={<Link href="/playbooks" className="hover:text-ink">کارگروه‌های آماده</Link>}
-        title={pb.title_fa}
-        actions={(
-          <div className="flex flex-wrap items-center gap-2">
-            <Pill tone={st.tone} dot>{st.fa}</Pill>
-            <Pill tone="neutral" icon="globe">{PLATFORM_FA[pb.platform]}</Pill>
-            {pb.state === 'sealed' ? <Button variant="primary" icon="send" onClick={() => setGiving(true)}>به شرکت دیگر بده</Button> : null}
-            {pb.state === 'sealed' ? <Button variant="danger" icon="seal" onClick={() => setRetiring(true)}>بازنشسته کن</Button> : null}
-          </div>
+        title={<FaText text={pb.title_fa} />}
+        state={<StateWord kind={STATE_KIND[pb.state]}>{st.fa}</StateWord>}
+        facts={(
+          <Facts>
+            {PLATFORM_FA[pb.platform]}
+            <Link href={`/s/${encodeURIComponent(pb.source.order)}`} className={LINK}>جلسه‌ای که از آن ساخته شد</Link>
+            {pb.source.company ? `شرکت: ${name(pb.source.company)}` : null}
+            {parent.data ? <Link href={`/playbooks/${encodeURIComponent(parent.data.ref)}`} className="hover:text-ink">نسخه‌ای از «{parent.data.title_fa}»</Link> : null}
+            {`ساخته شد ${jDate(pb.created_at)}`}
+            {pb.sealed_at ? `مُهر شد ${jDate(pb.sealed_at)}` : null}
+            {pb.retired_at ? `بازنشسته شد ${jDate(pb.retired_at)}` : null}
+          </Facts>
         )}
+        actions={pb.state === 'sealed' ? (
+          <>
+            <Button variant="secondary" size="sm" icon="send" onClick={() => setGiving(true)}>به شرکت دیگر بده</Button>
+            <Button variant="text" size="sm" onClick={() => setRetiring(true)}>بازنشسته کن</Button>
+          </>
+        ) : null}
       />
-      <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-muted">
-        <Link href={`/s/${encodeURIComponent(pb.source.order)}`} className="font-semibold text-gold-ink hover:underline">جلسه‌ای که از آن ساخته شد</Link>
-        {pb.source.company ? <span>شرکت: {name(pb.source.company)}</span> : null}
-        {parent.data ? <Link href={`/playbooks/${encodeURIComponent(parent.data.ref)}`} className="hover:text-ink">نسخه‌ای از «{parent.data.title_fa}»</Link> : null}
-        <span>ساخته شد {jDate(pb.created_at)}</span>
-        {pb.sealed_at ? <span>مُهر شد {jDate(pb.sealed_at)}</span> : null}
-        {pb.retired_at ? <span>بازنشسته شد {jDate(pb.retired_at)}</span> : null}
-      </p>
       {pb.note_fa ? <Card className="p-4" aria-label="یادداشت پیش‌نویس"><p className="text-[12px] leading-6 text-sec"><span className="font-semibold text-ink">چیزهایی که پیش‌نویس‌کننده کنار گذاشت: </span><FaText text={pb.note_fa} /></p></Card> : null}
 
       {draft ? (
         <DraftEditor key={pb.version} pb={pb} saving={act.patch.isPending && !sealingNow} sealing={sealingNow} onSave={save} onSeal={seal}
           standing={publishes(pb) ? <StandingChoice value={word} onChange={setWord} company={pb.source.company} /> : null} />
       ) : (
-        <Card className="p-5" aria-label="کارگروه"><PlaybookBody pb={pb} /></Card>
+        <>
+          <Members pb={pb} />
+          <RoutineRuns pb={pb} />
+          {/* What the working group is: read when he wants it, folded until then. */}
+          <details className="group rounded-[16px] bg-card" data-testid="group-definition">
+            <summary className="flex cursor-pointer select-none list-none items-center gap-2 px-4 py-3.5 text-[14px] font-semibold text-ink [&::-webkit-details-marker]:hidden">
+              <span className="min-w-0 flex-1">تعریف کارگروه</span>
+              <span className="text-[12px] font-normal text-muted"><SealSummary seats={pb.seats?.length ?? 0} routines={pb.routines?.length ?? 0} connections={pb.connections?.length ?? 0} /></span>
+              <Icon name="next" size={16} className="flex-none -rotate-90 text-muted transition-transform group-open:rotate-90" />
+            </summary>
+            <div className="px-4 pb-4" aria-label="کارگروه"><PlaybookBody pb={pb} /></div>
+          </details>
+          {pb.group ? <Link href={`/groups/${encodeURIComponent(pb.group)}`} className={cx('self-start text-[12px]', LINK)}>شاخص‌ها و آزمایش هفته در «کارگروه‌ها»</Link> : null}
+        </>
       )}
-      {!draft ? <Members pb={pb} /> : null}
 
       <ApplyDialog pb={pb} open={giving} onOpenChange={setGiving} />
       <Dialog open={retiring} onOpenChange={setRetiring} title="این کارگروه بازنشسته شود؟"
@@ -491,8 +578,8 @@ function DraftEditor({ pb, saving, sealing, onSave, onSeal, standing }: {
   return (
     <div className="flex flex-col gap-4">
       <Card className="flex flex-col gap-3 p-5" aria-label="عنوان و هدف">
-        <Area label="عنوان"><input value={title} onChange={(e) => setTitle(e.target.value)} dir="auto" aria-label="عنوان" maxLength={200} className={cx(field, 'h-10')} /></Area>
-        <Area label="هدف"><textarea value={purpose} onChange={(e) => setPurpose(e.target.value)} rows={3} dir="auto" aria-label="هدف" maxLength={2000} className={cx(field, 'py-2 leading-6')} /></Area>
+        <Area label="عنوان"><input value={title} onChange={(e) => setTitle(e.target.value)} dir="auto" aria-label="عنوان" maxLength={200} className={cx(INPUT, 'h-11')} /></Area>
+        <Area label="هدف"><textarea value={purpose} onChange={(e) => setPurpose(e.target.value)} rows={3} dir="auto" aria-label="هدف" maxLength={2000} className={cx(INPUT, 'py-2 leading-6')} /></Area>
         <div className="flex flex-col gap-1.5" role="radiogroup" aria-label="پلتفرم">
           <span className="text-[12px] text-sec">پلتفرم</span>
           <div className="flex flex-wrap gap-1.5">{PLATFORMS.map((p) => <FilterChip key={p} selected={platform === p} onClick={() => setPlatform(p)}>{PLATFORM_FA[p]}</FilterChip>)}</div>
@@ -517,13 +604,14 @@ function DraftEditor({ pb, saving, sealing, onSave, onSeal, standing }: {
         <ul className="flex flex-col gap-2">
           {routines.map((r, i) => (
             <li key={r.key} className="flex flex-col gap-1.5 rounded-[10px] bg-tile p-3" data-routine={r.key}>
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px]">
-                <b className="min-w-0 flex-1 font-semibold"><FaText text={r.title_fa} /></b>
-                <span className="fig text-[12px] text-gold-ink">{whenFa(r.schedule)}</span>
-                <span className="text-[12px] text-muted">{seatTitle({ seats }, r.seat)}</span>
+              <div className="flex items-start gap-2 text-[13px]">
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <b className="font-semibold"><FaText text={r.title_fa} /></b>
+                  <span className="text-[12px] text-sec"><Facts><span className="fig">{whenFa(r.schedule)}</span>{seatTitle({ seats }, r.seat)}</Facts></span>
+                </span>
                 <IconButton icon="close" size={32} label={`${r.title_fa} را بردار`} onClick={() => setRoutines((x) => x.filter((y) => y.key !== r.key))} />
               </div>
-              <textarea value={r.brief_md} onChange={(e) => setRoutines((x) => x.map((y, j) => (j === i ? { ...y, brief_md: e.target.value } : y)))} rows={3} dir="auto" aria-label={`شرح ${r.title_fa}`} className={cx(field, 'bg-page py-2 text-[13px] leading-6')} />
+              <textarea value={r.brief_md} onChange={(e) => setRoutines((x) => x.map((y, j) => (j === i ? { ...y, brief_md: e.target.value } : y)))} rows={3} dir="auto" aria-label={`شرح ${r.title_fa}`} className={cx(INPUT, 'bg-page py-2 text-[13px] leading-6')} />
             </li>
           ))}
         </ul>
@@ -534,7 +622,7 @@ function DraftEditor({ pb, saving, sealing, onSave, onSeal, standing }: {
         <ul className="flex flex-col gap-1.5">
           {rules.map((t, i) => (
             <li key={i} className="flex items-center gap-2">
-              <input value={t} onChange={(e) => setRules((x) => x.map((y, j) => (j === i ? e.target.value : y)))} dir="auto" aria-label={`قانون ${i + 1}`} className={cx(field, 'h-10 min-w-0 flex-1')} />
+              <input value={t} onChange={(e) => setRules((x) => x.map((y, j) => (j === i ? e.target.value : y)))} dir="auto" aria-label={`قانون ${i + 1}`} className={cx(INPUT, 'h-11 min-w-0 flex-1')} />
               <IconButton icon="close" size={32} label={`قانون ${i + 1} را بردار`} onClick={() => setRules((x) => x.filter((_, j) => j !== i))} />
             </li>
           ))}
@@ -548,11 +636,11 @@ function DraftEditor({ pb, saving, sealing, onSave, onSeal, standing }: {
 
       {standing}
 
-      <div className="sticky bottom-3 z-10 flex flex-wrap items-center gap-2 rounded-[14px] border border-div bg-raised p-3 shadow-[0_8px_24px_rgba(0,0,0,.25)]">
-        <Button variant="secondary" icon="edit" disabled={!dirty || bad} loading={saving} onClick={() => onSave(diff)}>ذخیره</Button>
-        <Button variant="primary" icon="seal" disabled={bad} loading={sealing} onClick={() => onSeal(dirty ? diff : undefined)}>مُهر کن</Button>
-        <span className="text-[12px] text-muted">{dirty ? 'تغییرهایت هنوز ذخیره نشده؛ مُهر هم اول ذخیره میکند.' : 'تا مُهر نزنی هیچ روالی شروع نمیشود.'}</span>
-      </div>
+      {/* «مُهر کارگروه»: the page's one act, in its decision bar with what the seal starts in one line. One tap, no fingerprint. */}
+      <DecisionBar place="page" label="مُهر کارگروه"
+        context={<Facts><SealSummary seats={seats.length} routines={routines.length} connections={pb.connections?.length ?? 0} />{dirty ? 'مُهر اول تغییرهایت را ذخیره میکند' : 'با مُهر، روال‌ها شروع میشوند'}</Facts>}
+        primary={{ label: 'مُهر کارگروه', onClick: () => onSeal(dirty ? diff : undefined), disabled: bad || saving }} state={sealing ? 'working' : 'idle'}
+        quiet={[{ label: 'ذخیره', onClick: () => onSave(diff), disabled: !dirty || bad || saving }]} />
     </div>
   );
 }
@@ -578,19 +666,22 @@ export function PlaybookLibrary() {
         if (!rows.length) return null;
         return (
           <section key={g.state} className="flex flex-col gap-2" aria-label={g.title} data-state={g.state}>
-            <SectionTitle title={g.title} note={<span className="fig">{rows.length}</span>} />
+            <SectionTitle title={g.title} note={`${faCount(rows.length)} کارگروه`} />
             <ul className="flex flex-col gap-2">
-              {rows.map((p) => (
-                <li key={p.ref}>
-                  <Link href={`/playbooks/${encodeURIComponent(p.ref)}`} data-playbook className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-[14px] border border-div bg-tile px-4 py-3 hover:bg-hover">
-                    <Icon name="companies" size={18} className="flex-none text-gold-ink" />
-                    <span className="min-w-0 flex-1 text-[14px] font-semibold leading-6"><FaText text={p.title_fa} /></span>
-                    <Pill tone="neutral" icon="globe">{PLATFORM_FA[p.platform]}</Pill>
-                    <span className="text-[12px] text-sec"><span className="fig">{p.members?.length ?? 0}</span> شرکت عضو</span>
-                    {p.source.company ? <span className="text-[12px] text-muted">از {name(p.source.company)}</span> : null}
-                  </Link>
-                </li>
-              ))}
+              {rows.map((p, i) => {
+                const item = stagger(i);
+                return (
+                  <li key={p.ref} {...item}>
+                    <Link href={`/playbooks/${encodeURIComponent(p.ref)}`} data-playbook className={cx('flex items-center gap-3 rounded-[14px] bg-card px-4 py-3 hover:bg-hover', g.state === 'draft' && 'hq-edge')}>
+                      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span className="text-[14px] font-semibold leading-6 text-ink"><FaText text={p.title_fa} /></span>
+                        <span className="text-[12px] leading-5 text-sec"><Facts>{PLATFORM_FA[p.platform]}{`${faCount(p.members?.length ?? 0)} شرکت عضو`}{p.source.company ? `از ${name(p.source.company)}` : null}</Facts></span>
+                      </span>
+                      <Icon name="next" size={16} mirror className="flex-none text-muted" />
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           </section>
         );

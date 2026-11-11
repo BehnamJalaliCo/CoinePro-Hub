@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Icon } from '@/components/icon';
 import type { IconName } from '@/generated/icons';
 import { Orb } from '@/components/brand/avatar';
@@ -47,9 +47,21 @@ function BarItem({ icon, label, short, onClick, className }: { icon: IconName; l
 }
 
 function TopBar({ onPalette, onBell, onMore, onVoice, urgent }: { onPalette: () => void; onBell: () => void; onMore: () => void; onVoice: () => void; urgent: number }) {
+  // ⟨1.0.1⟩ A page's own sticky header stops right under this bar, whatever rides on it: its height is published as `--hq-top`.
+  const top = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = top.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const root = document.documentElement;
+    const put = () => root.style.setProperty('--hq-top', `${Math.round(el.getBoundingClientRect().height)}px`);
+    put();
+    const ro = new ResizeObserver(put);
+    ro.observe(el);
+    return () => { ro.disconnect(); root.style.removeProperty('--hq-top'); };
+  }, []);
   return (
     // ⟨1.24⟩ GL-2: the kill-switch band rides on top of the bar, on every screen.
-    <div className="sticky top-0 z-30">
+    <div ref={top} className="sticky top-0 z-30">
     <KillBand />
     <div className="flex h-16 items-center gap-3 border-b border-div bg-page/90 px-4 backdrop-blur-md md:px-6">
       <Link href="/" className="flex items-center gap-2 lg:hidden" aria-label="ستاد کوینه‌پرو"><Monogram size={26} /><span className="text-[15px] font-semibold">ستاد</span></Link>

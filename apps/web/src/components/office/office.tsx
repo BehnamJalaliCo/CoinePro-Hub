@@ -16,6 +16,7 @@ import { PlainText } from '@/components/v29/bits';
 import { usePresence } from '@/lib/api/hooks';
 import type { Office, OfficeMoney } from '@/lib/api/v34';
 import { CommandRow } from '@/components/look/command';
+import { DeskLine } from '@/components/look/desk';
 import { SessionCards, TurnRow, state3, turnCount } from '@/components/look/home';
 import { Facts, Ltr, faCount } from '@/components/look/text';
 import { cx, jWeekday } from '@/lib/format';
@@ -29,7 +30,7 @@ export function OfficeHeader() {
   const hello = h < 12 ? 'صبح بخیر' : h < 17 ? 'روز بخیر' : 'عصر بخیر';
   return (
     <header className="flex flex-wrap items-end gap-x-4 gap-y-1">
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-[1_1_16rem] flex-col">
         <span className="text-caption text-muted"><Facts>{jWeekday(today.toISOString())}<Ltr>{g}</Ltr></Facts></span>
         <h1 className="text-h1 font-semibold sm:text-display">{hello}، مدیر کل</h1>
       </div>
@@ -91,6 +92,8 @@ export function OfficeBody({ o }: { o: Office }) {
       <TurnRow o={o} />
       {/* ⟨1.24⟩ OF-1: is the holding working, and is anything waiting for the owner? */}
       <OfficePulse waiting={turnCount(o)} />
+      {/* ⟨1.0.1⟩ the publish desk, reachable from the pulse (nothing on a hub that does not serve it) */}
+      <DeskLine />
       <CommandRow />
       <CriticalCard items={o.critical} />
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">

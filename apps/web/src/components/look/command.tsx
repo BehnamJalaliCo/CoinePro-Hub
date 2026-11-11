@@ -51,7 +51,7 @@ export function CommandMark({ size = 56 }: { size?: number }) {
 export function CommandButton({ onClick }: { onClick: () => void }) {
   return (
     <button type="button" data-command-button aria-label={COMMAND_FA} title={COMMAND_FA} onClick={onClick}
-      className="fixed bottom-[calc(88px+env(safe-area-inset-bottom))] end-4 z-30 rounded-full shadow-[0_10px_28px_rgba(0,0,0,.38)] lg:bottom-6 lg:end-6">
+      className="fixed bottom-[max(calc(88px+env(safe-area-inset-bottom)),var(--hq-decision-top,0px))] end-4 z-30 rounded-full shadow-[0_10px_28px_rgba(0,0,0,.38)] lg:bottom-[max(24px,var(--hq-decision-top,0px))] lg:end-6">
       <CommandMark />
     </button>
   );

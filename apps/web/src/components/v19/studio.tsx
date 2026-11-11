@@ -1,6 +1,5 @@
 'use client';
 
-import { ownerNote } from '@/lib/plain';
 import Link from 'next/link';
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -20,23 +19,7 @@ import { stepUp } from '@/lib/auth';
 import { companyOf } from '@/lib/company';
 import { ACTOR_FA } from '@/lib/labels';
 import { ago, cx, jDateTime, tokens, usd } from '@/lib/format';
-import { Block, CheckGrid, FileChip, ITEM_STATE, KIND_FA, PublishRows, QC_VERDICT, RenderPreview, STAGES, STOPPED, StageTrack, aspectOfItem } from './bits';
-
-/** ⟨1.0.1⟩ The hub's note as the owner reads it: a sentence that carries a terminal command is the technical team's, one tap away. */
-function StateNote({ text }: { text: string }) {
-  const n = ownerNote(text);
-  return (
-    <span className="flex min-w-0 flex-1 flex-col gap-1">
-      {n.fa ? <span><MdInline text={n.fa} /></span> : null}
-      {n.technical ? (
-        <details className="text-[12px] text-muted">
-          <summary className="w-fit cursor-pointer select-none">جزئیات فنی</summary>
-          <p className="pt-1 leading-5"><MdInline text={n.technical} /></p>
-        </details>
-      ) : null}
-    </span>
-  );
-}
+import { Block, CheckGrid, FileChip, ITEM_STATE, KIND_FA, PublishRows, QC_VERDICT, RenderPreview, STAGES, STOPPED, StageTrack, StateNote, aspectOfItem } from './bits';
 
 const SOURCE_FA: Record<string, string> = { market_data: 'داده‌ی بازار', deliverable: 'خروجی', knowledge: 'دانشنامه', url: 'صفحه' };
 

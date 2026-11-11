@@ -1,44 +1,59 @@
 'use client';
 
-// ⟨1.17⟩ Contract §34–§35 «هر فرمان یک جلسه»: the order is a session the owner talks in. The header says what it is and whose turn it is; the
-// brief says «چه شد · حالا چه · از تو چه»; the owner's open question is answered right there; the blockers carry their one-tap fix; the
-// people and model seats in the room can be added and sent away; the tasks are ticked; the results are listed; and «تأیید و بستن» ends it
-// (a working group or a production line first, if he wants one) so no order is left without an owner. Nothing here shows a ref or a code.
+// ⟨1.17⟩ Contract §34–§35 «هر فرمان یک جلسه»: the order is a session the owner talks in.
+// ⟨1.0.1⟩ Part C, the session redesigned (C2.2), with the workshop inside it and the direct session's display:
+// - a one-line header: the short title, «کار ۳ از ۴», the pace, the mood light; a tap opens «جزئیات» (the whole order, the plan, the
+//   people, the files); it folds once the talk has scrolled; under it the plan as a segmented line;
+// - the talk is the body: the order's steps are thin centred lines at their time, an output is its files as a strip of tiles where it
+//   arrived (a video plays in place), the live steps follow at the end;
+// - right above the composer, never stacked banners: the «الان» bar while something works (with the build ring of a workshop or direct
+//   turn, and «نگه دار»), then ONE of the owner's things: the «منتظر تو» card with its ready answers, or the «گره» card with its one
+//   action, or the decision bar («تأیید و انتشار» of what the session waits on, else «تأیید و بستن»): the page's one full gold;
+// - a closed session ends with its end leaf. Nothing here shows a ref or a code, and nothing sends the owner elsewhere.
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useCallback, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useQueries } from '@tanstack/react-query';
 import { Icon } from '@/components/icon';
 import { Button, IconButton } from '@/components/ui/button';
-import { Sheet } from '@/components/ui/overlay';
 import { Card, Empty, ErrorState, FilterChip, PageHeader, Pill, SectionTitle, Segmented, Skeleton } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
-import { BlockerRow, KitCard, OrderReportView, RouteLine } from '@/components/v29/report';
+import { KitCard, OrderReportView, RouteLine } from '@/components/v29/report';
 import { EraseButton } from '@/components/erase/erase-button';
 import { MessageMedia } from '@/components/media/attachments';
 import { CompanyMark } from '@/components/brand/marks';
 import { SplitParts, WorkspaceCard } from '@/components/v33/parallel';
 import type { OrderParallel } from '@/lib/api/v33';
-import { FixButton, OrderStatePill, PlainPara, PlainText } from '@/components/v29/bits';
-import { FaText } from '@/components/v29/text';
+import { OrderStatePill, PlainPara, PlainText } from '@/components/v29/bits';
 import { errText, field } from '@/components/v31/kit';
 import { useCompanies } from '@/lib/api/hooks';
 import { useRoles } from '@/lib/api/v14';
+import { outputKey, readOutput, type Output } from '@/lib/api/v21';
 import { OUTPUT_KIND_FA, useOrderFix, type OutputKind } from '@/lib/api/v29';
 import {
-  BADGE, PACE_FA, PLAYERS, sessionTalk, useOrderSession, useSessionActions, type Badge, type Pace, type Participant, type SessionReport, type SessionTask,
+  BADGE, PACE_FA, PLAYERS, sessionTalk, useOrderSession, useSessionActions, type Pace, type Participant, type SessionReport, type SessionTask,
 } from '@/lib/api/v34';
 import { useConversation } from '@/lib/api/v32';
-import { cx, jDateTime, jTime } from '@/lib/format';
-import { plain } from '@/lib/plain';
+import { coverOf, publishPanelKey, publishable, readPublishPanel, type PublishPanel } from '@/lib/api/v44';
+import { cx, jDateTime } from '@/lib/format';
 import { FromPlaybook, MakePlaybook, MemoryCard } from '@/components/v40/playbook';
 import { useDraftPlaybook } from '@/lib/api/v40';
-import type { OrderGaps } from '@/lib/api/v47';
+import { madeWith, type OrderGaps } from '@/lib/api/v47';
+import { DIRECT_FA, type DirectReport } from '@/lib/api/v55';
 import { Routines } from '@/components/v47/routines';
 import { SessionPublishes } from '@/components/v47/session-publishes';
-import { LiveWork, PaceChip, PlanProgress } from './live-work';
-import { LiveBadge, SessionBand, StallWatch, useLastStep, useLiveBadge } from '@/components/live/session-pulse';
+import { useLiveBadge } from '@/components/live/session-pulse';
 import { useSessionActivity } from '@/lib/api/v41';
+import { DecisionBar, type DecisionState } from '@/components/look/decision-bar';
+import { FilesStrip, type StripFile } from '@/components/look/files';
+import { useFillHeight } from '@/components/look/fill';
+import { faceOf, usageOf } from '@/components/look/output';
+import { PublishFor, PublishUnder, leadFile } from '@/components/look/publish';
+import { DrawnTick } from '@/components/look/ring';
+import { EndLeaf, KnotCard, LiveSheet, LiveTail, MoodLight, NowBar, SegmentLine, SessionCards, WaitingCard, moodOf, taskFa, taskOf } from '@/components/look/session';
+import { SpringSheet } from '@/components/look/spring-sheet';
+import { Facts, Ltr } from '@/components/look/text';
 import { SysRow } from './system-group';
 import { ConversationPane, Face, playerName, type PaneApi } from './conversation-pane';
 
@@ -46,24 +61,7 @@ const FIXED: Array<{ key: string; fa: string }> = [{ key: 'advisor', fa: 'مشا
 
 export function BadgePill({ badge }: { badge: keyof typeof BADGE }) {
   const b = BADGE[badge];
-  return <Pill tone={b.tone} dot={!b.live} live={b.live}>{b.fa}</Pill>;
-}
-
-/** ⟨1.24⟩ SS-1 in the header: the live badge. */
-function HeaderBadge({ refId, badge, at }: { refId: string; badge: Badge; at?: string | null }) {
-  return <LiveBadge badge={useLiveBadge(refId, badge, at)} />;
-}
-/** ⟨1.24⟩ SS-1 in the header: the stall watch from the activity, the report's steps and the stream, and the work band. */
-function HeaderStall({ refId, badge, at, steps }: { refId: string; badge: Badge; at?: string | null; steps: Array<{ at: string }> }) {
-  const live = useLiveBadge(refId, badge, at);
-  const act = useSessionActivity(refId).data;
-  const last = useLastStep(refId, steps.at(-1)?.at, act?.last.at(-1)?.at);
-  return (
-    <span className="flex min-w-0 flex-col">
-      <StallWatch badge={live} lastAt={last.at} wokeAt={last.wokeAt} />
-      <SessionBand moving={live === 'moving' && !!act?.working.length} />
-    </span>
-  );
+  return <Pill tone={b.tone === 'gold' || b.tone === 'lapis' ? 'silver' : b.tone} dot>{b.fa}</Pill>;
 }
 
 export function SessionView({ refId }: { refId: string }) {
@@ -81,94 +79,219 @@ export function SessionView({ refId }: { refId: string }) {
   }
   // A hub from before §35 answers the report without the session: the older read-only page stays.
   if (!r.session) return <OrderReportView refId={refId} />;
-  return <Session refId={refId} r={r as SessionReport & Required<Pick<SessionReport, 'session' | 'brief' | 'tasks' | 'participants'>>} />;
+  return <Session refId={refId} r={r as Full} />;
 }
 
 type Full = SessionReport & Required<Pick<SessionReport, 'session' | 'brief' | 'tasks' | 'participants'>>;
 
+// ================================================================================================ the outputs ==
+/** A session's output with what its page knows of it: its files (the deliverable's attachments) and where their publications stand. */
+type SessionOutput = { ref: string; title_fa: string; kind: string; d: Output | null; loading: boolean; panel: PublishPanel | null };
+const OUTPUTS_SHOWN = 12;
+
+/** The deliverable and the publish panel of each output of the session: the same cached reads the output's own page uses. */
+function useSessionOutputs(outputs: SessionReport['outputs']): SessionOutput[] {
+  const list = useMemo(() => outputs.slice(0, OUTPUTS_SHOWN), [outputs]);
+  const ds = useQueries({ queries: list.map((o) => ({ queryKey: outputKey(o.ref), queryFn: () => readOutput(o.ref), staleTime: 30_000 })) });
+  const ps = useQueries({
+    queries: list.map((o, i) => ({
+      queryKey: publishPanelKey(o.ref), queryFn: () => readPublishPanel(o.ref), staleTime: 5_000,
+      enabled: !!ds[i]?.data?.attachments?.some((f) => publishable(f.mime)),
+      refetchInterval: (q: { state: { data?: PublishPanel | null } }) => (q.state.data?.publishes.some((p) => p.state === 'publishing') ? 5_000 : q.state.data?.publishes.some((p) => p.state === 'scheduled') ? 60_000 : false as const),
+    })),
+  });
+  return list.map((o, i) => ({ ref: o.ref, title_fa: o.title_fa, kind: o.kind, d: ds[i]?.data ?? null, loading: !!ds[i]?.isLoading, panel: ps[i]?.data ?? null }));
+}
+
+const OUT_FA: Record<string, string> = { final: 'خروجی', part: 'بخشی از کار', partial: 'خروجی ناقص' };
+const outKindFa = (kind: string) => OUT_FA[kind] ?? OUTPUT_KIND_FA[kind as OutputKind] ?? 'خروجی';
+const outHref = (ref: string) => `/outputs?ref=${encodeURIComponent(ref)}&tab=all`;
+
+/**
+ * One output in the talk, where it arrived: a calm ticked line with its title, then its files as a strip of tiles (a video plays in
+ * place). Under a file that can be published, its quiet «تأیید و انتشار» or where its publication stands; what the session waits on
+ * ([lead]) is in the decision bar instead. The last quiet line says how it was made.
+ */
+function OutputTiles({ o, lead, onAsk }: { o: SessionOutput; lead: string | null; onAsk: (output: string, file: string) => void }) {
+  const files: StripFile[] = o.d?.attachments ?? [];
+  const made = madeWith(o.d?.produced_with);
+  // One package, one action: under the output's video, else under its first picture (its other pictures go with it as a carousel).
+  // A reel's cover goes out with its reel.
+  const main = faceOf(files)?.id ?? null;
+  const cover = files.some((f) => f.mime.startsWith('video/')) ? coverOf(files.filter((f) => f.mime.startsWith('image/')))?.id ?? null : null;
+  return (
+    <section aria-label={`خروجی: ${o.title_fa}`} data-output={o.ref} className="flex w-full max-w-[46rem] flex-col gap-2 self-start">
+      <div className="flex items-center gap-2 text-[12px] leading-5 text-sec">
+        <span className="flex-none text-pos"><DrawnTick size={15} /></span>
+        <span className="min-w-0 flex-1"><Facts>{o.kind === 'partial' ? 'خروجی ناقص رسید' : 'خروجی تحویل شد'}<span className="font-semibold text-ink"><PlainText text={o.title_fa} /></span>{files.length ? null : outKindFa(o.kind)}</Facts></span>
+        <Link href={outHref(o.ref)} className="flex-none rounded-[8px] px-2 py-0.5 text-[12px] font-semibold text-silver-ink hover:bg-[var(--hq-silver-soft)] hover:text-ink">باز کن</Link>
+      </div>
+      {files.length ? (
+        <FilesStrip files={files} label={`فایل‌های ${o.title_fa}`} under={(f) => (f.id === main ? <PublishUnder f={f} panel={o.panel} lead={lead === f.id} onAsk={() => onAsk(o.ref, f.id)} />
+          : f.id === cover ? <span className="text-[11px] leading-4 text-muted" data-tile-publish="cover">کاور ریلز</span> : null)} />
+      ) : o.loading ? <Skeleton className="h-[148px] w-[116px] rounded-[12px]" /> : null}
+      {made ? <span className="text-[11px] text-muted" data-testid="made-with">ساخت: <Facts><Ltr tabular={false}>{made.model}</Ltr>{made.effort}</Facts></span> : null}
+    </section>
+  );
+}
+
+// =============================================================================================== the session ==
 function Session({ refId, r }: { refId: string; r: Full }) {
   const router = useRouter();
+  const search = useSearchParams();
   const toast = useToast();
   const act = useSessionActions(refId);
   const fix = useOrderFix(refId);
-  const pane = useRef<PaneApi | null>(null);
-  const bindPane = useCallback((a: PaneApi | null) => { pane.current = a; }, []);
+  const [pane, setPane] = useState<PaneApi | null>(null);
+  const bindPane = useCallback((a: PaneApi | null) => setPane(a), []);
   const [to, setTo] = useState<string>('');
   const [closing, setClosing] = useState(false);
   const [people, setPeople] = useState(false);
+  const [details, setDetails] = useState(false);
+  const [live, setLive] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [asking, setAsking] = useState<{ output: string; file: string } | null>(null);
+  const [closeState, setCloseState] = useState<DecisionState>('idle');
   const closed = r.session.state === 'closed';
   const talk = sessionTalk(r);
   const conv = useConversation(talk);
   const company = r.route?.companies[0] ?? r.ack?.assigned[0]?.company ?? null;
   const holder = r.participants.find((p) => p.kind === 'holder') ?? null;
   const titleOf = (by: string) => r.participants.find((p) => p.key === by)?.title_fa ?? (by.startsWith('player:') ? playerName(by) : undefined);
-  const speak = (t: string) => void pane.current?.send(t);
   const failed = (e: unknown, fallback: string) => toast({ tone: 'error', text: errText(e, fallback) });
   const runFix = (f: NonNullable<typeof r.blockers[number]['fix']>) => fix.mutateAsync(f);
   const hide = () => act.hide.mutate(undefined, { onSuccess: () => { toast({ tone: 'info', text: 'جلسه از فهرست رفت. چیزی پاک نشد؛ از «بایگانی» برمیگردد.' }); router.push('/s'); }, onError: (e) => failed(e, 'پنهان نشد.') });
   const target = to && r.participants.some((p) => p.key === to) ? to : to === 'all' ? 'all' : '';
-
-  const [details, setDetails] = useState(false);
-  const [wide, setWide] = useState(false);
-  const askClose = () => { setDetails(false); setClosing(true); };
-  const ready = r.session.badge === 'ready' && !closed;
-  // ⟨1.23⟩ §41.2 the pace switch is back in the header; «کار n از m» opens the drawer at the plan.
   const setPace = (v: Pace) => v === (r.pace ?? 'auto') || act.pace.isPending ? undefined : act.pace.mutate(v, { onSuccess: () => toast({ tone: 'ok', text: v === 'step' ? 'از این به بعد قدم‌به‌قدم با تو.' : 'از این به بعد خودش تا آخر میرود.' }), onError: (e) => failed(e, 'عوض نشد؛ دوباره بزن.') });
-  const openPlan = () => { setDetails(true); setTimeout(() => document.getElementById('session-plan')?.scrollIntoView({ block: 'start' }), 250); };
 
-  // The talk is the body: the order's system steps sit in it as small grey lines at their time, and what was delivered as compact cards at its end.
-  const timeline = r.steps.map((s, i) => ({ key: `step-${s.at}-${i}`, at: s.at, node: <SysRow at={s.at} who={s.who_fa} text={s.what_fa} />, sys: { who: s.who_fa, text: s.what_fa } }));
-  const tail = r.outputs.length ? <OutputsCard outputs={r.outputs} /> : null;
+  // What the session is doing now, and its mood.
+  const activity = useSessionActivity(refId, !closed).data;
+  const badge = useLiveBadge(refId, r.session.badge, r.updated_at);
+  const asked = !!r.turn && !closed;
+  const mood = moodOf(activity, { closed, badge, asked });
+  const task = taskOf(r.tasks);
+  const outs = useSessionOutputs(r.outputs);
+
+  // The ONE thing of the owner's above the composer, and where the page's one full gold is.
+  const ready = badge === 'ready' && !closed;
+  const blockers = closed ? [] : r.blockers;
+  const knot = !closed && !asked && (blockers.length > 0 || (mood === 'stuck' && !!activity?.stuck_fa));
+  // What the session waits on: the first file of its outputs that can be published and has no publication that stands.
+  const waiting = ready ? outs.map((o) => ({ output: o.ref, f: leadFile(o.panel, o.d?.attachments ?? []) })).find((x) => x.f) : undefined;
+  const waitsOn = waiting?.f ? { output: waiting.output, file: waiting.f.id } : null;
+  const bar = (ready && !asked) || closeState !== 'idle';
+  const close = (verdict: 'ok') => {
+    setCloseState('working');
+    act.close.mutate({ verdict }, {
+      onSuccess: () => { setCloseState('done'); toast({ tone: 'ok', text: 'جلسه بسته و بایگانی شد.' }); },
+      onError: (e) => { setCloseState('idle'); failed(e, 'بسته نشد؛ دوباره بزن.'); },
+    });
+  };
+  const reply = (text: string) => new Promise<boolean>((done) => act.reply.mutate(text, { onSuccess: () => done(true), onError: (e) => { failed(e, 'جوابت نرفت؛ دوباره بزن.'); done(false); } }));
+
+  // «اصلاح» of an output's page lands here with the output named: the composer opens with it quoted.
+  const about = search.get('about');
+  useEffect(() => {
+    if (!about || !pane || closed) return;
+    const o = r.outputs.find((x) => x.ref === about);
+    pane.draft(`درباره‌ی «${o?.title_fa ?? 'این خروجی'}»: `);
+    router.replace(`/s/${encodeURIComponent(refId)}`, { scroll: false });
+  }, [about, pane, closed, r.outputs, refId, router]);
+
+  // The talk is the body: the order's steps sit in it as thin lines at their time, and each output where it arrived.
+  const lead = waitsOn?.file ?? null;
+  const ask = (output: string, file: string) => setAsking({ output, file });
+  const placed = outs.filter((o) => o.d?.created_at);
+  const unplaced = outs.filter((o) => !o.d?.created_at);
+  const timeline = [
+    ...r.steps.map((s, i) => ({ key: `step-${s.at}-${i}`, at: s.at, node: <SysRow at={s.at} who={s.who_fa} text={s.what_fa} />, sys: { who: s.who_fa, text: s.what_fa } })),
+    ...placed.map((o) => ({ key: `out-${o.ref}`, at: o.d!.created_at, node: <OutputTiles o={o} lead={lead} onAsk={ask} /> })),
+  ];
+  const allFiles = outs.flatMap((o) => o.d?.attachments ?? []);
+  const used = outs.reduce((n, o) => n + (o.d ? usageOf(o.d).used ?? 0 : 0), 0);
+  const tail = (
+    <>
+      {unplaced.map((o) => <OutputTiles key={o.ref} o={o} lead={lead} onAsk={ask} />)}
+      {closed ? null : <LiveTail a={activity} />}
+      {closed ? (
+        <EndLeaf r={r} used={used || null} outputs={r.outputs.length}
+          made={allFiles.length ? <FilesStrip files={allFiles} label="آنچه ساخته شد" /> : null}
+          action={<Button variant="secondary" size="sm" icon="refresh" loading={act.reopen.isPending} onClick={() => act.reopen.mutate(undefined, { onError: (e) => failed(e, 'باز نشد.') })}>دوباره باز کن</Button>} />
+      ) : null}
+    </>
+  );
+
+  const extras = !!r.kit || !!(r as OrderParallel).parts?.length || !!(r as OrderParallel).workspaces?.length;
+  const bottom = useCallback(() => (window.matchMedia('(min-width: 1024px)').matches ? 40 : extras ? 112 : 88), [extras]);
+  const frame = useFillHeight<HTMLDivElement>(bottom);
+  const pace = r.pace ?? 'auto';
 
   return (
-    <div className="mx-auto flex w-full max-w-[58rem] flex-col gap-3">
-      {/* ⟨1.0.1⟩ M14: the card that was tapped (the home's, the command sheet) grows into this header (`hq-vt-hero`). */}
-      <header className="hq-vt-hero flex flex-col gap-1.5">
-        <Link href="/s" className="self-start text-caption text-muted hover:text-ink">جلسه‌ها</Link>
-        <div className="flex items-start gap-2">
-          <h1 className={cx('min-w-0 flex-1 text-h3 font-semibold leading-8 text-ink', !wide && 'line-clamp-2')}><PlainText text={r.text_fa} /></h1>
-          {r.text_fa.length > 60 ? <button type="button" aria-expanded={wide} onClick={() => setWide(!wide)} className="flex-none pt-1 text-[12px] text-muted hover:text-ink">{wide ? 'کمتر' : 'بیشتر'}</button> : null}
-        </div>
-        <div className="flex items-center gap-2">
-          {/* ⟨1.24⟩ SS-1: the badge as the stream tells it. */}
-          <HeaderBadge refId={refId} badge={r.session.badge} at={r.updated_at} />
-          {r.session.source ? <FromPlaybook refId={r.session.source} /> : null}
-          <span className="min-w-0 flex-1 truncate text-[13px] text-sec" title={plain(r.session.reason_fa)}><PlainText text={r.session.reason_fa} /></span>
-          {ready ? <Button size="sm" variant="primary" icon="seal" onClick={() => setClosing(true)}>تأیید و بستن</Button> : null}
-          {closed ? <Button size="sm" variant="primary" icon="refresh" loading={act.reopen.isPending} onClick={() => act.reopen.mutate(undefined, { onError: (e) => failed(e, 'باز نشد.') })}>دوباره باز کن</Button> : null}
-          <Button size="sm" icon="more" aria-haspopup="dialog" onClick={() => setDetails(true)}>جزئیات</Button>
-        </div>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          {closed ? null : <PaceChip pace={r.pace ?? 'auto'} onChange={setPace} busy={act.pace.isPending} />}
-          <PlanProgress tasks={r.tasks} onOpen={openPlan} />
-          {/* ⟨1.24⟩ SS-1: when the last step was, and the ring toward the hub's idle sweep; the band runs only while it moves. */}
-          {closed ? null : <HeaderStall refId={refId} badge={r.session.badge} at={r.updated_at} steps={r.steps} />}
-        </div>
-      </header>
+    <>
+      <div ref={frame} data-testid="session" data-mood={mood} className={cx('mx-auto flex w-full max-w-[58rem] flex-col gap-2.5', !extras && '-mb-6 lg:mb-0')}>
+        {/* ⟨1.0.1⟩ M14: the card that was tapped (the home's, the command sheet) grows into this header; M18: it folds to one line. */}
+        <header data-stuck={scrolled ? '' : undefined} onClick={() => setDetails(true)} className="hq-vt-hero hq-m18 flex flex-none cursor-pointer flex-col gap-1.5">
+          <div className="hq-m18-fold flex items-center gap-2 text-caption text-muted">
+            <Link href="/s" onClick={(e) => e.stopPropagation()} className="hover:text-ink">جلسه‌ها</Link>
+            {r.session.source ? <span onClick={(e) => e.stopPropagation()}><FromPlaybook refId={r.session.source} /></span> : null}
+          </div>
+          <div className="flex items-center gap-2.5">
+            <h1 className="min-w-0 flex-1 truncate text-[17px] font-semibold leading-8 text-ink"><PlainText text={r.text_fa} /></h1>
+            {task ? <span className="hq-m18-only flex-none text-[12px] text-sec">{taskFa(task)}</span> : null}
+            <MoodLight mood={mood} word={activity?.mood ? activity.mood_fa : null} />
+            <IconButton icon="more" label="جزئیات" size={36} aria-haspopup="dialog" onClick={(e) => { e.stopPropagation(); setDetails(true); }} />
+          </div>
+          <div className="hq-m18-fold text-[12px] leading-5 text-sec" data-session-facts>
+            <Facts>{task ? taskFa(task) : null}{closed ? null : PACE_FA[pace]}{holder ? <PlainText text={holder.title_fa} /> : null}</Facts>
+          </div>
+          <SegmentLine tasks={r.tasks} waiting={asked || ready} />
+        </header>
 
-      {r.turn && !closed ? <OpenTurn r={r} onReply={(text, sent) => act.reply.mutate(text, { onSuccess: () => { sent(); toast({ tone: 'ok', text: 'جوابت رفت.' }); }, onError: (e) => failed(e, 'جوابت نرفت؛ دوباره بزن.') })} busy={act.reply.isPending} /> : null}
+        {talk ? (
+          <ConversationPane
+            variant="session" fill conversationRef={talk} face={holder?.key ?? 'secretary'} to={target || null} titleOf={titleOf} readOnly={closed || !!conv.data?.closed_at} onApi={bindPane} onScrolled={setScrolled}
+            quietSend={bar || knot}
+            above={(
+              <>
+                {closed ? null : <NowBar refId={refId} a={activity} r={r} onOpen={() => setLive(true)} />}
+                {asked ? <WaitingCard r={r} busy={act.reply.isPending} onReply={reply} /> : null}
+                {closed ? null : <SessionCards cards={r.cards ?? []} />}
+                {knot ? <KnotCard refId={refId} stuckFa={blockers.length ? null : activity?.stuck_fa} blockers={blockers} company={company} run={runFix} lead={!bar} /> : null}
+                {bar ? (
+                  <DecisionBar place="flow" label={waitsOn ? 'تأیید و انتشار' : 'تأیید و بستن'} state={closeState} doneLabel="جلسه بسته شد" onLeft={() => setCloseState('idle')}
+                    context={waitsOn ? 'کار تمام شده؛ با تأیید تو همین فایل منتشر میشود.' : 'کار تمام شده؛ با تأیید تو جلسه بسته و بایگانی میشود.'}
+                    primary={waitsOn ? { label: 'تأیید و انتشار', onClick: () => setAsking(waitsOn) } : { label: 'تأیید و بستن', onClick: () => close('ok') }}
+                    quiet={waitsOn ? [{ label: 'اصلاح', onClick: () => pane?.draft('') }, { label: 'فقط ببند', onClick: () => close('ok') }] : [{ label: 'اصلاح', onClick: () => pane?.draft('') }]} />
+                ) : null}
+                <Room r={r} closed={closed} to={target} onTo={setTo} />
+              </>
+            )}
+            timeline={timeline} tail={tail} placeholder="به مسئول بگو چه بکند…"
+            emptyTitle="هنوز حرفی زده نشده" emptyBody="هر چه بگویی همین‌جا به مسئول فرمان میرسد." />
+        ) : (
+          <Card className="p-5"><Empty icon="messages" title="گفتگوی این جلسه هنوز باز نشده" action={<Button icon="messages" loading={act.talk.isPending} onClick={() => act.talk.mutate(undefined, { onError: (e) => failed(e, 'باز نشد.') })}>گفتگو را شروع کن</Button>} /></Card>
+        )}
+      </div>
 
-
-      <Room r={r} closed={closed} to={target} onTo={setTo} />
-      {talk ? (
-        <ConversationPane
-          conversationRef={talk} face={holder?.key ?? 'secretary'} to={target || null} titleOf={titleOf} readOnly={closed || !!conv.data?.closed_at} onApi={bindPane} above={<><WaitingCards cards={closed ? [] : (r.cards ?? [])} /><BlockerBanner blockers={closed ? [] : r.blockers} company={company} run={runFix} /><LiveWork refId={refId} closed={closed} /></>}
-          talkHeight="h-[calc(100dvh-20rem)]" timeline={timeline} tail={tail} placeholder="به مسئول بگو چه بکند، یا از همین‌جا بسپار، استخدام کن، گروه و خط تولید راه بینداز…"
-          emptyTitle="هنوز حرفی زده نشده" emptyBody="هر چه بگویی همین‌جا به مسئول فرمان میرسد؛ هر کاری که از دل گفتگو بیرون بیاید فقط با کارتی که تو میزنی انجام میشود." />
-      ) : (
-        <Card className="p-5"><Empty icon="messages" title="گفتگوی این جلسه هنوز باز نشده" action={<Button icon="messages" loading={act.talk.isPending} onClick={() => act.talk.mutate(undefined, { onError: (e) => failed(e, 'باز نشد.') })}>گفتگو را شروع کن</Button>} /></Card>
-      )}
-
-      {/* ⟨1.13⟩ §31.2: a «new company» order — the kit's form, preview and seal, right in its session. */}
+      {/* ⟨1.13⟩ §31.2: a «new company» order: the kit's form, preview and seal, right in its session. */}
       {r.kit ? <KitCard refId={refId} kit={r.kit} /> : null}
-
       {/* ⟨1.15⟩ §33.7 and §33.10: the parallel parts with their merge, and the workspace on the company's own server. */}
       <SplitParts r={r as OrderParallel} />
       <WorkspaceCard r={r as OrderParallel} />
 
-      <Sheet open={details} onOpenChange={setDetails} title="جزئیات جلسه" description="همه‌ی چیزهایی که کنار گفتگو لازم میشوند" width={520}>
-        <div className="flex flex-col gap-4">
+      <SpringSheet open={details} onOpenChange={setDetails} title="جزئیات جلسه" description="همه‌ی چیزهایی که کنار گفتگو لازم میشوند" width={560}>
+        <div className="flex flex-col gap-4 pb-2">
+          <section aria-label="متن فرمان" className="flex flex-col gap-1">
+            <h3 className="text-[12px] font-semibold text-muted">متن فرمان</h3>
+            <PlainPara text={r.text_fa} className="text-[14px] leading-7 text-ink" />
+          </section>
           <Brief r={r} />
+          {allFiles.length ? (
+            <Card className="flex flex-col gap-2 p-4" aria-label="فایل‌های خروجی">
+              <SectionTitle title="فایل‌های خروجی" note="هر چه در این جلسه ساخته شد" />
+              <FilesStrip files={allFiles} label="فایل‌های خروجی این جلسه" />
+            </Card>
+          ) : null}
           <MemoryCard md={r.memory_md} />
           <MakePlaybook order={refId} onDone={() => setDetails(false)} />
           {/* ⟨1.0.1⟩ §50 a standing routine from one sentence, and this session's routines */}
@@ -176,15 +299,12 @@ function Session({ refId, r }: { refId: string; r: Full }) {
           <Card className="flex flex-col gap-2 p-4" aria-label="وضعیت و روش کار">
             <div className="flex flex-wrap items-center gap-2"><BadgePill badge={r.session.badge} /><OrderStatePill state={r.state} />{closed && r.session.closed_at ? <span className="text-[12px] text-muted">بسته شد {jDateTime(r.session.closed_at)}</span> : null}</div>
             {closed ? (
-              <Pill tone="neutral" icon="time">روش کار: {PACE_FA[r.pace ?? 'auto']}</Pill>
+              <Pill tone="neutral" icon="time">روش کار: {PACE_FA[pace]}</Pill>
             ) : (
-              <Segmented<Pace>
-                label="روش کار"
-                value={r.pace ?? 'auto'}
-                onChange={setPace}
-                options={[{ value: 'step', label: PACE_FA.step }, { value: 'auto', label: PACE_FA.auto }]}
-              />
+              <Segmented<Pace> label="روش کار" value={pace} onChange={setPace} options={[{ value: 'step', label: PACE_FA.step }, { value: 'auto', label: PACE_FA.auto }]} />
             )}
+            {/* ⟨1.0.1⟩ §54 a direct session: its holder is one session with the hub's tools; nothing else changes for the owner. */}
+            {(r as DirectReport).direct ? <p className="text-[12px] leading-5 text-sec" data-testid="direct-session">{DIRECT_FA}</p> : null}
           </Card>
           <Participants r={r} closed={closed} onAddPerson={() => setPeople(true)} />
           <Tasks r={r} closed={closed} />
@@ -197,9 +317,9 @@ function Session({ refId, r }: { refId: string; r: Full }) {
             <SectionTitle title="پایان جلسه" />
             <div className="flex flex-wrap items-center gap-2">
               {closed ? (
-                <Button variant="primary" icon="refresh" loading={act.reopen.isPending} onClick={() => act.reopen.mutate(undefined, { onSuccess: () => setDetails(false), onError: (e) => failed(e, 'باز نشد.') })}>دوباره باز کن</Button>
+                <Button variant="secondary" icon="refresh" loading={act.reopen.isPending} onClick={() => act.reopen.mutate(undefined, { onSuccess: () => setDetails(false), onError: (e) => failed(e, 'باز نشد.') })}>دوباره باز کن</Button>
               ) : (
-                <Button variant="primary" icon="seal" onClick={askClose}>تأیید و بستن</Button>
+                <Button variant="secondary" icon="seal" onClick={() => { setDetails(false); setClosing(true); }}>تأیید و بستن</Button>
               )}
               {closed ? (
                 <Button variant="secondary" onClick={() => (r.session.hidden ? act.unhide : act.hide).mutate(undefined, { onError: (e) => failed(e, 'انجام نشد.') })}>{r.session.hidden ? 'برگردان به فهرست' : 'از فهرست بردار'}</Button>
@@ -210,115 +330,28 @@ function Session({ refId, r }: { refId: string; r: Full }) {
             </div>
           </Card>
         </div>
-      </Sheet>
+      </SpringSheet>
+      <LiveSheet open={live} onOpenChange={setLive} a={activity} />
       <PersonSheet open={people} onOpenChange={setPeople} r={r} />
-      <CloseSheet open={closing} onOpenChange={setClosing} r={r} onAsk={(t) => { setClosing(false); speak(t); }} onClosed={() => { setClosing(false); toast({ tone: 'ok', text: 'جلسه بسته و بایگانی شد.' }); }} />
-    </div>
-  );
-}
-
-/** What was delivered, one compact card in the talk: a single output or several that arrived together, each with «باز کن». */
-const OUT_FA: Record<string, string> = { final: 'خروجی', part: 'بخشی از کار', partial: 'خروجی ناقص' };
-const outKindFa = (kind: string) => OUT_FA[kind] ?? OUTPUT_KIND_FA[kind as OutputKind] ?? 'خروجی';
-
-function OutputsCard({ outputs }: { outputs: SessionReport['outputs'] }) {
-  const n = outputs.filter((o) => o.kind !== 'partial').length;
-  return (
-    <section className="flex w-full max-w-[46rem] flex-col gap-2 self-start rounded-[12px] border border-div bg-tile p-3" aria-label="نتیجه‌های رسیده" data-outputs={n}>
-      <h3 className="flex items-center gap-2 text-[12px] font-semibold text-pos"><Icon name="seal" size={14} />{n > 1 ? `${n.toLocaleString('fa-IR')} خروجی تحویل شد` : n === 1 ? 'خروجی تحویل شد' : 'خروجی ناقص رسید'}</h3>
-      <ul className="flex flex-col gap-2">
-        {outputs.map((o) => (
-          <li key={o.ref} data-output className="flex items-center gap-2 text-[13px]">
-            <Icon name={o.kind === 'reel' ? 'video' : o.kind === 'post' || o.kind === 'story' ? 'image' : 'deliverable'} size={16} className="flex-none text-silver-ink" />
-            <span className="min-w-0 flex-1 break-words"><PlainText text={o.title_fa} /></span>
-            <span className="flex-none text-[11px] text-muted">{outKindFa(o.kind)}</span>
-            <Link href={`/outputs?ref=${o.ref}&tab=all`} className="flex-none rounded-full px-2.5 py-1 text-[12px] font-semibold text-gold-ink hover:bg-hover">باز کن</Link>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-/**
- * ⟨0.19.6⟩ The cards of this session that wait for a decision, here in the session (the owner, in his own session: «بیار مهر کنم» — the
- * holder had said «کارت منتظر مُهر شماست» and the card was on another page). «مُهر» opens that very card.
- */
-function WaitingCards({ cards }: { cards: NonNullable<Full['cards']> }) {
-  const router = useRouter();
-  if (!cards.length) return null;
-  return (
-    <Card as="section" className="flex flex-col gap-2 p-3 ring-1 ring-[var(--hq-line)]" aria-label="کارت‌های منتظر تصمیم" data-testid="waiting-cards" data-count={cards.length}>
-      <ul className="flex flex-col gap-2">
-        {cards.map((c) => (
-          <li key={c.ref} className="flex flex-wrap items-center gap-2 text-[13px]" data-card={c.ref}>
-            <Icon name="seal" size={16} className="flex-none text-gold-ink" />
-            <span className="min-w-0 flex-[1_1_12rem]">
-              <span className="block break-words font-semibold"><PlainText text={c.title_fa} /></span>
-              <span className="block text-[12px] text-muted"><PlainText text={c.by_fa ? `${c.by_fa} · ${c.waits_fa}` : c.waits_fa} /></span>
-            </span>
-            <Button variant="primary" size="sm" data-seal={c.seal} onClick={() => router.push(`/cartable?ref=${encodeURIComponent(c.ref)}`)}>مُهر</Button>
-          </li>
-        ))}
-      </ul>
-    </Card>
-  );
-}
-
-/** Where it is stuck, never in the chat: one compact banner pinned above the composer, each with its one-tap fix; several fold under the first. */
-function BlockerBanner({ blockers, company, run }: { blockers: Full['blockers']; company: string | null; run: (f: NonNullable<Full['blockers'][number]['fix']>) => Promise<unknown> }) {
-  const [open, setOpen] = useState(false);
-  if (!blockers.length) return null;
-  const shown = open ? blockers : blockers.slice(0, 1);
-  return (
-    <Card as="section" className="flex flex-col gap-2 p-3 ring-1 ring-[var(--hq-neg-line)]" aria-label="گیرها" data-testid="blockers" data-count={blockers.length}>
-      <ul className="flex flex-col gap-2">
-        {shown.map((b, i) => (
-          <li key={`${b.kind}-${i}`} className="flex flex-wrap items-center gap-2 text-[13px]" data-blocker>
-            <Icon name="bell" size={16} className="flex-none text-neg" />
-            <span className="min-w-0 flex-[1_1_12rem] break-words font-semibold"><PlainText text={b.title_fa} /></span>
-            {b.fix ? <FixButton fix={b.fix} company={company} run={run} /> : null}
-          </li>
-        ))}
-      </ul>
-      {blockers.length > 1 ? (
-        <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="self-start text-[12px] text-muted hover:text-ink">
-          {open ? 'کمتر' : `و ${(blockers.length - 1).toLocaleString('fa-IR')} گیر دیگر`}
-        </button>
-      ) : null}
-    </Card>
+      <CloseSheet open={closing} onOpenChange={setClosing} r={r} onAsk={(t) => { setClosing(false); void pane?.send(t); }} onClosed={() => { setClosing(false); toast({ tone: 'ok', text: 'جلسه بسته و بایگانی شد.' }); }} />
+      {asking ? <PublishFor output={asking.output} fileId={asking.file} onClose={() => setAsking(null)} /> : null}
+    </>
   );
 }
 
 // ================================================================================================ the brief ==
 /** «چه شد · حالا چه · از تو چه», stacked, in the details sheet. */
 function Brief({ r }: { r: Full }) {
-  const rows = [['چه شد', r.brief.done_fa, 'seal', 'text-pos'], ['حالا چه', r.brief.now_fa, 'time', 'text-warn'], ['از تو چه', r.brief.need_fa, 'owner', 'text-gold-ink']] as const;
+  const rows = [['چه شد', r.brief.done_fa, 'seal', 'text-pos'], ['حالا چه', r.brief.now_fa, 'time', 'text-silver-ink'], ['از تو چه', r.brief.need_fa, 'owner', 'text-gold-ink']] as const;
   return (
-    <section className="tahrir flex flex-col gap-2" aria-label="خلاصه‌ی جلسه">
+    <section className="flex flex-col gap-2" aria-label="خلاصه‌ی جلسه">
       {rows.map(([t, v, icon, tint]) => (
         <section key={t} className="flex flex-col gap-1.5 rounded-[12px] bg-tile p-3">
-          <h3 className={cx('flex items-center gap-1.5 text-[13px] font-semibold', tint)}><Icon name={icon} size={15} />{t}</h3>
+          <h3 className="flex items-center gap-1.5 text-[13px] font-semibold text-ink"><span className={tint}><Icon name={icon} size={15} /></span>{t}</h3>
           {v ? <PlainPara text={v} className="text-[13px] leading-6 text-ink" /> : <p className="text-[13px] text-muted">—</p>}
         </section>
       ))}
     </section>
-  );
-}
-
-// ============================================================================================ the open question ==
-function OpenTurn({ r, onReply, busy }: { r: Full; onReply: (t: string, sent: () => void) => void; busy: boolean }) {
-  const [text, setText] = useState('');
-  const t = r.turn!;
-  return (
-    <Card as="section" className="flex flex-col gap-3 p-5 ring-1 ring-[var(--hq-gold-ink)]" aria-label="نوبت تو">
-      <div className="flex items-center gap-2"><Pill tone="gold" live>نوبت تو</Pill><span className="text-[13px] text-sec">{t.who_fa} میپرسد</span></div>
-      <PlainPara text={t.question_fa} className="text-[15px] font-semibold leading-7" />
-      <form className="flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); if (text.trim() && !busy) onReply(text.trim(), () => setText('')); }}>
-        <input value={text} onChange={(e) => setText(e.target.value)} dir="auto" aria-label="جواب تو" placeholder="جوابت را بنویس…" className={cx(field, 'h-11 min-w-0 flex-[1_1_16rem]')} />
-        <Button type="submit" variant="primary" icon="send" disabled={!text.trim()} loading={busy}>جواب بده</Button>
-      </form>
-    </Card>
   );
 }
 
@@ -328,7 +361,7 @@ function Room({ r, closed, to, onTo }: { r: Full; closed: boolean; to: string; o
   const others = r.participants.filter((p) => p.kind !== 'holder');
   if (!others.length) return null;
   return (
-    <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5" role="radiogroup" aria-label="به چه کسی میگویی">
+    <div className="no-scrollbar flex flex-none items-center gap-1.5 overflow-x-auto" role="radiogroup" aria-label="به چه کسی میگویی">
       <span className="text-[12px] text-muted">میگویی به</span>
       <FilterChip selected={to === ''} onClick={() => onTo('')}>مسئول فرمان</FilterChip>
       {others.map((p) => <FilterChip key={p.key} selected={to === p.key} onClick={() => onTo(p.key)}>{p.title_fa}</FilterChip>)}
@@ -385,8 +418,8 @@ function PersonSheet({ open, onOpenChange, r }: { open: boolean; onOpenChange: (
     onError: (e) => toast({ tone: 'error', text: errText(e, 'این آدم نیامد.') }),
   });
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="کی را بیاورم؟" description="همکار هلدینگ یا مدیر یک شرکت" width={420}>
-      <div className="flex flex-col gap-4">
+    <SpringSheet open={open} onOpenChange={onOpenChange} title="کی را بیاورم؟" description="همکار هلدینگ یا مدیر یک شرکت" width={440}>
+      <div className="flex flex-col gap-4 pb-2">
         <fieldset className="flex flex-col gap-2"><legend className="pb-1 text-[12px] text-sec">همکارهای هلدینگ</legend>
           <div className="flex flex-wrap gap-1.5">{FIXED.map((p) => <FilterChip key={p.key} selected={have.has(p.key)} onClick={() => !have.has(p.key) && add(p.key)}>{p.fa}</FilterChip>)}</div>
         </fieldset>
@@ -399,7 +432,7 @@ function PersonSheet({ open, onOpenChange, r }: { open: boolean; onOpenChange: (
           </fieldset>
         ) : null}
       </div>
-    </Sheet>
+    </SpringSheet>
   );
 }
 
@@ -422,7 +455,7 @@ function Tasks({ r, closed }: { r: Full; closed: boolean }) {
         <ul className="flex flex-col gap-1">
           {live.map((t) => (
             <li key={t.id} className="flex items-center gap-2.5 rounded-[10px] px-1 py-1" data-state={t.state}>
-              <input type="checkbox" checked={t.state === 'done'} disabled={closed} aria-label={`${t.title_fa}: ${STATE_FA[t.state]}`} className="size-5 flex-none accent-[var(--hq-gold-ink)]"
+              <input type="checkbox" checked={t.state === 'done'} disabled={closed} aria-label={`${t.title_fa}: ${STATE_FA[t.state]}`} className="size-5 flex-none accent-[var(--hq-silver-ink)]"
                 onChange={() => act.patchTask.mutate({ id: t.id, state: NEXT_STATE[t.state] }, { onError: fail })} />
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className={cx('text-[13px] leading-6', t.state === 'done' && 'text-muted line-through')}><PlainText text={t.title_fa} /></span>
@@ -457,7 +490,7 @@ function Plan({ r }: { r: Full }) {
           {r.ack.assigned.length ? (
             <div className="flex flex-wrap gap-1.5">
               {r.ack.assigned.map((a) => (
-                <Link key={a.code} href={`/employees/${a.code}`} className="inline-flex h-8 items-center gap-1.5 rounded-full bg-tile px-3 text-[12px] hover:bg-hover"><CompanyMark code={a.company} height={12} mono />{a.title_fa}<span className="text-muted">· {name(a.company)}</span></Link>
+                <Link key={a.code} href={`/employees/${a.code}`} className="inline-flex h-8 items-center gap-1.5 rounded-full bg-tile px-3 text-[12px] hover:bg-hover"><CompanyMark code={a.company} height={12} mono /><Facts>{a.title_fa}<span className="text-muted">{name(a.company)}</span></Facts></Link>
               ))}
             </div>
           ) : null}
@@ -504,6 +537,7 @@ function FilesCard({ r }: { r: Full }) {
 }
 
 // ================================================================================================ confirm and close ==
+/** «تأیید و بستن» with the rest that goes with a close: a working group or a production line first, a note, or cancelling the order. */
 function CloseSheet({ open, onOpenChange, r, onAsk, onClosed }: { open: boolean; onOpenChange: (v: boolean) => void; r: Full; onAsk: (text: string) => void; onClosed: () => void }) {
   const toast = useToast();
   const act = useSessionActions(r.ref);
@@ -512,18 +546,18 @@ function CloseSheet({ open, onOpenChange, r, onAsk, onClosed }: { open: boolean;
   const [sure, setSure] = useState(false);
   const left = r.tasks.filter((t) => t.state === 'todo' || t.state === 'doing').length;
   const close = (verdict: 'ok' | 'cancel') => act.close.mutate({ verdict, note: note.trim() || undefined }, { onSuccess: onClosed, onError: (e) => toast({ tone: 'error', text: errText(e, 'بسته نشد؛ دوباره بزن.') }) });
+  const cancelling = act.close.isPending && act.close.variables?.verdict === 'cancel';
   return (
-    <Sheet open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setSure(false); }} title="تأیید و بستن جلسه" description="بعد از بستن، جلسه بایگانی میشود و هر وقت خواستی دوباره بازش میکنی" width={460}
-      footer={(
-        <div className="flex flex-wrap gap-2">
-          <Button variant="primary" icon="seal" loading={act.close.isPending && act.close.variables?.verdict === 'ok'} onClick={() => close('ok')}>تأیید و ببند</Button>
-          {sure ? <Button variant="danger" icon="reject" loading={act.close.isPending && act.close.variables?.verdict === 'cancel'} onClick={() => close('cancel')}>بله، لغو کن</Button> : <Button variant="ghost" onClick={() => setSure(true)}>لغو فرمان</Button>}
-        </div>
+    <SpringSheet open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setSure(false); }} title="تأیید و بستن جلسه" description="بعد از بستن، جلسه بایگانی میشود و هر وقت خواستی دوباره بازش میکنی" width={480}
+      bar={(
+        <DecisionBar label="بستن جلسه" context={sure ? 'با لغو، کارهای باز این فرمان میایستند.' : left ? `${left} کار هنوز مانده؛ با بستن جلسه لغو میشوند.` : null}
+          state={act.close.isPending && !cancelling ? 'working' : 'idle'} primary={{ label: 'تأیید و ببند', onClick: () => close('ok') }}
+          quiet={sure ? [{ label: 'بله، لغو کن', tone: 'danger', onClick: () => close('cancel'), disabled: cancelling }] : [{ label: 'لغو فرمان', onClick: () => setSure(true) }]} />
       )}>
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-5 pb-1">
         <section className="flex flex-col gap-2" aria-label="پیش از بستن">
-          <h3 className="text-[13px] font-semibold text-sec">پیش از بستن، اگر کار تکرارشدنی است</h3>
-          <p className="text-[13px] leading-6 text-sec">یک کارگروه یا یک خط تولید راه بینداز تا این کار بعد از بسته شدن جلسه هم ادامه پیدا کند؛ مسئول فرمان کارتش را همین‌جا در گفتگو میگذارد و تو اجرا میکنی.</p>
+          <h3 className="text-[13px] font-semibold text-ink">پیش از بستن، اگر کار تکرارشدنی است</h3>
+          <p className="text-[13px] leading-6 text-sec">یک کارگروه یا یک خط تولید راه بینداز تا این کار بعد از بسته شدن جلسه هم ادامه پیدا کند؛ کارتش همین‌جا در گفتگو می‌آید.</p>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" icon="companies" loading={draft.isPending} onClick={() => draft.mutate(undefined, {
               onSuccess: () => { onOpenChange(false); toast({ tone: 'ok', text: 'پیش‌نویس کارگروه آماده است؛ کارتش در گفتگوست.' }); },
@@ -532,13 +566,12 @@ function CloseSheet({ open, onOpenChange, r, onAsk, onClosed }: { open: boolean;
             <Button size="sm" icon="task" onClick={() => onAsk('برای این کار یک خط تولید راه بینداز')}>خط تولید راه بینداز</Button>
           </div>
         </section>
-        {left ? <p className="rounded-[10px] bg-warn-soft px-3 py-2 text-[13px] leading-6">{left} کار هنوز مانده. با بستن جلسه، کارهای باز لغو میشوند و فقط کارگروه و خط تولید و قانون‌هایی که ساخته‌ای میمانند.</p> : null}
         <label className="flex flex-col gap-1.5">
           <span className="text-[12px] text-sec">یادداشت (اختیاری)</span>
           <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} dir="auto" aria-label="یادداشت بستن" className={cx(field, 'py-2 leading-6')} />
         </label>
       </div>
-    </Sheet>
+    </SpringSheet>
   );
 }
 

@@ -42,7 +42,7 @@ export function WasteCard({ company }: { company: string | null }) {
             <span aria-hidden className="absolute inset-x-0 border-t border-dashed border-[var(--hq-warning)] opacity-60" style={{ bottom: `${(0.15 / max) * 100}%` }} />
             {days.map((x) => (
               <button key={x.day} type="button" onClick={() => setPick(x.day)} aria-pressed={x.day === d.day} title={`${dayFa(x.day)} · ${pct01(x.share, 1)} · ${usd(x.waste_usd)}`} aria-label={`${dayFa(x.day)}: ${pct01(x.share, 1)}`}
-                className={cx('flex-1 rounded-t-[4px] transition-colors', x.day === d.day ? 'bg-gold' : x.share > 0.15 ? 'bg-[var(--hq-warning)] opacity-70 hover:opacity-100' : 'bg-[var(--hq-silver-ink)] opacity-40 hover:opacity-70')}
+                className={cx('flex-1 rounded-t-[4px] transition-colors', x.day === d.day ? 'bg-[var(--hq-silver-ink)]' : x.share > 0.15 ? 'bg-[var(--hq-warning)] opacity-70 hover:opacity-100' : 'bg-[var(--hq-silver-ink)] opacity-40 hover:opacity-70')}
                 style={{ height: `${Math.max(6, (x.share / max) * 100)}%` }} />
             ))}
           </div>

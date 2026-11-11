@@ -5,6 +5,7 @@
  * `produced_with` names a model. An output that names none keeps the hub's own label; with neither, nothing is shown.
  */
 import { madeWith } from '@/lib/api/v47';
+import { Ltr, Sep, seps } from '@/components/look/text';
 import { cx } from '@/lib/format';
 
 export function MadeWith({ pw }: { pw: unknown }) {
@@ -14,7 +15,7 @@ export function MadeWith({ pw }: { pw: unknown }) {
     return (
       <div className="flex flex-col" data-testid="made-with">
         <span className="text-[11px] text-muted">ساخت</span>
-        <span className="text-[13px] font-semibold"><bdi className="fig">{made.model}</bdi>{made.effort ? ` · ${made.effort}` : ''}</span>
+        <span className="text-[13px] font-semibold"><Ltr>{made.model}</Ltr>{made.effort ? <><Sep />{made.effort}</> : null}</span>
       </div>
     );
   }
@@ -22,7 +23,7 @@ export function MadeWith({ pw }: { pw: unknown }) {
   return (
     <div className="flex flex-col" data-testid="made-with">
       <span className="text-[11px] text-muted">ساخته‌شده با</span>
-      <span className={cx('text-[13px] font-semibold', !/[؀-ۿ]/.test(label) && 'fig')}>{label}</span>
+      <span className={cx('text-[13px] font-semibold', !/[؀-ۿ]/.test(label) && 'fig')}>{seps(label)}</span>
     </div>
   );
 }

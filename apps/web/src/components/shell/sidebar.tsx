@@ -10,7 +10,8 @@ import { useCompanies, useInbox, usePresence, useSetKhalvat } from '@/lib/api/ho
 import { useSessions } from '@/lib/api/v34';
 import { useScope } from '@/lib/scope';
 import { cx } from '@/lib/format';
-import { NAV_ARCHIVE, NAV_BUSINESS, NAV_GOVERNANCE, NAV_MAIN, NAV_MANAGEMENT, NAV_MEDIA, NAV_TECH, isActive, type NavItem } from './nav';
+import { usePublishDesk } from '@/lib/api/v55';
+import { DESK_HREF, NAV_ARCHIVE, NAV_BUSINESS, NAV_GOVERNANCE, NAV_MAIN, NAV_MANAGEMENT, NAV_MEDIA, NAV_TECH, isActive, type NavItem } from './nav';
 
 function Badge({ n }: { n: number }) {
   if (!n) return null;
@@ -91,6 +92,9 @@ export function Sidebar() {
   const turn = useSessions('open').data?.filter((s) => s.badge === 'your_turn').length ?? 0;
   const counts = { decisions: inbox?.decisions_pending ?? 0, deliverables: inbox?.deliverables_unrated ?? 0, messages: inbox?.messages_unread ?? 0, sessions: turn };
   const on = presence?.khalvat ?? false;
+  // ⟨1.0.1⟩ «میز انتشار» is listed only where the hub serves it.
+  const desk = !!usePublishDesk(null).data;
+  const main = NAV_MAIN.filter((i) => i.href !== DESK_HREF || desk);
   return (
     <aside className="sticky top-0 hidden h-dvh w-[260px] flex-none flex-col gap-3.5 border-l border-hair bg-card px-3 pb-3.5 pt-[18px] lg:flex">
       <Link href="/" className="flex items-center gap-2.5 px-1.5" aria-label="ستاد کوینه‌پرو">
@@ -103,7 +107,7 @@ export function Sidebar() {
       <ScopeSwitcher />
       {/* The lists scroll on their own when they are taller than the window; the logo, scope and owner card stay put. */}
       <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-1">
-        <nav aria-label="ناوبری اصلی" className="flex flex-col gap-0.5">{NAV_MAIN.map((i) => <Item key={i.href} item={i} counts={counts} />)}</nav>
+        <nav aria-label="ناوبری اصلی" className="flex flex-col gap-0.5">{main.map((i) => <Item key={i.href} item={i} counts={counts} />)}</nav>
         <div aria-hidden className="mx-1.5 h-px flex-none bg-div" />
         <Fold label="کسب‌وکار" items={NAV_BUSINESS} counts={counts} />
         <Fold label="ابزار مدیریت" items={NAV_MANAGEMENT} counts={counts} />

@@ -249,13 +249,21 @@ const OUTPUT_BODIES: Record<string, [string, string, string]> = {
   'O-000061': ['TY', 'ریلز ۱: سه اشتباه رایج تازه‌کارها', 'ریلز 30 ثانیه‌ای با زیرنویس؛ آماده‌ی انتشار.'],
   'O-000062': ['TY', 'ریلز ۲: حد ضرر در یک دقیقه', 'ریلز 30 ثانیه‌ای با زیرنویس؛ آماده‌ی انتشار.'],
   'O-000063': ['TY', 'ریلز ۳: کارمزد را کجا ببینیم', 'ریلز 30 ثانیه‌ای با زیرنویس؛ آماده‌ی انتشار.'],
+  // ⟨1.0.1⟩ §55.2 the outputs the publish desk shows beside the ones above (their files and publications are in ./mock-v47)
+  'O-000064': ['FX', 'ریلز: مقاومت هفته', 'ریلز 30 ثانیه‌ای از سطح مقاومت این هفته.'],
+  'O-000065': ['PC', 'موشن‌گرافی روز: واگرایی در RSI', 'موشن‌گرافی 30 ثانیه‌ای؛ بسته‌ی دیروز کارگروه.'],
+  'O-000066': ['PC', 'موشن‌گرافی روز: باند بولینگر', 'موشن‌گرافی 30 ثانیه‌ای؛ بسته‌ی امروز کارگروه.'],
+  'O-000067': ['TY', 'ریلز: حد ضرر را کجا بگذاریم', 'ریلز 30 ثانیه‌ای با کاور؛ آماده‌ی انتشار.'],
 };
+/** ⟨1.0.1⟩ when an output of a later session was made, and what it cost (the session's end leaf adds these up). */
+const OUTPUT_AT: Record<string, string> = { 'O-000067': '2026-11-10T06:19:00Z', 'O-000066': '2026-11-10T04:10:00Z', 'O-000065': '2026-11-09T04:10:00Z', 'O-000064': '2026-11-10T02:00:00Z' };
+const OUTPUT_USAGE: Record<string, Record<string, unknown>> = { 'O-000067': { input_tokens: 182_000, output_tokens: 41_000, cache_read_tokens: 96_000, cache_write_tokens: 12_000, equiv_cost_usd: '3.84' } };
 const deliverable = (ref: string) => {
   const [company, title, summary] = OUTPUT_BODIES[ref]!;
   const producer = { code: `${company}-MEDIA-MGR`, company, kind: 'manager', department: 'MEDIA', title_fa: 'مدیر رسانه' };
   return {
     id: `o-${ref.toLowerCase()}`, ref, company, work_id: null, work_ref: null, producer, title, summary, body: `## خلاصه\n${summary}`, attachments: [], evidence: [],
-    produced_with: { label_fa: 'Sonnet 5.5 · medium' }, usage: {}, rating: null, created_at: at('2026-11-02', '12:05'), category: 'work', seen_at: null, filed_as: null,
+    produced_with: { label_fa: 'Sonnet 5.5 · medium' }, usage: OUTPUT_USAGE[ref] ?? {}, rating: null, created_at: OUTPUT_AT[ref] ?? at('2026-11-02', '12:05'), category: 'work', seen_at: null, filed_as: null,
   };
 };
 let orderSeq = 10;

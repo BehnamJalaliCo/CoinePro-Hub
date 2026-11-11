@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { usePublishDesk } from '@/lib/api/v55';
+import { DESK_HREF } from '@/components/shell/nav';
 import { usePathname } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
@@ -95,6 +97,8 @@ export const GROUPS: Group[] = [
   { key: 'work', title: 'فرمان و کار', note: 'آنچه دادی و آنچه تحویل گرفتی', tools: [
     { href: '/s', label: 'جلسه‌ها', icon: 'messages', hint: 'هر فرمان یک جلسه است؛ باز و بایگانی‌شده' },
     { href: '/outputs', label: 'خروجی‌ها', icon: 'deliverable', hint: 'گزارش‌ها و کارهای تحویل‌شده؛ بخوان، امتیاز بده، بایگانی یا پاک کن', badge: 'outputs' },
+    // ⟨1.0.1⟩ §55.2 (shown only where the hub serves the desk)
+    { href: DESK_HREF, label: 'میز انتشار', icon: 'send', hint: 'هر خروجی آماده‌ی انتشار، صف و آنچه منتشر شد، یک جا' },
     { href: '/planner', label: 'پلنر', icon: 'planner', hint: 'کارهای امروز و این هفته در یک تقویم' },
     { href: '/notifications', label: 'اعلان‌ها', icon: 'bell', hint: 'هشدارها، گزارش‌ها و پرسش‌های یک‌ضربه‌ای' },
     { href: '/resolutions', label: 'دفتر مصوبات', icon: 'seal', hint: 'تصمیم‌های ثبت‌شده، با جست‌وجو و خروجی اکسل' },
@@ -172,6 +176,8 @@ export function ToolsSheet({ open, onOpenChange, extra }: { open: boolean; onOpe
   const i21 = inbox as Inbox21 | undefined;
   const outputs = i21?.deliverables_unseen ?? i21?.deliverables_unrated ?? 0;
   const badge = (t: Tool) => (t.badge === 'outputs' && outputs > 0 ? outputs : t.badge === 'errors' && errors > 0 ? errors : null);
+  const desk = !!usePublishDesk(null).data;
+  const shown = (t: Tool) => t.href !== DESK_HREF || desk;
   const refs = useRef<Record<string, HTMLElement | null>>({});
   let n = 0;
   return (
@@ -185,7 +191,7 @@ export function ToolsSheet({ open, onOpenChange, extra }: { open: boolean; onOpe
           <section key={g.key} ref={(el) => { refs.current[g.key] = el; }} className="flex scroll-mt-2 flex-col gap-2.5" aria-label={g.title}>
             <div className="flex flex-col px-0.5"><h3 className="text-[15px] font-semibold text-ink">{g.title}</h3><span className="text-[12px] text-muted">{g.note}</span></div>
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-              {g.tools.map((t) => {
+              {g.tools.filter(shown).map((t) => {
                 const b = badge(t);
                 const i = n++;
                 return (

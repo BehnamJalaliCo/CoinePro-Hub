@@ -17,7 +17,7 @@ import { byFa } from '@/lib/control';
 import { companyOf } from '@/lib/company';
 import { attention, useAttention } from '@/lib/live/attention';
 import { beaconOf, liveStore, useStreamMeta, type Beacon } from '@/lib/live/store';
-import { seps } from '@/components/look/text';
+import { Facts, Ltr } from '@/components/look/text';
 import { cx, jTime } from '@/lib/format';
 import { Arc, useReducedMotion, useTick } from './motion';
 
@@ -118,18 +118,19 @@ export function KillBand() {
   const locked = (control?.companies ?? []).filter((k) => k.state === 'engaged');
   if (!control || (h?.state !== 'engaged' && !locked.length)) return null;
   const name = (code: string) => companyOf(companies, code).nameFa;
-  const text = h?.state === 'engaged'
-    ? `هلدینگ قفل است · از ${jTime(h.changed_at)} · ${byFa(h.changed_by)}`
+  const since = (at: string) => <>از <Ltr>{jTime(at)}</Ltr></>;
+  const facts = h?.state === 'engaged'
+    ? <Facts>هلدینگ قفل است{since(h.changed_at)}{byFa(h.changed_by)}</Facts>
     : locked.length === 1
-      ? `${name(locked[0]!.company)} قفل است · از ${jTime(locked[0]!.changed_at)} · ${byFa(locked[0]!.changed_by)}`
+      ? <Facts>{`${name(locked[0]!.company)} قفل است`}{since(locked[0]!.changed_at)}{byFa(locked[0]!.changed_by)}</Facts>
       : `${locked.length} شرکت قفل‌اند: ${locked.map((k) => name(k.company)).join('، ')}`;
   return (
     <div role="status" aria-live="polite" data-testid="kill-band" data-scope={h?.state === 'engaged' ? 'holding' : 'company'} className="hq-m1 bg-page">
       <div className="h-1 bg-neg" aria-hidden />
       <div className="flex items-center gap-2 bg-neg-soft px-4 py-1 text-[12px] font-semibold text-ink md:px-6">
         <span className="text-neg"><Icon name="lock" size={14} /></span>
-        {/* ⟨1.0.1⟩ the facts are parted by the hairline: «·» beside a Persian digit reads as a zero. */}
-        <span className="min-w-0 flex-1 truncate">{seps(text)}</span>
+        {/* ⟨1.0.1⟩ the facts are parted by the hairline: «·» beside a Persian digit reads as a zero; the clock is a Latin figure. */}
+        <span className="min-w-0 flex-1 truncate">{facts}</span>
         <Link href={h?.state === 'engaged' ? '/control' : '/companies'} className="flex-none text-[12px] text-neg hover:underline">کلیدها</Link>
       </div>
     </div>

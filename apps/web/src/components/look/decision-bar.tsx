@@ -5,7 +5,7 @@
 // only full gold), up to two quiet actions beside it. While the act is on its way the primary shows a small arc; when it is done a
 // tick draws itself (M8) and the bar leaves. The action it carries is never repeated at the bottom of the scroll.
 
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { bidi } from '@/components/ui/bidi';
 import type { IconName } from '@/generated/icons';
@@ -30,8 +30,9 @@ export function DecisionBar({ context, error, primary, quiet = [], state = 'idle
   doneLabel?: string;
   /** Called once the «done» tick has been seen: the caller takes the bar away. */
   onLeft?: () => void;
-  /** `sheet`: the bottom of a sheet (the sheet places it). `page`: stuck above the navigation at the bottom of the page. */
-  place?: 'sheet' | 'page';
+  /** `sheet`: the bottom of a sheet (the sheet places it). `page`: stuck above the navigation at the bottom of the page. `flow`: where
+   *  it is put (a session, whose composer it sits right above). */
+  place?: 'sheet' | 'page' | 'flow';
   label?: string;
   className?: string;
 }) {
@@ -40,12 +41,36 @@ export function DecisionBar({ context, error, primary, quiet = [], state = 'idle
     const t = setTimeout(onLeft, DONE_MS);
     return () => clearTimeout(t);
   }, [state, onLeft]);
+  // A page's bar and the round command button share the bottom corner: while the bar is there the button rides above it.
+  const bar = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = bar.current;
+    if (place !== 'page' || !el || typeof ResizeObserver === 'undefined') return;
+    const root = document.documentElement;
+    let frame = 0;
+    // How far the bar's top is above the bottom of the window (nothing while the bar is below the fold).
+    const put = () => {
+      frame = 0;
+      const r = el.getBoundingClientRect();
+      const up = r.top < window.innerHeight && r.bottom > 0 ? Math.round(window.innerHeight - r.top) + 8 : 0;
+      root.style.setProperty('--hq-decision-top', `${up}px`);
+    };
+    const ask = () => { if (!frame) frame = requestAnimationFrame(put); };
+    put();
+    const ro = new ResizeObserver(ask);
+    ro.observe(el);
+    ro.observe(document.body);
+    window.addEventListener('scroll', ask, { passive: true });
+    window.addEventListener('resize', ask);
+    return () => { ro.disconnect(); window.removeEventListener('scroll', ask); window.removeEventListener('resize', ask); if (frame) cancelAnimationFrame(frame); root.style.removeProperty('--hq-decision-top'); };
+  }, [place]);
   return (
-    <div role="group" aria-label={label} data-testid="decision-bar" data-state={state}
+    <div ref={bar} role="group" aria-label={label} data-testid="decision-bar" data-state={state}
       className={cx(
         'flex flex-col gap-2',
         place === 'page'
           ? 'sticky bottom-[calc(84px+env(safe-area-inset-bottom))] z-20 rounded-[16px] bg-raised/95 p-3 shadow-[0_12px_32px_rgba(0,0,0,.32)] ring-1 ring-div backdrop-blur-md lg:bottom-4'
+          : place === 'flow' ? 'flex-none rounded-[14px] bg-card p-3'
           : 'border-t border-div bg-page px-5 pb-[calc(12px+env(safe-area-inset-bottom))] pt-3',
         className,
       )}>

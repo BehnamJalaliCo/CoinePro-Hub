@@ -10,13 +10,16 @@
  */
 import { useSyncExternalStore } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { OWNER_TZ, jDate } from '@/lib/format';
 import { ApiError } from './client';
 import { call } from './v13';
 import { notServed } from './v28';
-import { sendOrder29, type OrderOut29 } from './v29';
+import { sendOrder29, type OrderOut29, type RoutineRun } from './v29';
 import { served } from './v33';
 import type { Pace } from './v34';
-import type { SessionRoutine } from './v47';
+import type { Mood } from './v41';
+import type { PublishKind, SessionPublish } from './v44';
+import type { BestHour, SessionRoutine } from './v47';
 
 // ============================================================================================ what an older hub lacks ==
 export type Feature55 = 'routine';
@@ -153,3 +156,65 @@ export function readyAnswers(question: string | null | undefined, quick?: Array<
   const parts = tail.split(/\s+یا\s+|،\s*/).map((x) => x.trim()).filter(Boolean);
   return parts.length >= 2 && parts.length <= 3 && parts.every((p) => p.length <= 48) ? parts : [];
 }
+
+// ============================================================================================ C2.2 the session (§55.1) ==
+export type { Mood, WorkerKind } from './v41';
+/** The mood as the page says it: the hub's five, and «تمام» for a closed session. */
+export type MoodKey = Mood | 'done';
+export const MOOD_FA: Record<MoodKey, string> = { thinking: 'فکر میکند', working: 'کار میکند', waiting: 'منتظر تو', stuck: 'گیر کرده', idle: 'آرام', done: 'تمام' };
+/** §54 what a direct session adds to its report: the holder does the work himself, in one session with the hub's tools. */
+export type DirectReport = { direct?: boolean };
+export const DIRECT_FA = 'مسئول این جلسه خودش کار را انجام میدهد (جلسه‌ی مستقیم)';
+
+// ======================================================================================= C2.3 the publish desk (§55.2) ==
+export type DeskFile = { id: string; name: string; mime: string; size: number };
+export type DeskState = 'ready' | 'scheduled' | 'publishing' | 'published' | 'failed' | 'cancelled' | 'waiting_setup' | 'waiting_seal';
+/**
+ * One output on the desk. `file`: what goes out (its video, else its picture); `cover`: the picture that goes with a reel; `files`:
+ * how many files the package carries (a carousel's pictures). `route_ready` false: the company's publishing path is not set yet (the
+ * technical team sets it; the card has no action). `publish`: the publication this card is about, once there is one. `at`: the
+ * output's time for a ready card, the publication's own time otherwise.
+ */
+export type DeskCard = {
+  output: string; title_fa: string; company: string; company_fa: string; order?: string | null; group_fa?: string | null;
+  file: DeskFile; cover?: DeskFile | null; files?: number; kind: PublishKind; channel?: 'instagram'; account?: string | null; accounts?: string[];
+  route_ready?: boolean; caption?: string | null; state: DeskState; publish?: SessionPublish | null; best?: BestHour | null; mode?: 'ask' | 'auto' | null; at: string;
+};
+/** Each list at most 30: ready newest first, the queue soonest first, what is done newest first (the last seven days). */
+export type PublishDesk = { ready?: DeskCard[]; queue?: DeskCard[]; done?: DeskCard[] };
+
+/**
+ * `GET /publish-desk?company=`; null on a hub before §55 (its entries are then hidden). Its key begins with `publish`, so a publish
+ * or a cancel anywhere reads it again; while something is on its way it is read every few seconds, while something is set for an
+ * hour once a minute.
+ */
+export const usePublishDesk = (company: string | null | undefined) => useQuery({
+  queryKey: ['publish', 'desk', company ?? ''], staleTime: 10_000,
+  queryFn: () => served(call<PublishDesk>('GET', `/publish-desk${company ? `?company=${encodeURIComponent(company)}` : ''}`)),
+  refetchInterval: (q) => (q.state.data?.queue?.some((c) => c.state === 'publishing') ? 5_000 : q.state.data?.queue?.length ? 60_000 : false),
+});
+
+const DAY_OF = new Intl.DateTimeFormat('en-CA', { timeZone: OWNER_TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
+const HOUR_OF = new Intl.DateTimeFormat('en-GB', { timeZone: OWNER_TZ, hour: '2-digit', hourCycle: 'h23' });
+/** The day of a moment as the owner says it: «امروز», «امشب», «فردا», «فردا شب», «دیروز», else its date. The hour is written beside it. */
+export function deskDayFa(iso: string | null | undefined, now = Date.now()): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const day = DAY_OF.format(d);
+  const night = Number(HOUR_OF.format(d)) >= 18;
+  if (day === DAY_OF.format(new Date(now))) return night ? 'امشب' : 'امروز';
+  if (day === DAY_OF.format(new Date(now + 86_400_000))) return night ? 'فردا شب' : 'فردا';
+  if (day === DAY_OF.format(new Date(now - 86_400_000))) return night ? 'دیشب' : 'دیروز';
+  return jDate(iso);
+}
+
+// ==================================================================================== C3.4 the runs of a working group ==
+/** `GET /groups/{key}/runs`: the routines' runs of a working group, newest first; null where the hub does not serve them. */
+export const useGroupRunsLook = (group: string | null | undefined) => useQuery({
+  queryKey: ['groups', 'runs', group, 'look'], enabled: !!group, staleTime: 20_000,
+  queryFn: async () => {
+    const r = await served(call<RoutineRun[] | { items?: RoutineRun[] }>('GET', `/groups/${encodeURIComponent(group!)}/runs`));
+    return r == null ? null : Array.isArray(r) ? r : r.items ?? [];
+  },
+});

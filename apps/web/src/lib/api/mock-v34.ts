@@ -4,6 +4,11 @@
 // money, critical, suggestions, canvas) and the company links with the nodes' places. A new order opens its session at once. Answers are chosen by
 // the owner's words, never at random, so the end-to-end checks can follow them. Kept in memory. Never bundled in production (reached only
 // through ./mock-v21 when NEXT_PUBLIC_HQ_MOCK=1).
+// ⟨1.0.1⟩ §54 and §55.1 for the redesigned session: three more sessions (F-0010 a workshop turn that builds a motion graphic, with its
+// time cap; F-0011 a direct session whose holder works himself; F-0012 ready for his OK with a reel to publish), the activity's `mood`
+// and each worker's `kind`, `cap_s`, `last_fa`, `last_at`, and the owner's stop of a live work (./mock-v55 routes it here). The e2e
+// checks ask for the rarer states through `hq.e2e.ring=late` (the turn is past 90 percent of its cap), `hq.e2e.workers=2` (two work
+// at once in F-0007), `hq.e2e.mood=thinking` (a run that has taken no step yet) and `hq.e2e.old55` (a hub before §55: none of these).
 
 import { conversationCard, conversationCounts, conversationDrop, conversationFiles, conversationClosed, conversationSay, presentAdd, presentDrop, sessionConversation } from './mock-v32';
 import { memoryOf, setSource, sourceOf } from './mock-v40';
@@ -26,7 +31,9 @@ const erased = new Set<string>();
 let taskSeq = 0;
 
 const holderP = (title_fa: string, company: string | null, key: string): Participant => ({ key, kind: 'holder', title_fa, company });
-const task = (n: number, title_fa: string, state: Task['state'], by: Task['by'] = 'agent', who_fa: string | null = null): Task => ({ id: `tk-${String(++taskSeq).padStart(4, '0')}`, n, title_fa, state, by, who_fa, work_ref: null });
+const task = (n: number, title_fa: string, state: Task['state'], by: Task['by'] = 'agent', who_fa: string | null = null, work_ref: string | null = null): Task => ({ id: `tk-${String(++taskSeq).padStart(4, '0')}`, n, title_fa, state, by, who_fa, work_ref });
+const flag = (k: string): string | null => { try { return window.localStorage.getItem(k); } catch { return null; } };
+const olderHub = () => flag('hq.e2e.old55') === '1';
 const T = (day: string, hm: string) => `${day}T${hm}:00Z`;
 
 function seed() {
@@ -44,13 +51,13 @@ function seed() {
     turn: { question_fa: 'کدام عنوان بهتر است: «هفته‌ای که بازار عوض شد»، «سه نکته برای حد ضرر» یا «کارمزد را دست‌کم نگیر»؟', at: T('2026-11-06', '06:10'), by: { kind: 'employee', code: 'TY-CEO', display_fa: 'مدیرعامل تریدیار' }, who_fa: 'مدیرعامل تریدیار' },
   }, [
     ['owner', 'سه عنوان برای خبرنامه‌ی هفته‌ی تریدیار پیشنهاد بده؛ مرحله به مرحله با من جلو برو.'],
-    ['ceo@TY', 'سلام مدیر کل. سه عنوان آماده کردم و قبل از نوشتن متن، نظر شما را میخواهم. کدام را بنویسم؟\n\n- هفته‌ای که بازار عوض شد\n- سه نکته برای حد ضرر\n- کارمزد را دست‌کم نگیر'],
+    ['ceo@TY', 'سلام مدیر کل. سه عنوان آماده کردم و قبل از نوشتن متن، نظرت را میخواهم. کدام را بنویسم؟\n\n- هفته‌ای که بازار عوض شد\n- سه نکته برای حد ضرر\n- کارمزد را دست‌کم نگیر'],
   ]);
   mk({
     ref: 'F-0007', text_fa: 'برای تریدیار کلیپ بساز و منظم منتشر کن', persona: 'media_director@TY', last_at: T('2026-11-02', '12:06'),
     holder: { code: 'TY-MEDIA-MGR', title_fa: 'مدیر رسانه', company: 'TY', company_fa: 'تریدیار' },
     participants: [holderP('مدیر رسانه تریدیار', 'TY', 'media_director@TY'), { key: 'advisor', kind: 'person', title_fa: 'مشاور کل', company: null }],
-    tasks: [task(1, 'نوشتن متن سه ریلز', 'done', 'agent', 'نویسنده'), task(2, 'ساخت سه ریلز', 'done', 'agent', 'سازنده‌ی ریلز'), task(3, 'مُهر سری انتشار', 'todo', 'owner'), task(4, 'استخدام مسئول انتشار', 'todo', 'owner')],
+    tasks: [task(1, 'نوشتن متن سه ریلز', 'done', 'agent', 'نویسنده'), task(2, 'ساخت سه ریلز', 'done', 'agent', 'سازنده‌ی ریلز', 'W-000311'), task(3, 'مُهر سری انتشار', 'todo', 'owner'), task(4, 'استخدام مسئول انتشار', 'todo', 'owner')],
   }, [
     ['owner', 'برای تریدیار کلیپ بساز و منظم منتشر کن.'],
     ['media_director@TY', 'سه ریلز اول ساخته و بازبینی شد. برای انتشار منظم، دو چیز لازم است: مُهر سری انتشار و یک مسئول انتشار. هر دو پایین همین صفحه آماده است.'],
@@ -93,14 +100,61 @@ function seed() {
     ['owner', 'خوب است؛ فقط حتماً هر شب یک گزارش کوتاه بده.', T('2026-11-07', '08:40')],
     ['media_director@PC', 'برنامه‌ی هفته به این شکل شد:\n\n1. شنبه: معرفی ابزار خط روند با یک ریلز کوتاه و یک پست ثابت\n2. یکشنبه: آموزش هشدار قیمت، از ساختن اولین هشدار تا دریافت آن روی تلگرام\n3. دوشنبه: پرسش و پاسخ زنده با کاربران درباره‌ی اشتباه‌های رایج در تحلیل تکنیکال\n4. سه‌شنبه: مقایسه‌ی دو روش ترسیم حمایت و مقاومت، با نمونه‌ی واقعی\n5. چهارشنبه: ریلز بلند درباره‌ی مدیریت ریسک و حد ضرر\n\nبرای هر روز یک متن، یک تصویر و یک ریلز آماده میکنم و هر شب گزارش کوتاهی برایت مینویسم. دو ریلز اول ساخته شده و پایین همین صفحه است؛ برای انتشار منظم دو چیز از تو لازم است: مُهر سری انتشار و یک مسئول انتشار.', T('2026-11-07', '09:00')],
   ]);
+  // ⟨1.0.1⟩ a workshop turn that builds: the build ring fills against its 60 minutes.
+  mk({
+    ref: 'F-0010', text_fa: 'برای پرو-چارت یک موشن‌گرافی ۳۰ ثانیه‌ای درباره‌ی اندیکاتور ATR بساز', persona: 'media_director@PC', opened_at: T('2026-11-10', '07:00'), last_at: T('2026-11-10', '07:30'),
+    holder: { code: 'PC-MEDIA-MGR', title_fa: 'مدیر رسانه', company: 'PC', company_fa: 'پرو-چارت' },
+    participants: [holderP('مدیر رسانه پرو-چارت', 'PC', 'media_director@PC')],
+    tasks: [task(1, 'نوشتن سناریو', 'done', 'agent', 'نویسنده'), task(2, 'ساخت موشن‌گرافی در کارگاه', 'doing', 'agent', 'سازنده‌ی موشن‌گرافی', 'W-000312'), task(3, 'بازبینی و تحویل', 'todo')],
+  }, [
+    ['owner', 'برای پرو-چارت یک موشن‌گرافی ۳۰ ثانیه‌ای درباره‌ی اندیکاتور ATR بساز.', T('2026-11-10', '07:00')],
+    ['media_director@PC', 'سناریو آماده شد و ساخت را به کارگاه سپردم. تا یک ساعت دیگر فایل همین‌جا میرسد.', T('2026-11-10', '07:20')],
+  ]);
+  // ⟨1.0.1⟩ §54 a direct session: its holder is one session with the hub's tools and does the work himself.
+  mk({
+    ref: 'F-0011', text_fa: 'برای تریدیار کپشن سه ریلز این هفته را بنویس', persona: 'media_director@TY', opened_at: T('2026-11-10', '08:00'), last_at: T('2026-11-10', '08:10'),
+    holder: { code: 'TY-MEDIA-MGR', title_fa: 'مدیر رسانه', company: 'TY', company_fa: 'تریدیار' },
+    participants: [holderP('مدیر رسانه تریدیار', 'TY', 'media_director@TY')],
+    tasks: [task(1, 'کپشن سه ریلز', 'doing', 'agent', 'مدیر رسانه', 'W-000313'), task(2, 'هشتگ‌ها', 'todo')],
+  }, [
+    ['owner', 'برای تریدیار کپشن سه ریلز این هفته را بنویس.', T('2026-11-10', '08:00')],
+    ['media_director@TY', 'خودم مینویسم؛ تا چند دقیقه‌ی دیگر هر سه کپشن همین‌جاست.', T('2026-11-10', '08:02')],
+  ]);
+  // ⟨1.0.1⟩ ready for his OK, with a reel to publish: what the session waits on is in its decision bar.
+  mk({
+    ref: 'F-0012', text_fa: 'برای تریدیار یک ریلز درباره‌ی جای درست حد ضرر بساز', persona: 'media_director@TY', opened_at: T('2026-11-10', '05:00'), last_at: T('2026-11-10', '06:20'),
+    holder: { code: 'TY-MEDIA-MGR', title_fa: 'مدیر رسانه', company: 'TY', company_fa: 'تریدیار' },
+    participants: [holderP('مدیر رسانه تریدیار', 'TY', 'media_director@TY')],
+    tasks: [task(1, 'نوشتن متن', 'done', 'agent', 'نویسنده'), task(2, 'ساخت ریلز', 'done', 'agent', 'سازنده‌ی ریلز')],
+  }, [
+    ['owner', 'برای تریدیار یک ریلز درباره‌ی جای درست حد ضرر بساز.', T('2026-11-10', '05:00')],
+    ['media_director@TY', 'ریلز ساخته شد و با کاورش پایین همین صفحه است. اگر خوب است، تأیید کن تا منتشر شود.', T('2026-11-10', '06:20')],
+  ]);
 }
 seed();
 
 // -------------------------------------------------------------------------------------- ⟨1.23⟩ §41 live activity
 type Line41 = { at: string; who_fa: string; text_fa: string; id?: string; company?: string | null; kind?: string; state?: 'running' | 'done' | 'failed'; task_n?: number | null };
-type Work41 = { who_fa: string; company_fa: string; work_title_fa: string; started_at: string; step: number; doing_fa: string };
+type Work41 = {
+  who_fa: string; company_fa: string; work_title_fa: string; started_at: string; step: number; doing_fa: string;
+  kind?: 'run' | 'workshop' | 'direct' | 'server'; cap_s?: number | null; last_fa?: string | null; last_at?: string | null;
+};
 type Act41 = { working: Work41[]; last: Line41[]; idle_since: string | null; waiting_fa: string | null; stuck_fa: string | null };
+const MOOD_FA: Record<string, string> = { thinking: 'فکر میکند', working: 'کار میکند', waiting: 'منتظر تو', stuck: 'گیر کرده', idle: 'آرام' };
+/** §55.1 the mood, by the hub's own rule: someone works (still thinking until a run's first step, or a turn's first act); else it waits for the owner; else stuck; else calm. */
+const moodOf = (a: Act41): string => {
+  if (a.working.length) return a.working.some((w) => ((w.kind ?? 'run') === 'run' ? w.step > 0 : w.last_fa != null)) ? 'working' : 'thinking';
+  return a.waiting_fa ? 'waiting' : a.stuck_fa ? 'stuck' : 'idle';
+};
+/** The activity as the hub of §55 answers it; a hub before §55 says neither the mood nor a worker's kind, cap or last line. */
+const actView = (a: Act41) => (olderHub()
+  ? { ...a, working: a.working.map(({ kind: _k, cap_s: _c, last_fa: _l, last_at: _a, ...w }) => w) }
+  : { ...a, working: a.working.map((w) => ({ kind: 'run', cap_s: null, last_fa: null, last_at: null, ...w })), mood: moodOf(a), mood_fa: MOOD_FA[moodOf(a)] });
+/** What a live turn of Claude Code says of itself, in the owner's words (never a path, never a command). */
+const TURN_SAYS = ['صحنه‌ی ۳ را رندر میکند', 'فایل «scene-4.tsx» را مینویسد', 'دستور اجرا میکند', 'صحنه‌ی ۴ را رندر میکند', 'فایل «caption.md» را مینویسد'];
 const activity = new Map<string, Act41>();
+/** The workers the owner stopped with «نگه دار», by session: «ادامه بده» brings them back. */
+const held = new Map<string, Work41[]>();
 let actSeq = 0;
 const SAYS = ['سایت pro-chart.com را خواند', 'از ChatGPT پرسید', 'پیش‌نویس سناریوی ریلز را نوشت', 'صدای گوینده را ساخت', 'تصویر کاور را انتخاب کرد', 'خروجی را برای بازبینی تحویل داد'];
 const ago41 = (sec: number) => new Date(Date.now() - sec * 1000).toISOString();
@@ -114,7 +168,28 @@ function actOf(s: S): Act41 {
   const lines = (n: number, running = false): Line41[] => SAYS.slice(0, n).map((t, i) => ({
     id: `run-${s.ref}-${i + 1}`, at: ago41((n - i) * 40), who_fa: who, company: co, text_fa: t, kind: i === 0 ? 'start' : 'step', state: running && i === n - 1 ? 'running' : 'done', task_n: null,
   }));
-  if (s.ref === 'F-0007') a = { working: [{ who_fa: who, company_fa: s.holder?.company_fa ?? '', work_title_fa: 'ساخت سه ریلز', started_at: ago41(95), step: 3, doing_fa: SAYS[2]! }], last: lines(3, true), idle_since: null, waiting_fa: null, stuck_fa: null };
+  if (s.ref === 'F-0007' && flag('hq.e2e.mood') === 'thinking') a = { working: [{ who_fa: who, company_fa: s.holder?.company_fa ?? '', work_title_fa: 'ساخت سه ریلز', started_at: ago41(8), step: 0, doing_fa: '' }], last: [], idle_since: null, waiting_fa: null, stuck_fa: null };
+  else if (s.ref === 'F-0007') {
+    a = { working: [{ who_fa: who, company_fa: s.holder?.company_fa ?? '', work_title_fa: 'ساخت سه ریلز', started_at: ago41(95), step: 3, doing_fa: SAYS[2]! }], last: lines(3, true), idle_since: null, waiting_fa: null, stuck_fa: null };
+    if (flag('hq.e2e.workers') === '2') a.working.push({ who_fa: 'نویسنده', company_fa: s.holder?.company_fa ?? '', work_title_fa: 'نوشتن کپشن ریلزها', started_at: ago41(40), step: 1, doing_fa: 'کپشن ریلز دوم را مینویسد', kind: 'server' });
+  } else if (s.ref === 'F-0010') {
+    const late = flag('hq.e2e.ring') === 'late';
+    a = {
+      working: [{ who_fa: 'سازنده‌ی موشن‌گرافی', company_fa: s.holder?.company_fa ?? '', work_title_fa: 'ساخت موشن‌گرافی ATR', started_at: ago41((late ? 56 : 23) * 60), step: 0, doing_fa: 'موشن‌گرافی را میسازد', kind: 'workshop', cap_s: 3600, last_fa: TURN_SAYS[0]!, last_at: ago41(12) }],
+      last: [
+        { id: `turn-${s.ref}-1`, at: ago41(22 * 60), who_fa: 'سازنده‌ی موشن‌گرافی', company: co, text_fa: 'کار را در کارگاه شروع کرد', kind: 'start', state: 'done', task_n: 2 },
+        { id: `turn-${s.ref}-2`, at: ago41(9 * 60), who_fa: 'سازنده‌ی موشن‌گرافی', company: co, text_fa: 'صحنه‌ی ۲ را رندر کرد', kind: 'step', state: 'done', task_n: 2 },
+        { id: `turn-${s.ref}-3`, at: ago41(12), who_fa: 'سازنده‌ی موشن‌گرافی', company: co, text_fa: TURN_SAYS[0]!, kind: 'step', state: 'running', task_n: 2 },
+      ],
+      idle_since: null, waiting_fa: null, stuck_fa: null,
+    };
+  } else if (s.ref === 'F-0011') {
+    a = {
+      working: [{ who_fa: who, company_fa: s.holder?.company_fa ?? '', work_title_fa: 'کپشن سه ریلز', started_at: ago41(6 * 60), step: 0, doing_fa: 'روی فرمان کار میکند', kind: 'direct', cap_s: 3600, last_fa: TURN_SAYS[4]!, last_at: ago41(8) }],
+      last: [{ id: `turn-${s.ref}-1`, at: ago41(8), who_fa: who, company: co, text_fa: TURN_SAYS[4]!, kind: 'step', state: 'running', task_n: 1 }],
+      idle_since: null, waiting_fa: null, stuck_fa: null,
+    };
+  }
   else if (s.ref === 'F-0005') a = { working: [], last: lines(2), idle_since: ago41(1500), waiting_fa: null, stuck_fa: 'بودجه‌ی پست سوم تمام شده؛ بودجه را اضافه کن یا بگو ادامه بدهم.' };
   else if (s.ref === 'F-0008') a = { working: [], last: lines(1), idle_since: ago41(300), waiting_fa: 'انتخاب یکی از سه عنوان', stuck_fa: null };
   else a = { working: [], last: s.closed_at ? [] : lines(1), idle_since: ago41(600), waiting_fa: null, stuck_fa: null };
@@ -137,8 +212,9 @@ export function tickActivity(): Array<{ id: string; type: string; at: string; co
       out.push({ id: `d34-${++actSeq}`, type: 'session.activity', at: NOW(), company: co, ref: s.ref, data: { order: s.ref, line: done, working: a.working.length } });
     }
     w.step += 1;
-    w.doing_fa = SAYS[w.step % SAYS.length]!;
-    const line: Line41 = { id: `run-${s.ref}-${w.step}`, at: NOW(), who_fa: w.who_fa, company: co, text_fa: w.doing_fa, kind: 'step', state: 'running', task_n: null };
+    const turn = w.kind === 'workshop' || w.kind === 'direct';
+    if (turn) { w.last_fa = TURN_SAYS[w.step % TURN_SAYS.length]!; w.last_at = NOW(); } else w.doing_fa = SAYS[w.step % SAYS.length]!;
+    const line: Line41 = { id: `run-${s.ref}-${w.step}`, at: NOW(), who_fa: w.who_fa, company: co, text_fa: turn ? w.last_fa! : w.doing_fa, kind: 'step', state: 'running', task_n: null };
     a.last = [...a.last, line].slice(-30);
     out.push({ id: `d34-${++actSeq}`, type: 'session.activity', at: line.at, company: co, ref: s.ref, data: { order: s.ref, line, working: a.working.length } });
   }
@@ -192,6 +268,26 @@ const LOCAL: Record<string, any> = {
     outputs: [{ ref: 'O-000071', title_fa: 'ریلز ۱: معرفی ابزار خط روند', kind: 'reel' }, { ref: 'O-000072', title_fa: 'ریلز ۲: ساختن اولین هشدار قیمت', kind: 'reel' }],
     summary: null, updated_at: T('2026-11-07', '09:25'),
   },
+  'F-0010': {
+    ref: 'F-0010', text_fa: 'برای پرو-چارت یک موشن‌گرافی ۳۰ ثانیه‌ای درباره‌ی اندیکاتور ATR بساز', at: T('2026-11-10', '07:00'), state: 'in_progress',
+    ack: { at: T('2026-11-10', '07:01'), by: { kind: 'employee', code: 'PC-MEDIA-MGR', display_fa: 'مدیر رسانه پرو-چارت' }, plan_fa: 'نویسنده سناریو را مینویسد و کارگاه هلدینگ موشن‌گرافی را میسازد؛ فایل در همین جلسه میرسد.', assigned: [{ company: 'PC', code: 'PC-MEDIA-MGR', title_fa: 'مدیر رسانه' }], due_at: null },
+    route: { companies: ['PC'], department: 'MEDIA', collaborators: [], output_kind: 'reel', budget_tokens: 600_000, mode: 'single', player: 'auto' },
+    steps: [{ at: T('2026-11-10', '07:00'), who_fa: 'منشی هلدینگ', what_fa: 'فرمان را به رسانه‌ی پرو-چارت سپرد.' }, { at: T('2026-11-10', '07:18'), who_fa: 'نویسنده', what_fa: 'سناریوی موشن‌گرافی را نوشت.' }],
+    blockers: [], outputs: [], summary: null, updated_at: T('2026-11-10', '07:30'),
+  },
+  'F-0011': {
+    ref: 'F-0011', text_fa: 'برای تریدیار کپشن سه ریلز این هفته را بنویس', at: T('2026-11-10', '08:00'), state: 'in_progress',
+    ack: null, route: { companies: ['TY'], department: 'MEDIA', collaborators: [], output_kind: 'answer', budget_tokens: 120_000, mode: 'single', player: 'auto' },
+    steps: [{ at: T('2026-11-10', '08:00'), who_fa: 'منشی هلدینگ', what_fa: 'فرمان را به مدیر رسانه‌ی تریدیار سپرد.' }],
+    blockers: [], outputs: [], summary: null, updated_at: T('2026-11-10', '08:10'),
+  },
+  'F-0012': {
+    ref: 'F-0012', text_fa: 'برای تریدیار یک ریلز درباره‌ی جای درست حد ضرر بساز', at: T('2026-11-10', '05:00'), state: 'delivered',
+    ack: null, route: { companies: ['TY'], department: 'MEDIA', collaborators: [], output_kind: 'reel', budget_tokens: 400_000, mode: 'single', player: 'auto' },
+    steps: [{ at: T('2026-11-10', '05:00'), who_fa: 'منشی هلدینگ', what_fa: 'فرمان را به رسانه‌ی تریدیار سپرد.' }, { at: T('2026-11-10', '05:40'), who_fa: 'نویسنده', what_fa: 'متن ریلز را نوشت.' }, { at: T('2026-11-10', '06:18'), who_fa: 'سازنده‌ی ریلز', what_fa: 'ریلز را ساخت و تحویل داد.' }],
+    blockers: [], outputs: [{ ref: 'O-000067', title_fa: 'ریلز: حد ضرر را کجا بگذاریم', kind: 'reel' }],
+    summary: { done_fa: 'ریلز ۳۰ ثانیه‌ای با کاور ساخته شد.', left_fa: '', need_fa: 'اگر خوب است، تأیید کن تا منتشر شود.' }, updated_at: T('2026-11-10', '06:20'),
+  },
   'F-0004': {
     ref: 'F-0004', text_fa: 'گزارش هزینه‌ی تبلیغات اکتبر', at: T('2026-10-28', '14:00'), state: 'delivered',
     ack: null, route: { companies: ['HQ'], department: null, collaborators: [], output_kind: 'report', budget_tokens: 80_000, mode: 'single', player: 'auto' },
@@ -210,6 +306,8 @@ function decorate(rep: any, s: S) {
     brief: briefOf(rep, s), tasks: s.tasks, participants: s.participants,
     // ⟨1.18⟩ §36.3 the files of the owner's turns belong to the order, newest first
     files: conversationFiles(s.conv),
+    // ⟨1.0.1⟩ §54 the holder of a direct session does the work himself
+    ...(olderHub() ? {} : { direct: s.ref === 'F-0011' }),
   };
 }
 const card = (s: S, rep: any) => {
@@ -375,7 +473,7 @@ export async function handle34(req: Request, p: string, q: URLSearchParams, next
     if (!rep) return problem(404, 'not_found', 'گزارش این فرمان پیدا نشد.');
     return json(decorate(rep, s));
   }
-  if (act === 'activity' && m === 'GET') return json(actOf(s));
+  if (act === 'activity' && m === 'GET') return json(actView(actOf(s)));
   if (act === 'nudge' && m === 'POST') {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(req.headers.get('Idempotency-Key') ?? '')) return problem(422, 'validation_failed', 'کلید یکتا باید UUID باشد.');
     if (s.closed_at) return problem(409, 'session_closed', 'این جلسه بسته شده است.');
@@ -383,10 +481,11 @@ export async function handle34(req: Request, p: string, q: URLSearchParams, next
     const who = s.holder ? `${s.holder.title_fa} ${s.holder.company_fa}` : 'مشاور کل';
     const line: Line41 = { id: `wake-${s.ref}-${a.last.length + 1}`, at: NOW(), who_fa: who, company: s.holder?.company ?? null, text_fa: 'برنامه را از کار بعدی ادامه داد', kind: 'wake', state: 'done', task_n: null };
     a.stuck_fa = null; a.waiting_fa = null; a.idle_since = null;
-    if (!a.working.length) a.working = [{ who_fa: who, company_fa: s.holder?.company_fa ?? '', work_title_fa: s.tasks.find((t) => t.state !== 'done')?.title_fa ?? 'ادامه‌ی برنامه', started_at: line.at, step: 1, doing_fa: line.text_fa }];
+    if (!a.working.length) a.working = held.get(s.ref)?.map((w) => ({ ...w, started_at: line.at, last_at: w.last_fa ? line.at : w.last_at })) ?? [{ who_fa: who, company_fa: s.holder?.company_fa ?? '', work_title_fa: s.tasks.find((t) => t.state !== 'done')?.title_fa ?? 'ادامه‌ی برنامه', started_at: line.at, step: 1, doing_fa: line.text_fa }];
+    held.delete(s.ref);
     a.last = [...a.last, line].slice(-30);
     touch();
-    return json(a);
+    return json(actView(a));
   }
   if (act === 'talk' && m === 'POST') return json({ conversation_ref: s.conv }, 201);
   if (act === 'reply' && m === 'POST') {
@@ -522,4 +621,22 @@ export function openFromPlaybook(v: { company: string; text_fa: string; first_md
   };
   setSource(ref, v.source);
   return { ref, conversation: conv.ref };
+}
+
+// ------------------------------------------------------------------------------- ⟨1.0.1⟩ the owner's stop, for ./mock-v55
+/** The works of the demo's sessions that can be live, by ref, with the id the list's search answers. */
+export const LIVE_WORKS: Record<string, string> = {
+  'W-000311': '0b1c55a0-0000-4000-8000-000000000311', 'W-000312': '0b1c55a0-0000-4000-8000-000000000312', 'W-000313': '0b1c55a0-0000-4000-8000-000000000313',
+};
+/** «نگه دار»: the live work of the session that carries this work stops (nothing more runs for it until the owner speaks). */
+export function stopLiveWork(workRef: string): { work_ref: string; workspace: null; jobs_stopped: number } | null {
+  const s = [...sessions.values()].find((x) => x.tasks.some((t) => t.work_ref === workRef));
+  if (!s) return null;
+  const a = actOf(s);
+  const n = a.working.length;
+  if (n) held.set(s.ref, a.working);
+  a.last = a.last.map((l) => (l.state === 'running' ? { ...l, state: 'done' as const } : l));
+  a.working = [];
+  a.idle_since = NOW();
+  return { work_ref: workRef, workspace: null, jobs_stopped: n };
 }

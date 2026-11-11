@@ -257,6 +257,8 @@ body:has([role="dialog"][data-state="open"]) [data-command-button] { display: no
 /* M18 «جمع شدن سربرگ»: a header that is stuck (look/collapse.ts sets data-stuck) folds to one line. */
 .hq-m18 { transition: padding var(--hq-dur-state) var(--hq-ease-standard), background-color var(--hq-dur-state) var(--hq-ease-standard), box-shadow var(--hq-dur-state) var(--hq-ease-standard); }
 .hq-m18[data-stuck] .hq-m18-fold { display: none; }
+/* What a folded header shows in place of what it folded away (the task count beside the title). */
+.hq-m18:not([data-stuck]) .hq-m18-only { display: none; }
 /* The separator between facts: a thin vertical hairline with air on both sides (never «·», which reads as a zero beside a Persian digit). */
 .hq-sep { display: inline-block; width: 1px; height: .9em; margin-inline: .6em; background: var(--hq-line-strong); vertical-align: -0.08em; flex: none; }
 @media (prefers-reduced-motion: reduce) {

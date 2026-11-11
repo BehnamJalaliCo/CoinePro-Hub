@@ -6,7 +6,7 @@
 // Nothing here sends the owner elsewhere to answer; the first decision's «تأیید» is the page's only full gold.
 
 import Link from 'next/link';
-import { useState, type MouseEvent } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { CompanyMark } from '@/components/brand/marks';
 import { needsStepUp } from '@/components/cartable/decision-detail';
@@ -85,12 +85,15 @@ const answerCls = 'inline-flex min-h-10 items-center rounded-[12px] border borde
 
 /** A session in his turn: the full question, its ready answers (one tap sends that answer through the session's own reply), how
  *  long it has waited and which task stands still. Anything else that waits (ready for his approval, stuck) says why and opens. */
-function WaitingSession({ s, i, report }: { s: SessionCard; i: number; report: { data: SessionReport | null | undefined; isLoading: boolean } }) {
+function WaitingSession({ s, i, report, sent, onSent }: {
+  s: SessionCard; i: number; report: { data: SessionReport | null | undefined; isLoading: boolean };
+  /** The answer he just gave here: the card says so for a moment, also after the office no longer lists the session as waiting. */
+  sent: string | null; onSent: (text: string) => void;
+}) {
   const qc = useQueryClient();
   const toast = useToast();
   const nav = useCardNav();
   const turn = report.data?.turn ?? null;
-  const [sent, setSent] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const question = turn?.question_fa ?? null;
   const answers = s.badge === 'your_turn' && question ? readyAnswers(plain(question), (report.data as { quick_replies?: string[] } | null | undefined)?.quick_replies) : [];
@@ -102,7 +105,7 @@ function WaitingSession({ s, i, report }: { s: SessionCard; i: number; report: {
     try {
       await call('POST', `/orders/${encodeURIComponent(s.ref)}/reply`, { text });
       haptic('seal');
-      setSent(text);
+      onSent(text);
       await Promise.all(['orders', 'office', 'home', 'talk'].map((k) => qc.invalidateQueries({ queryKey: [k] })));
     } catch (e) {
       haptic('error');
@@ -112,7 +115,7 @@ function WaitingSession({ s, i, report }: { s: SessionCard; i: number; report: {
     }
   };
   const who = turn?.who_fa ?? (s.holder ? `${s.holder.title_fa} ${s.holder.company_fa}` : 'مشاور کل');
-  const asks = s.badge === 'your_turn' && !!question;
+  const asks = (s.badge === 'your_turn' || !!sent) && !!question;
   const head = (
     <Link href={sessionHref(s.ref)} onClick={nav(sessionHref(s.ref))} className="flex min-w-0 flex-1 flex-col gap-1 rounded-[8px]">
       <span className="flex items-center gap-1.5 text-[11px] text-muted">
@@ -185,7 +188,7 @@ function WaitingDecision({ d, lead, i }: { d: Decision; lead: boolean; i: number
       <div className="flex flex-col gap-1">
         <span className="flex items-center gap-1.5 text-[11px] text-muted">
           <CompanyMark code={d.company} height={11} mono />
-          <Facts>{k.fa.replace(/\s*\([A-Za-z_ -]+\)/, '')}{waitedFa(d.created_at)}{`ریسک ${r.fa}`}</Facts>
+          <Facts>{k.fa.replace(/\s*\([A-Za-z_ -]+\)/, '')}{waitedFa(d.created_at)}{r.fa}</Facts>
         </span>
         <span className="text-[14px] font-semibold leading-6 text-ink"><PlainText text={d.title} /></span>
       </div>
@@ -216,8 +219,20 @@ export function turnCount(o: Pick<Office, 'sessions' | 'approvals' | 'approvals_
 }
 
 /** The top of the home: how many things wait for him, and each of them answered right there. */
+/** How long «جوابت رفت» stays where the question was. */
+const SAID_MS = 6000;
+
 export function TurnRow({ o }: { o: Office }) {
   const [all, setAll] = useState(false);
+  // What he answered here a moment ago: the office's next read drops the session from what waits, the card still says his answer went.
+  const [said, setSaid] = useState<Array<{ s: SessionCard; text: string }>>([]);
+  const timers = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+  useEffect(() => () => { for (const t of timers.current) clearTimeout(t); }, []);
+  const onSent = (s: SessionCard, text: string) => {
+    setSaid((a) => [...a.filter((x) => x.s.ref !== s.ref), { s, text }]);
+    timers.current.push(setTimeout(() => setSaid((a) => a.filter((x) => x.s.ref !== s.ref)), SAID_MS));
+  };
+  const sentOf = (ref: string) => said.find((x) => x.s.ref === ref)?.text ?? null;
   const waiting = o.sessions.filter((s) => state3(s.badge) === 'waiting').sort(bySessionOrder);
   const mine = waiting.filter((s) => s.badge === 'your_turn');
   const ready = waiting.filter((s) => s.badge !== 'your_turn');
@@ -230,10 +245,14 @@ export function TurnRow({ o }: { o: Office }) {
   const asks = mine.filter((s) => !!reportOf(s.ref).data?.turn);
   const lift = mine.filter((s) => !reportOf(s.ref).data?.turn);
   const total = turnCount(o);
+  // Answered a moment ago and no longer listed as waiting: its card stays at the top, saying so.
+  const gone = said.filter((x) => !waiting.some((s) => s.ref === x.s.ref));
+  const goneRows = gone.map((x, i) => <WaitingSession key={x.s.ref} s={x.s} i={i} report={{ data: undefined, isLoading: false }} sent={x.text} onSent={() => undefined} />);
   if (!total) {
     return (
-      <section aria-label="نوبت تو" data-testid="turn-row" data-count={0} className="flex items-center gap-2 text-[13px] text-sec">
-        <span className="text-pos"><DrawnTick size={16} /></span>چیزی منتظر تو نیست.
+      <section aria-label="نوبت تو" data-testid="turn-row" data-count={0} className="flex flex-col gap-2">
+        <span className="flex items-center gap-2 text-[13px] text-sec"><span className="text-pos"><DrawnTick size={16} /></span>چیزی منتظر تو نیست.</span>
+        {goneRows.length ? <ul aria-label="جواب داده شد" className="flex flex-col gap-2">{goneRows}</ul> : null}
       </section>
     );
   }
@@ -252,7 +271,8 @@ export function TurnRow({ o }: { o: Office }) {
         </div>
       </div>
       <ul aria-label="منتظر تو" className="flex flex-col gap-2">
-        {shown.map((x, i) => (x.session ? <WaitingSession key={x.key} s={x.session} i={i} report={reportOf(x.key)} /> : <WaitingDecision key={x.key} d={x.decision!} lead={x.key === lead} i={i} />))}
+        {goneRows}
+        {shown.map((x, i) => (x.session ? <WaitingSession key={x.key} s={x.session} i={i} report={reportOf(x.key)} sent={sentOf(x.key)} onSent={(t) => onSent(x.session!, t)} /> : <WaitingDecision key={x.key} d={x.decision!} lead={x.key === lead} i={i} />))}
       </ul>
       {!all && items.length > SHOWN ? (
         <Button variant="text" size="sm" className="-ms-2 self-start" aria-expanded={false} onClick={() => setAll(true)}>{faCount(items.length - SHOWN)} مورد دیگر</Button>

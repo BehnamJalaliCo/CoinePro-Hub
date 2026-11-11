@@ -6,14 +6,15 @@ import { Fragment, type ReactNode } from 'react';
 // Persian.
 
 /** A Latin token: starts with a letter, a digit or a currency sign; carries letters, digits and the punctuation of paths, versions, URLs. */
-const TOKEN = String.raw`[A-Za-z0-9$€£@#][A-Za-z0-9._\-/:@#%+~=?&$€£]*`;
+const TOKEN = String.raw`[A-Za-z0-9$€£@#][A-Za-z0-9._\-/:@#%+~=?&$€£]*٪?`;
 /** Latin words in a row ("GPT 5.5", "Claude Opus 5.5") are one run. */
 const RUN = new RegExp(`${TOKEN}(?:[ \\u00A0]+${TOKEN})*`, 'g');
 /**
  * A run is Latin when it has a Latin letter or a currency sign, or is a version, an address or a path made of digits (2.14.1, 10.10.1.4,
- * 2026/10/31); a bare number (a count, a decimal) stays in the prose, in Persian digits.
+ * 2026/10/31, and ⟨1.0.1⟩ 2026-10-17, which after Persian letters would otherwise be drawn day first), or a percentage (⟨1.0.1⟩ «72٪», «38%»: money, rank and percent are Latin figures); a bare number (a count, a decimal)
+ * stays in the prose, in Persian digits.
  */
-const IS_LATIN = /[A-Za-z$€£]|\d\.\d+\.\d|\d[/@#]\d/;
+const IS_LATIN = /[A-Za-z$€£]|\d\.\d+\.\d|\d[/@#]\d|\d{4}-\d{1,2}-\d{1,2}|\d[%٪]$/;
 /** Sentence punctuation after a token belongs to the sentence, not to the token. */
 const TRAILING = /[.:,;!?)\]-]+$/;
 
@@ -44,7 +45,8 @@ export function bidiParts(text: string): BidiPart[] {
 
 /** A Latin run as the page shows it: isolated (<bdi>), in the Latin-digit face; a long one (a path, a URL) may break anywhere. */
 export function LatinRun({ text }: { text: string }) {
-  return <bdi dir="ltr" className={text.length > 24 ? 'latin [overflow-wrap:anywhere]' : 'latin'}>{text}</bdi>;
+  // A short one (a date, a version, a handle) is never broken across two lines.
+  return <bdi dir="ltr" className={text.length > 24 ? 'latin [overflow-wrap:anywhere]' : 'latin whitespace-nowrap'}>{text}</bdi>;
 }
 
 /** [text] with its Latin runs isolated; for any plain string shown in Persian. */

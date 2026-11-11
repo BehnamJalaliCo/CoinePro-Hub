@@ -147,7 +147,7 @@ test('the publish sheet: «بهترین ساعت» is one of the times, the JPEG
     await page.goto('/outputs?ref=O-000061&tab=all');
     // §53 how it was made: the model's label and the effort, in Persian.
     await expect(page.getByTestId('made-with')).toContainText('ساخت');
-    await expect(page.getByTestId('made-with')).toContainText('Opus 5.5 · بیشترین دقت');
+    await expect(page.getByTestId('made-with')).toContainText('Opus 5.5، بیشترین دقت');
     // §52 a picture on its own: the line under a PNG, none under a JPEG.
     await fileRow(page, 'cover-01.png').getByRole('button', { name: 'تأیید و انتشار' }).click();
     let sheet = page.getByRole('dialog', { name: 'تأیید و انتشار' });
@@ -188,10 +188,10 @@ test('the publish sheet: «بهترین ساعت» is one of the times, the JPEG
 test('how an output was made: the effort in Persian where the model is named, the hub\'s own label where it is not', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/outputs?ref=O-000062&tab=all');
-    await expect(page.getByTestId('made-with')).toContainText('Opus 5.5 · خیلی زیاد');
+    await expect(page.getByTestId('made-with')).toContainText('Opus 5.5، خیلی زیاد');
     await page.goto('/outputs?ref=O-000063&tab=all');
     await expect(page.getByTestId('made-with')).toContainText('ساخته‌شده با');
-    await expect(page.getByTestId('made-with')).toContainText('Sonnet 5.5 · medium');
+    await expect(page.getByTestId('made-with')).toContainText('Sonnet 5.5، medium');
   });
 });
 
@@ -333,7 +333,7 @@ test('a hub before these routes: none of the new pieces is shown, the older ones
     await expect(sheet.getByLabel('روال دائمی', { exact: true })).toHaveCount(0);
     await expect(sheet.getByLabel('انتشارها', { exact: true })).toHaveCount(0);
     await page.goto('/outputs?ref=O-000061&tab=all');
-    await expect(page.getByTestId('made-with')).toContainText('Sonnet 5.5 · medium');
+    await expect(page.getByTestId('made-with')).toContainText('Sonnet 5.5، medium');
     await expect(page.getByTestId('publish')).toHaveCount(0);
   });
 });
