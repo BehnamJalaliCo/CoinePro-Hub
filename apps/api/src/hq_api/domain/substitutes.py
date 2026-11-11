@@ -164,6 +164,10 @@ DEFAULT_SEATS: dict[str, list[dict[str, Any]]] = {
 }  # fmt: skip
 SEAT_ORDER = {s: i for i, s in enumerate(SEATS)}
 WEB_PACE = timedelta(seconds=60)
+# A web call still 'running' this long past its own timeout has lost its pass (the worker
+# restarted or the activity was cut off mid-job): it fails, or that player's queue never
+# moves again. Room for two other players' jobs ahead of it in the same pass.
+WEB_STALE_GRACE_S = 2400
 LOGIN_MINUTES = 10
 CALL_TIMEOUT_S = {"code_review": 900, "creative": 900, "long_read": 600}
 TEXT_LIMIT = 200_000  # a question's characters
@@ -2060,6 +2064,7 @@ async def web_jobs(hub: Any, egress: Any, now: datetime | None = None) -> dict[s
         lock = await gate.holding_lock(tx)
         if lock is not None:
             return gate.skipped(lock, ran=0, wiped=wiped)
+        await _web_lost(tx, hub)
         picked = []
         for player in PLAYERS:
             p = await tx.first(
@@ -2110,6 +2115,33 @@ async def web_jobs(hub: Any, egress: Any, now: datetime | None = None) -> dict[s
     return {"ran": ran, "wiped": wiped}
 
 
+async def _web_lost(tx: Tx, hub: Any) -> int:
+    """Web calls whose pass died with them (as claim() does for the CLI): failed with
+    `timeout`, their creative failed, and whatever waits on them told (_applied)."""
+    rows = await tx.all(
+        """SELECT * FROM substitutes.calls WHERE via = 'web' AND state = 'running'
+             AND claimed_at < now() - make_interval(secs => timeout_s + :g)
+           FOR UPDATE SKIP LOCKED""",
+        g=WEB_STALE_GRACE_S,
+    )
+    for c in rows:
+        failed = await tx.one(
+            """UPDATE substitutes.calls SET state = 'failed', state_reason = 'timeout',
+                   finished_at = now(), input_md = NULL WHERE id = :id RETURNING *""",
+            id=c["id"],
+        )
+        if c["purpose_kind"] == "creative":
+            await tx.exec(
+                """UPDATE substitutes.creatives SET state = 'failed', review_md = :why, updated_at = now()
+                   WHERE ref = :ref""",
+                why="not made: timeout",
+                ref=c["purpose_ref"],
+            )
+        log.warning("web call lost its pass", extra={"call": str(c["id"]), "player": c["player"]})
+        await _applied(tx, hub, failed)
+    return len(rows)
+
+
 async def _skip_web(tx: Tx, hub: Any, c: dict[str, Any], reason: str) -> None:
     await tx.exec(
         """UPDATE substitutes.calls SET state = 'skipped', state_reason = :r, finished_at = now(), input_md = NULL
@@ -2154,6 +2186,13 @@ async def apply_web(hub: Any, c: dict[str, Any], account: str, answer: dict[str,
                 ok, error = False, f"refused: {exc}"[:120]
     async with hub.db.tx(await hub.companies.ids()) as tx:
         p = await _player(tx, c["player"], lock=True)
+        state = await tx.scalar(
+            "SELECT state FROM substitutes.calls WHERE id = :id FOR UPDATE", id=c["id"]
+        )
+        if state != "running":
+            # a late answer: the call already ended (_web_lost failed it), and was told so
+            log.info("late web answer dropped", extra={"call": str(c["id"]), "state": state})
+            return
         if ok:
             await tx.exec(
                 """UPDATE substitutes.players SET web_last_ok_at = now(), web_last_failure = NULL,

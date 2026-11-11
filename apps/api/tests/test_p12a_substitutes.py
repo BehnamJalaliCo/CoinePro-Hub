@@ -662,6 +662,44 @@ async def test_the_web_path_does_nothing_while_the_holding_is_locked(hub: Hub, s
         )
 
 
+
+async def test_a_web_call_that_lost_its_pass_fails_and_the_queue_moves_on(
+    hub: Hub, su: Any
+) -> None:
+    """A web call left 'running' (the worker restarted while egress had it) blocked its
+    player's web queue forever; past its timeout and the grace it fails with `timeout`."""
+    async with bench(su, hub, web=("deepseek",)):
+        await su.execute("UPDATE substitutes.seats SET per_day = 1000 WHERE player = 'deepseek'")
+        holding = await hub.companies.holding()
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            lost = await S.seat_call(tx, hub, A.SERVICE, seat="quick_search", input_md="سوال اول",
+                                     company_id=holding.id)  # fmt: skip
+            nxt = await S.seat_call(tx, hub, A.SERVICE, seat="quick_search", input_md="سوال دوم",
+                                    company_id=holding.id)  # fmt: skip
+        await su.execute(
+            """UPDATE substitutes.calls SET state = 'running',
+                   claimed_at = now() - make_interval(secs => timeout_s + $2 + 60) WHERE id = $1""",
+            lost["id"],
+            S.WEB_STALE_GRACE_S,
+        )
+        fake = FakeEgress({"ok": True, "text_md": "پاسخ فارسی کوتاه است."})
+        out = await S.web_jobs(hub, fake)
+        assert out["ran"] == 1 and "سوال دوم" in fake.calls[0]["prompt"]
+        row = await su.fetchrow(
+            "SELECT state, state_reason, input_md FROM substitutes.calls WHERE id = $1", lost["id"]
+        )
+        assert (row["state"], row["state_reason"], row["input_md"]) == ("failed", "timeout", None)
+        assert await su.fetchval(
+            "SELECT state FROM substitutes.calls WHERE id = $1", nxt["id"]
+        ) in ("done", "failed")
+        await su.execute(
+            "UPDATE substitutes.seats SET per_day = 60 WHERE player = 'deepseek' AND seat = 'quick_search'"
+        )
+        await su.execute(
+            "UPDATE substitutes.seats SET per_day = 5 WHERE player = 'deepseek' AND seat = 'third_opinion'"
+        )
+
+
 def test_the_overlay_is_set_in_iranyekanx_inside_the_safe_zone(tmp_path: Any) -> None:
     overlay = {"title_fa": "دوره‌ی آموزش رایگان فارکس", "body_fa": "ثبت‌نام از امروز برای همه باز است",
                "cta_fa": "همین حالا", "mark": True}  # fmt: skip
