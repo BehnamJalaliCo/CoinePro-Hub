@@ -65,7 +65,10 @@ class Hub:
         self.reserve_answer: tuple[int, dict[str, Any]] = (200, {"reservation": "r-1"})
         self.listing_status = 200
         self.approved: str | None = None  # an approved A3 card the api consumes
+        self.consumed: list[dict[str, Any]] = []  # the cards used up (right before the call)
+        self.consume_status = 200
         mock.post(f"{API}/internal/v1/tools/mcp/resolve").mock(side_effect=self._resolve)
+        mock.post(f"{API}/internal/v1/tools/mcp/consume").mock(side_effect=self._consume)
         mock.post(f"{API}/internal/v1/tools/mcp/crm/listing").mock(side_effect=self._listing)
         mock.post(f"{API}/internal/v1/egress/reserve").mock(side_effect=self._reserve)
 
@@ -102,6 +105,13 @@ class Hub:
                 },
             },
         )
+
+    def _consume(self, request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        self.consumed.append(body)
+        if self.consume_status != 200:
+            return httpx.Response(self.consume_status, json={"code": "policy_denied"})
+        return httpx.Response(200, json={"decision": body["decision"]})
 
     def _listing(self, request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)
@@ -203,10 +213,28 @@ async def test_an_a3_tool_becomes_a_decision_and_runs_only_as_the_approved_call(
     assert sent["args"]["to"] == "x@example.com" and sent["args"]["body"] == "pay 1500 USD"
     assert token not in json.dumps(sent) and sent["args"]["api_key"] == "[redacted]"
     assert "x@example.com" in sent["preview"] and token not in sent["preview"]
-    # Approved: the api consumed the card for this call; the policy sees the card.
+    # Approved: resolve only names the card (deferred); a call refused before
+    # it runs (here the egress gate) does not use it up.
     hub.approved = "D-000042"
+    hub.reserve_answer = (403, {"code": "internal_data"})
+    out = await call(gateway(hub), {"server": "crm", "tool": "send_email", "args": args})
+    assert (out["outcome"], out["code"]) == ("denied", "internal_data"), out
+    assert hub.resolved[-1]["defer"] is True and hub.consumed == [] and SENT == []
+    # The api refuses to let a call use the card up (another used it first): nothing runs.
+    hub.reserve_answer, hub.consume_status = (200, {"reservation": "r-1"}), 403
+    out = await call(gateway(hub), {"server": "crm", "tool": "send_email", "args": args})
+    assert (out["outcome"], out["code"]) == ("denied", "policy_denied"), out
+    assert len(hub.consumed) == 1 and SENT == []
+    # The call runs: the card is used up right before it; the policy sees the card.
+    hub.consume_status = 200
     out = await call(gateway(hub), {"server": "crm", "tool": "send_email", "args": args})
     assert (out["outcome"], out["class"]) == ("ok", "A3"), out
+    assert hub.consumed[-1] == {
+        "server": "crm",
+        "tool": "send_email",
+        "args_sha256": hub.resolved[-1]["args_sha256"],
+        "decision": "D-000042",
+    }
     assert SENT == [{"to": "x@example.com", "body": "pay 1500 USD"}]
     assert s.opa_inputs[-1]["action"]["class"] == "A3"
     assert s.opa_inputs[-1]["context"]["approved_decision"] == "D-000042"

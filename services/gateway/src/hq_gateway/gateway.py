@@ -338,9 +338,11 @@ class Gateway:
         self, token: str, gate: dict[str, Any], step: int, index: int, name: str, args: Any
     ) -> Outcome:
         """resolve (api: enabled, the company may, the sealed class; an A3 tool
-        becomes a decision there, or the approved card's one call) -> policy on
-        that class -> reserve at the egress gate (http) -> open the server ->
-        its listing must be the pinned one -> call -> labelled, redacted data."""
+        becomes a decision there, or names the approved card for its one call)
+        -> policy on that class -> reserve at the egress gate (http) -> open
+        the server -> its listing must be the pinned one -> (A3: the api uses
+        the card up now, so a refusal before here leaves it approved) -> call
+        -> labelled, redacted data."""
         parsed, fields = T.validate(name, args)
         if parsed is None:
             return Outcome("error", None, "invalid_args", None, None, fields)
@@ -348,6 +350,7 @@ class Gateway:
         # What an A3 card shows the owner: the arguments with only their
         # secrets masked (recipients and amounts stay; contract §18.13).
         shown = mask_secrets(parsed.args)  # at most 20000 characters: no thread needed
+        args_sha256 = hashlib.sha256(canon.encode()).hexdigest()
         resp = await self.api.request(
             "POST",
             "/internal/v1/tools/mcp/resolve",
@@ -355,9 +358,10 @@ class Gateway:
             json={
                 "server": parsed.server,
                 "tool": parsed.tool,
-                "args_sha256": hashlib.sha256(canon.encode()).hexdigest(),
+                "args_sha256": args_sha256,
                 "preview": json.dumps(shown, ensure_ascii=False, sort_keys=True)[:20000],
                 "args": shown,
+                "defer": True,  # an approved A3 card is used up in _mcp_session
             },
         )
         ref = f"mcp:{parsed.server}/{parsed.tool}"[:80]
@@ -412,7 +416,10 @@ class Gateway:
         started = time.monotonic()
         try:
             out = await asyncio.wait_for(
-                self._mcp_session(token, spec, parsed.tool, parsed.args), self.tool_timeout_s
+                self._mcp_session(
+                    token, spec, parsed.tool, parsed.args, approved=approved, sha=args_sha256
+                ),
+                self.tool_timeout_s,
             )
         except M.NotConfigured:
             return Outcome("denied", cls, "channel_not_configured", ref, None, {})
@@ -486,12 +493,20 @@ class Gateway:
             log.warning("mcp egress entries not logged", extra={"server": spec.key})
 
     async def _mcp_session(
-        self, token: str, spec: M.ServerSpec, tool: str, args: dict[str, Any]
+        self,
+        token: str,
+        spec: M.ServerSpec,
+        tool: str,
+        args: dict[str, Any],
+        *,
+        approved: str | None = None,
+        sha: str = "",
     ) -> dict[str, Any] | Refused:
         """The call itself, or a refusal: the server's listing differs from the
         one pinned after the owner's seal (the api switches it off), the api
-        could not be told (nothing runs, and that is no listing change), or
-        the tool is not on the server."""
+        could not be told (nothing runs, and that is no listing change), the
+        tool is not on the server, or (A3) the api did not let this call use
+        the approved card up (another call used it first)."""
         assert self.mcp_opener is not None
         async with self.mcp_opener(spec) as session:
             try:
@@ -524,6 +539,21 @@ class Gateway:
                     return Refused("denied", "mcp_tools_changed")
             if tool not in listing.names:
                 return Refused("denied", "mcp_tool_missing")
+            if approved is not None:  # the card is used up only by a call that runs
+                resp = await self.api.request(
+                    "POST",
+                    "/internal/v1/tools/mcp/consume",
+                    token,
+                    json={
+                        "server": spec.key,
+                        "tool": tool,
+                        "args_sha256": sha,
+                        "decision": approved,
+                    },
+                )
+                if resp.status_code != 200:
+                    r = T.from_response(resp, None)
+                    return Refused(r.outcome, r.code or "api_bad_answer", r.hint_fa)
             result = await session.call_tool(tool, args)
         return M.render(spec.key, tool, result)
 
