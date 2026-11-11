@@ -6,11 +6,16 @@ suggestions of any subject, and the canvas of companies and their links. No per-
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import httpx
 
 from hq_api.domain import humanize
+from hq_api.domain import office as OF
+from hq_api.hub import Hub
 
 from .conftest import agent_headers
 from .test_p21_secretary import no_model, post_order, words  # noqa: F401 - the fixture
@@ -66,3 +71,23 @@ async def test_the_office_holds_sessions_approvals_money_and_the_canvas(
     # the canvas: the hub and the company
     codes = {n["code"] for n in o["canvas"]["nodes"]}
     assert co["code"] in codes and any(n["kind"] == "holding" for n in o["canvas"]["nodes"])
+
+
+async def test_the_offices_month_starts_in_the_owners_zone(hub: Hub, su: Any) -> None:
+    """Audit: «this month» is cut at the owner's month start, not UTC's (as the treasury does)."""
+    z = ZoneInfo(await su.fetchval("SELECT timezone FROM owner.settings WHERE id = 1") or "Asia/Tehran")
+    start = datetime(2020, 3, 1, tzinfo=z)
+    for at, cost in ((start - timedelta(minutes=30), "1000"), (start + timedelta(minutes=30), "7")):
+        await su.execute(
+            """INSERT INTO llm.calls (id, started_at, company_id, actor_ref, task_class, priority, caller,
+                   input_tokens, output_tokens, status, cost_usd)
+               VALUES (gen_random_uuid(), $1, (SELECT id FROM core.companies WHERE kind = 'holding' LIMIT 1),
+                       'HQ-TEST', 'general', 3, 'office_test', 0, 0, 'ok', $2)""",
+            at, Decimal(cost),
+        )  # fmt: skip
+    expected = await su.fetchval(
+        "SELECT COALESCE(sum(cost_usd), 0) FROM llm.calls WHERE started_at >= $1", start
+    )
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        m = await OF.money(tx, start + timedelta(hours=1))
+    assert m.spend_month_usd == Decimal(expected)
