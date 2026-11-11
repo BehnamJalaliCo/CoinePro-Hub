@@ -1044,6 +1044,10 @@ class Activities:
             # workspaces of closed works get their close (told to the runner on its next poll)
             out["splits"] = await SP.sweep(tx)
             out["workspaces_closed"] = await WS.sweep(tx)
+            # an agent's substitute.call that ended inside the route's wait, not answered inline
+            from hq_api.domain import substitutes as SUB
+
+            out["substitute_replies"] = await SUB.deliver_late(tx, self.hub)
             return out
 
     @activity.defn(name="secretary_tick")

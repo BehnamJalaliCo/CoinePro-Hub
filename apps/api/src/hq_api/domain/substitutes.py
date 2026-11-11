@@ -1318,6 +1318,10 @@ REPLY_HEAD = 6_000
 # work's id): the answer's reply work is requested by that work, so it belongs to the same order
 CALLER_WORK = "caller_work"
 TALK_SNIPPET = 280
+# substitute.call waits SUBSTITUTE_WAIT_S for an answer and gives it inline; a call that ends
+# inside that wait (and this margin) is left to the route, and deliver_late() sends a reply
+# work only when the route did not take it (delivered_at still empty after the wait)
+INLINE_MARGIN_S = 4
 PLAYER_NAMES = {"gpt": "ChatGPT", "gemini": "Gemini", "deepseek": "DeepSeek"}
 
 
@@ -1373,7 +1377,7 @@ async def deliver_to_agent(tx: Tx, hub: Any, call: dict[str, Any]) -> None:
     the order's live session hears that the answer came."""
     from hq_api.domain import work as W
 
-    if call["delivered_at"] is not None:
+    if call["delivered_at"] is not None or _inline_window(hub, call):
         return
     emp = await tx.first(
         """SELECT e.code, e.company_id, c.code AS company FROM core.employees e
@@ -1433,6 +1437,42 @@ async def deliver_to_agent(tx: Tx, hub: Any, call: dict[str, Any]) -> None:
         w=w["id"],
         id=call["id"],
     )
+
+
+def _inline_wait_s(hub: Any) -> float:
+    return float(getattr(getattr(hub, "settings", None), "substitute_wait_s", 0) or 0)
+
+
+def _inline_window(hub: Any, call: dict[str, Any]) -> bool:
+    """True while substitute.call may still be polling this call to answer it inline."""
+    wait = _inline_wait_s(hub)
+    created = call.get("created_at")
+    if wait <= 0 or created is None:
+        return False
+    return datetime.now(UTC) < created + timedelta(seconds=wait + INLINE_MARGIN_S)
+
+
+async def deliver_late(tx: Tx, hub: Any) -> int:
+    """An agent's call that ended inside substitute.call's wait, which the route did not
+    answer inline (the client went away first): its reply work now, once."""
+    wait = _inline_wait_s(hub)
+    if wait <= 0:
+        return 0
+    rows = await tx.all(
+        """SELECT * FROM substitutes.calls
+           WHERE caller_kind = 'agent' AND kind = 'call' AND delivered_at IS NULL
+             AND (purpose_kind IS NULL OR purpose_kind = :cw)
+             AND state IN ('done', 'failed', 'skipped') AND claimed_at IS NOT NULL
+             AND finished_at <= created_at + make_interval(secs => :w)
+             AND created_at < now() - make_interval(secs => :w)
+             AND created_at > now() - interval '1 day'
+           ORDER BY created_at LIMIT 50 FOR UPDATE SKIP LOCKED""",
+        cw=CALLER_WORK,
+        w=wait + INLINE_MARGIN_S,
+    )
+    for c in rows:
+        await deliver_to_agent(tx, hub, c)
+    return len(rows)
 
 
 async def ask_models(tx: Tx, hub: Any) -> int:

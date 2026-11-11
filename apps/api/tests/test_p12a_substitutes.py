@@ -700,6 +700,20 @@ async def test_a_web_call_that_lost_its_pass_fails_and_the_queue_moves_on(
         )
 
 
+
+def test_an_agent_call_that_ends_inside_the_routes_wait_is_left_to_the_route() -> None:
+    """substitute.call answers inline what ends within its wait: no reply work as well
+    (deliver_late() sends it when the route did not take it)."""
+    from types import SimpleNamespace
+
+    now = datetime.now(UTC)
+    waiting = SimpleNamespace(settings=SimpleNamespace(substitute_wait_s=6))
+    assert S._inline_window(waiting, {"created_at": now - timedelta(seconds=2)})
+    assert not S._inline_window(waiting, {"created_at": now - timedelta(seconds=30)})
+    no_wait = SimpleNamespace(settings=SimpleNamespace(substitute_wait_s=0))
+    assert not S._inline_window(no_wait, {"created_at": now})
+
+
 def test_the_overlay_is_set_in_iranyekanx_inside_the_safe_zone(tmp_path: Any) -> None:
     overlay = {"title_fa": "دوره‌ی آموزش رایگان فارکس", "body_fa": "ثبت‌نام از امروز برای همه باز است",
                "cta_fa": "همین حالا", "mark": True}  # fmt: skip
