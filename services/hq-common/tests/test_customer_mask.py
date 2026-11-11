@@ -149,6 +149,15 @@ def test_redact_shapes_still_apply_and_kinds_are_told_apart() -> None:
     assert M.mask("سلام") == M.Masked("سلام", ())
 
 
+def test_an_outbound_answer_keeps_its_contact_details_but_never_a_secret() -> None:
+    text = "ایمیل پشتیبانی: support@coinepro.com و تلفن ۰۲۱۸۸۸۸۸۸۸۸"
+    assert "[email]" in M.mask(text).text  # inbound: personal data masked
+    assert M.mask(text, personal=False) == M.Masked(text, ())
+    out = M.mask(f"support@coinepro.com {KEY_HEX} {CARD}", personal=False)
+    assert out.text.startswith("support@coinepro.com ")
+    assert KEY_HEX not in out.text and CARD not in out.text and "personal" not in out.kinds
+
+
 def test_masking_twice_changes_nothing() -> None:
     once = M.mask(f"{TWELVE} {KEY_HEX} {CARD}").text
     assert M.mask(once).text == once and M.mask(once).kinds == ()

@@ -371,17 +371,11 @@ async def file_patch(
         return {**out, "patch": None}
     try:
         where, _ = await ensure(hub, payload, company_id)
+        # The whole numstat, not one path: a pathspec of the new path alone hides a
+        # rename from -M, and the renamed file would read as wholly added.
         stats = _numstat(
             await git(
-                "diff",
-                "--numstat",
-                "-z",
-                "-M",
-                diff["base_sha"],
-                diff["head_sha"],
-                "--",
-                path,
-                cwd=where,
+                "diff", "--numstat", "-z", "-M", diff["base_sha"], diff["head_sha"], cwd=where
             )
         )
         f = next((s for s in stats if s["path"] == path), {"path": path, "old_path": None})

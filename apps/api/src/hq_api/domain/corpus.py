@@ -28,6 +28,7 @@ nothing while the holding is locked (no git call either).
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import math
@@ -237,7 +238,15 @@ async def read_blobs(git_args: list[str], env: dict[str, str], shas: list[str]) 
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    out, _ = await asyncio.wait_for(proc.communicate(("\n".join(shas) + "\n").encode()), 300)
+    try:
+        out, _ = await asyncio.wait_for(proc.communicate(("\n".join(shas) + "\n").encode()), 300)
+    except BaseException:
+        # a timeout or a cancelled caller: never leave git blocked on a full pipe
+        with contextlib.suppress(ProcessLookupError):
+            proc.kill()
+        with contextlib.suppress(BaseException):
+            await asyncio.wait_for(proc.wait(), 5)
+        raise
     blobs: dict[str, bytes] = {}
     pos = 0
     while pos < len(out):

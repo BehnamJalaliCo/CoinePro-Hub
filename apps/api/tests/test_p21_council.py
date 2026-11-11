@@ -223,3 +223,37 @@ async def test_council_roles_are_the_owners_setting(
         json={"council_roles": {"claude": "king"}},
     )
     assert bad.status_code == 422
+
+
+async def test_the_fact_pack_lists_each_subject_of_a_connection_figure(
+    hub: Hub, su: Any, new_company: Callable[..., Any]
+) -> None:
+    """growth.metrics_daily holds one row per subject (a channel, an account): the fact pack
+    shows each subject of the latest day, never one arbitrary subject as the company's figure."""
+    from datetime import date, timedelta
+
+    from hq_api.domain import council as K
+
+    co = await new_company()
+    today = date.today()
+    for day, subject, value in (
+        (today - timedelta(days=1), "big", 11000),
+        (today, "big", 12000),
+        (today, "small", 300),
+        (today, "", 5),
+    ):
+        await su.execute(
+            """INSERT INTO growth.metrics_daily (company_id, kind, day, key, subject, value, source)
+               VALUES ($1, 'telegram', $2, 'followers', $3, $4, 'test')""",
+            co["id"], day, subject, value,
+        )  # fmt: skip
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        pack = await K.fact_pack(tx, co["id"], co["code"])
+    got = {f["key"]: f["value"] for f in pack["figures"] if f["key"].startswith("telegram.")}
+    assert got == {
+        "telegram.followers": 5,
+        "telegram.followers[big]": 12000,
+        "telegram.followers[small]": 300,
+    }
+    small = next(f for f in pack["figures"] if f["key"] == "telegram.followers[small]")
+    assert "small" in small["title_fa"]

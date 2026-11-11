@@ -3,8 +3,10 @@
 never reaches a model: the caller keeps only `mask(text).text`.
 
 API (stable):
-  mask(text) -> Masked        the text with every secret and personal-data shape
-                              masked, and the kinds that were found
+  mask(text, personal=True) -> Masked
+                              the text with every secret and personal-data shape
+                              masked, and the kinds that were found (personal=False:
+                              the personal shapes are kept, secrets still masked)
   quote(text, max_chars=280)  a masked quote for statistics and the feedback
                               inbox: also Telegram handles (@name) and long
                               digit runs (exchange UIDs, phone-like ids) masked
@@ -169,9 +171,11 @@ def _own_spans(text: str) -> list[tuple[int, int, str, str]]:
     return found
 
 
-def mask(text: str) -> Masked:
+def mask(text: str, *, personal: bool = True) -> Masked:
     """`text` masked for storage and for any model: redact's shapes (§16.6)
-    plus seed phrases, private keys and cards (Luhn)."""
+    plus seed phrases, private keys and cards (Luhn). personal=False keeps the
+    `personal` shapes (e-mail, phone, IBAN, national code) as written: the
+    hub's own outbound answer, whose contact details the customer must get."""
     if not text:
         return Masked(text, ())
     spans = _own_spans(text)
@@ -185,6 +189,8 @@ def mask(text: str) -> Masked:
         elif any(cs < e and s < ce for cs, ce in credentials):
             kind = "secret"
         spans.append((s, e, repl, kind))
+    if not personal:
+        spans = [x for x in spans if x[3] != "personal"]
     if not spans:
         return Masked(text, ())
     spans.sort(key=lambda x: (x[0], -x[1]))

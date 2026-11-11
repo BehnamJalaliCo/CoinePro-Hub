@@ -691,6 +691,42 @@ def test_the_overlay_is_set_in_iranyekanx_inside_the_safe_zone(tmp_path: Any) ->
     assert re.search(r"aspect 9:16", S.template_prompt("استوری", "instagram_story", "image", None))
 
 
+async def test_a_failed_overlay_render_stores_nothing_and_leaves_no_scratch(
+    hub: Hub, new_company: Callable[..., Any], monkeypatch: Any
+) -> None:
+    """A render that fails commits no original without a files row, and the clean
+    image's scratch copies (original, agent, thumb) are removed."""
+    co = await new_company()
+    handed: list[Any] = []
+    committed: list[Any] = []
+    scratch, commit = hub.storage.scratch, hub.storage.commit
+
+    def tracked() -> Any:
+        handed.append(scratch())
+        return handed[-1]
+
+    async def counted(tmp: Any) -> tuple[str, str, int]:
+        committed.append(tmp)
+        return await commit(tmp)
+
+    async def broken(*_: Any, **__: Any) -> Any:
+        raise O.Refused("the overlay could not be rendered (test)")
+
+    monkeypatch.setattr(hub.storage, "scratch", tracked)
+    monkeypatch.setattr(hub.storage, "commit", counted)
+    monkeypatch.setattr(O, "render_png", broken)
+    creative = {"kind": "image", "company_id": co["id"], "overlay": {"title_fa": "عنوان"},
+                "placement": "instagram_post", "ref": "CR-000001"}  # fmt: skip
+    try:
+        await O.store_result(hub, creative, base64.b64decode(png()), "image.png")
+    except O.Refused:
+        pass
+    else:
+        raise AssertionError("the render failure must reach the caller")
+    assert committed == []
+    assert handed and not [p for p in handed if p.exists()]
+
+
 async def test_a_second_review_waits_for_the_cto_and_approval_is_the_same_without_it(
     client: httpx.AsyncClient,
     hub: Hub,

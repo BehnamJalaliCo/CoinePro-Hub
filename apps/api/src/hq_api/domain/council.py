@@ -149,14 +149,23 @@ async def fact_pack(tx: Tx, company_id: UUID, company_code: str) -> dict[str, An
     used = sum(r["tokens"] for r in await spend.by_domain(tx, week, now, company_id))
     figures.append(_f("spend.tokens_7d", "مصرف ۷ روز گذشته (توکن)", int(used), "treasury", now))
     if await _exists(tx, "growth.metrics_daily"):
-        # §29.12 the connections' daily figures (prompt 21 part 3), latest per key
+        # §29.12 the connections' daily figures (prompt 21 part 3), the latest day per key.
+        # A key holds one row per subject (a channel, an account, a site): each subject is its
+        # own figure, never one subject's value passed off as the company's.
         for m in await tx.all(
-            """SELECT DISTINCT ON (kind, key) kind, key, value, day FROM growth.metrics_daily
-               WHERE company_id = :co ORDER BY kind, key, day DESC LIMIT 30""",
+            """WITH latest AS (
+                 SELECT kind, key, max(day) AS day FROM growth.metrics_daily
+                 WHERE company_id = :co GROUP BY kind, key)
+               SELECT m.kind, m.key, m.subject, m.value, m.day FROM growth.metrics_daily m
+               JOIN latest l ON l.kind = m.kind AND l.key = m.key AND l.day = m.day
+               WHERE m.company_id = :co ORDER BY m.kind, m.key, m.subject LIMIT 30""",
             co=company_id,
         ):
-            figures.append(_f(f"{m['kind']}.{m['key']}", f"{m['kind']}: {m['key']}", m["value"],
-                              str(m["kind"]), m["day"]))  # fmt: skip
+            key, title = f"{m['kind']}.{m['key']}", f"{m['kind']}: {m['key']}"
+            if m["subject"]:
+                subject = scrub(str(m["subject"]))[:80]
+                key, title = f"{key}[{subject}]", f"{title} ({subject})"
+            figures.append(_f(key, title, m["value"], str(m["kind"]), m["day"]))
     else:
         notes.append("هنوز اتصالی (سرچ‌کنسول، آنالیتیکس، اینستاگرام) عدد روزانه نمیدهد.")
     posts = [
