@@ -1066,6 +1066,21 @@ async def test_service_build_stays_off_without_the_owners_choice(hub: Hub) -> No
         ("ls && docker ps", "deny", "command"),
         ("echo $(whoami)", "ask", "command"),
         ("unknowntool --x", "ask", "command"),
+        # Every command in the text is ruled, not only the first one.
+        ("ls\ngit push --force origin HEAD:main", "deny", "command"),
+        ("ls\r\ngit push origin main", "deny", "command"),
+        ("ls & git push --force origin main", "deny", "command"),
+        ("cat <(git push origin main)", "deny", "command"),
+        ("echo `git push origin main`", "deny", "command"),
+        ("(git push --force)", "deny", "command"),
+        ("ls\nssh x", "deny", "command"),
+        ("ls\nrm -rf .", "ask", "command"),
+        ("ls\ngit push origin hq/S-0007", "ask", "push_branch"),
+        ("cat <(ls)", "ask", "command"),
+        ("ls 2>&1 | head", "allow", "command"),
+        ("ls &>/dev/null", "allow", "command"),
+        ("cat '.env'", "deny", "command"),
+        ('cat ".env"', "deny", "command"),
     ],
 )
 def test_the_command_rules(cmd: str, verdict: str, action: str) -> None:
