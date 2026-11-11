@@ -199,10 +199,11 @@ async def test_the_platform_sre_runs_an_op_through_the_dispatcher(
             json={"exit_code": 0, "output": "x"},
         )
         assert r.status_code == 403
+        leaked = "api | ready\napi | HQ_API_TOKEN=s3cr3t-v4lue-xyz\n"  # gitleaks:allow - made up
         r = await client.post(
             f"/internal/v1/hubops/{job['ref']}/done",
             headers=hubops_headers(),
-            json={"exit_code": 0, "output": "api | ready\napi | HQ_API_TOKEN=s3cr3t-v4lue-xyz\n"},
+            json={"exit_code": 0, "output": leaked},
         )
         assert r.status_code == 200 and r.json()["state"] == "done", r.text
         r = await client.get(f"/internal/v1/hubops/{job['ref']}", headers=await agent_headers(sre))
