@@ -1,9 +1,9 @@
 """The `claude` job (contract §26.2, §26.3): the server's own Claude Code on a
 brief, in the repository folder `args.cwd`, under that repository's CLAUDE.md.
 
-    claude -p <brief> --output-format stream-json --verbose --settings <tmp>/settings.json
+    claude -p --output-format stream-json --verbose --settings <tmp>/settings.json
            [--resume <session_id>] [--model M] [--permission-mode P] [--max-turns N]
-           [--allowedTools <tool> ...]
+           [--allowedTools <tool> ...]          (the brief on stdin)
 
 ⟨0.3.2⟩ a workspace turn that ended well sends the files it left in `out/` of
 its folder to the hub (outbox.py; contract §43, the holding's workshop) and
@@ -552,10 +552,12 @@ async def run_claude(ctx: JobContext) -> JobResult:
         settings = tmp / "settings.json"
         hook_log = tmp / "hook-events.jsonl"
         granted = [*allow, tools_bridge.ALLOW] if tools_on else allow
-        settings.write_text(json.dumps(hook_settings(ctx.id, granted)), encoding="utf-8")
-        # behind the wall the brief goes in on stdin: a turn's argv is readable by every
-        # process of this user (/proc), and the other turns are other companies'
-        argv = [claude, "-p", *([] if plan is not None else [brief])]
+        # job/ is the turn's to write too: a link left there is never written through
+        sandbox.write_new(settings, json.dumps(hook_settings(ctx.id, granted)))
+        # the brief always goes in on stdin: behind the wall a turn's argv is readable by every
+        # process of this user (/proc), and the other turns are other companies'; and a brief
+        # that starts with "-" (a Markdown list) is never read by the CLI as an option
+        argv = [claude, "-p"]
         argv += ["--output-format", "stream-json", "--verbose", "--settings", str(settings)]
         if resume:
             argv += ["--resume", str(resume)]
@@ -570,7 +572,7 @@ async def run_claude(ctx: JobContext) -> JobResult:
         tools_sock = tmp / "tools.sock"
         if tools_on:
             mcp_file = tmp / "mcp.json"
-            mcp_file.write_text(json.dumps(tools_bridge.mcp_config(tools_sock)), encoding="utf-8")
+            sandbox.write_new(mcp_file, json.dumps(tools_bridge.mcp_config(tools_sock)))
             # only the hub's own server: nothing this machine's user configured rides along
             argv += ["--mcp-config", str(mcp_file), "--strict-mcp-config"]
         if granted:  # last: the option takes every value after it
@@ -620,7 +622,7 @@ async def run_claude(ctx: JobContext) -> JobResult:
                 on_stdout=on_stdout,
                 on_stderr=ctx.line_sink("stderr"),
                 max_line=JSON_LINE_BYTES,
-                stdin_data=brief.encode("utf-8") if plan is not None else None,
+                stdin_data=brief.encode("utf-8"),
             )
             drain_hook_log()
             return out
@@ -630,9 +632,11 @@ async def run_claude(ctx: JobContext) -> JobResult:
                     srv.close()
                     with contextlib.suppress(Exception):
                         await srv.wait_closed()
-            shutil.rmtree(tmp, ignore_errors=True)
+            # what the turn left in its tmp (a link, a folder without rights) never stays to
+            # trip the next turn's start
+            await asyncio.to_thread(sandbox.remove_quietly, tmp)
             if plan is not None:
-                shutil.rmtree(plan.tmp, ignore_errors=True)
+                await asyncio.to_thread(sandbox.remove_quietly, plan.tmp)
 
     try:
         res = await session(wall)
@@ -644,13 +648,24 @@ async def run_claude(ctx: JobContext) -> JobResult:
             and not meter.by_message
             and (res.exit_code != 0 or not final or final.get("is_error"))
         ):
-            # the walled session did not start: the turn is never lost to the wall
-            tried = wall
-            wall, wall_why = None, "the walled session did not start"
-            ctx.sink.emit("progress", {"text": f"sandbox off: {wall_why}; starting without it"})
-            res = await session(None)
-            if meter.by_message:  # without the wall it started: the wall was the difference
-                sandbox.distrust(tried, wall_why)
+            # the walled session did not start. That alone says nothing of the wall: the turn's
+            # own files (its home, its folder) may stop the CLI, and a turn could do that on
+            # purpose to have the next one run unwalled. Only when the wall itself fails its
+            # probe now is the turn run without it (the owner's `auto`: never lost to the wall).
+            broken = await sandbox.recheck(wall, dict(ctx.env), claude)
+            if broken is not None:
+                wall, wall_why = None, "the walled session did not start"
+                ctx.sink.emit(
+                    "progress",
+                    {"text": f"sandbox off: {wall_why} ({broken}); starting without it"},
+                )
+                res = await session(None)
+            else:
+                ctx.sink.emit(
+                    "progress",
+                    {"text": "the walled session did not start; the wall works on this server, "
+                     "so the turn is not run without it"},
+                )  # fmt: skip
     finally:
         relay.cancel()
     if final:

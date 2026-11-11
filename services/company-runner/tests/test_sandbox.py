@@ -271,21 +271,132 @@ def test_a_workshop_turn_runs_behind_the_wall(
 
 
 @needs_landlock
-def test_a_walled_session_that_does_not_start_runs_without_the_wall(
+def test_a_walled_session_that_does_not_start_runs_without_the_wall_only_when_the_wall_broke(
     fake_hub: FakeHub, cfg: Config, place: dict[str, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     record = place["ws"] / "W-000111" / "rec.json"
     monkeypatch.setenv("FAKE_CLAUDE_RECORD", str(record))
     cfg.claude_bin = str(FAKE_CLAUDE)
     save(cfg, place["cfg"])
+    # the wall works on this server: a session that does not start behind it (its turn's own
+    # files may stop it, on purpose) is never run again without it, and no other turn loses it
     result = go(fake_hub, cfg, place, turn("w2", "Make it. [[fake:wallfail]]"))
+    assert result["exit_code"] != 0, result
+    assert result["data"]["sandbox"] == {"state": "on", "kind": "landlock"}
+    assert not record.exists()  # the CLI never ran unwalled
+    result = go(fake_hub, cfg, place, turn("w2b", "hello"))
+    assert result["exit_code"] == 0 and result["data"]["sandbox"]["state"] == "on"
+
+    # the wall itself fails its probe now: the owner's `auto`, the turn runs without it
+    real = sandbox._probe_once
+    calls = [0]
+
+    async def breaks_later(*a: Any) -> str | None:
+        calls[0] += 1
+        return await real(*a) if calls[0] == 1 else "the probe failed: broken"
+
+    monkeypatch.setattr(sandbox, "_probe_once", breaks_later)
+    sandbox.forget_probe()
+    result = go(fake_hub, cfg, place, turn("w2c", "Make it. [[fake:wallfail]]"))
     assert result["exit_code"] == 0, result  # the work was done
     assert result["data"]["sandbox"] == {
         "state": "off",
         "why": "the walled session did not start",
     }
     rec = json.loads(record.read_text())
-    assert rec["brief_on_stdin"] is False and rec["home"] == str(place["home"])
+    assert rec["home"] == str(place["home"])
+
+
+def test_what_the_last_turn_left_in_its_area_never_keeps_the_wall_down(
+    place: dict[str, Path],
+) -> None:
+    """A turn could replace its tmp/ with a link, leave a folder it took its own rights away
+    from, or put a file in place of its home: the next prepare puts that right (nothing is
+    followed) instead of failing, which ran the next turn unwalled."""
+    p = the_plan(place)
+    target = place["ws"] / "W-000222"
+    p.tmp.rmdir()
+    p.tmp.symlink_to(target)
+    p.job.rmdir()
+    p.job.symlink_to("/nonexistent")
+    sandbox.prepare(p)
+    assert sandbox._is_real_dir(p.tmp) and not os.listdir(p.tmp)
+    assert sandbox._is_real_dir(p.job) and (target / "notes.txt").exists()
+    # a read-only folder (an extracted archive) inside tmp, and a file in place of the home
+    (p.tmp / "ro" / "deep").mkdir(parents=True)
+    (p.tmp / "ro" / "deep" / "f").write_text("x")
+    os.chmod(p.tmp / "ro" / "deep", 0o500)
+    os.chmod(p.tmp / "ro", 0o000)
+    (p.home / ".claude").mkdir(exist_ok=True)
+    (p.home / ".claude" / "kept").write_text("a session")
+    sandbox.prepare(p)
+    assert not os.listdir(p.tmp) and (p.home / ".claude" / "kept").exists()  # the home stays
+    sandbox.remove(p.home)
+    p.home.write_text("not a folder")
+    sandbox.prepare(p)
+    assert sandbox._is_real_dir(p.home) and (p.home / ".npmrc").is_file()
+    # the end of a turn removes a link or an unwritable folder the same way
+    sandbox.remove_quietly(p.tmp)
+    assert not os.path.lexists(p.tmp)
+
+
+def test_the_runner_never_writes_through_a_link_in_the_turns_home(tmp_path: Path) -> None:
+    real, mine = tmp_path / "real", tmp_path / "mine"
+    secret = tmp_path / "runner-config.json"
+    secret.write_text("token")
+    (real / ".config" / "hq-runner").mkdir(parents=True)
+    (real / ".npmrc").write_text("registry")
+    (real / ".gitconfig").write_text("[user]")
+    closed = [real / ".config" / "hq-runner"]
+    sandbox.make_home(real, mine, closed)
+    # the turn makes a dotfile a folder holding a link to the runner's token, and puts a file
+    # in place of the folder that holds a closed path
+    (mine / ".npmrc").unlink()
+    (mine / ".npmrc").mkdir()
+    (mine / ".npmrc" / ".npmrc").symlink_to(secret)
+    os.utime(mine / ".npmrc", (0, 0))
+    sandbox.remove(mine / ".config")
+    (mine / ".config").write_text("x")
+    (mine / ".gitconfig").unlink()
+    (mine / ".gitconfig").symlink_to(secret)
+    sandbox.make_home(real, mine, closed)
+    assert secret.read_text() == "token"
+    assert sandbox._is_real_dir(mine / ".config")
+    assert not (mine / ".gitconfig").is_symlink() and (mine / ".gitconfig").read_text() == "[user]"
+    # a session carried into a home whose folders the turn replaced with links
+    cwd = "/w/W-1"
+    store = real / ".claude" / "projects" / sandbox.project_dir(cwd)
+    (store / "s-1").mkdir(parents=True)
+    (store / "s-1.jsonl").write_text("turn 1")
+    (store / "s-1" / "side.json").write_text("{}")
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    (mine / ".claude").mkdir()
+    (mine / ".claude" / "projects").symlink_to(elsewhere)
+    assert sandbox.carry_session(real, mine, cwd, "s-1") is True
+    assert not os.listdir(elsewhere)
+    there = mine / ".claude" / "projects" / sandbox.project_dir(cwd)
+    assert (there / "s-1.jsonl").read_text() == "turn 1" and (there / "s-1" / "side.json").exists()
+    # a link at the session's own file or inside its folder is replaced, not written through
+    (there / "s-1.jsonl").unlink()
+    (there / "s-1.jsonl").symlink_to(secret)
+    (there / "s-1" / "side.json").unlink()
+    (there / "s-1" / "side.json").symlink_to(secret)
+    assert sandbox.carry_session(real, mine, cwd, "s-1") is True
+    assert secret.read_text() == "token" and (there / "s-1.jsonl").read_text() == "turn 1"
+    assert not (there / "s-1" / "side.json").is_symlink()
+
+
+@needs_landlock
+def test_the_probe_never_runs_in_a_works_folder(place: dict[str, Path], cfg: Config) -> None:
+    """What a work's folder holds is its turns' doing: the probe has a place of its own, so one
+    turn cannot fail it and bring the wall down for every company."""
+    save(cfg, place["cfg"])
+    p = the_plan(place)
+    (p.work / ".hq-probe").mkdir()  # the old probe's file name, made a folder
+    os.chmod(p.tmp, 0o500)
+    assert run(sandbox.probe(p, dict(os.environ), str(FAKE_CLAUDE))) is None
+    assert not [n for n in os.listdir(place["ws"] / ".hq") if n.startswith(".probe-")]
 
 
 def test_the_wall_is_auto_and_never_in_the_way(

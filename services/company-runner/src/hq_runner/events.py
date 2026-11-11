@@ -2,12 +2,17 @@
 
 ⟨0.2.0⟩ Nothing is dropped: stdout/stderr beyond MAX_OUTPUT_BYTES (the part
 streamed live) goes on to a private spool file (up to SPOOL_MAX_BYTES on
-disk), which the runner sends with the result as one gzip artifact."""
+disk), which the runner sends with the result as one gzip artifact.
+
+A batch stays under MAX_POST_BYTES (the hub refuses a body over 8 MB); a hub
+that is away longer than one retry window gets the same batch again on the
+next round, so an outage leaves no gap in the session's events."""
 
 from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import logging
 import os
 import shutil
@@ -15,7 +20,7 @@ import tempfile
 from collections.abc import Callable
 from typing import Any
 
-from hq_runner.hub import Hub, HubError, JobGone, Transient, with_retry
+from hq_runner.hub import Hub, HubError, JobGone, Revoked, Transient, Unauthorized, with_retry
 
 log = logging.getLogger("hq_runner.events")
 
@@ -24,6 +29,12 @@ SPOOL_MAX_BYTES = 512 * 1024 * 1024
 FLUSH_EVERY_S = 0.5
 MAX_BATCH_EVENTS = 200
 MAX_BATCH_BYTES = 512 * 1024
+MAX_POST_BYTES = 4 * 1024 * 1024  # one POST of events: well under the hub's 8 MB body cap
+
+
+def _size(event: dict[str, Any]) -> int:
+    """The bytes an event takes in the POST body (httpx sends UTF-8 JSON)."""
+    return len(json.dumps(event, ensure_ascii=False, default=str).encode())
 
 
 class EventSink:
@@ -64,6 +75,7 @@ class EventSink:
         self._closed = False
         self._task: asyncio.Task[None] | None = None
         self._lock = asyncio.Lock()
+        self._limit = MAX_BATCH_EVENTS  # halved after a 413, back once a batch went through
         self.dead = False
 
     def start(self) -> None:
@@ -131,29 +143,60 @@ class EventSink:
             self._wake.clear()
             await self.flush()
 
+    def _take(self) -> list[dict[str, Any]]:
+        """The next batch: up to `_limit` events and MAX_POST_BYTES (always at least one)."""
+        batch: list[dict[str, Any]] = []
+        total = 0
+        for e in self._buf[: self._limit]:
+            size = _size(e)
+            if batch and total + size > MAX_POST_BYTES:
+                break
+            batch.append(e)
+            total += size
+        return batch
+
+    def _set_buf(self, buf: list[dict[str, Any]]) -> None:
+        self._buf, self._buf_bytes = buf, sum(len(str(e["data"])) for e in buf)
+
     async def flush(self) -> None:
         async with self._lock:
             while self._buf and not self.dead:
-                batch, rest = self._buf[:MAX_BATCH_EVENTS], self._buf[MAX_BATCH_EVENTS:]
-                self._buf, self._buf_bytes = rest, sum(len(str(e["data"])) for e in rest)
+                batch = self._take()
+                self._set_buf(self._buf[len(batch) :])
 
                 async def post(b: list[dict[str, Any]] = batch) -> None:
                     await self.hub.post_events(self.job_id, b)
 
                 try:
                     await with_retry(post)
+                    self._limit = MAX_BATCH_EVENTS
                 except JobGone:
                     self.dead = True
                     if self.on_gone:
                         self.on_gone()
                 except Transient as exc:
-                    log.warning("job %s: events could not be delivered (%s)", self.job_id, exc)
-                except HubError as exc:
+                    # the hub is away longer than one retry window: the batch goes back to the
+                    # front and the next round sends it again (the hub skips a seq it has)
+                    self._set_buf(batch + self._buf)
+                    log.warning("job %s: events not delivered yet (%s)", self.job_id, exc)
+                    return
+                except (Unauthorized, Revoked) as exc:
                     self.dead = True
                     if self.on_fatal:
                         self.on_fatal(exc)
                     else:  # pragma: no cover
                         log.warning("job %s: events refused (%s)", self.job_id, exc)
+                except HubError as exc:
+                    if exc.status == 413 and len(batch) > 1:
+                        # too big for the hub after all: the same events again in smaller posts
+                        self._limit = max(1, len(batch) // 2)
+                        self._set_buf(batch + self._buf)
+                        continue
+                    # this batch is refused (one event too big, or not valid): it alone is
+                    # lost, the job's later events and its result still go
+                    log.warning(
+                        "job %s: %d events refused (%s)", self.job_id, len(batch), exc.code or exc
+                    )
 
     async def close(self) -> None:
         self._closed = True

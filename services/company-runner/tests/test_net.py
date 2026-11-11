@@ -205,3 +205,40 @@ def test_tls_to_the_private_ip_keeps_the_hub_name_and_verifies_it(cert: tuple[Pa
     assert seen["status"] == 200 and seen["sync"] == 200
     assert seen["sni"] == HOST
     assert seen["host"].startswith(HOST)
+
+
+def test_a_route_swap_never_closes_the_client_under_running_requests() -> None:
+    """Every job shares the route's client: a swap (the private route back, or a connect
+    failure) leaves the old one open for the requests still on it (an upload, a download)."""
+    now = [0.0]
+    private_up = [True]
+
+    async def probe(host: str, port: int, limit_s: float) -> float:
+        if host == "10.10.1.4" and not private_up[0]:
+            raise OSError("unreachable")
+        return 1.0
+
+    async def dns(host: str, port: int) -> list[str]:
+        return ["203.0.113.10"]
+
+    async def scenario() -> None:
+        r = Route(f"https://{HOST}", "10.10.1.4", probe=probe, resolver=dns, clock=lambda: now[0])
+        await r.select()
+        first = r.client()
+        private_up[0] = False
+        await r.connect_failed()
+        second = r.client()
+        assert second is not first and [c.is_closed for c in (first, second)] == [False, False]
+        private_up[0] = True
+        now[0] += 400
+        await r.refresh()  # back on the private route
+        third = r.client()
+        assert third is not second
+        assert [c.is_closed for c in (first, second, third)] == [False, False, False]
+        now[0] += 3600
+        await r.refresh()
+        assert [c.is_closed for c in (first, second, third)] == [True, True, False]
+        await r.aclose()
+        assert [c.is_closed for c in (first, second, third)] == [True, True, True]
+
+    run(scenario())

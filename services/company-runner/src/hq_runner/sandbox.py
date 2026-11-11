@@ -43,6 +43,7 @@ import shutil
 import stat
 import struct
 import sys
+import tempfile
 import time
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, field
@@ -201,6 +202,89 @@ def open_paths(protect: Iterable[str | Path], allow: Iterable[str | Path]) -> li
     return list(dict.fromkeys(out))
 
 
+# ------------------------------------------------------- files the turn may touch --
+# The turn's private area (and its work folder) are the turn's to write: it may leave a link, a
+# file where a folder was, or a folder it took its own rights away from. What the runner does
+# there (outside the wall) never follows a link and never gives up because of what it found.
+def _is_real_dir(path: str | Path) -> bool:
+    try:
+        return stat.S_ISDIR(os.lstat(path).st_mode)
+    except OSError:
+        return False
+
+
+def remove(path: str | Path) -> None:
+    """Whatever is at `path` goes, without following a link: a link or a file is unlinked, a
+    folder goes with all in it (its folders made writable first). Raises OSError when it stays."""
+    try:
+        st = os.lstat(path)
+    except FileNotFoundError:
+        return
+    if not stat.S_ISDIR(st.st_mode):
+        os.unlink(path)
+        return
+    with contextlib.suppress(OSError):
+        os.chmod(path, 0o700)
+    for top, dirs, _files in os.walk(path):  # never into a link
+        for name in dirs:
+            sub = os.path.join(top, name)
+            if not os.path.islink(sub):
+                with contextlib.suppress(OSError):
+                    os.chmod(sub, 0o700)
+    shutil.rmtree(path)  # the fd-based rmtree: a link is removed, never followed
+
+
+def remove_quietly(path: str | Path) -> None:
+    with contextlib.suppress(OSError):
+        remove(path)
+
+
+def fresh_dir(path: Path) -> None:
+    """An empty folder (700) at `path`, whatever was there."""
+    remove(path)
+    path.mkdir(mode=0o700)
+
+
+def write_new(path: Path, text: str) -> None:
+    """A file of the runner's (600) at `path`: what was there goes first, and a link planted
+    meanwhile makes it fail instead of being written through."""
+    remove(path)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(text)
+
+
+def copy_file(src: str | Path, dst: Path) -> None:
+    """`src` copied to `dst` (its times kept), never through a link at `dst`."""
+    remove(dst)
+    fd = os.open(dst, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    with os.fdopen(fd, "wb") as out, open(src, "rb") as inp:
+        shutil.copyfileobj(inp, out)
+    shutil.copystat(src, dst, follow_symlinks=False)
+
+
+def _real_dirs(base: Path, rel: Path) -> None:
+    """Every folder of `rel` under `base` made, and a link or a file in the way removed."""
+    base.mkdir(parents=True, exist_ok=True, mode=0o700)
+    path = base
+    for part in rel.parts:
+        path = path / part
+        if os.path.lexists(path) and not _is_real_dir(path):
+            remove(path)
+        path.mkdir(exist_ok=True, mode=0o700)
+
+
+def _unlink_links(folder: Path) -> None:
+    """The links inside `folder` removed (a copy into it then writes only real files)."""
+    if not _is_real_dir(folder):
+        return
+    for top, dirs, files in os.walk(folder):
+        for name in [*dirs, *files]:
+            sub = os.path.join(top, name)
+            if os.path.islink(sub):
+                os.unlink(sub)
+
+
 # -------------------------------------------------------------- the turn's home --
 COPY_MAX = 1024 * 1024  # a dotfile this small is copied (a tool may rewrite it); else linked
 
@@ -223,8 +307,8 @@ def make_home(real_home: str | Path, home: Path, protect: Iterable[str | Path]) 
                 continue
             target = dst / e.name
             if e.is_dir(follow_symlinks=False) and any(_beneath(c, real) for c in closed):
-                if target.is_symlink():
-                    target.unlink()
+                if not _is_real_dir(target):
+                    remove(target)  # a link or a file the work put in its place
                 mirror(e.path, target)
                 continue
             try:
@@ -238,8 +322,12 @@ def make_home(real_home: str | Path, home: Path, protect: Iterable[str | Path]) 
                 try:
                     if target.is_symlink():
                         target.unlink()
-                    if not target.exists() or e.stat().st_mtime > target.stat().st_mtime:
-                        shutil.copy2(e.path, target)
+                    # anything else in its place (a folder) is the work's own: never written into
+                    if not os.path.lexists(target) or (
+                        stat.S_ISREG(os.lstat(target).st_mode)
+                        and e.stat().st_mtime > target.stat().st_mtime
+                    ):
+                        copy_file(e.path, target)
                 except OSError:
                     pass
                 continue
@@ -280,15 +368,26 @@ def carry_session(
         try:
             if is_dir:
                 if s.is_dir() and not s.is_symlink():
+                    # a side of the wall the turn wrote to may hold links: nothing is followed
+                    _real_dirs(Path(dst_home), rel)
+                    if os.path.lexists(d) and not _is_real_dir(d):
+                        remove(d)
+                    _unlink_links(d)
                     shutil.copytree(s, d, dirs_exist_ok=True, symlinks=True)
                     moved = True
             elif (
                 s.is_file()
                 and not s.is_symlink()
-                and (not d.exists() or s.stat().st_mtime > d.stat().st_mtime)
+                and (
+                    not os.path.lexists(d)
+                    or d.is_symlink()
+                    or not d.is_file()
+                    or s.stat().st_mtime > d.stat().st_mtime
+                )
             ):
-                d.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-                shutil.copy2(s, d)
+                _real_dirs(Path(dst_home), rel)
+                remove(d)
+                copy_file(s, d)
                 moved = True
         except OSError:
             continue
@@ -350,14 +449,38 @@ def plan(
 
 def prepare(p: Plan, real_home: Path | None = None) -> None:
     """The private area on the disk: its home (links to the real one), an empty tmp and an
-    empty job folder (settings, the hook's log and socket)."""
+    empty job folder (settings, the hook's log and socket).
+
+    The last turn of the work could write anything there (a link in place of tmp/, a folder it
+    cannot write): that is put right here, never followed, and never a reason for the next turn
+    to run without the wall. When the area cannot be put right in place, it is set aside whole
+    and made anew; an OSError after that is this server's, not the turn's."""
+    try:
+        _prepare(p, real_home)
+    except OSError:
+        _set_aside(p.private)
+        _prepare(p, real_home)
+
+
+def _prepare(p: Plan, real_home: Path | None) -> None:
+    p.private.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     for d in (p.private, p.home):
-        d.mkdir(parents=True, exist_ok=True, mode=0o700)
+        if os.path.lexists(d) and not _is_real_dir(d):
+            remove(d)
+        d.mkdir(exist_ok=True, mode=0o700)
         os.chmod(d, 0o700)
     for d in (p.tmp, p.job):
-        shutil.rmtree(d, ignore_errors=True)
-        d.mkdir(mode=0o700)
+        fresh_dir(d)
     make_home(real_home or Path.home(), p.home, p.protect)
+
+
+def _set_aside(private: Path) -> None:
+    """The whole area renamed out of the way (a rename follows nothing), then removed."""
+    if not os.path.lexists(private):
+        return
+    old = private.with_name(f".{private.name}.old-{time.time_ns()}")
+    os.rename(private, old)
+    remove_quietly(old)
 
 
 # the wrapper is this same installation of the runner, found without PYTHONPATH (which the
@@ -426,16 +549,49 @@ def switched_off(env: dict[str, str] | None = None) -> bool:
 
 
 async def probe(p: Plan, env: dict[str, str], claude: str | None) -> str | None:
-    """None when a walled process can work in the turn's folder, cannot list what is closed,
-    and can start the CLI; else the reason. Remembered for an hour per server."""
+    """None when a walled process can work in a folder of its own, cannot list what is closed,
+    and can start the CLI; else the reason. Remembered for an hour per server.
+
+    The probe runs in a place of its own, never in the turn's folder or private area: whether
+    the wall works is this server's, and a work's folder holds whatever its last turn left (one
+    turn could otherwise bring the wall down for every company)."""
     key = "|".join(sorted(p.protect))
     seen = _probe.get(key)
     now = time.monotonic()
     if seen is not None and now - seen[0] < PROBE_TTL_S:
         return seen[1]
-    why = await _probe_once(p, env, claude)
+    why = await _probe_apart(p, env, claude)
     _probe[key] = (now, why)
     return why
+
+
+async def recheck(p: Plan, env: dict[str, str], claude: str | None) -> str | None:
+    """The probe again now (not the remembered answer): a walled session that did not start
+    says nothing about the wall by itself, its turn's own files may be the reason."""
+    _probe.pop("|".join(sorted(p.protect)), None)
+    return await probe(p, env, claude)
+
+
+async def _probe_apart(p: Plan, env: dict[str, str], claude: str | None) -> str | None:
+    base = p.private.parent
+    try:
+        base.mkdir(parents=True, exist_ok=True, mode=0o700)
+        place = Path(tempfile.mkdtemp(prefix=".probe-", dir=base))
+    except OSError as exc:
+        return f"no place for the probe: {exc.strerror or type(exc).__name__}"
+    try:
+        work = place / "work"
+        private = place / "area"
+        extra = [a for a in p.allow if a not in (str(p.work), str(p.private))]
+        q = Plan(".probe", work, private, list(p.protect), [str(work), str(private), *extra])
+        try:
+            work.mkdir(mode=0o700)
+            await asyncio.to_thread(prepare, q)
+        except OSError as exc:
+            return f"no place for the probe: {exc.strerror or type(exc).__name__}"
+        return await _probe_once(q, env, claude)
+    finally:
+        await asyncio.to_thread(remove_quietly, place)
 
 
 async def _run(argv: list[str], env: dict[str, str], cwd: str, limit_s: float) -> tuple[int, str]:
@@ -519,11 +675,6 @@ async def check(cfg_path: Path | None = None) -> str | None:
 
 def forget_probe() -> None:
     _probe.clear()
-
-
-def distrust(p: Plan, why: str) -> None:
-    """A walled session did not start: the wall stays down on this server for an hour."""
-    _probe["|".join(sorted(p.protect))] = (time.monotonic(), why)
 
 
 # ------------------------------------------------------------- the hook's socket --
