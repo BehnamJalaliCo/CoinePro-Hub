@@ -131,6 +131,19 @@ class Piper:
         self.threads = threads
 
     def speak(self, script: str, work: Path) -> Spoken:
+        """Any failure of one synthesis is an EngineError: the job queue fails
+        that job and goes on with the next (a hung opusenc, a truncated WAV or
+        a fork/pipe error must not end the whole pass)."""
+        try:
+            return self._speak(script, work)
+        except subprocess.TimeoutExpired as exc:
+            raise EngineError("opusenc timed out") from exc
+        except (wave.Error, EOFError) as exc:
+            raise EngineError(f"bad wav: {exc}") from exc
+        except OSError as exc:
+            raise EngineError(f"engine i/o error: {exc.strerror or exc}") from exc
+
+    def _speak(self, script: str, work: Path) -> Spoken:
         wav = work / "speech.wav"
         ogg = work / "speech.ogg"
         env = {
