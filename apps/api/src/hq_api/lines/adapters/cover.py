@@ -45,7 +45,7 @@ class Cover:
         co = await C.company_of(ctx)
         files: list[dict[str, str]] = []
         for fid in list(folder.get("files") or [])[: int(C.setting(ctx, "max_files", 6))]:
-            data, row = await C.file_bytes(ctx.hub, co.id, str(fid))
+            data, row = await C.file_bytes(ctx.hub, co.id, str(fid), with_holding=True)
             if str(row["mime"]) in IMAGE_MIMES and len(data) <= FILE_CAP:
                 files.append({"name": str(row["name"]), "b64": base64.b64encode(data).decode()})
         if not files:

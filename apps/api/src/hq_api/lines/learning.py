@@ -99,7 +99,26 @@ def _num(v: Any) -> float | None:
         return None
 
 
-async def record_features(tx: Tx, run: dict[str, Any], tz: str) -> None:
+def publish_hour(published: list[dict[str, Any]] | None, tz: str) -> int:
+    """The hour (owner's zone) the post goes out: the first published entry's `at` (a scheduled
+    publish is later than the step), else now."""
+    for p in published or []:
+        at = p.get("at") if isinstance(p, dict) else None
+        if not at:
+            continue
+        try:
+            when = datetime.fromisoformat(str(at).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=UTC)
+        return when.astimezone(zone(tz)).hour
+    return datetime.now(UTC).astimezone(zone(tz)).hour
+
+
+async def record_features(
+    tx: Tx, run: dict[str, Any], tz: str, published: list[dict[str, Any]] | None = None
+) -> None:
     """What the run was made of, kept once at its first publish (by code)."""
     if await tx.scalar("SELECT 1 FROM lines.run_features WHERE run_id = :id", id=run["id"]):
         return
@@ -159,7 +178,7 @@ async def record_features(tx: Tx, run: dict[str, Any], tz: str) -> None:
         length=round(length, 1) if length is not None else None,
         voice=str(voice)[:120] if voice else None,
         pattern=str(pattern)[:300] if pattern else None,
-        hour=datetime.now(UTC).astimezone(zone(tz)).hour,
+        hour=publish_hour(published, tz),
         caption=len(caption) if caption else None,
     )
 

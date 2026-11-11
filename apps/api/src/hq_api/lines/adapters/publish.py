@@ -16,7 +16,8 @@ By the line's platform:
 Settings: `kind` (reel | story | post | short | video | article | message), `media_from`,
 `cover_from`, `text_from` (input step keys), `publish_at` (ISO) or `delay_min` after `after`'s time,
 `privacy` (YouTube). Output `data.published` = {platform, kind, external_id, at, url} for the run.
-`insights(ctx, published)` reads the post's figures (Instagram, YouTube).
+`insights(ctx, published)` reads the post's figures (Instagram, YouTube); `Publish.insights` is the
+engine's entry to it (learning.read_metrics, with the run's list of published entries).
 """
 
 from __future__ import annotations
@@ -91,10 +92,12 @@ def content_of(ctx: StepContext) -> dict[str, Any]:
     }
 
 
-def full_caption(c: dict[str, Any], limit: int) -> str:
+def full_caption(c: dict[str, Any], limit: int, *, utf16: bool = False) -> str:
+    """The caption with its hashtags, cut between words (never inside a tag or an emoji) to
+    `limit`; Telegram's limit is in UTF-16 units (`utf16`)."""
     tags = " ".join(c["hashtags"])
     text = c["caption"] if not tags or tags in c["caption"] else f"{c['caption']}\n\n{tags}"
-    return text[:limit]
+    return SP.clip(text, limit, utf16=utf16)
 
 
 def when_of(ctx: StepContext) -> datetime | None:
@@ -146,6 +149,15 @@ class Publish:
             via=pub.pop("via"),
             data={"published": pub, **extra},
         )
+
+    async def insights(self, ctx: StepContext, published: list[dict[str, Any]]) -> dict[str, Any]:
+        """The engine's 24h/7d read (learning.read_metrics): the run's published entries come as a
+        list; the figures are the line's own post's (its platform's kind, not a story that follows
+        a reel), else the first entry with an id. The module function reads one entry."""
+        ids = [p for p in published if isinstance(p, dict) and p.get("external_id")]
+        main = KIND_OF_PLATFORM.get(ctx.platform)
+        entry = next((p for p in ids if p.get("kind") == main), ids[0] if ids else None)
+        return await insights(ctx, entry) if entry is not None else {}
 
     # ---------------------------------------------------------------- dry --
     async def _dry(
@@ -327,9 +339,8 @@ class Publish:
         video = mime == "video/mp4"
         if not video and mime not in ("image/jpeg", "image/png"):
             raise StepFailed("نوع فایل برای تلگرام پذیرفته نیست.", code="bad_media")
-        cap = (
-            full_caption(content_of(ctx), TG_CAPTION - len(SP.AI_LABEL) - 2) + "\n\n" + SP.AI_LABEL
-        ).strip()
+        room = TG_CAPTION - SP.utf16_len(SP.AI_LABEL) - 2
+        cap = (full_caption(content_of(ctx), room, utf16=True) + "\n\n" + SP.AI_LABEL).strip()
         payload: dict[str, Any] = {"chat_id": chat, "caption": cap}
         if video:
             payload.update(video="attach://file0", supports_streaming=True)

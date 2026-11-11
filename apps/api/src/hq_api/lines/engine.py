@@ -56,6 +56,8 @@ WAIT_MAX = timedelta(days=7)  # a gate or callback unanswered this long ends the
 LOOKBACK = timedelta(minutes=30)  # a schedule's occurrence the tick still makes
 KICK_AFTER = timedelta(minutes=2)  # an open run no workflow moved, started again
 CALLBACK = "callback"
+CALLBACK_TRIES = 20  # an n8n answer that beat the step's parking looks again this often
+CALLBACK_PAUSE_S = 0.5
 TEST_TIMEOUT_S = 300  # the owner's «آزمودن» of one step waits at most this long
 OVERDUE = "SELECT CAST(:t AS timestamptz) < now() - CAST(:w AS interval)"
 LOCK_FA = {
@@ -706,7 +708,7 @@ async def _done(
         s="waiting" if waiting else "running",
     )
     if published:
-        await learning.record_features(tx, run, await owner_tz(tx))
+        await learning.record_features(tx, run, await owner_tz(tx), published)
         from hq_api.domain import live
 
         await live.publish_flow(tx, run, published)  # ⟨1.24⟩ §42.2 to the world, on the map
@@ -920,7 +922,22 @@ async def cancel(tx: Tx, run: dict[str, Any]) -> None:
 
 async def on_callback(hub: Any, body: dict[str, Any]) -> dict[str, Any]:
     """n8n's signed answer to a waiting `n8n` step: done with its output, or
-    failed (then the step's attempts and `optional` decide, as for any step)."""
+    failed (then the step's attempts and `optional` decide, as for any step).
+
+    A fast workflow can answer before the engine has parked the step (the
+    adapter sends the webhook, then a second transaction marks it `waiting`):
+    while the n8n step is still `running`, the answer looks again for a few
+    seconds instead of being refused and lost."""
+    for _ in range(CALLBACK_TRIES):
+        got = await _on_callback(hub, body)
+        if got is not None:
+            return got
+        await asyncio.sleep(CALLBACK_PAUSE_S)
+    raise ApiError(409, "validation_failed", "this step waits for no callback")
+
+
+async def _on_callback(hub: Any, body: dict[str, Any]) -> dict[str, Any] | None:
+    """The callback applied, or None while the step is not parked yet."""
     async with hub.db.tx(await _ids(hub)) as tx:
         run = await store.load_run(tx, str(body["run"]), lock=True)
         cur = await tx.first(
@@ -928,9 +945,12 @@ async def on_callback(hub: Any, body: dict[str, Any]) -> dict[str, Any]:
             r=run["id"],
             k=body["step"],
         )
+        bdy = await store.version_body(tx, run["line_id"], run["line_version"])
+        if cur is not None and run["state"] == "running" and cur["state"] == "running":
+            if step_def(bdy, cur["key"])["kind"] == "n8n":
+                return None  # the webhook was sent, the engine parks the step in a moment
         if run["state"] != "waiting" or cur is None or cur["state"] != "waiting" or cur["gate"]:
             raise ApiError(409, "validation_failed", "this step waits for no callback")
-        bdy = await store.version_body(tx, run["line_id"], run["line_version"])
         sdef = step_def(bdy, cur["key"])
         await tx.exec("UPDATE lines.runs SET state = 'running' WHERE id = :id", id=run["id"])
         run = await store.load_run(tx, run["ref"])
