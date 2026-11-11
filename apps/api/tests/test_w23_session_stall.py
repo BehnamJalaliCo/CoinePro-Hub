@@ -1085,3 +1085,30 @@ def test_the_stuck_sentence_names_the_end_of_the_last_step_and_the_owner_is_tu(h
     assert "مدیر کل (مالک) «تو»" in (
         Path(str(hub.charters.root)) / "charter" / "HOLDING.md"
     ).read_text(encoding="utf-8")
+
+
+async def test_a_call_past_its_deadline_shows_as_ending_until_the_reaper_ends_it(
+    hub: Hub, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    now = datetime.now(UTC)
+    late: list[dict[str, Any]] = []
+
+    async def pending_for(tx: Any, ids: list[Any], at: Any = None) -> list[dict[str, Any]]:
+        return list(late)
+
+    monkeypatch.setattr(S, "pending_for", pending_for)
+    work = {"id": uuid.uuid4(), "ref": "W-000999", "status": "in_progress", "title": "ریلز",
+            "company_fa": "پروچارت"}  # fmt: skip
+    row = {"id": uuid.uuid4(), "player": "gpt", "player_fa": "ChatGPT", "seat": "content_draft",
+           "seat_fa": "پیش‌نویس متن", "state": "queued", "created_at": now - timedelta(minutes=17),
+           "claimed_at": None, "deadline_at": now - timedelta(minutes=1), "ending": True}  # fmt: skip
+    late.append(row)
+    async with await all_tx(hub) as tx:
+        [c] = await SA.pending_outside(tx, [work], now)
+        assert c["doing_fa"] == "ChatGPT جواب نداد؛ تمام میشود…" and c["who_fa"] == "ChatGPT"
+        assert await SA.ended_outside(tx, [work], now - timedelta(hours=1), now) == []
+        # the reaper did not end it within its grace: not live any more, and named as the cause
+        late[0] = {**row, "deadline_at": now - SA.ENDING_GRACE - timedelta(minutes=1)}
+        assert await SA.pending_outside(tx, [work], now) == []
+        [gone] = await SA.ended_outside(tx, [work], now - timedelta(hours=1), now)
+    assert gone["who_fa"] == "ChatGPT" and gone["why_fa"] == "نوبتش نرسید"
