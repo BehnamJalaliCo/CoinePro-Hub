@@ -14,6 +14,7 @@ speech_make     ⟨2026-11-06⟩ a media role's `speech.make`: one voice from AI
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from typing import Any
 
 from temporalio import activity
@@ -36,11 +37,19 @@ class LinesActivities:
     @activity.defn(name="line_advance")
     async def line_advance(self, ref: str) -> dict[str, Any]:
         task = asyncio.ensure_future(engine.advance(self.hub, ref))
-        while True:
-            done, _ = await asyncio.wait({task}, timeout=HEARTBEAT_S)
-            if done:
-                return task.result()
-            activity.heartbeat()
+        try:
+            while True:
+                done, _ = await asyncio.wait({task}, timeout=HEARTBEAT_S)
+                if done:
+                    return task.result()
+                activity.heartbeat()
+        finally:
+            # Cancelled (a heartbeat timeout, the step backstop, a worker stop): the step's
+            # adapter call ends with this attempt, never runs on beside the retry's attempt.
+            if not task.done():
+                task.cancel()
+                with contextlib.suppress(BaseException):
+                    await task
 
     @activity.defn(name="lines_tick")
     async def lines_tick(self) -> dict[str, Any]:
