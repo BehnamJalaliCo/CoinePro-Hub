@@ -2,7 +2,8 @@
 
 Startup waits (with backoff) for OpenBao, Postgres, NATS and OPA; Temporal is
 optional at runtime (the worker reconciles). Background tasks: the outbox
-relay, the heartbeat file (container healthcheck) and a secrets refresh.
+relay, the heartbeat file (container healthcheck), a secrets refresh and,
+when Temporal was down at start, a reconnect loop.
 The OpenAPI document is not served here: the committed openapi/hq-api.v1.json
 is the published contract.
 """
@@ -37,6 +38,9 @@ from hq_common.openbao import OpenBaoClient
 
 log = logging.getLogger("hq_api")
 SECRETS_REFRESH_S = 300.0
+TEMPORAL_CONNECT_TIMEOUT_S = 20.0
+TEMPORAL_RETRY_FIRST_S = 2.0
+TEMPORAL_RETRY_MAX_S = 60.0
 
 
 async def retry(what: str, fn: Callable[[], Awaitable[Any]]) -> Any:
@@ -82,11 +86,40 @@ async def build(s: Settings) -> tuple[Hub, OpenBaoClient]:
     hub.live = LiveHub()
     for problem in hub.charters.problems:
         log.warning("charter problem", extra={"problem": problem[:300]})
-    try:
-        hub.temporal = await workflows_client.connect(s.temporal_address, s.temporal_namespace)
-    except Exception:  # noqa: BLE001 - optional at runtime; the worker reconciles
-        log.warning("temporal unavailable at start; continuing without it")
+    await connect_temporal(hub)  # on failure, lifespan starts temporal_reconnect
     return hub, bao
+
+
+async def connect_temporal(hub: Hub) -> bool:
+    """One connection attempt; True when hub.temporal is set. Once connected
+    the temporalio client reconnects by itself, so only a missing client needs
+    another attempt (`temporal_reconnect`)."""
+    s = hub.settings
+    try:
+        hub.temporal = await asyncio.wait_for(
+            workflows_client.connect(s.temporal_address, s.temporal_namespace),
+            TEMPORAL_CONNECT_TIMEOUT_S,
+        )
+    except Exception as exc:  # noqa: BLE001 - optional at runtime; retried in the background
+        log.warning(
+            "temporal unavailable; continuing without it, retrying",
+            extra={"error_type": type(exc).__name__},
+        )
+        return False
+    return True
+
+
+async def temporal_reconnect(hub: Hub) -> None:
+    """Temporal was down when the API started (a restart after its memory cap,
+    `up --no-deps`, a host reboot): keep trying with backoff until connected,
+    instead of running without workflows for the life of the process."""
+    delay = TEMPORAL_RETRY_FIRST_S
+    while hub.temporal is None:
+        await asyncio.sleep(delay)
+        if await connect_temporal(hub):
+            log.info("temporal connected after start")
+            return
+        delay = min(delay * 2, TEMPORAL_RETRY_MAX_S)
 
 
 async def refresh_secrets(hub: Hub, bao: OpenBaoClient) -> None:
@@ -115,6 +148,8 @@ def make_app(s: Settings) -> FastAPI:
             tasks.append(asyncio.create_task(OutboxRelay(s, hub.db, hub.bus).run()))
         tasks.append(asyncio.create_task(refresh_secrets(hub, bao)))
         tasks.append(asyncio.create_task(heartbeat.run(lambda: health(hub))))
+        if hub.temporal is None:
+            tasks.append(asyncio.create_task(temporal_reconnect(hub)))
         # ⟨1.5⟩ prompt 11 §7: the authority matrix to OPA at start (then at every use)
         tasks.append(asyncio.create_task(gov_authority.push_at_start(hub)))
         hub.workshop = await workshop.build(hub)
