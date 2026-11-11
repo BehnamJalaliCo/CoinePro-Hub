@@ -425,13 +425,27 @@ async def test_affiliate_due_against_received(
     assert r.status_code == 200
     states = {g["month"]: g["state"] for g in r.json()}
     assert states["2026-09-01"] == "open" and states["2026-10-01"] == "waiting"
-    # what arrived closes it once within 5%
+    # what arrived closes it once within 5%; the key is required, and a retry books nothing twice
+    receipt = {"account_id": str(acc), "month": "2026-09", "received_usdt": "290"}
+    r = await client.post(f"{API}/revenue/affiliate-receipts", json=receipt, headers=owner)
+    assert r.status_code == 422, r.text
+    key = idem()
     r = await client.post(
-        f"{API}/revenue/affiliate-receipts",
-        json={"account_id": str(acc), "month": "2026-09", "received_usdt": "290"},
-        headers=owner,
+        f"{API}/revenue/affiliate-receipts", json=receipt, headers={**owner, **key}
     )
     assert r.status_code == 201, r.text
+    again = await client.post(
+        f"{API}/revenue/affiliate-receipts", json=receipt, headers={**owner, **key}
+    )
+    assert again.status_code == 201 and again.headers.get("Idempotent-Replay") == "true"
+    assert again.json() == r.json()
+    assert (
+        await su.fetchval(
+            "SELECT count(*) FROM sales.affiliate_receipts WHERE account_id = $1 AND month = '2026-09-01'",
+            acc,
+        )
+        == 1
+    )
     assert (
         await su.fetchval(
             "SELECT state FROM sales.affiliate_gaps WHERE account_id = $1 AND month = '2026-09-01'",

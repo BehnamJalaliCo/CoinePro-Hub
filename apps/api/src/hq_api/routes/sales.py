@@ -315,16 +315,24 @@ async def affiliate_gaps(
     responses=E,
 )
 async def affiliate_receipt(
-    body: SalesReceiptIn, ctx: Ctx = Depends(owner_ctx)
-) -> AG.SalesAffiliateReceipt:
+    body: SalesReceiptIn, request: Request, ctx: Ctx = Depends(owner_ctx)
+) -> Any:
     """⟨1.15⟩ §33.5 say what the exchange paid for an account's month (it pays outside the hub);
-    a gap that this brings under 5% closes. Receipts add up and are never changed."""
+    a gap that this brings under 5% closes. Receipts add up and are never changed, so this
+    requires `Idempotency-Key` (a retried request never books the money twice)."""
     await _policy(ctx, "affiliate.receive")
-    return await AG.receive(
-        ctx.hub,
-        ctx.who,
-        account_id=body.account_id,
-        month=AG.parse_month(body.month),
-        received_usdt=body.received_usdt,
-        note_fa=body.note_fa,
-    )
+    async with ctx.tx() as tx:
+        idem = await idempotency.claim(tx, request, ctx.who, required=True)
+        if idem and idem.replay:
+            return idem.replay
+        out = await AG.receive(
+            tx,
+            ctx.who,
+            account_id=body.account_id,
+            month=AG.parse_month(body.month),
+            received_usdt=body.received_usdt,
+            note_fa=body.note_fa,
+        )
+        if idem:
+            await idem.store(tx, 201, out.model_dump(mode="json"))
+    return out
