@@ -99,6 +99,11 @@ CLAUDE_WAIT_SOON_FA = CLAUDE_WAIT_PREFIX + "؛ تا یکی جا باز کند ش
 # an outside call or a voice job working for the session (kind `call`)
 CALL_DOING_FA = "{seat} را آماده میکند"
 CALL_QUEUED_FA = "در صف {player}: {seat}"
+# ⟨2026-11-11⟩ a call past its deadline the reaper has not ended yet (substitutes.pending_for's
+# `ending`): still shown, as ending, for at most ENDING_GRACE (the reaper runs every minute); past
+# that it is not live and the cause names it
+CALL_ENDING_FA = "{player} جواب نداد؛ تمام میشود…"
+ENDING_GRACE = timedelta(minutes=5)
 VOICE_WHO_FA = "گوینده‌ی هوش مصنوعی"
 VOICE_SEAT_FA = "صدا"
 VOICE_DEADLINE = timedelta(minutes=12)  # the SpeechMake activity's 600 s and a margin
@@ -1141,12 +1146,19 @@ async def pending_outside(
         w = c["work"]
         player, seat = str(c.get("player_fa") or "بازیکن بیرونی"), str(c.get("seat_fa") or "کار")
         created, deadline = c.get("created_at") or now, c.get("deadline_at")
+        if c.get("ending") and (deadline is None or now > deadline + ENDING_GRACE):
+            continue  # the reaper did not end it in time: not live, the cause names it
+        if c.get("ending"):
+            doing = CALL_ENDING_FA.format(player=player)
+        elif c.get("state") == "running":
+            doing = CALL_DOING_FA.format(seat=seat)
+        else:
+            doing = CALL_QUEUED_FA.format(player=player, seat=seat)
         out.append({
             "who_fa": player,
             "company_fa": str(w.get("company_fa") or ""),
             "work_title": w.get("title"),
-            "doing_fa": (CALL_DOING_FA.format(seat=seat) if c.get("state") == "running"
-                         else CALL_QUEUED_FA.format(player=player, seat=seat)),
+            "doing_fa": doing,
             "created_at": created,
             "cap_s": max(int((deadline - created).total_seconds()), 1) if deadline else None,
             "last_at": c.get("claimed_at") or created,
@@ -1188,6 +1200,20 @@ async def ended_outside(
             "code": str(c.get("state_reason") or "").split(":", 1)[0].strip() or None,
             "why_fa": str(c.get("reason_fa") or VOICE_WHY_DEFAULT_FA),
             "at": c.get("finished_at") or now,
+        })  # fmt: skip
+    for c in await _substitute_calls(tx, works, now):
+        deadline = c.get("deadline_at")
+        if not c.get("ending") or deadline is None or now <= deadline + ENDING_GRACE:
+            continue
+        # past its deadline and its grace, still not ended: as good as ended without an answer
+        running = c.get("state") == "running"
+        out.append({
+            "who_fa": str(c.get("player_fa") or "بازیکن بیرونی"),
+            "seat_fa": str(c.get("seat_fa") or "کار"),
+            "state": "failed",
+            "code": "timeout" if running else "not_claimed",
+            "why_fa": "جوابش طول کشید" if running else "نوبتش نرسید",
+            "at": deadline,
         })  # fmt: skip
     for v in await _voice_jobs(tx, [w["id"] for w in works], since - VOICE_DEADLINE):
         start = v["started_at"] or v["asked_at"]

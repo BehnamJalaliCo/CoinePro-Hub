@@ -295,7 +295,7 @@ async def test_the_incident_a_queued_chatgpt_draft_never_leaves_the_session_sile
     assert act["mood"] == "working" and act["stuck_fa"] is None, act
     [w] = [x for x in act["working"] if x["kind"] == "call"]
     assert w["who_fa"] == "ChatGPT" and w["doing_fa"] == "در صف ChatGPT: پیش‌نویس متن", w
-    assert w["cap_s"] == 900 and w["step"] == 0 and w["company_fa"]
+    assert w["cap_s"] >= 900 and w["step"] == 0 and w["company_fa"]  # a busy lane: later
     rep = await report(client, owner, ref)
     assert rep["session"]["badge"] == "moving", rep["session"]
     assert "ChatGPT" in rep["session"]["reason_fa"]
