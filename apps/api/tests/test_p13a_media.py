@@ -1144,3 +1144,29 @@ def test_a_series_must_fit_its_kind() -> None:
         assert field in (e.value.fields or {}), (field, e.value.fields)
     with pytest.raises(ApiError):
         S.check_series("TY", {**good, "schedule": "FREQ=SECONDLY"})
+
+
+def test_a_carousel_on_two_targets_of_one_placement_counts_each_slide_once() -> None:
+    from hq_api.domain import studio_checks as SC
+
+    targets = [
+        {"channel": "instagram", "account": "instagram-fx", "placement": "instagram_post"},
+        {"channel": "runner", "account": "runner-ig-hub", "placement": "instagram_post"},
+    ]
+
+    def item(slides: int) -> dict[str, Any]:
+        frames = [
+            {"name": f"slide{k}", "file_id": f"f{k}", "kind": "image", "width": 1080,
+             "height": 1350, "bytes": 1000}
+            for k in range(1, slides + 1)
+        ]  # fmt: skip
+        outs = [{**f, "placement": t["placement"]} for t in targets for f in frames]
+        return {"kind": "carousel", "series_targets": targets, "outputs": outs}
+
+    # six slides emitted once per target are six frames, not twelve
+    six = SC.platform(item(6))
+    assert six["result"] == "pass", six
+    assert six["note_fa"].count("instagram_post") == 1
+    # one slide is still one frame, though two targets carry it
+    one = SC.platform(item(1))
+    assert one["result"] == "fail" and "(1)" in one["note_fa"], one
