@@ -92,10 +92,12 @@ def content_of(ctx: StepContext) -> dict[str, Any]:
     }
 
 
-def full_caption(c: dict[str, Any], limit: int) -> str:
+def full_caption(c: dict[str, Any], limit: int, *, utf16: bool = False) -> str:
+    """The caption with its hashtags, cut between words (never inside a tag or an emoji) to
+    `limit`; Telegram's limit is in UTF-16 units (`utf16`)."""
     tags = " ".join(c["hashtags"])
     text = c["caption"] if not tags or tags in c["caption"] else f"{c['caption']}\n\n{tags}"
-    return text[:limit]
+    return SP.clip(text, limit, utf16=utf16)
 
 
 def when_of(ctx: StepContext) -> datetime | None:
@@ -337,9 +339,8 @@ class Publish:
         video = mime == "video/mp4"
         if not video and mime not in ("image/jpeg", "image/png"):
             raise StepFailed("نوع فایل برای تلگرام پذیرفته نیست.", code="bad_media")
-        cap = (
-            full_caption(content_of(ctx), TG_CAPTION - len(SP.AI_LABEL) - 2) + "\n\n" + SP.AI_LABEL
-        ).strip()
+        room = TG_CAPTION - SP.utf16_len(SP.AI_LABEL) - 2
+        cap = (full_caption(content_of(ctx), room, utf16=True) + "\n\n" + SP.AI_LABEL).strip()
         payload: dict[str, Any] = {"chat_id": chat, "caption": cap}
         if video:
             payload.update(video="attach://file0", supports_streaming=True)

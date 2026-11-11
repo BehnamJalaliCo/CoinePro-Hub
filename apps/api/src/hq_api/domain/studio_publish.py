@@ -322,6 +322,28 @@ async def used_24h(tx: Tx, account: str) -> int:
     return int(n or 0)
 
 
+def utf16_len(text: str) -> int:
+    """Telegram measures a caption in UTF-16 code units: an emoji outside the BMP counts two."""
+    return len(text.encode("utf-16-le")) // 2
+
+
+def clip(text: str, limit: int, *, utf16: bool = False) -> str:
+    """`text` within `limit` (characters, or UTF-16 units with `utf16`), cut at the last space or
+    line break so no word, hashtag or emoji sequence is split; a hard cut only for one endless word.
+    """
+    size = utf16_len if utf16 else len
+    if size(text) <= limit:
+        return text
+    cut = text[:limit]
+    while cut and size(cut) > limit:
+        cut = cut[:-1]
+    if not text[len(cut)].isspace():
+        space = max((i for i, ch in enumerate(cut) if ch.isspace()), default=0)
+        if space > 0:
+            cut = cut[:space]
+    return cut.rstrip()
+
+
 def caption_of(item: dict[str, Any], channel: str) -> str:
     from hq_api.domain import studio_checks as K
 
@@ -329,8 +351,9 @@ def caption_of(item: dict[str, Any], channel: str) -> str:
     cap = K.parts(script).get("کپشن") or "\n".join(script.strip().splitlines()[:3])
     cap = re.sub(r"[*_`#>\[\]]", "", cap).strip()
     if channel == "telegram":
-        return (cap[: TG_CAPTION - len(AI_LABEL) - 2] + "\n\n" + AI_LABEL).strip()
-    return cap[:IG_CAPTION]
+        room = TG_CAPTION - utf16_len(AI_LABEL) - 2
+        return (clip(cap, room, utf16=True) + "\n\n" + AI_LABEL).strip()
+    return clip(cap, IG_CAPTION)
 
 
 def telegram_chat(site: str | None) -> str | None:

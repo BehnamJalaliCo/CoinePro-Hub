@@ -824,6 +824,21 @@ def pub_inputs() -> dict[str, StepOutput]:
     }  # fmt: skip
 
 
+def test_a_long_caption_is_cut_between_words_and_telegram_counts_utf16() -> None:
+    """Regression: a hard cut published half a hashtag (or half a ZWJ emoji), and Telegram's 1024
+    was measured in code points while an emoji takes two UTF-16 units."""
+    c = {"caption": "کلمه " * 6 + "پایان", "hashtags": ["#آموزش", "#ترید"]}
+    full = publish.full_caption(c, 2200)
+    cut = publish.full_caption(c, len(full) - 2)
+    assert cut.endswith("#آموزش") and "#تر" not in cut
+    family = "\U0001f468\u200d\U0001f469\u200d\U0001f467"
+    assert publish.full_caption({"caption": f"سلام {family}", "hashtags": []}, 7) == "سلام"
+    emoji = "سلام " + "\U0001f600 " * 600  # 1,205 code points, 1,805 UTF-16 units
+    tg = publish.full_caption({"caption": emoji, "hashtags": []}, 1000, utf16=True)
+    assert SP.utf16_len(tg) <= 1000 and tg.endswith("\U0001f600")
+    assert SP.clip("ab cd", 3) == "ab" and SP.clip("abcdef", 3) == "abc"
+
+
 async def test_a_dry_publish_answers_without_leaving(monkeypatch: pytest.MonkeyPatch) -> None:
     CN.OVERRIDE = FakeHttp(ok({}))
     res = await REGISTRY["publish"].run(ctx(FakeHub(), "publish", inputs=pub_inputs(), dry=True))
