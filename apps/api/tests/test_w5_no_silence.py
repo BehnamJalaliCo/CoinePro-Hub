@@ -123,6 +123,47 @@ async def test_an_unanswered_owner_message_tells_why_once(
     )
 
 
+async def test_told_threads_do_not_fill_the_sweeps_limit(
+    hub: Hub,
+    client: httpx.AsyncClient,
+    owner: dict[str, str],
+    su: Any,
+    new_company: Callable[..., Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Audit: a thread already told is left out in SQL, so a newer one is told on the next pass."""
+    monkeypatch.setattr(NS, "QUIET", timedelta(0))
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        await NS.sweep_unanswered(tx, limit=500)  # other tests' threads told first
+    threads = []
+    for _ in range(2):
+        thread = f"{(await new_company())['code']}-CEO"
+        r = await client.post(
+            f"/api/v1/threads/{thread}/messages",
+            headers={**owner, **idem()},
+            json={"body": "گزارش این هفته را بفرست"},
+        )
+        assert r.status_code == 201
+        await su.execute(
+            """UPDATE agents.runs SET state = 'refused', error_code = 'locked', finished_at = now()
+               WHERE thread_id = (SELECT id FROM msg.threads WHERE code = $1) AND state = 'queued'""",
+            thread,
+        )
+        threads.append(thread)
+    for _ in range(2):
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            assert await NS.sweep_unanswered(tx, limit=1) == 1
+    for thread in threads:
+        assert (
+            await su.fetchval(
+                """SELECT count(*) FROM notify.notifications
+                   WHERE link_kind = 'thread' AND link_ref = $1""",
+                thread,
+            )
+            == 1
+        )
+
+
 async def test_a_seat_without_an_envelope_says_why_and_tells_the_owner(
     hub: Hub, su: Any, new_company: Callable[..., Any]
 ) -> None:
@@ -148,6 +189,28 @@ async def test_a_seat_without_an_envelope_says_why_and_tells_the_owner(
         co["id"],
     )
     assert n is not None and n["owner_visible"] and "پاکت" in n["body_fa"]
+
+
+
+async def test_a_seat_notice_with_a_humanized_title_is_still_once_a_day(
+    hub: Hub, su: Any, new_company: Callable[..., Any]
+) -> None:
+    """Audit: the stored title is humanized (Arabic yeh, double space); the dedupe still finds it."""
+    co = await new_company()
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        for told in (True, False):
+            assert (
+                await NS.tell_seat_blocked(
+                    tx, co["id"], co["code"], "content", "توليد  محتوا", "ناشر", "envelope_required"
+                )
+                is told
+            )
+    titles = await su.fetch(
+        """SELECT title_fa FROM notify.notifications
+           WHERE company_id = $1 AND link_kind = 'group' AND link_ref = 'content'""",
+        co["id"],
+    )
+    assert len(titles) == 1 and "تولید محتوا" in titles[0]["title_fa"]
 
 
 async def test_a_routine_action_needs_no_fingerprint_and_a_weighty_one_still_does(

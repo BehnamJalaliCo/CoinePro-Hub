@@ -87,11 +87,15 @@ async def owner_tz(tx: Tx) -> str:
 
 
 async def spent_today(tx: Tx) -> int:
+    # The day as the agents' daily cap counts it (audit B5: one token everywhere,
+    # a cache read at a tenth), not the ledger in full.
+    from hq_api.agents.runner import EFFECTIVE_SQL  # runner imports this module
+
     n = await tx.scalar(
-        """SELECT COALESCE(sum(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)
-                               + COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0)), 0)
+        f"""SELECT COALESCE(sum({EFFECTIVE_SQL}), 0)
            FROM llm.calls
-           WHERE started_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AND meta ? 'run_id'"""
+           WHERE started_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+             AND meta ? 'run_id'"""  # noqa: S608 - a constant expression
     )
     return int(n or 0)
 
@@ -494,12 +498,22 @@ async def _save_settings(tx: Tx, meeting_id: UUID, settings: dict[str, Any]) -> 
 
 
 async def run_tokens(tx: Tx, run_id: UUID) -> int:
-    n = await tx.scalar(
-        """SELECT input_tokens + output_tokens + cache_read_tokens + cache_write_tokens FROM agents.runs
+    """A turn's tokens as the runner caps them (work.effective_tokens: a cache read at a tenth)."""
+    from hq_api.domain import work as W
+
+    r = await tx.first(
+        """SELECT input_tokens, output_tokens, cache_read_tokens, cache_write_tokens FROM agents.runs
            WHERE id = :id""",
         id=run_id,
     )
-    return int(n or 0)
+    if r is None:
+        return 0
+    return W.effective_tokens(
+        r["input_tokens"] or 0,
+        r["output_tokens"] or 0,
+        r["cache_read_tokens"] or 0,
+        r["cache_write_tokens"] or 0,
+    )
 
 
 async def turn_finished(tx: Tx, run: dict[str, Any]) -> None:
@@ -1456,12 +1470,15 @@ async def standups(tx: Tx, now: datetime, *, only: UUID | None = None) -> int:
         )
         done = [r for r in rows if r["status"] == "done"]
         doing = [r for r in rows if r["status"] in ("in_progress", "queued")]
+        # Stuck is an open work only: waiting, or past its due date. A work closed
+        # yesterday as cancelled or failed is not stuck; it gets its own line.
         stuck = [
             r
             for r in rows
-            if r["status"] == "waiting"
-            or (r["due_at"] and r["due_at"] < end and r["status"] != "done")
+            if r["status"] in ("waiting", "queued", "in_progress")
+            and (r["status"] == "waiting" or (r["due_at"] and r["due_at"] < end))
         ]
+        dropped = [r for r in rows if r["status"] in ("cancelled", "failed")]
         digest = hashlib.sha256(
             json.dumps([(r["ref"], r["status"]) for r in rows]).encode()
         ).hexdigest()
@@ -1495,10 +1512,11 @@ async def standups(tx: Tx, now: datetime, *, only: UUID | None = None) -> int:
                 or "-"
             )
 
-        body = "\n".join(
-            [f"استندآپ {d['company']}-{d['code']} ({today.isoformat()})", section("انجام‌شده", done),
-             section("در جریان", doing), section("گیرکرده", stuck)]
-        )  # fmt: skip
+        lines = [f"استندآپ {d['company']}-{d['code']} ({today.isoformat()})", section("انجام‌شده", done),
+                 section("در جریان", doing), section("گیرکرده", stuck)]  # fmt: skip
+        if dropped:
+            lines.append(section("لغو یا ناموفق", dropped))
+        body = "\n".join(lines)
         await tx.exec(
             """UPDATE meetings.meetings SET mode = 'written', digest_sha256 = :h, summary_md = :b WHERE id = :id""",
             h=digest,
