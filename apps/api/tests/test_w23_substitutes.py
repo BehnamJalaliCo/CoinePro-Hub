@@ -403,7 +403,11 @@ async def test_a_skipped_or_browserless_web_call_reaches_its_caller(
         async with hub.db.tx(await hub.companies.ids()) as tx:
             long = await S.seat_call(tx, hub, A.SERVICE, seat="assistant_errand",
                                      input_md="x" * (S.WEB_PROMPT_LIMIT + 1), company_id=holding.id)  # fmt: skip
-        assert (long["state"], long["state_reason"], long["input_md"]) == ("skipped", "too_long", None)
+        assert (long["state"], long["state_reason"], long["input_md"]) == (
+            "skipped",
+            "too_long",
+            None,
+        )
         # egress answers `off` (the profile browser is not running): a failure, delivered, and
         # every other waiting call of that player ends with it
         third, fourth = await ask("خلاصه‌ی سوم"), await ask("خلاصه‌ی چهارم")
@@ -427,7 +431,10 @@ async def test_a_skipped_or_browserless_web_call_reaches_its_caller(
                               json={"seat": "assistant_errand", "input_md": "خلاصه‌ی پنجم"})  # fmt: skip
         assert r.status_code == 503 and "browser_unavailable" in r.text, r.text
         await S.web_jobs(hub, FakeEgress())
-        assert await su.fetchval("SELECT count(*) FROM substitutes.calls WHERE player = 'gpt'") == calls
+        assert (
+            await su.fetchval("SELECT count(*) FROM substitutes.calls WHERE player = 'gpt'")
+            == calls
+        )
         assert await su.fetchval("SELECT count(*) FROM work.work") == works
         async with hub.db.tx(await hub.companies.ids()) as tx:
             held = await S.seat_call(tx, hub, A.SERVICE, seat="assistant_errand", input_md="x",
@@ -652,3 +659,166 @@ async def test_the_workers_egress_client_answers_every_failure_never_raises() ->
     assert got["ok"] is False and got["error"] == "failed" and "422" in got["detail"]
     fine = client(lambda r: httpx.Response(200, json={"ok": True, "text_md": "پاسخ"}))
     assert await fine.web(**ask) == {"ok": True, "text_md": "پاسخ"}
+
+
+# ======================================================= the lane, the retries ==
+async def test_a_call_waiting_behind_a_busy_lane_is_not_reaped_and_a_free_lanes_is(
+    hub: Hub, su: Any
+) -> None:
+    """The cover first, then the script (the owner's reels order): the script waits behind the
+    cover in the web lane (one pass serves every player and waits for all its jobs), and its
+    clock runs from when the lane is free again, not from when it was asked."""
+    async with bench(su, hub, web=("gpt", "deepseek")):
+        await per_day(su, "gpt", "creative", 5)
+        await su.execute("UPDATE substitutes.seats SET per_day = 1000 WHERE player = 'deepseek'")
+        try:
+            holding = await hub.companies.holding()
+            async with hub.db.tx(await hub.companies.ids()) as tx:
+                cover = await S.seat_call(tx, hub, A.SERVICE, seat="creative", input_md="کاور",
+                                          company_id=holding.id, player="gpt", task="image")  # fmt: skip
+            assert cover["state"] == "queued" and cover["timeout_s"] == 900
+            await su.execute(
+                "UPDATE substitutes.calls SET state = 'running', claimed_at = now() WHERE id = $1",
+                cover["id"],
+            )
+            async with hub.db.tx(await hub.companies.ids()) as tx:
+                script = await S.seat_call(tx, hub, A.SERVICE, seat="quick_search",
+                                           input_md="متن", company_id=holding.id)  # fmt: skip
+            cover = await _call(su, cover["id"])
+            busy_until = cover["claimed_at"] + timedelta(seconds=900 + S.RUN_GRACE_S)
+            async with hub.db.tx(await hub.companies.ids()) as tx:
+                deadline = await S.deadline_of(tx, script["id"])
+                assert deadline == busy_until + S.QUEUE_DEADLINE
+                assert deadline == S.deadline_at(script, busy_until)
+                # 16 minutes on: its own 15 are gone, but the lane was busy all along
+                await S.expire_stale(tx, hub, script["created_at"] + timedelta(minutes=16))
+            assert (await _call(su, script["id"]))["state"] == "queued"
+            # the lane was free before it was asked: the clock runs from when it was asked
+            await su.execute(
+                """UPDATE substitutes.calls SET state = 'done', finished_at = $2 WHERE id = $1""",
+                cover["id"],
+                script["created_at"] - timedelta(seconds=1),
+            )
+            async with hub.db.tx(await hub.companies.ids()) as tx:
+                assert await S.deadline_of(tx, script["id"]) == (
+                    script["created_at"] + S.QUEUE_DEADLINE
+                )
+                await S.expire_stale(tx, hub, script["created_at"] + timedelta(minutes=16))
+            row = await _call(su, script["id"])
+            assert (row["state"], row["state_reason"]) == ("failed", "not_claimed")
+        finally:
+            await su.execute(
+                "UPDATE substitutes.seats SET per_day = 60 WHERE player = 'deepseek' AND seat = 'quick_search'"
+            )
+            await su.execute(
+                "UPDATE substitutes.seats SET per_day = 5 WHERE player = 'deepseek' AND seat = 'third_opinion'"
+            )
+
+
+async def test_a_call_asked_again_waits_from_then(hub: Hub, su: Any) -> None:
+    async with bench(su, hub, web=("deepseek",)):
+        await su.execute("UPDATE substitutes.seats SET per_day = 1000 WHERE player = 'deepseek'")
+        try:
+            holding = await hub.companies.holding()
+            async with hub.db.tx(await hub.companies.ids()) as tx:
+                call = await S.seat_call(tx, hub, A.SERVICE, seat="quick_search", input_md="سوال",
+                                         company_id=holding.id)  # fmt: skip
+            assert call["queued_at"] is None
+            # a broken page: asked once more with the page reloaded, its queue clock from now
+            await S.web_jobs(hub, FakeEgress({"ok": False, "error": "recipe_failed", "step": "x"}))
+            row = await _call(su, call["id"])
+            assert (row["state"], row["attempt"]) == ("queued", 2)
+            assert row["queued_at"] is not None and row["queued_at"] >= row["created_at"]
+            # (as if the first attempt took ten minutes)
+            await su.execute(
+                "UPDATE substitutes.calls SET queued_at = created_at + interval '10 minutes' WHERE id = $1",
+                call["id"],
+            )
+            async with hub.db.tx(await hub.companies.ids()) as tx:
+                assert await S.deadline_of(tx, call["id"]) == (
+                    row["created_at"] + timedelta(minutes=10) + S.QUEUE_DEADLINE
+                )
+                await S.expire_stale(tx, hub, row["created_at"] + timedelta(minutes=16))
+            assert (await _call(su, call["id"]))["state"] == "queued"
+        finally:
+            await su.execute(
+                "UPDATE substitutes.seats SET per_day = 60 WHERE player = 'deepseek' AND seat = 'quick_search'"
+            )
+            await su.execute(
+                "UPDATE substitutes.seats SET per_day = 5 WHERE player = 'deepseek' AND seat = 'third_opinion'"
+            )
+
+
+async def test_an_end_whose_delivery_failed_is_delivered_once_more_never_twice(
+    hub: Hub, su: Any, monkeypatch: Any
+) -> None:
+    async with bench(su, hub, web=("gpt",)):
+        holding = await hub.companies.holding()
+
+        async def ended_undelivered() -> Any:
+            return await su.fetchval(
+                """INSERT INTO substitutes.calls (company_id, player, seat, via, task, state, state_reason,
+                       caller_kind, caller_code, timeout_s, day, month_key, finished_at)
+                   VALUES ($1, 'gpt', 'assistant_errand', 'web', 'text', 'failed', 'timeout', 'agent',
+                           'HQ-PA', 300, current_date, '1405-08', now() - interval '5 minutes')
+                   RETURNING id""",
+                holding.id,
+            )
+
+        first = await ended_undelivered()
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            assert await S.expire_stale(tx, hub) >= 1
+        row = await _call(su, first)
+        assert row["delivered_at"] is not None and row["reply_work_id"] is not None
+        reply = await _reply(su, first)
+        assert reply["code"] == "HQ-PA" and "longer than its time limit" in reply["brief"]
+        # a delivery that fails again is given up (logged), never tried a third time
+        second = await ended_undelivered()
+        tries: list[Any] = []
+
+        async def broken(tx: Any, hub: Any, call: dict[str, Any]) -> None:
+            tries.append(call["id"])
+            raise RuntimeError("the delivery broke")
+
+        monkeypatch.setattr(S, "deliver_to_agent", broken)
+        for _ in range(2):
+            async with hub.db.tx(await hub.companies.ids()) as tx:
+                await S.expire_stale(tx, hub)
+        row = await _call(su, second)
+        assert (
+            tries == [second] and row["delivered_at"] is not None and row["reply_work_id"] is None
+        )
+
+
+# ============================================================ the ready seat ==
+async def test_a_work_takes_the_seat_its_player_can_answer_now(hub: Hub, su: Any) -> None:
+    from hq_api.domain import players as PL
+
+    # GPT signed in on its CLI only: its web content_draft (first of TEXT_SEATS) is passed over
+    async with bench(su, hub, cli=("gpt",)):
+        await per_day(su, "gpt", "content_draft", 5)
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            found = await PL.text_seat(tx, "gpt")
+            assert found is not None
+            assert (found[1]["seat"], found[1]["via"]) == ("assistant_errand", "cli")
+            assert await PL.availability(tx, "gpt") is None
+    # its web chat signed in: content_draft, the strong model
+    async with bench(su, hub, web=("gpt",)):
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            found = await PL.text_seat(tx, "gpt")
+            assert found is not None and found[1]["seat"] == "content_draft"
+    # nobody signed in: the first seat it has on, whose reason the caller reads
+    async with bench(su, hub):
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            found = await PL.text_seat(tx, "gpt")
+            assert found is not None and found[1]["seat"] == "content_draft"
+            assert await PL.availability(tx, "gpt") == "signed_out"
+    # an unnamed draft goes to the player that can write it now (ChatGPT signed out, Gemini in)
+    async with bench(su, hub, web=("gemini",)):
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            found = await S.holder(tx, "content_draft", None)
+            assert found is not None and found[0]["player"] == "gemini"
+    async with bench(su, hub, web=("gpt", "gemini")):
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            found = await S.holder(tx, "content_draft", None)
+            assert found is not None and found[0]["player"] == "gpt"
