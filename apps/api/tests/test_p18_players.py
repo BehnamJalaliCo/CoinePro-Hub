@@ -5,6 +5,7 @@ ChatGPT, Gemini, DeepSeek or a real whisper."""
 
 from __future__ import annotations
 
+import base64
 import json
 import uuid
 from collections.abc import Callable
@@ -394,6 +395,14 @@ async def test_a_media_council_makes_a_version_per_player_the_owner_picks_and_an
                 v["ref"],
             )
             assert files and len(files) == 1
+            # The picked image goes to the player with the prompt (never the text alone).
+            await su.execute("UPDATE substitutes.players SET web_last_job_at = NULL")
+            fake = FakeEgress({"ok": False, "error": "timeout", "detail": "slow"})
+            await S.web_jobs(hub, fake)
+            sent = fake.calls[0]
+            assert sent["task"] == "video" and len(sent["files"]) == 1
+            assert base64.b64decode(sent["files"][0]["b64"])[:8] == b"\x89PNG\r\n\x1a\n"
+            assert sent["files"][0]["name"].endswith(".png")
             assert await su.fetchval(
                 "SELECT count(*) FROM audit.entries WHERE action = 'creative.pick' AND target_ref = $1", e
             ) == 1  # fmt: skip

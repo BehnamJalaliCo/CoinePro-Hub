@@ -799,3 +799,21 @@ async def test_a_player_that_does_not_take_the_seat_is_the_callers_mistake(
         assert r.status_code == 422, r.text
         assert r.json()["fields"] == {"player": "not a holder of this seat"}
         assert r.json()["message_fa"]
+
+
+async def test_files_for_a_seat_on_the_cli_are_refused_never_dropped(
+    client: httpx.AsyncClient, hub: Hub, su: Any
+) -> None:
+    """The CLI runner takes the question's text only: a call with files is the caller's 422,
+    never a queued call whose files nobody sees."""
+    pa = await agent_headers("HQ-PA")
+    async with bench(su, hub, cli=("gpt",)):
+        await per_day(su, "gpt", "assistant_errand", 5)
+        r = await client.post(
+            "/internal/v1/substitutes/call", headers=pa,
+            json={"seat": "assistant_errand", "input_md": "این تصویر را توضیح بده.",
+                  "file_ids": ["00000000-0000-4000-8000-000000000001"]},
+        )  # fmt: skip
+        assert r.status_code == 422, r.text
+        assert "file_ids" in r.json()["fields"]
+        assert (await claim(client))["job"] is None

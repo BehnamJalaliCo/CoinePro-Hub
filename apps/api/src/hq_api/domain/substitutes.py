@@ -33,6 +33,7 @@ nothing here signs in by itself, and no credential ever passes through it
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import logging
@@ -740,7 +741,7 @@ async def seat_call(
     now: datetime | None = None,
 ) -> dict[str, Any]:
     """One seat call: `queued` for its runner, or `skipped` with its reason
-    (holding_locked, off, signed_out, expired, limited, per_day). The input
+    (holding_locked, off, signed_out, expired, limited, per_day, no_files). The input
     is checked by `guard` first (the caller decides what a refusal means)."""
     now = now or datetime.now(UTC)
     day = owner_day(now)
@@ -773,6 +774,9 @@ async def seat_call(
         if cap is None or n >= int(cap):
             reason = "per_day"
     via = s_row["via"] if s_row is not None else "cli"
+    if reason is None and file_ids and via != "web":
+        # the CLI runner takes the question's text only: its files would be dropped unseen
+        reason = "no_files"
     model = s_row["model"] if s_row is not None else None
     masked = scrub(input_md)
     row = await tx.one(
@@ -816,6 +820,13 @@ async def seat_call(
 
 def refusal(reason: str) -> ApiError:
     """A skipped call as the tool's refusal (contract §21.13)."""
+    if reason == "no_files":
+        return ApiError(
+            422,
+            "validation_failed",
+            "this seat takes no files",
+            fields={"file_ids": "this seat's player takes the question's text only"},
+        )
     if reason in ("limited", "per_day"):
         return ApiError(429, "rate_limited", f"the substitute seat is {reason}")
     if reason in ("holding_locked", "company_locked", "deploy_freeze"):
@@ -2097,17 +2108,63 @@ async def web_jobs(hub: Any, egress: Any, now: datetime | None = None) -> dict[s
             picked.append((dict(c), p["web_account"]))
     ran = 0
     for c, account in picked:
-        retry = {"reload": True} if int(c.get("attempt") or 1) > 1 else {}
-        answer = await egress.web(
-            account=account,
-            task=c["task"],
-            prompt=c["input_md"] or "",
-            timeout_s=c["timeout_s"],
-            **retry,
-        )
+        files = await _web_files(hub, c)
+        if files is None:
+            answer: dict[str, Any] = {
+                "ok": False,
+                "error": "file_missing",
+                "detail": "a file of the call is gone or not a file of its company",
+            }
+        else:
+            extra: dict[str, Any] = {"files": files} if files else {}
+            if int(c.get("attempt") or 1) > 1:
+                extra["reload"] = True
+            answer = await egress.web(
+                account=account,
+                task=c["task"],
+                prompt=c["input_md"] or "",
+                timeout_s=c["timeout_s"],
+                **extra,
+            )
         await apply_web(hub, c, account, answer)
         ran += 1
     return {"ran": ran, "wiped": wiped}
+
+
+MIME_EXT = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif",
+            "video/mp4": "mp4", "text/plain": "txt", "application/pdf": "pdf"}  # fmt: skip
+
+
+async def _web_files(hub: Any, c: dict[str, Any]) -> list[dict[str, str]] | None:
+    """The call's files as egress takes them (named, base64; contract §27.2 animate: the
+    picked image goes with its prompt), or None when one is gone or not a file of the call's
+    company (never sent without it: an answer "about the attached file" from the text alone)."""
+    ids = [str(f) for f in c.get("file_ids") or []]
+    if not ids:
+        return []
+    async with hub.db.tx([c["company_id"]]) as tx:
+        rows = await tx.all(
+            """SELECT id, name, mime, storage_key FROM files.files
+               WHERE id = ANY(CAST(:ids AS uuid[])) AND company_id = :co""",
+            ids=ids,
+            co=c["company_id"],
+        )
+    found = {str(r["id"]): r for r in rows}
+    out: list[dict[str, str]] = []
+    for fid in ids:
+        row = found.get(fid)
+        if row is None:
+            return None
+        try:
+            data: bytes = await hub.storage.get(str(row["storage_key"]))
+        except OSError:  # its bytes are gone (a sealed disposal)
+            return None
+        name = Path(str(row["name"] or "file")).name[:100] or "file"
+        ext = MIME_EXT.get(str(row["mime"] or ""))
+        if ext and not name.lower().endswith(f".{ext}"):
+            name = f"{name}.{ext}"  # the profile browser types an attached file by its name
+        out.append({"name": name, "b64": base64.b64encode(data).decode()})
+    return out
 
 
 async def _skip_web(tx: Tx, hub: Any, c: dict[str, Any], reason: str) -> None:
@@ -2135,8 +2192,6 @@ async def apply_web(hub: Any, c: dict[str, Any], account: str, answer: dict[str,
     file_bytes: bytes | None = None
     stored: tuple[UUID, UUID | None] | None = None
     if ok and isinstance(answer.get("file"), dict):
-        import base64
-
         try:
             file_bytes = base64.b64decode(str(answer["file"].get("b64") or ""), validate=True)
         except ValueError:
@@ -2289,8 +2344,6 @@ SCREENSHOT_BYTES = 2 * 1024 * 1024
 async def _store_screenshot(tx: Tx, hub: Any, c: dict[str, Any], shot: Any) -> UUID | None:
     """⟨1.10⟩ §28.4 the page as the failed step left it (egress takes it only
     on recipe_failed), filed on the holding for the overseer and the SRE."""
-    import base64
-
     if not isinstance(shot, dict) or shot.get("mime") not in SCREENSHOT_MIME:
         return None
     try:
