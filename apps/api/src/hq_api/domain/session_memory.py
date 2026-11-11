@@ -185,15 +185,29 @@ async def _fold(hub: Any, call: Any, ref: str, *, force: bool) -> dict[str, Any]
         log.info("session memory: the model gave nothing", extra={"ref": ref})
         return {"folded": False, "why": "no_answer"}
     async with hub.db.tx(await hub.companies.ids()) as tx:
+        cur = await tx.first(
+            "SELECT memory_md, memory_upto FROM owner.order_reports WHERE id = :id FOR UPDATE",
+            id=rep["id"],
+        )
+        if cur is None or int(cur["memory_upto"]) != upto:
+            return {"folded": False, "why": "folded_meanwhile"}
+        # the lines `remember` added while the model was folding stay (after the model's text)
         await tx.exec(
             """UPDATE owner.order_reports SET memory_md = :m, memory_upto = :u, updated_at = now()
-               WHERE id = :id AND memory_upto = :was""",
-            m=_fit(text),
+               WHERE id = :id""",
+            m=merged(rep["memory_md"], cur["memory_md"], text),
             u=int(rows[-1]["n"]),
-            was=upto,
             id=rep["id"],
         )
     return {"folded": True, "upto": int(rows[-1]["n"])}
+
+
+def merged(was: str | None, now: str | None, folded: str) -> str:
+    """The model's memory (folded from `was`) and the lines appended to the memory since (`now`
+    holds them: `remember` writes while the model folds)."""
+    before = set((was or "").splitlines())
+    added = [ln for ln in (now or "").splitlines() if ln.strip() and ln not in before]
+    return _fit("\n".join([folded, *added]))
 
 
 def router_call(router: Any) -> Any:

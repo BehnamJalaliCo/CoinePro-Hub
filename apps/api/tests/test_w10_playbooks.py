@@ -227,6 +227,13 @@ def test_the_memory_keeps_its_last_lines_and_the_fold_is_bounded() -> None:
     kept = MEM._fit(long)
     assert len(kept) <= MEM.MEMORY_CHARS and kept.startswith("- خط") and kept.endswith("x")
     assert kept.splitlines()[-1].startswith("- خط 199")
+    # a line remembered while the model folded is not lost with the model's answer
+    was = "- مشاور کل به جلسه آمد"
+    now = was + "\n- مدیر رسانه به جلسه آمد"
+    folded = "## تصمیم‌ها\n- بودجه داده شد"
+    assert MEM.merged(was, now, folded) == folded + "\n- مدیر رسانه به جلسه آمد"
+    assert MEM.merged(was, was, folded) == folded
+    assert MEM.merged(None, None, folded) == folded
     body = MEM.body_of("HQ", "F-0001", None, ["مدیر رسانه"], ["مدیر کل: سلام"])
     assert body["task_class"] == "session_memory" and body["effort"] == "low"
     assert body["json_schema"] == MEM.SCHEMA and "memory_md" in body["system"]
