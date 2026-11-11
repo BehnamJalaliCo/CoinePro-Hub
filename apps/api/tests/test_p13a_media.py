@@ -926,7 +926,6 @@ async def test_a_one_off_ends_as_a_card_and_unpublishing_removes_what_it_can(
     }
 
 
-
 async def test_unpublishing_a_telegram_album_deletes_every_message(
     hub: Hub, new_company: Callable[..., Any], su: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1128,7 +1127,6 @@ async def test_a_runtime_violation_sends_the_item_back_to_its_composer(
     ).status_code == 403
 
 
-
 async def test_a_final_render_waiting_on_a_failed_preview_is_still_queued(
     client: httpx.AsyncClient,
     hub: Hub,
@@ -1178,7 +1176,10 @@ async def test_a_final_render_waiting_on_a_failed_preview_is_still_queued(
            WHERE item_id = (SELECT id FROM media.items WHERE ref = $1) ORDER BY created_at""",
         ref,
     )
-    assert [(j["purpose"], j["state"]) for j in jobs] == [("preview", "failed"), ("final", "queued")]
+    assert [(j["purpose"], j["state"]) for j in jobs] == [
+        ("preview", "failed"),
+        ("final", "queued"),
+    ]
     meta = await su.fetchval("SELECT render_meta FROM media.items WHERE ref = $1", ref)
     meta = json.loads(meta) if isinstance(meta, str) else meta
     assert "final_wanted" not in (meta or {})

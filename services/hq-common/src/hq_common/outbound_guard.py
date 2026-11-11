@@ -442,33 +442,231 @@ _NEGATION = re.compile(
 # "Don't miss our guaranteed profit plan" promises.
 _TOKEN = re.compile(r"[\w']+")  # _plain() made every apostrophe '
 _EN_NEG = frozenset(
-    "never not no none nobody nothing neither nor without dont don't doesnt doesn't didnt didn't"
-    " wont won't wouldnt wouldn't shouldnt shouldn't mustnt mustn't cannot cant can't isnt isn't"
-    " arent aren't".split()
+    [
+        "never",
+        "not",
+        "no",
+        "none",
+        "nobody",
+        "nothing",
+        "neither",
+        "nor",
+        "without",
+        "dont",
+        "don't",
+        "doesnt",
+        "doesn't",
+        "didnt",
+        "didn't",
+        "wont",
+        "won't",
+        "wouldnt",
+        "wouldn't",
+        "shouldnt",
+        "shouldn't",
+        "mustnt",
+        "mustn't",
+        "cannot",
+        "cant",
+        "can't",
+        "isnt",
+        "isn't",
+        "arent",
+        "aren't",
+    ]
 )
 # The words that may stand between an English negation and the ask it governs
 # ("Nobody from our team will ever ask you to send ...", "It is not safe to send").
 _EN_ASK_FILLER = frozenset(
-    "ever ask asks asking asked you us me to need needs needed have has had should will would"
-    " must may might can could be being is are it there a an the any anyone anybody one from our"
-    " team support staff admin admins agent agents employee employees member members of under all"
-    " circumstances circumstance at time times request requests want wants required require"
-    " requires reason necessary mandatory safe ok okay allowed supposed expected obliged really"
-    " even also do does did or official real person people legitimate lbank coinepro exchange"
-    " here".split()
+    [
+        "ever",
+        "ask",
+        "asks",
+        "asking",
+        "asked",
+        "you",
+        "us",
+        "me",
+        "to",
+        "need",
+        "needs",
+        "needed",
+        "have",
+        "has",
+        "had",
+        "should",
+        "will",
+        "would",
+        "must",
+        "may",
+        "might",
+        "can",
+        "could",
+        "be",
+        "being",
+        "is",
+        "are",
+        "it",
+        "there",
+        "a",
+        "an",
+        "the",
+        "any",
+        "anyone",
+        "anybody",
+        "one",
+        "from",
+        "our",
+        "team",
+        "support",
+        "staff",
+        "admin",
+        "admins",
+        "agent",
+        "agents",
+        "employee",
+        "employees",
+        "member",
+        "members",
+        "of",
+        "under",
+        "all",
+        "circumstances",
+        "circumstance",
+        "at",
+        "time",
+        "times",
+        "request",
+        "requests",
+        "want",
+        "wants",
+        "required",
+        "require",
+        "requires",
+        "reason",
+        "necessary",
+        "mandatory",
+        "safe",
+        "ok",
+        "okay",
+        "allowed",
+        "supposed",
+        "expected",
+        "obliged",
+        "really",
+        "even",
+        "also",
+        "do",
+        "does",
+        "did",
+        "or",
+        "official",
+        "real",
+        "person",
+        "people",
+        "legitimate",
+        "lbank",
+        "coinepro",
+        "exchange",
+        "here",
+    ]
 )
 # The words that may stand between an English negation and a profit claim
 # ("There is no such thing as guaranteed profit", "No exchange can guarantee profit").
 _EN_CLAIM_FILLER = frozenset(
-    "can could will would may might should must is are was were be been being ever really truly"
-    " actually a an any such thing things as there it this that these those one exchange exchanges"
-    " platform platforms broker brokers bot bots company app service signal signals strategy"
-    " trading trade investing investment investments crypto offer offers promise promises"
-    " provide provides give gives get have has make makes do does real true legit".split()
+    [
+        "can",
+        "could",
+        "will",
+        "would",
+        "may",
+        "might",
+        "should",
+        "must",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "ever",
+        "really",
+        "truly",
+        "actually",
+        "a",
+        "an",
+        "any",
+        "such",
+        "thing",
+        "things",
+        "as",
+        "there",
+        "it",
+        "this",
+        "that",
+        "these",
+        "those",
+        "one",
+        "exchange",
+        "exchanges",
+        "platform",
+        "platforms",
+        "broker",
+        "brokers",
+        "bot",
+        "bots",
+        "company",
+        "app",
+        "service",
+        "signal",
+        "signals",
+        "strategy",
+        "trading",
+        "trade",
+        "investing",
+        "investment",
+        "investments",
+        "crypto",
+        "offer",
+        "offers",
+        "promise",
+        "promises",
+        "provide",
+        "provides",
+        "give",
+        "gives",
+        "get",
+        "have",
+        "has",
+        "make",
+        "makes",
+        "do",
+        "does",
+        "real",
+        "true",
+        "legit",
+    ]
 )
 # After "not" these keep the claim ("don't miss", "won't lose", "is not a scam").
 _EN_HYPE = frozenset(
-    "miss forget wait hesitate delay worry lose scam joke lie lies fake dream kidding fraud".split()
+    [
+        "miss",
+        "forget",
+        "wait",
+        "hesitate",
+        "delay",
+        "worry",
+        "lose",
+        "scam",
+        "joke",
+        "lie",
+        "lies",
+        "fake",
+        "dream",
+        "kidding",
+        "fraud",
+    ]
 )
 # Persian negations that govern a later (positive, subjunctive) verb: «نباید ...
 # بفرستید», «لازم نیست ... بفرستید», «نه ... بفرستید». A finite negative verb
@@ -479,7 +677,9 @@ _FA_GOVERN = re.compile(
     r"(?:نیست\w*|ندار\w*|نمی\s*باشد))(?!\w)"
 )
 _FA_BREAK = re.compile(rf"{_W}(?:لطفا\w*|و|پس|سپس|بعد|حالا|فقط|اگر|چون|زیرا|همچنین)(?!\w)")
-_EN_BREAK = frozenset("and so then now please kindly just if because since".split())
+_EN_BREAK = frozenset(
+    ["and", "so", "then", "now", "please", "kindly", "just", "if", "because", "since"]
+)
 # A negated Persian verb of giving takes the secret before it: «رمز را به
 # هیچکس ندهید و فقط UID را بفرستید» does not ask for the password.
 _FA_NEG_GIVE = re.compile(

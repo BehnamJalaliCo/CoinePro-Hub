@@ -1679,7 +1679,7 @@ async def _apply(tx: Tx, hub: Any, j: dict[str, Any], data: dict[str, Any]) -> d
 def _claude_parts(data: dict[str, Any]) -> dict[str, Any]:
     """What a `claude` job's result keeps besides its answer, done or not: the session, the files
     it sent from out/ and the ones it could not, its wall and its effort."""
-    out = {k: mask_value(data.get(k))
+    out: dict[str, Any] = {k: mask_value(data.get(k))
            for k in ("session_id", "files_changed", "answer_chars", "answer_truncated")
            if k in data}  # fmt: skip
     # ⟨2026-11-09⟩ §43 the files a workspace turn sent from out/ (ids; checked by after_job)

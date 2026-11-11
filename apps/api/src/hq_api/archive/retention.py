@@ -128,16 +128,16 @@ async def rule_changed(tx: Tx, old: dict[str, Any], new: dict[str, Any]) -> int:
     from hq_api.archive import schema as SC
 
     if old["trigger"] != new["trigger"]:
-        n = 0
-        for x in await tx.all(
+        rows = await tx.all(
             """SELECT ref FROM archive.records WHERE retention_rule_id = :id
                  AND state IN ('filed', 'sealed', 'superseded') ORDER BY ref""",
             id=new["id"],
-        ):
+        )
+        for x in rows:
             r = await R.load(tx, x["ref"])
             cls = await SC.class_at(tx, r["class_key"], r["class_version"])
             await compute(tx, r, cls, list(cls["fields"]))
-            n += 1
+        n = len(rows)
     else:  # the same trigger date: only the due date and what follows it
         keep = J(new["keep"])
         bounded = isinstance(keep, dict)

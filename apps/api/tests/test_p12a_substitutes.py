@@ -662,7 +662,6 @@ async def test_the_web_path_does_nothing_while_the_holding_is_locked(hub: Hub, s
         )
 
 
-
 async def test_a_web_call_that_lost_its_pass_fails_and_the_queue_moves_on(
     hub: Hub, su: Any
 ) -> None:
@@ -698,7 +697,6 @@ async def test_a_web_call_that_lost_its_pass_fails_and_the_queue_moves_on(
         await su.execute(
             "UPDATE substitutes.seats SET per_day = 5 WHERE player = 'deepseek' AND seat = 'third_opinion'"
         )
-
 
 
 def test_an_agent_call_that_ends_inside_the_routes_wait_is_left_to_the_route() -> None:

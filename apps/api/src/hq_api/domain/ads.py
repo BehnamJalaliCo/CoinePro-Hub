@@ -941,8 +941,8 @@ async def evaluate_due(hub: Any, now: datetime | None = None) -> dict[str, Any]:
                 plans.append((rule, camp, trip, before is not None))
     for rule, camp, trip, retry in plans:
         out["tripped"] += 1
-        got = await _act(hub, rule, camp, trip, today, retry)
-        out[got] += 1
+        acted = await _act(hub, rule, camp, trip, today, retry)
+        out[acted] += 1
     return out
 
 

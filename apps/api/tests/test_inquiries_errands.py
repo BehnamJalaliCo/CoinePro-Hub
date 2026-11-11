@@ -420,9 +420,7 @@ async def test_a_purchase_becomes_a_decision_and_nothing_happens_without_the_sea
     )
 
 
-async def test_the_owners_decision_on_a_full_errand_adds_no_201st_step(
-    su: Any, hub: Any
-) -> None:
+async def test_the_owners_decision_on_a_full_errand_adds_no_201st_step(su: Any, hub: Any) -> None:
     """An errand at 200 steps (the CHECK) waits for the owner: his decision goes through, the
     note is left out instead of breaking the CHECK and rolling the decision back."""
     from hq_api.domain import errands as E

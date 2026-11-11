@@ -191,7 +191,6 @@ async def test_a_seat_without_an_envelope_says_why_and_tells_the_owner(
     assert n is not None and n["owner_visible"] and "پاکت" in n["body_fa"]
 
 
-
 async def test_a_seat_notice_with_a_humanized_title_is_still_once_a_day(
     hub: Hub, su: Any, new_company: Callable[..., Any]
 ) -> None:

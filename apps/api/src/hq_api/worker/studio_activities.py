@@ -69,7 +69,7 @@ class StudioActivities:
             # A company already at its day's sample is left out here, so its unchecked
             # backlog never fills the 20 and starves every other company's re-check.
             rows = await tx.all(
-                S.ITEM_SQL
+                S.ITEM_SQL  # noqa: S608 - a constant and literals, no input
                 + """ WHERE i.state = 'published' AND NOT (i.render_meta ? 'rechecked')
                         AND i.updated_at < :before
                         AND (SELECT count(*) FROM media.items r WHERE r.company_id = i.company_id

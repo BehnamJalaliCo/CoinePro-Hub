@@ -211,7 +211,6 @@ async def test_a_record_held_between_the_card_and_its_seal_is_skipped(
     assert rec["ref"] in res.json()["body"] and "held" in res.json()["body"]
 
 
-
 async def test_the_sweep_window_holds_only_records_it_still_has_to_act_on(
     client: httpx.AsyncClient,
     hub: Hub,
@@ -255,7 +254,12 @@ async def test_a_changed_rule_moves_the_due_date_of_the_records_under_it(
     and a rule turned to dispose_card makes its records disposable."""
     co = await new_company()
     h = owner_session["headers"]
-    rule = {"title_fa": "قاعده‌ی آزمایشی", "trigger": "filed", "keep": {"years": 1}, "then": "review"}
+    rule = {
+        "title_fa": "قاعده‌ی آزمایشی",
+        "trigger": "filed",
+        "keep": {"years": 1},
+        "then": "review",
+    }
     r = await schema_put(client, hub, owner_session, "retention", "new", rule)
     assert r.status_code == 200, r.text
     ref, version = r.json()["key"], r.json()["version"]
@@ -277,6 +281,7 @@ async def test_a_changed_rule_moves_the_due_date_of_the_records_under_it(
     )
     assert row["due_at"] == date(2031, 2, 28) and row["disposable"] is True
     assert row["due_seen_at"] is None  # due again later: retention_due fires again then
+
 
 # --------------------------------------------------------------- reminders --
 async def test_a_contract_ending_in_30_days_gets_one_cartable_reminder(
@@ -473,7 +478,6 @@ async def test_the_system_sources_file_the_hubs_own_records(
     )
 
 
-
 def test_a_jalali_month_of_the_sources_begins_at_the_owners_midnight() -> None:
     # 01:00 in Tehran on 1 Aban 1405 is 21:30 UTC on the last day of Mehr
     at = datetime(2026, 10, 22, 21, 30, tzinfo=UTC)
@@ -492,6 +496,7 @@ async def test_the_sources_read_only_events_not_filed_yet(su: Any) -> None:
         "SELECT 'email:' || left(encode(sha256(convert_to($1, 'UTF8')), 'hex'), 24)", mid
     )
     assert in_sql == "email:" + hashlib.sha256(mid.encode()).hexdigest()[:24]
+
 
 # --------------------------------------------------- the archivist, cards --
 async def test_the_archivist_files_drafts_only_and_never_seals_declassifies_releases_or_disposes(
@@ -687,7 +692,10 @@ async def test_a_proposed_rank_change_of_a_used_level_is_refused_when_it_is_prop
             )
             assert card.status_code == 422, (change, card.text)
             assert any("fixed" in v for v in card.json()["fields"].values()), card.text
-    assert await su.fetchval("SELECT rank FROM archive.levels WHERE key = 'confidential'") == lv["rank"]
+    assert (
+        await su.fetchval("SELECT rank FROM archive.levels WHERE key = 'confidential'")
+        == lv["rank"]
+    )
 
 
 async def test_the_counsel_holds_what_its_case_concerns(

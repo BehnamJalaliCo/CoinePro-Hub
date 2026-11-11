@@ -163,7 +163,6 @@ def test_a_wide_table_is_drawn_record_by_record() -> None:
     assert {"c0", "v0", "c9", "v9"} <= set(texts)
 
 
-
 def test_a_header_taller_than_a_page_is_cut_and_the_layout_ends() -> None:
     cols = [f"c{i}" for i in range(9)]
     first = " ".join(["کلمه"] * 1500)  # a wide table's first cell heads its record
@@ -173,6 +172,7 @@ def test_a_header_taller_than_a_page_is_cut_and_the_layout_ends() -> None:
     assert len(pages) == 1
     texts = [op[3] for op in pages[0] if op[0] == "t"]
     assert {"c1", "v1", "c8", "v8"} <= set(texts) and any(t.endswith(" …") for t in texts)
+
 
 # ------------------------------------------------------------- end to end --
 async def _answer(

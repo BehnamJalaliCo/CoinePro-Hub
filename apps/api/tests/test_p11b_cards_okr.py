@@ -218,7 +218,7 @@ async def test_revenue_without_a_source_is_no_source_never_zero(
 
 async def test_a_number_in_free_text_reads_thousands_separators() -> None:
     """A founding KPI target in free text: ',' and '٬' group thousands; '.'
-    and '٫' (or a lone comma) are the decimal mark."""
+    and '٫' (or a lone comma) are the decimal mark."""  # noqa: RUF002
     assert G.number("10,000 کاربر فعال") == 10000.0
     assert G.number("۱۰٬۰۰۰ کاربر") == 10000.0
     assert G.number("1,250,000") == 1250000.0

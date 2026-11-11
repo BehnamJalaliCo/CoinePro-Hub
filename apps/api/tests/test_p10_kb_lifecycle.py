@@ -667,13 +667,12 @@ async def test_a_send_held_yesterday_counts_against_todays_cap_when_it_goes_out(
         co["id"],
         a["conversation"]["id"],
     )
-    async with holding_switch(su, "released"), fake_telegram():
-        async with hub.db.tx([co["id"]]) as tx:
-            assert await lifecycle.retry_queued(tx, hub, now=morning) == 1
-            capped = await lifecycle.send_template(
-                tx, hub, company_id=co["id"], purpose="csat", dedupe_key="csat:b",
-                conversation_id=b["conversation"]["id"], now=morning,
-            )  # fmt: skip
+    async with holding_switch(su, "released"), fake_telegram(), hub.db.tx([co["id"]]) as tx:
+        assert await lifecycle.retry_queued(tx, hub, now=morning) == 1
+        capped = await lifecycle.send_template(
+            tx, hub, company_id=co["id"], purpose="csat", dedupe_key="csat:b",
+            conversation_id=b["conversation"]["id"], now=morning,
+        )  # fmt: skip
     assert (capped["status"], capped["reason"]) == ("queued", "daily_cap")
 
 
@@ -688,15 +687,14 @@ async def test_a_held_send_of_a_rule_no_longer_active_leaves_the_retry_queue(
     morning = datetime.combine(
         datetime.now(TEHRAN).date(), datetime.min.time(), TEHRAN
     ) + timedelta(hours=10)
-    async with holding_switch(su, "released"), fake_telegram():
-        async with hub.db.tx([co["id"]]) as tx:
-            held = await lifecycle.send_template(
-                tx, hub, company_id=co["id"], purpose="csat", dedupe_key="csat:held",
-                conversation_id=a["conversation"]["id"], now=morning - timedelta(hours=11),
-            )  # fmt: skip
-            assert held["reason"] == "quiet_hours"
-            await lifecycle.pause_rule(tx, rule["ref"], "test")
-            assert await lifecycle.retry_queued(tx, hub, now=morning) == 0
+    async with holding_switch(su, "released"), fake_telegram(), hub.db.tx([co["id"]]) as tx:
+        held = await lifecycle.send_template(
+            tx, hub, company_id=co["id"], purpose="csat", dedupe_key="csat:held",
+            conversation_id=a["conversation"]["id"], now=morning - timedelta(hours=11),
+        )  # fmt: skip
+        assert held["reason"] == "quiet_hours"
+        await lifecycle.pause_rule(tx, rule["ref"], "test")
+        assert await lifecycle.retry_queued(tx, hub, now=morning) == 0
     assert (
         await su.fetchval(
             "SELECT status FROM growth.sends WHERE company_id = $1 AND dedupe_key = 'csat:held'",
@@ -861,9 +859,8 @@ async def test_an_nps_question_never_made_takes_no_answer(
     await _sealed_rule(hub, co["id"], "nps", limits={"daily_cap": 1})
     first = {u: await inbound(hub, co["id"], "سلام", user=u) for u in ("8670", "8671")}
     now = datetime(2026, 10, 2, 12, 0, tzinfo=TEHRAN)
-    async with holding_switch(su, "released"), fake_telegram():
-        async with hub.db.tx([co["id"]]) as tx:
-            assert f"NP-2026Q4-{co['code']}" in await lifecycle.nps_due(tx, hub, now=now)
+    async with holding_switch(su, "released"), fake_telegram(), hub.db.tx([co["id"]]) as tx:
+        assert f"NP-2026Q4-{co['code']}" in await lifecycle.nps_due(tx, hub, now=now)
     asked = {
         u: await su.fetchval(
             "SELECT count(*) FROM support.messages WHERE conversation_id = $1 AND direction = 'out'",

@@ -488,10 +488,7 @@ def at_fa(hours: tuple[int, ...], minutes: tuple[int, ...]) -> str:
     the first: what the owner seals is what runs."""
     if len(hours) * len(minutes) <= 6:
         return "ساعت " + " و ".join(f"{h:02d}:{m:02d}" for h in hours for m in minutes)
-    return (
-        f"ساعت‌های {' و '.join(map(str, hours))}، "
-        f"دقیقه‌ی {' و '.join(map(str, minutes))}"
-    )
+    return f"ساعت‌های {' و '.join(map(str, hours))}، دقیقه‌ی {' و '.join(map(str, minutes))}"
 
 
 def when_fa(rrule: str) -> str:

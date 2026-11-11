@@ -954,8 +954,10 @@ async def _store_reply(
         uid=uid,
     )
     auto = bool(m.get("auto"))
-    summary = ("پاسخ خودکار" if auto else "پاسخ") + f" از {m['from']}: {subject}" + (
-        f" · پیوست نگه‌داشته‌نشده: {', '.join(skipped)}" if skipped else ""
+    summary = (
+        ("پاسخ خودکار" if auto else "پاسخ")
+        + f" از {m['from']}: {subject}"
+        + (f" · پیوست نگه‌داشته‌نشده: {', '.join(skipped)}" if skipped else "")
     )
     await event(tx, case, "email_in", summary[:4000], POLLER, m["message_id"][:80])
     if not auto and case["status"] not in ("closed", "resolved"):

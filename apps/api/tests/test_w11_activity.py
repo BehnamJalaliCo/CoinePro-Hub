@@ -346,10 +346,11 @@ async def test_a_list_of_his_lines_without_a_space_after_the_number_is_the_plan(
     no_model: list[Any],  # noqa: F811
     new_company: Callable[..., Any],
 ) -> None:
-    """Audit 2026-11-11: the reply collapsed his lines into one before the plan was read, so a
-    list only the line parser knows («۱.متن» with no space, «1– …») gave no plan task at all."""
+    """Audit 2026-11-11: the reply collapsed the owner's lines into one before the plan was read,
+    so a list only the line parser knows («۱.متن» with no space, «1– …») gave no plan task at
+    all."""  # noqa: RUF002
     assert OT.numbered_items("۱.متن گفتار\n۲.صدا\n۳.ساخت ریلز") == ["متن گفتار", "صدا", "ساخت ریلز"]
-    assert OT.numbered_items(" ".join("۱.متن گفتار\n۲.صدا\n۳.ساخت ریلز".split())) == []
+    assert OT.numbered_items(" ".join("۱.متن گفتار\n۲.صدا\n۳.ساخت ریلز".split())) == []  # noqa: SIM905
     co = (await new_company())["code"]
     out = await post_order(client, owner, WORK_TEXT.format(co=co, w=words()))
     ref = out["ref"]

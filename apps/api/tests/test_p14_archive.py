@@ -566,7 +566,6 @@ async def test_a_pdf_and_an_image_with_a_secret_are_refused_and_kept_nowhere(
         assert r.status_code == 422 and r.json()["code"] == "secret_in_document"
 
 
-
 def test_a_secret_past_the_kept_text_of_a_pdf_is_still_found(
     tmp_path: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -587,6 +586,7 @@ def test_a_secret_past_the_kept_text_of_a_pdf_is_still_found(
     out = jobs.doc_text_job(str(path))
     assert out["pages"] == 2 and SEED_WORDS.split()[3] not in (out["text"] or "")
     assert "seed_phrase" in out["secrets"]
+
 
 # ------------------------------------------------- clearance everywhere --
 async def test_a_confidential_record_is_invisible_to_an_internal_reader_everywhere(
@@ -723,7 +723,6 @@ async def test_a_secret_file_is_encrypted_needs_a_passkey_and_is_served_watermar
         assert rows and rows[0]["step_up"] and rows[0]["watermarked"]
 
 
-
 async def test_a_retry_of_a_taken_over_upload_replays_and_a_second_filing_is_409(
     client: httpx.AsyncClient, hub: Hub, owner: dict[str, str], new_company: Callable[..., Any]
 ) -> None:
@@ -749,6 +748,7 @@ async def test_a_retry_of_a_taken_over_upload_replays_and_a_second_filing_is_409
         assert again.json()["ref"] == first.json()["ref"]
         other = await client.post(f"{A}/records", json=body, headers={**owner, **idem()})
         assert other.status_code == 409 and other.json()["code"] == "not_ready", other.text
+
 
 # --------------------------------------------------------- OCR, search --
 async def test_a_persian_scan_gives_searchable_text_and_without_ocr_stays_none(

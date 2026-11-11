@@ -491,8 +491,6 @@ def plan(
     return Plan(ref, work, private, protect, allow, readonly)
 
 
-
-
 def prepare(p: Plan, real_home: Path | None = None) -> None:
     """The private area on the disk: its home (links to the real one), an empty tmp and an
     empty job folder (settings, the hook's log and socket).

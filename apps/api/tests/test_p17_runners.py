@@ -1144,19 +1144,6 @@ async def test_owner_session_on_a_company_server(
     assert nxt["id"] in r.json()["cancels"]
 
 
-@pytest.mark.parametrize("late", [False, True])
-async def test_publish_through_a_runner(
-    client: httpx.AsyncClient,
-    hub: Hub,
-    owner_session: dict[str, Any],
-    new_company: Callable[..., Any],
-    su: Any,
-    late: bool,
-) -> None:
-    co = await new_company()
-    rn = await pair(client, hub, owner_session, co, "ig-hub")
-
-
 async def runner_item(su: Any, co: dict[str, Any]) -> tuple[str, uuid.UUID]:
     """A sealed series' due item that publishes through the `ig-hub` runner of `co` (and its
     render's file id)."""
@@ -1201,12 +1188,14 @@ async def runner_item(su: Any, co: dict[str, Any]) -> tuple[str, uuid.UUID]:
     return str(ref), fid
 
 
+@pytest.mark.parametrize("late", [False, True])
 async def test_publish_through_a_runner(
     client: httpx.AsyncClient,
     hub: Hub,
     owner_session: dict[str, Any],
     new_company: Callable[..., Any],
     su: Any,
+    late: bool,
 ) -> None:
     co = await new_company()
     rn = await pair(client, hub, owner_session, co, "ig-hub")
@@ -1377,7 +1366,6 @@ async def test_a_sealed_command_of_a_dead_runner_is_swept(
     assert (j["state"], j["error_code"]) == ("failed", "timed_out")
     status = await su.fetchval("SELECT status FROM cartable.decisions WHERE ref = $1", ref)
     assert status == "withdrawn"
-
 
 
 async def test_a_runner_publish_that_never_starts_ends_the_item_without_sending_again(

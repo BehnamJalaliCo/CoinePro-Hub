@@ -1474,7 +1474,7 @@ def _inline_window(hub: Any, call: dict[str, Any]) -> bool:
     created = call.get("created_at")
     if wait <= 0 or created is None:
         return False
-    return datetime.now(UTC) < created + timedelta(seconds=wait + INLINE_MARGIN_S)
+    return bool(datetime.now(UTC) < created + timedelta(seconds=wait + INLINE_MARGIN_S))
 
 
 async def deliver_late(tx: Tx, hub: Any) -> int:

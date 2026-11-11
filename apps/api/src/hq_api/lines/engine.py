@@ -946,9 +946,13 @@ async def _on_callback(hub: Any, body: dict[str, Any]) -> dict[str, Any] | None:
             k=body["step"],
         )
         bdy = await store.version_body(tx, run["line_id"], run["line_version"])
-        if cur is not None and run["state"] == "running" and cur["state"] == "running":
-            if step_def(bdy, cur["key"])["kind"] == "n8n":
-                return None  # the webhook was sent, the engine parks the step in a moment
+        if (
+            cur is not None
+            and run["state"] == "running"
+            and cur["state"] == "running"
+            and step_def(bdy, cur["key"])["kind"] == "n8n"
+        ):
+            return None  # the webhook was sent, the engine parks the step in a moment
         if run["state"] != "waiting" or cur is None or cur["state"] != "waiting" or cur["gate"]:
             raise ApiError(409, "validation_failed", "this step waits for no callback")
         sdef = step_def(bdy, cur["key"])
