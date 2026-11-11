@@ -260,14 +260,25 @@ async def _sign_in(
         page = await ctx.new_page()
         ms = max(1000.0, (deadline - time.monotonic()) * 1000 / 2)
         await page.goto(b.login_url, wait_until="domcontentloaded", timeout=ms)
+        _still_on_site(page.url, account)  # a redirect never takes the secret off the site
         if b.user_selector and b.username:
             await page.fill(b.user_selector, b.username, timeout=ms)
+        _still_on_site(page.url, account)
         await page.fill(b.pass_selector, account.secret, timeout=ms)
         if b.submit_selector:
             await page.click(b.submit_selector, timeout=ms)
             with contextlib.suppress(PwTimeout):
                 await page.wait_for_load_state("domcontentloaded", timeout=ms)
         await page.close()
+
+
+def _still_on_site(url: str, account: Account) -> None:
+    """The login page must still be on the account's own site (https) before
+    anything is typed: `goto` follows redirects, and the route's checks are
+    installed only after the sign-in."""
+    parts = urlsplit(url)
+    if not (parts.scheme == "https" and account.covers((parts.hostname or "").lower())):
+        raise ValueError("the login form left the account's own site")
 
 
 def _stop(out: dict[str, Any], step: int, reason: str, method: str) -> None:
@@ -412,13 +423,12 @@ async def _step(
         elif do == "select":
             await page.locator(str(target)).first.select_option(str(text or ""), timeout=ms)
         elif do == "scroll":
-            dy = str(text or "2000")
-            await page.mouse.wheel(0, int(dy) if dy.lstrip("-").isdigit() else 2000)
+            await page.mouse.wheel(0, _int_or(text, 2000))
         elif do == "wait":
             if target:
                 await page.wait_for_selector(str(target), timeout=ms)
             else:
-                wait = int(str(text)) if str(text or "").isdigit() else 1000
+                wait = max(0, _int_or(text, 1000))
                 await page.wait_for_timeout(min(wait, 5000, ms))
         elif do == "read":
             body = await page.inner_text("body", timeout=ms)
@@ -448,6 +458,15 @@ async def _step(
         return {**res, "ok": False, "error": type(exc).__name__}
     res["url"] = page.url
     return res
+
+
+def _int_or(text: Any, default: int) -> int:
+    """A step's number (scroll pixels, wait ms); anything `int` cannot read
+    ("--5", "²", "1e3") is the default, never an error that ends the call."""
+    try:
+        return int(str(text)) if text not in (None, "") else default
+    except ValueError:
+        return default
 
 
 def _keep(out: dict[str, Any], a: RunIn, f: dict[str, Any]) -> None:

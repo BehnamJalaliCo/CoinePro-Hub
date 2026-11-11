@@ -1058,6 +1058,14 @@ async def test_the_hubs_own_addresses_are_the_hub(site: Site) -> None:
         g.target("https://93.184.216.34/internal/v1/runs")
     assert e.value.reason == "hub_internal"
     assert g.target("https://93.184.216.34/").host == "93.184.216.34"
+    # the same IPv4 inside IPv6 (mapped, 6to4, NAT64) is the hub too
+    for spelling in ("[::ffff:93.184.216.34]", "[::ffff:5db8:d822]", "[2002:5db8:d822::1]",
+                     "[64:ff9b::93.184.216.34]"):  # fmt: skip
+        assert g.is_hub(spelling), spelling
+        with pytest.raises(Blocked) as e:
+            g.target(f"https://{spelling}/internal/v1/runs")
+        assert e.value.reason == "hub_internal", spelling
+    assert not g.is_hub("[::ffff:93.184.216.35]")
     with pytest.raises(Blocked) as e:
         await g.addresses("alias.test", 443)
     assert e.value.reason == "hub_internal"
@@ -1068,7 +1076,7 @@ async def test_the_hubs_own_addresses_are_the_hub(site: Site) -> None:
     port = server.sockets[0].getsockname()[1]
     key, secret = buckets.open("web.browse", "A0", 1_000_000)
     head = "Proxy-Authorization: Basic " + base64.b64encode(f"{key}:{secret}".encode()).decode()
-    for target in ("93.184.216.34:443", "alias.test:443"):
+    for target in ("93.184.216.34:443", "alias.test:443", "[::ffff:93.184.216.34]:443"):
         out = await _raw(port, f"CONNECT {target} HTTP/1.1\r\n{head}\r\n\r\n".encode())
         assert out.startswith(b"HTTP/1.1 403") and b"hub_internal" in out, (target, out[:100])
     server.close()
@@ -1103,3 +1111,66 @@ async def test_proxy_paths_long_heads_and_account_ports(site: Site) -> None:
     )
     assert out.startswith(b"HTTP/1.1 431")
     server.close()
+
+
+async def _relay(
+    monkeypatch: pytest.MonkeyPatch, *, chunks: int, every: float, ttl: float
+) -> tuple[list[bytes], float]:
+    """A client that sends one line and then nothing, through _pipe_both, to an
+    upstream that answers `chunks` lines `every` seconds apart: what the client
+    got, and when its connection ended."""
+    from hq_egress import proxy as P
+    from hq_egress.net import Entry
+
+    monkeypatch.setattr(P, "IDLE_S", 0.5)
+    monkeypatch.setattr(P, "LIFETIME_S", 1.0)
+
+    async def upstream(r: asyncio.StreamReader, w: asyncio.StreamWriter) -> None:
+        await r.readuntil(b"\n")
+        for i in range(chunks):
+            w.write(b"chunk %d\n" % i)
+            await w.drain()
+            await asyncio.sleep(every)
+        await asyncio.sleep(5)  # then silent, the connection left open
+        w.close()
+
+    up_srv = await asyncio.start_server(upstream, "127.0.0.1", 0)
+    up_port = up_srv.sockets[0].getsockname()[1]
+
+    async def front(r: asyncio.StreamReader, w: asyncio.StreamWriter) -> None:
+        up = await asyncio.open_connection("127.0.0.1", up_port)
+        bucket = P.Bucket("t", "A0", 10**6, time.monotonic() + ttl)
+        await P._pipe_both(r, w, up, Entry("t", "CONNECT", "h", kind="connect"), bucket)
+        w.close()
+
+    srv = await asyncio.start_server(front, "127.0.0.1", 0)
+    r, w = await asyncio.open_connection("127.0.0.1", srv.sockets[0].getsockname()[1])
+    start = time.monotonic()
+    w.write(b"GET\n")
+    await w.drain()
+    got: list[bytes] = []
+    while line := await asyncio.wait_for(r.readline(), timeout=10):
+        got.append(line)
+    took = time.monotonic() - start
+    w.close()
+    srv.close()
+    up_srv.close()
+    return got, took
+
+
+async def test_a_tunnel_streaming_one_way_is_not_idle(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Idle is the tunnel's, not one direction's: an answer streaming back for
+    longer than IDLE_S while the client sends nothing arrives whole; once
+    neither side moves for IDLE_S, the tunnel closes."""
+    got, took = await _relay(monkeypatch, chunks=8, every=0.2, ttl=600)
+    assert len(got) == 8, got  # 1.6 s of streaming, IDLE_S 0.5
+    assert 1.4 + 0.4 <= took < 1.4 + 2, took  # closed by idle after the last chunk (1.4 s)
+
+
+async def test_a_tunnel_lives_as_long_as_its_call(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The lifetime is the bucket's TTL (never under LIFETIME_S), not a fixed
+    one: a stream past LIFETIME_S within the TTL is whole; at the TTL it ends."""
+    got, took = await _relay(monkeypatch, chunks=8, every=0.2, ttl=3)
+    assert len(got) == 8 and took < 3 + 0.5, (got, took)
+    got, took = await _relay(monkeypatch, chunks=30, every=0.2, ttl=0.1)  # floor: LIFETIME_S
+    assert 3 <= len(got) <= 7 and 0.9 <= took < 1.5, (got, took)

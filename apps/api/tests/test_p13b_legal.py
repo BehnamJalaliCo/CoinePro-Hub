@@ -56,6 +56,7 @@ class FakeMail:
         self.on = configured
         self.sent: list[tuple[list[str], bytes]] = []
         self.inbox: list[tuple[int, bytes]] = []
+        self.skipped: list[tuple[int, str]] = []  # what egress named but did not hand over
         self.fetches = 0
         self.uidvalidity = 7
 
@@ -73,7 +74,10 @@ class FakeMail:
     ) -> MAIL.Fetched:
         self.fetches += 1
         return MAIL.Fetched(
-            True, uidvalidity=self.uidvalidity, messages=[m for m in self.inbox if m[0] > since_uid]
+            True,
+            uidvalidity=self.uidvalidity,
+            messages=[m for m in self.inbox if m[0] > since_uid],
+            skipped=[s for s in self.skipped if s[0] > since_uid],
         )
 
 
@@ -525,6 +529,31 @@ async def test_an_out_of_office_reply_is_kept_but_neither_reopens_nor_wakes(
            WHERE e.code = 'HQ-LGL' AND w.title LIKE $1""",
         f"{case['ref']}: پاسخ%",
     )
+
+
+async def test_a_message_egress_did_not_hand_over_leaves_a_trace(
+    hub: Hub, su: Any, mailbox: FakeMail
+) -> None:
+    """A reply too large to fetch (UID 41) below a normal one (UID 42): the
+    cursor moves past both, and 41 is counted as ignored with an Audit row
+    that names it (it stays in the mailbox), never skipped with no trace."""
+    await su.execute(
+        "UPDATE legal.mailbox SET last_uid = 40, uidvalidity = NULL WHERE account = 'mail'"
+    )
+    before = await su.fetchval("SELECT coalesce(max(seq), 0) FROM audit.entries")
+    mailbox.inbox = [(42, b"Subject: no headers at all\r\n\r\nspam")]
+    mailbox.skipped = [(41, "too_large")]
+    got = await L.poll(hub, txf(hub))
+    assert got["ok"] and got["last_uid"] == 42 and got["ignored"] == 2, got
+    again = await L.poll(hub, txf(hub))
+    assert again["ignored"] == 0 and again["last_uid"] == 42
+    rows = await su.fetch(
+        """SELECT action_class, target_ref, summary FROM audit.entries
+           WHERE action = 'legal.email_unread' AND seq > $1""",
+        before,
+    )
+    assert [(r["action_class"], r["target_ref"]) for r in rows] == [("A0", "mail:41")]
+    assert "too_large" in rows[0]["summary"]
 
 
 async def test_the_poller_does_nothing_while_the_holding_is_locked(

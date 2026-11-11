@@ -17,6 +17,7 @@ mailbox stays unconnected for now: without the account or its secret,
 from __future__ import annotations
 
 import base64
+import contextlib
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -64,6 +65,8 @@ class Fetched:
     code: str | None = None
     uidvalidity: int | None = None
     messages: list[tuple[int, bytes]] = field(default_factory=list)  # (uid, raw)
+    # new messages not handed over (too_large, fetch_failed, held_secret): (uid, reason)
+    skipped: list[tuple[int, str]] = field(default_factory=list)
 
 
 class Transport(Protocol):
@@ -201,14 +204,25 @@ class EgressMail:
             return Fetched(False, str(out.get("code") or "fetch_failed")[:40])
         data = out.get("data") or {}
         msgs: list[tuple[int, bytes]] = []
+        skipped: list[tuple[int, str]] = []
+        for s in data.get("skipped") or []:
+            try:
+                skipped.append((int(s["uid"]), str(s.get("reason") or "skipped")[:40]))
+            except (KeyError, ValueError, TypeError, AttributeError):
+                continue
         for m in data.get("messages") or []:
             try:
+                uid = int(m["uid"])
                 raw = base64.b64decode(str(m["raw_b64"]), validate=True)
             except (KeyError, ValueError, TypeError):
+                with contextlib.suppress(KeyError, ValueError, TypeError):
+                    skipped.append((int(m["uid"]), "unreadable"))
                 continue
             if len(raw) <= RAW_MAX:
-                msgs.append((int(m["uid"]), raw))
-        return Fetched(True, uidvalidity=data.get("uidvalidity"), messages=msgs)
+                msgs.append((uid, raw))
+            else:
+                skipped.append((uid, "too_large"))
+        return Fetched(True, uidvalidity=data.get("uidvalidity"), messages=msgs, skipped=skipped)
 
 
 # Tests put a fake mailbox here (a fake SMTP and IMAP); production uses egress.

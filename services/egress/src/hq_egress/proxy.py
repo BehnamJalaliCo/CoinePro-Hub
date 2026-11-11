@@ -25,6 +25,13 @@ A tunnel's TLS is not opened: its host, port, size and time are logged. The
 hub's own names are refused for tunnels altogether (their paths cannot be
 seen inside TLS, and /internal must stay unreachable). A browse session's
 service account opens its extra ports for its own site only (7.1).
+
+A connection ends when neither direction has moved a byte for IDLE_S (one
+clock for the whole tunnel: a long answer streaming back while the client
+sends nothing is not idle), or when its call is over: the bucket's own TTL,
+never less than LIFETIME_S and never more than CONN_MAX_S. A connection of
+an allow-list listener has a bucket of its own, as long as the longest job
+it carries (MODE_LIFETIME_S).
 """
 
 from __future__ import annotations
@@ -50,8 +57,11 @@ log = logging.getLogger("hq_egress.proxy")
 ALLOW_LIST_MODES = ("provisioner", "substitutes", "login")
 __all__ = ["ALLOW_LIST_MODES", "Bucket", "Buckets", "Proxy", "covered", "entries_json"]
 HEAD_MAX = 16 * 1024
-IDLE_S = 60.0
-LIFETIME_S = 180.0
+IDLE_S = 60.0  # no byte either way for this long: the tunnel is closed
+LIFETIME_S = 180.0  # the least a connection may live (and a one-connection bucket's TTL)
+# The substitute runner's CLI jobs run up to 1800 s (hq_substitutes.runner).
+MODE_LIFETIME_S = {"substitutes": 1800.0 + 120.0}
+CONN_MAX_S = 3600.0  # never longer, whatever a bucket says
 DROP_HEADERS = frozenset(
     {
         "proxy-authorization",
@@ -162,7 +172,8 @@ class Proxy:
 
     async def handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         try:
-            await asyncio.wait_for(self._handle(reader, writer), timeout=LIFETIME_S)
+            # a backstop only: _pipe_both ends a tunnel by its idle time and its deadline
+            await asyncio.wait_for(self._handle(reader, writer), timeout=CONN_MAX_S + 2 * IDLE_S)
         except (
             TimeoutError,
             ConnectionError,
@@ -227,7 +238,8 @@ class Proxy:
         if self.mode in ALLOW_LIST_MODES:
             # One connection's own bucket (its cap and its log line).
             names = {"provisioner": "provision", "substitutes": "substitute", "login": "web_login"}
-            return Bucket(names[self.mode], "A2", self.gateway_bytes, time.monotonic() + LIFETIME_S)
+            life = MODE_LIFETIME_S.get(self.mode, LIFETIME_S)
+            return Bucket(names[self.mode], "A2", self.gateway_bytes, time.monotonic() + life)
         if self.mode in ("browser", "profile"):
             auth = low.get("proxy-authorization", "")
             if not auth.lower().startswith("basic "):
@@ -374,14 +386,24 @@ async def _pipe_both(
     parse_status: bool = False,
 ) -> None:
     up_r, up_w = up
+    now = time.monotonic()
+    deadline = now + min(CONN_MAX_S, max(LIFETIME_S, bucket.expires - now))
+    moved = [now]  # the last time a byte went either way: one idle clock for the tunnel
 
     async def pump(src: asyncio.StreamReader, dst: asyncio.StreamWriter, inbound: bool) -> None:
         first = parse_status and inbound
         try:
             while True:
-                chunk = await asyncio.wait_for(src.read(65536), timeout=IDLE_S)
+                left = min(moved[0] + IDLE_S, deadline) - time.monotonic()
+                if left <= 0:
+                    break  # idle both ways, or the call's time is over
+                try:
+                    chunk = await asyncio.wait_for(src.read(65536), timeout=left)
+                except TimeoutError:
+                    continue  # the other direction may have moved: look at the clock again
                 if not chunk:
                     break
+                moved[0] = time.monotonic()
                 if first:
                     first = False
                     with contextlib.suppress(ValueError, IndexError):
@@ -396,6 +418,7 @@ async def _pipe_both(
                     break
                 dst.write(chunk)
                 await dst.drain()
+                moved[0] = time.monotonic()  # a slow reader that drained is not idle either
         except (TimeoutError, ConnectionError, OSError):
             pass
         finally:
