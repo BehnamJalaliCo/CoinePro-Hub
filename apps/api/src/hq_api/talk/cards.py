@@ -177,7 +177,31 @@ async def _orders(
 
 
 # ------------------------------------------------------------------- run --
+RUNNING_FA = "این کارت در حال اجراست؛ کمی بعد دوباره نگاه کنید."
+
+
 async def run(
+    ctx: Ctx,
+    request: Request,
+    background: BackgroundTasks,
+    card_id: UUID,
+    edits: dict[str, Any] | None,
+) -> store.TalkCardRun:
+    """One run of a card at a time (audit 2026-11-11: a doubled tap, or a second device, ran an
+    order card twice: two orders, two agent runs). The card's steps commit in their own
+    transactions, so the guard is a transaction-scoped advisory lock held on its own connection
+    for the whole run; it is released when the run ends, also on a crash. A second run while the
+    first is still going is refused (409); once the first is done, a run answers what it made."""
+    async with ctx.hub.db.raw() as guard:
+        locked = await guard.scalar(
+            "SELECT pg_try_advisory_xact_lock(hashtextextended(:k, 0))", k=f"talk.card:{card_id}"
+        )
+        if not locked:
+            raise ApiError(409, "validation_failed", "the card is running", message_fa=RUNNING_FA)
+        return await _run(ctx, request, background, card_id, edits)
+
+
+async def _run(
     ctx: Ctx,
     request: Request,
     background: BackgroundTasks,
