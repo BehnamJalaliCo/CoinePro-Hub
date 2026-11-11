@@ -157,6 +157,32 @@ async def test_every_order_has_a_holder_and_a_session_at_once(
     plain(listed[ref]["title_fa"], listed[ref]["reason_fa"], *listed[ref]["brief"].values())
 
 
+async def test_the_sessions_list_pages_on_with_its_cursor(
+    client: httpx.AsyncClient,
+    owner: dict[str, str],
+    no_model: list[Any],  # noqa: F811
+    new_company: Callable[..., Any],
+) -> None:
+    co = (await new_company())["code"]
+    for _ in range(3):
+        await post_order(client, owner, WORK_TEXT.format(co=co, w=words()))
+    seen: list[str] = []
+    url = "/api/v1/sessions?state=all&limit=1"
+    for i in range(3):
+        r = await client.get(url, headers=owner)
+        assert r.status_code == 200, r.text
+        page = r.json()
+        seen += [c["ref"] for c in page["items"]]
+        if i < 2:
+            assert page["next_cursor"], page
+            url = f"/api/v1/sessions?state=all&limit=1&cursor={page['next_cursor']}"
+    assert len(seen) == len(set(seen)) == 3
+    # a cursor whose time is no time is the caller's mistake, never a 500
+    url = "/api/v1/sessions?state=all&limit=1&cursor=WyJ4IiwieSIsInoiXQ"  # ["x","y","z"]
+    bad = await client.get(url, headers=owner)
+    assert bad.status_code == 422 and "cursor" in bad.json()["fields"], bad.text
+
+
 async def test_a_company_without_a_manager_is_held_by_the_secretary_with_a_hire_card(
     client: httpx.AsyncClient,
     owner: dict[str, str],
