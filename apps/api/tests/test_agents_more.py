@@ -907,6 +907,29 @@ async def test_morning_report_rewrite_keeps_the_numbers(
         assert noti == out["deliverable"]
     finally:
         wk["hub"].settings = real
+    # Audit 2026-11-11: a retry after the first commit (the notification never raised)
+    # raises it once and flushes the rhythm, instead of only answering "already sent today".
+    await su.execute(
+        "DELETE FROM notify.notifications WHERE link_ref = $1 AND source_code = 'morning-report'",
+        out["deliverable"],
+    )
+    again = await acts.morning_report()
+    assert again["created"] is False and again["notified"] is True
+    assert again["work"] == out["work"]
+    assert (
+        await su.fetchval(
+            "SELECT count(*) FROM notify.notifications WHERE link_ref = $1", out["deliverable"]
+        )
+        == 1
+    )
+    once_more = await acts.morning_report()
+    assert once_more["created"] is False and once_more["notified"] is False
+    assert (
+        await su.fetchval(
+            "SELECT count(*) FROM notify.notifications WHERE link_ref = $1", out["deliverable"]
+        )
+        == 1
+    )
 
 
 # ----------------------------------------------------------- through Temporal --

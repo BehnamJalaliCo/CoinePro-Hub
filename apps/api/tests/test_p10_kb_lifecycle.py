@@ -376,6 +376,73 @@ async def test_the_shadow_run_waits_while_the_holding_is_locked(
     assert (row["state"], row["skipped_reason"]) == ("skipped", "holding_locked")
 
 
+async def test_a_shadow_run_that_fails_midway_is_failed_and_a_dead_one_resumes(
+    hub: Hub, new_company: Callable[..., Any], su: Any, wk: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:  # fmt: skip
+    """Audit 2026-11-11: a run that raised after `running` stayed `running` for good and
+    the retry skipped it; now it is failed (with its eval run), and a retry of a run an
+    attempt left `running` (the worker died) runs it again."""
+    from hq_api.worker.activities import _ScopedTx
+    from hq_api.worker.desk_activities import DeskActivities
+
+    co = await new_company()
+    fid = await _owner_file(hub, su, _export(3), "result.json")
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        await shadow.import_history(
+            tx, hub, company_id=co["id"], company=co["code"], file_id=fid, by="owner"
+        )
+        run = await shadow.queue_run(
+            tx, hub, company_id=co["id"], company=co["code"], by_kind="owner", by_code="owner"
+        )
+    whub = wk["hub"]  # the worker's role writes the eval run
+    acts = DeskActivities(whub, None, lambda: _ScopedTx(whub))
+    calls = 0
+
+    async def case(*_a: Any) -> tuple[dict[str, Any], int]:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise RuntimeError("boom")
+        verdict = "wrong" if calls > 2 else "correct"  # no pass: no go-live card
+        return {"case": f"S{calls}", "verdict": verdict, "path": "verbatim", "score": 0.99}, 7
+
+    monkeypatch.setattr(acts, "_case", case)
+    async with holding_switch(su, "released"):
+        with pytest.raises(RuntimeError):
+            await acts.shadow_run(str(run["id"]))
+        row = await su.fetchrow(
+            """SELECT state, error, tokens, finished_at, eval_run_id FROM support.shadow_runs
+               WHERE id = $1""",
+            run["id"],
+        )
+        assert row["state"] == "failed" and "boom" in row["error"] and row["tokens"] == 7
+        assert row["finished_at"] is not None
+        if row["eval_run_id"] is not None:
+            assert (
+                await su.fetchval(
+                    "SELECT status FROM academy.eval_runs WHERE id = $1", row["eval_run_id"]
+                )
+                == "failed"
+            )
+        assert (await acts.shadow_run(str(run["id"])))["skipped"] == "failed"
+        # an attempt that died mid-run left it `running`: the retry runs it to the end
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            again = await shadow.queue_run(
+                tx, hub, company_id=co["id"], company=co["code"], by_kind="owner", by_code="owner"
+            )
+        await su.execute(
+            "UPDATE support.shadow_runs SET state = 'running' WHERE id = $1", again["id"]
+        )
+        calls = 10
+        out = await acts.shadow_run(str(again["id"]))
+        assert out["total"] >= 1 and "skipped" not in out
+        assert (
+            await su.fetchval("SELECT state FROM support.shadow_runs WHERE id = $1", again["id"])
+            == "done"
+        )
+
+
 def test_the_history_parsers_and_the_thresholds() -> None:
     csv_pairs = shadow.parse_csv("سوال,جواب\nسلام چطور ثبت نام کنم؟,از اپ\n,خالی\n".encode())
     assert csv_pairs == [("سلام چطور ثبت نام کنم؟", "از اپ")]

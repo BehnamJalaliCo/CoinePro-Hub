@@ -1273,3 +1273,62 @@ def test_a_carousel_on_two_targets_of_one_placement_counts_each_slide_once() -> 
     # one slide is still one frame, though two targets carry it
     one = SC.platform(item(1))
     assert one["result"] == "fail" and "(1)" in one["note_fa"], one
+
+
+async def test_one_companys_backlog_never_starves_the_others_recheck(
+    hub: Hub, new_company: Callable[..., Any], su: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Audit 2026-11-11: the 20 oldest unchecked items were taken across all companies and
+    a company at its day's sample was skipped in place, so a backlog of 20 or more of its
+    items kept every other company's published posts from ever being re-checked."""
+    from hq_api.domain import studio_checks as K
+
+    def ok(key: str) -> dict[str, Any]:
+        return {"key": key, "result": "pass", "note_fa": ""}
+
+    async def red_lines(*_a: Any) -> dict[str, Any]:
+        return ok("red_lines")
+
+    async def brand(*_a: Any) -> dict[str, Any]:
+        return ok("brand")
+
+    monkeypatch.setattr(K, "red_lines", red_lines)
+    monkeypatch.setattr(K, "brand", brand)
+    monkeypatch.setattr(K, "risk_warning", lambda *_a: ok("risk_warning"))
+    monkeypatch.setattr(K, "facts", lambda *_a: ok("facts"))
+    busy, quiet = await new_company(), await new_company()
+    for i in range(25):
+        await su.execute(
+            """INSERT INTO media.items (company_id, kind, title_fa, state, created_by_kind,
+                   created_by_code, render_meta, updated_at)
+               VALUES ($1, 'reel', 'x', 'published', 'owner', 'owner', '{}',
+                       now() - interval '3 hours' - make_interval(secs => $2))""",
+            busy["id"],
+            float(i),
+        )
+    other = await su.fetchval(
+        """INSERT INTO media.items (company_id, kind, title_fa, state, created_by_kind,
+               created_by_code, render_meta, updated_at)
+           VALUES ($1, 'reel', 'x', 'published', 'owner', 'owner', '{}',
+                   now() - interval '2 hours')
+           RETURNING id""",
+        quiet["id"],
+    )
+    acts = StudioActivities(hub, lambda: _ScopedTx(hub))
+    async with holding_switch(su, "released"):
+        for _ in range(10):
+            await acts.recheck()
+            if await su.fetchval(
+                "SELECT render_meta ? 'rechecked' FROM media.items WHERE id = $1", other
+            ):
+                break
+    assert await su.fetchval(
+        "SELECT render_meta ? 'rechecked' FROM media.items WHERE id = $1", other
+    )
+    assert (
+        await su.fetchval(
+            "SELECT count(*) FROM media.items WHERE company_id = $1 AND render_meta ? 'rechecked'",
+            busy["id"],
+        )
+        == 5
+    )

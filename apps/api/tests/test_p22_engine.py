@@ -950,3 +950,32 @@ async def test_the_learning_loop_ranks_published_runs(
 
 async def _unused(_: AsyncIterator[None]) -> None:  # keeps the AsyncIterator import honest
     return None
+
+
+async def test_a_cancelled_line_advance_stops_its_step(
+    hub: Hub, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Audit 2026-11-11: a cancelled line_advance (heartbeat timeout, backstop) left
+    engine.advance running beside the retry's attempt of the same step."""
+    import asyncio
+
+    from hq_api.worker import lines_activities as LA
+
+    started, stopped = asyncio.Event(), asyncio.Event()
+
+    async def advance(_hub: Any, _ref: str) -> dict[str, Any]:
+        started.set()
+        try:
+            await asyncio.sleep(3600)
+        finally:
+            stopped.set()
+        return {}
+
+    monkeypatch.setattr(LA.engine, "advance", advance)
+    acts = LA.LinesActivities(hub, lambda: hub.db.tx([]))
+    outer = asyncio.create_task(acts.line_advance("LR-000001"))
+    await asyncio.wait_for(started.wait(), 5)
+    outer.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await outer
+    assert stopped.is_set()
