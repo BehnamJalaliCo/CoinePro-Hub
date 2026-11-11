@@ -523,14 +523,17 @@ async def work_council(id: UUID, ctx: Ctx = Depends(owner_ctx)) -> PL.Council:
 
 @router.post("/work/{id}/cancel", response_model=W.Work, responses=E)
 async def cancel_work(id: UUID, body: Reason, ctx: Ctx = Depends(owner_ctx)) -> W.Work:
-    """Cancels the work and every open item under it."""
+    """Cancels the work and every open item under it (a recurring order: its
+    schedule ends and its open runs, with their sub-works, are cancelled)."""
     async with ctx.tx() as tx:
         w = await W.load(tx, id, lock=True)
         if w["status"] in W.CLOSED:
             raise ApiError(409, "validation_failed", f"the work is already {w['status']}")
+        # A recurring order's runs are root items linked by recurrence_of (not
+        # parent_id): they and their sub-works are under it too.
         rows = await tx.all(
             """WITH RECURSIVE down AS (
-                   SELECT id FROM work.work WHERE id = :id
+                   SELECT id FROM work.work WHERE id = :id OR recurrence_of = :id
                    UNION ALL SELECT c.id FROM work.work c JOIN down ON c.parent_id = down.id)
                UPDATE work.work SET status = 'cancelled', close_reason = :r, closed_at = now()
                WHERE id IN (SELECT id FROM down) AND status NOT IN ('done', 'cancelled', 'failed')
@@ -538,7 +541,9 @@ async def cancel_work(id: UUID, body: Reason, ctx: Ctx = Depends(owner_ctx)) -> 
             id=id,
             r=body.reason,
         )
-        await tx.exec("UPDATE work.schedules SET status = 'ended' WHERE work_id = :id", id=id)
+        await tx.exec(
+            "UPDATE work.schedules SET status = 'ended', next_at = NULL WHERE work_id = :id", id=id
+        )
         await W.event(
             tx, w, "cancelled", ctx.who, {"reason": body.reason, "cascade": len(rows) - 1}
         )
@@ -578,6 +583,7 @@ async def complete_work(id: UUID, body: Complete, ctx: Ctx = Depends(owner_ctx))
             id=id,
             ev=W.evidence_json(body.evidence),
         )
+        await recurring.end(tx, id)  # a recurring order closed: no further runs
         await W.event(tx, w, "completed", ctx.who, {"evidence": len(body.evidence)})
         await ctx.audit(
             tx,
@@ -640,7 +646,10 @@ async def planner(
             dept=dept_code,
         )
         templates = await tx.all(
-            W.WORK_SQL + " WHERE w.kind = 'recurring' AND sc.status = 'active'" + filters,
+            W.WORK_SQL
+            + " WHERE w.kind = 'recurring' AND sc.status = 'active'"
+            + " AND w.status NOT IN ('done', 'cancelled', 'failed')"
+            + filters,
             co=company_code,
             dept=dept_code,
         )
