@@ -353,9 +353,7 @@ async def test_a_result_sent_again_never_ends_a_moved_turn_twice(
     for _ in range(3):
         assert await _result(client, rn, jid, exit_code=1, data=notice) == "failed"
     assert ended == []
-    moved = await su.fetch(
-        "SELECT id FROM infra.server_jobs WHERE usage->>'retry_of' = $1", jid
-    )
+    moved = await su.fetch("SELECT id FROM infra.server_jobs WHERE usage->>'retry_of' = $1", jid)
     assert len(moved) == 1
 
 
@@ -535,11 +533,11 @@ async def test_which_failed_runs_come_back() -> None:
     now = datetime.now(UTC)
 
     class Tx:
-        def __init__(self, at: str | None) -> None:
-            self.at = at
+        def __init__(self, at: str | None, acted: bool = False) -> None:
+            self.at, self.acted = at, acted
 
         async def scalar(self, sql: str, **kw: Any) -> Any:
-            return self.at
+            return (1 if self.acted else None) if sql == ACT.ACTED_SQL else self.at
 
     def r(code: str, ago_min: int, state: str = "failed", **kw: Any) -> dict[str, Any]:
         return {"id": uuid.uuid4(), "trigger": "work", "state": state, "error_code": code,
@@ -570,6 +568,9 @@ async def test_which_failed_runs_come_back() -> None:
         # older than a day, a passing failure is not looked at any more
         old = r("model_error", 26 * 60, queued_at=now - timedelta(hours=26))
         assert await ACT.comes_back(Tx(None), old, now) is None
+        # a run that already acted (a message, a job, a card) is never started again from scratch
+        assert await ACT.comes_back(Tx(past, acted=True), r("usage_limit", 10), now) is None
+        assert await ACT.comes_back(Tx(None, acted=True), r("runtime_error", 6), now) is None
         # a passing failure: once, five minutes later
         assert await ACT.comes_back(Tx(None), r("model_error", 6), now) == ACT.RETRY
         assert await ACT.comes_back(Tx(None), r("api_529", 6), now) == ACT.RETRY
@@ -593,6 +594,7 @@ async def _failed(
     code: str,
     ago_min: int,
     retry_at: datetime | None = None,
+    actions: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """An order's CEO run that failed with `code` `ago_min` minutes ago (its last step names the
     reset when one is given)."""
@@ -605,11 +607,17 @@ async def _failed(
            WHERE id = $1""",
         row["id"], code, ago_min,
     )  # fmt: skip
+    if actions is not None:
+        await su.execute(
+            """INSERT INTO agents.steps (run_id, company_id, n, actions, usage)
+               VALUES ($1, $2, 1, $3::jsonb, '{}'::jsonb)""",
+            row["id"], row["company_id"], json.dumps(actions),
+        )  # fmt: skip
     if retry_at is not None:
         await su.execute(
             """INSERT INTO agents.steps (run_id, company_id, n, usage)
-               VALUES ($1, $2, 1, $3::jsonb)""",
-            row["id"], row["company_id"],
+               VALUES ($1, $2, $3, $4::jsonb)""",
+            row["id"], row["company_id"], 2 if actions is not None else 1,
             json.dumps({"status": "refused", "code": code, "retry_at": retry_at.isoformat()}),
         )  # fmt: skip
     return row
@@ -622,6 +630,7 @@ async def test_quota_failed_runs_come_back_after_the_reset_and_a_passing_failure
     agents: Any,
     new_company: Callable[..., Any],
     accounts: Any,  # an account has room (none full): the stored resets decide
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     acts = ACT.Activities(
         agents.whub, None, router=agents.router, gateway=agents.gateway, live=agents.live
@@ -645,6 +654,25 @@ async def test_quota_failed_runs_come_back_after_the_reset_and_a_passing_failure
     )
     stale = (await new_company())["code"]
     s_row = await _failed(client, owner, su, agents, stale, "model_error", 3 * 24 * 60)
+    # a run that acted before the limit stopped it (it messaged the owner): never from scratch
+    acted = (await new_company())["code"]
+    a_row = await _failed(
+        client, owner, su, agents, acted, "usage_limit", 10, now - timedelta(minutes=1),
+        actions=[{"tool": "message.owner", "class": "A1", "outcome": "ok"}],
+    )  # fmt: skip
+    # its order waits for the owner: a requeued owner_reply would read as his answer
+    held = (await new_company())["code"]
+    h_row = await _failed(
+        client, owner, su, agents, held, "usage_limit", 10, now - timedelta(minutes=1)
+    )
+    real_turn = ACT.OR.owner_turn
+
+    async def owner_turn(tx: Any, work_id: Any) -> Any:
+        if work_id == h_row["work_id"]:
+            return {"askers": {"X-CEO"}, "since": now}
+        return await real_turn(tx, work_id)
+
+    monkeypatch.setattr(ACT.OR, "owner_turn", owner_turn)
     await su.execute("SET session_replication_role = replica")  # queued_at is immutable
     try:
         await su.execute(
@@ -657,6 +685,11 @@ async def test_quota_failed_runs_come_back_after_the_reset_and_a_passing_failure
     back_weekly = (await runs_of(su, f"{weekly}-CEO"))[-1]
     assert back_weekly["id"] != k_row["id"] and back_weekly["reason"].startswith(ACT.REQUEUE)
     assert (await runs_of(su, f"{stale}-CEO"))[-1]["id"] == s_row["id"]
+    assert (await runs_of(su, f"{acted}-CEO"))[-1]["id"] == a_row["id"]
+    assert (await runs_of(su, f"{held}-CEO"))[-1]["id"] == h_row["id"]
+    monkeypatch.setattr(ACT.OR, "owner_turn", real_turn)  # he answered: it comes back
+    await acts.requeue_runs()
+    assert (await runs_of(su, f"{held}-CEO"))[-1]["id"] != h_row["id"]
     assert (await runs_of(su, f"{waits}-CEO"))[-1]["id"] == w_row["id"]  # its reset has not come
     back = (await runs_of(su, f"{due}-CEO"))[-1]
     assert back["id"] != d_row["id"] and back["reason"].startswith(ACT.REQUEUE)
@@ -842,7 +875,9 @@ async def test_an_owners_card_is_waiting_never_did_not_happen(
     assert R.not_done_text([], True, []) == ""
     assert not R.did_not_happen({"outcome": "denied", "code": R.DECISION})
     assert not R.did_not_happen({"outcome": "denied", "code": R.AWAITING_SEAL})
-    seal = R.not_done_text([], True, [{"tool": "server.exec", "code": "awaiting_seal", "ref": "D-2"}])
+    seal = R.not_done_text(
+        [], True, [{"tool": "server.exec", "code": "awaiting_seal", "ref": "D-2"}]
+    )
     assert "server.exec: waits for the owner's decision D-2; a card was raised" in seal
     assert R.claims("errand.finish")
     assert R.done_lines("کارت رفت", [{"tool": "x", "outcome": "denied", "code": R.DECISION}]) == [

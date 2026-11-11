@@ -905,9 +905,9 @@ async def test_a_requeued_run_reads_as_the_wake_or_the_word_it_retries(
     # an idle wake failed on the quota; its re-queue only narrated: one wake, spent, stuck
     await fake_run(su, co, s["holder"], wid, reason=f"session_idle:{ref}", state="failed",
                    error="usage_limit", minutes_ago=30)  # fmt: skip
-    await fake_run(su, co, s["holder"], wid, reason=f"requeue:session_idle:{ref}", minutes_ago=20,
+    await fake_run(su, co, s["holder"], wid, reason=f"requeue:session_idle:{ref}", minutes_ago=12,
                    steps=[("در صف است", [{"tool": "order.progress", "outcome": "ok"}])])  # fmt: skip
-    await idle_for(su, ref, 15)
+    await idle_for(su, ref, 11)  # its own step moved the clock, inside the run
     p = await pulse_of(hub, ref)
     assert p.wakes == 1 and p.spent, p
     assert p.stuck_fa is not None and p.stuck_fa.startswith("مسئول 1 بار"), p.stuck_fa
@@ -973,12 +973,15 @@ async def test_an_idle_wake_handed_to_a_direct_turn_is_judged_by_that_turn(
         """The classic run of a wake, ended at once by the hand-over, and the direct turn's own
         run (trigger `direct`) that did the work, in the four minutes after."""
         ref, co = s["ref"], s["company"]
-        shell = await fake_run(su, co, s["holder"], s["wid"], reason=f"session_idle:{ref}",
-                               minutes_ago=minutes_ago)  # fmt: skip
-        await su.execute(
-            "UPDATE agents.runs SET note = 'direct turn J-1' WHERE id = $1", shell
-        )  # (the runner's note, DR.HANDED)
         emp = await su.fetchval("SELECT id FROM core.employees WHERE code = $1", s["holder"])
+        await su.execute(  # the classic run, ended with the runner's note (DR.HANDED)
+            """INSERT INTO agents.runs (company_id, employee_id, work_id, trigger, reason, state,
+                   note, queued_at, started_at, finished_at)
+               VALUES ($1, $2, $3, 'work', $4, 'done', 'direct turn J-1',
+                       now() - make_interval(mins => $5), now() - make_interval(mins => $5),
+                       now() - make_interval(mins => $5))""",
+            co["id"], emp, s["wid"], f"session_idle:{ref}", minutes_ago,
+        )  # fmt: skip
         return await su.fetchval(
             """INSERT INTO agents.runs (company_id, employee_id, work_id, trigger, reason, state,
                    queued_at, started_at, finished_at)
@@ -997,7 +1000,7 @@ async def test_an_idle_wake_handed_to_a_direct_turn_is_judged_by_that_turn(
            WHERE ref = $1 AND n = 1""",
         s["ref"],
     )
-    await idle_for(su, s["ref"], 2)
+    await idle_for(su, s["ref"], 9)  # the clock stood before the wake
     p = await pulse_of(hub, s["ref"])
     assert p.wakes == 1 and not p.spent and p.stuck_fa is None, p
     assert await sweep(wk["hub"], s["ref"]) == []
@@ -1047,10 +1050,8 @@ def test_what_wakes_an_agent_and_what_it_polls_is_said_truly(hub: Hub) -> None:
     lib = hub.charters
     system = P.system_prompt(lib, lib.get("ceo"), {}, max_actions=4)
     assert "is called again with `{job}`" in system and "nothing wakes you for it" in system
-    tools = Path(str(P.__file__)).resolve().parents[4] / "agents" / "tools.md"
-    if tools.exists():  # the repository's own copy (the charters may be mounted elsewhere)
-        text = tools.read_text(encoding="utf-8")
-        assert "`speech_done:`" in text and "`queued` is not an answer" in text
+    text = (Path(str(lib.root)) / "tools.md").read_text(encoding="utf-8")
+    assert "`speech_done:`" in text and "`queued` is not an answer" in text
     # a destructive command or an A3 card waiting for the owner's seal is no failure
     for code in ("awaiting_seal", "a3_requires_decision"):
         acts = [{"tool": "server.exec", "outcome": "denied", "code": code}]

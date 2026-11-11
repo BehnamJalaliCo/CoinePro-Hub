@@ -73,6 +73,14 @@ QUOTA_UNKNOWN_GAP = timedelta(minutes=30)  # a quota refusal whose reset is unkn
 RECENT = timedelta(hours=24)  # every other requeue looks back this far
 QUOTA_REQUEUES = 12
 REQUEUE, RETRY = "requeue:", "retry:"
+# A run comes back only when nothing of it took effect: a new run has a new token and does not
+# see the old one's actions, so a message, a server job or an owner's card would happen twice.
+# Reads (A0) change nothing; an action that waits for the owner (a card) is an effect.
+ACTED_SQL = """SELECT 1 FROM agents.steps s CROSS JOIN LATERAL jsonb_array_elements(s.actions) a
+  WHERE s.run_id = :r
+    AND ((a->>'outcome' = 'ok' AND COALESCE(a->>'class', '') <> 'A0')
+         OR a->>'code' IN ('a3_requires_decision', 'awaiting_seal'))
+  LIMIT 1"""
 
 
 def _at(value: Any) -> datetime | None:
@@ -110,7 +118,9 @@ async def comes_back(
             r["finished_at"] + RETRY_AFTER,
             room or r["finished_at"],
         )
-        return REQUEUE if now >= at else None
+        if now < at:
+            return None
+        return None if await tx.scalar(ACTED_SQL, r=r["id"]) else REQUEUE
     queued = r.get("queued_at")
     if queued is not None and queued <= now - RECENT:
         return None  # only a quota refusal is looked for further back
@@ -118,7 +128,11 @@ async def comes_back(
     if passing and (r["state"] == "failed" or code == "busy_timeout"):
         if reason.startswith(RETRY):
             return None  # one retry, not a loop
-        return RETRY if now >= r["finished_at"] + RETRY_AFTER else None
+        if now < r["finished_at"] + RETRY_AFTER:
+            return None
+        # a run cut mid-way (a deploy stops the worker: runtime_error) is never started again
+        # from scratch once it acted; the session's sweep and the owner's notice take it from there
+        return None if await tx.scalar(ACTED_SQL, r=r["id"]) else RETRY
     return None
 
 
@@ -1032,6 +1046,10 @@ class Activities:
                    WHERE r.queued_at > now() - interval '24 hours'
                       OR (r.state = 'failed' AND r.error_code = ANY(CAST(:quota AS text[]))
                           AND r.queued_at > now() - interval '8 days'
+                          -- a refusal this runner recorded, with its reset (not every old one at
+                          -- once after a deploy)
+                          AND (SELECT s.usage ? 'retry_at' FROM agents.steps s
+                                WHERE s.run_id = r.id ORDER BY s.n DESC LIMIT 1)
                           AND NOT EXISTS (
                               SELECT 1 FROM agents.runs n WHERE n.employee_id = r.employee_id
                                  AND n.work_id IS NOT DISTINCT FROM r.work_id
@@ -1054,8 +1072,15 @@ class Activities:
                 held = recent and r["state"] == "refused" and r["error_code"] == "owner_turn"
                 if held and await OR.owner_turn(tx, r["work_id"]) is not None:
                     continue
-                # ⟨2026-11-11⟩ a quota refusal after its reset, a passing failure once
+                # ⟨2026-11-11⟩ a quota refusal after its reset, a passing failure once; never while
+                # its order waits for the owner (a requeued owner_reply would read as his answer)
                 again = None if capped or held else await comes_back(tx, r, now, room)
+                if (
+                    again is not None
+                    and r["work_id"] is not None
+                    and await OR.owner_turn(tx, r["work_id"]) is not None
+                ):
+                    continue
                 locked = recent and r["state"] == "refused" and r["error_code"] == "locked"
                 if not capped and not held and again is None and not locked:
                     continue  # a run the day's cap stopped mid-way (failed) comes back too

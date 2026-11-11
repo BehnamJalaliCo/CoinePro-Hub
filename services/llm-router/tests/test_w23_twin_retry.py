@@ -132,6 +132,35 @@ async def test_a_retry_that_would_not_land_on_the_twin_is_never_sent(
         await _restore(su)
 
 
+async def test_the_retry_waits_only_seconds_for_a_slot(
+    su: asyncpg.Connection, make_service: Any
+) -> None:
+    """The caller's deadline is timeout_s + 30 s: the retry never waits timeout_s for a slot
+    before its own timeout_s run; with no slot within seconds the refusal stands."""
+    from llm_router.scheduler import QueueTimeout
+
+    svc = make_service(subscription=FakeBackend(refused(), ok_result(text="two")))
+    await _second(su, "enabled")
+    waits: list[float] = []
+    real = svc.scheduler.acquire
+
+    async def acquire(priority: int, timeout: float) -> None:  # noqa: ASYNC109 - its API
+        waits.append(timeout)
+        if len(waits) == 2:
+            raise QueueTimeout()
+        await real(priority, timeout)
+
+    svc.scheduler.acquire = acquire
+    try:
+        r = await svc.run(req(), "t", 10_000)
+        assert waits == [30, svc.RETRY_SLOT_WAIT_S] and svc.RETRY_SLOT_WAIT_S <= 5
+        assert (r.status, r.connection) == ("quota_exhausted", "claude-max")
+        assert [c["key"] for c in await _calls(su)] == ["claude-max"]
+        assert svc.scheduler.active == 0
+    finally:
+        await _restore(su)
+
+
 async def test_a_stream_moves_only_before_its_first_delta(
     su: asyncpg.Connection, make_service: Any
 ) -> None:
