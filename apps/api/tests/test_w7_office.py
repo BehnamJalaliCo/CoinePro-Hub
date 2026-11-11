@@ -75,7 +75,8 @@ async def test_the_office_holds_sessions_approvals_money_and_the_canvas(
 
 async def test_the_offices_month_starts_in_the_owners_zone(hub: Hub, su: Any) -> None:
     """Audit: «this month» is cut at the owner's month start, not UTC's (as the treasury does)."""
-    z = ZoneInfo(await su.fetchval("SELECT timezone FROM owner.settings WHERE id = 1") or "Asia/Tehran")
+    tz = await su.fetchval("SELECT timezone FROM owner.settings WHERE id = 1")
+    z = ZoneInfo(tz or "Asia/Tehran")
     start = datetime(2020, 3, 1, tzinfo=z)
     for at, cost in ((start - timedelta(minutes=30), "1000"), (start + timedelta(minutes=30), "7")):
         await su.execute(
