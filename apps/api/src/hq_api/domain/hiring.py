@@ -202,14 +202,26 @@ async def envelopes(tx: Tx) -> list[Envelope]:
         str(await tx.scalar("SELECT timezone FROM owner.settings WHERE id = 1") or "Asia/Tehran")
     )
     start = jalali_month_start(datetime.now(tz).date())
+    # committed_month counts each employee's estimate in force: the latest
+    # approved promote / demote that set one, else its hire card (the same
+    # figure as hr._current_estimate, which check_approval subtracts).
     rows = await tx.all(
         """SELECT c.code,
                   (SELECT b.token_limit FROM llm.budgets b
                     WHERE b.company_id = c.id AND b.scope_type = 'company' AND b.scope_ref = c.code
                       AND b.period = 'month' AND b.enabled) AS tokens_month,
-                  (SELECT COALESCE(sum(COALESCE((COALESCE(d.amendments->'quota_estimate_month',
-                                                          d.payload->'quota_estimate_month')
-                                                 ->>'tokens')::bigint, 0)), 0)
+                  (SELECT COALESCE(sum(COALESCE(
+                              (SELECT (COALESCE(ev.amendments->'change', ev.payload->'change')
+                                       ->'quota_estimate_month'->>'tokens')::bigint
+                                 FROM cartable.decisions ev
+                                WHERE e.id IS NOT NULL AND ev.kind = 'evaluation'
+                                  AND ev.status = 'approved' AND ev.payload->>'employee' = e.code
+                                  AND COALESCE(ev.amendments->'change', ev.payload->'change')
+                                      ->'quota_estimate_month'->>'tokens' IS NOT NULL
+                                ORDER BY ev.decided_at DESC LIMIT 1),
+                              (COALESCE(d.amendments->'quota_estimate_month',
+                                        d.payload->'quota_estimate_month')->>'tokens')::bigint,
+                              0)), 0)
                      FROM cartable.decisions d
                      LEFT JOIN core.employees e ON e.hired_by_decision_id = d.id
                     WHERE d.company_id = c.id AND d.kind = 'hire' AND d.status = 'approved'

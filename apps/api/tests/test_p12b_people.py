@@ -17,7 +17,7 @@ import pytest
 from hq_api.audit import SYSTEM
 from hq_api.domain import claims as CL
 from hq_api.domain import decisions as D
-from hq_api.domain import hr, rankings
+from hq_api.domain import hiring, hr, rankings
 from hq_api.domain import oversight as O
 from hq_api.domain import oversight_checks as C
 from hq_api.domain import stars as S
@@ -298,6 +298,57 @@ async def test_a_promotion_that_breaks_the_envelope_is_refused_and_changes_nothi
         await su.fetchval("SELECT title_fa FROM core.employees WHERE code = $1", star)
         != "مدیر ارشد"
     )
+
+
+async def test_an_approved_promotion_counts_in_the_envelope(
+    hub: Hub,
+    su: Any,
+    client: httpx.AsyncClient,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+) -> None:
+    """committed_month holds each employee's estimate in force, so a second
+    promotion (or a hire) sees the first one's tokens, not the hire card's."""
+    co = await new_company()
+    await su.execute(
+        """INSERT INTO llm.budgets (company_id, scope_type, scope_ref, period, token_limit)
+           VALUES ($1, 'company', $2, 'month', 1000)""",
+        co["id"],
+        co["code"],
+    )
+    day = jalali_day(1, date(2032, 1, 1) + timedelta(days=secrets.randbelow(3000)))
+    r = await _round(hub, su, co, day)
+    hrm = await agent_headers(f"{co['code']}-HR-MGR")
+    h = owner_session["headers"]
+
+    async def promote(code: str) -> httpx.Response:
+        card = {
+            "kind": "evaluation",
+            "title": "ارتقا",
+            "payload": {
+                "employee": code,
+                "recommendation": "promote",
+                "round": r["ref"],
+                "override_reason": "کار درخشان",
+                "change": {"quota_estimate_month": {"tokens": 600}},
+                "evidence": [{"kind": "metric", "ref": "score"}],
+            },
+        }
+        resp = await client.post("/internal/v1/decisions", headers={**hrm, **idem()}, json=card)
+        assert resp.status_code == 201, resp.text
+        ref = resp.json()["ref"]
+        su_h = await step_up(hub, owner_session["session_id"], "decision.approve", ref)
+        return await client.post(
+            f"/api/v1/decisions/{ref}/approve", headers={**h, **idem(), **su_h}, json={}
+        )
+
+    ok = await promote(f"{co['code']}-TECH-MGR")
+    assert ok.status_code == 200, ok.text
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        env = next(e for e in await hiring.envelopes(tx) if e.company == co["code"])
+    assert env.committed_month == 600
+    no = await promote(f"{co['code']}-FIN-MGR")
+    assert no.status_code == 409 and no.json()["code"] == "envelope_exceeded", no.text
 
 
 async def test_hr_rounds_do_nothing_while_the_holding_is_locked(hub: Hub, su: Any) -> None:
