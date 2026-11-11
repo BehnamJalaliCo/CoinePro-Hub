@@ -569,6 +569,30 @@ async def test_a_budget_change_is_measured_from_the_limit_in_force(
     assert IM.score(m) == 30.0 and IM.score(None) == 0.0
 
 
+async def test_a_line_caps_impact_reads_the_cards_own_company_only(
+    hub: Hub, new_company: Callable[..., Any], su: Any
+) -> None:
+    mine, other = await new_company(), await new_company()
+    line = await su.fetchrow(
+        """INSERT INTO lines.lines (company_id, template, template_version, platform, title_fa, caps, steps)
+           VALUES ($1, 'impact_line', 1, 'telegram_post', 'خط دیگر', '{"runs_per_day": 2}', '[]')
+           RETURNING id, ref""",
+        other["id"],
+    )
+    await su.execute(
+        """INSERT INTO lines.runs (company_id, line_id, line_version, trigger, state, usd_equiv)
+           VALUES ($1, $2, 1, 'owner', 'done', 3)""",
+        other["id"],
+        line["id"],
+    )
+    card = {"kind": "proposal", "payload": {"impact_input": {
+        "kind": "line.caps", "line": line["ref"], "new_runs_per_day": 4}}}  # fmt: skip
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        assert await IM.measure(tx, {**card, "company_id": mine["id"]}) is None
+        own = await IM.measure(tx, {**card, "company_id": other["id"]})
+    assert own is not None and own["cost_usd"] == 180.0
+
+
 def test_an_estimate_is_checked_by_code() -> None:
     ok = {"revenue_usdt": 10, "cost_usd": None, "horizon_days": 7, "basis_fa": "بر پایه‌ی متن کارت."}
     assert IM.checked_estimate(ok)["basis_fa"].startswith("تخمین")  # type: ignore[index]
