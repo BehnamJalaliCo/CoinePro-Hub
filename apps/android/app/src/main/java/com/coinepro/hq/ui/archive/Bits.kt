@@ -471,7 +471,7 @@ fun Select(
             if (nullable || value == null) DropdownMenuItem(text = { Text(empty, style = Divan.type.small, color = c.textMuted) }, onClick = { open = false; onChange(null) })
             for (o in options) DropdownMenuItem(
                 text = {
-                    val ink = if (o.v == value) c.goldInk else c.textPrimary
+                    val ink = if (o.v == value) c.textPrimary else c.textPrimary
                     if (o.figure) Fig(o.t, style = Divan.type.figureSmall, color = ink) else Text(prose(o.t), style = Divan.type.small, color = ink)
                 },
                 onClick = { open = false; onChange(o.v) },

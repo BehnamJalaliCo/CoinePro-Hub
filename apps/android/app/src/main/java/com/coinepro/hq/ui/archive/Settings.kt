@@ -108,12 +108,12 @@ fun ArchiveSettingsScreen(tab0: String? = null, open0: String? = null, new0: Boo
                     val t = tabs[i]
                     val on = t.key == tab
                     Row(
-                        Modifier.height(36.dp).clip(CircleShape).background(if (on) c.softGold else androidx.compose.ui.graphics.Color.Transparent)
-                            .border(1.dp, if (on) c.lineTahrir else c.lineStrong, CircleShape).clickable(role = Role.Tab) { tab = t.key; sel = null; isNew = false }.padding(horizontal = 14.dp),
+                        Modifier.height(36.dp).clip(CircleShape).background(if (on) c.raised else androidx.compose.ui.graphics.Color.Transparent)
+                            .border(1.dp, if (on) com.coinepro.hq.designsystem.silverLine() else c.lineStrong, CircleShape).clickable(role = Role.Tab) { tab = t.key; sel = null; isNew = false }.padding(horizontal = 14.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        DIcon(t.icon, size = 15.dp, tint = if (on) c.goldInk else c.textSecondary)
-                        Text(t.fa, style = Divan.type.small.copy(fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal), color = if (on) c.goldInk else c.textSecondary, maxLines = 1)
+                        DIcon(t.icon, size = 15.dp, tint = if (on) c.textPrimary else c.textSecondary)
+                        Text(t.fa, style = Divan.type.small.copy(fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal), color = if (on) c.textPrimary else c.textSecondary, maxLines = 1)
                     }
                 }
             }

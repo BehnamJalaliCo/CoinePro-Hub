@@ -1877,7 +1877,13 @@ class Api(
 
     // ----------------------------------------------- ⟨1.24⟩ §42 the holding live --
     /** §42.3 the holding right now, and the stream's sequence it was read at (the live views seed from it and resume after [LiveSummary.seq]). */
-    suspend fun liveSummary(): LiveSummary = get("/live/summary")
+    suspend fun liveSummary(): LiveSummary {
+        val raw: JsonObject = get("/live/summary")
+        val summary = json.decodeFromJsonElement(LiveSummary.serializer(), raw)
+        // ⟨1.0.1⟩ C3.1 the pulse's 24-hour series, when this hub sends one (not in its schema yet; nothing is drawn without it).
+        val series = raw["series"]?.let { runCatching { json.decodeFromJsonElement(PulseSeries.serializer(), it) }.getOrNull() }
+        return if (series == null) summary else summary.copy(series = series)
+    }
 
     // ------------------------------------------------------- ⟨1.19⟩ §37 erase --
     // Each erase is shown first (`…/erase/preview`: nothing changes), then sealed with a fresh passkey on the ref (🔏 `session.erase`,

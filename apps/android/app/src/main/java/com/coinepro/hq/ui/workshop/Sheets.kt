@@ -67,8 +67,8 @@ private fun ChoiceRow(company: String, title: String, sub: String, selected: Boo
     val c = Divan.colors
     val shape = RoundedCornerShape(12.dp)
     Row(
-        Modifier.fillMaxWidth().clip(shape).background(if (selected) c.softGold else c.tile)
-            .then(if (selected) Modifier.border(1.dp, c.goldInk, shape) else Modifier)
+        Modifier.fillMaxWidth().clip(shape).background(if (selected) c.raised else c.tile)
+            .then(if (selected) Modifier.border(1.dp, com.coinepro.hq.designsystem.silverLine(), shape) else Modifier)
             .clickable(role = Role.RadioButton, onClick = onClick).padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),

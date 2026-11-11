@@ -208,10 +208,10 @@ private fun PromoteDialog(n: OwnerNote, onClose: () -> Unit) {
                 Text(n.textMd, Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.tile).padding(10.dp), style = Divan.type.small, color = c.textPrimary, maxLines = 4)
                 for ((k, p) in PROMOTE) {
                     Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (to == k) c.softGold else c.tile).clickable(role = Role.RadioButton) { to = k }.padding(10.dp),
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (to == k) c.raised else c.tile).clickable(role = Role.RadioButton) { to = k }.padding(10.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        DIcon(p.icon, size = 18.dp, tint = if (to == k) c.goldInk else c.textSecondary)
+                        DIcon(p.icon, size = 18.dp, tint = if (to == k) c.textPrimary else c.textSecondary)
                         Column {
                             Text(p.fa, style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
                             Text(p.note, style = Divan.type.micro, color = c.textMuted)

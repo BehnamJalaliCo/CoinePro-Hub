@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 // Contract §55 ⟨1.33⟩: what the 1.0.1 look reads. The limits block of the treasury (the owner's Claude accounts, each one ring, and
 // today's meter) and, when the hub's live summary carries one, a 24-hour series for each figure of the office pulse. Same rules as
 // Models.kt: camelCase here, snake_case on the wire; a field the hub omits takes its default, so an older hub still reads. The
-// additive fields of older shapes are where those shapes live (`LiveSummary.series`, Models42.kt).
+// pulse's series rides beside the live summary (`LiveSummary.series`, Models42.kt): the hub's schema has no such field yet.
 
 // ------------------------------------------------------------------ §55.3 the limits --
 /**

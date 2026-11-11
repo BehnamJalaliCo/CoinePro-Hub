@@ -150,7 +150,7 @@ fun PipelineCard(p: SalesPipeline, chosen: String?, onStage: (String) -> Unit) {
 private fun StageBar(s: PipeStage, max: Int, chosen: Boolean, onClick: () -> Unit) {
     val c = Divan.colors
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(if (chosen) c.softGold else androidx.compose.ui.graphics.Color.Transparent)
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(if (chosen) c.raised else androidx.compose.ui.graphics.Color.Transparent)
             .clickable(role = Role.Button, onClickLabel = "فقط این مرحله", onClick = onClick).padding(horizontal = 6.dp, vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {

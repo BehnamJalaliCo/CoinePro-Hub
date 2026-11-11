@@ -176,7 +176,7 @@ private fun Matrix(count: ((Int, Int) -> Int)?, cell: Pair<Int, Int>?, onCell: (
                                     Box(
                                         Modifier.size(side).clip(RoundedCornerShape(8.dp))
                                             .background(if (n > 0) bg else Color.Transparent)
-                                            .border(if (on) 2.dp else 1.dp, if (on) c.goldInk else if (n > 0) Color.Transparent else c.lineDivider, RoundedCornerShape(8.dp))
+                                            .border(if (on) 2.dp else 1.dp, if (on) c.silverInk else if (n > 0) Color.Transparent else c.lineDivider, RoundedCornerShape(8.dp))
                                             .clickable(role = Role.Button) { onCell(if (on) null else l to i) }
                                             .semantics { contentDescription = "احتمال $l، اثر $i: $n ریسک"; selected = on },
                                         contentAlignment = Alignment.Center,

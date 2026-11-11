@@ -88,7 +88,7 @@ fun ServerTaskContent(servers: List<HubServer>, initial: HubServer?, onDone: () 
                 val on = server?.id == s.id
                 val shape = RoundedCornerShape(12.dp)
                 Row(
-                    Modifier.fillMaxWidth().clip(shape).background(if (on) c.softGold else c.tile).then(if (on) Modifier.border(1.dp, c.goldInk, shape) else Modifier)
+                    Modifier.fillMaxWidth().clip(shape).background(if (on) c.raised else c.tile).then(if (on) Modifier.border(1.dp, com.coinepro.hq.designsystem.silverLine(), shape) else Modifier)
                         .clickable(role = Role.RadioButton) { chosen = s.id; driver = null; cwdPicked = null }.padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
@@ -119,11 +119,11 @@ fun ServerTaskContent(servers: List<HubServer>, initial: HubServer?, onDone: () 
                     val on = cwd == r.path
                     val shape = RoundedCornerShape(12.dp)
                     Row(
-                        Modifier.fillMaxWidth().clip(shape).background(if (on) c.softGold else c.tile).then(if (on) Modifier.border(1.dp, c.goldInk, shape) else Modifier)
+                        Modifier.fillMaxWidth().clip(shape).background(if (on) c.raised else c.tile).then(if (on) Modifier.border(1.dp, com.coinepro.hq.designsystem.silverLine(), shape) else Modifier)
                             .clickable(role = Role.RadioButton, onClickLabel = r.path) { cwdPicked = r.path }.padding(horizontal = 12.dp, vertical = 9.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        DIcon(DivanIcon.CODE, size = 16.dp, tint = if (on) c.goldInk else c.textSecondary)
+                        DIcon(DivanIcon.CODE, size = 16.dp, tint = if (on) c.textPrimary else c.textSecondary)
                         Column(Modifier.weight(1f)) {
                             Fig(r.path, style = Divan.type.figureSmall.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
                             r.branch?.let { Fig(it, style = Divan.type.figureSmall, color = c.textMuted) }

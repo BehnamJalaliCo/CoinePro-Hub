@@ -497,13 +497,13 @@ fun SeriesEditor(s: Series?, onSaved: (String) -> Unit) {
                     val why = placementFits(kind, aspect, p)
                     val on = targets.any { it.account == t.account && it.placement == p }
                     Row(
-                        Modifier.fillMaxWidth().alpha(if (why != null) 0.5f else 1f).clip(RoundedCornerShape(10.dp)).background(if (on) c.softGold else c.tile)
+                        Modifier.fillMaxWidth().alpha(if (why != null) 0.5f else 1f).clip(RoundedCornerShape(10.dp)).background(if (on) c.raised else c.tile)
                             .then(if (on) Modifier.border(1.dp, c.lineTahrir, RoundedCornerShape(10.dp)) else Modifier)
                             .clickable(enabled = why == null, role = Role.Checkbox) { targets = if (on) targets.filterNot { it.account == t.account && it.placement == p } else targets + t }
                             .padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        DIcon(if (on) DivanIcon.SEAL else DivanIcon.ADD, size = 16.dp, tint = if (on) c.goldInk else c.textSecondary)
+                        DIcon(if (on) DivanIcon.SEAL else DivanIcon.ADD, size = 16.dp, tint = if (on) c.textPrimary else c.textSecondary)
                         Column(Modifier.weight(1f)) {
                             Text(fa, style = Divan.type.small, color = c.textPrimary)
                             Fig(t.account, style = Divan.type.figureSmall, color = c.textMuted)

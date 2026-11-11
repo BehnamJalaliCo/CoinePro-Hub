@@ -114,8 +114,8 @@ fun PlayerPicker(value: PlayerOption, onChange: (PlayerOption) -> Unit, modifier
 private fun PlayerChip(o: PlayerOption, selected: Boolean, a: PlayerAvailability, seats: List<PlayerOption>, onClick: () -> Unit) {
     val c = Divan.colors
     Row(
-        Modifier.height(34.dp).clip(CircleShape).background(if (selected) c.softGold else androidx.compose.ui.graphics.Color.Transparent)
-            .border(1.dp, if (selected) c.lineTahrir else c.lineStrong, CircleShape)
+        Modifier.height(34.dp).clip(CircleShape).background(if (selected) c.raised else androidx.compose.ui.graphics.Color.Transparent)
+            .border(1.dp, if (selected) com.coinepro.hq.designsystem.silverLine() else c.lineStrong, CircleShape)
             .selectable(selected, role = Role.RadioButton, onClick = onClick)
             .semantics { contentDescription = o.fa; if (!a.ok) stateDescription = a.stateFa.orEmpty() }
             .padding(horizontal = 10.dp),

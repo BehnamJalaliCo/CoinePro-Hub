@@ -206,7 +206,7 @@ private fun Item(x: FeedbackItem) {
                 }
                 DropdownMenu(menu, { menu = false }, containerColor = c.overlay) {
                     for ((k, s) in FEEDBACK_STATE) DropdownMenuItem(
-                        text = { Text(s.fa, style = Divan.type.body, color = if (k == x.state) c.goldInk else c.textPrimary) },
+                        text = { Text(s.fa, style = Divan.type.body, color = if (k == x.state) c.textPrimary else c.textPrimary) },
                         onClick = { menu = false; if (k != x.state) save(state = k, ok = "وضعیت به‌روز شد.") },
                     )
                 }

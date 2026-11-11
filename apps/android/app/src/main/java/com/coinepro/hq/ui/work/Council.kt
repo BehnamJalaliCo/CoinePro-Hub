@@ -317,7 +317,7 @@ private fun CreativePick(m: CouncilMember, modifier: Modifier) {
     val action = rememberAction()
     val picked = x?.pickedAt != null
     Column(
-        modifier.clip(RoundedCornerShape(14.dp)).background(if (picked) c.softGold else c.tile)
+        modifier.clip(RoundedCornerShape(14.dp)).background(if (picked) c.raised else c.tile)
             .then(if (picked) Modifier.border(1.dp, c.lineTahrir, RoundedCornerShape(14.dp)) else Modifier).padding(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {

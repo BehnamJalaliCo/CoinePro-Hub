@@ -75,7 +75,7 @@ class PublishScreensTest(private val name: String, private val night: Boolean) {
                 listOf("@tradeyar", "ریلز", "gold-levels-cover.webp", "حد ضرر را در ۳۰ ثانیه یاد بگیر", "زمان", "ساعت مشخص", "کامنت و لینک", "۳۰", "tradeyar.com/learn"),
             ),
             // ⟨0.20.0⟩ §46 a reel set for this evening with its comment word, and a carousel of two files on its way
-            "output-publish-scheduled" to Scene("O-000953", false, listOf("زمان‌بندی شد", "ساعت 18:30", "کامنت «۷»", "اسلاید", "در حال انتشار")),
+            "output-publish-scheduled" to Scene("O-000953", false, listOf("زمان‌بندی شد", "ساعت \u206618:30\u2069", "کامنت «۷»", "اسلاید", "در حال انتشار")),
             // ⟨1.0.1⟩ §51 a scheduled post taken back: a reel he can still cancel («لغو»), a post taken back («لغو شد», his to publish
             // again), a story whose cancel is on its way, and a post IG-Hub would not cancel (he may try again)
             "output-publish-cancel" to Scene("O-000954", false, listOf("زمان‌بندی شد", "لغو", "پست، \u200Fلغو شد", "در حال لغو", "لغو انجام نشد")),

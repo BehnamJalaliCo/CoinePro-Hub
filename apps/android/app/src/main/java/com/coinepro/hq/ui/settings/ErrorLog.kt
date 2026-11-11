@@ -301,7 +301,7 @@ fun ErrorReportCard(on: Boolean, onChange: (Boolean) -> Unit, reported: Int, wai
     HqCard(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(Modifier.size(40.dp).clip(CircleShape).background(c.tile), contentAlignment = Alignment.Center) {
-                DIcon(DivanIcon.SEND, size = 20.dp, tint = if (on) c.goldInk else c.textSecondary)
+                DIcon(DivanIcon.SEND, size = 20.dp, tint = if (on) c.textPrimary else c.textSecondary)
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("ارسال خطاها به ستاد", style = Divan.type.bodyStrong)

@@ -138,6 +138,8 @@ class LookScreensTest(private val name: String, private val night: Boolean) {
             },
             // ------------------------------------------------------------------ C3.5 one level of the notifications
             "look-notifications-decision" to Scene(listOf("از تو کاری میخواهد")) { com.coinepro.hq.ui.notifications.NotificationsScreen(level0 = "decision") },
+            // The notification settings speak of the same three levels («فوری», «تصمیم», «خبر»).
+            "look-notification-levels" to Scene(listOf("اعلان‌ها برای هر شرکت", "فوری", "تصمیم", "خبر")) { Cardlike { com.coinepro.hq.ui.owner.NotificationMatrixCard() } },
             // ------------------------------------------------------------------ C3.6 the limits, in every state
             "look-limits" to Scene(listOf("اکانت اصلی", "الان همین کار میکند", "کنتور امروز")) { Limits() },
             "look-limits-both-full" to Scene(listOf("هر دو اکانت پر است", "نزدیک سقف"), before = { LookDemo.limits = "both-full" }) { Limits() },

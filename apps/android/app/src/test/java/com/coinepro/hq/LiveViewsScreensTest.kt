@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performScrollToKey
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import com.coinepro.hq.core.AppGraph
@@ -65,6 +66,8 @@ class LiveViewsScreensTest(private val name: String, private val night: Boolean)
         val after: IntRange? = null,
         val flyMs: Long = 450,
         val down: Long? = null,
+        /** ⟨1.0.1⟩ The item of the page's list the picture starts at (the live parts of the office are under what waits for the owner). */
+        val from: String? = null,
         val content: @Composable () -> Unit,
     )
 
@@ -80,8 +83,8 @@ class LiveViewsScreensTest(private val name: String, private val night: Boolean)
         }
 
         private val SCENES: Map<String, Scene> = linkedMapOf(
-            "live-office" to Scene(listOf("کار میکنند", "جلسه‌ی باز", "منتظر تو"), reduced = false, before = 30) { Office() },
-            "live-office-reduced" to Scene(listOf("کار میکنند", "جلسه‌ی باز"), reduced = true, before = 30) { Office() },
+            "live-office" to Scene(listOf("کار میکنند", "جلسه‌ی باز", "منتظر تو"), reduced = false, before = 30, from = "pulse") { Office() },
+            "live-office-reduced" to Scene(listOf("کار میکنند", "جلسه‌ی باز"), reduced = true, before = 30, from = "pulse") { Office() },
             // The token meter (past 70 %, the burn rate, a call in flight) and every company's live card (people by shape, servers, spend).
             "live-meter" to Scene(listOf("کنتور توکن، \u200Fامروز", "از ۷۰٪ گذشت", "شرکت‌ها، \u200Fزنده", "گیر کرده"), reduced = false, before = 20) { Meter() },
             "live-meter-reduced" to Scene(listOf("کنتور توکن، \u200Fامروز", "در حال مصرف", "شرکت‌ها، \u200Fزنده"), reduced = true, before = 20) { Meter() },
@@ -175,6 +178,12 @@ class LiveViewsScreensTest(private val name: String, private val night: Boolean)
             }
         }
         settle(16)
+        // ⟨1.0.1⟩ The office opens on what waits for the owner; its live parts (the pulse, the companies' live cards, the token meter)
+        // are under it, so the picture starts at the pulse: each of the two pictures shows its own state again.
+        scene.from?.let { key ->
+            compose.onAllNodes(androidx.compose.ui.test.hasScrollToKeyAction())[0].performScrollToKey(key)
+            settle(4)
+        }
         // The beats that fly: played with the screen on, then the clock moved a fixed time into their flight.
         scene.after?.let { r ->
             for (t in r) for (e in Demo.next(t)) stream.demoDispatch(e)

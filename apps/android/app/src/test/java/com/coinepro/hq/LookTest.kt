@@ -323,13 +323,12 @@ class LookTest {
     }
 
     @Test
-    fun thePulseCountsEveryOpenSessionAndCarriesItsSeries() {
-        val summary = Api.json.decodeFromString(
-            LiveSummary.serializer(),
-            """{"seq":7,"at":"2026-10-17T08:30:00Z","people":{"working":5,"thinking":1,"waiting":2,"stuck":0,"total":28},
+    fun thePulseCountsEveryOpenSessionAndCarriesItsSeries() = runTest {
+        // The series is not a field of the hub's schema yet: the app reads it beside the summary when the hub sends one.
+        server.enqueue(json(200, """{"seq":7,"at":"2026-10-17T08:30:00Z","people":{"working":5,"thinking":1,"waiting":2,"stuck":0,"total":28},
                "sessions":{"moving":2,"your_turn":1,"stuck":1,"ready":1},"approvals":10,"urgent_unread":0,"servers":{},"tokens":{},"control":{},"companies":[],
-               "series":{"working":[1,2,3],"sessions":[2,2,5],"waiting":[9,10,11],"until":"2026-10-17T08:30:00Z"}}""",
-        )
+               "series":{"working":[1,2,3],"sessions":[2,2,5],"waiting":[9,10,11],"until":"2026-10-17T08:30:00Z"}}"""))
+        val summary = api.liveSummary()
         val live = seeded(LiveState(), summary, null, 1_000)
         val p = pulseOf(live, 2_000)
         assertEquals(6, p.working)

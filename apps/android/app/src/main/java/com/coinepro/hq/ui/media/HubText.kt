@@ -61,12 +61,12 @@ fun HubTextToggle(hubText: String?, on: Boolean, onToggle: () -> Unit, writing: 
     val c = Divan.colors
     when {
         hubText != null -> Row(
-            modifier.clip(CircleShape).background(if (on) c.softGold else c.tile).clickable(role = Role.Switch, onClickLabel = if (on) "متن خود پیام" else "متن هاب") { onToggle() }
+            modifier.clip(CircleShape).background(if (on) c.raised else c.tile).clickable(role = Role.Switch, onClickLabel = if (on) "متن خود پیام" else "متن هاب") { onToggle() }
                 .padding(horizontal = 10.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
         ) {
             DIcon(DivanIcon.MIC, size = 12.dp, tint = if (on) c.silverInk else c.textSecondary)
-            Text(if (on) "متن هاب · برگرد به متن پیام" else "متن هاب", style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = if (on) c.goldInk else c.textSecondary)
+            Text(if (on) "متن هاب · برگرد به متن پیام" else "متن هاب", style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = if (on) c.textPrimary else c.textSecondary)
         }
         writing -> Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             CircularProgressIndicator(Modifier.size(10.dp), color = c.textMuted, strokeWidth = 1.5.dp)

@@ -118,12 +118,12 @@ fun BatchSealButton() {
 private fun Check(on: Boolean) {
     val c = Divan.colors
     Box(
-        Modifier.size(20.dp).clip(RoundedCornerShape(5.dp)).background(if (on) c.goldInk else Color.Transparent).border(1.5.dp, if (on) c.goldInk else c.lineStrong, RoundedCornerShape(5.dp)),
+        Modifier.size(20.dp).clip(RoundedCornerShape(5.dp)).background(if (on) c.silverInk else Color.Transparent).border(1.5.dp, if (on) c.silverInk else c.lineStrong, RoundedCornerShape(5.dp)),
         contentAlignment = Alignment.Center,
     ) {
         if (on) Canvas(Modifier.size(12.dp)) {
             val p = Path().apply { moveTo(size.width * 0.12f, size.height * 0.55f); lineTo(size.width * 0.42f, size.height * 0.82f); lineTo(size.width * 0.9f, size.height * 0.2f) }
-            drawPath(p, c.onGold, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+            drawPath(p, c.page, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
         }
     }
 }
@@ -162,8 +162,8 @@ fun BatchSealContent(onDone: () -> Unit = {}) {
                 val k = decisionKind(x.kind)
                 Row(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                        .background(if (bad != null) c.softNegative else if (on) c.softGold else Color.Transparent)
-                        .border(1.dp, if (bad != null) c.negative.copy(alpha = 0.45f) else if (on) c.goldInk else c.lineDivider, RoundedCornerShape(12.dp))
+                        .background(if (bad != null) c.softNegative else if (on) c.raised else Color.Transparent)
+                        .border(1.dp, if (bad != null) c.negative.copy(alpha = 0.45f) else if (on) com.coinepro.hq.designsystem.silverLine() else c.lineDivider, RoundedCornerShape(12.dp))
                         .toggleable(on, role = Role.Checkbox) { v -> if (v) off.remove(x.ref) else off.add(x.ref) }.padding(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {

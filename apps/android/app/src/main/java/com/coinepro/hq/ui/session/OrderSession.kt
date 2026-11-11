@@ -709,12 +709,12 @@ private fun PeopleBar(participants: List<SessionParticipant>, open: Boolean, add
             for (p in participants) {
                 val on = (p.kind == "holder" && addressee == null) || addressee == p.key
                 Row(
-                    Modifier.clip(CircleShape).background(if (on) c.softGold else c.tile).border(1.dp, if (on) c.lineTahrir else c.lineDivider, CircleShape)
+                    Modifier.clip(CircleShape).background(if (on) c.raised else c.tile).border(1.dp, if (on) com.coinepro.hq.designsystem.silverLine() else c.lineDivider, CircleShape)
                         .clickable(role = Role.Button, onClickLabel = "با ${participantTitle(p)}") { onPick(p) }.padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     if (isPlayer(p.key)) com.coinepro.hq.ui.work.PlayerLogo(PlayerOption.entries.firstOrNull { it.key == p.key.removePrefix("player:") } ?: PlayerOption.AUTO, size = 14.dp)
-                    else DIcon(if (p.kind == "holder") DivanIcon.OWNER else DivanIcon.AGENT, size = 14.dp, tint = if (on) c.goldInk else c.textSecondary)
+                    else DIcon(if (p.kind == "holder") DivanIcon.OWNER else DivanIcon.AGENT, size = 14.dp, tint = if (on) c.textPrimary else c.textSecondary)
                     Text(participantTitle(p), style = Divan.type.micro.copy(fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal), color = c.textPrimary, maxLines = 1)
                     if (p.kind == "holder") Text("مسئول", style = Divan.type.micro, color = c.goldInk)
                 }

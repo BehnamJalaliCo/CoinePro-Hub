@@ -68,8 +68,9 @@ data class LiveSummary(
     val tokens: LiveTokens = LiveTokens(),
     val control: LiveControl = LiveControl(),
     val companies: List<LiveCompany> = emptyList(),
-    /** ⟨1.0.1⟩ additive: a 24-hour series for the pulse's figures, when this hub sends one (Models55.kt). */
-    val series: PulseSeries? = null,
+    /** ⟨1.0.1⟩ A 24-hour series for the pulse's figures, when this hub sends one (Models55.kt). Not a field of the hub's schema
+     *  yet, so it is not part of this shape: [Api.liveSummary] reads it beside the summary, as the web does. */
+    @kotlinx.serialization.Transient val series: PulseSeries? = null,
 )
 
 // ------------------------------------------------------------------ §42.2 the events' data --

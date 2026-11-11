@@ -264,21 +264,21 @@ private fun HowStep(d: FoundingDraft, set: (FoundingDraft) -> Unit, errors: Map<
         for (w in WAYS) {
             val on = d.path == w.path
             Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.card)).background(if (on) c.softGold else c.card)
-                    .border(1.dp, if (on) c.lineTahrir else Color.Transparent, RoundedCornerShape(Radius.card))
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.card)).background(if (on) c.raised else c.card)
+                    .border(1.dp, if (on) com.coinepro.hq.designsystem.silverLine() else Color.Transparent, RoundedCornerShape(Radius.card))
                     .clickable(role = Role.RadioButton, onClickLabel = w.title) { set(d.copy(path = w.path)) }.padding(Space.md),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                    Box(Modifier.size(40.dp).clip(CircleShape).background(if (on) c.goldFill else c.tile), contentAlignment = Alignment.Center) {
-                        DIcon(w.icon, size = 20.dp, tint = if (on) c.onGold else c.textSecondary)
+                    Box(Modifier.size(40.dp).clip(CircleShape).background(if (on) c.silverInk else c.tile), contentAlignment = Alignment.Center) {
+                        DIcon(w.icon, size = 20.dp, tint = if (on) c.page else c.textSecondary)
                     }
                     Column(Modifier.weight(1f)) {
                         Text(w.title, style = Divan.type.bodyStrong)
                         Text(w.what, style = Divan.type.caption, color = c.textSecondary)
                     }
-                    Box(Modifier.size(20.dp).clip(CircleShape).border(2.dp, if (on) c.goldInk else c.lineStrong, CircleShape), contentAlignment = Alignment.Center) {
-                        if (on) Box(Modifier.size(10.dp).clip(CircleShape).background(c.goldInk))
+                    Box(Modifier.size(20.dp).clip(CircleShape).border(2.dp, if (on) c.silverInk else c.lineStrong, CircleShape), contentAlignment = Alignment.Center) {
+                        if (on) Box(Modifier.size(10.dp).clip(CircleShape).background(c.silverInk))
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -375,7 +375,7 @@ private fun Swatch(color: Color?, on: Boolean, used: Boolean, onPick: () -> Unit
     val c = Divan.colors
     Box(
         Modifier.size(36.dp).alpha(if (used) 0.35f else 1f).clip(CircleShape).background(color ?: c.tile)
-            .border(if (on) 3.dp else 1.dp, if (on) c.goldInk else c.lineStrong, CircleShape)
+            .border(if (on) 3.dp else 1.dp, if (on) c.silverInk else c.lineStrong, CircleShape)
             .clickable(enabled = !used, role = Role.RadioButton, onClick = onPick)
             .semantics { contentDescription = if (color == null) "رنگ خودکار" else if (used) "این رنگ را شرکت دیگری دارد" else "رنگ شرکت" },
         contentAlignment = Alignment.Center,

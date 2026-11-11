@@ -501,12 +501,13 @@ fun RatingRow(value: Int, onChange: ((Int) -> Unit)?, modifier: Modifier = Modif
                 Modifier
                     .size(size)
                     .clip(Octagon)
-                    .background(if (on) c.goldFill else c.tile)
+                    // ⟨1.0.1⟩ C0.1: filled gold is the primary action alone; a given score is silver.
+                    .background(if (on) c.silverInk else c.tile)
                     .selectable(n == value, enabled = onChange != null, role = Role.RadioButton, onClick = { onChange?.invoke(n) })
                     .semantics { contentDescription = "$n از ۱۰" },
                 contentAlignment = Alignment.Center,
             ) {
-                Text(n.toString(), style = Divan.type.caption.copy(fontWeight = if (on) FontWeight.Bold else FontWeight.Normal, fontSize = if (size > 30.dp) 13.sp else 11.sp), color = if (on) c.onGold else c.textSecondary)
+                Text(n.toString(), style = Divan.type.caption.copy(fontWeight = if (on) FontWeight.Bold else FontWeight.Normal, fontSize = if (size > 30.dp) 13.sp else 11.sp), color = if (on) c.page else c.textSecondary)
             }
         }
     }

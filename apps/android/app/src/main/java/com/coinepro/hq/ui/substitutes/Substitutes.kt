@@ -319,13 +319,13 @@ fun SeatsEditor(s: Substitute, onDone: () -> Unit = {}) {
                     for (v in listOf("cli", "web")) {
                         val on = r.via == v
                         val ok = v != "cli" || s.runner != null
-                        Text(CAP[v] ?: v, Modifier.clip(CircleShape).background(if (on) c.softGold else c.card).clickable(enabled = ok, role = Role.RadioButton) { rows[i] = r.copy(via = v) }.padding(horizontal = 12.dp, vertical = 5.dp),
-                            style = Divan.type.small.copy(fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal), color = if (!ok) c.disabledText else if (on) c.goldInk else c.textSecondary)
+                        Text(CAP[v] ?: v, Modifier.clip(CircleShape).background(if (on) c.raised else c.card).clickable(enabled = ok, role = Role.RadioButton) { rows[i] = r.copy(via = v) }.padding(horizontal = 12.dp, vertical = 5.dp),
+                            style = Divan.type.small.copy(fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal), color = if (!ok) c.disabledText else if (on) c.textPrimary else c.textSecondary)
                     }
                     for (m in s.models) {
                         val on = r.model == m.id
-                        Fig(m.label + if (m.available) "" else " (نیست)", Modifier.clip(CircleShape).background(if (on) c.softGold else c.card).clickable(enabled = m.available, role = Role.RadioButton) { rows[i] = r.copy(model = m.id) }.padding(horizontal = 12.dp, vertical = 5.dp),
-                            style = Divan.type.figureSmall, color = if (!m.available) c.disabledText else if (on) c.goldInk else c.textSecondary)
+                        Fig(m.label + if (m.available) "" else " (نیست)", Modifier.clip(CircleShape).background(if (on) c.raised else c.card).clickable(enabled = m.available, role = Role.RadioButton) { rows[i] = r.copy(model = m.id) }.padding(horizontal = 12.dp, vertical = 5.dp),
+                            style = Divan.type.figureSmall, color = if (!m.available) c.disabledText else if (on) c.textPrimary else c.textSecondary)
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

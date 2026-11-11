@@ -336,7 +336,7 @@ fun HireForm(onDone: () -> Unit, modifier: Modifier = Modifier, company0: String
                 val on = company == x.code
                 val shape = RoundedCornerShape(10.dp)
                 Row(
-                    Modifier.clip(shape).background(if (on) c.softGold else c.tile).then(if (on) Modifier.border(1.dp, c.goldInk, shape) else Modifier)
+                    Modifier.clip(shape).background(if (on) c.raised else c.tile).then(if (on) Modifier.border(1.dp, com.coinepro.hq.designsystem.silverLine(), shape) else Modifier)
                         .clickable(role = Role.RadioButton) { company = x.code; department = null; roleKey = null; model = "" }.padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
@@ -395,8 +395,8 @@ private fun RoleRow(r: RoleInfo, selected: Boolean, onClick: () -> Unit) {
     val c = Divan.colors
     val shape = RoundedCornerShape(12.dp)
     Row(
-        Modifier.fillMaxWidth().clip(shape).background(if (selected) c.softGold else c.tile)
-            .then(if (selected) Modifier.border(1.dp, c.goldInk, shape) else Modifier)
+        Modifier.fillMaxWidth().clip(shape).background(if (selected) c.raised else c.tile)
+            .then(if (selected) Modifier.border(1.dp, com.coinepro.hq.designsystem.silverLine(), shape) else Modifier)
             .clickable(role = Role.RadioButton, onClick = onClick).padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {

@@ -261,13 +261,13 @@ fun Chip(selected: Boolean, onClick: () -> Unit, content: @Composable RowScope.(
         Modifier
             .height(32.dp)
             .clip(CircleShape)
-            .background(if (selected) c.softGold else Color.Transparent)
-            .border(1.dp, if (selected) c.lineTahrir else c.lineStrong, CircleShape)
+            .background(if (selected) c.raised else Color.Transparent)
+            .border(1.dp, if (selected) com.coinepro.hq.designsystem.silverLine() else c.lineStrong, CircleShape)
             .selectable(selected, role = Role.Tab, onClick = onClick)
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) { content(if (selected) c.goldInk else c.textSecondary) }
+    ) { content(if (selected) c.textPrimary else c.textSecondary) }
 }
 
 /** A filter chip for one company: its mark and its name (companies are data; any number of them). */

@@ -106,7 +106,7 @@ private fun PersonaVoiceRow(p: TalkPersona, engines: List<VoiceEngine>, lights: 
                 for (v in list) {
                     val on = p.voice.engine == engine && p.voice.voice == v.name
                     Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (on) c.softGold else c.tile).padding(horizontal = 12.dp, vertical = 6.dp),
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (on) c.raised else c.tile).padding(horizontal = 12.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Column(Modifier.weight(1f)) {
