@@ -309,11 +309,20 @@ async def tag(
     ):
         raise ApiError(404, "not_found", "no such NPS wave in this company")
     q = quote(text)
-    existing = (
-        await tx.first("SELECT * FROM feedback.signals WHERE message_id = :m", m=message_id)
-        if message_id
-        else None
-    )
+    if message_id:
+        existing = await tx.first(
+            "SELECT * FROM feedback.signals WHERE message_id = :m", m=message_id
+        )
+    else:
+        # an NPS wave (or a conversation with no inbound message) has no message to key on: the
+        # same source tagged again under the same kind and area is the same signal, not +1
+        existing = await tx.first(
+            """SELECT * FROM feedback.signals
+               WHERE company_id = :co AND source_ref = :src AND message_id IS NULL
+                 AND tagged_by = 'agent' AND kind = :k AND area = :a
+               ORDER BY at DESC LIMIT 1""",
+            co=company_id, src=source_ref, k=kind, a=area,
+        )  # fmt: skip
     if existing is not None and existing["item_id"] is not None:
         item = await tx.one("SELECT * FROM feedback.items WHERE id = :i", i=existing["item_id"])
         return {"item": item, "created": False, "already": True}
