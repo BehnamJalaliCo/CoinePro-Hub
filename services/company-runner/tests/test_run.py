@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import time
 from collections.abc import Callable
@@ -8,10 +9,13 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import pytest
 from conftest import HUB, FakeHub, fast_probe, make_route, no_dns, run
 
+from hq_runner import events as events_module
 from hq_runner.config import Config, load
-from hq_runner.hub import Backoff
+from hq_runner.events import EventSink
+from hq_runner.hub import Backoff, HubError, Transient
 from hq_runner.jobs import JobContext, JobResult
 from hq_runner.net import Route
 from hq_runner.runner import EXIT_REPAIR, EXIT_REVOKED, Runner
@@ -232,3 +236,84 @@ def test_network_errors_back_off_with_jitter(fake_hub: FakeHub, cfg: Config) -> 
     assert delays[:4] == [1.0, 2.0, 4.0, 8.0]
     jitter = Backoff(base=1.0, rand=lambda: 0.0)
     assert jitter.next() == 0.5
+
+
+class EventHub:
+    """Takes event posts; `refuse(batch)` names the error a post gets, if any."""
+
+    def __init__(self, refuse: Callable[[list[dict[str, Any]]], HubError | None]) -> None:
+        self.refuse = refuse
+        self.posts: list[list[dict[str, Any]]] = []
+
+    async def post_events(self, job_id: str, events: list[dict[str, Any]]) -> None:
+        self.posts.append(list(events))
+        err = self.refuse(events)
+        if err is not None:
+            raise err
+
+
+def test_event_batches_stay_under_the_hubs_body_cap_and_survive_an_outage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def once(op: Callable[[], Any], **_: Any) -> Any:
+        return await op()
+
+    monkeypatch.setattr(events_module, "with_retry", once)
+    line = "ب" * 60_000  # ≈120 KB of UTF-8 each
+
+    def body_cap(batch: list[dict[str, Any]]) -> HubError | None:
+        size = len(json.dumps({"events": batch}, ensure_ascii=False).encode())
+        return HubError(413, "validation_failed") if size > 8 * 1024 * 1024 else None
+
+    async def scenario() -> tuple[EventHub, EventSink]:
+        hub = EventHub(body_cap)
+        sink = EventSink(hub, "j1")  # type: ignore[arg-type]
+        for _ in range(150):  # ≈18 MB piled up while the hub was away
+            sink.emit("session_event", {"type": "message", "text": line})
+        await sink.flush()
+        return hub, sink
+
+    hub, sink = run(scenario())
+    assert not sink.dead
+    assert all(len(json.dumps(b, ensure_ascii=False).encode()) < 8 * 1024 * 1024 for b in hub.posts)
+    assert [e["seq"] for b in hub.posts for e in b] == list(range(1, 151))
+
+    # a hub away longer than the retry window: the batch is sent again on the next round
+    down = [True]
+
+    def outage(batch: list[dict[str, Any]]) -> HubError | None:
+        return Transient(502) if down[0] else None
+
+    async def away() -> tuple[EventHub, EventSink]:
+        hub = EventHub(outage)
+        sink = EventSink(hub, "j2")  # type: ignore[arg-type]
+        for i in range(5):
+            sink.emit("session_event", {"type": "message", "text": str(i)})
+        await sink.flush()
+        down[0] = False
+        sink.emit("session_event", {"type": "message", "text": "after"})
+        await sink.flush()
+        return hub, sink
+
+    hub, sink = run(away())
+    delivered = [e["seq"] for b in hub.posts[1:] for e in b]
+    assert delivered == [1, 2, 3, 4, 5, 6] and not sink.dead
+
+    # a body the hub refuses as too big even alone, or as invalid: that batch only; the sink
+    # stays alive, so the job's later events and its result still go
+    def picky(batch: list[dict[str, Any]]) -> HubError | None:
+        if any(e["data"].get("text") == "bad" for e in batch):
+            return HubError(413 if len(batch) > 1 else 422, "validation_failed")
+        return None
+
+    async def refused() -> tuple[EventHub, EventSink]:
+        hub = EventHub(picky)
+        sink = EventSink(hub, "j3")  # type: ignore[arg-type]
+        for text in ("a", "bad", "b"):
+            sink.emit("progress", {"text": text})
+        await sink.flush()
+        return hub, sink
+
+    hub, sink = run(refused())
+    ok = [e["data"]["text"] for b in hub.posts if not picky(b) for e in b]
+    assert ok == ["a", "b"] and not sink.dead
