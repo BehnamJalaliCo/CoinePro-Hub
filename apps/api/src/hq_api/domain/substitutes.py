@@ -670,7 +670,9 @@ async def holder(
 ) -> tuple[dict[str, Any], dict[str, Any]] | None:
     """(player row, seat row) that takes the call: the named player if it
     holds the seat, else the default holder (an enabled seat first; for an
-    image, owner_settings.substitutes.creative_default_image)."""
+    image, owner_settings.substitutes.creative_default_image). ⟨2026-11-11⟩
+    Unnamed, a seat several players hold goes to the first one that can take
+    it now (a signed-out ChatGPT never refuses a draft Gemini can write)."""
     rows = await tx.all(
         """SELECT s.*, p.player AS p FROM substitutes.seats s JOIN substitutes.players p ON p.player = s.player
            WHERE s.seat = :seat ORDER BY s.enabled DESC,
@@ -685,6 +687,12 @@ async def holder(
         else:
             default = (await _settings(tx)).get("creative_default_image", "gpt")
             rows = sorted(rows, key=lambda r: (not r["enabled"], r["player"] != default))
+    elif len(rows) > 1:
+        now = datetime.now(UTC)
+        ready = {}
+        for r in rows:
+            ready[r["player"]] = _skip_reason(await _player(tx, r["player"]), r, now) is None
+        rows = sorted(rows, key=lambda r: (not r["enabled"], not ready[r["player"]]))  # stable
     if not rows:
         return None
     s = rows[0]
