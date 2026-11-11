@@ -437,6 +437,15 @@ async def test_an_archive_record_is_erased_now_unless_a_legal_hold_keeps_it(
     assert json.loads(tomb["hashes"]) == [] and tomb["decision_ref"] == "owner"
     assert set(json.loads(tomb["dates"])) == {"erased_at"}
     assert not any(exists(hub, k) for k in keys)
+    intake = await su.fetch(  # the document's own words left nowhere in its intake either
+        """SELECT x.name, x.text, x.suggestion FROM archive.intake x
+           JOIN archive.record_files f ON f.file_id = x.file_id JOIN archive.records r ON r.id = f.record_id
+           WHERE r.ref = $1""",
+        ref,
+    )
+    assert intake and all(
+        x["text"] is None and x["suggestion"] is None and x["name"] == ERASED for x in intake
+    )
     assert await su.fetchval(
         "SELECT count(*) FROM audit.entries WHERE action = 'archive.erase' AND target_ref = $1", ref
     ) == 1  # fmt: skip

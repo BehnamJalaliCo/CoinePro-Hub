@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Literal
@@ -226,7 +226,11 @@ async def budget(tx: Tx, settings: Any) -> Budget:
     """This (Jalali) month's academy tokens against its cap: a share of the
     holding's monthly budget (every company's envelope), or a fixed default
     while no envelope is set."""
-    start = jalali_month_start(datetime.now(UTC).date())
+    from hq_api.domain import gov_common as G
+
+    # the owner's Jalali month, from the owner's midnight (not UTC's)
+    tz = await G.owner_tz(tx)
+    start = jalali_month_start(G.today(tz))
     total = await tx.scalar(
         """SELECT COALESCE(sum(token_limit), 0) FROM llm.budgets
            WHERE enabled AND period = 'month' AND scope_type = 'company'"""
@@ -242,8 +246,8 @@ async def budget(tx: Tx, settings: Any) -> Budget:
                            FILTER (WHERE status IN ('queued', 'running')
                                      AND at > now() - make_interval(hours => :h)), 0) AS held
            FROM academy.eval_runs
-           WHERE at >= CAST(:s AS date)""",
-        s=start,
+           WHERE at >= :s""",
+        s=G.local_midnight(start, tz),
         h=RESERVE_HOURS,
     )
     used = int(row["used"] or 0) + int(row["held"] or 0)

@@ -9,13 +9,26 @@ from typing import Any
 
 TEXT_MAX = 400_000
 MAX_PDF_PAGES = 500
+# Every page is scanned for secrets, also past what is kept as the text; a
+# page is scanned with the end of the text before it (a seed phrase or a key
+# across a page break), within the child's CPU (DOC_LIMITS: 20 s).
+SCAN_OVERLAP = 4000
+SCAN_CPU_S = 14.0
 
 
 def doc_text_job(path: str) -> dict[str, Any]:
-    """In the child: a PDF's own text layer and its page count."""
+    """In the child: a PDF's own text layer (its first MAX_PDF_PAGES pages,
+    up to TEXT_MAX characters), its page count, and the kinds of secret its
+    whole text holds (`secrets`; `unscanned`: pages left when time ran out)."""
+    import time
+
     from pypdf import PdfReader
     from pypdf.errors import PyPdfError
 
+    from hq_api.archive import scan
+    from hq_common import persian
+
+    began = time.process_time()
     try:
         reader = PdfReader(path)
         if reader.is_encrypted and not reader.decrypt(""):
@@ -23,15 +36,22 @@ def doc_text_job(path: str) -> dict[str, Any]:
         pages = len(reader.pages)
         parts: list[str] = []
         total = 0
-        for page in reader.pages[:MAX_PDF_PAGES]:
+        found: set[str] = set()
+        tail = ""
+        for i, page in enumerate(reader.pages):
+            if time.process_time() - began > SCAN_CPU_S:
+                return {"text": None, "pages": pages, "unscanned": pages - i}
             t = (page.extract_text() or "").strip()
-            if t:
+            if not t:
+                continue
+            if i < MAX_PDF_PAGES and total < TEXT_MAX:
                 parts.append(t)
                 total += len(t)
-            if total >= TEXT_MAX:
-                break
+            seen = f"{tail}\n\n{t}"
+            found.update(scan.kinds(persian.normalise(seen)))
+            tail = seen[-SCAN_OVERLAP:]
         text = "\n\n".join(parts).strip()[:TEXT_MAX]
-        return {"text": text or None, "pages": pages}
+        return {"text": text or None, "pages": pages, "secrets": sorted(found)}
     except (PyPdfError, ValueError, KeyError, TypeError, AttributeError, IndexError, OSError):
         return {"text": None, "pages": None, "broken": True}
 

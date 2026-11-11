@@ -31,14 +31,16 @@ import json
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
+from hq_api.archive import clearance as CL
 from hq_api.archive import scan
 from hq_api.archive import store as ST
 from hq_api.archive import vocab as V
 from hq_api.archive.common import J
 from hq_api.db import Tx
+from hq_api.domain import gov_common as G
 from hq_api.errors import ApiError
 from hq_api.principal import Principal
 
@@ -94,7 +96,6 @@ async def file_system(
 ) -> str | None:
     """One system record (filed) -> its ref, or None (already filed, refused,
     or the source's class is gone)."""
-    from hq_api.archive import clearance as CL
     from hq_api.archive import pdf
     from hq_api.archive import records as R
 
@@ -208,9 +209,14 @@ async def _charters(hub: Any, txf: Any) -> int:
     async with txf() as tx:
         if not await tx.scalar("SELECT to_regclass('governance.charters') IS NOT NULL"):
             return 0
+        await CL.full(tx)
         rows = await tx.all(
-            """SELECT scope, version, body_md, red_lines, body_sha256, sealed_at FROM governance.charters
-               WHERE sealed_at IS NOT NULL ORDER BY sealed_at LIMIT 200"""
+            """SELECT g.scope, g.version, g.body_md, g.red_lines, g.body_sha256, g.sealed_at
+               FROM governance.charters g
+               WHERE g.sealed_at IS NOT NULL AND NOT EXISTS (SELECT 1 FROM archive.records a
+                   WHERE a.source_kind = 'system'
+                     AND a.source_ref = 'charter:' || g.scope || '@' || CAST(g.version AS text))
+               ORDER BY g.sealed_at LIMIT 200"""
         )
         out = []
         for x in rows:
@@ -264,7 +270,13 @@ def _jalali_key(d: date) -> str:
     return f"{y:04d}-{m:02d}"
 
 
-async def _resolutions(hub: Any, txf: Any, today: date) -> int:
+def _local(at: datetime, tz: str) -> date:
+    """The owner's calendar day of a moment (a Jalali month begins at the
+    owner's midnight, not UTC's)."""
+    return at.astimezone(G.zone(tz)).date()
+
+
+async def _resolutions(hub: Any, txf: Any, today: date, tz: str) -> int:
     this_month = _jalali_key(today)
     async with txf() as tx:
         rows = await tx.all(
@@ -275,7 +287,7 @@ async def _resolutions(hub: Any, txf: Any, today: date) -> int:
         )
     groups: dict[tuple[Any, str, str], list[dict[str, Any]]] = {}
     for x in rows:
-        month = _jalali_key(x["sealed_at"].date())
+        month = _jalali_key(_local(x["sealed_at"], tz))
         if month >= this_month:
             continue  # only finished months
         groups.setdefault((x["company_id"], x["code"], month), []).append(x)
@@ -286,7 +298,7 @@ async def _resolutions(hub: Any, txf: Any, today: date) -> int:
         ref = f"resolutions:{code}:{month}"
         body = _md(
             [
-                f"{x['ref']} · {x['sealed_at'].date().isoformat()} · {x['title']}\n{(x['body'] or '')[:1500]}\n"
+                f"{x['ref']} · {_local(x['sealed_at'], tz).isoformat()} · {x['title']}\n{(x['body'] or '')[:1500]}\n"
                 for x in items
             ]
         )
@@ -313,10 +325,14 @@ async def _resolutions(hub: Any, txf: Any, today: date) -> int:
 
 async def _brands(hub: Any, txf: Any) -> int:
     async with txf() as tx:
+        await CL.full(tx)
         rows = await tx.all(
             """SELECT b.company_id, b.version, b.digest, b.ink, b.accent, b.palette, b.activated_at, c.code
                FROM org.company_brands b JOIN core.companies c ON c.id = b.company_id
-               WHERE b.step_up_id IS NOT NULL AND b.activated_at IS NOT NULL ORDER BY b.activated_at LIMIT 200"""
+               WHERE b.step_up_id IS NOT NULL AND b.activated_at IS NOT NULL
+                 AND NOT EXISTS (SELECT 1 FROM archive.records a WHERE a.source_kind = 'system'
+                     AND a.source_ref = 'brand:' || c.code || '@' || CAST(b.version AS text))
+               ORDER BY b.activated_at LIMIT 200"""
         )
     n = 0
     for x in rows:
@@ -348,9 +364,12 @@ async def _brands(hub: Any, txf: Any) -> int:
 
 async def _foundings(hub: Any, txf: Any) -> int:
     async with txf() as tx:
+        await CL.full(tx)
         rows = await tx.all(
             """SELECT d.ref, d.title, d.what, d.payload, d.decided_at, d.company_id
                FROM cartable.decisions d WHERE d.kind = 'company_found' AND d.status = 'approved'
+                 AND NOT EXISTS (SELECT 1 FROM archive.records a WHERE a.source_kind = 'system'
+                     AND a.source_ref = 'founding:' || d.ref)
                ORDER BY d.decided_at LIMIT 200"""
         )
         out = []
@@ -389,11 +408,16 @@ async def _foundings(hub: Any, txf: Any) -> int:
 
 async def _emails(hub: Any, txf: Any) -> int:
     async with txf() as tx:
+        await CL.full(tx)
+        # the source ref is email:<the first 24 hex of sha256(message_id)> (below)
         rows = await tx.all(
             """SELECT e.message_id, e.subject, e.body_md, e.to_addrs, e.cc_addrs, e.from_addr, e.sent_at,
                       e.attachments, e.company_id, k.ref AS case_ref, k.title_fa
                FROM legal.emails e JOIN legal.cases k ON k.id = e.case_id
-               WHERE e.direction = 'out' AND e.state = 'sent' ORDER BY e.sent_at LIMIT 500"""
+               WHERE e.direction = 'out' AND e.state = 'sent'
+                 AND NOT EXISTS (SELECT 1 FROM archive.records a WHERE a.source_kind = 'system'
+                     AND a.source_ref = 'email:' || left(encode(sha256(convert_to(e.message_id, 'UTF8')), 'hex'), 24))
+               ORDER BY e.sent_at LIMIT 500"""
         )
     n = 0
     for x in rows:
@@ -432,9 +456,13 @@ async def _emails(hub: Any, txf: Any) -> int:
 
 async def _cases(hub: Any, txf: Any) -> int:
     async with txf() as tx:
+        await CL.full(tx)
         rows = await tx.all(
             """SELECT k.id, k.ref, k.title_fa, k.kind, k.brief_md, k.closed_at, k.company_id
-               FROM legal.cases k WHERE k.status = 'closed' ORDER BY k.closed_at LIMIT 500"""
+               FROM legal.cases k WHERE k.status = 'closed'
+                 AND NOT EXISTS (SELECT 1 FROM archive.records a WHERE a.source_kind = 'system'
+                     AND a.source_ref = 'case:' || k.ref)
+               ORDER BY k.closed_at LIMIT 500"""
         )
         events_of = {}
         for x in rows:
@@ -472,10 +500,14 @@ async def _cases(hub: Any, txf: Any) -> int:
 
 async def _plans(hub: Any, txf: Any) -> int:
     async with txf() as tx:
+        await CL.full(tx)
         rows = await tx.all(
-            """SELECT ref, company_id, company_code, name, type, location, image, monthly_eur, software, firewall,
-                      sealed_digest, sealed_at
-               FROM provisioning.plans WHERE sealed_at IS NOT NULL ORDER BY sealed_at LIMIT 200"""
+            """SELECT p.ref, p.company_id, p.company_code, p.name, p.type, p.location, p.image, p.monthly_eur,
+                      p.software, p.firewall, p.sealed_digest, p.sealed_at
+               FROM provisioning.plans p WHERE p.sealed_at IS NOT NULL
+                 AND NOT EXISTS (SELECT 1 FROM archive.records a WHERE a.source_kind = 'system'
+                     AND a.source_ref = 'server_plan:' || p.ref)
+               ORDER BY p.sealed_at LIMIT 200"""
         )
     n = 0
     for x in rows:
@@ -505,7 +537,7 @@ async def _plans(hub: Any, txf: Any) -> int:
     return n
 
 
-async def _restore_tests(hub: Any, txf: Any) -> int:
+async def _restore_tests(hub: Any, txf: Any, tz: str) -> int:
     async with txf() as tx:
         rows = await tx.all(
             """SELECT at, ok, duration_s, source, snapshot, notes, detail, company_id FROM backup.restore_tests
@@ -514,7 +546,7 @@ async def _restore_tests(hub: Any, txf: Any) -> int:
         )
     firsts: dict[str, dict[str, Any]] = {}
     for x in rows:
-        firsts.setdefault(_jalali_key(x["at"].date()), x)
+        firsts.setdefault(_jalali_key(_local(x["at"], tz)), x)
     n = 0
     for month, x in sorted(firsts.items()):
         if n >= PER_RUN:
@@ -532,7 +564,7 @@ async def _restore_tests(hub: Any, txf: Any) -> int:
             source_ref=f"restore:{month}",
             company_id=x["company_id"],
             title_fa=f"نتیجه‌ی آزمون بازیابی ماه {month}: {'موفق' if x['ok'] else 'ناموفق'}",
-            metadata={"date": x["at"].date().isoformat(), "subject": f"restore test {month}"},
+            metadata={"date": _local(x["at"], tz).isoformat(), "subject": f"restore test {month}"},
             pdf_title=f"آزمون بازیابی — {month}",
             pdf_body=body,
             file_name=f"restore-test-{month}.pdf",
@@ -543,18 +575,19 @@ async def _restore_tests(hub: Any, txf: Any) -> int:
 
 async def run(hub: Any, txf: Any, today: date | None = None) -> dict[str, Any]:
     """The sources job: each enabled source's new events, filed once."""
-    today = today or datetime.now(UTC).date()
     async with txf() as tx:
         enabled = {r["key"] for r in await tx.all("SELECT key FROM archive.sources WHERE enabled")}
+        tz = await G.owner_tz(tx)
+    today = today or G.today(tz)
     jobs: dict[str, Callable[[], Awaitable[int]]] = {
         "charter_sealed": lambda: _charters(hub, txf),
-        "resolution_month": lambda: _resolutions(hub, txf, today),
+        "resolution_month": lambda: _resolutions(hub, txf, today, tz),
         "brand_sealed": lambda: _brands(hub, txf),
         "founding_registration": lambda: _foundings(hub, txf),
         "legal_email": lambda: _emails(hub, txf),
         "case_closed": lambda: _cases(hub, txf),
         "server_plan_sealed": lambda: _plans(hub, txf),
-        "backup_restore_test": lambda: _restore_tests(hub, txf),
+        "backup_restore_test": lambda: _restore_tests(hub, txf, tz),
     }
     out: dict[str, Any] = {}
     for key, job in jobs.items():

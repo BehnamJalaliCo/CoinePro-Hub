@@ -119,6 +119,48 @@ async def compute(
     )
 
 
+async def rule_changed(tx: Tx, old: dict[str, Any], new: dict[str, Any]) -> int:
+    """The owner changed a rule (its trigger, keep or then): every record under
+    it gets its dates and disposability again, as impact() counted them; a
+    record whose retention no longer ended may fire retention_due again later.
+    The caller's transaction reads every record (CL.full). -> records."""
+    from hq_api.archive import records as R
+    from hq_api.archive import schema as SC
+
+    if old["trigger"] != new["trigger"]:
+        n = 0
+        for x in await tx.all(
+            """SELECT ref FROM archive.records WHERE retention_rule_id = :id
+                 AND state IN ('filed', 'sealed', 'superseded') ORDER BY ref""",
+            id=new["id"],
+        ):
+            r = await R.load(tx, x["ref"])
+            cls = await SC.class_at(tx, r["class_key"], r["class_version"])
+            await compute(tx, r, cls, list(cls["fields"]))
+            n += 1
+    else:  # the same trigger date: only the due date and what follows it
+        keep = J(new["keep"])
+        bounded = isinstance(keep, dict)
+        n = await tx.exec(
+            """UPDATE archive.records SET disposable = :x,
+                   due_at = CASE WHEN trigger_at IS NULL OR NOT CAST(:b AS boolean) THEN NULL
+                                 ELSE CAST(trigger_at + make_interval(years => :y, months => :m) AS date) END
+               WHERE retention_rule_id = :id AND state IN ('filed', 'sealed', 'superseded')""",
+            id=new["id"],
+            x=new["then_do"] == "dispose_card" and bounded,
+            b=bounded,
+            y=int(keep.get("years") or 0) if bounded else 0,
+            m=int(keep.get("months") or 0) if bounded else 0,
+        )
+    await tx.exec(
+        """UPDATE archive.records SET due_seen_at = NULL
+           WHERE retention_rule_id = :id AND state IN ('filed', 'sealed', 'superseded')
+             AND due_seen_at IS NOT NULL AND (due_at IS NULL OR due_at > CURRENT_DATE)""",
+        id=new["id"],
+    )
+    return int(n or 0)
+
+
 async def superseded(tx: Tx, ref: str) -> None:
     """Another record supersedes `ref` (a link of kind supersedes)."""
     r = await tx.first(
@@ -299,9 +341,13 @@ async def release(tx: Tx, h: dict[str, Any], step_up_id: UUID) -> dict[str, Any]
 
 
 # ================================================================== sweep ==
-async def due(tx: Tx, today: date | None = None, *, limit: int = 500) -> list[dict[str, Any]]:
+async def due(
+    tx: Tx, today: date | None = None, *, limit: int = 500, pending: bool = False
+) -> list[dict[str, Any]]:
     """Records whose retention ended (RetentionDue, §23.12), within the
-    reader's clearance."""
+    reader's clearance. `pending`: only those the sweep still has to act on
+    (a reviewed or kept record stays due for good and would otherwise fill
+    the window before any record due later)."""
     today = today or datetime.now(UTC).date()
     rows = await tx.all(
         """SELECT r.ref, r.title_fa, co.code AS scope, r.class_key, x.ref AS rule, r.trigger_at, r.due_at,
@@ -309,9 +355,16 @@ async def due(tx: Tx, today: date | None = None, *, limit: int = 500) -> list[di
            FROM archive.records r JOIN core.companies co ON co.id = r.company_id
            JOIN archive.retention_rules x ON x.id = r.retention_rule_id
            WHERE r.state IN ('filed', 'sealed', 'superseded') AND r.due_at IS NOT NULL AND r.due_at <= :d
+             -- pending: not what the sweep has nothing left to do for (retention_due
+             -- fired, and its review item made, or on a card, kept by the owner or held)
+             AND NOT (CAST(:p AS boolean) AND r.due_seen_at IS NOT NULL AND (
+                 (x.then_do = 'review' AND r.review_work_ref IS NOT NULL)
+                 OR (x.then_do = 'dispose_card' AND (r.disposal_ref IS NOT NULL OR r.disposal_kept
+                     OR cardinality(archive.held_by(r.id)) > 0))))
            ORDER BY r.due_at, r.ref LIMIT :lim""",
         d=today,
         lim=limit,
+        p=pending,
     )
     return [
         {
@@ -333,7 +386,9 @@ async def due(tx: Tx, today: date | None = None, *, limit: int = 500) -> list[di
 
 
 async def _recompute_pending(tx: Tx) -> int:
-    """case_closed triggers that arrived since (a case closed)."""
+    """case_closed triggers that arrived since (a case closed). Only records
+    that link a closed case: one whose case is open, or that links none,
+    stays without a trigger and would take the same slots every day."""
     from hq_api.archive import records as R
     from hq_api.archive import schema as SC
 
@@ -341,7 +396,15 @@ async def _recompute_pending(tx: Tx) -> int:
     for x in await tx.all(
         """SELECT r.ref FROM archive.records r JOIN archive.retention_rules x ON x.id = r.retention_rule_id
            WHERE r.state IN ('filed', 'sealed', 'superseded') AND r.trigger_at IS NULL
-             AND x.trigger = 'case_closed' LIMIT 500"""
+             AND x.trigger = 'case_closed'
+             AND (EXISTS (SELECT 1 FROM archive.links l JOIN legal.cases c ON c.ref = l.to_ref
+                          WHERE l.record_id = r.id AND l.to_kind = 'case' AND l.removed_at IS NULL
+                            AND c.status = 'closed' AND c.closed_at IS NOT NULL)
+                  OR EXISTS (SELECT 1 FROM jsonb_each(r.metadata) m JOIN legal.cases c
+                               ON jsonb_typeof(m.value) = 'object' AND m.value ->> 'kind' = 'case'
+                              AND c.ref = m.value ->> 'ref'
+                             WHERE c.status = 'closed' AND c.closed_at IS NOT NULL))
+           ORDER BY r.ref LIMIT 500"""
     ):
         r = await R.load(tx, x["ref"])
         cls = await SC.class_at(tx, r["class_key"], r["class_version"])
@@ -406,7 +469,7 @@ async def sweep(hub: Any, txf: Any, today: date | None = None) -> dict[str, Any]
         await CL.full(tx)
         out["recomputed"] = await _recompute_pending(tx)
         lock = await gate.holding_lock(tx)
-        rows = await due(tx, today, limit=2000)
+        rows = await due(tx, today, limit=2000, pending=True)
         out["due"] = len(rows)
         for x in rows:  # retention_due, once per record
             n = await tx.exec(
@@ -629,8 +692,14 @@ async def _dispose(tx: Tx, r: dict[str, Any], *, card_ref: str | None, erase: bo
            WHERE record_id = :r AND state <> 'done'""",
         r=r["id"],
     )
+    # the intake's suggestion holds the document's own words (its first line,
+    # dates, amounts, numbers): it goes with the text; an erase leaves no name
     await tx.exec(
-        "UPDATE archive.intake SET text = NULL, updated_at = now() WHERE file_id = ANY(:f)",
+        """UPDATE archive.intake SET text = NULL, suggestion = NULL, updated_at = now(),
+               name = CASE WHEN :erase THEN :blank ELSE name END
+           WHERE file_id = ANY(:f)""",
+        erase=erase,
+        blank=ERASED_FA,
         f=[
             x["id"]
             for x in await tx.all(

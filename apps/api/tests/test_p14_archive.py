@@ -566,6 +566,28 @@ async def test_a_pdf_and_an_image_with_a_secret_are_refused_and_kept_nowhere(
         assert r.status_code == 422 and r.json()["code"] == "secret_in_document"
 
 
+
+def test_a_secret_past_the_kept_text_of_a_pdf_is_still_found(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The text kept is the first pages only; the scan reads every page."""
+    import io
+
+    from pypdf import PdfReader, PdfWriter
+
+    from hq_api.archive import jobs
+
+    w = PdfWriter()
+    for text in ("an ordinary first page", f"wallet backup: {SEED_WORDS}"):
+        w.add_page(PdfReader(io.BytesIO(pdf(text))).pages[0])
+    path = tmp_path / "long.pdf"
+    with path.open("wb") as fh:
+        w.write(fh)
+    monkeypatch.setattr(jobs, "MAX_PDF_PAGES", 1)
+    out = jobs.doc_text_job(str(path))
+    assert out["pages"] == 2 and SEED_WORDS.split()[3] not in (out["text"] or "")
+    assert "seed_phrase" in out["secrets"]
+
 # ------------------------------------------------- clearance everywhere --
 async def test_a_confidential_record_is_invisible_to_an_internal_reader_everywhere(
     client: httpx.AsyncClient,
@@ -700,6 +722,33 @@ async def test_a_secret_file_is_encrypted_needs_a_passkey_and_is_served_watermar
         rows = [x for x in log.json() if x["action"] in ("view", "download")]
         assert rows and rows[0]["step_up"] and rows[0]["watermarked"]
 
+
+
+async def test_a_retry_of_a_taken_over_upload_replays_and_a_second_filing_is_409(
+    client: httpx.AsyncClient, hub: Hub, owner: dict[str, str], new_company: Callable[..., Any]
+) -> None:
+    """The first record took the owner's upload over (its bytes are gone): the
+    same Idempotency-Key gets the first answer back, another record a 409."""
+    co = await new_company()
+    async with fakes(ocr=False):
+        fid = await upload(client, owner, pdf("a letter filed once"), "application/pdf")
+        body = {
+            "scope": co["code"],
+            "class": "other",
+            "title_fa": "نامه",
+            "metadata": {"subject": "نامه"},
+            "file_ids": [fid],
+            "file": True,
+        }
+        key = idem()
+        first = await client.post(f"{A}/records", json=body, headers={**owner, **key})
+        assert first.status_code == 201, first.text
+        again = await client.post(f"{A}/records", json=body, headers={**owner, **key})
+        assert again.status_code == 201, again.text
+        assert again.headers.get("idempotent-replay") == "true"
+        assert again.json()["ref"] == first.json()["ref"]
+        other = await client.post(f"{A}/records", json=body, headers={**owner, **idem()})
+        assert other.status_code == 409 and other.json()["code"] == "not_ready", other.text
 
 # --------------------------------------------------------- OCR, search --
 async def test_a_persian_scan_gives_searchable_text_and_without_ocr_stays_none(

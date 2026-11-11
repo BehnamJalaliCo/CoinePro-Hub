@@ -22,7 +22,7 @@ from hq_api.worker.archive_activities import ocr_queue
 
 from .conftest import agent_headers, idem, step_up
 from .p10_support import holding_switch
-from .p14_support import fakes, filed, pdf, record, reseed, txf, upload
+from .p14_support import fakes, filed, pdf, record, reseed, schema_put, txf, upload
 
 A = "/api/v1/archive"
 
@@ -210,6 +210,73 @@ async def test_a_record_held_between_the_card_and_its_seal_is_skipped(
     res = await client.get(f"/api/v1/resolutions/{ok.json()['resolution']}", headers=h)
     assert rec["ref"] in res.json()["body"] and "held" in res.json()["body"]
 
+
+
+async def test_the_sweep_window_holds_only_records_it_still_has_to_act_on(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+) -> None:
+    """A reviewed record stays due for good; the sweep reads past it, so
+    reviewed or kept records never fill its window before one due later."""
+    from hq_api.archive import clearance as CL
+
+    co = await new_company()
+    h = owner_session["headers"]
+    async with fakes(ocr=False):
+        done = await filed(client, h, co["code"], title="بازبینی‌شده", text="reviewed")
+        todo = await filed(client, h, co["code"], title="تازه سررسید", text="newly due")
+    await su.execute(
+        """UPDATE archive.records SET due_at = DATE '2000-01-01', due_seen_at = now(),
+               review_work_ref = 'W-000001' WHERE ref = $1""",
+        done["ref"],
+    )
+    await su.execute(
+        "UPDATE archive.records SET due_at = DATE '2000-01-02' WHERE ref = $1", todo["ref"]
+    )
+    async with txf(hub)() as tx:
+        await CL.full(tx)
+        every = {x["ref"] for x in await RT.due(tx, limit=100000)}
+        pending = {x["ref"] for x in await RT.due(tx, limit=100000, pending=True)}
+    assert {done["ref"], todo["ref"]} <= every
+    assert todo["ref"] in pending and done["ref"] not in pending
+
+
+async def test_a_changed_rule_moves_the_due_date_of_the_records_under_it(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+) -> None:
+    """Extending a rule's keep never leaves a record on a disposal card early,
+    and a rule turned to dispose_card makes its records disposable."""
+    co = await new_company()
+    h = owner_session["headers"]
+    rule = {"title_fa": "قاعده‌ی آزمایشی", "trigger": "filed", "keep": {"years": 1}, "then": "review"}
+    r = await schema_put(client, hub, owner_session, "retention", "new", rule)
+    assert r.status_code == 200, r.text
+    ref, version = r.json()["key"], r.json()["version"]
+    async with fakes(ocr=False):
+        rec = await filed(client, h, co["code"], title="زیر قاعده", text="under a rule")
+    await su.execute(
+        """UPDATE archive.records SET retention_rule_id = (SELECT id FROM archive.retention_rules WHERE ref = $2),
+               trigger_at = DATE '2020-03-31', due_at = DATE '2021-03-31', disposable = false,
+               due_seen_at = now() WHERE ref = $1""",
+        rec["ref"],
+        ref,
+    )
+    longer = {**rule, "keep": {"years": 10, "months": 11}, "then": "dispose_card"}
+    r = await schema_put(client, hub, owner_session, "retention", ref, longer, version=version)
+    assert r.status_code == 200, r.text
+    assert r.json()["impact"]["records"] == 1
+    row = await su.fetchrow(
+        "SELECT due_at, disposable, due_seen_at FROM archive.records WHERE ref = $1", rec["ref"]
+    )
+    assert row["due_at"] == date(2031, 2, 28) and row["disposable"] is True
+    assert row["due_seen_at"] is None  # due again later: retention_due fires again then
 
 # --------------------------------------------------------------- reminders --
 async def test_a_contract_ending_in_30_days_gets_one_cartable_reminder(
@@ -405,6 +472,26 @@ async def test_the_system_sources_file_the_hubs_own_records(
         >= 1
     )
 
+
+
+def test_a_jalali_month_of_the_sources_begins_at_the_owners_midnight() -> None:
+    # 01:00 in Tehran on 1 Aban 1405 is 21:30 UTC on the last day of Mehr
+    at = datetime(2026, 10, 22, 21, 30, tzinfo=UTC)
+    assert SRC._jalali_key(SRC._local(at, "Asia/Tehran")) == "1405-08"
+    assert SRC._jalali_key(at.date()) == "1405-07"
+
+
+async def test_the_sources_read_only_events_not_filed_yet(su: Any) -> None:
+    """Each source reads past what it filed (a window of the oldest events
+    would stay full of filed ones for good): the email source's ref, made in
+    SQL there, is the one file_system files under."""
+    import hashlib
+
+    mid = "<پیام-۱@counsel.example>"
+    in_sql = await su.fetchval(
+        "SELECT 'email:' || left(encode(sha256(convert_to($1, 'UTF8')), 'hex'), 24)", mid
+    )
+    assert in_sql == "email:" + hashlib.sha256(mid.encode()).hexdigest()[:24]
 
 # --------------------------------------------------- the archivist, cards --
 async def test_the_archivist_files_drafts_only_and_never_seals_declassifies_releases_or_disposes(

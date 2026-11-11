@@ -304,6 +304,10 @@ async def archive_create_record(
         if replay := await idempotency.peek(tx, request, ctx.who):
             return replay
     async with txf() as tx:
+        # a retry after the first answer was lost: its upload is the archive's now
+        done = await idempotency.replayed(tx, request, ctx.who)
+        if done is not None:
+            return done
         scope = await tx.first(
             "SELECT id, code, kind FROM core.companies WHERE code = :c", c=body.scope
         )
@@ -494,6 +498,9 @@ async def archive_add_version(
         if replay := await idempotency.peek(tx, request, ctx.who):
             return replay
     async with txf() as tx:
+        done = await idempotency.replayed(tx, request, ctx.who)
+        if done is not None:
+            return done
         r = await R.load(tx, ref)
         R.require_live(r)
         lv = await SC.level(tx, r["level"])

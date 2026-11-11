@@ -136,12 +136,22 @@ async def _text_of(hub: Any, f: dict[str, Any], path: Path) -> dict[str, Any]:
         "confidence": None,
         "low": [],
         "ocr_wanted": False,
+        "secrets": [],
     }
     if f["mime"] == "application/pdf":
         got = await untrusted.run(
             "hq_api.archive.jobs:doc_text_job", kwargs={"path": str(path)}, limits=DOC_LIMITS
         )
         if got.ok and isinstance(got.value, dict):
+            if got.value.get("unscanned"):
+                # red line 1: a file whose whole text was not checked is not stored
+                raise ApiError(
+                    422,
+                    "validation_failed",
+                    "the document is too long to be checked for secrets; split it",
+                    fields={"file_ids": f"too long to check: {f['id']}"},
+                )
+            out["secrets"] = list(got.value.get("secrets") or [])
             out["pages"] = got.value.get("pages")
             if got.value.get("text"):
                 out["text"] = persian.normalise(got.value["text"])[:TEXT_MAX]
@@ -206,6 +216,9 @@ async def intake(
                 422, "validation_failed", fields={"file_ids": f"not yours to file: {fid}"}
             )
         if done is not None:
+            # an owner upload taken over by an earlier record has no bytes any more
+            if not await asyncio.to_thread(hub.storage.local_path(f["storage_key"]).exists):
+                raise ApiError(409, "not_ready", f"file {fid} has no content any more")
             out.append(
                 Intake(
                     file_id=fid,
@@ -231,7 +244,7 @@ async def intake(
         if not await asyncio.to_thread(path.exists):
             raise ApiError(409, "not_ready", f"file {fid} has no content any more")
         t = await _text_of(hub, f, path)
-        found = scan.kinds(f["name"]) or scan.kinds(t["text"])
+        found = scan.kinds(f["name"]) or scan.kinds(t["text"]) or t["secrets"]
         if found:
             # Red line 1: nothing of it stays and nothing of it is logged.
             if waiting:
@@ -316,7 +329,12 @@ async def ingest(hub: Any, items: list[Intake], *, encrypt_it: bool) -> list[Sto
     stored: list[Stored] = []
     try:
         for it in items:
-            data = await hub.storage.get(it.storage_key)
+            try:
+                data = await hub.storage.get(it.storage_key)
+            except OSError as exc:
+                raise ApiError(
+                    409, "not_ready", f"file {it.file_id} has no content any more"
+                ) from exc
             if hashlib.sha256(data).hexdigest() != it.sha256:
                 raise ApiError(409, "seal_mismatch", f"file {it.file_id} changed since its intake")
             wrapped = None

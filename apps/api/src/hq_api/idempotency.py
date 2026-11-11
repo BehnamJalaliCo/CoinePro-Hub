@@ -69,6 +69,32 @@ def read_key(request: Request, *, required: bool) -> UUID | None:
         ) from exc
 
 
+async def replayed(tx: Tx, request: Request, who: Principal) -> JSONResponse | None:
+    """The stored answer of an earlier request with this key and this body,
+    read without claiming anything: for a route whose work before its own
+    transaction cannot run twice (the archive takes an upload over). Anything
+    else (no key, another body, still running) is claim()'s to answer."""
+    key = read_key(request, required=False)
+    if key is None:
+        return None
+    prev = await tx.first(
+        """SELECT method, path, body_sha256, status_code, response FROM core.idempotency_keys
+           WHERE principal = :p AND key = :k AND status_code IS NOT NULL
+             AND created_at >= now() - make_interval(hours => 24)""",
+        p=f"{who.kind}:{who.code}",
+        k=key,
+    )
+    if prev is None or (prev["method"], prev["path"], prev["body_sha256"]) != (
+        request.method,
+        request.url.path,
+        hashlib.sha256(await request.body()).hexdigest(),
+    ):
+        return None
+    return JSONResponse(
+        prev["response"], status_code=prev["status_code"], headers={"Idempotent-Replay": "true"}
+    )
+
+
 async def claim(
     tx: Tx,
     request: Request,
