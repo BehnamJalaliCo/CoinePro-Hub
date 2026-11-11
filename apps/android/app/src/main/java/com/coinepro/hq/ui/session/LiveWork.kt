@@ -317,7 +317,7 @@ private fun WorkerCard(w: SessionWorker, now: Long) {
 }
 
 // -------------------------------------------------------------------- head --
-/** «با من | خودکار» in the head: small, two parts, the chosen one in gold; switching it is the hub's pace route. */
+/** «با من | خودکار» in the head: small, two parts, the chosen one raised with a silver hairline; switching it is the hub's pace route. */
 @Composable
 internal fun PaceChip(pace: String, enabled: Boolean, onPace: (String) -> Unit, modifier: Modifier = Modifier) {
     val c = Divan.colors
@@ -329,15 +329,16 @@ internal fun PaceChip(pace: String, enabled: Boolean, onPace: (String) -> Unit, 
         for (p in listOf("step", "auto")) {
             val on = (pace.takeIf { it in PACE_FA } ?: "auto") == p
             Box(
-                Modifier.fillMaxHeight().clip(CircleShape).background(if (on) c.softGold else Color.Transparent)
-                    .then(if (on) Modifier.border(1.dp, c.lineTahrir, CircleShape) else Modifier)
+                // ⟨1.0.1⟩ C0.1: what is chosen is ivory on a raised surface with a silver hairline, never gold.
+                Modifier.fillMaxHeight().clip(CircleShape).background(if (on) c.raised else Color.Transparent)
+                    .then(if (on) Modifier.border(1.dp, com.coinepro.hq.designsystem.silverLine(), CircleShape) else Modifier)
                     .selectable(on, enabled = enabled, role = Role.RadioButton) { if (!on) onPace(p) }
                     .padding(horizontal = 10.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     PACE_FA.getValue(p), style = Divan.type.micro.copy(fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal),
-                    color = if (on) c.goldInk else c.textSecondary, maxLines = 1,
+                    color = if (on) c.textPrimary else c.textSecondary, maxLines = 1,
                 )
             }
         }

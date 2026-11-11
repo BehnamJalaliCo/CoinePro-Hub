@@ -40,7 +40,7 @@ fun rememberCopy(): (String) -> Unit {
 
 /** «کپی» under a turn or a message: the whole of [text] (plain words, not markdown) to the clipboard. */
 @Composable
-fun CopyAction(text: String, modifier: Modifier = Modifier, color: Color = Divan.colors.goldInk) {
+fun CopyAction(text: String, modifier: Modifier = Modifier, color: Color = Divan.colors.silverInk) {
     val copy = rememberCopy()
     Text(
         "کپی",
