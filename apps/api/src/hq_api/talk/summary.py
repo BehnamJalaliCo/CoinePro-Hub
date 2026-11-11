@@ -39,9 +39,16 @@ async def summarise(hub: Any, router: Any, ref: str) -> dict[str, Any]:
         upto = int(conv["summary_upto"])
         if int(conv["turns"]) - upto < spec["every_turns"] or router is None:
             return {"summarised": False}
+        # audit 2026-11-11: fold only up to the first turn still being written (a player's answer
+        # may take minutes while the next turn is done): summary_upto never passes a turn that
+        # is not in the summary yet. A turn streaming for over an hour is skipped, as it was.
         rows = await tx.all(
             """SELECT n, by_kind, persona, text, show_md FROM talk.turns
-               WHERE conversation_id = :c AND n > :u AND state <> 'streaming' ORDER BY n""",
+               WHERE conversation_id = :c AND n > :u AND state <> 'streaming'
+                 AND n < COALESCE((SELECT min(n) FROM talk.turns
+                                   WHERE conversation_id = :c AND n > :u AND state = 'streaming'
+                                     AND at > now() - interval '1 hour'), 2147483647)
+               ORDER BY n""",
             c=conv["id"],
             u=upto,
         )
