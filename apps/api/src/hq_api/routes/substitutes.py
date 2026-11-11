@@ -23,7 +23,7 @@ import asyncio
 from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
 
 from hq_api import idempotency, pagination
 from hq_api.context import Ctx, internal_ctx, owner_ctx
@@ -539,13 +539,16 @@ async def _service(ctx: Ctx) -> None:
 
 
 @internal_router.post("/substitutes/jobs/claim", responses=E)
-async def claim_job(ctx: Ctx = Depends(internal_ctx)) -> dict[str, Any]:
+async def claim_job(background: BackgroundTasks, ctx: Ctx = Depends(internal_ctx)) -> dict[str, Any]:
     """The next CLI job, one at a time for both players; none while the
     holding's kill switch is engaged."""
-    # ⟨2026-11-11⟩ stale calls are ended first (S.expire_stale), each told to whoever asked
+    # ⟨2026-11-11⟩ stale calls are ended after the answer (S.reap_after_claim), each told to
+    # whoever asked: the dispatcher's 30 s for its job are never spent on the reaper
     await _service(ctx)
     async with ctx.tx() as tx:
-        return await S.claim(tx, ctx.hub)
+        job = await S.claim(tx)
+    background.add_task(S.reap_after_claim, ctx.hub)
+    return job
 
 
 @internal_router.post("/substitutes/jobs/{id}/done", responses=E)

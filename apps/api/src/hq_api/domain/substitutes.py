@@ -925,17 +925,11 @@ def source(call: dict[str, Any]) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------- the CLI queue --
-async def claim(tx: Tx, hub: Any = None) -> dict[str, Any]:
+async def claim(tx: Tx) -> dict[str, Any]:
     """The dispatcher's next CLI job (one at a time for both players), or none
-    (always none while the holding's kill switch is engaged). ⟨2026-11-11⟩ the
-    reaper first (also while locked): a job the dispatcher lost (claimed, never
-    answered) ends `timeout` and reaches its caller like any other end."""
-    if hub is not None:
-        try:
-            async with tx.conn.begin_nested():
-                await expire_stale(tx, hub)
-        except Exception:
-            log.exception("the substitutes' reaper failed at a claim")
+    (always none while the holding's kill switch is engaged). ⟨2026-11-11⟩ a job
+    the dispatcher lost (claimed, never answered) is ended by the reaper, which
+    the claim route runs after its answer (reap_after_claim), never before it."""
     lock = await gate.holding_lock(tx)
     if lock is not None:
         return {"job": None, "skipped": gate.REASONS.get(lock, lock)}
@@ -2534,6 +2528,16 @@ async def _deliver_again(tx: Tx, hub: Any, c: dict[str, Any]) -> tuple[int, bool
         id=c["id"],
     )
     return 0, False
+
+
+async def reap_after_claim(hub: Any) -> None:
+    """⟨2026-11-11⟩ The reaper in its own transaction, after a CLI claim was answered (the
+    dispatcher waits at most 30 s for its job: a long pass must never hold the job it was given)."""
+    try:
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            await expire_stale(tx, hub)
+    except Exception:
+        log.exception("the substitutes' reaper failed after a claim")
 
 
 async def abandon(tx: Tx, hub: Any, call_id: UUID) -> bool:
