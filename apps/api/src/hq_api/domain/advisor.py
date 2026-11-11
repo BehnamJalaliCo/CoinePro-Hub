@@ -420,9 +420,13 @@ async def memos_of(tx: Tx, decision_ids: list[UUID]) -> dict[UUID, list[MemoBrie
     return out
 
 
-async def find(tx: Tx, decision_id: UUID, mode: str, version: int) -> dict[str, Any] | None:
+async def find(
+    tx: Tx, decision_id: UUID, mode: str, version: int, *, lock: bool = False
+) -> dict[str, Any] | None:
     return await tx.first(
-        MEMO_SQL + " WHERE m.decision_id = :d AND m.mode = :m AND m.decision_version = :v",
+        MEMO_SQL
+        + " WHERE m.decision_id = :d AND m.mode = :m AND m.decision_version = :v"
+        + (" FOR UPDATE" if lock else ""),
         d=decision_id,
         m=mode,
         v=version,
@@ -437,11 +441,13 @@ async def request(
     mode: str,
     trigger: Literal["owner", "auto"],
 ) -> tuple[dict[str, Any], bool]:
-    """(memo, created). The same card, mode and version is the same memo."""
+    """(memo, created). The same card, mode and version is the same memo; a
+    memo that failed (its run ended without memo.write) is written again in
+    the same row, with a new work item."""
     if d["status"] != "pending":
         raise ApiError(409, "decision_not_pending", f"{d['ref']} is {d['status']}")
-    existing = await find(tx, d["id"], mode, d["version"])
-    if existing is not None:
+    existing = await find(tx, d["id"], mode, d["version"], lock=True)
+    if existing is not None and existing["state"] != "failed":
         return existing, False
     lock = await gate.automation_lock(tx)
     if lock is not None:
@@ -455,22 +461,32 @@ async def request(
         raise ApiError(409, "not_ready", "the advisor is not seated")
     holding = await hub.companies.holding()
     facts = facts_pack(d)
-    memo = await tx.one(
-        """INSERT INTO advisor.memos (company_id, decision_id, decision_ref, decision_version, mode,
-               trigger, facts, facts_sha256, created_by_kind, created_by_code)
-           VALUES (:co, :d, :ref, :v, :mode, :trig, CAST(:facts AS jsonb), :sha, :ck, :cc)
-           RETURNING *""",
-        co=holding.id,
-        d=d["id"],
-        ref=d["ref"],
-        v=d["version"],
-        mode=mode,
-        trig=trigger,
-        facts=json.dumps(facts, ensure_ascii=False, default=str),
-        sha=_sha(facts),
-        ck=who.kind,
-        cc=who.code,
-    )
+    if existing is None:
+        memo = await tx.one(
+            """INSERT INTO advisor.memos (company_id, decision_id, decision_ref, decision_version, mode,
+                   trigger, facts, facts_sha256, created_by_kind, created_by_code)
+               VALUES (:co, :d, :ref, :v, :mode, :trig, CAST(:facts AS jsonb), :sha, :ck, :cc)
+               RETURNING *""",
+            co=holding.id,
+            d=d["id"],
+            ref=d["ref"],
+            v=d["version"],
+            mode=mode,
+            trig=trigger,
+            facts=json.dumps(facts, ensure_ascii=False, default=str),
+            sha=_sha(facts),
+            ck=who.kind,
+            cc=who.code,
+        )
+    else:  # asked again after a failure: one row per card, mode and version
+        memo = await tx.one(
+            """UPDATE advisor.memos SET state = 'writing', state_reason = NULL, work_id = NULL,
+                   facts = CAST(:facts AS jsonb), facts_sha256 = :sha, updated_at = now()
+               WHERE id = :id RETURNING *""",
+            id=existing["id"],
+            facts=json.dumps(facts, ensure_ascii=False, default=str),
+            sha=_sha(facts),
+        )
     devil = mode == "devil"
     brief = (
         f"Write the decision memo {memo['ref']} for card {d['ref']} (version {d['version']}, "
@@ -540,6 +556,17 @@ async def request(
     from hq_api.domain import substitutes as S
 
     for seat in ("advisor_second_opinion", "third_opinion"):
+        column = "second_opinion" if seat == "advisor_second_opinion" else "third_opinion"
+        if existing is not None and (
+            memo[column] is not None
+            or await tx.scalar(
+                """SELECT 1 FROM substitutes.calls WHERE purpose_kind = 'memo' AND purpose_ref = :r
+                     AND seat = :s AND state IN ('queued', 'running') LIMIT 1""",
+                r=memo["ref"],
+                s=seat,
+            )
+        ):
+            continue  # the failed memo's opinion is there (or on its way) already
         await S.seat_call(
             tx,
             hub,
@@ -594,7 +621,9 @@ async def write(tx: Tx, read: Any, who: Principal, body: MemoWrite, hub: Any) ->
         raise ApiError(
             409, "version_conflict", f"{d['ref']} is at version {d['version']}: the memo is stale"
         )
-    memo = await find(tx, d["id"], body.mode, d["version"])
+    # FOR UPDATE: a substitute's opinion applied meanwhile (apply_opinion) waits
+    # for this write instead of being overwritten by the columns read here.
+    memo = await find(tx, d["id"], body.mode, d["version"], lock=True)
     if memo is not None and memo["state"] in ("ready", "stale"):
         raise ApiError(409, "version_conflict", f"{memo['ref']} is {memo['state']} already")
     holding = await hub.companies.holding()
@@ -871,7 +900,9 @@ async def detect(tx: Tx, today: date) -> list[dict[str, Any]]:
             }
         )
     # The day's commission under 60% of the same weekday's 28-day median (§19.1):
-    # the revenue radar's own `drop` alert of the last day.
+    # the revenue radar's own `drop` alert of the last day. Keyed on the alert's
+    # own day: an alert still under 24 hours old after the owner's midnight is
+    # the same trigger, never a second wake.
     for r in await tx.all(
         """SELECT a.company_id, c.code, a.day, a.data FROM revenue.alerts a
            JOIN core.companies c ON c.id = a.company_id
@@ -879,7 +910,7 @@ async def detect(tx: Tx, today: date) -> list[dict[str, Any]]:
     ):
         out.append(
             {
-                "key": f"revenue:{r['code']}:{day}",
+                "key": f"revenue:{r['code']}:{r['day'] or day}",
                 "kind": "revenue",
                 "company_id": r["company_id"],
                 "facts": {
@@ -1160,6 +1191,8 @@ async def auto_memos(tx: Tx, hub: Any, now: datetime | None = None) -> dict[str,
         return gate.skipped(lock, made=0)
     if await zone_spent(tx, hub):
         return {"made": 0, "skipped": "owner_zone_share"}
+    if await _advisor_code(tx) is None:  # paused, dismissed or not hired: the cards wait
+        return {"made": 0, "skipped": "not_seated"}
     today = owner_day(tz, now)
     cap = int(s["auto_memo"].get("max_per_day", 3))
     made_today = int(
@@ -1188,13 +1221,25 @@ async def auto_memos(tx: Tx, hub: Any, now: datetime | None = None) -> dict[str,
         d=today,
     )
     made: list[str] = []
+    refused: list[str] = []
     for d in rows:
         if made_today + len(made) >= cap:
             break
-        memo, created = await request(tx, hub, SERVICE, d, "standard", "auto")
+        # One card's refusal never aborts the sweep (its transaction also marks
+        # failed memos and fires the technical notices).
+        try:
+            async with tx.conn.begin_nested():
+                memo, created = await request(tx, hub, SERVICE, d, "standard", "auto")
+        except ApiError as exc:
+            log.warning("auto memo refused", extra={"decision": d["ref"], "code": exc.code})
+            refused.append(d["ref"])
+            continue
         if created:
             made.append(memo["ref"])
-    return {"made": len(made), "memos": made, "cap": cap}
+    out: dict[str, Any] = {"made": len(made), "memos": made, "cap": cap}
+    if refused:
+        out["refused"] = refused
+    return out
 
 
 async def fail_orphans(tx: Tx) -> int:
