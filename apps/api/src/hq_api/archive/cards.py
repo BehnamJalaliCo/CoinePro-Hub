@@ -34,17 +34,22 @@ def _base_ok(part: str, key: str, row: dict[str, Any] | None, base: int | None) 
 
 async def check_proposal(tx: Tx, payload: dict[str, Any]) -> dict[str, Any]:
     part, key, base = payload["part"], payload["key"], payload.get("base_version")
-    row = await SC.current(tx, part, key)
-    if not _base_ok(part, key, row, base):
-        raise invalid(
-            {
-                "payload.base_version": f"the current version is {row['version'] if row else 'none (a new key)'}"
-            }
-        )
-    checked = await SC.check(tx, part, key, payload["body"], row)
+    # The full clearance before the check, as at the seal: check_level counts
+    # the records of a level ("fixed: N record(s)"), and under the proposer's
+    # empty clearance it saw none, so a card the seal must refuse was filed.
     await CL.full(tx)
-    impact = await SC.impact(tx, part, key, checked)
-    await tx.exec("SELECT set_config('app.clearance', '', true)")
+    try:
+        row = await SC.current(tx, part, key)
+        if not _base_ok(part, key, row, base):
+            raise invalid(
+                {
+                    "payload.base_version": f"the current version is {row['version'] if row else 'none (a new key)'}"
+                }
+            )
+        checked = await SC.check(tx, part, key, payload["body"], row)
+        impact = await SC.impact(tx, part, key, checked)
+    finally:
+        await tx.exec("SELECT set_config('app.clearance', '', true)")
     return {**payload, "impact": impact}
 
 
