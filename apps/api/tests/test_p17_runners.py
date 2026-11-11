@@ -416,6 +416,14 @@ async def test_exec_job_lifecycle_and_sse_shape(
         await asyncio.sleep(0.1)
     assert job is not None and job["kind"] == "exec" and job["args"]["cmd"] == "uname -a"
     assert job["actor"]["kind"] == "owner" and job["timeout_s"] == 60
+    # A malformed batch is a 422, not a 500 (seq < 1, an unknown type, a bare scalar).
+    for bad in (
+        {"events": [{"seq": 0, "type": "stdout", "data": {"text": "x"}}]},
+        {"events": [{"seq": 1, "type": "nonsense", "data": {}}]},
+        7,
+    ):
+        r = await client.post(f"/api/v1/runners/jobs/{job['id']}/events", json=bad, headers=rn["h"])
+        assert r.status_code == 422 and r.json()["code"] == "validation_failed", r.text
     r = await client.post(
         f"/api/v1/runners/jobs/{job['id']}/events",
         json={
@@ -1109,6 +1117,14 @@ async def test_owner_session_on_a_company_server(
         )
         == 1
     )
+    # The activity pages: the job and its command, one per page (the cursor binds typed values).
+    act = f"/api/v1/infra/servers/{rn['server']['id']}/activity"
+    p1 = await client.get(act, params={"limit": 1}, headers=h)
+    assert p1.status_code == 200 and p1.json()["next_cursor"], p1.text
+    p2 = await client.get(act, params={"limit": 1, "cursor": p1.json()["next_cursor"]}, headers=h)
+    assert p2.status_code == 200, p2.text
+    ids = [x["id"] for x in p1.json()["items"] + p2.json()["items"]]
+    assert len(set(ids)) == 2 and job["id"] in ids
     # The owner's message resumes it: the next claude job with --resume.
     r = await client.post(f"/api/v1/workshop/sessions/{s['ref']}/messages", json={"body": "حالا lint"},
                           headers={**h, **idem()})  # fmt: skip

@@ -516,13 +516,25 @@ async def list_kb(
                 tx, co.id, q, kinds=[kind] if kind else None, include_proposed=True, limit=50
             )
         else:
+            # `status` is filtered here, before the cap (as kb.status_of reads it: an approved
+            # version past its expiry is expired), so a filtered list is never cut short by
+            # versions of another status
             rows = await tx.all(
                 f"""SELECT a.*, {kb.USES_SQL} FROM support.kb_articles a
                     WHERE (CAST(:co AS uuid) IS NULL OR a.company_id = :co)
                       AND (CAST(:k AS text) IS NULL OR a.kind = :k)
+                      AND (CAST(:st AS text) IS NULL
+                           OR (:st = 'approved' AND a.status = 'approved'
+                               AND (a.expires_at IS NULL OR a.expires_at > now()))
+                           OR (:st = 'expired' AND (a.status = 'expired'
+                               OR (a.status = 'approved' AND a.expires_at <= now())))
+                           OR (:st = 'retired' AND a.status = 'retired')
+                           OR (:st = 'proposed'
+                               AND a.status NOT IN ('approved', 'expired', 'retired')))
                     ORDER BY a.ref, a.version DESC LIMIT 1000""",  # noqa: S608 - constants
                 co=co.id if co else None,
                 k=kind,
+                st=status,
             )
     out = [kb.render(r, await ctx.hub.companies.code_of(r["company_id"])) for r in rows]
     return [a for a in out if status is None or a.status == status]

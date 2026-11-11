@@ -539,6 +539,17 @@ async def test_memory_summary_and_search(
         "items"
     ]
     assert found == []
+    # the list pages: the cursor's time is bound as a timestamp, not the JSON string
+    await open_cv(client, owner)
+    p1 = await client.get("/api/v1/talk/conversations", params={"limit": 1}, headers=owner)
+    assert p1.status_code == 200 and p1.json()["next_cursor"], p1.text
+    p2 = await client.get("/api/v1/talk/conversations",
+                          params={"limit": 1, "cursor": p1.json()["next_cursor"]}, headers=owner)  # fmt: skip
+    assert p2.status_code == 200, p2.text
+    assert p2.json()["items"] and p2.json()["items"][0]["ref"] != p1.json()["items"][0]["ref"]
+    bad = await client.get("/api/v1/talk/conversations", params={"cursor": "bm90LWEtY3Vyc29y"},
+                           headers=owner)  # fmt: skip
+    assert bad.status_code == 422
 
 
 async def test_personas_and_policy(

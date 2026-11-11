@@ -261,6 +261,11 @@ async def test_the_holders_run_becomes_one_turn_with_the_hubs_tools(
         client, rn, job["id"], "ریلز ATR آماده است؛ نگاهش کنید و اگر خوب بود «تأیید و انتشار» را بزنید.",
         files=[fid], usage={"input_tokens": 1200, "output_tokens": 800, "model": "claude-opus-5-5"},
     )  # fmt: skip
+    # the runner's retry of the same result (its read timed out) is a replay: said once, booked once
+    await result(
+        client, rn, job["id"], "ریلز ATR آماده است؛ نگاهش کنید و اگر خوب بود «تأیید و انتشار» را بزنید.",
+        files=[fid], usage={"input_tokens": 1200, "output_tokens": 800, "model": "claude-opus-5-5"},
+    )  # fmt: skip
     d = await su.fetchrow("SELECT * FROM agents.runs WHERE id = $1::uuid", a["run"])
     assert (d["state"], d["input_tokens"], d["output_tokens"]) == ("done", 1200, 800)
     rep = (await client.get(f"/api/v1/orders/{ref}/report", headers=owner)).json()

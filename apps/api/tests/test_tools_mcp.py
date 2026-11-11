@@ -675,6 +675,16 @@ async def test_resolve_gives_the_sealed_class_and_makes_a3_a_decision(
     assert payload["args"] == args and "someone@example.com" in payload["preview"]
     other_args = (await resolve(client, me, k, "send_email", {"to": "b@example.com"})).json()
     assert other_args["decision"] != first["decision"]
+    # An agent cannot write such a card itself: harmless args shown, the real call's hash sealed.
+    r = await client.post(
+        "/internal/v1/decisions",
+        headers={**await agent_headers(me), **idem()},
+        json={"kind": "a3_action", "title": "MCP", "payload": {
+            "action": "mcp_call", "target": f"{k}/send_email", "server": k, "tool": "send_email",
+            "args": {"to": "b@example.com"}, "args_sha256": payload["args_sha256"],
+            "registration_sha256": payload["registration_sha256"]}},
+    )  # fmt: skip
+    assert r.status_code == 422 and "payload.action" in r.json()["fields"], r.text
     await _finish_runs(su, [me, f"{other}-TECH-MGR"])
 
 
