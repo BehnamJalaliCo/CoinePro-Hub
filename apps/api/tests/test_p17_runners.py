@@ -238,10 +238,33 @@ async def test_pairing_codes_step_up_and_token_once(
         "/api/v1/runners/token", json={"device_code": late["device_code"]}, headers=xff
     )
     assert r.status_code == 410
-    # Rotation: a new credential; the old one keeps working for the grace.
+    # Rotation: a new credential; the old one keeps working until the new one is used.
     rh = {"Authorization": f"Bearer {token}", **RUNNER_HEADERS}
     r = await client.post("/api/v1/runners/rotate", headers=rh)
     assert r.status_code == 200 and r.json()["runner_token"] != token
+    lost = r.json()["runner_token"]  # the answer is lost: the runner still has `token`
+    old_sha = hashlib.sha256(token.encode()).hexdigest()
+    prev_left = "SELECT prev_valid_until - now() FROM infra.runners WHERE prev_sha256 = $1"
+    assert await su.fetchval(prev_left, old_sha) > timedelta(days=1)  # an outage locks nobody out
+    assert (
+        await client.get("/api/v1/runners/jobs/next", params={"wait": 0}, headers=rh)
+    ).status_code == 204
+    # asked again with the previous credential: a fresh one replaces the one never received
+    r = await client.post("/api/v1/runners/rotate", headers=rh)
+    assert r.status_code == 200, r.text
+    fresh = r.json()["runner_token"]
+    assert fresh not in (token, lost)
+    lh = {"Authorization": f"Bearer {lost}", **RUNNER_HEADERS}
+    assert (
+        await client.get("/api/v1/runners/jobs/next", params={"wait": 0}, headers=lh)
+    ).status_code == 401
+    # the first use of the new one: the previous one only for the grace from then
+    fh = {"Authorization": f"Bearer {fresh}", **RUNNER_HEADERS}
+    assert (
+        await client.get("/api/v1/runners/jobs/next", params={"wait": 0}, headers=fh)
+    ).status_code == 204
+    left = await su.fetchval(prev_left, old_sha)
+    assert timedelta(0) < left <= timedelta(seconds=SV.ROTATE_GRACE_S)
     assert (
         await client.get("/api/v1/runners/jobs/next", params={"wait": 0}, headers=rh)
     ).status_code == 204
@@ -250,6 +273,69 @@ async def test_pairing_codes_step_up_and_token_once(
     assert (
         await client.get("/api/v1/runners/jobs/next", params={"wait": 0}, headers=bad)
     ).status_code == 401
+
+
+async def test_an_approved_code_claimed_late_does_not_undo_a_detach(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+) -> None:
+    co = await new_company()
+    h = owner_session["headers"]
+    xff = {"X-Forwarded-For": _ip()}
+    body = {"company": co["code"], "name": "late-1", "hostname": "late-1", "private_ip": _ip(),
+            "os": "Ubuntu 24.04", "runner_version": "0.1.0"}  # fmt: skip
+
+    async def approved(name: str) -> tuple[dict[str, Any], dict[str, Any]]:
+        r = await client.post("/api/v1/runners/pair", json={**body, "name": name}, headers=xff)
+        assert r.status_code == 201, r.text
+        p = r.json()
+        ok = await step_up(
+            hub, owner_session["session_id"], "server.attach", f"company:{co['code']}"
+        )
+        r = await client.post(
+            "/api/v1/runners/approve",
+            json={"user_code": p["user_code"]},
+            headers={**h, **ok, **idem()},
+        )
+        assert r.status_code == 200, r.text
+        return p, r.json()["server"]
+
+    async def claim(p: dict[str, Any]) -> httpx.Response:
+        return await client.post(
+            "/api/v1/runners/token", json={"device_code": p["device_code"]}, headers=xff
+        )
+
+    # Approved, not yet claimed, then detached: the code no longer brings the server back.
+    p, server = await approved("late-1")
+    tok = await step_up(hub, owner_session["session_id"], "server.detach", f"{co['code']}:late-1")
+    r = await client.delete(f"/api/v1/infra/servers/{server['id']}", headers={**h, **tok, **idem()})
+    assert r.status_code == 200 and r.json()["state"] == "revoked", r.text
+    r = await claim(p)
+    assert r.status_code == 410 and r.json()["code"] == "expired_token", r.text
+    sid = uuid.UUID(server["id"])
+    assert await su.fetchval("SELECT state FROM infra.servers WHERE id = $1", sid) == "revoked"
+    assert not await su.fetchval(
+        "SELECT count(*) FROM infra.runners WHERE server_id = $1 AND revoked_at IS NULL", sid
+    )
+    # Paired again under the same name: the old approved code does not take the new pairing's
+    # place; the new one is claimed as usual.
+    p2, again = await approved("late-1")
+    assert again["id"] == server["id"]
+    r = await claim(p)
+    assert r.status_code == 410, r.text
+    r = await claim(p2)
+    assert r.status_code == 200, r.text
+    # An approved code past its time (and a poll's slack) is not claimed either.
+    p3, _ = await approved("late-2")
+    await su.execute(
+        "UPDATE infra.runner_pairings SET expires_at = now() - interval '1 hour' WHERE user_code = $1",
+        p3["user_code"],
+    )
+    r = await claim(p3)
+    assert r.status_code == 410 and r.json()["code"] == "expired_token", r.text
 
 
 async def test_pairing_is_rate_limited(
@@ -1053,6 +1139,11 @@ async def test_publish_through_a_runner(
 ) -> None:
     co = await new_company()
     rn = await pair(client, hub, owner_session, co, "ig-hub")
+
+
+async def runner_item(su: Any, co: dict[str, Any]) -> tuple[str, uuid.UUID]:
+    """A sealed series' due item that publishes through the `ig-hub` runner of `co` (and its
+    render's file id)."""
     target = {"channel": "runner", "account": "runner-ig-hub", "placement": "instagram_post",
               "server": "ig-hub", "command": "/home/ig/bin/publish"}  # fmt: skip
     fid = await su.fetchval(
@@ -1091,6 +1182,19 @@ async def test_publish_through_a_runner(
             ]
         ),
     )
+    return str(ref), fid
+
+
+async def test_publish_through_a_runner(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+) -> None:
+    co = await new_company()
+    rn = await pair(client, hub, owner_session, co, "ig-hub")
+    ref, fid = await runner_item(su, co)
     out = await P.publish_due(hub, only=ref)
     assert out["published"] == [ref], out
     job = await take(client, rn)
@@ -1174,6 +1278,89 @@ async def test_a_nul_in_output_or_a_result_is_kept_as_a_replacement_character(
         uuid.UUID(job["id"]),
     )
     assert text == "./a\ufffd./b\ufffd"
+
+
+async def test_a_publish_job_that_never_ends_tells_its_item(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+) -> None:
+    """The runner dies while it publishes: the sweep fails the job and the item hears it at once
+    (a publish_failed card), instead of waiting 7 days and publishing everything again."""
+    co = await new_company()
+    rn = await pair(client, hub, owner_session, co, "ig-hub")
+    ref, _ = await runner_item(su, co)
+    out = await P.publish_due(hub, only=ref)
+    assert out["published"] == [ref], out
+    job = await take(client, rn)
+    assert job["kind"] == "publish"
+    await su.execute(
+        "UPDATE infra.server_jobs SET dispatched_at = now() - interval '3 hours' WHERE id = $1",
+        uuid.UUID(job["id"]),
+    )
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        await SV.sweep(tx)
+    j = await su.fetchrow(
+        "SELECT state, error_code FROM infra.server_jobs WHERE id = $1", uuid.UUID(job["id"])
+    )
+    assert (j["state"], j["error_code"]) == ("failed", "timed_out")
+    row = await su.fetchrow(
+        "SELECT state, publish_at, decision_id FROM media.items WHERE ref = $1", ref
+    )
+    assert row["state"] == "waiting_owner" and row["publish_at"] is None
+    assert row["decision_id"] is not None
+    log = await su.fetchrow(
+        """SELECT outcome, error FROM media.publish_log
+           WHERE item_id = (SELECT id FROM media.items WHERE ref = $1)""",
+        ref,
+    )
+    assert (log["outcome"], log["error"]) == ("error", "timed_out")
+
+
+async def test_a_sealed_command_of_a_dead_runner_is_swept(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+) -> None:
+    """A claude job waits for the seal of one of its commands and its runner dies: past its time
+    the sweep fails it (the session is no longer busy for ever) and withdraws the card."""
+    co = await new_company()
+    rn = await pair(client, hub, owner_session, co, "repo-box")
+    h = owner_session["headers"]
+    r = await client.post(
+        "/api/v1/workshop/sessions",
+        json={"runtime": "company_server", "server": rn["server"]["id"], "company": co["code"],
+              "driver": None, "title": "پاک‌سازی", "brief": "حجم‌ها را پاک کن", "attachments": [],
+              "cwd": "/home/forex/app"},
+        headers={**h, **idem()},
+    )  # fmt: skip
+    assert r.status_code == 201, r.text
+    job = await take(client, rn)
+    r = await client.post(
+        "/api/v1/runners/classify",
+        json={"cmd": "docker volume prune -f"},
+        headers={**rn["h"], "X-HQ-Runner-Job": job["id"]},
+    )
+    ref = r.json()["decision_ref"]
+    assert ref
+    jid = uuid.UUID(job["id"])
+    state = await su.fetchval("SELECT state FROM infra.server_jobs WHERE id = $1", jid)
+    assert state == "awaiting_seal"
+    await su.execute(
+        "UPDATE infra.server_jobs SET dispatched_at = now() - interval '3 hours' WHERE id = $1", jid
+    )
+    ended: list[uuid.UUID] = []
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        await SV.sweep(tx, ended=ended)
+    assert jid in ended
+    j = await su.fetchrow("SELECT state, error_code FROM infra.server_jobs WHERE id = $1", jid)
+    assert (j["state"], j["error_code"]) == ("failed", "timed_out")
+    status = await su.fetchval("SELECT status FROM cartable.decisions WHERE ref = $1", ref)
+    assert status == "withdrawn"
 
 
 # ---------------------------------------------------------- classification --
@@ -1272,6 +1459,22 @@ async def test_pr130_finds_a_link_that_worked_and_now_fails(
         co["id"],
         sid,
     )
+    # links no longer measured are not findings: a port no longer checked (22), a detached target
+    b = await pair(client, hub, owner_session, co, "n2", "10.10.8.2")
+    gone = await pair(client, hub, owner_session, co, "n3", "10.10.8.3")
+    await su.execute("UPDATE infra.servers SET state = 'revoked' WHERE id = $1",
+                     uuid.UUID(gone["server"]["id"]))  # fmt: skip
+    for to, ip, port in ((b, "10.10.8.2", 22), (b, "10.10.8.2", 443), (gone, "10.10.8.3", 443)):
+        await su.execute(
+            """INSERT INTO infra.network_links (company_id, from_server_id, to_key, to_ip, port,
+                   ok, error, at, last_ok_at)
+               VALUES ($1, $2, $3, $4, $5, false, 'timeout', now(), now() - interval '1 day')""",
+            co["id"],
+            sid,
+            to["server"]["id"],
+            ip,
+            port,
+        )
     holding = await hub.companies.holding()
     companies = {c.code: c.id for c in await hub.companies.all()}
     async with hub.db.tx(await hub.companies.ids()) as tx:
@@ -1279,6 +1482,9 @@ async def test_pr130_finds_a_link_that_worked_and_now_fails(
         out = await SV.network_links_hold(ctx)
     keys = {p.key for p in out.problems}
     assert f"link-{sid}-hub-443" in keys
+    assert f"link-{sid}-{b['server']['id']}-443" in keys
+    assert f"link-{sid}-{b['server']['id']}-22" not in keys
+    assert f"link-{sid}-{gone['server']['id']}-443" not in keys
     assert "PR-130" in C.CHECKS
     # The run queued a fresh netcheck on the online runner.
     job = await take(client, a)
