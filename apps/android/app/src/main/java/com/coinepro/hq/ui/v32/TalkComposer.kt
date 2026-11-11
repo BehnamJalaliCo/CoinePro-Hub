@@ -23,6 +23,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.CircularProgressIndicator
 import com.coinepro.hq.designsystem.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -140,7 +141,7 @@ fun TalkComposerView(
     onHoldStart: () -> Unit,
     onHoldEnd: () -> Unit,
     modifier: Modifier = Modifier,
-    placeholder: String = "بنویس، یا میکروفون را نگه دار…",
+    placeholder: String = COMPOSER_PLACEHOLDER,
     // ⟨1.18⟩ §36.2 files in a session: the paperclip beside the mic ([onAttach], its menu drawn by [attachMenu]), the files on their
     // way above the words ([files]); a turn may go with files and no words ([hasFiles]), once none is still uploading ([filesBusy]).
     onAttach: (() -> Unit)? = null,
@@ -148,6 +149,12 @@ fun TalkComposerView(
     files: (@Composable () -> Unit)? = null,
     hasFiles: Boolean = false,
     filesBusy: Boolean = false,
+    // ⟨1.0.1⟩ C0.1 a page whose one full gold is elsewhere (a session with its decision bar or a knot's fix): the send is quiet.
+    quietSend: Boolean = false,
+    // ⟨1.0.1⟩ the owner types: where the page says so (a session), the mic is silver, held or not; it is never the page's gold.
+    quietMic: Boolean = false,
+    /** ⟨1.0.1⟩ asks the words' field for the keyboard («اصلاح» of a session's decision bar). */
+    focus: androidx.compose.ui.focus.FocusRequester? = null,
 ) {
     val c = Divan.colors
     val ready = text.isNotBlank() || hasFiles
@@ -180,7 +187,9 @@ fun TalkComposerView(
         // between the buttons. While the mic is held and nothing is written, the voice has the room.
         if (text.isNotEmpty() || !(hold.active || hold.transcribing)) BasicTextField(
             text, { if (it.length <= 10_000) onText(it) },
-            Modifier.fillMaxWidth().heightIn(min = 40.dp).padding(horizontal = 10.dp).padding(top = 8.dp, bottom = 4.dp).semantics { contentDescription = placeholder },
+            Modifier.fillMaxWidth().heightIn(min = 40.dp).padding(horizontal = 10.dp).padding(top = 8.dp, bottom = 4.dp)
+                .then(if (focus != null) Modifier.focusRequester(focus) else Modifier)
+                .semantics { contentDescription = placeholder },
             textStyle = Divan.type.body.copy(color = c.textPrimary),
             cursorBrush = SolidColor(c.goldInk),
             maxLines = COMPOSER_LINES,
@@ -204,8 +213,8 @@ fun TalkComposerView(
             ) { WaveGlyph(22.dp, if (hf) c.lapis else c.textSecondary) }
             IconBtn(DivanIcon.LOCK, "کلید صدا", onKey, tint = c.textSecondary)
             androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
-            if (mic) HoldMic(hold, onHoldStart, onHoldEnd)
-            if (ready) com.coinepro.hq.ui.media.RoundAction(DivanIcon.SEND, if (filesBusy) "صبر کن تا فایل‌ها برسند" else "بفرست", canSend, onSend, busy = sending)
+            if (mic) HoldMic(hold, onHoldStart, onHoldEnd, quiet = quietMic)
+            if (ready) com.coinepro.hq.ui.media.RoundAction(DivanIcon.SEND, if (filesBusy) "صبر کن تا فایل‌ها برسند" else "بفرست", canSend, onSend, busy = sending, quiet = quietSend)
         }
     }
 }
@@ -215,7 +224,7 @@ const val COMPOSER_LINES = 6
 
 /** The hold-to-talk button: press, speak, release. It swells with the owner's voice while held. */
 @Composable
-private fun HoldMic(hold: HoldUi, onStart: () -> Unit, onEnd: () -> Unit) {
+private fun HoldMic(hold: HoldUi, onStart: () -> Unit, onEnd: () -> Unit, quiet: Boolean = false) {
     val c = Divan.colors
     val level = hold.levels.lastOrNull() ?: 0f
     val grow by animateFloatAsState(if (hold.active) 1.16f + 0.2f * level else 1f, com.coinepro.hq.designsystem.motionShort(), label = "mic")
@@ -236,10 +245,11 @@ private fun HoldMic(hold: HoldUi, onStart: () -> Unit, onEnd: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         Canvas(Modifier.size(48.dp)) {
-            if (hold.active) drawCircle(c.goldFill.copy(alpha = 0.14f + 0.14f * breath.value), this.size.minDimension / 2 * (0.9f + 0.1f * breath.value), style = Stroke(2.dp.toPx()))
+            if (hold.active) drawCircle((if (quiet) c.silverInk else c.goldFill).copy(alpha = 0.14f + 0.14f * breath.value), this.size.minDimension / 2 * (0.9f + 0.1f * breath.value), style = Stroke(2.dp.toPx()))
         }
-        Box(Modifier.size(44.dp).scale(grow).clip(CircleShape).background(if (hold.active) c.goldFill else c.softGold), contentAlignment = Alignment.Center) {
-            DIcon(DivanIcon.MIC, size = 22.dp, tint = if (hold.active) c.onGold else c.silverInk)
+        val fill = if (quiet) (if (hold.active) c.silverInk.copy(alpha = 0.3f) else c.tile) else if (hold.active) c.goldFill else c.softGold
+        Box(Modifier.size(44.dp).scale(grow).clip(CircleShape).background(fill), contentAlignment = Alignment.Center) {
+            DIcon(DivanIcon.MIC, size = 22.dp, tint = if (hold.active) (if (quiet) c.textPrimary else c.onGold) else c.silverInk)
         }
     }
 }
@@ -255,6 +265,13 @@ fun TalkComposer(
     files: com.coinepro.hq.ui.media.Attachments? = null,
     pick: ((String) -> Unit)? = null,
     onFilesSent: () -> Unit = {},
+    /** ⟨1.0.1⟩ the words the composer opens with (an output named for «اصلاح»); [onSeeded] once they are in place. */
+    seed: String? = null,
+    onSeeded: () -> Unit = {},
+    quietSend: Boolean = false,
+    quietMic: Boolean = false,
+    placeholder: String? = null,
+    focus: androidx.compose.ui.focus.FocusRequester? = null,
 ) {
     val toasts = LocalToasts.current
     val scope = rememberCoroutineScope()
@@ -262,6 +279,8 @@ fun TalkComposer(
     val patterns = keyPatterns(engines.data.orEmpty())
     // The draft is saved with the screen; a key never is (it is taken out of the text before it is stored).
     var text by rememberSaveable(session.conv?.ref) { mutableStateOf("") }
+    // the draft is kept per conversation, so the seed is put in again once the conversation has loaded, and only then given back
+    androidx.compose.runtime.LaunchedEffect(seed, session.conv?.ref) { if (seed != null) { text = seed; if (session.conv != null) onSeeded() } }
     var sending by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
     val mic = rememberMicPermission { toasts.info("حالا دکمه‌ی میکروفون را نگه دار و حرف بزن.") }
@@ -320,5 +339,10 @@ fun TalkComposer(
         files = files?.takeIf { it.items.isNotEmpty() }?.let { a -> { PendingFiles(a.items.toList(), onRemove = a::remove, onRetry = a::retry) } },
         hasFiles = files?.refs.orEmpty().isNotEmpty(),
         filesBusy = files?.uploading == true,
+        quietSend = quietSend, quietMic = quietMic,
+        placeholder = placeholder ?: COMPOSER_PLACEHOLDER, focus = focus,
     )
 }
+
+/** What an empty composer says. */
+const val COMPOSER_PLACEHOLDER = "بنویس، یا میکروفون را نگه دار…"

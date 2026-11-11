@@ -56,15 +56,25 @@ fun taskOf(tasks: List<SessionTask>): Pair<Int, Int>? {
 
 fun taskFa(t: Pair<Int, Int>): String = "کار ${t.first} از ${t.second}"
 
-/** The plan as parts, in order: `done` (silver), `waiting` (the owner's part: gold), `todo` (empty). [waiting]: the session waits for
- *  the owner, so its first open part is his. */
+/** «کار ۳ از ۴ ایستاده»: the task that stands still while the session waits for the owner; null when its plan is done or it has none. */
+fun standingTaskFa(tasks: List<SessionTask>): String? {
+    val live = openTasks(tasks)
+    val done = live.count { it.state == "done" }
+    return if (live.isNotEmpty() && done < live.size) "کار ${done + 1} از ${live.size} ایستاده" else null
+}
+
+/**
+ * The plan as parts, in order: `done` (silver), `waiting` (the ONE part that waits for the owner: gold), `todo` (empty). [waiting]:
+ * the session waits for the owner (his answer, or his approval), so its first open part is his. A line of the plan the owner wrote
+ * himself (`by` = owner) is not a part that waits for him: a plan he dictated is not painted gold.
+ */
 fun segmentsOf(tasks: List<SessionTask>, waiting: Boolean): List<String> {
     val live = openTasks(tasks)
     val first = live.indexOfFirst { it.state != "done" }
     return live.mapIndexed { i, t ->
         when {
             t.state == "done" -> "done"
-            t.by == "owner" || (waiting && i == first) -> "waiting"
+            waiting && i == first -> "waiting"
             else -> "todo"
         }
     }

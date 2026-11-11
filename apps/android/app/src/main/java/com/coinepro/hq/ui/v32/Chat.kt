@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.coinepro.hq.designsystem.Text
+import androidx.compose.foundation.combinedClickable
+import com.coinepro.hq.ui.look.goldEdge
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -68,6 +70,7 @@ import kotlinx.serialization.json.contentOrNull
 // (`show_md` rendered), and the cards of §32.3 under the answer that made them: every card waits for the owner's «اجرا کن».
 
 /** The owner's turn or a persona's answer. [persona] is the speaker's data (face, title); [onReplay] plays its sentences again. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun TalkBubble(
     t: TalkTurn,
@@ -78,9 +81,14 @@ fun TalkBubble(
     onRun: suspend (TalkCard, kotlinx.serialization.json.JsonObject?) -> Unit,
     onDismiss: suspend (TalkCard) -> Unit,
     timeAtEnd: Boolean = false,
+    /** ⟨1.0.1⟩ C2.2 the session's timeline: the owner's words carry a thin gold edge, and «کپی» and the time under a bubble are
+     *  gone until a long press on it brings them (and takes them away again). */
+    quiet: Boolean = false,
 ) {
     val c = Divan.colors
     val mine = t.owner
+    var revealed by androidx.compose.runtime.saveable.rememberSaveable(t.idText, t.n) { androidx.compose.runtime.mutableStateOf(false) }
+    val haptics = com.coinepro.hq.designsystem.rememberHaptics()
     Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.Start else Arrangement.End, verticalAlignment = Alignment.Top) {
         Column(Modifier.widthIn(max = 330.dp), horizontalAlignment = if (mine) Alignment.Start else Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (!mine && showName) Text(personaIdTitle(t.by, personas), style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.textMuted, modifier = Modifier.padding(horizontal = 4.dp))
@@ -89,13 +97,28 @@ fun TalkBubble(
             val filesOnly = mine && t.files.isNotEmpty() && t.text.trim() == FILES_ONLY_TEXT
             val words = t.shown.isNotBlank() && !filesOnly
             if (words) {
-                // A long press selects (the phone's handles and «کپی»); nothing above the bubble takes the press.
-                com.coinepro.hq.ui.Selectable {
-                    Box(Modifier.clip(shape).background(if (mine) c.raised else c.card).padding(horizontal = 14.dp, vertical = 10.dp)) {
-                        // ⟨1.22⟩ §40.3 the hub writes the owner's first word of a session opened from a playbook as Markdown (the
-                        // playbook whole): it reads as the owner's text formatted, its refs hidden. Every other word of his stays plain.
-                        if (mine && OWNER_MD.containsMatchIn(t.text)) Md(com.coinepro.hq.core.data.withoutRefs(t.text), color = c.textPrimary)
-                        else if (mine) Text(plain(t.text), style = Divan.type.body, color = c.textPrimary) else Md(t.shown, color = c.textPrimary)
+                val body: @Composable () -> Unit = {
+                    // ⟨1.22⟩ §40.3 the hub writes the owner's first word of a session opened from a playbook as Markdown (the
+                    // playbook whole): it reads as the owner's text formatted, its refs hidden. Every other word of his stays plain.
+                    if (mine && OWNER_MD.containsMatchIn(t.text)) Md(com.coinepro.hq.core.data.withoutRefs(t.text), color = c.textPrimary)
+                    else if (mine) Text(plain(t.text), style = Divan.type.body, color = c.textPrimary) else Md(t.shown, color = c.textPrimary)
+                }
+                if (quiet) {
+                    Box(
+                        Modifier.clip(shape).background(if (mine) c.raised else c.card)
+                            // the owner's words carry the thin gold edge, the holder's the same mark in silver
+                            .goldEdge(if (mine) c.goldInk else c.silverInk.copy(alpha = 0.7f), inset = 10.dp)
+                            .combinedClickable(
+                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null,
+                                onLongClickLabel = if (revealed) "پنهان کردن زمان و کپی" else "زمان و کپی",
+                                onLongClick = { haptics.tick(); revealed = !revealed }, onClick = {},
+                            )
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                    ) { body() }
+                } else {
+                    // A long press selects (the phone's handles and «کپی»); nothing above the bubble takes the press.
+                    com.coinepro.hq.ui.Selectable {
+                        Box(Modifier.clip(shape).background(if (mine) c.raised else c.card).padding(horizontal = 14.dp, vertical = 10.dp)) { body() }
                     }
                 }
             }
@@ -111,7 +134,7 @@ fun TalkBubble(
             }
             for (card in t.cards) TalkCardView(card, onRun, onDismiss)
             // ⟨0.19.0⟩ [timeAtEnd] (the session): the time at the end of every bubble, the owner's too, as on every row of its chat.
-            Row(Modifier.padding(horizontal = 4.dp).then(if (timeAtEnd) Modifier.align(Alignment.End) else Modifier), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (!quiet || revealed) Row(Modifier.padding(horizontal = 4.dp).then(if (timeAtEnd) Modifier.align(Alignment.End) else Modifier), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (mine && t.source != "typed") DIcon(DivanIcon.MIC, size = 12.dp, tint = c.textMuted)
                 if (t.at.isNotBlank()) Text(timesFig(jTime(t.at)), style = Divan.type.micro, color = c.textMuted)
                 // The whole turn in one tap, as plain words.
@@ -130,6 +153,10 @@ fun TalkBubble(
         if (!mine && persona != null) Box(Modifier.padding(start = 8.dp, top = 2.dp)) { PersonaFace(persona, size = 30.dp) }
     }
 }
+
+/** ⟨1.0.1⟩ C0.1 The cards of this thread keep their actions outlined (a session: its one full gold is the decision bar, the knot's
+ *  action or the send). False everywhere else. */
+val LocalQuietCards = androidx.compose.runtime.compositionLocalOf { false }
 
 /** A heading at the start of a line: an owner's turn the hub wrote as Markdown (§40.3). */
 private val OWNER_MD = Regex("(?m)^#{1,3}\\s")
@@ -236,7 +263,8 @@ fun TalkCardView(card: TalkCard, onRun: suspend (TalkCard, JsonObject?) -> Unit,
                 HqButton(
                     if (editing) "اجرا با این تغییرها" else if (card.state == "failed") "دوباره" else info.run,
                     { run.run { onRun(card, if (edits.isEmpty()) null else applyPayloadEdits(card.payload, edits.toMap())) } },
-                    variant = BtnVariant.PRIMARY, size = BtnSize.SM, icon = DivanIcon.SEAL, loading = run.busy, modifier = Modifier.weight(1f, fill = false),
+                    // ⟨1.0.1⟩ C0.1: in a session the page's one gold is over its composer; a card of its thread is outlined.
+                    variant = if (LocalQuietCards.current) BtnVariant.SECONDARY else BtnVariant.PRIMARY, size = BtnSize.SM, icon = DivanIcon.SEAL, loading = run.busy, modifier = Modifier.weight(1f, fill = false),
                 )
                 if (fields.isNotEmpty()) HqButton(if (editing) "بستن" else "ویرایش", { editing = !editing }, variant = BtnVariant.SILVER, size = BtnSize.SM, icon = DivanIcon.EDIT)
                 HqButton(info.dismiss, { no.run { onDismiss(card) } }, variant = BtnVariant.TEXT, size = BtnSize.SM, loading = no.busy)

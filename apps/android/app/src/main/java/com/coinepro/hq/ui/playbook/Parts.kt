@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -33,6 +32,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,7 +40,6 @@ import androidx.compose.ui.unit.dp
 import com.coinepro.hq.core.data.cardStateFa
 import com.coinepro.hq.core.data.faNum
 import com.coinepro.hq.core.data.helperOf
-import com.coinepro.hq.core.data.memberStateFa
 import com.coinepro.hq.core.data.memoryFolds
 import com.coinepro.hq.core.data.membersFa
 import com.coinepro.hq.core.data.pbPlatformLineFa
@@ -77,18 +76,20 @@ import com.coinepro.hq.designsystem.Md
 import com.coinepro.hq.designsystem.ModelMark
 import com.coinepro.hq.designsystem.Pill
 import com.coinepro.hq.designsystem.Skeleton
+import com.coinepro.hq.designsystem.facts
 import com.coinepro.hq.designsystem.generated.DivanIcon
 import com.coinepro.hq.designsystem.smoothSize
+import com.coinepro.hq.designsystem.stagger
 import com.coinepro.hq.ui.LocalEnv
 import com.coinepro.hq.ui.LocalNav
 import com.coinepro.hq.ui.LocalToasts
 import com.coinepro.hq.ui.activity
 import com.coinepro.hq.ui.rememberAction
 import com.coinepro.hq.ui.rememberQuery
-import com.coinepro.hq.ui.v14.HqSheet
 import com.coinepro.hq.ui.v29.Para
 import com.coinepro.hq.ui.v29.plain
 import java.util.UUID
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 
 // Contract §40 ⟨1.22⟩: the pieces of a working group drawn from a session (a playbook) that the chat, the session's «جزئیات», the
@@ -124,8 +125,9 @@ fun HelperChip(key: String) {
 fun SeatRow(s: PlaybookSeat, compact: Boolean = false, onRemove: (() -> Unit)? = null) {
     val c = Divan.colors
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Box(Modifier.padding(top = 2.dp).size(if (compact) 26.dp else 32.dp).clip(CircleShape).background(c.softGold), contentAlignment = Alignment.Center) {
-            DIcon(DivanIcon.AGENT, size = if (compact) 14.dp else 16.dp, tint = c.goldInk)
+        // ⟨1.0.1⟩ C0.1: a seat's mark is silver on the tile; the page's gold is its decision bar alone.
+        Box(Modifier.padding(top = 2.dp).size(if (compact) 26.dp else 32.dp).clip(CircleShape).background(c.tile), contentAlignment = Alignment.Center) {
+            DIcon(DivanIcon.AGENT, size = if (compact) 14.dp else 16.dp, tint = c.silverInk)
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(plain(s.titleFa.ifBlank { s.seat }), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
@@ -146,10 +148,10 @@ fun SeatRow(s: PlaybookSeat, compact: Boolean = false, onRemove: (() -> Unit)? =
 fun RoutineLine(pb: Playbook, r: PlaybookRoutine, trailing: (@Composable () -> Unit)? = null) {
     val c = Divan.colors
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        DIcon(DivanIcon.TIME, size = 16.dp, tint = c.lapis)
+        DIcon(DivanIcon.TIME, size = 16.dp, tint = c.silverInk)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             Text(plain(r.titleFa.ifBlank { r.key }), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
-            Text(plain("${routineTimeFa(r.schedule)} · ${seatTitleFa(pb, r.seat)}"), style = Divan.type.micro, color = c.textMuted)
+            Text(remember(r, pb.seats) { facts(routineTimeFa(r.schedule), seatTitleFa(pb, r.seat)) }, style = Divan.type.micro, color = c.textMuted)
         }
         trailing?.invoke()
     }
@@ -225,14 +227,18 @@ fun PlaybookCardView(card: TalkCard, pc: PlaybookCard, onRun: suspend (TalkCard,
     val pb = pc.draft ?: q?.data
     val shape = RoundedCornerShape(14.dp)
     Column(
-        modifier.fillMaxWidth().clip(shape).background(c.tile).border(1.dp, c.lineTahrir, shape).padding(12.dp),
+        // ⟨1.0.1⟩ C0.1: a card of the thread carries a hairline and quiet actions; the session's one gold is over its composer.
+        modifier.fillMaxWidth().clip(shape).background(c.tile).border(1.dp, c.lineDivider, shape).padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Pill(if (rewrite) "بازنویسی کارگروه" else "کارگروه از این جلسه", Tone.LAPIS, icon = DivanIcon.DEPARTMENT)
-            Spacer(Modifier.weight(1f))
-            val state = if (rewrite) cardStateFa(card.state) else q?.data?.let { playbookStateFa(it.state) }
-            state?.let { (fa, tone) -> Pill(fa, tone, dot = true) }
+            DIcon(DivanIcon.DEPARTMENT, size = 16.dp, tint = c.silverInk)
+            Text(
+                remember(rewrite, pb?.platform) { facts(if (rewrite) "بازنویسی کارگروه" else "کارگروه از این جلسه", pb?.let { pbPlatformLineFa(it.platform) }) },
+                style = Divan.type.caption, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+            )
+            if (rewrite) cardStateFa(card.state)?.let { (fa, tone) -> Pill(fa, if (tone == Tone.GOLD) Tone.SILVER else tone, dot = true) }
+            else q?.data?.let { PlaybookState(it.state) }
         }
         when {
             pb != null -> PlaybookSummary(pb)
@@ -247,10 +253,10 @@ fun PlaybookCardView(card: TalkCard, pc: PlaybookCard, onRun: suspend (TalkCard,
             if (rewrite && (card.state == "offered" || card.state == "failed")) {
                 HqButton(
                     if (card.state == "failed") "دوباره" else "پیش‌نویس همین شود", { run.run { onRun(card, null) } },
-                    variant = BtnVariant.PRIMARY, size = BtnSize.SM, icon = DivanIcon.EDIT, loading = run.busy, modifier = Modifier.weight(1f, fill = false),
+                    variant = BtnVariant.SECONDARY, size = BtnSize.SM, icon = DivanIcon.EDIT, loading = run.busy, modifier = Modifier.weight(1f, fill = false),
                 )
             }
-            HqButton("باز کن", { nav.go("playbook/${pc.ref}") }, variant = if (rewrite || pb?.draft == true) BtnVariant.SILVER else BtnVariant.SECONDARY, size = BtnSize.SM, icon = DivanIcon.NEXT)
+            HqButton("باز کن", { nav.go("playbook/${pc.ref}") }, variant = BtnVariant.SECONDARY, size = BtnSize.SM, icon = DivanIcon.NEXT)
             if (!rewrite && pb?.draft == true) HqButton("مُهر کن", {
                 seal.run {
                     // ⟨0.19.9⟩ §45 a working group that publishes is sealed with his standing word, as he asked; the line below says so
@@ -260,7 +266,7 @@ fun PlaybookCardView(card: TalkCard, pc: PlaybookCard, onRun: suspend (TalkCard,
                     env.cache.invalidate(*PLAYBOOK_TAGS)
                     toasts.ok(sealedFa(out, word))
                 }
-            }, variant = BtnVariant.PRIMARY, size = BtnSize.SM, icon = DivanIcon.SEAL, loading = seal.busy)
+            }, variant = BtnVariant.SECONDARY, size = BtnSize.SM, icon = DivanIcon.SEAL, loading = seal.busy)
             if (rewrite && (card.state == "offered" || card.state == "failed")) HqButton("نه", { no.run { onDismiss(card) } }, variant = BtnVariant.TEXT, size = BtnSize.SM, loading = no.busy)
         }
         if (!rewrite && pb?.draft == true && publishes(pb)) Text(
@@ -286,7 +292,7 @@ internal fun sealedFa(out: Playbook, word: MemberPublish?): String = when {
 @Composable
 fun StandingChoice(value: MemberPublish, onChange: (MemberPublish) -> Unit, modifier: Modifier = Modifier, company: String? = null) {
     val c = Divan.colors
-    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier.fillMaxWidth().testTag("standing").clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("انتشار خودکار", style = Divan.type.bodyStrong, color = c.textPrimary)
@@ -298,17 +304,21 @@ fun StandingChoice(value: MemberPublish, onChange: (MemberPublish) -> Unit, modi
             }
             HqSwitch(value.auto, { onChange(value.copy(mode = if (it) "auto" else "ask")) }, "انتشار خودکار")
         }
-        Expand(value.auto) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip("استوری هم بشود", value.story, { onChange(value.copy(story = !value.story)) })
-                    // ⟨0.20.0⟩ §46 the hour each day's package goes out at; empty: as soon as it is ready
-                    HqTextField(value.at.orEmpty(), { onChange(value.copy(at = it.ifBlank { null })) }, "ساعت انتشار، مثل ۱۸:۳۰", Modifier.weight(1f), maxLength = 5, figure = true)
-                }
-                // ⟨1.0.1⟩ §49 the hub chooses the hour itself, for the company this word is for; the fixed hour stays as what it falls back on
-                if (company != null) BestHourChoice(company, value, onChange)
-            }
+        Expand(value.auto) { StandingOptions(value, onChange, company) }
+    }
+}
+
+/** What goes with «انتشار خودکار» once it is on: «استوری هم بشود», the fixed hour, and «بهترین ساعت، خودکار» of the company it is for. */
+@Composable
+internal fun StandingOptions(value: MemberPublish, onChange: (MemberPublish) -> Unit, company: String?, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip("استوری هم بشود", value.story, { onChange(value.copy(story = !value.story)) })
+            // ⟨0.20.0⟩ §46 the hour each day's package goes out at; empty: as soon as it is ready
+            HqTextField(value.at.orEmpty(), { onChange(value.copy(at = it.ifBlank { null })) }, "ساعت انتشار، مثل 18:30", Modifier.weight(1f), maxLength = 5, figure = true)
         }
+        // ⟨1.0.1⟩ §49 the hub chooses the hour itself, for the company this word is for; the fixed hour stays as what it falls back on
+        if (company != null) BestHourChoice(company, value, onChange)
     }
 }
 
@@ -316,11 +326,13 @@ fun StandingChoice(value: MemberPublish, onChange: (MemberPublish) -> Unit, modi
 internal fun standingFa(p: MemberPublish, best: com.coinepro.hq.core.net.BestHour? = null): String = com.coinepro.hq.core.data.standingLineFa(p, best)
 
 /**
- * One member's standing word under its row: a switch, his tap, no passkey. A company with several accounts is asked which one (the
- * hub names them); a hub before §45 has no such route, said once and then not offered.
+ * One member's standing word, a row of its settings block: where its daily output goes by itself («خودکار | بهترین ساعت 19:00 |
+ * @pro.chart | استوری هم») or that each waits for him, «تنظیم» (its hour and «استوری هم», opened in place) and its switch: his tap,
+ * no passkey. A company with several accounts is asked which one, in place (the hub names them); a hub before §45 has no such
+ * route, said once and then not offered.
  */
 @Composable
-private fun StandingRow(group: String, company: String, value: MemberPublish, onChanged: (MemberPublish) -> Unit) {
+internal fun StandingRow(group: String, company: String, value: MemberPublish, onChanged: (MemberPublish) -> Unit) {
     val env = LocalEnv.current
     val toasts = LocalToasts.current
     val c = Divan.colors
@@ -335,6 +347,7 @@ private fun StandingRow(group: String, company: String, value: MemberPublish, on
                 return
             }
             picking = emptyList()
+            editing = null
             env.cache.invalidate(*PLAYBOOK_TAGS)
             onChanged(out.publish)
             toasts.ok(if (out.publish.auto) "از نوبت بعد خودکار منتشر میشود." else "از این به بعد هر خروجی منتظر تأیید تو است.")
@@ -345,35 +358,32 @@ private fun StandingRow(group: String, company: String, value: MemberPublish, on
             picking = named
         }
     }
-    Row(
-        Modifier.fillMaxWidth().padding(start = 24.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            Text("انتشار خودکار", style = Divan.type.caption, color = c.textSecondary)
-            // ⟨1.0.1⟩ §49 «بهترین ساعت», with the hour once the hub knows it
-            val best = if (value.auto && value.best) rememberBestHour(company, value.account).data else null
-            Text(standingFa(value, best), style = Divan.type.micro, color = if (value.auto) c.goldInk else c.textMuted, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        }
-        // ⟨0.20.0⟩ §46 its hour and «استوری هم», changed in a small sheet
-        if (value.auto) HqButton("تنظیم", { editing = value }, variant = BtnVariant.TEXT, size = BtnSize.SM)
-        HqSwitch(value.auto, { on -> go.run { say(value.copy(mode = if (on) "auto" else "ask")) } }, "انتشار خودکار", enabled = !go.busy)
-    }
-    editing?.let { draft ->
-        HqSheet({ editing = null }, "انتشار خودکار", sub = "ساعت و استوری همین شرکت در این کارگروه") {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                StandingChoice(draft, { editing = it }, company = company)
+    // ⟨1.0.1⟩ §49 «بهترین ساعت», with the hour once the hub knows it
+    val best = if (value.auto && value.best) rememberBestHour(company, value.account).data else null
+    com.coinepro.hq.ui.look.SettingRow(
+        "انتشار خودکار", remember(value, best) { facts(*standingFa(value, best).split(" · ").toTypedArray()) }, Modifier.testTag("standing-row"),
+        action = {
+            // ⟨0.20.0⟩ §46 its hour and «استوری هم», changed in place
+            if (value.auto) HqButton("تنظیم", { editing = if (editing == null) value else null }, variant = BtnVariant.TEXT, size = BtnSize.SM)
+            HqSwitch(value.auto, { on -> go.run { say(value.copy(mode = if (on) "auto" else "ask")) } }, "انتشار خودکار", enabled = !go.busy)
+        },
+        under = if (editing == null && picking.isEmpty()) null else ({
+            editing?.let { draft ->
                 val badHour = draft.auto && !draft.at.isNullOrBlank() && clockOf(draft.at) == null
-                HqButton("ذخیره", { go.run { say(draft); editing = null } }, Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, enabled = !badHour, loading = go.busy)
-                if (badHour) Text("ساعت را به شکل ۱۸:۳۰ بنویسید.", style = Divan.type.micro, color = c.textMuted)
+                Column(Modifier.fillMaxWidth().testTag("standing-edit").padding(end = 6.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StandingOptions(draft, { editing = it }, company)
+                    if (badHour) Text("ساعت را به شکل ۱۸:۳۰ بنویس.", style = Divan.type.micro, color = c.textMuted)
+                    HqButton("ذخیره", { go.run { say(draft) } }, variant = BtnVariant.SECONDARY, size = BtnSize.SM, enabled = !badHour, loading = go.busy)
+                }
             }
-        }
-    }
-    if (picking.isNotEmpty()) HqSheet({ picking = emptyList() }, "کدام حساب؟", sub = "خروجی هر روز این کارگروه به همین حساب میرود") {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            for (a in picking) FilterChip("@$a", false, { go.run { say(value.copy(mode = "auto", account = a)) } }, figure = true)
-        }
-    }
+            if (picking.isNotEmpty()) Column(Modifier.padding(end = 6.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("کدام حساب؟", style = Divan.type.caption, color = c.textSecondary)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (a in picking) FilterChip("@$a", false, { go.run { say(value.copy(mode = "auto", account = a)) } }, figure = true)
+                }
+            }
+        }),
+    )
 }
 
 // ------------------------------------------------------------------ memory --
@@ -388,7 +398,7 @@ fun MemoryCard(memory: String) {
     HqCard(Modifier.fillMaxWidth(), color = c.card, padding = androidx.compose.foundation.layout.PaddingValues(14.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DIcon(DivanIcon.MEMORY, size = 18.dp, tint = c.goldInk)
+                DIcon(DivanIcon.MEMORY, size = 18.dp, tint = c.silverInk)
                 Column(Modifier.weight(1f)) {
                     Text("تا اینجا", style = Divan.type.bodyStrong, color = c.textPrimary)
                     Text("آنچه این جلسه به یاد دارد؛ هر کس در جلسه همین را میخواند.", style = Divan.type.micro, color = c.textMuted)
@@ -436,7 +446,7 @@ fun SessionPlaybooks(order: String, onDrafted: (Playbook) -> Unit) {
                 toasts.ok("پیش‌نویس کارگروه آماده است؛ کارتش در گفتگوست.")
                 onDrafted(pb)
             }
-        }, Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, icon = DivanIcon.DEPARTMENT, loading = draft.busy)
+        }, Modifier.fillMaxWidth(), variant = BtnVariant.SECONDARY, icon = DivanIcon.DEPARTMENT, loading = draft.busy)
         Text(
             if (draft.busy) "مسئول جلسه از روی «تا اینجا» و برنامه‌ی جلسه پیش‌نویس را مینویسد؛ چند ثانیه…"
             else "نتیجه‌ی این جلسه، ماندگار: چه کسی چه میکند، با کدام ابزار و کِی. تا مُهر تو، هیچ چیز راه نمیافتد.",
@@ -451,6 +461,12 @@ fun SessionPlaybooks(order: String, onDrafted: (Playbook) -> Unit) {
     }
 }
 
+/** A playbook's state as a shape and a word: a draft waits for his seal (a ring), a sealed one is at work (a dot), a retired one rests. */
+@Composable
+fun PlaybookState(state: String, modifier: Modifier = Modifier) {
+    com.coinepro.hq.ui.look.StateWord(when (state) { "sealed" -> "on"; "retired" -> "off"; else -> "wait" }, playbookStateFa(state).first, modifier)
+}
+
 /** One playbook in a list: its title, its platform, how many companies run it (Persian digits) and where it came from; its state. */
 @Composable
 fun PlaybookRow(pb: Playbook, sourceFa: String?, showState: Boolean = true, onClick: () -> Unit) {
@@ -459,31 +475,18 @@ fun PlaybookRow(pb: Playbook, sourceFa: String?, showState: Boolean = true, onCl
         Modifier.fillMaxWidth().continuity("playbook/${pb.ref}").clickable(role = Role.Button, onClickLabel = "باز کن", onClick = onClick).padding(horizontal = 12.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Box(Modifier.size(34.dp).clip(CircleShape).background(if (pb.sealed) c.softPositive else c.softGold), contentAlignment = Alignment.Center) {
-            DIcon(DivanIcon.DEPARTMENT, size = 18.dp, tint = if (pb.sealed) c.positive else c.goldInk)
+        Box(Modifier.size(34.dp).clip(CircleShape).background(c.tile), contentAlignment = Alignment.Center) {
+            DIcon(DivanIcon.DEPARTMENT, size = 18.dp, tint = if (pb.sealed) c.silverInk else c.textMuted)
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(plain(pb.titleFa.ifBlank { "کارگروه بی‌نام" }), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            val meta = listOfNotNull(pbPlatformLineFa(pb.platform), membersFa(pb.members.size), sourceFa?.let { "از $it" }).joinToString(" · ")
-            Text(meta, style = Divan.type.micro, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                remember(pb, sourceFa) { facts(pbPlatformLineFa(pb.platform), membersFa(pb.members.size), sourceFa?.let { "از $it" }) },
+                style = Divan.type.micro, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
         }
-        if (showState) playbookStateFa(pb.state).let { (fa, tone) -> Pill(fa, tone, dot = true) }
+        if (showState) PlaybookState(pb.state)
         DIcon(DivanIcon.NEXT, size = 14.dp, tint = c.textMuted)
-    }
-}
-
-/** A member company of a sealed group: its name, at work or paused; a tap opens the session it came from, when there is one. */
-@Composable
-fun MemberRow(company: String, nameFa: String, state: String, onClick: (() -> Unit)?) {
-    val c = Divan.colors
-    Row(
-        Modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(role = Role.Button, onClickLabel = "جلسه‌اش", onClick = onClick) else Modifier).padding(vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        com.coinepro.hq.designsystem.CompanyMark(company, height = 14.dp, mono = true, ink = c.textSecondary)
-        Text(nameFa, style = Divan.type.small, color = c.textPrimary, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        memberStateFa(state).let { (fa, tone) -> Pill(fa, tone, dot = true) }
-        if (onClick != null) DIcon(DivanIcon.NEXT, size = 14.dp, tint = c.textMuted)
     }
 }
 
@@ -495,41 +498,110 @@ fun SourceChip(ref: String, modifier: Modifier = Modifier) {
     val c = Divan.colors
     val pb = rememberPlaybook(ref).data
     Row(
-        modifier.clip(CircleShape).background(c.softLapis).clickable(role = Role.Button, onClickLabel = "کارگروه") { nav.go("playbook/$ref") }
+        modifier.clip(CircleShape).background(c.tile).clickable(role = Role.Button, onClickLabel = "کارگروه") { nav.go("playbook/$ref") }
             .padding(horizontal = 10.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        DIcon(DivanIcon.DEPARTMENT, size = 13.dp, tint = c.lapis)
+        DIcon(DivanIcon.DEPARTMENT, size = 13.dp, tint = c.silverInk)
         Text(
             plain(pb?.titleFa?.ifBlank { null }?.let { "از کارگروه «$it»" } ?: "از کارگروه"),
-            style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.lapis, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
     }
 }
 
-/** The members of a sealed group, for the page. */
+/** The runs of a working group as its tiles and routines read them; null data on a hub that does not serve them (learnt once). */
 @Composable
-fun MembersBlock(pb: Playbook) {
+internal fun rememberGroupRuns(group: String) =
+    rememberQuery("group-runs:$group", "groups", maxAgeMs = 30_000) { gated(HubFeature.GROUP_RUNS) { groupRuns(group) } }
+
+/**
+ * ⟨1.0.1⟩ C3.4 The member companies of a group as tiles: each its head (state, last run, next run, the work line, and when it stands
+ * still its one-line reason with «راه بینداز»), then ONE grouped block of its settings: «انتشار خودکار», «گوینده‌ی محتوا», «دفتر
+ * موضوع‌ها» (nothing of a row the hub does not serve).
+ */
+@Composable
+fun MemberTiles(pb: Playbook, modifier: Modifier = Modifier) {
+    val env = LocalEnv.current
     val nav = LocalNav.current
+    val toasts = LocalToasts.current
     val c = Divan.colors
     val companies = com.coinepro.hq.ui.rememberCompanies()
-    val gaps by LocalEnv.current.api.gaps.missing.collectAsState()
+    val gaps by env.api.gaps.missing.collectAsState()
+    val group = pb.group
+    val sealed = pb.sealed && group != null
+    val runs = if (sealed && group != null) rememberGroupRuns(group).data else null
+    val next = remember(pb.routines) { com.coinepro.hq.core.data.soonestRun(pb.routines.map { it.schedule }) }
     // what he just said, shown at once (the playbook is read again behind it)
     val said = remember(pb.ref) { mutableStateMapOf<String, MemberPublish>() }
-    Column {
-        if (pb.members.isEmpty()) Text("هنوز هیچ شرکتی عضو نیست.", style = Divan.type.caption, color = c.textMuted, modifier = Modifier.padding(vertical = 8.dp))
+    val started = remember(pb.ref, pb.members) { mutableStateMapOf<String, Boolean>() }
+    var starting by remember { mutableStateOf<String?>(null) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (pb.members.isEmpty()) Text("هنوز شرکتی عضو نیست.", style = Divan.type.caption, color = c.textMuted)
         pb.members.forEachIndexed { i, m ->
-            if (i > 0) HorizontalDivider(color = c.lineDivider)
             val name = m.nameFa.ifBlank { com.coinepro.hq.ui.companyOf(companies, m.company).nameFa }
-            MemberRow(m.company, name, m.state, m.order?.let { o -> { nav.go("session/$o") } })
-            // ⟨0.19.9⟩ §45 his standing word for this company (a working group that publishes, on a hub that knows the route)
-            val group = pb.group
-            if (group != null && pb.sealed && publishes(pb) && HubFeature.STANDING_PUBLISH !in gaps) {
-                StandingRow(group, m.company, said[m.company] ?: m.publish) { said[m.company] = it }
+            val on = started[m.company] ?: (m.state == "on")
+            Column(
+                Modifier.fillMaxWidth().stagger(i).testTag("member-tile").clip(RoundedCornerShape(16.dp)).background(c.card).padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                com.coinepro.hq.ui.look.MemberHead(
+                    m.company, name, on, com.coinepro.hq.core.data.memberLook(m.company, on, runs), runsKnown = runs != null, next = next.takeIf { on && sealed },
+                    // «راه بینداز» is the working groups' own route (§29.9): not offered on a hub that does not serve them.
+                    onStart = if (sealed && group != null && HubFeature.GROUPS !in gaps) ({
+                        if (starting == null) {
+                            starting = m.company
+                            scope.launch {
+                                try {
+                                    if (env.api.gated(HubFeature.GROUPS) { setGroupMember(group, m.company, "on"); true } == true) {
+                                        started[m.company] = true
+                                        env.cache.invalidate(*PLAYBOOK_TAGS)
+                                        toasts.ok("کارگروه در $name دوباره راه افتاد.")
+                                    }
+                                } catch (e: ApiException) { toasts.error(e.messageFa) } finally { starting = null }
+                            }
+                        }
+                    }) else null,
+                    starting = starting == m.company,
+                    action = m.order?.let { o -> { com.coinepro.hq.ui.look.QuietLink("جلسه‌اش", { nav.go("session/$o") }) } },
+                )
+                // §45 his standing word, §48 who speaks for it, §47 what it already said: one block, each a row.
+                if (sealed && group != null) com.coinepro.hq.ui.look.SettingsBlock {
+                    if (publishes(pb) && HubFeature.STANDING_PUBLISH !in gaps) StandingRow(group, m.company, said[m.company] ?: m.publish) { said[m.company] = it }
+                    if (HubFeature.NARRATOR !in gaps) NarratorSetting(m.company)
+                    if (HubFeature.TOPIC_LEDGER !in gaps) LedgerSetting(group, m.company, name)
+                }
             }
-            // ⟨1.0.1⟩ §47 what this company already said here, and §48 the voice its content is spoken with
-            if (group != null && pb.sealed && HubFeature.TOPIC_LEDGER !in gaps) LedgerRow(group, m.company, name)
-            if (pb.sealed && HubFeature.NARRATOR !in gaps) NarratorRow(m.company)
+        }
+    }
+}
+
+/** Each routine with its last seven runs as dots, when it runs, whose it is and its next turn. */
+@Composable
+fun RoutineRuns(pb: Playbook, modifier: Modifier = Modifier) {
+    if (pb.routines.isEmpty()) return
+    val c = Divan.colors
+    val group = pb.group
+    val runs = if (pb.sealed && group != null) rememberGroupRuns(group).data else null
+    val live = pb.sealed && pb.members.any { it.state == "on" }
+    Column(modifier.fillMaxWidth().testTag("routine-runs"), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        com.coinepro.hq.designsystem.SectionTitle("روال‌ها", note = if (runs != null) "هفت نوبت آخر هر روال" else null)
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.card).padding(horizontal = 16.dp)) {
+            pb.routines.forEachIndexed { i, r ->
+                if (i > 0) HorizontalDivider(color = c.lineDivider)
+                Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(plain(r.titleFa.ifBlank { r.key }), style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary, modifier = Modifier.weight(1f))
+                        if (runs != null) com.coinepro.hq.ui.look.RunDots(runs.filter { it.routine == r.key }, r.titleFa.ifBlank { r.key })
+                    }
+                    val next = if (live) com.coinepro.hq.core.data.nextRun(r.schedule) else null
+                    Text(
+                        remember(r, pb.seats, next) { com.coinepro.hq.ui.look.factsWhen(listOf(routineTimeFa(r.schedule), seatTitleFa(pb, r.seat)), "نوبت بعد", next) },
+                        style = Divan.type.caption, color = c.textSecondary,
+                    )
+                }
+            }
         }
     }
 }

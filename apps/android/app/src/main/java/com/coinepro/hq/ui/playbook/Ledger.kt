@@ -27,7 +27,6 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.coinepro.hq.core.data.ledgerCountsFa
 import com.coinepro.hq.core.data.topicBody
@@ -63,25 +62,19 @@ private val KINDS = listOf("topic" to "موضوع‌ها", "reference" to "نم�
 private const val PAGE = 30
 
 /**
- * One member's «دفتر موضوع‌ها» under its row: how many topics and samples it holds, and the way in. Nothing on a hub before §47 (the
- * route is learnt once, then not asked again).
+ * One member's «دفتر موضوع‌ها», a row of its settings block: how many topics and samples it holds («۴۲ موضوع | ۴۰ نمونه»), and the
+ * way in. Nothing on a hub before §47 (the route is learnt once, then not asked again).
  */
 @Composable
-internal fun LedgerRow(group: String, company: String, nameFa: String) {
-    val c = Divan.colors
+internal fun LedgerSetting(group: String, company: String, nameFa: String) {
     val q = rememberQuery("ledger-counts:$group:$company", "ledger", maxAgeMs = 30_000) { gated(HubFeature.TOPIC_LEDGER) { topics(group, company, limit = 1) } }
     val counts = q.data ?: return
     var open by rememberSaveable(group, company) { mutableStateOf(false) }
-    Row(
-        Modifier.fillMaxWidth().testTag("ledger-row").clickable(role = Role.Button, onClickLabel = "دفتر موضوع‌ها") { open = true }.padding(start = 24.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            Text("دفتر موضوع‌ها", style = Divan.type.caption, color = c.textSecondary)
-            Text(ledgerCountsFa(counts.topics, counts.references), style = Divan.type.micro, color = c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        HqButton("باز کن", { open = true }, variant = BtnVariant.TEXT, size = BtnSize.SM)
-    }
+    com.coinepro.hq.ui.look.SettingRow(
+        "دفتر موضوع‌ها", remember(counts.topics, counts.references) { com.coinepro.hq.designsystem.facts(*ledgerCountsFa(counts.topics, counts.references).split(" · ").toTypedArray()) },
+        Modifier.testTag("ledger-row").clickable(role = Role.Button, onClickLabel = "دفتر موضوع‌ها") { open = true },
+        action = { HqButton("باز کن", { open = true }, variant = BtnVariant.TEXT, size = BtnSize.SM) },
+    )
     if (open) HqSheet({ open = false }, "دفتر موضوع‌ها", sub = "آنچه $nameFa در این کارگروه گفته است؛ هیچ موضوعی دو بار ساخته نمیشود.") {
         LedgerBody(group, company)
     }

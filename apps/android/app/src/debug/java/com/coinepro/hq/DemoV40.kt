@@ -145,6 +145,16 @@ internal class V40Demo(private val v35: V35Demo) {
     private fun draftOf(pb: JsonObject) = JsonObject(pb.filterKeys { it in EDITABLE })
 
     private fun find(ref: String): JsonObject? = books.firstOrNull { it.str("ref") == ref }
+
+    /** ⟨1.33⟩ A member of a sealed group started again («راه بینداز») or held: the playbook's own member follows. False: no such member. */
+    @Synchronized
+    fun setMember(group: String, company: String, state: String): Boolean {
+        val pb = books.firstOrNull { it.str("group") == group } ?: return false
+        val members = (pb["members"] as JsonArray).map { it as JsonObject }
+        if (members.none { it.str("company") == company }) return false
+        put(JsonObject(pb + ("members" to JsonArray(members.map { if (it.str("company") == company) JsonObject(it + ("state" to JsonPrimitive(if (state == "on") "on" else "paused"))) else it }))))
+        return true
+    }
     private fun put(pb: JsonObject): JsonObject { books[books.indexOfFirst { it.str("ref") == pb.str("ref") }] = pb; return pb }
 
     // -------------------------------------------------------------- routes --

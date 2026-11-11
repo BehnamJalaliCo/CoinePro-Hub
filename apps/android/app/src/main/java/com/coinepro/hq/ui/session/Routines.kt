@@ -83,10 +83,10 @@ private fun RoutineRow(r: SessionRoutine, onChanged: () -> Unit) {
             if (what.isNotBlank()) Text(timesFig(what), style = Divan.type.caption, color = c.textSecondary)
             // its next run while it is on (the hub names none for one that is off)
             r.nextAt?.takeIf { on }?.let { Text("نوبت بعد: ${jDateTime(it)}", style = Divan.type.micro, color = c.textMuted) }
-            r.noteFa?.trim()?.ifBlank { null }?.let { Text(timesFig(it), style = Divan.type.micro, color = c.warning) }
+            r.noteFa?.trim()?.ifBlank { null }?.let { Text(timesFig(it), style = Divan.type.micro, color = c.textSecondary) }
         }
         // one the holder proposed still waits for the owner's seal: its switch comes with the seal
-        if (r.state == "proposed") Pill("منتظر مُهر", Tone.WARN, dot = true)
+        if (r.state == "proposed") Pill("منتظر مُهر تو", Tone.WARN, icon = DivanIcon.TIME)
         else HqSwitch(on, { want ->
             go.run {
                 env.api.setAutomationState(r.ref, if (want) "on" else "off")
@@ -104,7 +104,7 @@ private fun RoutineRow(r: SessionRoutine, onChanged: () -> Unit) {
 internal fun RoutineAction(onClick: () -> Unit) {
     val c = Divan.colors
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        HqButton("روال دائمی", onClick, Modifier.fillMaxWidth(), icon = DivanIcon.TIME)
+        HqButton("روال دائمی", onClick, Modifier.fillMaxWidth(), variant = BtnVariant.SECONDARY, icon = DivanIcon.TIME)
         Text(
             "کاری که باید هر روز یا هر هفته خودش انجام شود، با یک جمله. بی کارت و بی اثر انگشت؛ هر وقت خواستی خاموشش کن.",
             style = Divan.type.micro, color = c.textMuted, modifier = Modifier.padding(horizontal = 4.dp),

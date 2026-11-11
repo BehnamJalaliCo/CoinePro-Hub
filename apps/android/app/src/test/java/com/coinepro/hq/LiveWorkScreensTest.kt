@@ -41,10 +41,11 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * ⟨1.23⟩ Contract §41 ⟨0.19.0⟩, at a phone's height (860dp), night and day, with the demo holding: the session shows its work live. The
- * head with the pace («با من | خودکار») beside its line and the plan's «کار n از m» with its bar; over the composer, two at work (the
- * head's one at his step and for how long, the other «همزمان», the last lines with the newest at the bottom, the one just heard on the
- * stream among them); a stuck session (warm, why and its fix, «ادامه بده»); one waiting for the owner; and «کار زنده», every line.
+ * ⟨1.23⟩ Contract §41, at a phone's height (860dp), night and day, with the demo holding: the session shows its work live.
+ * ⟨1.0.1⟩ Part C (C2.2): the one-line header («کار n از m», the pace, the mood light) over the plan's line of parts; the «الان» bar
+ * over the composer with two at work (their marks side by side, who and how many others, the whole sentence, the timer), the newest
+ * steps as thin lines at the end of the thread (the one just heard on the stream among them); a stuck session (ONE «گره» card: why,
+ * and its fix); one waiting for the owner as «کار زنده» says it; and «کار زنده», who works and every step.
  * Each is checked to show its words before it is drawn.
  */
 @RunWith(ParameterizedRobolectricTestRunner::class)
@@ -56,18 +57,18 @@ class LiveWorkScreensTest(private val name: String, private val night: Boolean) 
 
     companion object {
         private val SCREENS: Map<String, Scene> = linkedMapOf(
-            // Two at work on F-0104: the CEO at step 6 and his SEO specialist (step 4 once the hub is asked again after the stream's line); the
-            // last lines, the newest heard on the stream; the plan 1 of 2.
-            "session-live-working" to Scene(listOf("مدیرعامل پرو-چارت دارد کار میکند، \u200Fقدم ۶", "همزمان: کارشناس سئوی پرو-چارت، \u200Fقدم ۴", "کار ۱ از ۲"), stream = true) {
+            // Two at work on F-0104: the CEO and his SEO specialist; the newest steps at the end of the thread, the last one heard on
+            // the stream; the plan 1 of 2.
+            "session-live-working" to Scene(listOf("مدیرعامل پرو-چارت", "نفر دیگر", "کار 1 از 2", "کار میکند"), stream = true) {
                 com.coinepro.hq.ui.session.OrderSessionScreen("F-0104")
             },
-            // F-0103 stuck: no one to hire and hiring closed; the warm row says why and what fixes it, and «ادامه بده».
-            "session-live-stuck" to Scene(listOf("ادامه بده")) { com.coinepro.hq.ui.session.OrderSessionScreen("F-0103") },
-            // F-0101 waits for the owner, as «کار زنده» says it: nobody works, who it waits for and since when. ⟨1.0.1⟩ C1.5: the session's
-            // page in this state is `session-chat-your-turn` (the two used to be one and the same picture).
-            "session-live-waiting" to Scene(listOf("کار زنده")) { Sheet("F-0101") },
-            // «کار زنده»: every line of F-0104, oldest first, and the two at work at the end.
-            "session-live-sheet" to Scene(listOf("کار زنده", "۴ دقیقه، \u200Fقدم ۳")) { Sheet("F-0104") },
+            // F-0103 stuck: no one to hire and hiring closed; ONE «گره» card says why, with what fixes it.
+            "session-live-stuck" to Scene(listOf("گره", "استخدام را باز کن")) { com.coinepro.hq.ui.session.OrderSessionScreen("F-0103") },
+            // F-0101 waits for the owner, as «کار زنده» says it: nobody works, and what it waits for. ⟨1.0.1⟩ C1.5: the session's page
+            // in this state is `session-chat-your-turn` (the two used to be one and the same picture).
+            "session-live-waiting" to Scene(listOf("کار زنده", "منتظر تو")) { Sheet("F-0101") },
+            // «کار زنده»: the two at work on F-0104, each with its line and time, then every step.
+            "session-live-sheet" to Scene(listOf("کار زنده", "قدم‌ها", "مدیرعامل پرو-چارت")) { Sheet("F-0104") },
         )
 
         @Composable
@@ -95,6 +96,8 @@ class LiveWorkScreensTest(private val name: String, private val night: Boolean) 
     @Before
     fun setUp() {
         com.coinepro.hq.core.format.HqClock.fixed = java.time.Instant.parse("2026-11-06T08:30:00Z")
+        // ⟨1.0.1⟩ the files of a session and of an output are drawn as they are (their pictures and posters)
+        picturesOn()
         graph = (ApplicationProvider.getApplicationContext<HqApp>()).graph
         graph.link.setForeground(false)
         graph.enterDemo()
@@ -106,6 +109,9 @@ class LiveWorkScreensTest(private val name: String, private val night: Boolean) 
         shadowOf(Looper.getMainLooper()).idle()
         compose.mainClock.advanceTimeBy(250)
     }
+
+    @org.junit.After
+    fun tearDown() = picturesOff()
 
     @Test
     fun screen() {
@@ -138,8 +144,8 @@ class LiveWorkScreensTest(private val name: String, private val night: Boolean) 
         settle(4)
         for (t in scene.shows) assertTrue("$name shows «$t»", compose.onAllNodesWithText(t, substring = true).fetchSemanticsNodes().isNotEmpty())
         if (scene.stream) {
-            compose.onNodeWithTag("live-work").assertExists()
-            assertTrue("the streamed line is in the panel", compose.onAllNodesWithText("tradingview.com", substring = true).fetchSemanticsNodes().isNotEmpty())
+            compose.onNodeWithTag("now-bar").assertExists()
+            assertTrue("the streamed line is at the end of the thread", compose.onAllNodesWithText("tradingview.com", substring = true).fetchSemanticsNodes().isNotEmpty())
         }
         compose.onRoot().captureRoboImage(
             "src/test/screenshots/$name-${if (night) "night" else "day"}.png",

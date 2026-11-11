@@ -130,7 +130,11 @@ fun StuckLine(stuck: Stuck, company: String?, modifier: Modifier = Modifier) {
  * elsewhere (a card, a guide, the release of a lock) opens that place. [onDone] refreshes what showed it.
  */
 @Composable
-fun FixButton(fix: Fix, company: String?, orderRef: String?, modifier: Modifier = Modifier, size: BtnSize = BtnSize.SM, budgetTokens: Long? = null, onDone: () -> Unit = {}) {
+fun FixButton(
+    fix: Fix, company: String?, orderRef: String?, modifier: Modifier = Modifier, size: BtnSize = BtnSize.SM, budgetTokens: Long? = null,
+    /** ⟨1.0.1⟩ C0.1: the fix is the page's gold only where nothing else is; beside a decision bar it is outlined. */
+    variant: BtnVariant = BtnVariant.PRIMARY, onDone: () -> Unit = {},
+) {
     val env = LocalEnv.current
     val nav = LocalNav.current
     val toasts = LocalToasts.current
@@ -156,7 +160,7 @@ fun FixButton(fix: Fix, company: String?, orderRef: String?, modifier: Modifier 
                 }
             }
         }
-    }, modifier, variant = BtnVariant.PRIMARY, size = size, icon = if (way == FixWay.OPEN) DivanIcon.NEXT else DivanIcon.SEAL, loading = action.busy)
+    }, modifier, variant = variant, size = size, icon = if (way == FixWay.OPEN) DivanIcon.NEXT else DivanIcon.SEAL, loading = action.busy)
 }
 
 /** A company's mark and name on one line (servers and companies are named by the company, never by a host). */

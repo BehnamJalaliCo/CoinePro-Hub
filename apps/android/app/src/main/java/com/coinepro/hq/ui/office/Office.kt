@@ -90,6 +90,8 @@ fun OfficeScreen() {
     val pending = if (!sessionsOn) rememberQuery("decisions:pending", "decisions") { decisions("pending") } else null
     val office: Office? = q.data ?: if (!sessionsOn && (home?.data != null || pending?.data != null)) officeFallback(home?.data, pending?.data?.items.orEmpty(), companies) else null
     val r = refresher(*listOfNotNull(q, presence, home, pending).toTypedArray())
+    // ⟨1.0.1⟩ C2.3 «میز انتشار»: one line under the pulse, on a hub that serves the desk.
+    val deskOn = served(HubFeature.PUBLISH_DESK) && com.coinepro.hq.ui.look.rememberPublishDesk().data != null
 
     Page(onRefresh = r::refresh, refreshing = r.refreshing) {
         item(key = "hello") {
@@ -116,6 +118,7 @@ fun OfficeScreen() {
                 if (office.critical.isNotEmpty()) item(key = "critical") { com.coinepro.hq.ui.v29.CriticalCard(office.critical) }
                 // ⟨1.24⟩ OF-1: is my holding working, and is anything waiting for me.
                 if (liveOn) item(key = "pulse") { com.coinepro.hq.ui.live.OfficePulse(waiting = com.coinepro.hq.core.data.turnCount(office)) }
+                if (deskOn) item(key = "desk") { com.coinepro.hq.ui.look.DeskLine() }
                 item(key = "command") { com.coinepro.hq.ui.look.CommandRow() }
                 item(key = "sessions") { SessionsBlock(office, sessionsOn) }
                 // ⟨1.24⟩ CO-1: every company alive, working, healthy and what it costs today, the busiest first.

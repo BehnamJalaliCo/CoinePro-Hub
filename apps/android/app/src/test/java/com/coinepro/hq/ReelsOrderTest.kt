@@ -115,7 +115,7 @@ class ReelsOrderTest {
         // none yet (the hub then names its default voice), and the hub out of its account: the owner's one step
         val none = Api.json.decodeFromString(Narrator.serializer(), """{"company":"FX","set":false,"voice":"Kore","style_fa":"","by":null,"updated_at":null,"voices":[],"aistudio":"signed_out"}""")
         assertEquals("تنظیم نشده؛ هر بار مدل انتخاب میکند", narratorLineFa(none))
-        assertEquals("گوینده‌ی هاب از حسابش بیرون افتاده؛ یک بار ورود شما لازم است.", narratorStepFa(none))
+        assertEquals("گوینده‌ی هاب از حسابش بیرون افتاده؛ یک بار ورود خودت لازم است.", narratorStepFa(none))
         assertNull(narratorStepFa(Narrator(company = "PC")))
         assertEquals("Kore", narratorLineFa(Narrator(company = "PC", set = true, voice = "Kore", styleFa = " ")))
         assertEquals(listOf("زن", "مرد", ""), listOf("female", "male", "other").map(::genderFa))
@@ -125,7 +125,8 @@ class ReelsOrderTest {
             """{"account":"tradeyar","hour":"21:00","at":"2026-11-06T17:30:00Z","enough":true,"posts":38,"days":90,"basis":"likes_comments","note_fa":"از روی لایک و کامنت 38 پست","read_at":"2026-11-06T04:00:00Z"}""",
         )
         assertTrue(b.enough)
-        assertEquals("۲۱:۰۰", bestClockFa(b))
+        // a clock is a Latin figure (C0.4)
+        assertEquals("21:00", bestClockFa(b))
         val thin = Api.json.decodeFromString(BestHour.serializer(), """{"account":"coineprofx","hour":null,"at":null,"enough":false,"posts":7,"days":19,"note_fa":"هنوز داده‌ی کافی نیست","read_at":null}""")
         assertFalse(thin.enough)
         assertNull(bestClockFa(thin))
@@ -175,7 +176,7 @@ class ReelsOrderTest {
         assertEquals("۴۲ موضوع · ۴۰ نمونه", ledgerCountsFa(42, 40))
         assertEquals("۳ موضوع · ۰ نمونه", ledgerCountsFa(3, 0))
         assertEquals("هنوز چیزی ثبت نشده", ledgerCountsFa(0, 0))
-        assertEquals(listOf("ثبت کارمند", "از بسته‌ی منتشرشده", "افزوده‌ی شما"), listOf("claim", "package", "owner").map(::topicSourceFa))
+        assertEquals(listOf("ثبت کارمند", "از بسته‌ی منتشرشده", "افزوده‌ی تو"), listOf("claim", "package", "owner").map(::topicSourceFa))
         // a topic is its words; a sample needs its link, and its words are optional
         assertEquals("""{"kind":"topic","title_fa":"حد ضرر در ۳۰ ثانیه"}""", topicBody("topic", "  حد ضرر در ۳۰ ثانیه ", "").toString())
         assertNull(topicBody("topic", " ", ""))
@@ -191,15 +192,16 @@ class ReelsOrderTest {
     @Test
     fun theBestHoursLinesAndTheStandingWord() {
         val best = BestHour(account = "tradeyar", hour = "21:00", at = "2026-11-06T17:30:00Z", enough = true, noteFa = "از روی لایک و کامنت 38 پست در 90 روز اخیر")
-        assertEquals(listOf("بهترین ساعت این حساب: ۲۱:۰۰", "از روی لایک و کامنت 38 پست در 90 روز اخیر"), bestHourLines(best, null))
+        assertEquals(listOf("بهترین ساعت این حساب: 21:00", "از روی لایک و کامنت 38 پست در 90 روز اخیر"), bestHourLines(best, null))
         val thin = BestHour(account = "coineprofx", noteFa = "هنوز داده‌ی کافی نیست (7 پست در 19 روز)")
-        assertEquals(listOf("هنوز داده‌ی کافی نیست (7 پست در 19 روز)", "تا آن وقت: ساعت ثابت شما"), bestHourLines(thin, "۱۸:۳۰"))
+        assertEquals(listOf("هنوز داده‌ی کافی نیست (7 پست در 19 روز)", "تا آن وقت: ساعت ثابت خودت"), bestHourLines(thin, "۱۸:۳۰"))
         assertEquals(listOf("هنوز داده‌ی کافی نیست (7 پست در 19 روز)", "تا آن وقت: همان لحظه‌ی آماده شدن"), bestHourLines(thin, null))
         assertEquals(listOf("تا آن وقت: همان لحظه‌ی آماده شدن"), bestHourLines(BestHour(), "عصر"))
         // a member's line: «بهترین ساعت» in the hour's place, with the hour once the hub knows it
         val word = MemberPublish(mode = "auto", account = "tradeyar", story = true, at = "18:30", best = true)
-        assertEquals("خودکار · بهترین ساعت ۲۱:۰۰ · ⁦@tradeyar⁩ · استوری هم", standingLineFa(word, best))
-        assertEquals("خودکار · بهترین ساعت · ⁦@tradeyar⁩ · استوری هم", standingLineFa(word, thin))
+        assertEquals("خودکار · بهترین ساعت 21:00 · ⁦@tradeyar⁩ · استوری هم", standingLineFa(word, best))
+        // the hub does not know the hour yet: his fixed hour is what it falls back on, and the line says so
+        assertEquals("خودکار · بهترین ساعت · تا آن وقت ساعت 18:30 · ⁦@tradeyar⁩ · استوری هم", standingLineFa(word, thin))
         assertEquals("خودکار · بهترین ساعت", standingLineFa(MemberPublish(mode = "auto", best = true)))
         assertEquals("خودکار · ساعت 18:30", standingLineFa(MemberPublish(mode = "auto", at = "18:30")))
         assertEquals("هر بار بپرس", standingLineFa(MemberPublish(best = true)))

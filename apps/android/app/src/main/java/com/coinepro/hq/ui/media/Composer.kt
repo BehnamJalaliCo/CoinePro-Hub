@@ -615,14 +615,17 @@ fun VoiceProblem(why: String, settings: Boolean, onSettings: () -> Unit, onDismi
 }
 
 @Composable
-fun RoundAction(icon: DivanIcon, label: String, enabled: Boolean, onClick: () -> Unit, busy: Boolean = false) {
+fun RoundAction(icon: DivanIcon, label: String, enabled: Boolean, onClick: () -> Unit, busy: Boolean = false, quiet: Boolean = false) {
     val c = Divan.colors
+    // ⟨1.0.1⟩ C0.1 [quiet]: the page's one full gold is elsewhere (a decision bar, a knot's fix); this one is ivory on a raised disc.
+    val ink = if (!enabled) c.disabledText else if (quiet) c.textPrimary else c.onGold
     Box(
-        Modifier.size(44.dp).clip(CircleShape).background(if (enabled) c.goldFill else c.disabledFill)
+        Modifier.size(44.dp).clip(CircleShape).background(if (!enabled) c.disabledFill else if (quiet) c.raised else c.goldFill)
+            .then(if (quiet && enabled) Modifier.border(1.dp, com.coinepro.hq.designsystem.silverLine(), CircleShape) else Modifier)
             .clickable(enabled = enabled, role = Role.Button, onClickLabel = label, onClick = onClick).semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) {
-        if (busy) CircularProgressIndicator(Modifier.size(18.dp), color = c.onGold, strokeWidth = 2.dp)
-        else DIcon(icon, size = 20.dp, tint = if (enabled) c.onGold else c.disabledText)
+        if (busy) CircularProgressIndicator(Modifier.size(18.dp), color = ink, strokeWidth = 2.dp)
+        else DIcon(icon, size = 20.dp, tint = ink)
     }
 }

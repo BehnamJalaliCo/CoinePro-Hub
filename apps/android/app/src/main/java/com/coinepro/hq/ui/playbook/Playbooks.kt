@@ -1,9 +1,7 @@
 package com.coinepro.hq.ui.playbook
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
@@ -11,7 +9,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import com.coinepro.hq.designsystem.Text
@@ -26,9 +23,27 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.Stable
+import androidx.compose.ui.platform.testTag
+import com.coinepro.hq.core.data.sealSummary
+import com.coinepro.hq.designsystem.DecisionBar
+import com.coinepro.hq.designsystem.DecisionPage
+import com.coinepro.hq.designsystem.DecisionPlace
+import com.coinepro.hq.designsystem.DecisionState
+import com.coinepro.hq.designsystem.IconBtn
+import com.coinepro.hq.designsystem.Pill
+import com.coinepro.hq.designsystem.QuietAction
+import com.coinepro.hq.designsystem.facts
+import com.coinepro.hq.designsystem.rememberCollapse
+import com.coinepro.hq.designsystem.rememberHaptics
+import com.coinepro.hq.ui.look.Fold
+import com.coinepro.hq.ui.look.GroupHeader
+import com.coinepro.hq.ui.look.QuietLink
 import com.coinepro.hq.core.data.PB_PLATFORMS
 import com.coinepro.hq.core.data.applyTargets
 import com.coinepro.hq.core.data.canApplyAsIs
@@ -38,7 +53,6 @@ import com.coinepro.hq.core.data.libraryGroups
 import com.coinepro.hq.core.data.pbPlatformFa
 import com.coinepro.hq.core.data.pbPlatformLineFa
 import com.coinepro.hq.core.data.playbookPatch
-import com.coinepro.hq.core.data.playbookStateFa
 import com.coinepro.hq.core.data.publishes
 import com.coinepro.hq.core.data.withoutSeat
 import com.coinepro.hq.core.format.Tone
@@ -61,10 +75,8 @@ import com.coinepro.hq.designsystem.HqButton
 import com.coinepro.hq.designsystem.HqCard
 import com.coinepro.hq.designsystem.HqSwitch
 import com.coinepro.hq.designsystem.HqTextField
-import com.coinepro.hq.designsystem.IconBtn
 import com.coinepro.hq.designsystem.Md
 import com.coinepro.hq.designsystem.PageHeader
-import com.coinepro.hq.designsystem.Pill
 import com.coinepro.hq.designsystem.ScrollRow
 import com.coinepro.hq.designsystem.SectionTitle
 import com.coinepro.hq.designsystem.Skeleton
@@ -84,9 +96,16 @@ import com.coinepro.hq.ui.v29.served
 import java.util.UUID
 
 // Contract §40.2–§40.3 ⟨1.22⟩: «کارگروه‌ها». A session's result as a working group the owner keeps: the library (sealed first), and each
-// playbook's page. A draft is read whole and lightly edited here (its title, purpose and platform; a seat, a routine or a rule taken out;
-// a routine's brief and a rule's words); the main way to change it is still to say it in its session, where the holder rewrites it.
-// Sealed (🔏), it is a working group: its member companies, and «به شرکت دیگر بده» (a company, a platform, a note; or «بدون تغییر»).
+// playbook's page. ⟨1.0.1⟩ Part C (C3.4), in the look:
+// - a sealed page opens with its member companies as tiles (state, last run, next run; a silver work line only while something runs;
+//   a member that stands still with its one-line reason and «راه بینداز»; under each ONE grouped block of its settings), then each
+//   routine with its last seven runs as dots; what the group is (goal, seats, routines, figures, connections, rules) is folded under
+//   «تعریف کارگروه»;
+// - a draft is lightly edited here (its title, purpose and platform; a seat, a routine or a rule taken out; a routine's brief and a
+//   rule's words); «مُهر کارگروه» lives in the page's decision bar with what the seal starts in one line («۳ جایگاه | ۲ روال | ۱ اتصال»):
+//   one tap, the hub decides about the passkey (it asks none for a seal of a working group). The main way to change a draft is still
+//   to say it in its session, where the holder rewrites it;
+// - «به شرکت دیگر بده» is a spring sheet with its decision bar (a company, a platform, a note; or «بدون تغییر»).
 
 // ----------------------------------------------------------------- library --
 @Composable
@@ -126,36 +145,150 @@ fun PlaybooksScreen() {
 // -------------------------------------------------------------------- page --
 private enum class PbSheet { NONE, APPLY, RETIRE }
 
+/** A draft's light edits, kept on the phone until «ذخیره» or the seal (one `PATCH` of only what changed). */
+@Stable
+private class DraftEdit(val pb: Playbook) {
+    var edit by mutableStateOf(pb)
+    /** What goes to the hub: the edits with empty rules left out. */
+    val clean: Playbook get() = edit.copy(rulesFa = edit.rulesFa.map { it.trim() }.filter { it.isNotEmpty() })
+    val patch get() = playbookPatch(pb, clean)
+}
+
 @Composable
 fun PlaybookScreen(ref: String) {
     val env = LocalEnv.current
     val nav = LocalNav.current
     val toasts = LocalToasts.current
+    val act = activity()
+    val haptics = rememberHaptics()
+    val c = Divan.colors
     val q = rememberPlaybook(ref)
     val on = served(HubFeature.PLAYBOOKS)
     val r = refresher(q)
+    val companies = rememberCompanies()
     var sheet by rememberSaveable { mutableStateOf(PbSheet.NONE) }
     // `group.playbook` names the playbook that moved (drafted, edited in the session, sealed, given, retired).
     LaunchedEffect(env, ref) { env.stream.events.collect { e -> if (e.type == "group.playbook" && e.ref == ref) q.refresh() } }
-    Page(onRefresh = r::refresh, refreshing = r.refreshing) {
-        val pb = q.data
-        when {
-            pb == null && q.error != null -> item(key = "error") { ErrorBlock(q.error, { q.refresh() }) }
-            pb == null && !on -> item(key = "none") { Empty("کارگروه‌ها با به‌روزرسانی بعدی هاب میایند", icon = DivanIcon.DEPARTMENT) }
-            pb == null -> item(key = "sk") { Skeleton(Modifier.fillMaxWidth().height(420.dp), radius = 16.dp) }
-            else -> item(key = "body") {
-                // ⟨1.0.1⟩ M14: the row of the library grows into this page.
-                androidx.compose.foundation.layout.Box(Modifier.continuity("playbook/${pb.ref}")) {
-                    PlaybookBody(pb, onSaved = { q.set(it) }, onApply = { sheet = PbSheet.APPLY }, onRetire = { sheet = PbSheet.RETIRE })
+    val pb = q.data
+    val listState = rememberLazyListState()
+    val collapse = rememberCollapse(listState)
+    val draft = remember(pb?.ref, pb?.version, pb?.state) { pb?.takeIf { it.draft }?.let(::DraftEdit) }
+    // ⟨0.19.9⟩ §45 his standing word, given with the seal: on, as he asked («به صورت خودکار از روز دوم انجام بشه»)
+    var word by rememberSaveable(ref, stateSaver = StandingSaver) { mutableStateOf(MemberPublish(mode = "auto")) }
+    val save = rememberAction()
+    val seal = rememberAction()
+    val shown = draft?.edit ?: pb
+
+    DecisionPage(
+        bar = if (pb != null && draft != null) ({
+            val dirty = draft.patch != null
+            // «مُهر کارگروه»: the page's one act, with what the seal starts in one line. One tap; a seal with unsaved edits saves first.
+            DecisionBar(
+                "مُهر کارگروه", {
+                    seal.run(onError = { e -> haptics.error(); toasts.error(e.messageFa) }) {
+                        var cur: Playbook = pb
+                        draft.patch?.let { p -> cur = env.api.patchPlaybook(pb.ref, p) }
+                        val said = word.takeIf { publishes(cur) }
+                        val out = env.api.sealPlaybook(pb.ref, said) { a, t -> env.auth.stepUp(act, a, t) }
+                        haptics.seal()
+                        env.cache.invalidate(*PLAYBOOK_TAGS)
+                        toasts.ok(sealedFa(out, said))
+                        q.set(out)
+                    }
+                },
+                context = (sealSummary(draft.clean.seats.size, draft.clean.routines.size, pb.connections.size) + (if (dirty) "مُهر اول تغییرهایت را ذخیره میکند" else "با مُهر، روال‌ها شروع میشوند")).joinToString(" · "),
+                quiet = listOf(QuietAction("ذخیره", enabled = dirty && !save.busy && !seal.busy) {
+                    val p = draft.patch ?: return@QuietAction
+                    save.run {
+                        val out = env.api.patchPlaybook(pb.ref, p)
+                        env.cache.invalidate(*PLAYBOOK_TAGS)
+                        toasts.ok("ذخیره شد.")
+                        q.set(out)
+                    }
+                }),
+                state = if (seal.busy) DecisionState.WORKING else DecisionState.IDLE, enabled = canSeal(draft.clean) && !save.busy, icon = DivanIcon.SEAL, place = DecisionPlace.PAGE,
+            )
+        }) else null,
+    ) {
+        Column(Modifier.fillMaxSize()) {
+            // ⟨1.0.1⟩ M14: the row of the library grows into this header; M18: it folds to the title and the state.
+            if (pb != null && shown != null) GroupHeader(
+                { collapse.value }, "کارگروه‌های آماده", shown.titleFa.ifBlank { "کارگروه بی‌نام" }, Modifier.continuity("playbook/${pb.ref}"),
+                state = { PlaybookState(pb.state) },
+                facts = {
+                    Text(
+                        remember(pb, shown.platform, companies) {
+                            facts(
+                                pbPlatformLineFa(shown.platform), pb.source.company?.let { "شرکت: ${companyOf(companies, it).nameFa}" },
+                                pb.parent?.let { "نسخه‌ای از کارگروهی دیگر" }, pb.createdAt.takeIf { it.isNotBlank() }?.let { "ساخته شد ${jDate(it)}" },
+                                pb.sealedAt?.let { "مُهر شد ${jDate(it)}" }, pb.retiredAt?.let { "بازنشسته شد ${jDate(it)}" },
+                            )
+                        },
+                        style = Divan.type.caption, color = c.textMuted,
+                    )
+                },
+                actions = {
+                    if (pb.source.order.isNotBlank()) QuietLink("جلسه‌ای که از آن ساخته شد", { nav.go("session/${pb.source.order}") })
+                    if (pb.sealed) {
+                        HqButton("به شرکت دیگر بده", { sheet = PbSheet.APPLY }, variant = BtnVariant.SECONDARY, size = BtnSize.SM, icon = DivanIcon.SEND)
+                        HqButton("بازنشسته کن", { sheet = PbSheet.RETIRE }, variant = BtnVariant.TEXT, size = BtnSize.SM)
+                    }
+                },
+            )
+            Box(Modifier.weight(1f)) {
+                Page(onRefresh = r::refresh, refreshing = r.refreshing, state = listState) {
+                    when {
+                        pb == null && q.error != null -> item(key = "error") { ErrorBlock(q.error, { q.refresh() }) }
+                        pb == null && !on -> item(key = "none") { Empty("کارگروه‌ها با به‌روزرسانی بعدی هاب میایند", icon = DivanIcon.DEPARTMENT) }
+                        pb == null -> item(key = "sk") { Skeleton(Modifier.fillMaxWidth().height(420.dp), radius = 16.dp) }
+                        else -> {
+                            // What the drafter left out, said plainly (a note, not a warning).
+                            pb.noteFa?.takeIf { it.isNotBlank() }?.let { note ->
+                                item(key = "note") {
+                                    HqCard(Modifier.fillMaxWidth(), padding = PaddingValues(12.dp)) {
+                                        Text("چیزهایی که پیش‌نویس‌کننده کنار گذاشت", style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
+                                        Para(note, Modifier.padding(top = 2.dp), style = Divan.type.caption, color = c.textSecondary)
+                                    }
+                                }
+                            }
+                            if (draft != null) {
+                                item(key = "hint") { Hint(onSession = { nav.go("session/${pb.source.order}") }) }
+                                item(key = "draft") {
+                                    DraftEditor(draft, standing = if (publishes(pb)) ({ StandingChoice(word, { word = it }, company = pb.source.company?.takeIf { !companyOf(companies, it).holding }) }) else null)
+                                }
+                            } else {
+                                item(key = "members") {
+                                    Column(Modifier.testTag("group-members"), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        SectionTitle("شرکت‌های عضو", note = if (pb.members.isEmpty()) "هنوز شرکتی عضو نیست" else null)
+                                        MemberTiles(pb)
+                                    }
+                                }
+                                if (pb.routines.isNotEmpty()) item(key = "routines") { RoutineRuns(pb) }
+                                // What the working group is: read when he wants it, folded until then.
+                                item(key = "definition") {
+                                    Fold("تعریف کارگروه", remember(pb) { facts(*sealSummary(pb.seats.size, pb.routines.size, pb.connections.size).toTypedArray()) }, tag = "group-definition") { Definition(pb) }
+                                }
+                                pb.group?.takeIf { pb.sealed }?.let { g ->
+                                    item(key = "kpis") { QuietLink("شاخص‌ها و آزمایش هفته در «کارگروه‌ها»", { nav.go("groups/$g") }) }
+                                }
+                                if (pb.retired) item(key = "retired") {
+                                    Text(
+                                        plain("بازنشسته شد${pb.retiredAt?.let { " ${jDate(it)}" }.orEmpty()}؛ کارهای روتینش برای همه‌ی شرکت‌ها ایستاده است. چیزی پاک نشده."),
+                                        style = Divan.type.caption, color = c.textMuted, modifier = Modifier.padding(horizontal = 4.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
     }
-    val pb = q.data ?: return
+    if (pb == null) return
     when (sheet) {
         PbSheet.NONE -> Unit
         PbSheet.APPLY -> com.coinepro.hq.ui.v14.HqSheet({ sheet = PbSheet.NONE }, "به شرکت دیگر بده", sub = "همین کارگروه برای شرکت دیگری، روی هر پلتفرمی.") {
-            ApplyBody(pb, rememberCompanies()) { out, name ->
+            ApplyBody(pb, companies) { out, name ->
                 sheet = PbSheet.NONE
                 env.cache.invalidate("sessions", *PLAYBOOK_TAGS)
                 val order = out.order
@@ -164,165 +297,101 @@ fun PlaybookScreen(ref: String) {
                     nav.go("session/$order")
                 } else {
                     q.set(out.playbook)
-                    toasts.ok("به $name داده شد.")
+                    toasts.ok("$name عضو کارگروه شد.")
                 }
             }
         }
-        PbSheet.RETIRE -> com.coinepro.hq.ui.v14.HqSheet({ sheet = PbSheet.NONE }, "بازنشسته کردن کارگروه", sub = "کارهای روتینش برای همه‌ی شرکت‌های عضو می‌ایستد؛ چیزی پاک نمیشود.") {
+        PbSheet.RETIRE -> com.coinepro.hq.ui.v14.HqSheet({ sheet = PbSheet.NONE }, "این کارگروه بازنشسته شود؟", sub = "روال‌هایش برای همه‌ی شرکت‌های عضو می‌ایستد؛ چیزی پاک نمیشود.") {
             RetireBody(pb, onCancel = { sheet = PbSheet.NONE }) { out -> sheet = PbSheet.NONE; q.set(out) }
         }
     }
 }
 
+@Composable
+private fun SubHead(text: String) = Text(text, style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = Divan.colors.textMuted)
+
+/** What a working group is, read whole: its goal, who, what and when, the figures it is judged by, its connections, its rules. */
+@Composable
+private fun Definition(pb: Playbook) {
+    val c = Divan.colors
+    if (pb.purposeFa.isNotBlank()) com.coinepro.hq.ui.Selectable { Para(pb.purposeFa, style = Divan.type.small, color = c.textPrimary) }
+    if (pb.seats.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        SubHead("چه کسانی")
+        for (s in pb.seats) SeatRow(s)
+    }
+    if (pb.routines.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        SubHead("چه کاری، کِی")
+        var open by rememberSaveable(pb.ref) { mutableStateOf<String?>(null) }
+        for (r in pb.routines) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            RoutineLine(pb, r) {
+                if (r.briefMd.isNotBlank()) IconBtn(DivanIcon.CHEVRON, if (open == r.key) "بستن" else "دستور کار", { open = if (open == r.key) null else r.key }, tint = c.textMuted)
+            }
+            Expand(open == r.key) {
+                Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.tile).padding(10.dp)) { com.coinepro.hq.ui.Selectable { Md(r.briefMd, color = c.textPrimary) } }
+            }
+        }
+    }
+    FiguresAndConnections(pb)
+    if (pb.rulesFa.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SubHead("قانون‌ها")
+        for (rule in pb.rulesFa) RuleLine(rule)
+    }
+}
+
+/** The figures a group is judged by and the connections each member needs (read only: they are set in the session). */
+@Composable
+private fun FiguresAndConnections(pb: Playbook) {
+    val c = Divan.colors
+    if (pb.kpis.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        SubHead("با چه عددی میسنجیم")
+        for (k in pb.kpis) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(plain(k.titleFa.ifBlank { k.key }), style = Divan.type.small, color = c.textPrimary, modifier = Modifier.weight(1f))
+            if (k.unit.isNotBlank()) Text(plain(k.unit), style = Divan.type.micro, color = c.textMuted)
+        }
+    }
+    if (pb.connections.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        SubHead("اتصال‌ها")
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            for (k in pb.connections) Pill(com.coinepro.hq.core.data.connectionKindFa(k), Tone.NEUTRAL)
+        }
+    }
+}
+
 /**
- * A playbook whole. A draft keeps the owner's light edits on the phone until «ذخیره» (one `PATCH` of only what changed); it is sealed
- * only when nothing is left unsaved. A sealed one shows its members and «به شرکت دیگر بده»; a retired one says what stopped.
+ * A draft, lightly edited: its title, goal and platform, its seats and routines (each to take out; a routine's brief to change), its
+ * rules, the figures and connections it carries, and his standing word for what it publishes. Its seal is the page's decision bar.
  */
 @Composable
-internal fun PlaybookBody(pb: Playbook, onSaved: (Playbook) -> Unit, onApply: () -> Unit, onRetire: () -> Unit) {
-    val env = LocalEnv.current
-    val nav = LocalNav.current
-    val toasts = LocalToasts.current
-    val act = activity()
+private fun DraftEditor(d: DraftEdit, standing: (@Composable () -> Unit)?) {
     val c = Divan.colors
-    val companies = rememberCompanies()
-    var edit by remember(pb.ref, pb.version, pb.state) { mutableStateOf(pb) }
-    val patch = if (pb.draft) playbookPatch(pb, edit) else null
-    val shown = if (pb.draft) edit else pb
-    var head by rememberSaveable(pb.ref) { mutableStateOf(false) }
-    var menu by remember { mutableStateOf(false) }
-    val save = rememberAction()
-    val seal = rememberAction()
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        // ---- the head: what it is, its state, ⋮
-        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("کارگروه، روی ${pbPlatformLineFa(shown.platform)}", style = Divan.type.caption, color = c.textMuted)
-                Text(plain(shown.titleFa.ifBlank { "کارگروه بی‌نام" }), style = Divan.type.h1, color = c.textPrimary)
-            }
-            playbookStateFa(pb.state).let { (fa, tone) -> Pill(fa, tone, Modifier.padding(top = 4.dp), dot = true) }
-            if (!pb.retired) Box {
-                IconBtn(DivanIcon.MORE, "بیشتر", { menu = true }, tint = c.textSecondary)
-                androidx.compose.material3.DropdownMenu(menu, { menu = false }, containerColor = c.overlay) {
-                    androidx.compose.material3.DropdownMenuItem(
-                        text = { Text("بازنشسته کن", style = Divan.type.body, color = c.negative) },
-                        leadingIcon = { DIcon(DivanIcon.PAUSE, size = 20.dp, tint = c.negative) },
-                        onClick = { menu = false; onRetire() },
-                    )
-                }
-            }
-        }
-        // ---- where it came from, its version, its dates
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val co = pb.source.company?.let { companyOf(companies, it).nameFa }
-            Text(
-                "از جلسه‌ای در ${co ?: "هلدینگ"}",
-                Modifier.clip(CircleShape).clickable(role = Role.Button, onClickLabel = "جلسه‌اش") { nav.go("session/${pb.source.order}") }.padding(horizontal = 4.dp, vertical = 2.dp),
-                style = Divan.type.caption.copy(fontWeight = FontWeight.SemiBold), color = c.silverInk,
-            )
-            Text(
-                plain(listOfNotNull(
-                    "نسخه‌ی ${faNum(pb.version)}",
-                    pb.sealedAt?.let { "مُهر ${jDate(it)}" } ?: pb.createdAt.takeIf { it.isNotBlank() }?.let { "پیش‌نویس ${jDate(it)}" },
-                    pb.parent?.let { "برگرفته از کارگروهی دیگر" },
-                ).joinToString(" · ")),
-                style = Divan.type.micro, color = c.textMuted, modifier = Modifier.weight(1f),
-            )
-        }
-        if (pb.draft) Hint(onSession = { nav.go("session/${pb.source.order}") })
-        pb.noteFa?.takeIf { it.isNotBlank() }?.let { note ->
-            HqCard(Modifier.fillMaxWidth(), color = c.softWarning, padding = PaddingValues(12.dp)) {
-                Text("آنچه کنار گذاشته شد", style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.warning)
-                Para(note, style = Divan.type.caption, color = c.textPrimary)
-            }
-        }
-        // ---- purpose (and, for a draft, the title and the purpose to edit)
+    val pb = d.pb
+    val edit = d.edit
+    Column(Modifier.testTag("draft-editor"), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         HqCard(Modifier.fillMaxWidth()) {
-            SectionTitle("هدف", icon = DivanIcon.STAR) {
-                if (pb.draft) HqButton(if (head) "بستن" else "ویرایش", { head = !head }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.EDIT)
-            }
-            Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (pb.draft && head) {
-                    HqTextField(edit.titleFa, { edit = edit.copy(titleFa = it) }, "نام کارگروه", Modifier.fillMaxWidth(), maxLength = 200)
-                    HqTextField(edit.purposeFa, { edit = edit.copy(purposeFa = it) }, "هدفش در یکی دو جمله", Modifier.fillMaxWidth(), singleLine = false, minLines = 2, maxLength = 2000)
-                } else if (shown.purposeFa.isNotBlank()) com.coinepro.hq.ui.Selectable { Para(shown.purposeFa, style = Divan.type.small, color = c.textPrimary) }
-                else Text("هدفی نوشته نشده.", style = Divan.type.caption, color = c.textMuted)
-                if (pb.draft) {
-                    Text("پلتفرم", style = Divan.type.micro.copy(fontWeight = FontWeight.SemiBold), color = c.textMuted)
-                    ScrollRow { for (p in PB_PLATFORMS) FilterChip(pbPlatformFa(p), edit.platform == p, { edit = edit.copy(platform = p) }) }
-                }
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                SubHead("عنوان")
+                HqTextField(edit.titleFa, { d.edit = d.edit.copy(titleFa = it) }, "نام کارگروه", Modifier.fillMaxWidth(), maxLength = 200)
+                SubHead("هدف")
+                HqTextField(edit.purposeFa, { d.edit = d.edit.copy(purposeFa = it) }, "هدفش در یکی دو جمله", Modifier.fillMaxWidth(), singleLine = false, minLines = 2, maxLength = 2000)
+                SubHead("پلتفرم")
+                ScrollRow { for (p in PB_PLATFORMS) FilterChip(pbPlatformFa(p), edit.platform == p, { d.edit = d.edit.copy(platform = p) }) }
             }
         }
-        SeatsCard(shown, editable = pb.draft) { seat -> edit = withoutSeat(edit, seat) }
-        RoutinesCard(shown, editable = pb.draft, onRemove = { k -> edit = edit.copy(routines = edit.routines.filter { it.key != k }) }) { k, brief ->
-            edit = edit.copy(routines = edit.routines.map { if (it.key == k) it.copy(briefMd = brief) else it })
+        SeatsCard(edit) { seat -> d.edit = withoutSeat(d.edit, seat) }
+        RoutinesCard(edit, onRemove = { k -> d.edit = d.edit.copy(routines = d.edit.routines.filter { it.key != k }) }) { k, brief ->
+            d.edit = d.edit.copy(routines = d.edit.routines.map { if (it.key == k) it.copy(briefMd = brief) else it })
         }
-        if (shown.kpis.isNotEmpty()) HqCard(Modifier.fillMaxWidth()) {
-            SectionTitle("شاخص‌ها", note = "از اتصال‌های هر شرکت عضو، هر روز", icon = DivanIcon.CHART)
-            Column(Modifier.padding(top = 6.dp)) {
-                shown.kpis.forEachIndexed { i, k ->
-                    if (i > 0) HorizontalDivider(color = c.lineDivider)
-                    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(plain(k.titleFa.ifBlank { k.key }), style = Divan.type.small, color = c.textPrimary, modifier = Modifier.weight(1f))
-                        if (k.unit.isNotBlank()) Text(plain(k.unit), style = Divan.type.micro, color = c.textMuted)
-                    }
-                }
-            }
+        RulesCard(
+            edit, onAdd = { d.edit = d.edit.copy(rulesFa = d.edit.rulesFa + "") }, onRemove = { i -> d.edit = d.edit.copy(rulesFa = d.edit.rulesFa.filterIndexed { j, _ -> j != i }) },
+        ) { i, text -> d.edit = d.edit.copy(rulesFa = d.edit.rulesFa.mapIndexed { j, r -> if (j == i) text else r }) }
+        if (pb.kpis.isNotEmpty() || pb.connections.isNotEmpty()) HqCard(Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { FiguresAndConnections(pb) }
         }
-        RulesCard(shown, editable = pb.draft, onRemove = { i -> edit = edit.copy(rulesFa = edit.rulesFa.filterIndexed { j, _ -> j != i }) }) { i, text ->
-            edit = edit.copy(rulesFa = edit.rulesFa.mapIndexed { j, r -> if (j == i) text else r })
-        }
-        if (shown.connections.isNotEmpty()) HqCard(Modifier.fillMaxWidth()) {
-            SectionTitle("اتصال‌های لازم", note = "هر شرکت عضو باید این‌ها را وصل کرده باشد", icon = DivanIcon.GLOBE)
-            FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (k in shown.connections) Pill(com.coinepro.hq.core.data.connectionKindFa(k), Tone.NEUTRAL)
-            }
-        }
-        if (!pb.draft) HqCard(Modifier.fillMaxWidth()) {
-            SectionTitle("شرکت‌های عضو", note = if (pb.members.isEmpty()) null else "${faNum(pb.members.size)} شرکت این کارگروه را دارند", icon = DivanIcon.COMPANIES) {
-                pb.group?.let { g -> HqButton("کارگروه در کار", { nav.go("groups/$g") }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.NEXT) }
-            }
-            Column(Modifier.padding(top = 4.dp)) { MembersBlock(pb) }
-        }
-        // ---- what the owner does with it
-        var word by rememberSaveable(pb.ref, stateSaver = StandingSaver) { mutableStateOf(MemberPublish(mode = "auto")) }
-        when {
-            pb.draft -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (patch != null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    HqButton("ذخیره‌ی تغییرها", {
-                        save.run {
-                            val out = env.api.patchPlaybook(pb.ref, patch)
-                            env.cache.invalidate(*PLAYBOOK_TAGS)
-                            toasts.ok("پیش‌نویس ذخیره شد.")
-                            onSaved(out)
-                        }
-                    }, Modifier.weight(1f), variant = BtnVariant.PRIMARY, icon = DivanIcon.EDIT, loading = save.busy)
-                    HqButton("برگردان", { edit = pb; head = false }, variant = BtnVariant.TEXT)
-                }
-                // ⟨0.19.9⟩ §45 his standing word, given with the seal: on, as he asked («به صورت خودکار از روز دوم انجام بشه»)
-                if (publishes(pb)) StandingChoice(word, { word = it }, company = pb.source.company?.takeIf { !companyOf(companies, it).holding })
-                HqButton("مُهر کن", {
-                    seal.run {
-                        val said = word.takeIf { publishes(pb) }
-                        val out = env.api.sealPlaybook(pb.ref, said) { a, t -> env.auth.stepUp(act, a, t) }
-                        env.cache.invalidate(*PLAYBOOK_TAGS)
-                        toasts.ok(sealedFa(out, said))
-                        onSaved(out)
-                    }
-                }, Modifier.fillMaxWidth(), variant = if (patch == null) BtnVariant.PRIMARY else BtnVariant.SECONDARY, size = BtnSize.LG, icon = DivanIcon.SEAL,
-                    enabled = patch == null && canSeal(pb), loading = seal.busy)
-                Text(
-                    if (patch != null) "اول تغییرها را ذخیره کن، بعد مُهر بزن."
-                    else "با مُهر تو کارگروه ساخته میشود و همین شرکت اولین عضوش؛ جایگاه‌ها به همان کسانی میرسد که در جلسه بودند و جای خالی با استخدام خودکار در سقف پاکت پر میشود.",
-                    style = Divan.type.micro, color = c.textMuted, modifier = Modifier.padding(horizontal = 4.dp),
-                )
-            }
-            pb.sealed -> HqButton("به شرکت دیگر بده", onApply, Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = DivanIcon.SHARE)
-            else -> Text(
-                plain("بازنشسته شد${pb.retiredAt?.let { " ${jDate(it)}" }.orEmpty()}؛ کارهای روتینش برای همه‌ی شرکت‌ها ایستاده است. چیزی پاک نشده."),
-                style = Divan.type.caption, color = c.textMuted, modifier = Modifier.padding(horizontal = 4.dp),
-            )
-        }
+        standing?.invoke()
+        Text(
+            "با مُهر تو کارگروه ساخته میشود و همین شرکت اولین عضوش؛ جایگاه‌ها به همان کسانی میرسد که در جلسه بودند و جای خالی با استخدام خودکار در سقف پاکت پر میشود.",
+            style = Divan.type.micro, color = c.textMuted, modifier = Modifier.padding(horizontal = 4.dp),
+        )
     }
 }
 
@@ -331,93 +400,60 @@ internal fun PlaybookBody(pb: Playbook, onSaved: (Playbook) -> Unit, onApply: ()
 private fun Hint(onSession: () -> Unit) {
     val c = Divan.colors
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.softLapis).padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        DIcon(DivanIcon.MESSAGES, size = 16.dp, tint = c.lapis)
+        DIcon(DivanIcon.MESSAGES, size = 16.dp, tint = c.silverInk)
         Text(
             "راه اصلی تغییر این پیش‌نویس گفتن در خود جلسه است؛ مسئول جلسه آن را بازنویسی میکند. این‌جا فقط ویرایش سبک.",
-            style = Divan.type.caption, color = c.textPrimary, modifier = Modifier.weight(1f),
+            style = Divan.type.caption, color = c.textSecondary, modifier = Modifier.weight(1f),
         )
         HqButton("جلسه", onSession, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.NEXT)
     }
 }
 
 @Composable
-private fun SeatsCard(pb: Playbook, editable: Boolean, onRemove: (String) -> Unit) {
+private fun SeatsCard(pb: Playbook, onRemove: (String) -> Unit) {
     val c = Divan.colors
     HqCard(Modifier.fillMaxWidth()) {
-        SectionTitle("جایگاه‌ها", note = if (pb.seats.isEmpty()) null else "${faNum(pb.seats.size)} نفر؛ هر کدام با کارش و ابزارهایش", icon = DivanIcon.AGENT)
+        SectionTitle("چه کسانی", note = if (pb.seats.isEmpty()) "جایگاهی نمانده" else "هر کدام را که نمیخواهی بردار")
         Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (pb.seats.isEmpty()) Text("هنوز جایگاهی ندارد.", style = Divan.type.caption, color = c.textMuted)
             pb.seats.forEachIndexed { i, s ->
                 if (i > 0) HorizontalDivider(color = c.lineDivider)
-                SeatRow(s, onRemove = if (editable) ({ onRemove(s.seat) }) else null)
+                SeatRow(s, onRemove = { onRemove(s.seat) })
             }
         }
     }
 }
 
 @Composable
-private fun RoutinesCard(pb: Playbook, editable: Boolean, onRemove: (String) -> Unit, onBrief: (String, String) -> Unit) {
+private fun RoutinesCard(pb: Playbook, onRemove: (String) -> Unit, onBrief: (String, String) -> Unit) {
     val c = Divan.colors
-    var open by rememberSaveable(pb.ref) { mutableStateOf<String?>(null) }
-    var editing by rememberSaveable(pb.ref) { mutableStateOf<String?>(null) }
-    var draft by rememberSaveable(pb.ref) { mutableStateOf("") }
     HqCard(Modifier.fillMaxWidth()) {
-        SectionTitle("کارهای روتین", note = "هر کدام سر وقتش یک کار کوچک برای همان جایگاه", icon = DivanIcon.TIME)
+        SectionTitle("چه کاری، کِی", note = if (pb.routines.isEmpty()) "روالی نمانده" else "شرح هر کار را میتوانی عوض کنی")
         Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (pb.routines.isEmpty()) Text("کار روتینی ندارد.", style = Divan.type.caption, color = c.textMuted)
             pb.routines.forEachIndexed { i, r ->
                 if (i > 0) HorizontalDivider(color = c.lineDivider)
-                val shown = open == r.key || editing == r.key
-                RoutineLine(pb, r) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (r.briefMd.isNotBlank() || editable) IconBtn(DivanIcon.CHEVRON, if (shown) "بستن" else "دستور کار", { open = if (open == r.key) null else r.key }, tint = c.textMuted)
-                        if (editable) IconBtn(DivanIcon.CLOSE, "این کار روتین را بردار", { onRemove(r.key) }, tint = c.textMuted)
-                    }
-                }
-                Expand(shown) {
-                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.tile).padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (editing == r.key) {
-                            HqTextField(draft, { draft = it }, "دستور کار هر بار", Modifier.fillMaxWidth(), singleLine = false, minLines = 3, maxLength = 4000)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                HqButton("نگه دار", { onBrief(r.key, draft); editing = null }, size = BtnSize.SM, icon = DivanIcon.SEAL, enabled = draft.isNotBlank())
-                                HqButton("بیخیال", { editing = null }, variant = BtnVariant.TEXT, size = BtnSize.SM)
-                            }
-                        } else {
-                            if (r.briefMd.isNotBlank()) com.coinepro.hq.ui.Selectable { Md(r.briefMd, color = c.textPrimary) }
-                            else Text("دستور کاری نوشته نشده.", style = Divan.type.caption, color = c.textMuted)
-                            if (editable) HqButton("ویرایش دستور کار", { draft = r.briefMd; editing = r.key }, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.EDIT)
-                        }
-                    }
-                }
+                RoutineLine(pb, r) { IconBtn(DivanIcon.CLOSE, "این روال را بردار", { onRemove(r.key) }, tint = c.textMuted) }
+                HqTextField(r.briefMd, { onBrief(r.key, it) }, "شرح کار هر نوبت", Modifier.fillMaxWidth(), singleLine = false, minLines = 2, maxLength = 4000)
             }
         }
     }
 }
 
 @Composable
-private fun RulesCard(pb: Playbook, editable: Boolean, onRemove: (Int) -> Unit, onEdit: (Int, String) -> Unit) {
+private fun RulesCard(pb: Playbook, onAdd: () -> Unit, onRemove: (Int) -> Unit, onEdit: (Int, String) -> Unit) {
     val c = Divan.colors
-    var editing by rememberSaveable(pb.ref) { mutableStateOf<Int?>(null) }
-    var draft by rememberSaveable(pb.ref) { mutableStateOf("") }
     HqCard(Modifier.fillMaxWidth()) {
-        SectionTitle("قاعده‌ها", note = "آنچه همه‌ی جایگاه‌ها رعایت میکنند", icon = DivanIcon.KNOWLEDGE)
+        SectionTitle("قانون‌ها", note = "آنچه همه‌ی جایگاه‌ها رعایت میکنند") {
+            HqButton("قانون تازه", onAdd, variant = BtnVariant.TEXT, size = BtnSize.SM, icon = DivanIcon.ADD)
+        }
         Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (pb.rulesFa.isEmpty()) Text("قاعده‌ای ندارد.", style = Divan.type.caption, color = c.textMuted)
+            if (pb.rulesFa.isEmpty()) Text("قانونی نیست.", style = Divan.type.caption, color = c.textMuted)
             pb.rulesFa.forEachIndexed { i, rule ->
-                if (editing == i) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    HqTextField(draft, { draft = it }, "متن قاعده", Modifier.fillMaxWidth(), singleLine = false, minLines = 2, maxLength = 500)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        HqButton("نگه دار", { onEdit(i, draft.trim()); editing = null }, size = BtnSize.SM, icon = DivanIcon.SEAL, enabled = draft.isNotBlank())
-                        HqButton("بیخیال", { editing = null }, variant = BtnVariant.TEXT, size = BtnSize.SM)
-                    }
-                } else RuleLine(rule) {
-                    if (editable) Row {
-                        IconBtn(DivanIcon.EDIT, "ویرایش این قاعده", { draft = rule; editing = i }, tint = c.textMuted)
-                        IconBtn(DivanIcon.CLOSE, "این قاعده را بردار", { onRemove(i) }, tint = c.textMuted)
-                    }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    HqTextField(rule, { onEdit(i, it) }, "متن قانون", Modifier.weight(1f), singleLine = false, maxLength = 500)
+                    IconBtn(DivanIcon.CLOSE, "این قانون را بردار", { onRemove(i) }, tint = c.textMuted)
                 }
             }
         }
@@ -477,14 +513,18 @@ internal fun ApplyBody(pb: Playbook, companies: List<Company>, company0: String?
             }
         }
         val name = targets.firstOrNull { it.code == company }?.let { it.nameFa ?: it.code }
-        HqButton(
-            if (asIs) "عضوش کن" else "بده و جلسه‌اش را باز کن", {
-                val co = company ?: return@HqButton
-                go.run { onApplied(env.api.applyWithWord(pb.ref, co, platform, note, asIs, key, word.takeIf { standing }), name ?: co) }
-            },
-            Modifier.fillMaxWidth(), variant = BtnVariant.PRIMARY, size = BtnSize.LG, icon = if (asIs) DivanIcon.ADD else DivanIcon.SEND,
-            enabled = company != null, loading = go.busy,
-        )
+        // ⟨1.0.1⟩ C0.2: the sheet's one act, stuck to its bottom, with what it does in one line.
+        com.coinepro.hq.designsystem.SheetBar {
+            com.coinepro.hq.designsystem.DecisionBar(
+                if (asIs) "عضوش کن" else "بده", {
+                    val co = company ?: return@DecisionBar
+                    go.run { onApplied(env.api.applyWithWord(pb.ref, co, platform, note, asIs, key, word.takeIf { standing }), name ?: co) }
+                },
+                context = if (asIs) "همین کارگروه، همان‌طور که هست، عضوی تازه میگیرد." else "مسئول آن شرکت جلسه‌ای تازه باز میکند و کارگروه را تطبیق میدهد.",
+                icon = if (asIs) DivanIcon.ADD else DivanIcon.SEND, enabled = company != null,
+                state = if (go.busy) com.coinepro.hq.designsystem.DecisionState.WORKING else com.coinepro.hq.designsystem.DecisionState.IDLE,
+            )
+        }
     }
 }
 
@@ -498,18 +538,20 @@ private fun RetireBody(pb: Playbook, onCancel: () -> Unit, onDone: (Playbook) ->
     val go = rememberAction()
     Text(
         if (pb.members.isEmpty()) "این کارگروه هنوز در هیچ شرکتی کار نمیکند؛ کنار میرود و در کتابخانه میماند."
-        else "در ${faNum(pb.members.size)} شرکت کار میکند؛ همه‌جا می‌ایستد. جلسه‌ها، کارها و خروجی‌هایش میمانند.",
+        else "در ${pb.members.size} شرکت کار میکند؛ همه‌جا می‌ایستد. جلسه‌ها، کارها و خروجی‌هایش میمانند.",
         style = Divan.type.small, color = c.textSecondary,
     )
-    HqButton("بازنشسته کن", {
-        go.run {
-            val out = env.api.retirePlaybook(pb.ref) { a, t -> env.auth.stepUp(act, a, t) }
-            env.cache.invalidate(*PLAYBOOK_TAGS)
-            toasts.ok("بازنشسته شد؛ کارهای روتینش ایستاد.")
-            onDone(out)
-        }
-    }, Modifier.fillMaxWidth(), variant = BtnVariant.DANGER, size = BtnSize.LG, icon = DivanIcon.PAUSE, loading = go.busy)
-    HqButton("بیخیال", onCancel, Modifier.fillMaxWidth(), variant = BtnVariant.TEXT)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        HqButton("بازنشسته کن", {
+            go.run {
+                val out = env.api.retirePlaybook(pb.ref) { a, t -> env.auth.stepUp(act, a, t) }
+                env.cache.invalidate(*PLAYBOOK_TAGS)
+                toasts.ok("بازنشسته شد؛ کارهای روتینش ایستاد.")
+                onDone(out)
+            }
+        }, Modifier.weight(1f), variant = BtnVariant.DANGER, size = BtnSize.LG, icon = DivanIcon.PAUSE, loading = go.busy)
+        HqButton("نه", onCancel, variant = BtnVariant.TEXT, size = BtnSize.LG)
+    }
 }
 
 /** The standing word across a rotation: `mode`, `story`, the hour and «بهترین ساعت» (the account is asked by the hub when there are several). */

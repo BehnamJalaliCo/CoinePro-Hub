@@ -43,7 +43,8 @@ internal fun BestHourChoice(company: String, value: MemberPublish, onChange: (Me
             Text("بهترین ساعت، خودکار", style = Divan.type.small.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
             bestHourLines(b, value.at).forEachIndexed { i, line ->
                 // the hour is the line he looks for; what it rests on is quiet
-                Text(timesFig(line), style = Divan.type.micro, color = if (i == 0 && b.enough) c.goldInk else c.textMuted)
+                // ⟨1.0.1⟩ C0.1: the hour is said in the secondary ink (a Latin figure), never gold
+                Text(timesFig(line), style = Divan.type.micro, color = if (i == 0 && b.enough) c.textSecondary else c.textMuted)
             }
         }
         HqSwitch(value.best, { onChange(value.copy(best = it)) }, "بهترین ساعت، خودکار")

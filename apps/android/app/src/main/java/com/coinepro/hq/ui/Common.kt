@@ -244,8 +244,13 @@ fun latinRefs(text: String): androidx.compose.ui.text.AnnotatedString = androidx
 /** A scrolling page with pull-to-refresh: 16dp gutters, 16dp between sections. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun Page(onRefresh: (() -> Unit)? = null, refreshing: Boolean = false, content: LazyListScope.() -> Unit) {
-    val list = rememberLazyListState()
+fun Page(
+    onRefresh: (() -> Unit)? = null, refreshing: Boolean = false,
+    /** ⟨1.0.1⟩ the page's own list state, for a page whose header folds as it scrolls (M18). */
+    state: androidx.compose.foundation.lazy.LazyListState? = null,
+    content: LazyListScope.() -> Unit,
+) {
+    val list = state ?: rememberLazyListState()
     val body: @Composable () -> Unit = {
         LazyColumn(
             Modifier.fillMaxSize(),

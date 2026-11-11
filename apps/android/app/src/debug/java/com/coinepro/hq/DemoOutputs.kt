@@ -38,6 +38,13 @@ internal class OutputsDemo(
     /** ⟨0.19.9⟩ §45 outputs a working group's routine made (no session), with the group's name. Declared before `init` fills it. */
     private val groupOutputs = mutableMapOf<String, String>()
     private var nextJob = 30
+    /** ⟨1.33⟩ The session each session output belongs to (the others: [SESSION]), the caption a package carries, and the outputs the
+     *  publish desk shows (§55.2), in the order the demo made them. */
+    private val orderOf = mutableMapOf<String, String>()
+    private val captions = mutableMapOf<String, String>()
+    private val deskSet = mutableListOf<String>()
+    /** The companies whose publishing path is not set yet (the technical team's work, never the owner's). */
+    private val noRoute = setOf("O-000970")
     /** ⟨1.31⟩ §51 the publications IG-Hub already holds (a cancel is asked of it: «در حال لغو»), and those whose file is still on its way. */
     private val held = mutableSetOf("jp-2", "jp-23")
     private val onItsWay = mutableSetOf("jp-11")
@@ -128,8 +135,71 @@ internal class OutputsDemo(
             publish("O-000951", "jp-2", cover, "post", "coineprofx", "publishing", at = at(1)),
             publish("O-000951", "jp-1", reel, "reel", "coineprofx", "published", url = "https://www.instagram.com/reel/C9xGoldLv/", at = at(18), cover = "gold-levels-cover.webp"),
         )
-        val all = listOf<JsonElement>(morning) + list() + yesterday + earlier
+        // ⟨1.33⟩ §55 the look: the reel the session F-0092 waits on, what the closed session F-0093 made, and the publish desk in every
+        // state (a picture post, a reel of a company whose publishing path is not set, two in the queue, three that are done).
+        val tyMedia = agent("TY-MEDIA-MGR", "TY", "MEDIA", "مدیر رسانه")
+        val pcMedia = agent("PC-MEDIA-MGR", "PC", "MEDIA", "مدیر رسانه")
+        val used = buildJsonObject { put("input_tokens", 212_000); put("output_tokens", 41_000); put("cache_read_tokens", 78_000); put("cost_usd", "3.84") }
+        fun look(
+            ref: String, company: String, producer: JsonObject, title: String, summary: String, body: String, minAgo: Long, files: List<JsonObject>,
+            accounts: List<String>?, order: String? = null, caption: String? = null, group: String? = null, desk: Boolean = true,
+        ) {
+            val d = deliverable(ref, company, "W-000${ref.takeLast(3)}", producer, title, summary, body, at(minAgo), produced = workshop)
+            store["/deliverables/$ref"] = 200 to JsonObject(d + mapOf("attachments" to JsonArray(files), "usage" to used))
+            if (accounts != null && group == null) sessionOutputs[ref] = accounts
+            if (order != null) orderOf[ref] = order
+            if (caption != null) captions[ref] = caption
+            if (group != null) groupOutputs[ref] = group
+            if (desk) deskSet += ref
+        }
+        val stopReel = file("/demo/ty-story-stoploss.mp4", "reel-stoploss.mp4", "video/mp4", "video", "/demo/ty-story-stoploss-poster.webp", size = 32_183, seconds = 30)
+        val stopCover = file("/demo/ty-story-stoploss-poster.webp", "cover.png", "image/png", "image", size = 11_962)
+        look(
+            "O-000967", "TY", tyMedia, "ریلز: حد ضرر را کجا بگذاریم", "ریلز ۳۰ ثانیه‌ای با کاور؛ آماده‌ی انتشار.",
+            "## خلاصه\nریلز ۳۰ ثانیه‌ای با کاور؛ آماده‌ی انتشار.\n\n## متن گوینده\nحد ضرر را جایی بگذار که اگر بازار به آن رسید، دلیل ورودت دیگر درست نباشد؛ نه جایی که فقط دوست داری ضرر کمتر باشد.",
+            40, listOf(stopReel, stopCover), listOf("tradeyar"), order = "F-0092", caption = "حد ضرر را کجا بگذاریم؟ سه قانون ساده.\n#تریدیار #حد_ضرر",
+        )
+        look(
+            "O-000968", "TY", tyMedia, "ریلز: سطوح کلیدی طلا", "ریلز با کاور و متن گوینده ساخته شد.", "ریلز **سطوح کلیدی طلا** با کاور و متن گوینده ساخته و منتشر شد.",
+            2_921, listOf(reel, cover, file("/demo/docs/gold-levels-script.pdf", "voice-script.pdf", "application/pdf", "document", size = 148_300)),
+            listOf("tradeyar"), order = "F-0093", desk = false,
+        )
+        published["O-000968"] = mutableListOf(
+            publish("O-000968", "jp-40", reel, "reel", "tradeyar", "published", url = "https://www.instagram.com/reel/C9xGoldKy/", at = at(2_915), cover = "gold-levels-cover.webp"),
+        )
+        look(
+            "O-000969", "PC", pcMedia, "پست ۱: خط روند در یک نگاه", "پست ثابت معرفی ابزار خط روند.", "پست **خط روند در یک نگاه** با یک مثال واقعی از نمودار طلا آماده است.",
+            26 * 60, listOf(file("/demo/pc-landing-redesign.webp", "post-01.jpg", "image/jpeg", "image", size = 19_810, w = 960, h = 600)),
+            listOf("pro.chart"), caption = "خط روند را با یک مثال واقعی ببین.\n#پروچارت #تحلیل_تکنیکال",
+        )
+        look(
+            "O-000970", "FX", media, "ریلز: مقاومت هفته", "ریلز هفتگی مقاومت طلا.", "ریلز **مقاومت هفته** آماده است.", 5 * 60,
+            listOf(file("/demo/fx-reel-resist.mp4", "reel-fx.mp4", "video/mp4", "video", "/demo/fx-reel-resist-poster.webp", size = 108_223, seconds = 12)),
+            null, caption = "مقاومت این هفته کجاست؟\n#فارکس",
+        )
+        val feeReel = file("/demo/fx-reel-resist.mp4", "reel-03.mp4", "video/mp4", "video", "/demo/fx-reel-resist-poster.webp", size = 108_223, seconds = 12)
+        look("O-000971", "TY", tyMedia, "ریلز ۳: کارمزد را کجا ببینیم", "ریلز سوم هفته.", "ریلز **کارمزد را کجا ببینیم** آماده است.", 8 * 60 + 10, listOf(feeReel), listOf("tradeyar"), caption = "کارمزد هر معامله را کجا ببینیم.\n#تریدیار")
+        published["O-000971"] = mutableListOf(publish("O-000971", "jp-41", feeReel, "reel", "tradeyar", "publishing", at = at(3)))
+        val minuteReel = file("/demo/fx-reel-levels.mp4", "reel-02.mp4", "video/mp4", "video", "/demo/fx-reel-levels-poster.webp", size = 110_561, seconds = 6)
+        look("O-000972", "TY", tyMedia, "ریلز ۲: حد ضرر در یک دقیقه", "ریلز دوم هفته.", "ریلز **حد ضرر در یک دقیقه** آماده است.", 8 * 60 + 5, listOf(minuteReel), listOf("tradeyar"), caption = "حد ضرر را کجا بگذاریم؟ یک دقیقه، یک قانون.\n#تریدیار #حد_ضرر", group = "تولید محتوای روزانه‌ی اینستاگرام")
+        val tonight = HqClock.today().atTime(21, 30).atZone(java.time.ZoneId.of(com.coinepro.hq.core.format.OWNER_TZ)).toInstant().toString()
+        published["O-000972"] = mutableListOf(publish("O-000972", "jp-42", minuteReel, "reel", "tradeyar", "scheduled", at = at(50), scheduledAt = tonight, auto = true))
+        val motion13 = file("/demo/ty-story-stoploss.mp4", "motion-13.mp4", "video/mp4", "video", "/demo/ty-story-stoploss-poster.webp", size = 32_183, seconds = 2)
+        look("O-000973", "PC", pcMedia, "موشن‌گرافی روز: باند بولینگر", "موشن‌گرافی امروز کارگروه.", "موشن‌گرافی **باند بولینگر** ساخته شد.", 3 * 60, listOf(motion13), listOf("pro.chart"), caption = "باند بولینگر چه میگوید؟\n#پروچارت", group = "موشن‌گرافی روزانه‌ی پرو-چارت")
+        published["O-000973"] = mutableListOf(publish("O-000973", "jp-43", motion13, "reel", "pro.chart", "failed", note = "اینستاگرام این ویدیو را نپذیرفت: طولش باید دست‌کم ۳ ثانیه باشد.", at = at(120), auto = true))
+        val slides = listOf("slide-1.jpg" to "/demo/fx-reel-levels-poster.webp", "slide-2.jpg" to "/demo/fx-reel-resist-poster.webp", "slide-3.jpg" to "/demo/ty-story-stoploss-poster.webp")
+            .map { (n, id) -> file(id, n, "image/jpeg", "image", size = 8_530) }
+        look("O-000974", "PC", pcMedia, "پست ۲: هشدار قیمت", "سه اسلاید آموزش هشدار قیمت.", "سه اسلاید **هشدار قیمت** آماده است.", 30 * 60, slides, listOf("pro.chart"), caption = "ساختن هشدار قیمت در سه قدم.\n#پروچارت #هشدار_قیمت")
+        published["O-000974"] = mutableListOf(publish("O-000974", "jp-44", slides[0], "carousel", "pro.chart", "cancelled", at = at(20 * 60), count = 3))
+        val motion12 = file("/demo/fx-reel-levels.mp4", "motion-12.mp4", "video/mp4", "video", "/demo/fx-reel-levels-poster.webp", size = 110_561, seconds = 6)
+        look("O-000975", "PC", pcMedia, "موشن‌گرافی روز: واگرایی در RSI", "موشن‌گرافی دیروز کارگروه.", "موشن‌گرافی **واگرایی در RSI** ساخته و منتشر شد.", 26 * 60, listOf(motion12, file("/demo/fx-reel-levels-poster.webp", "cover-12.jpg", "image/jpeg", "image", size = 8_530)), listOf("pro.chart"), caption = "واگرایی در RSI را در سی ثانیه ببین.\n#پروچارت #RSI", group = "موشن‌گرافی روزانه‌ی پرو-چارت")
+        published["O-000975"] = mutableListOf(publish("O-000975", "jp-45", motion12, "reel", "pro.chart", "published", url = "https://www.instagram.com/reel/C9xRsiDv/", at = at(22 * 60), cover = "cover-12.jpg", auto = true))
+        // ⟨1.33⟩ the look: two of them are in the lists too (read already, so the «تازه» count stays), so a list shows media cards
+        fun listed(ref: String): JsonElement = store.getValue("/deliverables/$ref").second
+        val all = listOf(morning, listed("O-000967")) + list() + listed("O-000969") + yesterday + earlier
         store["/deliverables"] = 200 to page(all)
+        seen["O-000967"] = at(12)
+        seen["O-000969"] = at(20 * 60)
         // The demo's state: the earlier days read (one filed in the archive), and the polished morning report read this morning.
         seen["O-000030"] = at(240)
         seen["O-000028"] = at(60 * 24 + 100)
@@ -137,9 +207,9 @@ internal class OutputsDemo(
         filed["O-000026"] = "AR-000092"
     }
 
-    private fun file(id: String, name: String, mime: String, kind: String, poster: String? = null) = buildJsonObject {
-        put("id", id); put("name", name); put("mime", mime); put("size", if (kind == "video") 1_200_000 else 90_000); put("sha256", "demo"); put("kind", kind); put("status", "ready")
-        if (kind == "video") { put("width", 1080); put("height", 1920); put("duration_s", 6) } else { put("width", 1080); put("height", 1350) }
+    private fun file(id: String, name: String, mime: String, kind: String, poster: String? = null, size: Long? = null, seconds: Int = 6, w: Int? = null, h: Int? = null) = buildJsonObject {
+        put("id", id); put("name", name); put("mime", mime); put("size", size ?: if (kind == "video") 1_200_000 else 90_000); put("sha256", "demo"); put("kind", kind); put("status", "ready")
+        if (kind == "video") { put("width", 1080); put("height", 1920); put("duration_s", seconds) } else if (kind == "image") { put("width", w ?: 1080); put("height", h ?: 1350) }
         if (poster != null) put("variants", buildJsonObject { put("poster", poster) })
     }
 
@@ -159,14 +229,16 @@ internal class OutputsDemo(
     /** `GET` the panel of an output (an output of no session: `order` null), `POST` the owner's tap. */
     private fun publishRoute(method: String, ref: String, body: JsonObject?): Pair<Int, JsonElement>? {
         val group = groupOutputs[ref]
-        val accounts = sessionOutputs[ref] ?: group?.let { listOf("tradeyar") }
+        val company = store["/deliverables/$ref"]?.second?.str("company")
+        val accounts = sessionOutputs[ref] ?: group?.let { listOf(if (company == "PC") "pro.chart" else "tradeyar") }
         if (method == "GET") return 200 to buildJsonObject {
-            put("order", if (accounts == null || group != null) JsonNull else JsonPrimitive(SESSION)); put("channel", "instagram")
+            // a session's output names its session; one of the look's own outputs that is no session's names none
+            put("order", if (accounts == null || group != null || (ref in deskSet && ref !in orderOf)) JsonNull else JsonPrimitive(orderOf[ref] ?: SESSION)); put("channel", "instagram")
             put("accounts", JsonArray(accounts.orEmpty().map(::JsonPrimitive))); put("ready", accounts != null)
             put("publishes", JsonArray(published[ref].orEmpty()))
-            // ⟨0.19.9⟩ §45 every output is tapped here; a working group's carries its caption and the owner's standing word
-            put("tap", true)
-            put("caption", if (group != null) JsonPrimitive("حد ضرر را در ۳۰ ثانیه یاد بگیر.\n#تریدیار #حد_ضرر") else JsonNull)
+            // ⟨0.19.9⟩ §45 an output that can go out is tapped here; a working group's carries its caption and the owner's standing word
+            put("tap", accounts != null || ref in deskSet)
+            put("caption", captions[ref]?.let(::JsonPrimitive) ?: if (group != null) JsonPrimitive("حد ضرر را در ۳۰ ثانیه یاد بگیر.\n#تریدیار #حد_ضرر") else JsonNull)
             // ⟨0.20.0⟩ §46 the comment rule the package carries (its `comment.txt`)
             put("comment", if (group != null) buildJsonObject {
                 put("keywords", JsonArray(listOf(JsonPrimitive("۳۰")))); put("reply", "این هم آموزش کامل حد ضرر:"); put("link", "https://tradeyar.com/learn/stop-loss")
@@ -175,7 +247,7 @@ internal class OutputsDemo(
             put("group", if (group != null) JsonPrimitive("pb_1") else JsonNull); put("group_fa", group?.let(::JsonPrimitive) ?: JsonNull)
             put("mode", if (group != null) JsonPrimitive("auto") else JsonNull)
             // ⟨1.31⟩ §49 the account's best hour, only when there is enough data (a time of the sheet)
-            put("best", bestHour(if (group != null) "TY" else "FX", accounts?.firstOrNull())?.takeIf { (it["enough"] as? JsonPrimitive)?.booleanOrNull == true } ?: JsonNull)
+            put("best", bestHour(if (ref in deskSet || ref in orderOf) company ?: "FX" else if (group != null) "TY" else "FX", accounts?.firstOrNull())?.takeIf { (it["enough"] as? JsonPrimitive)?.booleanOrNull == true } ?: JsonNull)
         }
         if (method != "POST" || accounts == null) return null
         val fileId = body?.str("file_id") ?: return null
@@ -194,8 +266,59 @@ internal class OutputsDemo(
     }
 
     /** ⟨1.31⟩ §44.5 what the demo's session published, across its outputs, newest first (`OrderReport.publishes`). */
-    fun sessionPublishes(): JsonArray =
-        JsonArray(sessionOutputs.keys.flatMap { published[it].orEmpty() }.sortedByDescending { it.str("at").orEmpty() })
+    fun sessionPublishes(order: String = SESSION): JsonArray =
+        JsonArray(sessionOutputs.keys.filter { (orderOf[it] ?: SESSION) == order && (it !in deskSet || it in orderOf) }.flatMap { published[it].orEmpty() }.sortedByDescending { it.str("at").orEmpty() })
+
+    // ------------------------------------------------------------------ ⟨1.33⟩ §55.2 the publish desk --
+    private fun lite(f: JsonObject) = buildJsonObject { put("id", f.str("id")); put("name", f.str("name")); put("mime", f.str("mime")); put("size", f["size"] ?: JsonPrimitive(0)) }
+    private fun companyFa(code: String?) = when (code) { "TY" -> "تریدیار"; "FX" -> "کوینه‌پرو FX"; "PC" -> "پرو-چارت"; else -> "هلدینگ کوینه‌پرو" }
+
+    /**
+     * Everything that can go out, is set to go out, or went out (§55.2), of the look's own outputs: an output's video with its cover,
+     * else its picture, else its pictures together as a carousel. `ready` has no publication that stands, `queue` is held for its
+     * hour or on its way, `done` is what went out, failed or was taken back (a failed or cancelled one is in `ready` again).
+     */
+    fun desk(company: String?): JsonObject {
+        val ready = mutableListOf<JsonObject>()
+        val queue = mutableListOf<JsonObject>()
+        val done = mutableListOf<JsonObject>()
+        for (ref in deskSet) {
+            val d = store["/deliverables/$ref"]?.second?.jsonObject ?: continue
+            val co = d.str("company")
+            if (company != null && co != company) continue
+            val files = (d["attachments"] as? JsonArray)?.map { it.jsonObject }.orEmpty()
+            val video = files.firstOrNull { it.str("mime").orEmpty().startsWith("video/") }
+            val images = files.filter { it.str("mime").orEmpty().startsWith("image/") }
+            val main = video ?: images.firstOrNull() ?: continue
+            val cover = if (video != null) images.firstOrNull { it.str("name").orEmpty().lowercase().startsWith("cover") } ?: images.singleOrNull() else null
+            val group = groupOutputs[ref]
+            val accounts = if (ref in noRoute) emptyList() else sessionOutputs[ref] ?: listOf(if (co == "PC") "pro.chart" else "tradeyar")
+            val newest = published[ref].orEmpty().firstOrNull()
+            fun card(state: String, p: JsonObject?, at: String?) = buildJsonObject {
+                put("output", ref); put("title_fa", d.str("title")); put("company", co); put("company_fa", companyFa(co))
+                put("order", orderOf[ref]?.let(::JsonPrimitive) ?: JsonNull); put("group_fa", group?.let(::JsonPrimitive) ?: JsonNull)
+                put("file", lite(main)); put("cover", cover?.let(::lite) ?: JsonNull)
+                put("files", if (video == null && images.size > 1) images.size else 1)
+                put("kind", p?.str("kind") ?: if (video != null) "reel" else if (images.size > 1) "carousel" else "post"); put("channel", "instagram")
+                put("account", accounts.singleOrNull()?.let(::JsonPrimitive) ?: JsonNull); put("accounts", JsonArray(accounts.map(::JsonPrimitive)))
+                put("route_ready", ref !in noRoute); put("caption", captions[ref]?.let(::JsonPrimitive) ?: JsonNull); put("state", state)
+                put("publish", p ?: JsonNull)
+                put("best", bestHour(co.orEmpty(), accounts.firstOrNull())?.takeIf { (it["enough"] as? JsonPrimitive)?.booleanOrNull == true } ?: JsonNull)
+                put("mode", if (group != null) JsonPrimitive("auto") else JsonNull); put("at", at ?: d.str("created_at"))
+            }
+            when (val state = newest?.str("state")) {
+                null -> ready += card("ready", null, null)
+                "scheduled", "publishing", "waiting_setup", "waiting_seal" -> queue += card(state, newest, newest.str("scheduled_at") ?: newest.str("at"))
+                "failed", "cancelled" -> { done += card(state, newest, newest.str("at")); ready += card("ready", null, null) }
+                else -> done += card(state, newest, newest.str("published_at") ?: newest.str("at"))
+            }
+        }
+        return buildJsonObject {
+            put("ready", JsonArray(ready.sortedByDescending { it.str("at").orEmpty() }))
+            put("queue", JsonArray(queue.sortedBy { it.str("at").orEmpty() }))
+            put("done", JsonArray(done.sortedByDescending { it.str("at").orEmpty() }))
+        }
+    }
 
     /**
      * ⟨1.31⟩ §51 «لغو»: one no runner has taken is cancelled at once; one IG-Hub holds keeps its state with «در حال لغو» (a second tap

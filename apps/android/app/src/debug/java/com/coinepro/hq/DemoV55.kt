@@ -21,13 +21,22 @@ import kotlinx.serialization.json.put
  * - **The command sheet's order:** with [LookDemo.orderFails] the hub refuses a new order (503 with its Persian sentence), so the
  *   sheet's failure is seen; an order that names its company goes on to the demo's own order route.
  * - **The pulse's series:** the demo's live summary carries a 24-hour series for each figure of the office pulse ([LookDemo.series]).
+ * - **The session (§54, §55.1):** [LookDemo.ring] `late` puts the workshop turn of F-0090 at 56 of its 60 minutes; [LookDemo.old55] is a
+ *   hub before §55 (no mood, no kind of turn, no `direct`): the app reads the mood from what the activity says.
+ * - **The publish desk (§55.2, `GET /publish-desk`):** [LookDemo.desk] `full` (the outputs' own desk, [OutputsDemo.desk]), `empty`,
+ *   `old` (the route answers 404).
+ * - **A sealed working group's runs:** `GET /groups/pb_1/runs` (TradeYar's last runs, one in the queue; CoinePro FX's that failed) and
+ *   `POST /groups/pb_1/members/{code}` (a member started again, or held).
  */
 internal object LookDemo {
     @Volatile var limits: String = "calm"
     @Volatile var orderFails: Boolean = false
     @Volatile var series: Boolean = true
+    @Volatile var ring: String = "calm"
+    @Volatile var old55: Boolean = false
+    @Volatile var desk: String = "full"
 
-    fun reset() { limits = "calm"; orderFails = false; series = true }
+    fun reset() { limits = "calm"; orderFails = false; series = true; ring = "calm"; old55 = false; desk = "full" }
 
     /** The last 24 hours of the pulse's figures, oldest first (an hour apart), ending on what the pulse shows now. */
     fun pulseSeries(working: Int, sessions: Int, waiting: Int): JsonObject = buildJsonObject {
@@ -39,7 +48,12 @@ internal object LookDemo {
     }
 }
 
-internal class V55Demo {
+internal class V55Demo(
+    /** The publish desk of the outputs' demo, for a company or for all. */
+    private val desk: (String?) -> JsonObject = { JsonObject(emptyMap()) },
+    /** A member of a sealed working group started again or held (the playbooks' demo follows): group key, company, state. */
+    private val member: (String, String, String) -> Boolean = { _, _, _ -> false },
+) {
     private fun inMin(n: Long): String = HqClock.now().plus(n, ChronoUnit.MINUTES).toString()
     private fun agoMin(n: Long): String = HqClock.now().minus(n, ChronoUnit.MINUTES).toString()
 
@@ -80,9 +94,46 @@ internal class V55Demo {
         if (detail != null) put("detail", detail)
     }
 
+    // ------------------------------------------------------------------ a sealed working group's runs --
+    private var runSeq = 0
+    private fun run(company: String, routine: String, minAgo: Long, state: String, note: String = "") = buildJsonObject {
+        put("id", "0193c0de-55a0-7000-8000-%012d".format(++runSeq)); put("group", "pb_1"); put("company", company); put("routine", routine)
+        put("at", agoMin(minAgo)); put("work_ref", null as String?); put("state", state); put("note_fa", note)
+    }
+    private val day = 24 * 60L
+    /** TradeYar: the day's topic and cover over the last days (one skipped, one failed), the reels of the week, and today's cover in
+     *  the queue. CoinePro FX: three that failed, after which the group stood still there. */
+    private val runs: List<JsonObject> by lazy {
+        val ty = (1L..8L).flatMap { d ->
+            listOf(
+                run("TY", "topic", d * day - 180, if (d == 4L) "skipped" else "done", if (d == 4L) "تعطیل رسمی بود؛ نوبت رد شد." else ""),
+                run("TY", "cover", d * day - 60, if (d == 2L) "failed" else "done", if (d == 2L) "کاور آن روز ساخته نشد؛ سازنده‌ی تصویر جواب نداد." else ""),
+            )
+        } + listOf(1L, 3L, 6L).map { d -> run("TY", "reels", d * day - 1_000, "done") } + run("TY", "weekly", 2 * day - 700, "done")
+        val fx = (9L..11L).map { d -> run("FX", "topic", d * day, "failed", "سه نوبت پشت هم بسته‌ای تحویل نشد؛ کارگروه در این شرکت ایستاد.") }
+        ty + run("TY", "topic", 180, "done") + run("TY", "cover", 2, "queued") + fx
+    }
+
     /** §55 and the command sheet's order; what is not its own goes on (null) to the rest of the demo. */
     @Synchronized
-    fun handle(method: String, path: String, body: JsonObject?): Pair<Int, JsonElement>? {
+    fun handle(method: String, path: String, body: JsonObject?, query: Map<String, String?> = emptyMap()): Pair<Int, JsonElement>? {
+        // §55.2 the publish desk (a hub before it has no such route: the framework's own 404)
+        if (path == "/publish-desk" && method == "GET") return when (LookDemo.desk) {
+            "old" -> 404 to problem(404, "not_found", "پیدا نشد.", "Not Found")
+            "empty" -> 200 to buildJsonObject { put("ready", JsonArray(emptyList())); put("queue", JsonArray(emptyList())); put("done", JsonArray(emptyList())) }
+            else -> {
+                val company = query["company"]
+                if (company != null && company !in setOf("HQ", "TY", "FX", "PC")) 404 to problem(404, "not_found", "این شرکت پیدا نشد.", "no such company")
+                else 200 to desk(company)
+            }
+        }
+        if (path == "/groups/pb_1/runs" && method == "GET") return 200 to JsonArray(runs.filter { query["company"] == null || (it["company"] as? JsonPrimitive)?.content == query["company"] }.sortedByDescending { (it["at"] as JsonPrimitive).content })
+        Regex("^/groups/(pb_\\d+)/members/([A-Z]{2,5})$").find(path)?.let { m ->
+            if (method != "PUT") return null
+            val state = (body?.get("state") as? JsonPrimitive)?.content ?: "on"
+            return if (member(m.groupValues[1], m.groupValues[2], state)) 200 to buildJsonObject { put("group", m.groupValues[1]); put("company", m.groupValues[2]); put("state", state) }
+            else 404 to problem(404, "not_found", "این شرکت عضو این کارگروه نیست.", "no such member")
+        }
         if (path == "/orders" && method == "POST" && LookDemo.orderFails) return 503 to problem(503, "hub_unavailable", "ستاد الان جواب نمیدهد؛ کمی بعد دوباره بزن.")
         if (path == "/treasury/limits" && method == "GET") {
             // A hub before §55 has no such route: the framework's own 404.

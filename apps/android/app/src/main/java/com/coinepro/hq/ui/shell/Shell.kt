@@ -259,7 +259,8 @@ fun TechToolsGrid(go: (String) -> Unit) {
     }
 }
 
-private val TOP = TABS.map { it.route }.toSet() + GROUPS.flatMap { g -> g.tools.map { it.route } }
+// ⟨1.0.1⟩ C2.3 «میز انتشار» lives beside «خروجی‌ها» (a tab of its page and a line of the home): a top-level page without a tile.
+private val TOP = TABS.map { it.route }.toSet() + GROUPS.flatMap { g -> g.tools.map { it.route } } + "publish-desk"
 
 /** ⟨1.0.1⟩ Top-level pages with a composer of their own at the bottom (a chat): the round command button would sit on its send button. */
 private val NO_COMMAND = setOf("advisor", "assistant", "talk", "notes")
@@ -479,6 +480,7 @@ fun Shell(graph: AppGraph, launch: String? = null, onLaunchConsumed: () -> Unit 
                     page("cartable-co/{company}") { CartableScreen(company0 = it.arguments?.getString("company")) }
                     page("outputs") { OutputsScreen() }
                     page("outputs/{ref}") { OutputScreen(it.arguments?.getString("ref").orEmpty()) }
+                    page("publish-desk") { com.coinepro.hq.ui.look.PublishDeskScreen() }
                     page("advisor") { com.coinepro.hq.ui.advisor.AdvisorScreen() }
                     page("oversight") { OversightScreen() }
                     page("oversight/chat") { ChatScreen("N", agent = "overseer") }

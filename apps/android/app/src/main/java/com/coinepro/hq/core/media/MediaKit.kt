@@ -12,6 +12,7 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import coil3.ImageLoader
+import coil3.request.allowHardware
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
 import com.coinepro.hq.core.net.Api
@@ -24,8 +25,12 @@ class MediaKit(context: Context, private val api: Api) {
     private val app = this.context
 
     val images: ImageLoader = ImageLoader.Builder(app)
-        .components { add(OkHttpNetworkFetcherFactory(callFactory = { api.client })) }
-        .crossfade(true)
+        .components {
+            add(OkHttpNetworkFetcherFactory(callFactory = { api.client }))
+            if (softwarePictures) add(coil3.decode.BitmapFactoryDecoder.Factory())
+        }
+        .allowHardware(!softwarePictures)
+        .crossfade(!softwarePictures)
         .build()
 
     /** Media3: https through OkHttp; data:, file: and content: handled by the default source. */
@@ -51,6 +56,13 @@ class MediaKit(context: Context, private val api: Api) {
     fun imageModel(id: String, variant: String? = null): Any =
         if (id.startsWith("data:")) Base64.decode(id.substringAfter(','), Base64.DEFAULT) else url(id, variant)
 }
+
+/**
+ * ⟨1.0.1⟩ Pictures decoded by `BitmapFactory` into software bitmaps, without the cross-fade, in every [MediaKit] made while this is
+ * true. False on a phone. The screenshot tests set it: the platform's `ImageDecoder` (which Coil uses from Android 10 on) and
+ * hardware bitmaps do not exist in their JVM, so without it every picture of a screenshot was an empty frame.
+ */
+@Volatile var softwarePictures: Boolean = false
 
 /** What a picked file is, before anything is uploaded. */
 data class LocalFile(val uri: Uri, val name: String, val mime: String, val size: Long)

@@ -42,11 +42,13 @@ import org.robolectric.annotation.GraphicsMode
 /**
  * ⟨1.22⟩ Contract §40, night and day, with the demo holding, drawn tall (2000dp): a session becomes a working group.
  * - the «جزئیات» of Pro-Chart's SEO session: «تا اینجا» (folded, its ref hidden), «کارگروه از این جلسه بساز» and the draft it made;
- * - the `playbook` cards: the draft's (live, «باز کن» and «مُهر کن»), the holder's rewrite in words (the new draft, «اجرا کن»), a sealed
+ * - the `playbook` cards: the draft's (live, «باز کن» and «مُهر کن», outlined), the holder's rewrite in words (the new draft), a sealed
  *   one's, and a card of a kind this app does not know (drawn as any card), in two screens;
- * - the playbook's page as a draft (the hint, what was dropped, the platform picker, seats with their helpers' logos, routines in plain
- *   Persian, rules, each to take out or edit, «مُهر کن») and sealed (members, «به شرکت دیگر بده», ⋮);
- * - «به شرکت دیگر بده»: a company and a platform and a note, and «بدون تغییر»;
+ * - ⟨1.0.1⟩ Part C (C3.4) the playbook's page as a draft (what was dropped, the hint, its title, goal and platform, seats with
+ *   their helpers' logos, routines in plain Persian with their brief, rules, each to take out or edit, and «مُهر کارگروه» in the
+ *   decision bar with its one-line summary) and sealed (its header with its quiet actions, the member companies as tiles with their
+ *   one settings block, each routine's last seven runs as dots, «تعریف کارگروه» folded);
+ * - «به شرکت دیگر بده»: a company and a platform and a note, its one act in the sheet's decision bar; and «بدون تغییر»;
  * - the library «کارگروه‌ها», sealed first;
  * - a session opened from a playbook for Pro-Chart: «از کارگروه …» in its head.
  */
@@ -177,11 +179,9 @@ class PlaybookScreensTest(private val name: String, private val night: Boolean) 
             val pb = com.coinepro.hq.ui.playbook.rememberPlaybook("PB-0001").data ?: return
             val companies = com.coinepro.hq.ui.rememberCompanies()
             if (companies.isEmpty()) return
-            Sheet("به شرکت دیگر بده") {
-                com.coinepro.hq.ui.playbook.ApplyBody(pb, companies, company0 = "PC") { _, _ -> }
-                HorizontalDivider(color = Divan.colors.lineDivider)
-                com.coinepro.hq.ui.playbook.ApplyBody(pb, companies, company0 = "PC", asIs0 = true) { _, _ -> }
-            }
+            // ⟨1.0.1⟩ the sheet as it stands: a company, a platform and a note, and its one act in the sheet's decision bar («بدون تغییر»
+            // with the standing word is `playbook-standing`)
+            Sheet("به شرکت دیگر بده") { com.coinepro.hq.ui.playbook.ApplyBody(pb, companies, company0 = "PC") { _, _ -> } }
         }
 
         @JvmStatic

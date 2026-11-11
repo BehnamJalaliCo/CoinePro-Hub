@@ -28,8 +28,12 @@ import com.coinepro.hq.ui.LocalToasts
 import com.coinepro.hq.ui.Nav
 import com.coinepro.hq.ui.Toasts
 import com.coinepro.hq.ui.cartable.needsStepUp
-import com.coinepro.hq.ui.outputs.PublishForm
+import com.coinepro.hq.ui.outputs.PUBLISH_SHEET_FA
+import com.coinepro.hq.ui.outputs.PUBLISH_SHEET_SUB_FA
+import com.coinepro.hq.ui.outputs.PublishDecisionBar
+import com.coinepro.hq.ui.outputs.PublishFields
 import com.coinepro.hq.ui.outputs.PublishSection
+import com.coinepro.hq.ui.outputs.PublishState
 import com.coinepro.hq.ui.outputs.kindsOf
 import com.coinepro.hq.ui.outputs.publishOf
 import com.coinepro.hq.ui.outputs.publishable
@@ -50,9 +54,11 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * ⟨0.19.8⟩ §44.5 «تأیید و انتشار» on a session's output, night and day, each on its own as the page shows it (the section sits
- * under the output's files, far down a long page): the reel and its cover each with the one gold action; the sheet's content the tap
- * opens (which account, as what, the caption); and where each publish stands once he tapped (one published with its link, one on
- * its way, one Instagram refused, said plainly, with «دوباره»). Each is checked to show its words before it is drawn.
+ * under the output's files, far down a long page): the reel and its cover, each a row with its quiet action (on the output's page
+ * the first one is carried by the decision bar); the publish sheet the tap opens, as the shared spring sheet with «انتشار» in its
+ * decision bar (which account, as what, the caption, the time, the comment word); and where each publish stands once he tapped (one
+ * published with its link, one on its way, one Instagram refused, said plainly, with «دوباره»). Each is checked to show its words
+ * before it is drawn.
  */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -64,7 +70,7 @@ class PublishScreensTest(private val name: String, private val night: Boolean) {
     companion object {
         private val SCREENS: Map<String, Scene> = linkedMapOf(
             "output-publish" to Scene("O-000950", false, listOf("انتشار در اینستاگرام", "تأیید و انتشار", "gold-levels-reel.mp4", "کارت و اثر انگشت ندارد")),
-            "output-publish-sheet" to Scene("O-000950", true, listOf("به شکل", "ریلز", "استوری", "@coineprofx.academy", "کاور", "gold-levels-cover.webp", "بدون کاور", "اول حساب را انتخاب کنید")),
+            "output-publish-sheet" to Scene("O-000950", true, listOf("به شکل", "ریلز", "استوری", "@coineprofx.academy", "کاور", "gold-levels-cover.webp", "بدون کاور", "اول حساب را انتخاب کن.", "تأیید و انتشار", "بی کارت و بی اثر انگشت")),
             "output-publish-states" to Scene("O-000951", false, listOf("منتشر شد", "با کاور", "باز کن", "در حال انتشار", "سقف انتشار", "دوباره")),
             // ⟨0.19.9⟩ §45 a working group's daily output (no session): it went out on the owner's standing word, and the sheet of a
             // file of it opens with the package's own caption and cover
@@ -78,15 +84,15 @@ class PublishScreensTest(private val name: String, private val night: Boolean) {
             "output-publish-scheduled" to Scene("O-000953", false, listOf("زمان‌بندی شد", "ساعت \u206618:30\u2069", "کامنت «۷»", "اسلاید", "در حال انتشار")),
             // ⟨1.0.1⟩ §51 a scheduled post taken back: a reel he can still cancel («لغو»), a post taken back («لغو شد», his to publish
             // again), a story whose cancel is on its way, and a post IG-Hub would not cancel (he may try again)
-            "output-publish-cancel" to Scene("O-000954", false, listOf("زمان‌بندی شد", "لغو", "پست، \u200Fلغو شد", "در حال لغو", "لغو انجام نشد")),
+            "output-publish-cancel" to Scene("O-000954", false, listOf("زمان‌بندی شد", "لغو", "لغو شد", "در حال لغو", "لغو انجام نشد")),
             // …asked once, in the row's own place
             "output-publish-cancel-ask" to Scene("O-000954", false, listOf("این انتشار لغو شود؟", "لغو کن", "نه"), tap = "لغو"),
-            // ⟨1.0.1⟩ §49 «بهترین ساعت» among the sheet's times (chosen: what it rests on, «تأیید و زمان‌بندی»), and §52 the quiet line
-            // under a cover that is no JPEG
+            // ⟨1.0.1⟩ §49 «بهترین ساعت» among the sheet's times (chosen: what it rests on, «زمان‌بندی» in the bar with the hour in its
+            // one line), and §52 the quiet line under a cover that is no JPEG
             "output-publish-best-sheet" to Scene(
                 "O-000952", true,
-                listOf("بهترین ساعت (۲۱:۰۰)", "از روی لایک و کامنت", "تأیید و زمان‌بندی", "این تصویر هنگام انتشار خودکار به"),
-                tap = "بهترین ساعت (۲۱:۰۰)",
+                listOf("بهترین ساعت (", "21:00", "از روی لایک و کامنت", "زمان‌بندی", "این تصویر هنگام انتشار خودکار به"),
+                tap = "بهترین ساعت (",
             ),
         )
 
@@ -103,6 +109,8 @@ class PublishScreensTest(private val name: String, private val night: Boolean) {
     @Before
     fun setUp() {
         com.coinepro.hq.core.format.HqClock.fixed = java.time.Instant.parse("2026-11-06T08:30:00Z")
+        // ⟨1.0.1⟩ the files of a session and of an output are drawn as they are (their pictures and posters)
+        picturesOn()
         graph = (ApplicationProvider.getApplicationContext<HqApp>()).graph
         graph.link.setForeground(false)
         graph.enterDemo()
@@ -114,6 +122,9 @@ class PublishScreensTest(private val name: String, private val night: Boolean) {
         shadowOf(Looper.getMainLooper()).idle()
         compose.mainClock.advanceTimeBy(250)
     }
+
+    @org.junit.After
+    fun tearDown() = picturesOff()
 
     @Test
     fun screen() {
@@ -131,21 +142,21 @@ class PublishScreensTest(private val name: String, private val night: Boolean) {
                 ) {
                     val q = rememberQuery("deliverable:${scene.ref}", "deliverables") { deliverable(scene.ref) }
                     val panel = rememberQuery("publish-panel:${scene.ref}", "publish") { publishPanel(scene.ref) }
-                    Column(
-                        Modifier.fillMaxSize().background(if (scene.sheet) Divan.colors.overlay else Divan.colors.page).padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
-                    ) {
-                        val d = q.data
-                        val p = panel.data
-                        if (d != null && scene.sheet && p != null) PublishForm(d, publishable(d).first(), p) {}
-                        else if (d != null) PublishSection(d)
+                    val d = q.data
+                    val p = panel.data
+                    if (d != null && scene.sheet && p != null) {
+                        // the sheet as it stands over its page: the fields, and its one act stuck to its bottom
+                        val s = androidx.compose.runtime.remember(d, p) { PublishState(d, publishable(d).first(), p) }
+                        com.coinepro.hq.designsystem.SpringSheetPreview(PUBLISH_SHEET_FA, sub = PUBLISH_SHEET_SUB_FA, bar = { PublishDecisionBar(s, false) {} }, fill = true) { PublishFields(s) }
+                    } else Column(Modifier.fillMaxSize().background(Divan.colors.page).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        if (d != null) PublishSection(d)
                     }
                 }
             }
         }
         settle(16)
         scene.tap?.let { t ->
-            compose.onAllNodesWithText(t)[0].performClick()
+            compose.onAllNodesWithText(t, substring = true)[0].performClick()
             settle(6)
         }
         for (t in scene.shows) assertTrue("$name shows «$t»", compose.onAllNodesWithText(t, substring = true).fetchSemanticsNodes().isNotEmpty())

@@ -36,10 +36,12 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * ⟨0.17.0⟩ The session as the owner holds it, at a phone's height (860dp), night and day, with the demo holding: the compact head (the
- * words in two lines, the badge and one line, «جزئیات»), the chat opened at its newest word with the steps as quiet lines and a result
- * as one card, a long Persian draft across the whole width of the composer (six lines, then it scrolls; «بفرست» in place of the mic),
- * and the chat scrolled up with the round «↓». The «جزئیات» sheet is drawn whole in [SessionScreensTest].
+ * ⟨0.17.0⟩ The session as the owner holds it, at a phone's height (860dp), night and day, with the demo holding.
+ * ⟨1.0.1⟩ Part C (C2.2): the one-line header (the short title, «کار n از m», the pace, the mood light) over the plan's line of
+ * parts; the chat opened at its newest word with the steps as thin centred lines; the holder's question in ONE place, the «منتظر تو»
+ * card over the composer with its ready answers; a long Persian draft across the whole width of the composer (six lines, then it
+ * scrolls; «بفرست» in place of the mic); the chat scrolled up with the round «↓»; and a session ready for his OK with «تأیید و بستن»
+ * in the decision bar (the page's one full gold). The «جزئیات» sheet is drawn whole in [SessionScreensTest].
  */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -64,7 +66,7 @@ class SessionChatScreensTest(private val name: String, private val night: Boolea
             "session-chat-draft" to Scene(Then.TYPE) { com.coinepro.hq.ui.session.OrderSessionScreen("F-0101") },
             // Scrolled up to read: nothing moves under his finger, and «↓» takes him back to the end.
             "session-chat-scrolled-up" to Scene(Then.SCROLL_UP) { com.coinepro.hq.ui.session.OrderSessionScreen("F-0101") },
-            // Ready for his OK: the result as one card at its time, «تأیید و بستن» as a pill in the head.
+            // Ready for his OK: the result where it arrived, «تأیید و بستن» and the quiet «اصلاح» in the decision bar.
             "session-chat-ready" to Scene(Then.NOTHING) { com.coinepro.hq.ui.session.OrderSessionScreen("F-0102") },
         )
 
@@ -81,6 +83,8 @@ class SessionChatScreensTest(private val name: String, private val night: Boolea
     @Before
     fun setUp() {
         com.coinepro.hq.core.format.HqClock.fixed = java.time.Instant.parse("2026-11-06T08:30:00Z")
+        // ⟨1.0.1⟩ the files of a session and of an output are drawn as they are (their pictures and posters)
+        picturesOn()
         graph = (ApplicationProvider.getApplicationContext<HqApp>()).graph
         graph.link.setForeground(false)
         graph.enterDemo()
@@ -92,6 +96,9 @@ class SessionChatScreensTest(private val name: String, private val night: Boolea
         shadowOf(Looper.getMainLooper()).idle()
         compose.mainClock.advanceTimeBy(250)
     }
+
+    @org.junit.After
+    fun tearDown() = picturesOff()
 
     @Test
     fun screen() {
@@ -116,7 +123,8 @@ class SessionChatScreensTest(private val name: String, private val night: Boolea
         when (scene.then) {
             Then.NOTHING -> Unit
             Then.TYPE -> compose.onNode(hasSetTextAction()).performTextInput(DRAFT)
-            Then.SCROLL_UP -> compose.onNodeWithTag("session-chat").performTouchInput { swipeDown() }
+            // from the middle of the thread (its top lies under the session's header)
+            Then.SCROLL_UP -> compose.onNodeWithTag("session-chat").performTouchInput { swipeDown(startY = height * 0.35f, endY = height * 0.95f) }
         }
         settle(6)
         compose.onRoot().captureRoboImage(

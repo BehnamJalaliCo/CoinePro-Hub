@@ -93,12 +93,15 @@ export function taskOf(tasks: SessionTask[] | undefined): { n: number; total: nu
 }
 export const taskFa = (t: { n: number; total: number }) => `کار ${t.n} از ${t.total}`;
 
-/** The plan as a line of parts: done is silver, what waits for the owner is gold, the rest is empty. */
+/**
+ * The plan as a line of parts: done is silver, what waits for the owner is gold, the rest is empty. A line of the plan he
+ * dictated himself (`by` = owner) is not a part that waits for him: only the first open part of a session that waits is his.
+ */
 export function SegmentLine({ tasks, waiting, className }: { tasks: SessionTask[] | undefined; waiting: boolean; className?: string }) {
   const live = openTasks(tasks ?? []);
   if (!live.length) return null;
   const first = live.findIndex((t) => t.state !== 'done');
-  const kinds = live.map((t, i) => (t.state === 'done' ? 'done' : t.by === 'owner' || (waiting && i === first) ? 'waiting' : 'todo'));
+  const kinds = live.map((t, i) => (t.state === 'done' ? 'done' : waiting && i === first ? 'waiting' : 'todo'));
   const done = kinds.filter((k) => k === 'done').length;
   return (
     <span role="img" aria-label={`${done} کار از ${live.length} انجام شده${kinds.includes('waiting') ? '؛ یک بخش منتظر تو است' : ''}`} data-testid="segment-line" className={cx('flex gap-1', className)}>

@@ -114,7 +114,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
             // ⟨1.24⟩ §42.3 the holding live's seed.
             v42.handle(req.method, path)?.let { Thread.sleep(60); return respond(req, it) }
             // ⟨1.33⟩ §55 the limits of the treasury, and the command sheet's order when the demo is asked to refuse it.
-            v55.handle(req.method, path, b)?.let { Thread.sleep(60); return respond(req, it) }
+            v55.handle(req.method, path, b, q)?.let { Thread.sleep(60); return respond(req, it) }
             // ⟨1.20⟩ §38.3 the hub's services and their jobs.
             v38.handle(req.method, path, b)?.let { Thread.sleep(60); return respond(req, it) }
             // ⟨1.31⟩ §47–§50 the ledger of topics, the narrator, the best hour and the standing routines (their own routes only).
@@ -321,7 +321,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
     /** ⟨1.31⟩ §47–§50 the ledger, the narrator, the best hour and a session's standing routines. */
     private val v47 = V47Demo(v35)
     /** ⟨1.33⟩ §55 what the 1.0.1 look reads: the limits (every state), a refused order. */
-    private val v55 = V55Demo()
+    private val v55 = V55Demo(desk = { company -> outputs.desk(company) }, member = { group, company, state -> v40.setMember(group, company, state) })
     /** ⟨1.24⟩ §42 the holding live: `/live/summary` and the live views' script on the stream. */
     private val v42 = V42Demo(store)
     /** ⟨1.8⟩ before [scripts]: wakes on the first look at a server, so other screens see the holding as before. */
@@ -332,7 +332,7 @@ private class DemoInterceptor(private val context: Context) : Interceptor {
         orders.mediaMaker = council::make
         // ⟨1.31⟩ a session's report carries its standing routines (§50) and what it published (§44.5, §51).
         v35.extras = { ref ->
-            mapOf("routines" to v47.routinesOf(ref)) + (if (ref == OutputsDemo.SESSION) mapOf("publishes" to outputs.sessionPublishes()) else emptyMap())
+            mapOf("routines" to v47.routinesOf(ref)) + (if (ref == OutputsDemo.SESSION || ref == "F-0092" || ref == "F-0093") mapOf("publishes" to outputs.sessionPublishes(ref)) else emptyMap())
         }
     }
     private val scripts = mutableMapOf<String, MutableList<JsonObject>>().apply {

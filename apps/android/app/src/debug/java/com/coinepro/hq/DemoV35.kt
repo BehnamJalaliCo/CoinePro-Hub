@@ -40,13 +40,15 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         var source: String? = null,
         /** ⟨0.19.0⟩ in the lists (the office, «جلسه‌ها»); the dense session the screenshots read is not, so the lists stay as they were. */
         val listed: Boolean = true,
+        /** ⟨1.32⟩ §54 the holder does this session's work himself (a direct session). */
+        val direct: Boolean = false,
     ) {
         val cv: String get() = "CV-05" + ref.takeLast(2)
     }
 
     private fun person(key: String, kind: String, title: String, company: String?) = jo("key" to key, "kind" to kind, "title_fa" to title, "company" to company)
-    private fun task(id: String, n: Int, title: String, state: String, by: String = "agent", who: String? = null) =
-        jo("id" to id, "n" to n, "title_fa" to title, "state" to state, "by" to by, "who_fa" to who, "work_ref" to null)
+    private fun task(id: String, n: Int, title: String, state: String, by: String = "agent", who: String? = null, work: String? = null) =
+        jo("id" to id, "n" to n, "title_fa" to title, "state" to state, "by" to by, "who_fa" to who, "work_ref" to work)
     private fun step(min: Long, who: String, what: String) = jo("at" to at(min), "who_fa" to who, "what_fa" to what)
 
     // ⟨1.18⟩ §36 the files of F-0101: the covers' title font (its family read by the hub), a sample cover, the reels' brief.
@@ -166,6 +168,58 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
             ),
             listed = false,
         ),
+        // ⟨1.33⟩ §54, §55.1 the redesigned session, in the states the lists above do not hold (none of them in the lists): a workshop
+        // turn that builds a motion graphic against its hour, a direct session whose holder works himself, one ready for his OK with
+        // a reel to publish, and a closed one that ends with what it made.
+        S(
+            "F-0090", "برای پرو-چارت یک موشن‌گرافی ۳۰ ثانیه‌ای درباره‌ی اندیکاتور ATR بساز.", "moving", "کارگاه موشن‌گرافی را میسازد.", "auto",
+            Triple("media@PC", "مدیر رسانه‌ی پرو-چارت", "PC"),
+            mutableListOf(person("media@PC", "holder", "مدیر رسانه‌ی پرو-چارت", "PC")),
+            mutableListOf(
+                task("m1", 1, "نوشتن سناریو", "done", who = "نویسنده"),
+                task("m2", 2, "ساخت موشن‌گرافی در کارگاه", "doing", who = "سازنده‌ی موشن‌گرافی", work = "W-000390"),
+                task("m3", 3, "بازبینی و تحویل", "todo"),
+            ),
+            null, Triple("سناریو نوشته شد.", "کارگاه موشن‌گرافی را میسازد.", "فعلاً چیزی لازم نیست."),
+            opened = 90, last = 1,
+            steps = mutableListOf(step(88, "منشی هلدینگ", "فرمان را به رسانه‌ی پرو-چارت سپرد."), step(70, "نویسنده", "سناریوی موشن‌گرافی را نوشت.")),
+            listed = false,
+        ),
+        S(
+            "F-0091", "برای تریدیار کپشن سه ریلز این هفته را بنویس.", "moving", "مدیر رسانه خودش کپشن‌ها را مینویسد.", "auto",
+            Triple("media@TY", "مدیر رسانه‌ی تریدیار", "TY"),
+            mutableListOf(person("media@TY", "holder", "مدیر رسانه‌ی تریدیار", "TY")),
+            mutableListOf(task("d1", 1, "کپشن سه ریلز", "doing", who = "مدیر رسانه", work = "W-000391"), task("d2", 2, "هشتگ‌ها", "todo")),
+            null, Triple("فرمان گرفته شد.", "مدیر رسانه کپشن‌ها را مینویسد.", "فعلاً چیزی لازم نیست."),
+            opened = 30, last = 1,
+            steps = mutableListOf(step(29, "منشی هلدینگ", "فرمان را به مدیر رسانه‌ی تریدیار سپرد.")),
+            listed = false, direct = true,
+        ),
+        S(
+            "F-0092", "برای تریدیار یک ریلز درباره‌ی جای درست حد ضرر بساز.", "ready", "ریلز آماده است و منتظر تأیید توست.", "auto",
+            Triple("media@TY", "مدیر رسانه‌ی تریدیار", "TY"),
+            mutableListOf(person("media@TY", "holder", "مدیر رسانه‌ی تریدیار", "TY")),
+            mutableListOf(task("p1", 1, "نوشتن متن", "done", who = "نویسنده"), task("p2", 2, "ساخت ریلز", "done", who = "سازنده‌ی ریلز")),
+            null, Triple("ریلز ۳۰ ثانیه‌ای با کاور ساخته شد.", "منتظر تأیید توست.", "اگر خوب است، تأیید کن تا منتشر شود."),
+            opened = 210, last = 40,
+            outputs = listOf(jo("ref" to "O-000967", "title_fa" to "ریلز: حد ضرر را کجا بگذاریم", "kind" to "reel")),
+            steps = mutableListOf(
+                step(208, "منشی هلدینگ", "فرمان را به رسانه‌ی تریدیار سپرد."), step(170, "نویسنده", "متن ریلز را نوشت."),
+                step(41, "سامانه", "خروجی رسید: ریلز: حد ضرر را کجا بگذاریم"),
+            ),
+            listed = false,
+        ),
+        S(
+            "F-0093", "برای تریدیار ریلز «سطوح کلیدی طلا» را بساز و منتشر کن.", "closed", "تأیید و بسته شد.", "auto",
+            Triple("media@TY", "مدیر رسانه‌ی تریدیار", "TY"),
+            mutableListOf(person("media@TY", "holder", "مدیر رسانه‌ی تریدیار", "TY")),
+            mutableListOf(task("c1", 1, "نوشتن متن گوینده", "done", who = "نویسنده"), task("c2", 2, "ساخت ریلز و کاور", "done", who = "سازنده‌ی ریلز")),
+            null, Triple("ریلز ساخته و منتشر شد.", "—", "—"),
+            opened = 3_016, last = 2_905, closedAt = at(2_905),
+            outputs = listOf(jo("ref" to "O-000968", "title_fa" to "ریلز: سطوح کلیدی طلا", "kind" to "reel")),
+            steps = mutableListOf(step(3_014, "منشی هلدینگ", "فرمان را به رسانه‌ی تریدیار سپرد."), step(2_921, "سامانه", "خروجی رسید: ریلز: سطوح کلیدی طلا")),
+            listed = false,
+        ),
     )
 
     // ------------------------------------------------------------- the talk --
@@ -203,6 +257,23 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         ),
         "CV-0504" to mutableListOf(turn("CV-0504", 1, "ceo@PC", "سلام. اول سه رقیب اول «چارت طلا» را بررسی میکنم و بعد فهرست صفحه‌ها را میفرستم.", 700)),
         "CV-0505" to mutableListOf(turn("CV-0505", 1, "assistant", "سلام. سه هتل نزدیک مترو پیدا کردم؛ حالا پرواز را مقایسه میکنم.", 1990)),
+        "CV-0590" to mutableListOf(
+            turn("CV-0590", 1, "owner", "برای پرو-چارت یک موشن‌گرافی ۳۰ ثانیه‌ای درباره‌ی اندیکاتور ATR بساز.", 90),
+            turn("CV-0590", 2, "media@PC", "سناریو آماده شد و ساخت را به کارگاه سپردم. تا یک ساعت دیگر فایل همین‌جا میرسد.", 68),
+        ),
+        "CV-0591" to mutableListOf(
+            turn("CV-0591", 1, "owner", "برای تریدیار کپشن سه ریلز این هفته را بنویس.", 30),
+            turn("CV-0591", 2, "media@TY", "خودم مینویسم؛ تا چند دقیقه‌ی دیگر هر سه کپشن همین‌جاست.", 28),
+        ),
+        "CV-0592" to mutableListOf(
+            turn("CV-0592", 1, "owner", "برای تریدیار یک ریلز درباره‌ی جای درست حد ضرر بساز.", 210),
+            turn("CV-0592", 2, "media@TY", "ریلز ساخته شد و با کاورش پایین همین صفحه است. اگر خوب است، تأیید کن تا منتشر شود.", 40),
+        ),
+        "CV-0593" to mutableListOf(
+            turn("CV-0593", 1, "owner", "برای تریدیار ریلز «سطوح کلیدی طلا» را بساز و منتشر کن.", 3_016),
+            turn("CV-0593", 2, "media@TY", "ریلز ساخته شد؛ با کاور و متن گوینده در همین جلسه است و منتشر شد.", 2_920),
+            turn("CV-0593", 3, "owner", "خوب است؛ ببند.", 2_910),
+        ),
         "CV-0500" to mutableListOf(
             turn("CV-0500", 1, "owner", REELS_STEPS.mapIndexed { i, t -> "${i + 1} - $t" }.joinToString("\n", prefix = "این کارگروه ریلز پرو-چارت است؛ مرحله به مرحله:\n"), 70),
             turn("CV-0500", 2, "media@PC", "مدیر رسانه‌ی پرو-چارت آمد.", 69, source = "system"),
@@ -253,6 +324,8 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
         "session" to jo("state" to (if (s.closedAt != null) "closed" else "open"), "badge" to s.badge, "reason_fa" to s.reason, "closed_at" to s.closedAt, "hidden" to s.hidden, "source" to s.source),
         "brief" to brief(s), "tasks" to JsonArray(s.tasks), "participants" to JsonArray(s.participants), "files" to JsonArray(s.files),
         "memory_md" to s.memory,
+        // ⟨1.32⟩ §54 (a hub before it does not say the word)
+        *(if (LookDemo.old55) emptyArray() else arrayOf("direct" to s.direct)),
     )
 
     /** ⟨1.19⟩ the sessions erased for good. */
@@ -367,6 +440,7 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
             s.last = 0
             return 202 to jo("turn" to (last ?: ts.last()), "events" to null)
         }
+        liveWork(method, path, query)?.let { return it }
         val m = Regex("^/orders/(F-0\\d{3})(/[a-z]+)?(/[^/]+)?$").find(path) ?: return null
         // ⟨1.19⟩ §37.1 an erased session answers 404 everywhere, as on the hub.
         if (m.groupValues[1] in erased) return 404 to problem(404, "not_found", "این جلسه پاک شده است.")
@@ -462,8 +536,12 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
     private fun line(at: String, who: String, text: String, id: String? = null, state: String? = null) =
         if (id == null) jo("at" to at, "who_fa" to who, "text_fa" to text)
         else jo("at" to at, "who_fa" to who, "text_fa" to text, "id" to id, "kind" to "step", "state" to state)
-    private fun worker(who: String, company: String?, work: String, startedMin: Long, step: Int, doing: String) =
-        jo("who_fa" to who, "company_fa" to company, "work_title_fa" to work, "started_at" to at(startedMin), "step" to step, "doing_fa" to doing)
+    private fun worker(who: String, company: String?, work: String, startedMin: Long, step: Int, doing: String, kind: String = "run", cap: Int? = null, last: String? = null) =
+        jo(
+            "who_fa" to who, "company_fa" to company, "work_title_fa" to work, "started_at" to at(startedMin), "step" to step, "doing_fa" to doing,
+            // ⟨1.33⟩ §55.1 what kind of turn it is, its time cap, and the last thing it did in the owner's words
+            "kind" to kind, "cap_s" to cap, "last_fa" to last, "last_at" to last?.let { now.minusSeconds(12).toString() },
+        )
 
     private val live: MutableMap<String, Live> = mutableMapOf(
         "F-0104" to Live(
@@ -493,6 +571,28 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
                 "کارشناس سئوی پرو-چارت" to "خروجی «مقایسه‌ی رقبا» را تحویل داد",
                 "مدیرعامل پرو-چارت" to "صفحه‌ی «چارت طلا» را برای نوشتن دوباره علامت زد",
             )),
+            loop = true,
+        ),
+        // ⟨1.33⟩ a workshop turn, 23 minutes into its hour, and the holder's own direct turn
+        "F-0090" to Live(
+            workers = mutableListOf(worker("سازنده‌ی موشن‌گرافی", "پرو-چارت", "ساخت موشن‌گرافی ATR", 23, 0, "موشن‌گرافی را میسازد", kind = "workshop", cap = 3600, last = "صحنه‌ی ۳ را رندر میکند")),
+            lines = mutableListOf(
+                line(at(22), "سازنده‌ی موشن‌گرافی", "کار را در کارگاه شروع کرد", "F-0090-1", "done"),
+                line(at(9), "سازنده‌ی موشن‌گرافی", "صحنه‌ی ۲ را رندر کرد", "F-0090-2", "done"),
+                line(now.minusSeconds(12).toString(), "سازنده‌ی موشن‌گرافی", "صحنه‌ی ۳ را رندر میکند", "F-0090-3", "running"),
+            ),
+            running = "F-0090-3", steps = 3,
+            script = ArrayDeque(listOf(
+                "سازنده‌ی موشن‌گرافی" to "فایل «scene-4.tsx» را مینویسد", "سازنده‌ی موشن‌گرافی" to "دستور اجرا میکند",
+                "سازنده‌ی موشن‌گرافی" to "صحنه‌ی ۴ را رندر میکند", "سازنده‌ی موشن‌گرافی" to "صحنه‌ی ۳ را رندر میکند",
+            )),
+            loop = true,
+        ),
+        "F-0091" to Live(
+            workers = mutableListOf(worker("مدیر رسانه‌ی تریدیار", "تریدیار", "کپشن سه ریلز", 6, 0, "روی فرمان کار میکند", kind = "direct", cap = 3600, last = "فایل «caption.md» را مینویسد")),
+            lines = mutableListOf(line(now.minusSeconds(8).toString(), "مدیر رسانه‌ی تریدیار", "فایل «caption.md» را مینویسد", "F-0091-1", "running")),
+            running = "F-0091-1", steps = 1,
+            script = ArrayDeque(listOf("مدیر رسانه‌ی تریدیار" to "کپشن ریلز دوم را مینویسد", "مدیر رسانه‌ی تریدیار" to "فایل «caption.md» را مینویسد")),
             loop = true,
         ),
         "F-0100" to Live(
@@ -525,19 +625,77 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
     private fun activity(s: S): JsonObject {
         val l = liveOf(s)
         val working = s.closedAt == null && l.workers.isNotEmpty()
-        return jo(
-            "working" to JsonArray(if (working) l.workers else emptyList()),
-            "last" to JsonArray(l.lines.takeLast(30)),
-            "idle_since" to (if (working) null else l.idleSince),
-            "waiting_fa" to (if (!working && s.closedAt == null) s.turn?.str("question_fa") else null),
-            "stuck_fa" to (if (!working && s.closedAt == null && s.turn == null && s.badge == "stuck") STUCK_FA[s.ref] ?: s.reason else null),
+        val waiting = if (!working && s.closedAt == null) s.turn?.str("question_fa") else null
+        val stuck = if (!working && s.closedAt == null && s.turn == null && s.badge == "stuck") STUCK_FA[s.ref] ?: s.reason else null
+        val old = LookDemo.old55
+        // ⟨1.33⟩ §55.1 a turn near its hour ([LookDemo.ring]); a hub before §55 says neither a worker's kind, cap and last line nor the mood
+        val workers = (if (working) l.workers else emptyList()).map { w ->
+            when {
+                old -> JsonObject(w - setOf("kind", "cap_s", "last_fa", "last_at"))
+                LookDemo.ring == "late" && w.str("kind") == "workshop" -> JsonObject(w + ("started_at" to JsonPrimitive(at(56))))
+                else -> w
+            }
+        }
+        // by the hub's own rule: someone works (still thinking until a run's first step, or a turn's first act); else it waits for
+        // the owner; else it is stuck; else calm
+        val mood = when {
+            working -> if (l.workers.any { w -> if ((w.str("kind") ?: "run") == "run") ((w["step"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0) > 0 else w.str("last_fa") != null }) "working" else "thinking"
+            waiting != null -> "waiting"
+            stuck != null -> "stuck"
+            else -> "idle"
+        }
+        return JsonObject(
+            jo(
+                "working" to JsonArray(workers),
+                "last" to JsonArray(l.lines.takeLast(30)),
+                "idle_since" to (if (working) null else l.idleSince),
+                "waiting_fa" to waiting,
+                "stuck_fa" to stuck,
+            ) + if (old) emptyMap() else mapOf("mood" to JsonPrimitive(mood), "mood_fa" to JsonPrimitive(MOOD_FA.getValue(mood))),
         )
+    }
+
+    // ------------------------------------------------- ⟨1.33⟩ «نگه دار»: the owner's stop of a live work --
+    /** The live works a session's plan names, by their id; the workers he stopped, by session («ادامه بده» brings them back). */
+    private val liveWorks = mapOf("W-000390" to "F-0090", "W-000391" to "F-0091")
+    private val held = mutableMapOf<String, List<JsonObject>>()
+    private fun workId(ref: String) = "w-" + ref.lowercase()
+    private fun workOf(ref: String, s: S) = jo(
+        "id" to workId(ref), "ref" to ref, "company" to (s.holder.third ?: "HQ"), "title" to (s.tasks.firstOrNull { it.str("work_ref") == ref }?.str("title_fa") ?: s.text.take(60)),
+        "status" to "in_progress", "created_at" to at(s.opened), "updated_at" to at(s.last),
+    )
+
+    /** `GET /work?q=W-…`, `GET /work/{id}` and `POST /work/{id}/stop` of a session's live work: the work stays open, its workers leave. */
+    private fun liveWork(method: String, path: String, query: Map<String, String?>): Pair<Int, JsonElement>? {
+        if (path == "/work" && method == "GET") {
+            val ref = query["q"]?.takeIf { it in liveWorks } ?: return null
+            val s = sessions.firstOrNull { it.ref == liveWorks[ref] } ?: return null
+            return 200 to jo("items" to JsonArray(listOf(workOf(ref, s))), "next_cursor" to null)
+        }
+        val m = Regex("^/work/(w-w-0003\\d\\d)(/stop)?$").find(path) ?: return null
+        val ref = liveWorks.keys.firstOrNull { workId(it) == m.groupValues[1] } ?: return null
+        val s = sessions.firstOrNull { it.ref == liveWorks[ref] } ?: return null
+        if (m.groupValues[2].isEmpty()) return if (method == "GET") 200 to workOf(ref, s) else null
+        if (method != "POST") return null
+        val l = liveOf(s)
+        if (l.workers.isNotEmpty()) { held[s.ref] = l.workers.toList(); l.workers.clear() }
+        l.idleSince = HqClock.now().toString()
+        l.running?.let { id -> val i = l.lines.indexOfFirst { it.str("id") == id }; if (i >= 0) l.lines[i] = JsonObject(l.lines[i] + ("state" to JsonPrimitive("done"))) }
+        s.badge = "moving"; s.reason = "به دستور تو نگه داشته شد."
+        return 200 to jo("work_ref" to ref, "jobs_stopped" to 1, "workspace" to "stopped")
     }
 
     /** «ادامه بده»: the holder takes the plan's next task now; a few steps follow on the stream. */
     private fun nudge(s: S) {
         val l = liveOf(s)
         if (l.workers.isNotEmpty()) return
+        // what he held goes on from where it was: the same workers, a new start
+        held.remove(s.ref)?.let { back ->
+            l.workers += back.map { w -> JsonObject(w + ("started_at" to JsonPrimitive(HqClock.now().toString()))) }
+            l.idleSince = null
+            s.reason = "${s.holder.second} دوباره دست به کار شد."; s.last = 0
+            return
+        }
         val next = s.tasks.firstOrNull { it.str("state") == "doing" } ?: s.tasks.firstOrNull { it.str("state") == "todo" }
         val task = next?.str("title_fa") ?: "قدم بعد"
         l.workers += worker(s.holder.second, companyFa(s.holder.third), s.text.take(60), 0, 1, "کار بعدی برنامه: $task")
@@ -581,7 +739,10 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
             val i = l.workers.indexOfFirst { it.str("who_fa") == who }
             if (i >= 0) {
                 val n = ((l.workers[i]["step"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0) + 1
-                l.workers[i] = JsonObject(l.workers[i] + mapOf("step" to JsonPrimitive(n), "doing_fa" to JsonPrimitive(text)))
+                val turn = l.workers[i].str("kind").let { it == "workshop" || it == "direct" }
+                l.workers[i] = JsonObject(
+                    l.workers[i] + if (turn) mapOf("last_fa" to JsonPrimitive(text), "last_at" to JsonPrimitive(nowIso)) else mapOf("step" to JsonPrimitive(n), "doing_fa" to JsonPrimitive(text)),
+                )
             }
             out += activityEvent(s, ln, l.workers.size)
         }
@@ -677,6 +838,9 @@ internal class V35Demo(private val store: MutableMap<String, Pair<Int, JsonEleme
             "- **آدم‌ها:** برای صداگذاری و برش یک صداپیشه و یک تدوینگر لازم است؛ کارت استخدام هر دو را برای مدیرعامل گذاشتم.\n" +
             "- **زمان انتشار:** ساعت ۱۸ بیشترین بازدید را دارد؛ آخر هفته‌ها یک ریلز بیشتر.\n\n" +
             "اول یک ریلز آزمایشی میسازم تا لحن و طول را با هم ببینیم؛ بعد بقیه را پشت سر هم."
+
+        /** ⟨1.33⟩ §55.1 the mood in a word, as the hub says it. */
+        val MOOD_FA = mapOf("thinking" to "فکر میکند", "working" to "کار میکند", "waiting" to "منتظر تو", "stuck" to "گیر کرده", "idle" to "آرام")
 
         /** ⟨1.23⟩ §41.3 why a stuck session is stuck, in plain words, and what fixes it (as the hub's sweep writes it). */
         val STUCK_FA = mapOf(

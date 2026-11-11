@@ -10,7 +10,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
@@ -37,10 +36,10 @@ import org.robolectric.annotation.GraphicsMode
 /**
  * ⟨0.19.0⟩ The session in order, at a phone's height (860dp), night and day, on the demo's dense session (F-0100, as dense as the owner's
  * own on 2026-11-08: his nine steps, the media director's long notes, two hires approved, many of the hub's own lines with a ref among them,
- * two results together, two blockers, two at work). As it opens: the steps between two turns one quiet row each («۳ رویداد · 05:34–05:40»),
- * the two results one card, «۲ گیر» over the composer under the live work, the head's pace and «کار ۳ از ۹». Then the newest row of steps
- * opened (each line whole, without its ref), and the blockers opened (each with why, since when, and its fix). Each is checked to show its
- * words before it is drawn.
+ * two results together, two blockers, two at work). ⟨1.0.1⟩ Part C (C2.2). As it opens: the steps between two turns one thin centred
+ * line each («۴ رویداد | 05:34–05:40»), each result where it arrived, the «الان» bar and ONE «گره» card over the composer (its one
+ * sentence, its fix, «و ۱ گره‌ی دیگر»), the header's «کار ۳ از ۹». Then the newest row of steps opened (each line whole, without its
+ * ref), and the knots opened (each with its fix). Each is checked to show its words before it is drawn.
  */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -52,7 +51,7 @@ class SessionTidyScreensTest(private val name: String, private val night: Boolea
 
     companion object {
         private val SCREENS: Map<String, Scene> = linkedMapOf(
-            "session-tidy" to Scene(Tap.NOTHING, listOf("۲ خروجی تحویل شد", "۲ گیر", "کار ۳ از ۹", "۴ رویداد", "مدیر رسانه‌ی پرو-چارت دارد کار میکند، \u200Fقدم ۷")),
+            "session-tidy" to Scene(Tap.NOTHING, listOf("خروجی تحویل شد", "گره‌ی دیگر", "کار 3 از 9", "۴ رویداد", "مدیر رسانه‌ی پرو-چارت")),
             // The four steps since the CEO answered, each whole; the one the hub wrote with a ref in parentheses without it.
             "session-tidy-open" to Scene(Tap.EVENTS, listOf("زیرنویس ریلز آزمایشی به تدوینگر سپرده شد", "صداگذاری منتظر بودجه ماند"), hides = listOf("W-000413", "W-000412")),
             "session-tidy-blockers" to Scene(Tap.BLOCKERS, listOf("بودجه بده", "وصل کن", "اینستاگرام پرو-چارت هنوز وصل نیست")),
@@ -71,6 +70,8 @@ class SessionTidyScreensTest(private val name: String, private val night: Boolea
     @Before
     fun setUp() {
         com.coinepro.hq.core.format.HqClock.fixed = java.time.Instant.parse("2026-11-06T08:30:00Z")
+        // ⟨1.0.1⟩ the files of a session and of an output are drawn as they are (their pictures and posters)
+        picturesOn()
         graph = (ApplicationProvider.getApplicationContext<HqApp>()).graph
         graph.link.setForeground(false)
         graph.enterDemo()
@@ -82,6 +83,9 @@ class SessionTidyScreensTest(private val name: String, private val night: Boolea
         shadowOf(Looper.getMainLooper()).idle()
         compose.mainClock.advanceTimeBy(250)
     }
+
+    @org.junit.After
+    fun tearDown() = picturesOff()
 
     @Test
     fun screen() {
@@ -105,8 +109,9 @@ class SessionTidyScreensTest(private val name: String, private val night: Boolea
         when (scene.tap) {
             Tap.NOTHING -> Unit
             // The newest row of steps: four since the CEO answered.
-            Tap.EVENTS -> compose.onNodeWithText("۴ رویداد").performClick()
-            Tap.BLOCKERS -> compose.onNodeWithTag("blockers").performClick()
+            Tap.EVENTS -> compose.onNodeWithText("۴ رویداد", substring = true).performClick()
+            // The «گره» card leads with one knot; the other is one tap away.
+            Tap.BLOCKERS -> compose.onNodeWithText("گره‌ی دیگر", substring = true).performClick()
         }
         settle(6)
         for (t in scene.shows) assertTrue("$name shows «$t»", compose.onAllNodesWithText(t, substring = true).fetchSemanticsNodes().isNotEmpty())

@@ -59,9 +59,40 @@ import com.coinepro.hq.ui.v14.HqSheet
 internal fun rememberNarrator(company: String) =
     rememberQuery("narrator:$company", "narrator", maxAgeMs = 60_000) { gated(HubFeature.NARRATOR) { narrator(company) } }
 
+/** The one step of the owner there is here (the hub's own sign-in fell out), said with its sign: never a colour alone. */
+@Composable
+private fun NarratorStep(n: Narrator) {
+    val step = narratorStepFa(n) ?: return
+    val c = Divan.colors
+    Row(Modifier.testTag("narrator-step"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        com.coinepro.hq.designsystem.DIcon(DivanIcon.URGENT, size = 13.dp, tint = c.warning)
+        Text(step, style = Divan.type.micro, color = c.textSecondary)
+    }
+}
+
 /**
- * «گوینده‌ی محتوا» of one company in one row: the voice and its style, or that none is set; a tap opens the picker. [inset]: under a
- * member's row of a working group (as its standing word is). Nothing on a hub before §48.
+ * «گوینده‌ی محتوا» of one company, a row of its settings block in a working group: the voice and its style («Charon | آرام و مطمئن»),
+ * or that none is set; «عوض کن» / «انتخاب کن» opens the picker. Nothing on a hub before §48.
+ */
+@Composable
+internal fun NarratorSetting(company: String) {
+    val q = rememberNarrator(company)
+    val n = q.data ?: return
+    var open by rememberSaveable(company) { mutableStateOf(false) }
+    com.coinepro.hq.ui.look.SettingRow(
+        "گوینده‌ی محتوا", androidx.compose.runtime.remember(n) { com.coinepro.hq.designsystem.facts(*narratorLineFa(n).split(" · ").toTypedArray()) },
+        Modifier.testTag("narrator-row").clickable(role = Role.Button, onClickLabel = "گوینده‌ی محتوا") { open = true },
+        action = { HqButton(if (n.set) "عوض کن" else "انتخاب کن", { open = true }, variant = BtnVariant.TEXT, size = BtnSize.SM) },
+        under = if (narratorStepFa(n) == null) null else ({ NarratorStep(n) }),
+    )
+    if (open) HqSheet({ open = false }, "گوینده‌ی محتوا", sub = "یک بار برای همیشه: هر ریلز و ویدیوی این شرکت با همین صدا و همین سبک گفته میشود.") {
+        NarratorPicker(n) { out -> q.set(out); open = false }
+    }
+}
+
+/**
+ * «گوینده‌ی محتوا» of one company in one row (the company's own page): the voice and its style, or that none is set; a tap opens the
+ * picker. [inset]: set in from the start edge. Nothing on a hub before §48.
  */
 @Composable
 fun NarratorRow(company: String, modifier: Modifier = Modifier, inset: Boolean = true, titled: Boolean = true) {
@@ -76,11 +107,11 @@ fun NarratorRow(company: String, modifier: Modifier = Modifier, inset: Boolean =
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             if (titled) Text("گوینده‌ی محتوا", style = Divan.type.caption, color = c.textSecondary)
-            Text(timesFig(narratorLineFa(n)), style = if (titled) Divan.type.micro else Divan.type.small, color = if (n.set) c.goldInk else c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            // the only step of his there is here: the hub's own sign-in fell out
-            narratorStepFa(n)?.let { Text(it, style = Divan.type.micro, color = c.warning) }
+            // ⟨1.0.1⟩ C0.1: what is set is said in the page's own ink, never gold
+            Text(timesFig(narratorLineFa(n)), style = if (titled) Divan.type.micro else Divan.type.small, color = if (n.set) c.textPrimary else c.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            NarratorStep(n)
         }
-        HqButton(if (n.set) "تغییر" else "تنظیم", { open = true }, variant = BtnVariant.TEXT, size = BtnSize.SM)
+        HqButton(if (n.set) "عوض کن" else "انتخاب کن", { open = true }, variant = BtnVariant.TEXT, size = BtnSize.SM)
     }
     if (open) HqSheet({ open = false }, "گوینده‌ی محتوا", sub = "یک بار برای همیشه: هر ریلز و ویدیوی این شرکت با همین صدا و همین سبک گفته میشود.") {
         NarratorPicker(n) { out -> q.set(out); open = false }
@@ -110,9 +141,8 @@ internal fun NarratorPicker(n: Narrator, onSaved: (Narrator) -> Unit) {
     var voice by rememberSaveable(n.company) { mutableStateOf(n.voice.takeIf { v -> n.voices.any { it.name == v } }) }
     var style by rememberSaveable(n.company) { mutableStateOf(n.styleFa) }
     var refused by rememberSaveable(n.company) { mutableStateOf<String?>(null) }
-    narratorStepFa(n)?.let {
-        Text(it, Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.softWarning).padding(12.dp), style = Divan.type.caption, color = c.textPrimary)
-    }
+    // ⟨1.0.1⟩ C0.1: the one step of his here is said with its sign, never by a colour alone
+    if (narratorStepFa(n) != null) androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.tile).padding(12.dp)) { NarratorStep(n) }
     @Composable fun Label(t: String) = Text(t, style = Divan.type.caption.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = c.textSecondary)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Label("صدا")
