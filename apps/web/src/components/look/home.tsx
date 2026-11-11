@@ -185,7 +185,7 @@ function WaitingDecision({ d, lead, i }: { d: Decision; lead: boolean; i: number
       <div className="flex flex-col gap-1">
         <span className="flex items-center gap-1.5 text-[11px] text-muted">
           <CompanyMark code={d.company} height={11} mono />
-          <Facts>{k.fa}{waitedFa(d.created_at)}{`ریسک ${r.fa}`}</Facts>
+          <Facts>{k.fa.replace(/\s*\([A-Za-z_ -]+\)/, '')}{waitedFa(d.created_at)}{`ریسک ${r.fa}`}</Facts>
         </span>
         <span className="text-[14px] font-semibold leading-6 text-ink"><PlainText text={d.title} /></span>
       </div>

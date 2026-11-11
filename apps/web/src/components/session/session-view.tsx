@@ -122,7 +122,8 @@ function Session({ refId, r }: { refId: string; r: Full }) {
 
   return (
     <div className="mx-auto flex w-full max-w-[58rem] flex-col gap-3">
-      <header className="flex flex-col gap-1.5">
+      {/* ⟨1.0.1⟩ M14: the card that was tapped (the home's, the command sheet) grows into this header (`hq-vt-hero`). */}
+      <header className="hq-vt-hero flex flex-col gap-1.5">
         <Link href="/s" className="self-start text-caption text-muted hover:text-ink">جلسه‌ها</Link>
         <div className="flex items-start gap-2">
           <h1 className={cx('min-w-0 flex-1 text-h3 font-semibold leading-8 text-ink', !wide && 'line-clamp-2')}><PlainText text={r.text_fa} /></h1>

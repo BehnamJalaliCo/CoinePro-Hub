@@ -76,7 +76,7 @@ export function TodayMeterBar({ t, now }: { t: TodayMeter; now: number }) {
         <span className="hq-m12 absolute inset-y-0 start-0 block rounded-full" style={{ width: `${pct}%`, background: m.fill }} />
         {MARKS.map((x) => (
           <span key={x} data-mark={x} className="absolute -bottom-1 -top-1 w-0 border-s-[1.5px]" style={{ insetInlineStart: x === 100 ? 'calc(100% - 1.5px)' : `${x}%`, borderColor: pct >= x ? m.fill : 'var(--hq-line-strong)' }}>
-            <Ltr className={cx('absolute top-[18px] whitespace-nowrap text-[10.5px]', x === 100 ? 'left-0' : 'translate-x-1/2', pct >= x ? m.ink : 'text-muted')}>{x}%</Ltr>
+            <Ltr className={cx('absolute top-[18px] translate-x-1/2 whitespace-nowrap text-[10.5px]', pct >= x ? m.ink : 'text-muted')}>{x}%</Ltr>
           </span>
         ))}
       </div>

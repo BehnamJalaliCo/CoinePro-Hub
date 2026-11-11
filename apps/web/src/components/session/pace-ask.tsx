@@ -24,7 +24,7 @@ export function PaceAsk({ pace, onChange }: { pace: Pace | null; onChange: (p: P
         onChange={(v) => { if (v) onChange(v); }}
         options={[{ value: 'step', label: PACE_FA.step }, { value: 'auto', label: PACE_FA.auto }]}
       />
-      <span className={pace ? 'text-[12px] text-muted' : 'text-[12px] text-gold-ink'}>{pace ? HINT[pace] : PACE_PICK_FIRST_FA}</span>
+      <span className={pace ? 'text-[12px] text-muted' : 'text-[12px] text-sec'}>{pace ? HINT[pace] : PACE_PICK_FIRST_FA}</span>
     </div>
   );
 }
