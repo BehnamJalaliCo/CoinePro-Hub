@@ -78,8 +78,12 @@ def earlier(period: str, start: date) -> date:
     return S.month_window(start - timedelta(days=1))[0]
 
 
-async def _figures(tx: Tx, by: str, company: str | None, s: Any, e: Any) -> list[dict[str, Any]]:
-    """The rows of one period (no trend), for the scope `by`."""
+async def _figures(
+    tx: Tx, by: str, company: str | None, days: tuple[date, date], tz: ZoneInfo
+) -> list[dict[str, Any]]:
+    """The rows of one period [days[0], days[1]) in the owner's zone (no trend), for the scope
+    `by`. Times are compared from the zone's midnights; the daily revenue by its own days."""
+    s, e = S.at(days[0], tz), S.at(days[1], tz)
     if by == "employee":
         units = await tx.all(
             """SELECT e.code AS key, c.code AS company, ARRAY[e.code] AS codes
@@ -180,8 +184,8 @@ async def _figures(tx: Tx, by: str, company: str | None, s: Any, e: Any) -> list
                    FROM revenue.days d JOIN core.companies c ON c.id = d.company_id
                    WHERE c.code = :co AND d.day >= CAST(:a AS date) AND d.day < CAST(:b AS date)""",
                 co=u["company"],
-                a=s.date() if hasattr(s, "date") else s,
-                b=e.date() if hasattr(e, "date") else e,
+                a=days[0],  # the period's own days (the UTC date of its midnight is a day early)
+                b=days[1],
             )
             if rev and int(rev["days"]) and Decimal(rev["usd"]) > 0:
                 revenue = Decimal(rev["usd"]).quantize(Q)
@@ -202,13 +206,13 @@ async def rows(
 
     today = datetime.now(tz).date()
     period_key, start, end = window(period, key, today)
-    current = await _figures(tx, by, company, S.at(start, tz), S.at(end, tz))
+    current = await _figures(tx, by, company, (start, end), tz)
     history: list[list[dict[str, Any]]] = []
     a = start
     for _ in range(TREND):
         b = a
         a = earlier(period, a)
-        history.append(await _figures(tx, by, company, S.at(a, tz), S.at(b, tz)))
+        history.append(await _figures(tx, by, company, (a, b), tz))
     for r in current:
         r["period"] = period
         r["period_key"] = period_key
