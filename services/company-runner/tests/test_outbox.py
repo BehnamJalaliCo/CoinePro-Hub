@@ -3,16 +3,21 @@ it left in `out/` to the hub, once per content, and its result names them."""
 
 from __future__ import annotations
 
+import json
 import os
+from collections.abc import AsyncIterator
 from pathlib import Path
 
+import httpx
 import pytest
-from conftest import FAKE_CLAUDE, FakeHub, make_route, run
+from conftest import FAKE_CLAUDE, HUB, FakeHub, fast_probe, make_route, no_dns, run
 from test_run import drive
 
 from hq_runner import outbox as O
 from hq_runner import workspace as W
 from hq_runner.config import Config, save
+from hq_runner.hub import Hub, HubError, JobGone, Unauthorized
+from hq_runner.net import Route
 from hq_runner.runner import Runner
 
 REF = "W-000501"
@@ -199,3 +204,40 @@ def test_a_turn_finds_its_input_files_in_the_in_folder(
     run(drive(runner_for(fake_hub, cfg, cfg_path), lambda: "h10" in fake_hub.results, within=60))
     assert fake_hub.results["h10"]["exit_code"] != 0
     assert "ورودی" in fake_hub.results["h10"]["summary_fa"]
+
+
+class Streamed(httpx.AsyncByteStream):
+    """A body that is really streamed (MockTransport's json= bodies come already read)."""
+
+    def __init__(self, data: bytes) -> None:
+        self.data = data
+
+    async def __aiter__(self) -> AsyncIterator[bytes]:
+        yield self.data
+
+
+def test_a_download_the_hub_refuses_is_a_hub_error(tmp_path: Path) -> None:
+    def answer(status: int, code: str) -> httpx.MockTransport:
+        body = json.dumps({"status": status, "code": code}).encode()
+
+        def handle(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status, stream=Streamed(body))
+
+        return httpx.MockTransport(handle)
+
+    async def fetch(status: int, code: str) -> HubError:
+        route = Route(HUB, None, transport=answer(status, code), probe=fast_probe, resolver=no_dns)
+        hub = Hub(route, lambda: "hqr1_token_one_ABCDEFGHIJKLMNOP")
+        try:
+            await hub.download("/api/v1/runners/jobs/j/inputs/x", tmp_path / "f", 1024)
+        except HubError as exc:
+            return exc
+        finally:
+            await route.aclose()
+        raise AssertionError("no error")
+
+    assert isinstance(run(fetch(409, "job_not_running")), JobGone)
+    assert isinstance(run(fetch(401, "unauthorized")), Unauthorized)
+    err = run(fetch(403, "forbidden"))
+    assert type(err) is HubError and err.code == "forbidden"
+    assert not (tmp_path / "f").exists()

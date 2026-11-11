@@ -60,7 +60,7 @@ class JobGone(HubError):
 def problem_code(resp: httpx.Response) -> tuple[str | None, str | None]:
     try:
         body = resp.json()
-    except ValueError:
+    except (ValueError, httpx.StreamError):  # not JSON, or a streamed body not read
         return None, None
     if not isinstance(body, dict):
         return None, None
@@ -290,7 +290,8 @@ class Hub:
 
     async def download(self, url: str, dest: Path, max_bytes: int) -> int:
         """Downloads a hub URL (absolute on the hub, or a hub path) with the
-        runner token. A URL on any other host is refused: the token never leaves."""
+        runner token. A URL on any other host is refused: the token never leaves.
+"""
         if not self.same_origin(url):
             raise HubError(0, "foreign_url", "files are fetched from the hub only")
         full = urljoin(self.route.hub + "/", url.lstrip("/")) if not url.startswith("http") else url
@@ -298,9 +299,10 @@ class Hub:
         size = 0
         try:
             async with client.stream("GET", full, headers=self.headers(True), timeout=300) as resp:
+                if resp.status_code >= 400:
+                    await resp.aread()  # the problem's body, read before it is parsed
                 err = classify_status(resp, job_scoped=True)
                 if err is not None:
-                    await resp.aread()
                     raise err
                 with dest.open("wb") as fh:
                     async for chunk in resp.aiter_bytes(1 << 16):
