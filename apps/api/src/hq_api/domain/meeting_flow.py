@@ -1470,12 +1470,15 @@ async def standups(tx: Tx, now: datetime, *, only: UUID | None = None) -> int:
         )
         done = [r for r in rows if r["status"] == "done"]
         doing = [r for r in rows if r["status"] in ("in_progress", "queued")]
+        # Stuck is an open work only: waiting, or past its due date. A work closed
+        # yesterday as cancelled or failed is not stuck; it gets its own line.
         stuck = [
             r
             for r in rows
-            if r["status"] == "waiting"
-            or (r["due_at"] and r["due_at"] < end and r["status"] != "done")
+            if r["status"] in ("waiting", "queued", "in_progress")
+            and (r["status"] == "waiting" or (r["due_at"] and r["due_at"] < end))
         ]
+        dropped = [r for r in rows if r["status"] in ("cancelled", "failed")]
         digest = hashlib.sha256(
             json.dumps([(r["ref"], r["status"]) for r in rows]).encode()
         ).hexdigest()
@@ -1509,10 +1512,11 @@ async def standups(tx: Tx, now: datetime, *, only: UUID | None = None) -> int:
                 or "-"
             )
 
-        body = "\n".join(
-            [f"استندآپ {d['company']}-{d['code']} ({today.isoformat()})", section("انجام‌شده", done),
-             section("در جریان", doing), section("گیرکرده", stuck)]
-        )  # fmt: skip
+        lines = [f"استندآپ {d['company']}-{d['code']} ({today.isoformat()})", section("انجام‌شده", done),
+                 section("در جریان", doing), section("گیرکرده", stuck)]  # fmt: skip
+        if dropped:
+            lines.append(section("لغو یا ناموفق", dropped))
+        body = "\n".join(lines)
         await tx.exec(
             """UPDATE meetings.meetings SET mode = 'written', digest_sha256 = :h, summary_md = :b WHERE id = :id""",
             h=digest,

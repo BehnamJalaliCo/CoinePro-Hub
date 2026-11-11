@@ -632,6 +632,38 @@ async def test_a_standup_without_change_sends_nothing(
     assert await su.fetchval("SELECT count(*) FROM llm.calls") == calls
 
 
+async def test_a_standup_does_not_call_a_cancelled_work_stuck(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    su: Any,
+    new_company: Callable[..., Any],
+) -> None:
+    """Audit: a work cancelled yesterday past its due date is not «گیرکرده»."""
+    co = await new_company()
+    after_nine = datetime.now(UTC).replace(hour=12, minute=0)  # 15:30 in Tehran
+    w = await client.post(
+        "/api/v1/work", headers={**owner, **idem()},
+        json={"company": co["code"], "department": "GROWTH", "title": "کمپین لغوشده"},
+    )  # fmt: skip
+    assert w.status_code == 201, w.text
+    await su.execute(
+        """UPDATE work.work SET status = 'cancelled', closed_at = $2, due_at = $3 WHERE ref = $1""",
+        w.json()["ref"],
+        after_nine - timedelta(days=1),
+        after_nine - timedelta(days=3),
+    )
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        assert await MF.standups(tx, after_nine, only=co["id"]) >= 1
+    body = await su.fetchval(
+        """SELECT m.body FROM msg.messages m JOIN msg.threads t ON t.id = m.thread_id
+           WHERE t.code = $1 ORDER BY m.created_at DESC LIMIT 1""",
+        f"{co['code']}-GROWTH",
+    )
+    assert body and "**گیرکرده:** -" in body
+    assert f"**لغو یا ناموفق:** {w.json()['ref']}" in body
+
+
 async def test_a_sev1_opens_the_war_room_and_its_end_brings_a_postmortem(
     hub: Hub, su: Any, new_company: Callable[..., Any]
 ) -> None:
