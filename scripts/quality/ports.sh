@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
 # No port may be published on anything but 127.0.0.1, except Caddy's 80/443.
 # Host networking is allowed only for node-exporter, bound to a specific IP.
+# Every model includes the opt-in profiles (n8n, tracing, web-login,
+# newsletter, ...), so a port that only an opt-in service publishes is checked
+# too, before the owner switches that profile on.
 set -euo pipefail
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 ensure_env
 
+mapfile -t OPT_IN < <(opt_in_profiles)
 failed=0
 for profile in "${PROFILES[@]}"; do
-  model="$(compose_json "$profile")"
+  model="$(compose_json "$profile" "${OPT_IN[@]}")"
 
   bad_ports="$(jq -r '
     .services | to_entries[] | .key as $svc | (.value.ports // [])[]
