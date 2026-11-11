@@ -1426,12 +1426,13 @@ async def timers(tx: Tx, s: Any, ref: str) -> list[str]:
 
 # ⟨2026-11-08⟩ audit B3: the runs that count as «talk without output». A run that produced
 # anything — a deliverable, an `order.progress`/`order.ack`, a child work, a hand-over — is work;
-# a wake the hub itself queued (the idle sweep, the owner's reply, a child's delivery, a hire that
-# joined, «ادامه بده», a lifted cap, the pace, a reopen) is never counted; the count starts again
-# at the last step of the story (any progress).
+# a wake the hub itself queued (the idle sweep, the owner's reply, a child's delivery, failure or
+# decline, a hire that joined, «ادامه بده», a lifted cap, the pace, a reopen) is never counted; the
+# count starts again at the last step of the story (any progress).
 WAKE_REASONS = (
-    "session_idle:%", "owner_reply:%", "child_delivered:%", "child_failed:%", "joined:%",
-    "nudge:%", "uncapped:%", "resume:%", "pace:%", "session_reopened:%", "owner_turn_over:%",
+    "session_idle:%", "owner_reply:%", "child_delivered:%", "child_failed:%", "child_cancelled:%",
+    "joined:%", "nudge:%", "uncapped:%", "resume:%", "pace:%", "session_reopened:%",
+    "owner_turn_over:%",
 )  # fmt: skip
 PRODUCTIVE_TOOLS = (
     "order.progress", "order.ack", "deliver", "work.delegate", "work.request", "work.split",
