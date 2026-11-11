@@ -478,7 +478,9 @@ async def insert_out(
         c=conv["id"],
         a=author,
         ac=author_code[:64],
-        b=customer_mask.mask(body[:8000]).text,
+        # The hub's own answer: secrets masked, the contact details it gives kept (the
+        # outbound guard has passed them; masked they would reach the customer as [email]).
+        b=customer_mask.mask(body[:8000], personal=False).text,
         st=status,
         f=failure,
         vb=verbatim,
