@@ -82,6 +82,19 @@ def el(tag: str = "button", **kw: Any) -> dict[str, Any]:
         (el("a", text="Continue", href="/checkout"), "click", "commitment_link"),
         (el("a", text="Create an account", href="/start"), "click", "commitment_link"),
         (el("a", text="ثبت نام", href="/u"), "click", "commitment_link"),
+        # A relative href is judged by where it resolves to.
+        (
+            el("a", text="Continue reading", href="subscribe?l=7", abs_href="https://s/subscribe"),
+            "click",
+            "commitment_link",
+        ),
+        (
+            el("a", text="Next", href="checkout", abs_href="https://s/shop/checkout"),
+            "click",
+            "commitment_link",
+        ),
+        (el("a", text="Go", href="p%61y", abs_href="https://s/p%61y"), "click", "commitment_link"),
+        (el("a", text="Read", href="posts", abs_href="https://s/blog/posts"), "click", None),
         # Typing: never a card number, a CVV or a password; any other field is fine.
         (el("input", type="password"), "type", "payment_or_credentials_field"),
         (el("input", name="cardnumber"), "type", "payment_or_credentials_field"),
