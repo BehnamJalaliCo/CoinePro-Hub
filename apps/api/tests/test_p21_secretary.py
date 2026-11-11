@@ -296,3 +296,25 @@ def test_a_name_inside_a_longer_name_is_not_another_company() -> None:
         }
     }
     assert D.companies_in_order(O.normalise("در آی جی هاب یک ریلز بساز"), d) == ["IG"]
+
+
+def test_a_remembered_route_holds_only_what_exists_now() -> None:
+    """A remembered company deleted since is dropped, and a remembered
+    `server` kind needs the company's server online (carry_out would raise
+    KeyError on either: 500)."""
+    d = {"companies": {"HQ": {"holding": True}, "IG": {"holding": False}}}
+    dr = D.Draft(kind="work", companies=["IG"])
+    D.apply_memory(dr, {"companies": ["GONE"], "collaborators": ["OLD", "HQ"]}, d)
+    assert dr.companies == ["IG", "HQ"] and dr.remembered
+    dr = D.Draft(kind="question", companies=["IG"])
+    D.apply_memory(dr, {"kind": "server"}, d, online=set())
+    assert dr.kind == "question"
+    dr = D.Draft(kind="server", companies=["HQ"])
+    D.apply_memory(dr, {"companies": ["IG"]}, d, online={"HQ"})
+    assert dr.companies == ["IG"] and dr.kind == "question"
+    dr = D.Draft(kind="question", companies=["IG"])
+    D.apply_memory(dr, {"kind": "server"}, d, online={"IG"})
+    assert dr.kind == "server"
+    dr = D.Draft(kind="work", companies=["IG"])
+    D.apply_memory(dr, {"kind": "kit"}, d)
+    assert dr.kind == "work"

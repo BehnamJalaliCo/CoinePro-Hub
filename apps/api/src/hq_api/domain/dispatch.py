@@ -412,7 +412,7 @@ def by_rules(
             dr.why.append("بخش از واژه‌های متن")
     dr.kind = kind
     if memory:
-        apply_memory(dr, memory)
+        apply_memory(dr, memory, d, online)
     dr.confidence = confidence(dr)
     return dr
 
@@ -429,20 +429,34 @@ def kit_draft(dr: Draft, made: tuple[str, str | None], d: dict[str, Any]) -> Dra
     return dr
 
 
-def apply_memory(dr: Draft, to: dict[str, Any]) -> None:
-    """A remembered correction of a like order wins over the rules."""
-    if to.get("companies"):
-        dr.companies = [str(c) for c in to["companies"]]
+def apply_memory(
+    dr: Draft,
+    to: dict[str, Any],
+    d: dict[str, Any],
+    online: set[str] | frozenset[str] = frozenset(),
+) -> None:
+    """A remembered correction of a like order wins over the rules, as far
+    as it still names what exists: a company deleted since is dropped, and a
+    remembered `server` kind holds only while the company's server is online
+    (carry_out reads both without a check)."""
+    known = d.get("companies") or {}
+    if companies := [str(c) for c in to.get("companies") or [] if str(c) in known]:
+        dr.companies = companies
     if "department" in to:
         dr.department = to["department"]
         dr.department_open = False
     if to.get("output_kind") in OUTPUT_KINDS:
         dr.output_kind = str(to["output_kind"])
+    by_rules_kind = dr.kind
     for key in ("mode", "player", "kind"):
         if to.get(key):
             setattr(dr, key, str(to[key]))
-    if to.get("collaborators"):
-        dr.companies = list(dict.fromkeys([*dr.companies, *map(str, to["collaborators"])]))
+    if dr.kind == "kit" and not dr.kit:
+        dr.kind = by_rules_kind  # the memory holds no kit to draft
+    if dr.kind == "server" and not (dr.companies and dr.companies[0] in online):
+        dr.kind = by_rules_kind if by_rules_kind != "server" else "question"
+    if collaborators := [str(c) for c in to.get("collaborators") or [] if str(c) in known]:
+        dr.companies = list(dict.fromkeys([*dr.companies, *collaborators]))
     dr.remembered = True
     dr.why.insert(0, "مثل اصلاح قبلی شما برای فرمانی شبیه همین")
 
