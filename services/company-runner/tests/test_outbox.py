@@ -249,3 +249,36 @@ def test_a_link_planted_in_the_in_folder_never_redirects_an_input(
     run(drive(runner_for(fake_hub, cfg, cfg_path), lambda: "h12" in fake_hub.results, within=60))
     assert fake_hub.results["h12"]["exit_code"] != 0
     assert list(sink.iterdir()) == []
+
+
+def test_a_file_swapped_for_a_link_after_the_list_is_never_sent(
+    fake_hub: FakeHub, cfg: Config, cfg_path: Path, spaces: Path, tmp_path: Path
+) -> None:
+    """contract §43.9: a process the turn left running swaps a listed name (or the folder that
+    holds it) for a link to the runner's token while an earlier file is being sent; the runner
+    sends what it listed, or nothing, never what the link points to."""
+    token = tmp_path / "runner" / "z.txt"
+    token.parent.mkdir()
+    token.write_text("hqr1_secret", encoding="utf-8")
+    out = out_dir(spaces)
+    (out / "a.txt").write_text("first", encoding="utf-8")
+    (out / "sub").mkdir()
+    (out / "sub" / "z.txt").write_text("mine", encoding="utf-8")
+    (out / "z.txt").write_text("mine too", encoding="utf-8")
+
+    def swap(jid: str) -> None:
+        if len(fake_hub.uploads[jid]) == 1:  # a.txt is in: swap the two not yet sent
+            (out / "z.txt").unlink()
+            os.symlink(token, out / "z.txt")
+            (out / "sub" / "z.txt").unlink()
+            (out / "sub").rmdir()
+            os.symlink(token.parent, out / "sub")
+
+    fake_hub.on_upload = swap
+    fake_hub.jobs.append(turn("h13"))
+    run(drive(runner_for(fake_hub, cfg, cfg_path), lambda: "h13" in fake_hub.results, within=60))
+    res = fake_hub.results["h13"]
+    assert res["exit_code"] == 0, res
+    assert [u["name"] for u in fake_hub.uploads["h13"]] == ["a.txt"]
+    assert all(b"hqr1_secret" not in u["data"] for u in fake_hub.uploads["h13"])
+    assert {s["name"] for s in res["data"]["files_skipped"]} == {"sub/z.txt", "z.txt"}

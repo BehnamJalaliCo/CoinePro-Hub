@@ -20,7 +20,7 @@ import random
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 from urllib.parse import quote, urljoin, urlsplit
 
 import httpx
@@ -252,19 +252,17 @@ class Hub:
         return str(cat) if cat else None
 
     async def upload_file(
-        self, job_id: str, path: Path, name: str, content_type: str
+        self, job_id: str, fh: BinaryIO, name: str, content_type: str
     ) -> dict[str, Any]:
         """⟨0.3.2⟩ One file of a workspace turn's `out/` to the hub (raw body, streamed): the
-        hub's FileRef. The name goes percent-encoded (X-File-Name)."""
+        hub's FileRef. The name goes percent-encoded (X-File-Name). The caller opened the file
+        (once, never through a link) and closes it; each attempt reads it from the start."""
         client = self.route.client()
 
         async def body() -> Any:
-            fh = await asyncio.to_thread(path.open, "rb")
-            try:
-                while chunk := await asyncio.to_thread(fh.read, 1 << 16):
-                    yield chunk
-            finally:
-                await asyncio.to_thread(fh.close)
+            await asyncio.to_thread(fh.seek, 0)
+            while chunk := await asyncio.to_thread(fh.read, 1 << 16):
+                yield chunk
 
         headers = self.headers(True, job_id) | {
             "Content-Type": content_type,
