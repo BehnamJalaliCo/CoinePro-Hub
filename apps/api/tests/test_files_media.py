@@ -494,3 +494,24 @@ def test_the_punctuation_guard_counts_words_not_marks() -> None:
     assert not ok and ratio > 0.08
     assert M.accept_punctuation("", "") == (True, 0)  # an empty transcript is not an error
     assert persian.words("می‌روم، خانه!") == persian.words("میروم خانه")
+
+
+async def test_a_nul_in_extracted_text_is_dropped_not_a_failed_write(
+    client: httpx.AsyncClient, owner: dict[str, str], hub: Hub, su: Any
+) -> None:
+    """pypdf gives a NUL for a font with no ToUnicode map; Postgres text cannot hold one, so the
+    write failed on every attempt and the file never got its text."""
+    from hq_api.domain import files as F
+
+    from .p14_support import pdf
+
+    r = await upload(client, owner, pdf("nul text"), "application/pdf", "nul.pdf")
+    assert r.status_code == 201, r.text
+    fid = uuid.UUID(str(r.json()["id"]))
+    await su.execute(
+        "UPDATE files.processing SET status = 'processing', text = NULL WHERE file_id = $1", fid
+    )
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        await F.document_done(tx, fid, "ready", "a\x00b", None, count=False)
+    row = await su.fetchrow("SELECT status, text FROM files.processing WHERE file_id = $1", fid)
+    assert row["status"] == "ready" and row["text"] == "ab"

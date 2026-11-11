@@ -431,7 +431,7 @@ def pdf_text_job(path: str) -> str | None:
                 break
     except (PyPdfError, ValueError, KeyError, TypeError, AttributeError, IndexError, OSError):
         return None  # a broken PDF has no text; that never fails the upload
-    out = "\n\n".join(parts).strip()[:MAX_PDF_CHARS]
+    out = "\n\n".join(parts).replace("\x00", "").strip()[:MAX_PDF_CHARS]
     return out or None
 
 
