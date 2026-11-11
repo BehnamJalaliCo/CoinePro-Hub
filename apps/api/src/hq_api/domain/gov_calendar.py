@@ -455,9 +455,11 @@ async def freeze_events(tx: Tx, company_ids: list[Any] | None, now: datetime) ->
         since=now - timedelta(days=30),
         ids=company_ids,
     ):
+        # an event spans at most FAR (the table's CHECK); a longer freeze stays as it is
+        ends = min(f["lifted_at"] or f["until"], f["created_at"] + FAR)
         e = await insert(
             tx, f["company_id"], kind="freeze", title_fa=f"فریز انتشار: {f['reason']}"[:300],
-            starts_at=f["created_at"], ends_at=f["lifted_at"] or f["until"], source={}, risk="high",
+            starts_at=f["created_at"], ends_at=ends, source={}, risk="high",
             by=(f["created_by_kind"], f["created_by_code"]), auto_key=f"freeze:{f['id']}",
         )  # fmt: skip
         if e is not None:
