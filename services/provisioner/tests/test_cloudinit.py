@@ -65,14 +65,17 @@ def test_a_step_fails_when_any_command_in_it_fails(tmp_path: Path) -> None:
     run_step = header[header.index("run_step() {") :]
     script = (
         "set -euo pipefail\nshopt -s inherit_errexit\n"
-        f"STATE={tmp_path}\nLOG=/dev/null\nREBOOT_RC=100\n"
+        f"STATE={tmp_path}\nLOG=/dev/null\nREBOOT_MARK={tmp_path}/reboot-requested\n"
         'log() { :; }\nresult() { echo "$*" >>"$STATE/results"; }\n'
         'systemctl() { echo "$*" >>"$STATE/systemctl"; }\n'
         + run_step
         + 'step_mid() { false; touch "$STATE/after-mid"; }\n'  # fails in the middle
         'step_pipe() { false | cat; touch "$STATE/after-pipe"; }\n'
         "step_ok() { true; }\n"
-        'step_boot() { return "$REBOOT_RC"; }\n'
+        'step_boot() { touch "$REBOOT_MARK"; }\n'
+        # apt-get exits 100 on any error: a failure, never a reboot request.
+        'step_apt() { (exit 100); touch "$STATE/after-apt"; }\n'
+        'step_markfail() { touch "$REBOOT_MARK"; false; }\n'
         'for k in $KEYS; do run_step "$k"; [[ ! -e "$STATE/failed" ]] || break; done\n'
         'touch "$STATE/end"\n'
     )
@@ -85,17 +88,20 @@ def test_a_step_fails_when_any_command_in_it_fails(tmp_path: Path) -> None:
         subprocess.run([BASH, str(tmp_path / "s.sh")], env={"KEYS": keys, "PATH": "/usr/bin:/bin"},
                        check=True)  # fmt: skip
 
-    for bad in ("mid", "pipe"):
+    for bad in ("mid", "pipe", "apt", "markfail"):
         go(f"ok {bad} ok")
         assert (tmp_path / "failed").exists() and not (tmp_path / f"after-{bad}").exists()
         assert not (tmp_path / f"{bad}.done").exists() and (tmp_path / "ok.done").exists()
         assert (tmp_path / "results").read_text().startswith(f"{bad} 0 ")
+        assert not (tmp_path / "systemctl").exists()
+        assert not (tmp_path / "reboot-requested").exists()
     go("ok ok")
     assert not (tmp_path / "failed").exists() and (tmp_path / "end").exists()
     # The upgrade's reboot: the step is done, the server reboots, nothing after it runs.
     go("boot ok")
     assert (tmp_path / "boot.done").exists() and (tmp_path / "systemctl").read_text() == "reboot\n"
     assert not (tmp_path / "end").exists() and not (tmp_path / "failed").exists()
+    assert not (tmp_path / "reboot-requested").exists()
 
 
 @pytest.mark.parametrize(
