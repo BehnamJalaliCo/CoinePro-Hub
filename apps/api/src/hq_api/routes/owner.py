@@ -13,7 +13,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, Query, Request, Response
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
 
 from hq_api import idempotency, pagination, workflows_client
 from hq_api.context import Ctx, owner_ctx
@@ -38,7 +38,7 @@ class Presence(BaseModel):
 
 class PresenceIn(BaseModel):
     khalvat: bool
-    until: datetime | None = None
+    until: AwareDatetime | None = None  # naive: a 422, not a TypeError against now(UTC)
 
 
 class TopDecision(BaseModel):

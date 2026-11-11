@@ -8,10 +8,9 @@ Releasing a hold, a kill switch or a freeze has no tool: it is the owner's.
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import Field
+from pydantic import AwareDatetime, Field
 
 from hq_gateway import tools as T
 
@@ -81,7 +80,7 @@ class ChallengeIssueIn(T.In):
     title_fa: str = Field(min_length=1, max_length=300)
     brief_md: str = Field(default="", max_length=20000)
     criteria: list[CriterionIn] = Field(default_factory=list, max_length=10)
-    due_at: datetime
+    due_at: AwareDatetime  # with its zone: compared with the hub's aware now
     judge: str | None = Field(default=None, pattern=EMP)
 
 
@@ -114,7 +113,7 @@ class EngageIn(T.In):
 
 class FreezeIn(T.In):
     company: str = Field(pattern=CO)
-    until: datetime
+    until: AwareDatetime  # with its zone: compared with the hub's aware now
     reason: str = Field(min_length=1, max_length=1000)
 
 
