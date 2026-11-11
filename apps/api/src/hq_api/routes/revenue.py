@@ -367,8 +367,21 @@ async def revenue_read(body: RevenueReadIn, ctx: Ctx = Depends(internal_ctx)) ->
         raise ApiError(422, "validation_failed", fields={"from": "at most 400 days, from <= to"})
     co = await _company(ctx, "revenue.read", body.company, charter=ctx.who.charter)
     async with read_tx(ctx) as tx:
+        # One row per account per day: the whole range is summed, never days_list's default cap.
+        accounts = await tx.scalar(
+            """SELECT count(DISTINCT account_id) FROM revenue.days
+               WHERE company_id = :co AND day BETWEEN :s AND :e""",
+            co=co.id,
+            s=body.from_,
+            e=body.to,
+        )
         rows = await V.days_list(
-            tx, company_id=co.id, account_id=None, start=body.from_, end=body.to
+            tx,
+            company_id=co.id,
+            account_id=None,
+            start=body.from_,
+            end=body.to,
+            limit=max(1, int(accounts or 0)) * ((body.to - body.from_).days + 1),
         )
         costs = await V.token_costs(tx, body.from_, body.to, co.id)
         alerts = await tx.all(
