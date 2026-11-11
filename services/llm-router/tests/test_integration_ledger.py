@@ -497,6 +497,23 @@ async def test_stream_and_transcript(su: asyncpg.Connection, make_service: Any) 
     assert done["transcripts_purged"] == 1
 
 
+async def test_a_client_disconnect_does_not_open_the_breaker(
+    su: asyncpg.Connection, make_service: Any
+) -> None:
+    """⟨2026-11-11⟩ five streams cut by the client (an api restart, the owner interrupting
+    talk turns) opened the subscription's breaker although the provider never failed."""
+    svc = make_service(subscription=FakeBackend(*[ok_result(text="a b c")] * 6))
+    for _ in range(5):
+        gen = await svc.stream(req(), "t", 10_000)
+        assert (await anext(gen)).startswith("event: start")
+        await gen.aclose()
+    view = {c["key"]: c for c in await svc.connections_view()}
+    assert view["claude-max"]["breaker"] == "closed"
+    rows = await su.fetch("SELECT status, error_class FROM llm.calls")
+    assert [tuple(r) for r in rows] == [("error", "client_disconnected")] * 5
+    assert (await svc.run(req(), "t", 10_000)).status == "ok"
+
+
 async def test_close_stale_running_rows(su: asyncpg.Connection, make_service: Any) -> None:
     ty = await company_id(su, "TY")
     await su.execute(
