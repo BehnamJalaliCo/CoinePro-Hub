@@ -164,6 +164,10 @@ DEFAULT_SEATS: dict[str, list[dict[str, Any]]] = {
 }  # fmt: skip
 SEAT_ORDER = {s: i for i, s in enumerate(SEATS)}
 WEB_PACE = timedelta(seconds=60)
+# A web call still 'running' this long past its own timeout has lost its pass (the worker
+# restarted or the activity was cut off mid-job): it fails, or that player's queue never
+# moves again. Room for two other players' jobs ahead of it in the same pass.
+WEB_STALE_GRACE_S = 2400
 LOGIN_MINUTES = 10
 CALL_TIMEOUT_S = {"code_review": 900, "creative": 900, "long_read": 600}
 TEXT_LIMIT = 200_000  # a question's characters
@@ -1314,6 +1318,10 @@ REPLY_HEAD = 6_000
 # work's id): the answer's reply work is requested by that work, so it belongs to the same order
 CALLER_WORK = "caller_work"
 TALK_SNIPPET = 280
+# substitute.call waits SUBSTITUTE_WAIT_S for an answer and gives it inline; a call that ends
+# inside that wait (and this margin) is left to the route, and deliver_late() sends a reply
+# work only when the route did not take it (delivered_at still empty after the wait)
+INLINE_MARGIN_S = 4
 PLAYER_NAMES = {"gpt": "ChatGPT", "gemini": "Gemini", "deepseek": "DeepSeek"}
 
 
@@ -1369,7 +1377,7 @@ async def deliver_to_agent(tx: Tx, hub: Any, call: dict[str, Any]) -> None:
     the order's live session hears that the answer came."""
     from hq_api.domain import work as W
 
-    if call["delivered_at"] is not None:
+    if call["delivered_at"] is not None or _inline_window(hub, call):
         return
     emp = await tx.first(
         """SELECT e.code, e.company_id, c.code AS company FROM core.employees e
@@ -1429,6 +1437,42 @@ async def deliver_to_agent(tx: Tx, hub: Any, call: dict[str, Any]) -> None:
         w=w["id"],
         id=call["id"],
     )
+
+
+def _inline_wait_s(hub: Any) -> float:
+    return float(getattr(getattr(hub, "settings", None), "substitute_wait_s", 0) or 0)
+
+
+def _inline_window(hub: Any, call: dict[str, Any]) -> bool:
+    """True while substitute.call may still be polling this call to answer it inline."""
+    wait = _inline_wait_s(hub)
+    created = call.get("created_at")
+    if wait <= 0 or created is None:
+        return False
+    return datetime.now(UTC) < created + timedelta(seconds=wait + INLINE_MARGIN_S)
+
+
+async def deliver_late(tx: Tx, hub: Any) -> int:
+    """An agent's call that ended inside substitute.call's wait, which the route did not
+    answer inline (the client went away first): its reply work now, once."""
+    wait = _inline_wait_s(hub)
+    if wait <= 0:
+        return 0
+    rows = await tx.all(
+        """SELECT * FROM substitutes.calls
+           WHERE caller_kind = 'agent' AND kind = 'call' AND delivered_at IS NULL
+             AND (purpose_kind IS NULL OR purpose_kind = :cw)
+             AND state IN ('done', 'failed', 'skipped') AND claimed_at IS NOT NULL
+             AND finished_at <= created_at + make_interval(secs => :w)
+             AND created_at < now() - make_interval(secs => :w)
+             AND created_at > now() - interval '1 day'
+           ORDER BY created_at LIMIT 50 FOR UPDATE SKIP LOCKED""",
+        cw=CALLER_WORK,
+        w=wait + INLINE_MARGIN_S,
+    )
+    for c in rows:
+        await deliver_to_agent(tx, hub, c)
+    return len(rows)
 
 
 async def ask_models(tx: Tx, hub: Any) -> int:
@@ -2060,6 +2104,7 @@ async def web_jobs(hub: Any, egress: Any, now: datetime | None = None) -> dict[s
         lock = await gate.holding_lock(tx)
         if lock is not None:
             return gate.skipped(lock, ran=0, wiped=wiped)
+        await _web_lost(tx, hub)
         picked = []
         for player in PLAYERS:
             p = await tx.first(
@@ -2110,6 +2155,33 @@ async def web_jobs(hub: Any, egress: Any, now: datetime | None = None) -> dict[s
     return {"ran": ran, "wiped": wiped}
 
 
+async def _web_lost(tx: Tx, hub: Any) -> int:
+    """Web calls whose pass died with them (as claim() does for the CLI): failed with
+    `timeout`, their creative failed, and whatever waits on them told (_applied)."""
+    rows = await tx.all(
+        """SELECT * FROM substitutes.calls WHERE via = 'web' AND state = 'running'
+             AND claimed_at < now() - make_interval(secs => timeout_s + :g)
+           FOR UPDATE SKIP LOCKED""",
+        g=WEB_STALE_GRACE_S,
+    )
+    for c in rows:
+        failed = await tx.one(
+            """UPDATE substitutes.calls SET state = 'failed', state_reason = 'timeout',
+                   finished_at = now(), input_md = NULL WHERE id = :id RETURNING *""",
+            id=c["id"],
+        )
+        if c["purpose_kind"] == "creative":
+            await tx.exec(
+                """UPDATE substitutes.creatives SET state = 'failed', review_md = :why, updated_at = now()
+                   WHERE ref = :ref""",
+                why="not made: timeout",
+                ref=c["purpose_ref"],
+            )
+        log.warning("web call lost its pass", extra={"call": str(c["id"]), "player": c["player"]})
+        await _applied(tx, hub, failed)
+    return len(rows)
+
+
 async def _skip_web(tx: Tx, hub: Any, c: dict[str, Any], reason: str) -> None:
     await tx.exec(
         """UPDATE substitutes.calls SET state = 'skipped', state_reason = :r, finished_at = now(), input_md = NULL
@@ -2154,6 +2226,13 @@ async def apply_web(hub: Any, c: dict[str, Any], account: str, answer: dict[str,
                 ok, error = False, f"refused: {exc}"[:120]
     async with hub.db.tx(await hub.companies.ids()) as tx:
         p = await _player(tx, c["player"], lock=True)
+        state = await tx.scalar(
+            "SELECT state FROM substitutes.calls WHERE id = :id FOR UPDATE", id=c["id"]
+        )
+        if state != "running":
+            # a late answer: the call already ended (_web_lost failed it), and was told so
+            log.info("late web answer dropped", extra={"call": str(c["id"]), "state": state})
+            return
         if ok:
             await tx.exec(
                 """UPDATE substitutes.players SET web_last_ok_at = now(), web_last_failure = NULL,

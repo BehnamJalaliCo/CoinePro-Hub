@@ -926,6 +926,33 @@ async def test_a_one_off_ends_as_a_card_and_unpublishing_removes_what_it_can(
     }
 
 
+
+async def test_unpublishing_a_telegram_album_deletes_every_message(
+    hub: Hub, new_company: Callable[..., Any], su: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    co = await new_company()
+    await accounts(su, co, monkeypatch)
+    sent = {"channel": "telegram", "placement": "telegram_post", "at": "2026-11-11T09:00:00+00:00",
+            "external_id": "43", "message_ids": ["43", "44"], "url": None, "error": None}  # fmt: skip
+    ref = await su.fetchval(
+        """INSERT INTO media.items (company_id, kind, title_fa, state, one_off, created_by_kind,
+               created_by_code, publish, render_meta)
+           VALUES ($1, 'carousel', 'آلبوم', 'published', true, 'owner', 'owner', $2::jsonb,
+                   '{"unpublish": {"by": "owner"}}'::jsonb) RETURNING ref""",
+        co["id"],
+        json.dumps([sent]),
+    )
+    async with platforms(co["code"].lower()) as fake:
+        assert ref in (await P.unpublish_due(hub))["unpublished"]
+        deleted = sorted(
+            c["payload"]["message_id"] for c in fake.calls if c["method"] == "deleteMessage"
+        )
+    assert deleted == [43, 44]
+    row = await su.fetchrow("SELECT state, publish FROM media.items WHERE ref = $1", ref)
+    pub = json.loads(row["publish"]) if isinstance(row["publish"], str) else row["publish"]
+    assert row["state"] == "rejected" and pub[0]["error"] == "removed"
+
+
 async def test_a_series_card_is_sealed_on_its_page_and_the_limit_answers_429(
     client: httpx.AsyncClient,
     hub: Hub,
@@ -1101,12 +1128,88 @@ async def test_a_runtime_violation_sends_the_item_back_to_its_composer(
     ).status_code == 403
 
 
+
+async def test_a_final_render_waiting_on_a_failed_preview_is_still_queued(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    new_company: Callable[..., Any],
+    su: Any,
+) -> None:
+    """A final render asked for while a preview was claimed waits on it (final_wanted);
+    the preview failing for good queues the final render instead of losing it."""
+    co = await new_company()
+    staff = await team(su, co)
+    r = await client.post("/api/v1/media/items", headers={**owner, **idem()},
+                          json={"company": co["code"], "kind": "reel", "brief_md": "یک ریلز"})  # fmt: skip
+    ref = r.json()["ref"]
+    for code, body in (
+        (
+            staff["scriptwriter"],
+            {"ref": ref, "step": "script", "script": {"text_fa": SCRIPT, "sources": SOURCES}},
+        ),
+        (staff["video_director"], {"ref": ref, "step": "direction", "direction": {"shots": SHOTS}}),
+        (
+            staff["motion_designer"],
+            {
+                "ref": ref,
+                "step": "composition",
+                "composition": {"format": "html", "source": COMPOSITION},
+            },
+        ),
+    ):
+        assert (await tool(client, code, "item", body)).status_code == 200
+    await only_this_job(ref)
+    job = (await client.post("/internal/v1/media/render/claim", headers=MEDIA)).json()
+    # As if this claimed job were the designer's preview, with the final render waiting on it.
+    await su.execute(
+        "UPDATE media.render_jobs SET purpose = 'preview' WHERE id = $1", uuid.UUID(job["id"])
+    )
+    await su.execute(
+        """UPDATE media.items SET render_meta = COALESCE(render_meta, '{}'::jsonb)
+               || '{"final_wanted": true}'::jsonb WHERE ref = $1""",
+        ref,
+    )
+    done = await client.post(f"/internal/v1/media/render/{job['id']}/done", headers=MEDIA,
+                             json={"violations": [{"rule": "network_request", "detail": "http://10.10.1.3/"}]})  # fmt: skip
+    assert done.status_code == 204
+    jobs = await su.fetch(
+        """SELECT purpose, state FROM media.render_jobs
+           WHERE item_id = (SELECT id FROM media.items WHERE ref = $1) ORDER BY created_at""",
+        ref,
+    )
+    assert [(j["purpose"], j["state"]) for j in jobs] == [("preview", "failed"), ("final", "queued")]
+    meta = await su.fetchval("SELECT render_meta FROM media.items WHERE ref = $1", ref)
+    meta = json.loads(meta) if isinstance(meta, str) else meta
+    assert "final_wanted" not in (meta or {})
+
+
 def test_captions_follow_the_shots_or_the_narration() -> None:
     by_shot = S.captions(SHOTS, None)
     assert by_shot[0]["start_s"] == 0 and by_shot[-1]["end_s"] == 30
     spread = S.captions(SHOTS, 24.0)
     assert spread[-1]["end_s"] == pytest.approx(24.0, abs=0.05)
     assert all(len(c["text_fa"]) <= 60 for c in spread)
+
+
+def test_part_headings_start_a_line_and_trading_words_are_whole() -> None:
+    from hq_api.domain import studio_checks as K
+
+    script = (
+        "قلاب: آیا می‌دانستید؟\n"
+        "بدنه: این دوره رایگان است. لینک ثبت‌نام در کپشن است و همین حالا بزنید.\n"
+        "**«جمع‌بندی و دعوت»:** در جمع‌بندی هم بگوییم.\n"
+        "کپشن: ثبت‌نام رایگان #آموزش"
+    )
+    p = K.parts(script)
+    assert p["بدنه"].endswith("در کپشن است و همین حالا بزنید.")
+    assert p["جمع‌بندی"] == "در جمع‌بندی هم بگوییم."
+    assert p["کپشن"] == "ثبت‌نام رایگان #آموزش"
+    assert K.parts(SCRIPT)["کپشن"].startswith("سطح‌های این هفته")
+    for plain in ("برای اطلاعات بیشتر به سایت سر بزنید", "اطلاع‌رسانی", "با مشورت دوستان"):
+        assert not K.TRADING.search(plain), plain
+    for trading in ("قیمت طلا امروز", "طلای ۱۸ عیار", "پوزیشن شورت"):
+        assert K.TRADING.search(trading), trading
 
 
 def test_a_series_must_fit_its_kind() -> None:
