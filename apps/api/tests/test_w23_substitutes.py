@@ -103,6 +103,16 @@ async def _reply(su: Any, call_id: Any) -> Any:
     )
 
 
+async def _settle(su: Any) -> None:
+    """The jobs a test left queued or running (made by hand) are over: no later test's lane holds
+    them, and no reaper delivers them."""
+    await su.execute(
+        """UPDATE substitutes.calls SET state = 'skipped', state_reason = 'test', finished_at = now(),
+               delivered_at = COALESCE(delivered_at, now())
+           WHERE state IN ('queued', 'running')"""
+    )
+
+
 async def _call(su: Any, call_id: Any) -> Any:
     return await su.fetchrow("SELECT * FROM substitutes.calls WHERE id = $1::uuid", str(call_id))
 
@@ -763,6 +773,7 @@ async def test_a_call_waiting_behind_a_busy_lane_is_not_reaped_and_a_free_lanes_
                     cover["claimed_at"] + timedelta(seconds=900 + S.RUN_GRACE_S) + S.QUEUE_DEADLINE
                 )
         finally:
+            await _settle(su)
             await su.execute(
                 "UPDATE substitutes.seats SET per_day = 60 WHERE player = 'deepseek' AND seat = 'quick_search'"
             )
@@ -1025,6 +1036,7 @@ async def test_a_paced_call_and_a_call_behind_a_retry_keep_their_clock(hub: Hub,
             f"'{(t + timedelta(seconds=160)).isoformat()}'",
         )
         assert await deadline(script) == image["claimed_at"] + end + S.QUEUE_DEADLINE
+        await _settle(su)
 
 
 async def test_an_end_nobody_waits_for_any_more_makes_no_reply_work(hub: Hub, su: Any) -> None:

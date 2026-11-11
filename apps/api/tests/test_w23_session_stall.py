@@ -809,7 +809,7 @@ def test_quota_codes_are_said_in_plain_words_with_the_reset_time() -> None:
     assert NS.when_fa(at, zone, now) == "از فردا ساعت 03:30"
     assert NS.when_fa(now + timedelta(minutes=20), zone, now) == "از ساعت 23:50"
     assert NS.when_fa(now - timedelta(minutes=1), zone, now) is None
-    assert NS.when_fa(now + timedelta(days=3), zone, now) == "از 3 روز دیگر، ساعت 23:30"
+    assert NS.when_fa(now + timedelta(days=3), zone, now) == "۳ روز دیگر، از ساعت 23:30"
     assert NS.parse_at("120", now) == now + timedelta(seconds=120)
     assert NS.parse_at("2026-11-12T00:00:00Z") == at and NS.parse_at(None) is None
     assert NS.quota_why_fa("usage_limit", "از ساعت 03:30") == (
@@ -953,7 +953,9 @@ def plural_in(module: Any) -> list[str]:
 
 
 def test_what_the_owner_reads_of_his_sessions_says_tu() -> None:
-    for module in (SA, OR, OT, SE, NS, SM, W):
+    from hq_api.domain import hands as HANDS
+
+    for module in (SA, OR, OT, SE, NS, SM, W, DR, HANDS):
         assert plural_in(module) == [], module.__name__
     assert PLURAL.findall("فرمان تازه بدهید.") and PLURAL.findall("سؤال از شما")
     assert not PLURAL.findall("شماره‌ی کار") and not PLURAL.findall("فرمان تازه بده.")
@@ -1060,3 +1062,26 @@ def test_what_wakes_an_agent_and_what_it_polls_is_said_truly(hub: Hub) -> None:
         )
         assert "(نشد)" not in SA.tools_text(acts)
     assert "(نشد)" in SA.tools_text([{"tool": "server.exec", "outcome": "denied", "code": "x"}])
+
+
+def test_the_stuck_sentence_names_the_end_of_the_last_step_and_the_owner_is_tu(hub: Hub) -> None:
+    from hq_api.talk import context as TC
+
+    said = (
+        "گام ۲ در جریان است. موضوع اول («آموزش حد ضرر») ثبت شد. گوینده‌ی شرکت هم ثبت شد. "
+        "پیش‌نویس متن ریلز از ChatGPT خواسته شد و در صف است."
+    )
+    last = SA.last_words(said)
+    assert last.endswith("از ChatGPT خواسته شد و در صف است") and "گام ۲ در جریان است" not in last
+    assert last.startswith("… ") and len(last) <= SA.LAST_WORDS + 2
+    assert SA.last_words("کوتاه شد.") == "کوتاه شد"
+    rep = {"steps": [{"who_fa": "مدیرعامل پروچارت", "what_fa": said, "at": "2026-11-10T18:58:00"}]}
+    line = SA.STUCK_PLAN_FA.format(
+        last=SA.last_words(SA._last_step_fa(rep) or ""), n=3, title="متن"
+    )
+    assert "آخرین کار: … " in line and ".؛" not in line and "…؛" not in line, line
+    # the agents are told to write to the owner with «تو»; the brand's «شما» is for others
+    assert "«تو»" in hub.charters.common and "«تو»" in TC.TALK_RULES
+    assert "مدیر کل (مالک) «تو»" in (
+        Path(str(hub.charters.root)) / "charter" / "HOLDING.md"
+    ).read_text(encoding="utf-8")

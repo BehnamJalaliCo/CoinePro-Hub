@@ -83,10 +83,12 @@ NARRATION_TOOLS = (
     "connection.read",
 )  # fmt: skip
 STUCK_IDLE_FA = (
-    "مسئول {k} بار دوباره سر کار آمد ولی کار جلو نرفت؛ آخرین قدم: {last}؛ "
+    "مسئول {k} بار دوباره سر کار آمد ولی کار جلو نرفت؛ آخرین کار: {last}؛ "
     "کار {n} («{title}») مانده است."
 )
-STUCK_PLAN_FA = "کسی روی این جلسه کار نمیکند؛ آخرین قدم: {last}؛ کار {n} («{title}») مانده است."
+STUCK_PLAN_FA = "کسی روی این جلسه کار نمیکند؛ آخرین کار: {last}؛ کار {n} («{title}») مانده است."
+LAST_WORDS = 120  # the end of the last step, as the apps show it (lastWordsFa)
+_SENTENCE_END = re.compile(r"(?<=[.!؟?])\s+")
 STUCK_CALL_FA = "{who} {seat} را آماده نکرد ({why}) و بعد از آن کار جلو نرفت."
 READY_WAITING_FA = "منتظر تأیید تو"
 REOPENED_FA = "کار مسئول دوباره باز شد: کار {n} از برنامه مانده است"
@@ -1299,12 +1301,31 @@ async def stuck_cause(
     tasks = await open_tasks_of(tx, rep.get("order_id")) if tasks is None else tasks
     if tasks:  # ⟨2026-11-11⟩ what was last done, and what is left
         nxt = tasks[0]
-        last_fa = _cut(_last_step_fa(rep) or GENERIC_FA, 90)
+        last_fa = last_words(_last_step_fa(rep) or GENERIC_FA)
         title = _cut(str(nxt["title_fa"]), 60)
         if wakes:
             return STUCK_IDLE_FA.format(k=wakes, last=last_fa, n=nxt["n"], title=title)
         return STUCK_PLAN_FA.format(last=last_fa, n=nxt["n"], title=title)
     return UNKNOWN_WHY_FA
+
+
+def last_words(text: str, limit: int = LAST_WORDS) -> str:
+    """The END of a line, as the apps show «آخرین کار» (lastWordsFa): whole when it fits, else its
+    last sentences that fit (else its last words) after «… »; never a stop or «؛» before the
+    sentence's own «؛»."""
+    one = " ".join(text.split())
+    if len(one) > limit:
+        out = ""
+        for part in reversed([p for p in _SENTENCE_END.split(one) if p]):
+            nxt = f"{part} {out}" if out else part
+            if len(nxt) > limit:
+                break
+            out = nxt
+        if not out:
+            tail = one[-limit:]
+            out = tail.split(" ", 1)[1] if " " in tail else tail
+        one = f"… {out}"
+    return one.rstrip(" .،؛…!؟?") or one
 
 
 def _last_step_fa(rep: dict[str, Any]) -> str | None:

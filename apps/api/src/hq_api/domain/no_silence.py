@@ -118,9 +118,13 @@ def parse_at(raw: Any, base: datetime | None = None) -> datetime | None:
     return at if at.tzinfo is not None else at.replace(tzinfo=UTC)
 
 
+FA_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
+
+
 def when_fa(at: datetime | None, zone: Any, now: datetime) -> str | None:
-    """«از ساعت 03:30» (today), «از فردا ساعت 03:30», «از N روز دیگر، ساعت 03:30» in the owner's
-    zone, Latin digits; None for no time or a time already past."""
+    """«از ساعت 03:30» (today), «از فردا ساعت 03:30», «۳ روز دیگر، از ساعت 03:30» in the owner's
+    zone: Latin digits for the clock, Persian for a count of days; None for no time or a time
+    already past."""
     if at is None or at <= now:
         return None
     local, today = at.astimezone(zone), now.astimezone(zone)
@@ -130,7 +134,7 @@ def when_fa(at: datetime | None, zone: Any, now: datetime) -> str | None:
         return f"از ساعت {clock}"
     if days == 1:
         return f"از فردا ساعت {clock}"
-    return f"از {days} روز دیگر، ساعت {clock}"
+    return f"{str(days).translate(FA_DIGITS)} روز دیگر، از ساعت {clock}"
 
 
 # An automatic hire refused (hiring.auto_fill): the ApiError's code.
