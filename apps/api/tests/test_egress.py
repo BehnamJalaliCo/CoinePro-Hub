@@ -157,6 +157,20 @@ async def test_log_limits_and_who_reads_the_log(
             params={"company": co["code"]},
         )
         assert r.status_code == 200 and len(r.json()["items"]) >= 5
+        # its next_cursor reaches the older entries, page by page
+        adv = await agent_headers("HQ-ADV")
+        first = await client.get(
+            "/internal/v1/egress/recent", headers=adv, params={"company": co["code"], "limit": 2}
+        )
+        assert first.status_code == 200 and first.json()["next_cursor"]
+        second = await client.get(
+            "/internal/v1/egress/recent",
+            headers=adv,
+            params={"company": co["code"], "limit": 2, "cursor": first.json()["next_cursor"]},
+        )
+        assert second.status_code == 200, second.text
+        ids = [i["id"] for i in first.json()["items"] + second.json()["items"]]
+        assert len(second.json()["items"]) == 2 and len(set(ids)) == 4
     finally:  # the advisor's test run must not stay running for the next tests
         await su.execute(
             """UPDATE agents.runs r SET state = 'done', finished_at = now() FROM core.employees e

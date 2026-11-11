@@ -115,3 +115,36 @@ async def claim(
         prev["response"], status_code=prev["status_code"], headers={"Idempotent-Replay": "true"}
     )
     return idem
+
+
+async def peek(tx: Tx, request: Request, who: Principal) -> JSONResponse | None:
+    """The stored replay of a completed request with this key, without claiming
+    it: for a route that does work no retry can redo (e.g. reads an upload the
+    first request consumed) before its claim. A key in use for another body or
+    still running answers 409 as `claim` would; an unknown key is None."""
+    key = read_key(request, required=False)
+    if key is None:
+        return None
+    prev = await tx.first(
+        """SELECT method, path, body_sha256, status_code, response FROM core.idempotency_keys
+           WHERE principal = :p AND key = :k
+             AND created_at >= now() - make_interval(hours => 24)""",
+        p=f"{who.kind}:{who.code}",
+        k=key,
+    )
+    if prev is None:
+        return None
+    body_sha256 = hashlib.sha256(await request.body()).hexdigest()
+    if (prev["method"], prev["path"], prev["body_sha256"]) != (
+        request.method,
+        request.url.path,
+        body_sha256,
+    ):
+        raise ApiError(409, "idempotency_conflict")
+    if prev["status_code"] is None:
+        raise ApiError(
+            409, "idempotency_conflict", "the first request with this key is still running"
+        )
+    return JSONResponse(
+        prev["response"], status_code=prev["status_code"], headers={"Idempotent-Replay": "true"}
+    )

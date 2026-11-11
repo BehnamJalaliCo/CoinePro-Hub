@@ -342,7 +342,12 @@ async def tool_company_state(
         async with read_tx(ctx) as tx:
             return HoldingState(
                 companies=[
-                    await _company_state(tx, c, ctx.hub.charters, ctx.who.department)
+                    await _company_state(
+                        tx,
+                        c,
+                        ctx.hub.charters,
+                        ctx.who.department if c.id == ctx.who.company_id else None,
+                    )
                     for c in await ctx.hub.companies.all()
                 ],
                 hiring=await hiring.state(tx),

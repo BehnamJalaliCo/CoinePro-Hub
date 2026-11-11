@@ -261,7 +261,8 @@ def loosens(old: dict[str, Any], new: dict[str, Any]) -> bool:
     """The new rule lets more money through than the old one (a higher cap, a
     lower ROAS floor, a larger minimum before judging, a longer window that
     dilutes the figure, only telling instead of pausing, the rule switched off,
-    a cap or a floor taken away): 🔏 `ads.cap`. Tightening needs none."""
+    a cap or a floor taken away, the guard moved off a campaign): 🔏 `ads.cap`.
+    Tightening needs none."""
 
     def up(a: Any, b: Any) -> bool:  # b is looser than a, for a cap-like number
         if a is None:

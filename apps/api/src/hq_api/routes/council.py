@@ -3,10 +3,11 @@ of the captain's plan; the fact pack the members read."""
 
 from __future__ import annotations
 
+import json
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response
 from pydantic import BaseModel
 
 from hq_api.context import Ctx, owner_ctx
@@ -81,7 +82,12 @@ async def run_plan(
     out = await place_order(
         ctx, request, background, OrderIn(text=text, source="text", route=route), remember=False
     )
-    ref = out["ref"] if isinstance(out, dict) else out.ref
+    if isinstance(out, Response):  # a replay: the order was made, the council may lack it
+        ref = json.loads(bytes(out.body)).get("ref")
+        if not ref:
+            return out
+    else:
+        ref = out["ref"] if isinstance(out, dict) else out.ref
     async with ctx.tx() as tx:
         await tx.exec(
             """UPDATE work.councils SET order_ref = :r, updated_at = now()
@@ -93,6 +99,10 @@ async def run_plan(
         if fresh is not None:
             await PL._emit(tx, w["company"], fresh)
     return out
+
+
+class _NoOpenWork(Exception):
+    """OT.reply refused the word (nothing open or delivered on the order)."""
 
 
 async def _same_order(
@@ -112,13 +122,19 @@ async def _same_order(
     rep = await OR.ensure(tx, ref)
     if rep is None or rep["ended_at"] is not None:
         return None
-    idem = await idempotency.claim(tx, request, ctx.who, required=True)
-    if idem and idem.replay:
-        return idem.replay  # type: ignore[return-value]
     text = f"اجرا کن: برنامه‌ی شورا را اجرا کن.\n\n{c['plan_md']}"[:2000]
     try:
-        out = await OT.reply(tx, ref, text)
-    except ApiError:
+        # in a savepoint: when the order has no open work, the claim goes back with the
+        # reply's writes, so place_order can claim the same key for the new order
+        async with tx.conn.begin_nested():
+            idem = await idempotency.claim(tx, request, ctx.who, required=True)
+            if idem and idem.replay:
+                return idem.replay  # type: ignore[return-value]
+            try:
+                out = await OT.reply(tx, ref, text)
+            except ApiError as exc:
+                raise _NoOpenWork from exc
+    except _NoOpenWork:
         return None  # no open work on the order: a new order as before
     await OT.to_talk_owner(tx, rep, text)
     await tx.exec(

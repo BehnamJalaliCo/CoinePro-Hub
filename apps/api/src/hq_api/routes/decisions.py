@@ -172,6 +172,7 @@ async def list_decisions(
         "archive_disposal",
         "server_destructive",
         "line_publish",
+        "erase",
         "hub_op",
     ]
     | None = None,

@@ -37,6 +37,21 @@ async def test_a_missing_and_a_forbidden_company_answer_the_same(
         assert set(got.values()) == {(403, "policy_denied")}, (path, got)
 
 
+async def test_holding_company_state_shows_only_the_callers_own_identity(
+    client: httpx.AsyncClient, new_company: Callable[..., Any]
+) -> None:
+    """A holding role without `company` sees every company, but the identity text
+    only of its own department, not of the same-coded department elsewhere."""
+    co = (await new_company())["code"]
+    r = await client.get("/internal/v1/company/state", headers=await agent_headers("HQ-AIOPS-MGR"))
+    assert r.status_code == 200, r.text
+    by_code = {c["company"]: c for c in r.json()["companies"]}
+    theirs = [d for d in by_code[co]["departments"] if d["code"] == "AIOPS"]
+    assert theirs and all("identity_md" not in d for d in theirs)
+    mine = [d for d in by_code["HQ"]["departments"] if d["code"] == "AIOPS"]
+    assert mine and all("identity_version" in d for d in mine)
+
+
 async def test_memory_writes_honour_the_idempotency_key(
     client: httpx.AsyncClient, su: Any, new_company: Callable[..., Any]
 ) -> None:

@@ -1046,6 +1046,11 @@ async def test_ad_rules_and_resuming_are_the_owners_with_a_seal_where_it_loosens
         )
     ).status_code == 422  # nothing to judge
     path = f"/api/v1/companies/{c}/ad-rules/{rule['id']}"
+    for k in ("min_spend_before_judging", "window_days", "scope", "action", "state"):
+        nulled = await client.put(path, headers=h, json={k: None})
+        assert nulled.status_code == 422, (k, nulled.text)  # NOT NULL fields: 422, not 500
+    longer = await client.put(path, headers=h, json={"window_days": 30})
+    assert longer.status_code == 403  # a longer window dilutes the figure: 🔏 ads.cap
     tighter = await client.put(path, headers=h, json={"daily_cap": 80})
     assert tighter.status_code == 200 and tighter.json()["daily_cap"] == 80
     looser = await client.put(path, headers=h, json={"daily_cap": 500})

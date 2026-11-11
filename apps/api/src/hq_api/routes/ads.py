@@ -137,7 +137,11 @@ async def edit_ad_rule(
             id=rule_id,
             co=company.id,
         )
-        new = {**old, **body.model_dump(exclude_unset=True)}
+        fields = body.model_dump(exclude_unset=True)
+        for k in ("scope", "window_days", "min_spend_before_judging", "action", "state"):
+            if k in fields and fields[k] is None:
+                raise ApiError(422, "validation_failed", fields={k: "cannot be empty"})
+        new = {**old, **fields}
         if new["daily_cap"] is None and new["min_roas"] is None:
             raise ApiError(422, "validation_failed", fields={"daily_cap": "a cap or a floor"})
         wider = AD.loosens(old, new)

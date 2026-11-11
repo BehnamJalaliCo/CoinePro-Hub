@@ -465,12 +465,23 @@ async def test_a_sealed_record_is_409_except_its_level_and_a_new_version_superse
         # A new version supersedes the sealed one; the record is filed again,
         # and the old manifest no longer seals anything.
         fid2 = await upload(client, h, pdf("security policy v2"), "application/pdf", "v2.pdf")
+        key = idem()
         nv = await client.post(
             f"{A}/records/{ref}/versions",
             json={"file_ids": [fid2], "note_fa": "اصلاح"},
-            headers={**h, **idem()},
+            headers={**h, **key},
         )
         assert nv.status_code == 201, nv.text
+        # A lost answer retried with the same key replays it, though the upload's
+        # bytes are the archive's now (gone from the owner's upload).
+        again = await client.post(
+            f"{A}/records/{ref}/versions",
+            json={"file_ids": [fid2], "note_fa": "اصلاح"},
+            headers={**h, **key},
+        )
+        assert again.status_code == 201, again.text
+        assert again.headers.get("Idempotent-Replay") == "true"
+        assert again.json()["ref"] == ref and again.json()["current_version"] == 2
         assert nv.json()["state"] == "filed" and nv.json()["current_version"] == 2
         assert [x["state"] for x in nv.json()["versions"]] == ["superseded", "current"]
         assert nv.json()["versions"][0]["sealed"] is True
@@ -480,6 +491,24 @@ async def test_a_sealed_record_is_409_except_its_level_and_a_new_version_superse
             headers={**h, **await step_up(hub, sid, "archive.seal", manifest)},
         )
         assert stale.status_code == 409 and stale.json()["code"] == "seal_mismatch"
+
+
+async def test_a_retried_record_with_the_same_key_replays_after_the_upload_was_taken_over(
+    client: httpx.AsyncClient, owner_session: dict[str, Any], new_company: Callable[..., Any]
+) -> None:
+    co = await new_company()
+    h = owner_session["headers"]
+    async with fakes(ocr=False):
+        fid = await upload(client, h, pdf("a retried record"), "application/pdf", "r.pdf")
+        body = {"scope": co["code"], "class": "other", "title_fa": "سند تکراری",
+                "metadata": {"subject": "سند تکراری"}, "file_ids": [fid], "file": True}  # fmt: skip
+        key = idem()
+        first = await client.post(f"{A}/records", json=body, headers={**h, **key})
+        assert first.status_code == 201, first.text
+        again = await client.post(f"{A}/records", json=body, headers={**h, **key})
+        assert again.status_code == 201, again.text
+        assert again.headers.get("Idempotent-Replay") == "true"
+        assert again.json()["ref"] == first.json()["ref"]
 
 
 # ---------------------------------------------------- no secret, ever --
