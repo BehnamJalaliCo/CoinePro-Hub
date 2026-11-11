@@ -233,6 +233,7 @@ def test_the_batch_shape_is_checked() -> None:
         batch([good, good]),  # a repeated ext_id
         batch([good] * 501),
         batch([], has_more="yes"),
+        batch([good], has_more=True),  # a next page with no cursor to start it from
         batch([], next_cursor="x" * 201),
         "rows",
     ):
@@ -414,6 +415,30 @@ async def test_the_ledger_is_read_through_the_runner_and_validated(
     assert all(customer("reza") not in a["summary"] for a in audits)
 
 
+async def test_a_next_page_that_does_not_move_the_cursor_stops_paging(
+    hub: Hub, new_company: Callable[..., Any], su: Any
+) -> None:
+    """has_more with the cursor that was sent would ask for the same page for ever."""
+    co = await new_company()
+    lsid = await ledger_source_row(su, co["id"])
+    await su.execute("UPDATE money.payment_sources SET cursor = 't:1' WHERE id = $1", lsid)
+    now = datetime.now(UTC) - timedelta(days=1)
+    done = {"state": "done", "result": batch([row("C-1", "ali", "5", bsc_hash(), now)],
+                                             next_cursor="t:1", has_more=True)}  # fmt: skip
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        src = await P.load_source(tx, lsid)
+        got = await P.collect(tx, src, done)
+    assert got["has_more"] is False and got["error"] and got["rows"] == 1
+    s = await su.fetchrow("SELECT state, cursor, last_error_fa FROM money.payment_sources "
+                          "WHERE id = $1", lsid)  # fmt: skip
+    assert (s["state"], s["cursor"]) == ("error", "t:1") and "next_cursor" in s["last_error_fa"]
+    # a cursor that moves keeps paging
+    moved = {**done, "result": {**done["result"], "next_cursor": "t:2"}}
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        got = await P.collect(tx, await P.load_source(tx, lsid), moved)
+    assert got["has_more"] is True and got["error"] is None and got["cursor"] == "t:2"
+
+
 # ======================================================== the chain, read ==
 async def test_the_chain_is_read_through_egress_and_reconciled(
     client: httpx.AsyncClient, hub: Hub, owner_session: dict[str, Any],
@@ -536,6 +561,39 @@ async def test_the_four_reconcile_cases_alert_the_ceo_and_fin_once(
         co["id"], orphan,
     )  # fmt: skip
     assert [(s["ext_id"], s["status"]) for s in st] == [("A-6", "matched")]
+
+
+async def test_one_transfer_pays_one_ledger_row(
+    client: httpx.AsyncClient, hub: Hub, owner_session: dict[str, Any],
+    new_company: Callable[..., Any], su: Any, chain: FakeChain,
+) -> None:  # fmt: skip
+    """A hash sent for two approved payments is counted once: the later row is short."""
+    co = await new_company()
+    src = await chain_source(client, hub, owner_session, co["code"])
+    lsid = await ledger_source_row(su, co["id"])
+    paid = datetime.now(UTC) - timedelta(days=1)
+    once = bsc_hash()
+    chain.add(once, "50", paid)
+    await ingest(hub, lsid, [
+        row("D-1", "ali", "50", once, paid), row("D-2", "ali", "50", once, paid + timedelta(minutes=5)),
+    ])  # fmt: skip
+    await PC.read_chain(hub, UUID(src["id"]))
+    out = await MJ.reconcile_company(hub, co["id"])
+    assert out["counts"]["matched"] == 1 and out["counts"]["amount_mismatch"] == 1
+    st = await su.fetch(
+        "SELECT ext_id, status, chain_amount, note_fa FROM money.payments WHERE company_id = $1 "
+        "AND origin = 'ledger' ORDER BY ext_id",
+        co["id"],
+    )
+    assert [(s["ext_id"], s["status"]) for s in st] == [
+        ("D-1", "matched"),
+        ("D-2", "amount_mismatch"),
+    ]
+    assert st[1]["chain_amount"] == 0 and "دیگری" in st[1]["note_fa"]
+    assert out["alerts"] == 1
+    # judged again, the same answer (the pool is rebuilt in the same order)
+    again = await MJ.reconcile_company(hub, co["id"])
+    assert again["counts"]["matched"] == 1 and again["counts"]["amount_mismatch"] == 1
 
 
 async def test_payments_list_pages_and_filters(
