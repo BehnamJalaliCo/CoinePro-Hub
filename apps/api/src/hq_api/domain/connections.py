@@ -359,31 +359,38 @@ def ig_publish_brief(company_code: str, details: dict[str, Any] | None = None) -
     )
 
 
-# ⟨2026-11-11⟩ a technical work that was delivered while the route is still not ready is made
-# again, at most once in this long per company (never one a tick)
+# ⟨2026-11-11⟩ The registration of a company's Instagram here is ONE technical work, whichever asked
+# for it (the daily read: `ig_setup`; a tap or a held standing publish: `ig_publish`). An open one
+# stands for both, and so does any made within TECH_AGAIN. A delivered one stands for the daily
+# read (it never makes one a day by itself for a company whose accounts the team cannot find); a
+# demand (a tap, a held publish, an order's blocker) makes a new one once the last delivered one
+# is older than TECH_AGAIN. A failed or cancelled one never stands: a new one is made at once.
+TECH_TAGS = ("ig_setup", "ig_publish")
 TECH_AGAIN = timedelta(hours=24)
 
 
-async def _tech_work(tx: Tx, tag: str, code: Any, *, recent: bool = True) -> str | None:
-    """The technical work of this kind (`run_meta.<tag>`) for this company that stands: an open
-    one (queued, in progress, waiting); else, with `recent`, the newest one made within
-    TECH_AGAIN whatever its state. A delivered work is not open: the route it was for may still
-    be missing, and then a new one is made (once a day at most)."""
+async def tech_work_of(tx: Tx, code: Any, *, daily: bool = False) -> dict[str, Any] | None:
+    """{ref, status} of the technical work that registers this company's Instagram and stands
+    (see TECH_TAGS), or None: a new one is due."""
     from hq_api.domain import work as W
 
-    ref: str | None = await tx.scalar(
-        """SELECT ref FROM work.work
-           WHERE run_meta ->> CAST(:tag AS text) = :code
-             AND (status = ANY(CAST(:open AS text[]))
-                  OR (CAST(:recent AS boolean) AND created_at > now() - CAST(:again AS interval)))
+    row = await tx.first(
+        """SELECT ref, status, created_at > now() - CAST(:again AS interval) AS recent
+           FROM work.work
+           WHERE (run_meta ->> 'ig_setup' = :code OR run_meta ->> 'ig_publish' = :code)
+             AND status <> ALL(CAST(:dead AS text[]))
            ORDER BY status = ANY(CAST(:open AS text[])) DESC, created_at DESC LIMIT 1""",
-        tag=tag,
         code=code,
         open=list(W.OPEN),
-        recent=recent,
+        dead=["failed", "cancelled"],
         again=TECH_AGAIN,
     )
-    return ref
+    if row is None:
+        return None
+    standing = (
+        row["status"] in W.OPEN or bool(row["recent"]) or (daily and row["status"] == "delivered")
+    )
+    return {"ref": str(row["ref"]), "status": str(row["status"])} if standing else None
 
 
 async def _company_details(tx: Tx, company_id: UUID) -> dict[str, Any] | None:
@@ -410,14 +417,15 @@ async def _ensure_tech_work(
     brief: Any,
     priority: str,
     requested_by: UUID | None,
+    daily: bool = False,
 ) -> str | None:
     from hq_api.domain import work as W
     from hq_api.principal import Principal
 
     code = await tx.scalar("SELECT code FROM core.companies WHERE id = :c", c=company_id)
-    found = await _tech_work(tx, tag, code)
+    found = await tech_work_of(tx, code, daily=daily)
     if found is not None:
-        return found
+        return str(found["ref"])
     co = await _company_details(tx, company_id)
     who = await ig_setup_assignee(tx)
     if co is None or who is None:
@@ -450,8 +458,9 @@ async def ensure_ig_publish_work(
     """⟨2026-11-10⟩ §44.5 A company whose publish route is not ready gets the technical work made
     by code, once (one open work per company), under the order's work when `requested_by` names
     one (the session sees the step; its holder is woken when it is delivered). ⟨2026-11-11⟩ A
-    delivered one is not open: while the route is still not ready a new one is made, once a day at
-    most. The work's ref, or None when nobody can take it."""
+    demand: one work with the daily read's (TECH_TAGS); a delivered one is made again while the
+    route is still not ready, once a day at most. The work's ref (open or not: tech_work_of says
+    which), or None when nobody can take it."""
     return await _ensure_tech_work(
         tx, company_id, tag="ig_publish", title_fa=IG_PUBLISH_TITLE_FA, brief=ig_publish_brief,
         priority="P1", requested_by=requested_by,
@@ -474,26 +483,30 @@ async def ig_setup_assignee(tx: Tx) -> dict[str, Any] | None:
 
 
 async def ig_setup_work(tx: Tx, company_id: UUID) -> str | None:
-    """The open technical work that registers this company's Instagram here, or None (⟨2026-11-11⟩
-    a delivered one is not open)."""
+    """The open technical work that registers this company's Instagram here (either tag), or
+    None (⟨2026-11-11⟩ a delivered one is not open)."""
+    from hq_api.domain import work as W
+
     code = await tx.scalar("SELECT code FROM core.companies WHERE id = :c", c=company_id)
-    return await _tech_work(tx, "ig_setup", code, recent=False)
+    got = await tech_work_of(tx, code, daily=True)
+    return str(got["ref"]) if got is not None and got["status"] in W.OPEN else None
 
 
 async def ensure_ig_setup_work(
-    tx: Tx, company_id: UUID, *, requested_by: UUID | None = None
+    tx: Tx, company_id: UUID, *, requested_by: UUID | None = None, daily: bool = False
 ) -> str | None:
     """The owner, 2026-11-08: a company whose Instagram accounts are not registered on the hub
     gets the technical work made by code, once (one open work per company): IG-Hub's CTO (else
     the holding's AIOPS) lists the accounts on IG-Hub (the holding's command, `accounts`, by the
     linked rule, H1) and registers this company's with `connection.set` (H2). Under an order's
     work when `requested_by` names one, so the session sees the step and the holder is woken when
-    it is delivered. ⟨2026-11-11⟩ A delivered one is not open: while the accounts are still not
-    registered a new one is made, once a day at most. The work's ref, or None when nobody can
-    take it."""
+    it is delivered. ⟨2026-11-11⟩ One work with a tap's (TECH_TAGS). `daily`: the daily read's
+    own (a delivered one stands); else a demand (an order's blocker): a delivered one is made again
+    while the accounts are still not registered, once a day at most. The work's ref, or None when
+    nobody can take it."""
     return await _ensure_tech_work(
         tx, company_id, tag="ig_setup", title_fa=IG_SETUP_TITLE_FA, brief=ig_setup_brief,
-        priority=IG_SETUP_PRIORITY, requested_by=requested_by,
+        priority=IG_SETUP_PRIORITY, requested_by=requested_by, daily=daily,
     )  # fmt: skip
 
 
@@ -1574,7 +1587,7 @@ async def read_due(hub: Any, now: datetime | None = None) -> dict[str, Any]:
             ):
                 try:
                     async with tx.conn.begin_nested():
-                        if await ensure_ig_setup_work(tx, r["company_id"]) is not None:
+                        if await ensure_ig_setup_work(tx, r["company_id"], daily=True) is not None:
                             setup += 1
                 except Exception:  # noqa: BLE001 - never fails the daily read
                     log.warning("ig setup work could not be made", extra={"company": r["code"]})

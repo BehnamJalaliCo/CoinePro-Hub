@@ -18,9 +18,11 @@ order, docs/ORDER_PROCHART_REELS_2026-11-10.md: topic, script, directing and cov
 - llm.quota_status: the api may write it (INSERT, UPDATE; it only read it before). A workshop
   turn's Claude Code reports its account's rate-limit windows (the runner's rate_limit_event);
   the api records them, so the next turn picks the account that is not limited.
+- work.reopen(uuid): the worker may call it too (0055 granted it to the api only): the session
+  sweep (order_tick, on the worker) reopens a delivered root whose plan still has open tasks.
 
 Additive only. The downgrade switches the seat off (seats are never deleted), drops the columns
-and their indexes and takes the grant back. A downgrade then an upgrade leaves GPT's content_draft
+and their indexes and takes the grants back. A downgrade then an upgrade leaves GPT's content_draft
 seat switched off: the row is still there, so the re-insert does nothing (the owner switches it
 on again on the players' page).
 
@@ -77,11 +79,13 @@ FROM added;
 
 GRANT = """
 GRANT INSERT, UPDATE ON llm.quota_status TO hq_api;
+GRANT EXECUTE ON FUNCTION work.reopen(uuid) TO hq_worker;
 """
 
 UPGRADE = QUEUED_AT + SEAT + GRANT
 
 DOWNGRADE = """
+REVOKE EXECUTE ON FUNCTION work.reopen(uuid) FROM hq_worker;
 REVOKE INSERT, UPDATE ON llm.quota_status FROM hq_api;
 DROP INDEX substitutes.substitutes_calls_owed;
 DROP INDEX substitutes.substitutes_calls_lane;

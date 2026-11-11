@@ -21,8 +21,8 @@ The runs:
     time for both players (POST /internal/v1/substitutes/jobs/claim), runs the
     official CLI one-shot in the runner and posts the result (.../done).
   - Web seats (`via: "web"`, every `creative`, every DeepSeek seat): the
-    worker runs them through egress's signed-in browser profiles, one job per
-    player at a time and at least 60 s apart.
+    worker runs them through egress's signed-in browser profiles, one browser
+    job at a time for every player, a player's jobs at least 60 s apart.
 The launch gate: while the holding's kill switch is engaged a seat call is
 `skipped` (holding_locked), the claim answers no job and the worker runs no
 web job: no model and no outside service is reached.
@@ -33,7 +33,6 @@ nothing here signs in by itself, and no credential ever passes through it
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import json
 import logging
@@ -180,17 +179,17 @@ WEB_PROMPT_LIMIT = 20_000  # egress takes no longer prompt (hq_egress.substitute
 # The deadline of a call row `c` in SQL (constants only), the same rule as deadline_at(). A queued
 # call's clock runs from when it joined its queue (queued_at: asked again; else created_at), or
 # from when its lane was free for it again, whichever is later: a call waiting its turn behind a
-# long job is not "nobody took it". What holds it, on the same path (`via`):
-#   - the jobs ahead of it in its own queue, in the pick order (made no later than it, a retried
-#     one too: the passes take each queue by created_at): a web player's own queue, the CLI's one
-#     queue for both players; whenever they were claimed;
-#   - any player's job claimed while it waited for those, or for its player's 60-second pace
-#     (claimed at or before the later of two minutes after it joined and when the last job ahead
-#     of it was claimed): one web pass serves every player and waits for all its jobs, and the
-#     schedule skips a pass while one runs.
-# A job made after it but run before it does not hold it (something else is wrong: it is reaped
-# on time). A job's end is when it finished, else its own deadline (a lost job holds no longer);
-# only jobs claimed within the hour before it joined are read.
+# long job is not "nobody took it". Each path (`via`) is one lane, one job at a time: the web
+# pass takes one browser job at a time for every player, the CLI one job at a time for both.
+# What holds it:
+#   - the jobs ahead of it in the pick order (made no later than it, a retried one too: both
+#     lanes take the oldest call first), whenever they were claimed;
+#   - any job claimed while it waited for those or for its player's 60-second pace (claimed at or
+#     before two minutes after the later of when it joined and when the last job ahead of it was
+#     claimed): a younger call of another player may go first while its own player rests.
+# A job made after it and run later than that does not hold it (something else is wrong: it is
+# reaped on time). A job's end is when it finished, else its own deadline (a lost job holds no
+# longer); only jobs claimed within the hour before it joined are read.
 _END_SQL = (
     f"COALESCE(o.finished_at, o.claimed_at + make_interval(secs => o.timeout_s + {RUN_GRACE_S}))"
 )
@@ -199,10 +198,10 @@ _LANE_SQL = (
     "o.via = c.via AND o.id <> c.id AND o.claimed_at IS NOT NULL"
     f" AND o.claimed_at >= {_JOINED_SQL} - interval '1 hour' AND {_END_SQL} > {_JOINED_SQL}"
 )
-_AHEAD_SQL = "(c.via = 'cli' OR o.player = c.player) AND o.created_at <= c.created_at"
+_AHEAD_SQL = "o.created_at <= c.created_at"
 _TURN_SQL = (
-    f"GREATEST({_JOINED_SQL} + interval '2 minutes', (SELECT max(o.claimed_at)"  # noqa: S608
-    f" FROM substitutes.calls o WHERE {_LANE_SQL} AND {_AHEAD_SQL}))"
+    f"GREATEST({_JOINED_SQL}, (SELECT max(o.claimed_at)"  # noqa: S608 - constants only
+    f" FROM substitutes.calls o WHERE {_LANE_SQL} AND {_AHEAD_SQL})) + interval '2 minutes'"
 )
 BUSY_UNTIL_SQL = (
     f"(SELECT max({_END_SQL}) FROM substitutes.calls o"  # noqa: S608 - constants only
@@ -1413,6 +1412,9 @@ async def _applied(tx: Tx, hub: Any, call: dict[str, Any]) -> None:
         await wake_for_creative(tx, str(call["purpose_ref"]), said_fa=said)
 
 
+# ⟨2026-11-11⟩ an agent's call that ends this long after it was asked gets no reply work (the
+# stuck calls a deploy finds: nobody waits for them any more)
+STALE_REPLY = timedelta(hours=24)
 REPLY_TOKENS = 60_000  # ⟨2026-11-11⟩ a holder's whole brief and the answer (was 20 000: too small)
 REPLY_BRIEF = 48_000  # a work brief holds 50 000; a longer answer goes whole into a file
 REPLY_HEAD = 6_000
@@ -1563,13 +1565,17 @@ async def deliver_to_agent(tx: Tx, hub: Any, call: dict[str, Any]) -> bool:
     reaches both: a call with no answer tells the caller plainly why and to carry
     on with its own model now, and the session hears it in one line; a caller no
     longer active is logged and the session still hears it; a caller whose work
-    is closed gets nothing (logged): nobody waits for it. True when a reply work
-    was made."""
+    is closed or gone, or a call that ended more than STALE_REPLY after it was
+    asked (the stuck calls a deploy finds), gets nothing (logged): nobody waits
+    for it any more. True when a reply work was made."""
     from hq_api.domain import order_report as OR
     from hq_api.domain import work as W
 
     if call["delivered_at"] is not None:
         return False
+    ended_at = call.get("finished_at") or datetime.now(UTC)
+    if ended_at - call["created_at"] > STALE_REPLY:
+        return await _no_reply(tx, call, "it ended long after it was asked")
     name = PLAYER_NAMES.get(call["player"], call["player"])
     done = call["state"] == "done"
     emp = await tx.first(
@@ -1595,15 +1601,10 @@ async def deliver_to_agent(tx: Tx, hub: Any, call: dict[str, Any]) -> bool:
         )
         return False
     mine = await _caller_work(tx, call, emp["company_id"])
+    if call["purpose_kind"] == CALLER_WORK and mine is None:
+        return await _no_reply(tx, call, "its caller's work is gone")
     if mine is not None and mine["status"] in W.CLOSED:
-        log.info(
-            "a substitute call ended after its caller's work closed: no reply work",
-            extra={"call": str(call["id"]), "work": mine["ref"], "state": call["state"]},
-        )
-        await tx.exec(
-            "UPDATE substitutes.calls SET delivered_at = now() WHERE id = :id", id=call["id"]
-        )
-        return False
+        return await _no_reply(tx, call, f"its caller's work {mine['ref']} is closed")
     for_work = f" Asked for your work {mine['ref']}." if mine is not None else ""
     res = call["result"] or {}
     answer = ""
@@ -1671,6 +1672,16 @@ async def deliver_to_agent(tx: Tx, hub: Any, call: dict[str, Any]) -> bool:
         id=call["id"],
     )
     return True
+
+
+async def _no_reply(tx: Tx, call: dict[str, Any], why: str) -> bool:
+    """A call's end that nobody waits for: marked delivered, logged, no reply work."""
+    log.info(
+        "a substitute call ended with nobody waiting for it: no reply work",
+        extra={"call": str(call["id"]), "why": why, "state": call["state"]},
+    )
+    await tx.exec("UPDATE substitutes.calls SET delivered_at = now() WHERE id = :id", id=call["id"])
+    return False
 
 
 async def wake_for_creative(tx: Tx, ref: str, *, said_fa: str | None = None) -> None:
@@ -2545,11 +2556,13 @@ async def pending_for(
     tx: Tx, work_ids: list[UUID], now: datetime | None = None
 ) -> list[dict[str, Any]]:
     """Calls made for these works (purpose_kind 'caller_work', purpose_ref = str(work id); and an
-    agent's creative made for one of them) that are queued or running and not past their deadline:
-    [{id, player, player_fa, seat, seat_fa, state, created_at, claimed_at, deadline_at}], oldest
-    first. player_fa: ChatGPT / Gemini / DeepSeek. seat_fa: a short Persian noun phrase of what it
-    makes (content_draft «پیش‌نویس متن», creative «تصویر», long_read «خواندن متن بلند», …). The
-    deadline is the reaper's own (DEADLINE_SQL): pending and reaped never disagree."""
+    agent's creative made for one of them) that are queued or running: [{id, player, player_fa,
+    seat, seat_fa, state, created_at, claimed_at, deadline_at, ending}], oldest first. player_fa:
+    ChatGPT / Gemini / DeepSeek. seat_fa: a short Persian noun phrase of what it makes
+    (content_draft «پیش‌نویس متن», creative «تصویر», long_read «خواندن متن بلند», …). The
+    deadline is the reaper's own (DEADLINE_SQL); ⟨2026-11-11⟩ a call past it stays here with
+    `ending: true` until the reaper's next pass ends it (then ended_since has it): a call is
+    never neither."""
     if not work_ids:
         return []
     rows = await tx.all(
@@ -2557,12 +2570,11 @@ async def pending_for(
                    {DEADLINE_SQL} AS deadline_at
             {CALLS_OF_WORKS}
               AND c.state IN ('queued', 'running')
-              AND {DEADLINE_SQL} > CAST(:now AS timestamptz)
             ORDER BY c.created_at, c.id""",
         refs=[str(w) for w in work_ids],
         ids=[str(w) for w in work_ids],
-        now=now or datetime.now(UTC),
     )
+    when = now or datetime.now(UTC)
     return [
         {
             "id": r["id"],
@@ -2574,6 +2586,7 @@ async def pending_for(
             "created_at": r["created_at"],
             "claimed_at": r["claimed_at"],
             "deadline_at": r["deadline_at"],
+            "ending": r["deadline_at"] <= when,
         }
         for r in rows
     ]
@@ -2608,10 +2621,12 @@ async def ended_since(tx: Tx, work_ids: list[UUID], since: datetime) -> list[dic
 
 
 async def web_jobs(hub: Any, egress: Any, now: datetime | None = None) -> dict[str, Any]:
-    """The worker's pass over queued web calls (one per player at a time, at
-    least 60 s apart; ⟨2026-11-11⟩ different players' jobs at the same time).
-    The reaper first, every pass, also while locked; otherwise nothing while
-    the holding's kill switch is engaged."""
+    """The worker's pass over queued web calls: ⟨2026-11-11⟩ ONE browser job at
+    a time for every player (browser-web's memory holds one browser), the
+    oldest call whose player is not resting (at least 60 s between a player's
+    jobs); a signed-out profile's waiting calls end at once. The reaper first,
+    every pass, also while locked; otherwise nothing while the holding's kill
+    switch is engaged."""
     now = now or datetime.now(UTC)
     # The owner's sealed web sign-out: egress wipes the profile (local, no
     # outside call, so it runs while the holding is locked too).
@@ -2641,25 +2656,23 @@ async def web_jobs(hub: Any, egress: Any, now: datetime | None = None) -> dict[s
         lock = await gate.holding_lock(tx)
         if lock is not None:
             return gate.skipped(lock, ran=0, wiped=wiped, expired=expired)
-        picked = []
-        for player in PLAYERS:
+        if await tx.scalar(
+            "SELECT 1 FROM substitutes.calls WHERE via = 'web' AND state = 'running' LIMIT 1"
+        ):
+            # one browser job at a time: a running one holds the lane (a lost one until the
+            # reaper ends it at its own deadline)
+            return {"ran": 0, "wiped": wiped, "expired": expired}
+        heads = await tx.all(
+            """SELECT DISTINCT ON (player) id, player, created_at FROM substitutes.calls
+               WHERE via = 'web' AND state = 'queued' ORDER BY player, created_at"""
+        )
+        picked: tuple[dict[str, Any], str] | None = None
+        for h in sorted(heads, key=lambda r: r["created_at"]):
             p = await tx.first(
                 "SELECT * FROM substitutes.players WHERE player = :p FOR UPDATE SKIP LOCKED",
-                p=player,
+                p=h["player"],
             )
-            if p is None or (p["web_last_job_at"] and now - p["web_last_job_at"] < WEB_PACE):
-                continue
-            if await tx.scalar(
-                "SELECT 1 FROM substitutes.calls WHERE player = :p AND via = 'web' AND state = 'running'",
-                p=player,
-            ):
-                continue
-            c = await tx.first(
-                """SELECT * FROM substitutes.calls WHERE player = :p AND via = 'web' AND state = 'queued'
-                   ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED""",
-                p=player,
-            )
-            if c is None:
+            if p is None:
                 continue
             if p["web_state"] != "signed_in":
                 # every waiting call of a signed-out profile ends now, each told to its caller
@@ -2667,12 +2680,23 @@ async def web_jobs(hub: Any, egress: Any, now: datetime | None = None) -> dict[s
                 for q in await tx.all(
                     """SELECT * FROM substitutes.calls WHERE player = :p AND via = 'web'
                        AND state = 'queued' ORDER BY created_at FOR UPDATE SKIP LOCKED""",
-                    p=player,
+                    p=h["player"],
                 ):
                     await _skip_web(tx, hub, q, why)
                 continue
-            await tx.exec(
-                "UPDATE substitutes.calls SET state = 'running', claimed_at = now() WHERE id = :id",
+            if p["web_last_job_at"] and now - p["web_last_job_at"] < WEB_PACE:
+                continue
+            c = await tx.first(
+                """SELECT * FROM substitutes.calls WHERE id = :id AND state = 'queued'
+                   FOR UPDATE SKIP LOCKED""",
+                id=h["id"],
+            )
+            if c is None:
+                continue
+            # claimed as it really starts: egress is called right after this commit
+            c = await tx.one(
+                """UPDATE substitutes.calls SET state = 'running', claimed_at = now()
+                   WHERE id = :id RETURNING *""",
                 id=c["id"],
             )
             await tx.exec(
@@ -2680,15 +2704,18 @@ async def web_jobs(hub: Any, egress: Any, now: datetime | None = None) -> dict[s
                 t=now,
                 id=p["id"],
             )
-            picked.append((dict(c), p["web_account"]))
-    ran = await asyncio.gather(*(_web_job(hub, egress, c, account) for c, account in picked))
-    return {"ran": sum(ran), "wiped": wiped, "expired": expired}
+            picked = (dict(c), str(p["web_account"]))
+            break
+    if picked is None:
+        return {"ran": 0, "wiped": wiped, "expired": expired}
+    ran = await _web_job(hub, egress, *picked)
+    return {"ran": ran, "wiped": wiped, "expired": expired}
 
 
 async def _web_job(hub: Any, egress: Any, c: dict[str, Any], account: str) -> int:
     """⟨2026-11-11⟩ One picked web job: egress, then its answer. Anything that goes wrong here
-    ends the call `failed` `worker_error` (its caller hears it) and never stops the other
-    players' jobs. 1 when egress answered and the answer was applied."""
+    ends the call `failed` `worker_error` (its caller hears it); the next pass goes on with the
+    next call. 1 when egress answered and the answer was applied."""
     try:
         retry = {"reload": True} if int(c.get("attempt") or 1) > 1 else {}
         answer = await egress.web(

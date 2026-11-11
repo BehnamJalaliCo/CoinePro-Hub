@@ -6,8 +6,8 @@ advisor_sweep          every 2 min: memos whose run ended without memo.write
                        triggers (rules, no model). Rule-only until it would
                        wake the advisor: while the holding is locked no memo
                        is made and every new trigger is recorded `deferred`.
-substitute_web_jobs    every minute: the queued web seat calls, one per player
-                       at a time and >= 60 s apart (different players at once),
+substitute_web_jobs    every minute: the queued web seat calls, one browser job
+                       at a time for every player (a player's >= 60 s apart),
                        through egress's signed-in browser profiles. First the
                        reaper (stale calls end, each told to its caller), also
                        while the holding is locked; nothing else while locked

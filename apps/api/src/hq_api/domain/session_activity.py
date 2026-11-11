@@ -652,6 +652,7 @@ class Pulse:
     wakes: int = 0
     spent: bool = False
     claude_wait_fa: str | None = None  # a Claude Code turn waits: both accounts are full
+    owner_since: datetime | None = None  # the owner's last word on the order
 
     @property
     def threshold(self) -> timedelta:
@@ -839,8 +840,10 @@ async def read_pulse(
     )
     wakes: list[dict[str, Any]] = []
     spent = False
+    since_word: datetime | None = None
     if is_open and ids:
-        tried = await idle_wakes(tx, rep, ids, await owner_since(tx, rep, ids))
+        since_word = await owner_since(tx, rep, ids)
+        tried = await idle_wakes(tx, rep, ids, since_word)
         wakes = [w for w in tried if not w["retry"]]  # a re-queued wake is the same wake
         if tried and all(w["state"] not in ("queued", "running") for w in tried):
             last_wake = tried[0]  # newest first
@@ -852,7 +855,13 @@ async def read_pulse(
                 and not last_wake["acted"]
                 and not last_wake["ticked"]
             )
-            spent = len(wakes) >= IDLE_WAKES_MAX or narrated
+            # ⟨2026-11-11⟩ spent only while the story has not moved past that wake's end: work
+            # that came after it (a child's delivery, a reply, the owner) is judged afresh, by
+            # the idle thresholds
+            ended_at = last_wake["finished_at"]
+            spent = (len(wakes) >= IDLE_WAKES_MAX or narrated) and (
+                ended_at is None or clock <= ended_at
+            )
     if (
         live is None
         and not turns
@@ -864,7 +873,8 @@ async def read_pulse(
         stuck = await stuck_cause(tx, rep, works, clock, wakes=len(wakes), tasks=tasks)
     return Pulse(live=live is not None or bool(turns) or bool(calls), clock=clock, idle=idle,
                  woken=woken, stuck_fa=stuck, doing_fa=doing, open_tasks=tasks, calls=calls,
-                 wakes=len(wakes), spent=spent, claude_wait_fa=wait_fa)  # fmt: skip
+                 wakes=len(wakes), spent=spent, claude_wait_fa=wait_fa,
+                 owner_since=since_word)  # fmt: skip
 
 
 # ------------------------------------------------- ⟨2026-11-11⟩ what keeps it open --
@@ -913,32 +923,65 @@ async def owner_since(tx: Tx, rep: dict[str, Any], ids: list[Any]) -> datetime:
     return since
 
 
+HANDED_NOTE = "direct turn%"  # a classic run handed to a direct turn ends with this note
+
+
 async def idle_wakes(
     tx: Tx, rep: dict[str, Any], ids: list[Any], since: datetime
 ) -> list[dict[str, Any]]:
     """The idle wakes of this order since `since`, newest first: each run's state, whether it did
     anything but read and report (`acted`) and whether it ticked a plan task (`ticked`).
     ⟨2026-11-11⟩ A wake the worker re-queued (`requeue:session_idle:…`) is listed with
-    `retry` true: the same wake tried again, not one more."""
+    `retry` true: the same wake tried again, not one more. A wake handed to a direct turn (the
+    classic run ends at once, `direct turn …`) is judged by that turn: the first direct run of
+    the same work queued at or after it, its state and its window (a deliverable or a child work
+    made in it is acting; a task done in it is a tick). Handed but no turn found (it waited for
+    one still working): never counted as narration."""
     rows = await tx.all(
-        f"""SELECT r.id, r.state, r.started_at, r.finished_at, r.queued_at,
-                  r.reason <> {OR.BASE_REASON_SQL} AS retry,
-                  EXISTS (SELECT 1 FROM agents.steps s CROSS JOIN LATERAL jsonb_array_elements(s.actions) a
-                          WHERE s.run_id = r.id AND a ->> 'outcome' = 'ok'
-                            AND NOT (a ->> 'tool' = ANY(CAST(:narr AS text[])))) AS acted,
+        f"""SELECT x.*,
+                  CASE WHEN x.handed THEN (
+                      x.direct_id IS NULL
+                      OR EXISTS (SELECT 1 FROM cartable.deliverables dl
+                                 WHERE dl.work_id = x.work_id AND dl.created_at >= x.started_at
+                                   AND dl.created_at <= COALESCE(x.finished_at, now()))
+                      OR EXISTS (SELECT 1 FROM work.work c
+                                 WHERE (c.parent_id = x.work_id OR c.requested_by_work_id = x.work_id)
+                                   AND c.created_at >= x.started_at
+                                   AND c.created_at <= COALESCE(x.finished_at, now())))
+                  ELSE EXISTS (
+                      SELECT 1 FROM agents.steps s CROSS JOIN LATERAL jsonb_array_elements(s.actions) a
+                      WHERE s.run_id = x.id AND a ->> 'outcome' = 'ok'
+                        AND NOT (a ->> 'tool' = ANY(CAST(:narr AS text[]))))
+                  END AS acted,
                   EXISTS (SELECT 1 FROM owner.session_tasks t
-                          WHERE t.order_id = :o AND t.state = 'done' AND r.started_at IS NOT NULL
-                            AND t.updated_at >= r.started_at
-                            AND t.updated_at <= COALESCE(r.finished_at, now())) AS ticked
-           FROM agents.runs r
-           WHERE r.work_id = ANY(:ids) AND {OR.BASE_REASON_SQL} = :reason
-             AND r.queued_at > :since
-           ORDER BY r.queued_at DESC""",  # noqa: S608
+                          WHERE t.order_id = :o AND t.state = 'done' AND x.started_at IS NOT NULL
+                            AND t.updated_at >= x.started_at
+                            AND t.updated_at <= COALESCE(x.finished_at, now())) AS ticked
+           FROM (
+               SELECT r.id, r.work_id, r.queued_at, r.reason <> {OR.BASE_REASON_SQL} AS retry,
+                      COALESCE(r.note, '') LIKE :handed AS handed, d.id AS direct_id,
+                      CASE WHEN COALESCE(r.note, '') LIKE :handed
+                           THEN COALESCE(d.state, r.state) ELSE r.state END AS state,
+                      CASE WHEN COALESCE(r.note, '') LIKE :handed
+                           THEN d.started_at ELSE r.started_at END AS started_at,
+                      CASE WHEN COALESCE(r.note, '') LIKE :handed
+                           THEN COALESCE(d.finished_at, r.finished_at)
+                           ELSE r.finished_at END AS finished_at
+               FROM agents.runs r
+               LEFT JOIN LATERAL (
+                   SELECT d.id, d.state, d.started_at, d.finished_at FROM agents.runs d
+                   WHERE d.trigger = 'direct' AND d.work_id = r.work_id
+                     AND d.queued_at >= r.queued_at
+                   ORDER BY d.queued_at LIMIT 1) d ON COALESCE(r.note, '') LIKE :handed
+               WHERE r.work_id = ANY(:ids) AND {OR.BASE_REASON_SQL} = :reason
+                 AND r.queued_at > :since) x
+           ORDER BY x.queued_at DESC""",  # noqa: S608
         ids=ids,
         reason=IDLE_REASON.format(ref=rep["ref"]),
         since=since,
         narr=list(NARRATION_TOOLS),
         o=rep.get("order_id"),
+        handed=HANDED_NOTE,
     )
     return [dict(r) for r in rows]
 
@@ -1610,7 +1653,11 @@ async def sweep(tx: Tx, ref: str, *, minutes: int | None = None, hub: Any = None
         await wake_holder(tx, ref, IDLE_REASON.format(ref=ref), step_fa=WOKEN_FA)
         fired.append("idle_wake")
         rep = await OR.ensure(tx, ref) or rep
-    if pulse.stuck_fa and not await _told_stuck(tx, rep, pulse.clock):
+    # once per stall: a spent session is told once since the owner's last word too
+    told_since = pulse.clock
+    if pulse.spent and pulse.owner_since is not None:
+        told_since = max(pulse.clock, pulse.owner_since)
+    if pulse.stuck_fa and not await _told_stuck(tx, rep, told_since):
         if not _stepped_since(rep, pulse.clock, "گیر کرد"):
             await OR._append_steps(
                 tx, rep["id"], [OR._step(SYSTEM_FA, STUCK_FA.format(why=pulse.stuck_fa))]

@@ -69,6 +69,12 @@ SETUP_FA = (
 SETUP_NOBODY_FA = (
     "مسیر انتشار اینستاگرام {company} روی {server} هنوز ثبت نشده و کسی در تیم فنی نیست که وصلش کند."
 )
+# ⟨2026-11-11⟩ the team's work for it was delivered today and the route is still not ready: no work
+# is open until the next day's (connections.tech_work_of), and this says so
+SETUP_AGAIN_FA = (
+    "مسیر انتشار اینستاگرام {company} روی {server} هنوز ثبت نشده؛ تیم فنی هلدینگ امروز یک بار "
+    "سراغش رفته و تا یک روز دیگر دوباره سراغش میرود. کاری از تو لازم نیست."
+)
 DONE_FA = "منتشر شد: {kind} در @{account}"
 FAILED_FA = "انتشار {kind} در @{account} انجام نشد: {why}"
 NOT_MEDIA_FA = "فقط ویدیو یا تصویر منتشر میشود."
@@ -634,6 +640,17 @@ async def last_of(
     return got if got is not None and got.state not in ("failed", "cancelled") else None
 
 
+async def _setup_fa(tx: Tx, ref: str | None) -> str:
+    """What the session says of a route that is not ready, by where the team's work stands: open
+    (it is being connected), delivered today (the next try within a day), or nobody to take it."""
+    from hq_api.domain import work as W
+
+    if ref is None:
+        return SETUP_NOBODY_FA
+    status = await tx.scalar("SELECT status FROM work.work WHERE ref = :r", r=ref)
+    return SETUP_FA if status in W.OPEN else SETUP_AGAIN_FA
+
+
 def when_fa(t: datetime, tz: str) -> str:
     """A time as the owner reads it: «امروز ۱۸:۳۰» is said by the app; here the clock alone."""
     from hq_api.domain.gov_common import zone
@@ -765,9 +782,7 @@ async def start(
     if not route["ready"]:
         # never the owner's step: the holding's technical team registers it, once, under the order
         made = await CN.ensure_ig_publish_work(tx, d["company_id"], requested_by=d["work_id"])
-        say = (SETUP_FA if made else SETUP_NOBODY_FA).format(
-            company=company_fa, server=route["server_name"]
-        )
+        say = (await _setup_fa(tx, made)).format(company=company_fa, server=route["server_name"])
         if rep is not None:
             await OR._append_steps(tx, rep["id"], [_line(SYSTEM_FA, say)])
         return SessionPublish(
@@ -976,7 +991,13 @@ async def _hold(
 async def publish_run(tx: Tx, hub: Any, run: dict[str, Any]) -> str:
     """⟨§45⟩ One routine run whose work is delivered goes out on the owner's standing word, if
     he gave it for this company in this working group before the run's time. Idempotent: a run
-    is sent once (its jobs name it)."""
+    is sent once (its jobs name it). ⟨2026-11-11⟩ The run is locked for the call: the hook after a
+    deliver and the groups' tick never both send it ("busy": the other one has it)."""
+    if not await tx.scalar(
+        "SELECT 1 FROM growth.routine_runs WHERE id = :r FOR UPDATE SKIP LOCKED",
+        r=run["run_id"],
+    ):
+        return "busy"
     rule = rule_of(run["publish"])
     if rule["mode"] != "auto":
         return "ask"
@@ -1011,9 +1032,9 @@ async def publish_run(tx: Tx, hub: Any, run: dict[str, Any]) -> str:
     route = await _route(tx, run["company_id"])
     if not route["ready"]:
         # never the owner's step and never a push: the run (the working group's page) says the
-        # line the desk card says, and an OPEN technical work stands on every tick (⟨2026-11-11⟩ a
-        # delivered one whose route is still not ready is made again, once a day at most); the
-        # next tick after the route is ready sends it
+        # line the desk card says, and every tick asks for the technical work (⟨2026-11-11⟩ an
+        # open one stands; a failed or cancelled one is made again at once, a delivered one once
+        # a day at most: connections.tech_work_of); the next tick after the route is ready sends it
         await CN.ensure_ig_publish_work(tx, run["company_id"], requested_by=run["work_id"])
         await _hold(tx, run, WAIT_SETUP_FA, tell=False)
         return "waiting_setup"
