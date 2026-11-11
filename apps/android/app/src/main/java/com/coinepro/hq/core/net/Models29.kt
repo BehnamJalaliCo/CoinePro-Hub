@@ -71,7 +71,7 @@ data class Blocker(
 @Serializable
 data class ReportOutput(val ref: String, val titleFa: String = "", val kind: String = "")
 
-/** The end report: «چه شد», «چه ماند», «از شما چه لازم است». */
+/** The end report: «چه شد», «چه ماند», «از تو چه لازم است». */
 @Serializable
 data class OrderSummary(val doneFa: String = "", val leftFa: String = "", val needFa: String = "")
 
@@ -215,7 +215,7 @@ data class OrderCard(
     val titleFa: String = "",
     /** Who proposed it. */
     val byFa: String? = null,
-    /** «منتظر مُهر شما» · «منتظر تصمیم مدیرعامل …؛ شما هم میتوانید مُهر کنید». */
+    /** «منتظر مُهر تو» · «منتظر تصمیم مدیرعامل …؛ تو هم میتوانی مُهر کنی». */
     val waitsFa: String = "",
     val withOwner: Boolean = true,
     /** passkey · tap */

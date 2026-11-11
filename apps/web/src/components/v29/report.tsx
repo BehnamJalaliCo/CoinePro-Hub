@@ -1,7 +1,7 @@
 'use client';
 
 // ⟨1.11⟩ Contract §29.2 «گزارش فرمان»: every order is answered. Its state; the receipt and the plan (who took it, by when); the route the
-// secretary chose; each blocker with its one-tap fix; the steps in plain Persian; the outputs; and at the end «چه شد / چه ماند / از شما چه
+// secretary chose; each blocker with its one-tap fix; the steps in plain Persian; the outputs; and at the end «چه شد / چه ماند / از تو چه
 // لازم است». Live: the stream's `order.report` reads it again.
 
 import Link from 'next/link';
@@ -169,11 +169,11 @@ export function OrderReportView({ refId }: { refId: string }) {
         <Card className="tahrir flex flex-col gap-4 p-5" aria-label="جمع‌بندی پایان فرمان">
           <SectionTitle title="جمع‌بندی" note="پایان فرمان، به زبان ساده" />
           <div className="grid gap-3 md:grid-cols-3">
-            {([['چه شد', r.summary.done_fa, 'seal', 'text-pos'], ['چه ماند', r.summary.left_fa, 'time', 'text-warn'], ['از شما چه لازم است', r.summary.need_fa, 'owner', 'text-gold-ink']] as const).map(([t, v, icon, tint]) => (
+            {([['چه شد', r.summary.done_fa, 'seal', 'text-pos'], ['چه ماند', r.summary.left_fa, 'time', 'text-warn'], ['از تو چه لازم است', r.summary.need_fa, 'owner', 'text-gold-ink']] as const).map(([t, v, icon, tint]) => (
               <section key={t} className="flex flex-col gap-2 rounded-[12px] bg-tile p-3">
                 <h3 className={cx('flex items-center gap-1.5 text-[13px] font-semibold', tint)}><Icon name={icon} size={15} />{t}</h3>
                 {v ? <FaPara text={v} className="text-[13px] leading-6 text-ink" /> : <p className="text-[13px] text-muted">—</p>}
-                {t === 'از شما چه لازم است' && v && needFix ? <FixButton fix={needFix} company={company} run={run} className="self-start" /> : null}
+                {t === 'از تو چه لازم است' && v && needFix ? <FixButton fix={needFix} company={company} run={run} className="self-start" /> : null}
               </section>
             ))}
           </div>

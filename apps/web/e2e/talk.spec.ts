@@ -214,7 +214,7 @@ test('conversations are listed and searchable; a stored one opens with its turns
   });
 });
 
-test('each persona has a voice; «بشنوید» asks for a sample, and the engine without a key says why', async ({ page }) => {
+test('each persona has a voice; «بشنو» asks for a sample, and the engine without a key says why', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/talk');
     await page.getByRole('button', { name: 'صدای چهره‌ها' }).click();
@@ -223,7 +223,7 @@ test('each persona has a voice; «بشنوید» asks for a sample, and the engi
     await expect(row.getByLabel('صدای ناظر کل')).toHaveValue('Charon');
     await row.getByLabel('صدای ناظر کل').selectOption('Orus');
     await expect(row.getByLabel('صدای ناظر کل')).toHaveValue('Orus');
-    await row.getByRole('button', { name: 'بشنوید' }).click();
+    await row.getByRole('button', { name: 'بشنو', exact: true }).click();
     await expect(page.getByText('این موتور الان جواب نمیدهد؛ کلید را ببین.')).toBeVisible(); // no key yet: a 502 only for a sample
   }, [/sample|voice\/sample|502/]);
 });

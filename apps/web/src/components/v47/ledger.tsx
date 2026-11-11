@@ -108,7 +108,7 @@ function LedgerSheet({ group, company, nameFa, onClose }: { group: string; compa
             {reference ? <input value={url} onChange={(e) => { setUrl(e.target.value.slice(0, 2000)); setRefused(null); }} dir="ltr" inputMode="url" placeholder="https://…" aria-label="لینک نمونه" className={cx(FIELD, 'fig h-11')} /> : null}
           </form>
           <DecisionBar label="افزودن به دفتر" error={refused} className="border-t-0 pt-2"
-            context={reference ? 'نمونه با لینکش ثبت میشود و دیگر از روی آن ساخته نمیشود.' : 'موضوعی که پیش از این گفته‌اید را بنویسید تا دوباره ساخته نشود.'}
+            context={reference ? 'نمونه با لینکش ثبت میشود و دیگر از روی آن ساخته نمیشود.' : 'موضوعی که پیش از این گفته‌ای را بنویس تا دوباره ساخته نشود.'}
             primary={{ label: 'افزودن', icon: 'add', type: 'submit', form: 'ledger-add', disabled: !ready }} state={act.add.isPending ? 'working' : 'idle'} />
         </>
       )}>

@@ -62,7 +62,7 @@ export function ofSwitch(scope: string, engaged: boolean, by: string | null): Al
   const code = scope.replace('company:', '');
   const who = agentTitleOf(by) ?? (by.includes('OVR') || by.includes('OVERSEER') ? 'ناظر کل' : by);
   const title = holding ? (engaged ? 'کل هلدینگ متوقف شد' : 'هلدینگ دوباره راه افتاد') : engaged ? `شرکت ${code} متوقف شد` : `شرکت ${code} دوباره راه افتاد`;
-  const text = engaged ? `کلید توقف را ${who} زد؛ کارها ایستاد تا تو یا او ادامه بدهید.` : `کلید توقف را ${who} برداشت.`;
+  const text = engaged ? `کلید توقف را ${who} زد؛ کارها ایستاد تا او یا خودت دوباره روشنش کنی.` : `کلید توقف را ${who} برداشت.`;
   return { channel: 'urgent', key: `control:${scope}`, title, text, route: holding ? '/control' : `/companies/${code}`, tone: engaged ? 'error' : 'info', action: 'باز کن' };
 }
 

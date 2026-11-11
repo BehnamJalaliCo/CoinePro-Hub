@@ -257,7 +257,7 @@ function PriceRow({ e, onSave }: { e: VoiceEngine; onSave: (p: { text_in_per_m: 
 }
 
 // ==================================================================================== voices of the personas ==
-/** Per persona: the engine and the voice, and «بشنوید» (a short sample whose cost is on the meter). */
+/** Per persona: the engine and the voice, and «بشنو» (a short sample whose cost is on the meter). */
 export function VoicesPanel({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const personas = usePersonas();
   const engines = useEngines();
@@ -290,7 +290,7 @@ export function VoicesPanel({ open, onOpenChange }: { open: boolean; onOpenChang
                   {voices.map((v) => <option key={v.name} value={v.name}>{`${v.name} · ${v.gender_fa}`}</option>)}
                   {voices.length && !voices.some((v) => v.name === p.voice.voice) ? <option value={p.voice.voice}>{p.voice.voice}</option> : null}
                 </select>
-                <Button size="sm" icon="resume" loading={busy === p.key} onClick={() => hear(p.key, p.voice.engine, p.voice.voice)}>بشنوید</Button>
+                <Button size="sm" icon="resume" loading={busy === p.key} onClick={() => hear(p.key, p.voice.engine, p.voice.voice)}>بشنو</Button>
               </div>
             </div>
           );

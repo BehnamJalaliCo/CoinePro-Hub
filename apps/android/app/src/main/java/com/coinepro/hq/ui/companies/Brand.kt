@@ -86,7 +86,7 @@ import com.coinepro.hq.designsystem.generated.BrandMark as DrawnMark
 // in the seal ready and sealed, and seals it.
 
 private val REASON_FA = mapOf(
-    "no_background" to "لوگو را با زمینه‌ی شفاف یا یکدست بدهید",
+    "no_background" to "لوگو را با زمینه‌ی شفاف یا یکدست بده",
     "too_complex" to "لوگو برای نشان خیلی پیچیده است؛ جزئیات را کم کن",
 )
 private val LOGO_TYPES = setOf("image/png", "image/webp", "image/jpeg")

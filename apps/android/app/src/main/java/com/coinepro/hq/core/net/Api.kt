@@ -1754,7 +1754,7 @@ class Api(
         execute(Request.Builder().url(url("/voice/providers/${seg(provider)}/secret")).delete().header("X-Step-Up", token).build()).use { check(it) }
     }
     suspend fun checkVoiceEngine(key: String): JsonObject? = writeLoose("POST", "/voice/engines/${seg(key)}/check", JsonObject(emptyMap()))
-    /** «بشنوید»: a short sample in a voice; its cost lands on the meter. */
+    /** «بشنو»: a short sample in a voice; its cost lands on the meter. */
     suspend fun talkVoiceSample(engine: String, voice: String, text: String? = null): TalkVoiceSample =
         post("/voice/sample", buildJsonObject { put("engine", engine); put("voice", voice); if (text != null) put("text", text) })
     suspend fun putVoicePrice(key: String, price: VoicePrice): VoiceEngine =

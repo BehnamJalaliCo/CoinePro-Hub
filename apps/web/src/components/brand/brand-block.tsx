@@ -17,7 +17,7 @@ import { Seal } from './seal';
 // owner looks at it beside the original, in every size and both themes, in the seal ready and sealed, and seals it.
 
 const REASON_FA: Record<string, string> = {
-  no_background: 'لوگو را با زمینه‌ی شفاف یا یکدست بدهید',
+  no_background: 'لوگو را با زمینه‌ی شفاف یا یکدست بده',
   too_complex: 'لوگو برای نشان خیلی پیچیده است؛ جزئیات را کم کن',
 };
 const LOGO_TYPES = ['image/png', 'image/webp', 'image/jpeg'];

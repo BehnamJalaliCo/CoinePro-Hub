@@ -58,7 +58,7 @@ import com.coinepro.hq.ui.rememberCompanies
 import com.coinepro.hq.ui.rememberQuery
 
 // Contract §29.2 ⟨1.11⟩: every order is answered. Its report: the state, the receipt and the assignee's plan, the route it took, the
-// steps in plain Persian, what blocks it (each with its one-tap fix), its outputs, and when it ends «چه شد · چه ماند · از شما چه لازم است».
+// steps in plain Persian, what blocks it (each with its one-tap fix), its outputs, and when it ends «چه شد · چه ماند · از تو چه لازم است».
 // Live: the stream's `order.report` refreshes it.
 
 @Composable
@@ -146,7 +146,7 @@ private fun SummaryCard(o: OrderReport, s: com.coinepro.hq.core.net.OrderSummary
         Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Part("چه شد", s.doneFa, DivanIcon.SEAL, c.positive)
             Part("چه ماند", s.leftFa, DivanIcon.TIME, c.warning)
-            Part("از شما چه لازم است", s.needFa.ifBlank { "چیزی لازم نیست." }, DivanIcon.OWNER, c.goldInk)
+            Part("از تو چه لازم است", s.needFa.ifBlank { "چیزی لازم نیست." }, DivanIcon.OWNER, c.goldInk)
         }
     }
 }

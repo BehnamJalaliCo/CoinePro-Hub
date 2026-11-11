@@ -48,7 +48,7 @@ import com.coinepro.hq.ui.rememberAction
 import com.coinepro.hq.ui.rememberQuery
 import com.coinepro.hq.ui.v29.plain
 
-// Contract §32.1 and §32.5: the voice of each persona, chosen by ear. Per persona: the engine, then the voice with «بشنوید» (a short
+// Contract §32.1 and §32.5: the voice of each persona, chosen by ear. Per persona: the engine, then the voice with «بشنو» (a short
 // sample from `POST /voice/sample`, its cost said), then `PUT /talk/personas/{key}`. The charter is not editable here.
 
 /** Every persona in the room with its engine and voice; tapping one opens its choice. [onPlay] plays a sample's file. */
@@ -60,7 +60,7 @@ fun VoicesBody(present: List<String>, lights: Map<String, Pair<String, String?>>
     var open by rememberSaveable { mutableStateOf(open0) }
     val faces = faceOrder(personas.data.orEmpty(), present)
     Text("صدای هر نقش", style = Divan.type.h2)
-    Text("هر نقش صدای خودش را دارد. با «بشنوید» نمونه‌ی کوتاهی میشنوی و هزینه‌اش را همان‌جا میبینی؛ بعد انتخاب کن.", style = Divan.type.caption, color = c.textMuted)
+    Text("هر نقش صدای خودش را دارد. با «بشنو» نمونه‌ی کوتاهی میشنوی و هزینه‌اش را همان‌جا میبینی؛ بعد انتخاب کن.", style = Divan.type.caption, color = c.textMuted)
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.card)) {
         faces.forEachIndexed { i, p ->
             if (i > 0) HorizontalDivider(color = c.lineDivider)
@@ -114,7 +114,7 @@ private fun PersonaVoiceRow(p: TalkPersona, engines: List<VoiceEngine>, lights: 
                             val line = listOfNotNull(v.genderFa, costs[v.name]).joinToString(" · ")
                             if (line.isNotBlank()) Text(plain(line), style = Divan.type.micro, color = c.textMuted)
                         }
-                        HqButton("بشنوید", {
+                        HqButton("بشنو", {
                             hear.run {
                                 val s = env.api.talkVoiceSample(engine, v.name)
                                 costs[v.name] = sampleCostFa(s.usd)
