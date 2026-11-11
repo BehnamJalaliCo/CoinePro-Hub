@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Literal
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
@@ -66,6 +67,16 @@ async def list_feedback(
 ) -> Any:
     """Most frequent first (count, then the latest)."""
     after = pagination.decode(cursor, 3)
+    ac: int | None = None
+    al: datetime | None = None
+    ai: str | None = None
+    if after:
+        try:
+            ac = int(after[0])
+            al = datetime.fromisoformat(str(after[1]))
+            ai = str(UUID(str(after[2])))
+        except (ValueError, TypeError) as exc:
+            raise ApiError(422, "validation_failed", fields={"cursor": "invalid"}) from exc
     co = None
     if company:
         try:
@@ -85,9 +96,9 @@ async def list_feedback(
             co=str(co) if co else None,
             k=kind,
             st=state,
-            ac=int(after[0]) if after else None,
-            al=datetime.fromisoformat(str(after[1])) if after else None,
-            ai=str(after[2]) if after else None,
+            ac=ac,
+            al=al,
+            ai=ai,
             n=limit + 1,
         )
     items, nxt = pagination.page(rows, limit, ("count", "last_seen", "id"))
