@@ -22,6 +22,7 @@ import httpx
 from hq_api.domain import capabilities as CAP
 from hq_api.domain import connections as CN
 from hq_api.domain import links as LK
+from hq_api.domain import session_publish as SPB
 from hq_api.hub import Hub
 
 from .conftest import agent_headers, idem
@@ -165,6 +166,37 @@ async def test_a_technical_role_registers_another_companys_instagram_and_secrets
     assert rep["steps"][-1]["what_fa"].startswith("اتصال اینستاگرام"), rep["steps"][-1]
     assert "2 حساب" in rep["steps"][-1]["what_fa"]
     assert "2 حساب" in (rep["memory_md"] or "")
+
+
+async def test_an_instagram_command_never_runs_on_another_companys_server(
+    client: httpx.AsyncClient, hub: Hub, su: Any, new_company: Callable[..., Any]
+) -> None:
+    pc, other = await new_company(), await new_company()
+    pcc = pc["code"]
+    bad = {"kind": "instagram", "accounts": ["@pro.chart"], "via": "ig_hub",
+           "server": {"company": other["code"], "name": "prod-1"},
+           "read_command": "cat /srv/ig/daily.json", "publish_command": "/srv/ig/bin/hq-publish"}  # fmt: skip
+    r = await set_connection(client, f"{pcc}-MEDIA-MGR", bad)
+    assert r.status_code == 422 and "server" in r.json()["fields"], r.text
+    # the company's own server, or IG-Hub's: allowed
+    r = await set_connection(
+        client, f"{pcc}-MEDIA-MGR", {**bad, "server": {"company": pcc, "name": "app-1"}}
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["config"]["server"] == {"company": pcc, "name": "app-1"}
+    hub_srv = CN.ig_hub()
+    assert CN.ig_server({}, pcc) == (hub_srv["company"], hub_srv["server"])
+    # a value stored before this check is never used: the publish route is not ready
+    await su.execute(
+        """UPDATE growth.connections SET config = config || $2::jsonb
+           WHERE company_id = $1 AND kind = 'instagram'""",
+        pc["id"],
+        json.dumps({"server": {"company": other["code"], "name": "prod-1"}}),
+    )
+    async with hub.db.tx(await hub.companies.ids()) as tx:
+        route = await SPB._route(tx, pc["id"])
+    assert route["accounts"] and route["command"] and not route["ready"]
+    assert (route["server_co"], route["server_name"]) == (hub_srv["company"], hub_srv["server"])
 
 
 async def test_the_brief_says_the_account_lives_on_ig_hub_and_the_owner_never_reads_not_connected(
