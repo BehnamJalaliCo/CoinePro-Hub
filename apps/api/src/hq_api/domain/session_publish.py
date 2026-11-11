@@ -534,6 +534,16 @@ def publication_key(output: str, file_id: str, account: str, what: str) -> str:
     return hashlib.sha256(f"{output}|{file_id}|{account}|{what}".encode()).hexdigest()[:32]
 
 
+async def lock_publication(tx: Tx, output: str, file_id: str, account: str, what: str) -> None:
+    """Held till the transaction ends: two senders of the same publication (two taps, a tap and
+    the standing sweep) are made one after the other, so the second one's `last_of` sees the
+    first one's job and sends nothing."""
+    await tx.exec(
+        "SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))",
+        k="publish:" + publication_key(output, file_id, account, what),
+    )
+
+
 async def _send(
     tx: Tx,
     who: Principal,
@@ -788,6 +798,7 @@ async def start(
         )  # fmt: skip
 
     # one tap, one post: the same file to the same account is not sent twice (whatever sent it)
+    await lock_publication(tx, d["ref"], str(file_id), wanted, what)
     before = await last_of(tx, d["ref"], str(file_id), wanted, what)
     if before is not None:
         return before
@@ -998,6 +1009,12 @@ async def publish_run(tx: Tx, hub: Any, run: dict[str, Any]) -> str:
         return "before"
     if await gate.automation_lock(tx, run["company_id"]) is not None:
         return "locked"
+    # the API (a delivered work) and the worker's sweep can both reach the same run: one at a
+    # time, so the second one sees the first one's job below and sends nothing
+    await tx.exec(
+        "SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))",
+        k="publish-run:" + str(run["run_id"]),
+    )
     if await tx.scalar(
         """SELECT 1 FROM infra.server_jobs j
            WHERE j.kind = 'publish' AND j.args -> 'standing' ->> 'run' = :r LIMIT 1""",
@@ -1024,6 +1041,9 @@ async def publish_run(tx: Tx, hub: Any, run: dict[str, Any]) -> str:
     kinds: list[Kind] = ["reel" if str(f["mime"]).startswith("video/") else "post"]
     if rule["story"]:
         kinds.append("story")
+    # taken before the topic ledger is written (as a tap takes it before it): one order of locks
+    for what in kinds:
+        await lock_publication(tx, d["ref"], str(f["id"]), account, what)
     standing = {
         "run": str(run["run_id"]),
         "group": run["group_key"],
