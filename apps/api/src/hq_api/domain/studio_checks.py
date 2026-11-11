@@ -316,6 +316,15 @@ async def rights(tx: Tx, item: dict[str, Any], fmt: dict[str, Any]) -> dict[str,
     )
 
 
+def _frames(outs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Each frame once: the same name and file under one placement is one frame."""
+    got: dict[Any, dict[str, Any]] = {}
+    for i, o in enumerate(outs):
+        key = (o.get("name"), o.get("file_id"))
+        got.setdefault(key if key != (None, None) else i, o)
+    return list(got.values())
+
+
 def platform(item: dict[str, Any]) -> dict[str, Any]:
     outputs = item.get("outputs") or []
     targets = S.targets_of(item)
@@ -323,10 +332,11 @@ def platform(item: dict[str, Any]) -> dict[str, Any]:
         return _result("platform", None, "جای انتشاری ندارد.")
     problems: list[str] = []
     seen: list[str] = []
-    for tg in targets:
-        p = tg["placement"]
+    # two targets may share a placement (the IG account and a runner's target): the render
+    # emits each frame once per target, so a placement is checked once, on its distinct frames
+    for p in dict.fromkeys(tg["placement"] for tg in targets):
         lim = S.LIMITS[p]
-        outs = [o for o in outputs if o.get("placement") == p]
+        outs = _frames([o for o in outputs if o.get("placement") == p])
         if not outs:
             problems.append(f"{p}: خروجی ندارد")
             continue

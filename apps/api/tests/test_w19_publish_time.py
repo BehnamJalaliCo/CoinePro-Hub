@@ -307,3 +307,87 @@ async def test_a_working_groups_package_goes_out_at_its_hour_with_the_days_own_c
         "SELECT count(*) FROM notify.notifications WHERE link_ref = $1 AND source_code = 'publish'",
         made["output"],
     ) == 0  # fmt: skip
+
+
+async def test_a_publication_sent_for_now_is_followed_for_six_hours_from_its_first_answer(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+) -> None:
+    ig, pc = await new_company(), await new_company()
+    co = pc["code"]
+    made = await an_output(client, hub, owner, owner_session, su, co, ("reel.mp4", "cover.png"))
+    order, output, (reel, cover) = made["order"], made["output"], made["files"]
+    rn = await connected(client, hub, owner_session, ig, co)
+    body = {"output": output, "file_id": reel, "cover_file_id": cover, "caption": "سه سطح طلا"}
+    r = await tap(client, owner, order, body)
+    assert r.status_code == 202, r.text
+    job = await take(client, rn)
+    # Meta is still preparing it, and it never gets a link
+    await answer(client, rn, job["id"], {"external_id": "pub:77", "url": None})
+    t0 = datetime.now(UTC)
+    assert await asked(hub, su, output, t0 + timedelta(minutes=2)) == 1
+    check = await take(client, rn)
+    first = check["args"]["meta"]["first_at"]
+    await answer(client, rn, check["id"], {"external_id": "pub:77", "url": None})
+
+    async def answered_at(job_id: str, at: datetime) -> None:
+        await su.execute(
+            "UPDATE infra.server_jobs SET finished_at = $2 WHERE id = $1", UUID(job_id), at
+        )
+
+    # five hours on, it is still asked about, every 3 minutes
+    await answered_at(check["id"], t0 + timedelta(hours=5))
+    assert await asked(hub, su, output, t0 + timedelta(hours=5, minutes=4)) == 2
+    check = await take(client, rn)
+    assert check["args"]["meta"]["first_at"] == first  # the window never moves
+    await answer(client, rn, check["id"], {"external_id": "pub:77", "url": None})
+    # six hours after its first answer it is no longer asked about, however recent the last one
+    await answered_at(check["id"], t0 + timedelta(hours=6, minutes=1))
+    assert await asked(hub, su, output, t0 + timedelta(hours=6, minutes=5)) == 2
+
+
+async def test_a_post_set_far_ahead_is_followed_at_its_time_and_a_held_question_is_asked_again(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+) -> None:
+    ig, pc = await new_company(), await new_company()
+    co = pc["code"]
+    made = await an_output(client, hub, owner, owner_session, su, co, ("reel.mp4", "cover.png"))
+    order, output, (reel, cover) = made["order"], made["output"], made["files"]
+    rn = await connected(client, hub, owner_session, ig, co)
+    later = datetime.now(UTC) + timedelta(hours=1)
+    body = {"output": output, "file_id": reel, "cover_file_id": cover, "caption": "سه سطح طلا",
+            "scheduled_at": later.isoformat()}  # fmt: skip
+    r = await tap(client, owner, order, body)
+    assert r.status_code == 202, r.text
+    job = await take(client, rn)
+    await answer(client, rn, job["id"], {"external_id": "pub:88", "url": None})
+    # it was sent nine days before its time: it is still asked about when that comes
+    await su.execute(
+        "UPDATE infra.server_jobs SET created_at = now() - interval '9 days' WHERE id = $1",
+        UUID(job["id"]),
+    )
+    after = later + timedelta(seconds=100)
+    assert await asked(hub, su, output, after) == 1
+    check = await take(client, rn)
+    # a kill switch took the question back before it was answered: the publication IG-Hub holds
+    # still stands, and it is asked about again
+    await su.execute(
+        "UPDATE infra.server_jobs SET state = 'cancelled', error_code = 'company_locked', "
+        "finished_at = $2 WHERE id = $1",
+        UUID(check["id"]),
+        after,
+    )
+    panel = (await client.get(f"/api/v1/deliverables/{output}/publish", headers=owner)).json()
+    assert panel["publishes"][0]["state"] in ("scheduled", "publishing"), panel["publishes"]
+    assert await asked(hub, su, output, after + timedelta(minutes=4)) == 2
