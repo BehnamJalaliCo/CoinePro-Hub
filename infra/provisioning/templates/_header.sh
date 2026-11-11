@@ -9,8 +9,10 @@ umask 022
 export DEBIAN_FRONTEND=noninteractive
 STATE=/var/lib/coinepro-provision
 LOG=/var/log/coinepro-provision.log
-# A step's exit code for "done, and this new server reboots now" (system-upgrade).
-REBOOT_RC=100
+# A step that ends well and leaves this file asks for "done, and this new server
+# reboots now" (system-upgrade). A marker, not an exit code: apt-get exits 100 on
+# any error, and no exit code is safe from some command a step runs.
+REBOOT_MARK="$STATE/reboot-requested"
 install -d -m 0700 "$STATE"
 touch "$LOG" && chmod 0600 "$LOG"
 exec > >(tee -a "$LOG") 2>&1
@@ -54,6 +56,7 @@ run_step() {
     return 0
   fi
   log "step $key: start"
+  rm -f "$REBOOT_MARK"
   set +e
   (
     set -e
@@ -61,7 +64,8 @@ run_step() {
   )
   rc=$?
   set -e
-  if ((rc != 0 && rc != REBOOT_RC)); then
+  if ((rc != 0)); then
+    rm -f "$REBOOT_MARK"
     log "step $key: FAILED (exit $rc; the steps after it did not run)"
     result "$key" 0 "" "failed (exit $rc): see $LOG on the server"
     touch "$STATE/failed"
@@ -69,7 +73,8 @@ run_step() {
   fi
   touch "$STATE/$key.done"
   log "step $key: done"
-  if ((rc == REBOOT_RC)); then
+  if [[ -e "$REBOOT_MARK" ]]; then
+    rm -f "$REBOOT_MARK"
     # The step asked for the build's single reboot of THIS new server; the
     # remaining steps run after the boot (coinepro-provision.service).
     log "rebooting this new server once (its build only)"
