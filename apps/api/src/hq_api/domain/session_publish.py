@@ -63,8 +63,8 @@ SERVICE = Principal(kind="service", code="publish", role="service")
 
 TAPPED_FA = "«تأیید و انتشار»: {kind} «{name}» به @{account} میرود"
 SETUP_FA = (
-    "مسیر انتشار اینستاگرام {company} روی {server} هنوز ثبت نشده؛ تیم فنی هلدینگ همین حالا وصلش "
-    "میکند و خبرش همین‌جا می‌آید. کاری از شما لازم نیست."
+    "مسیر انتشار اینستاگرام {company} روی {server} هنوز ثبت نشده؛ تیم فنی هلدینگ وصلش میکند و "
+    "خبرش همین‌جا می‌آید. کاری از تو لازم نیست."
 )
 SETUP_NOBODY_FA = (
     "مسیر انتشار اینستاگرام {company} روی {server} هنوز ثبت نشده و کسی در تیم فنی نیست که وصلش کند."
@@ -72,7 +72,7 @@ SETUP_NOBODY_FA = (
 DONE_FA = "منتشر شد: {kind} در @{account}"
 FAILED_FA = "انتشار {kind} در @{account} انجام نشد: {why}"
 NOT_MEDIA_FA = "فقط ویدیو یا تصویر منتشر میشود."
-PICK_ACCOUNT_FA = "این شرکت چند حساب دارد؛ یکی را انتخاب کنید."
+PICK_ACCOUNT_FA = "این شرکت چند حساب دارد؛ یکی را انتخاب کن."
 # ⟨§45⟩ the standing permission
 GROUPS = Principal(kind="service", code="groups", role="service")
 CAPTION_NAMES = ("caption.txt", "caption.md")
@@ -101,12 +101,12 @@ AUTO_SENT_FA = "انتشار خودکار: {kind} به @{account} میرود"
 AUTO_DONE_FA = "خودکار منتشر شد: {kind} در @{account}"
 AUTO_FAILED_FA = "انتشار خودکار {kind} در @{account} انجام نشد: {why}"
 NO_PACKAGE_FA = "کار این نوبت بسته‌ای برای انتشار نداشت (ویدیو یا تصویر با کپشن)؛ چیزی منتشر نشد."
-NO_CAPTION_FA = "ویدیوی این نوبت کپشن نداشت؛ خودکار منتشر نشد و با یک لمس شما میرود."
+NO_CAPTION_FA = "ویدیوی این نوبت کپشن نداشت؛ خودکار منتشر نشد و با یک لمس تو میرود."
 # ⟨2026-11-11⟩ the very line the working group's page and the desk card say of a route not ready
 WAIT_SETUP_FA = "مسیر انتشار این شرکت را تیم فنی وصل میکند؛ بعد خودش منتشر میشود."
-ALREADY_FA = "این بسته را خودتان پیش‌تر منتشر کرده‌اید؛ دوباره فرستاده نشد."
+ALREADY_FA = "این بسته را خودت پیش‌تر منتشر کرده‌ای؛ دوباره فرستاده نشد."
 PICK_STANDING_FA = "این شرکت چند حساب دارد و حساب انتشار خودکار این کارگروه انتخاب نشده است."
-HELD_TITLE_FA = "انتشار خودکار «{group}» ({company}) منتظر شماست"
+HELD_TITLE_FA = "انتشار خودکار «{group}» ({company}) منتظر توست"
 # ⟨§51⟩ cancelling a publication IG-Hub still holds
 CANCEL_ASKED_FA = "لغو انتشار: {kind} در @{account}"
 CANCEL_DONE_FA = "لغو شد: {kind} در @{account} منتشر نمیشود"
@@ -114,11 +114,11 @@ CANCEL_FAILED_FA = "لغو {kind} در @{account} انجام نشد: {why}"
 CANCEL_NOTE_FA = "لغو انجام نشد ({why})؛ از تقویم خود IG-Hub هم میشود لغوش کرد."
 CANCELLING_FA = "در حال لغو"
 NOT_CANCELLABLE_FA = "این انتشار دیگر لغوشدنی نیست."
-STILL_SENDING_FA = "فایل هنوز در راه IG-Hub است؛ چند لحظه بعد دوباره لغو کنید."
+STILL_SENDING_FA = "فایل هنوز در راه IG-Hub است؛ چند لحظه بعد دوباره لغو کن."
 # ⟨§47⟩ a package whose topic was said before is not sent by itself
 DUPLICATE_FA = (
-    "موضوع این نوبت پیش‌تر گفته شده («{title}»، {day})؛ خودکار منتشر نشد. اگر همین را میخواهید، "
-    "با یک لمس شما میرود."
+    "موضوع این نوبت پیش‌تر گفته شده («{title}»، {day})؛ خودکار منتشر نشد. اگر همین را میخواهی، "
+    "با یک لمس تو میرود."
 )
 # ⟨§52⟩ Instagram publishes JPEG pictures only
 JPEG = "image/jpeg"
@@ -199,7 +199,7 @@ def view(j: dict[str, Any]) -> SessionPublish:
     if state == "failed":
         note = HZ.humanize(str(j.get("summary_fa") or "")) or "پلتفرم انتشار را نپذیرفت"
     elif state == "waiting_seal":
-        note = "دستور انتشار این سرور مُهر شما را میخواهد."
+        note = "دستور انتشار این سرور مُهر تو را میخواهد."
     elif meta.get("cancel") and state in ("scheduled", "publishing"):
         # ⟨§51⟩ a cancel on its way, or one IG-Hub refused (the publication still stands)
         if str(j["state"]) in ("queued", "running"):
@@ -1162,7 +1162,7 @@ async def set_rule(
     if clock is not None and AT.fullmatch(clock) is None:
         raise ApiError(
             422, "validation_failed", fields={"at": "HH:MM"},
-            message_fa="ساعت انتشار را به شکل ۱۸:۳۰ بنویسید.",
+            message_fa="ساعت انتشار را به شکل ۱۸:۳۰ بنویس.",
         )  # fmt: skip
     rule = (
         {"mode": "auto", "account": wanted, "story": bool(story), "at": clock,

@@ -92,7 +92,9 @@ async def an_order(
 async def narrate(client: httpx.AsyncClient, s: dict[str, Any], text: str) -> None:
     """The holder's `order.progress` (a step of the story: it moves the clock)."""
     r = await client.post(
-        f"/internal/v1/orders/{s['ref']}/progress", headers=s["h"], json={"step_fa": text}
+        f"/internal/v1/orders/{s['ref']}/progress",
+        headers=await agent_headers(s["holder"]),
+        json={"step_fa": text},
     )
     assert r.status_code == 200, r.text
 
@@ -137,12 +139,27 @@ async def backdate(su: Any, ref: str, hours: int) -> None:
         )
 
 
-async def end_run(su: Any, run_id: Any, company_id: Any, actions: list[dict[str, Any]]) -> None:
-    """A queued run ran one step with these actions and ended `done`."""
+async def start_run(su: Any, run_id: Any, *, minutes_ago: int = 0) -> None:
+    """A queued run starts (its employee runs one run at a time: the run a test's agent token
+    is bound to ends first; `narrate` mints a new one)."""
     await su.execute(
-        "UPDATE agents.runs SET state = 'running', started_at = now() - interval '1 minute' WHERE id = $1",
+        """UPDATE agents.runs o SET state = 'done', finished_at = now()
+           FROM agents.runs r
+           WHERE r.id = $1 AND o.employee_id = r.employee_id AND o.state = 'running'
+             AND o.id <> r.id AND o.work_id IS NULL""",
         run_id,
     )
+    await su.execute(
+        """UPDATE agents.runs SET state = 'running', started_at = now() - make_interval(mins => $2)
+           WHERE id = $1""",
+        run_id,
+        minutes_ago,
+    )
+
+
+async def end_run(su: Any, run_id: Any, company_id: Any, actions: list[dict[str, Any]]) -> None:
+    """A queued run ran one step with these actions and ended `done`."""
+    await start_run(su, run_id, minutes_ago=1)
     await su.execute(
         """INSERT INTO agents.steps (run_id, company_id, n, at, summary_fa, actions)
            VALUES ($1, $2, 1, now() - interval '30 seconds', 'گزارش', $3::jsonb)""",
@@ -214,9 +231,7 @@ async def test_the_incident_a_queued_chatgpt_draft_never_leaves_the_session_sile
     [woke] = await runs_with_reason(su, s["root_ref"], "session_idle:")
     assert woke["state"] == "queued"
     # the woken run's brief: an explicit turn, first; the dead call named; task 3 to do now
-    await su.execute(
-        "UPDATE agents.runs SET state = 'running', started_at = now() WHERE id = $1", woke["id"]
-    )
+    await start_run(su, woke["id"])
     async with await all_tx(hub) as tx:
         d = await OT.dialogue(tx, wid)
         direct = await DR.server_for(tx) is not None
@@ -269,7 +284,8 @@ async def test_the_incident_a_queued_chatgpt_draft_never_leaves_the_session_sile
     assert p.wakes == 0 and not p.spent and p.live
     await refuse_queued(su, s["root_ref"])
     await idle_for(su, ref, 11)
-    assert await sweep(hub, ref) == ["idle_wake"]
+    p = await pulse_of(hub, ref)  # idle again: a wake is due, none spent, not stuck
+    assert not p.live and p.wakes == 0 and not p.spent and p.woken is None and p.stuck_fa is None
 
 
 async def test_two_idle_wakes_that_led_nowhere_make_it_stuck_with_the_plan_named(
@@ -488,15 +504,21 @@ async def test_the_order_tick_survives_a_broken_order_runs_newest_first_and_reap
     b = await an_order(client, owner, su, new_company, tasks=2, done=0, pace="auto")
     await idle_for(su, a["ref"], 11)
     await idle_for(su, b["ref"], 11)
-    # a work run whose worker is gone: running 40 minutes without a step
+    # a work run whose worker is gone: running 40 minutes without a step (a colleague of a's
+    # holder: the holder's own test token holds a running run)
     stalled = await su.fetchval(
         """INSERT INTO agents.runs (company_id, employee_id, work_id, trigger, reason, state,
                queued_at, started_at)
-           SELECT $1, e.id, NULL, 'work', 'test', 'running', now() - interval '41 minutes',
+           SELECT $1, e.id, $3, 'work', 'stalled', 'running', now() - interval '41 minutes',
                   now() - interval '40 minutes'
-           FROM core.employees e WHERE e.code = $2 RETURNING id""",
-        a["company"]["id"], a["holder"],
+           FROM core.employees e
+           WHERE e.company_id = $1 AND e.code <> $2 AND e.status = 'active'
+             AND NOT EXISTS (SELECT 1 FROM agents.runs x WHERE x.employee_id = e.id
+                               AND x.state = 'running')
+           ORDER BY e.code LIMIT 1 RETURNING id""",
+        a["company"]["id"], a["holder"], a["wid"],
     )  # fmt: skip
+    assert stalled is not None
     seen: list[str] = []
     real = OR.timers
 

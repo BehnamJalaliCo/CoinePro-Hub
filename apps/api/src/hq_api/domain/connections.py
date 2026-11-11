@@ -354,7 +354,7 @@ def ig_publish_brief(company_code: str, details: dict[str, Any] | None = None) -
         f"{company_code}, kind: instagram, accounts: [handles], via: ig_hub, server: {{company: "
         f"{hub['company']}, name: {hub['server']}}}, publish_command}} (no token ever goes in the "
         "command: the application's own configuration on the server holds it). (4) deliver one "
-        "Persian line: «مسیر انتشار وصل شد؛ «تأیید و انتشار» را دوباره بزنید». Never ask the owner "
+        "Persian line: «مسیر انتشار وصل شد؛ «تأیید و انتشار» را دوباره بزن». Never ask the owner "
         "for anything here and never say Instagram is not connected."
     )
 
@@ -989,14 +989,14 @@ class ReadCtx:
 def _egress_reason(ans: Answer) -> str:
     if ans.code in ("egress_unavailable", "call_timeout", "egress_failed"):
         return "راه بیرون هاب پاسخ نداد؛ فردا دوباره خوانده میشود."
-    return "راه بیرون هاب این درخواست را نپذیرفت؛ نشانی یا تنظیم اتصال را ببینید."
+    return "راه بیرون هاب این درخواست را نپذیرفت؛ نشانی یا تنظیم اتصال را ببین."
 
 
 def _http_reason(status: int | None, who: str) -> str:
     if status in (401, 403):
-        return f"{who} اجازه‌ی خواندن نداد؛ دسترسی را طبق راهنما دوباره بدهید."
+        return f"{who} اجازه‌ی خواندن نداد؛ دسترسی را طبق راهنما دوباره بده."
     if status == 404:
-        return f"{who} این نشانی یا شناسه را نشناخت؛ تنظیم اتصال را ببینید."
+        return f"{who} این نشانی یا شناسه را نشناخت؛ تنظیم اتصال را ببین."
     if status == 429:
         return f"سهمیه‌ی روزانه‌ی {who} پر شده است؛ فردا دوباره خوانده میشود."
     return f"{who} پاسخ درستی نداد؛ فردا دوباره خوانده میشود."
@@ -1020,7 +1020,7 @@ def service_account(secret: str | None) -> dict[str, Any]:
     except ValueError:
         sa = None
     if not isinstance(sa, dict) or not sa.get("client_email") or not sa.get("private_key"):
-        raise ReadError("متن حساب سرویس گوگل درست نیست؛ کل فایل JSON را دوباره بچسبانید.")
+        raise ReadError("متن حساب سرویس گوگل درست نیست؛ کل فایل JSON را دوباره بچسبان.")
     return sa
 
 
@@ -1039,9 +1039,7 @@ def signed_assertion(sa: dict[str, Any], scope: str, now: float | None = None) -
     try:
         key = serialization.load_pem_private_key(str(sa["private_key"]).encode(), password=None)
     except (ValueError, TypeError) as exc:
-        raise ReadError(
-            "کلید حساب سرویس گوگل خوانده نشد؛ کل فایل JSON را دوباره بچسبانید."
-        ) from exc
+        raise ReadError("کلید حساب سرویس گوگل خوانده نشد؛ کل فایل JSON را دوباره بچسبان.") from exc
     if not isinstance(key, rsa.RSAPrivateKey):
         raise ReadError("کلید حساب سرویس گوگل از نوع درست نیست.")
     sig = key.sign(signing.encode(), padding.PKCS1v15(), hashes.SHA256())
@@ -1096,7 +1094,7 @@ async def read_telegram(ctx: ReadCtx) -> list[Figure]:
         ans = await ctx.call("GET", url, account=acct)
         data = ans.json()
         if ans.status == 401:
-            raise ReadError("تلگرام توکن ربات را نپذیرفت؛ توکن تازه را در اپ بگذارید.")
+            raise ReadError("تلگرام توکن ربات را نپذیرفت؛ توکن تازه را در اپ بگذار.")
         n = data.get("result") if isinstance(data, dict) and data.get("ok") else None
         if not isinstance(n, int):
             failed.append(str(ch.get("title_fa") or chat))
@@ -1104,7 +1102,7 @@ async def read_telegram(ctx: ReadCtx) -> list[Figure]:
         out.append(Figure(ctx.today, "followers", float(n), chat, "telegram"))
     if failed and not out:
         raise ReadError(
-            "ربات به کانال‌ها دسترسی ندارد؛ ربات را مدیر کانال کنید: " + "، ".join(failed[:3])
+            "ربات به کانال‌ها دسترسی ندارد؛ ربات را مدیر کانال کن: " + "، ".join(failed[:3])
         )
     return out
 
@@ -1133,7 +1131,7 @@ PSI_FIELDS = (
 async def read_pagespeed(ctx: ReadCtx) -> list[Figure]:
     sites = await _sites(ctx)
     if not sites:
-        raise ReadError("سایتی برای سنجش ثبت نشده است؛ نشانی سایت را در اپ بنویسید.")
+        raise ReadError("سایتی برای سنجش ثبت نشده است؛ نشانی سایت را در اپ بنویس.")
     acct = api_key(ctx.secret) if ctx.secret else None
     out: list[Figure] = []
     for url in sites:
@@ -1236,7 +1234,7 @@ async def read_youtube(ctx: ReadCtx) -> list[Figure]:
         raise ReadError(_http_reason(ans.status, "یوتیوب"))
     items = data.get("items") or []
     if not items:
-        raise ReadError("یوتیوب این شناسه‌ی کانال را نشناخت؛ تنظیم اتصال را ببینید.")
+        raise ReadError("یوتیوب این شناسه‌ی کانال را نشناخت؛ تنظیم اتصال را ببین.")
     st = items[0].get("statistics") or {}
     out = []
     for src, key in (("subscriberCount", "followers"), ("viewCount", "views"),
@@ -1260,7 +1258,7 @@ def parse_ig(text: str, accounts: list[str], today: date) -> list[Figure]:
     if isinstance(data, list):
         data = {"accounts": data}
     if not isinstance(data, dict) or not isinstance(data.get("accounts"), list):
-        raise ReadError("خروجی دستور خواندن روی IG-Hub قابل خواندن نبود؛ دستور را ببینید.")
+        raise ReadError("خروجی دستور خواندن روی IG-Hub قابل خواندن نبود؛ دستور را ببین.")
     try:
         day = date.fromisoformat(str(data.get("day"))) if data.get("day") else today
     except ValueError:
@@ -1321,7 +1319,7 @@ async def read_instagram(ctx: ReadCtx) -> list[Figure]:
         except Exception as exc:
             raise ReadError("سرور IG-Hub پیدا نشد؛ دستیار سرور IG-Hub باید وصل باشد.") from exc
         if SV.state_of(srv) == "revoked":
-            raise ReadError("دستیار سرور IG-Hub جدا شده است؛ دوباره وصلش کنید.")
+            raise ReadError("دستیار سرور IG-Hub جدا شده است؛ دوباره وصلش کن.")
         args = {"cmd": cmd, "timeout_s": IG_JOB_TIMEOUT_S}
         reuse = await tx.scalar(
             """SELECT id FROM infra.server_jobs WHERE server_id = :s AND actor_code = :a

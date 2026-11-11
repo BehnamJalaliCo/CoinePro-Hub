@@ -1310,6 +1310,29 @@ async def runner_claude_pick(
     return AccountPick(hold=full)
 
 
+async def room_at(tx: Tx, hub: Any) -> datetime | None:
+    """⟨2026-11-11⟩ While every stored account is full (Claude Code jobs wait): when the first one
+    has room again (the latest reset of its full windows, the earliest such account); None when
+    one has room now or nothing is known. For the session's own sentence of the wait."""
+    if not (await runner_claude_pick(tx, hub)).hold:
+        return None
+    sec = getattr(hub, "secrets", None)
+    keys = [k for k, attr in RUNNER_ACCOUNTS if str(getattr(sec, attr, "") or "")]
+    now = await tx.scalar("SELECT now()")
+    best: datetime | None = None
+    for r in await tx.all(ACCOUNTS_SQL, keys=keys):
+        row = dict(r)
+        if row["connection_status"] not in ("enabled", "ready", "quota_exhausted"):
+            continue
+        full = [w for w in _windows(row).values() if isinstance(w, dict) and _window_full(w, now)]
+        if row.get("status") is not None and _window_full(row, now):
+            full.append(row)
+        ends = [e for e in (_at(w.get("resets_at")) for w in full) if e is not None]
+        if ends and (best is None or max(ends) < best):
+            best = max(ends)
+    return best
+
+
 async def runner_claude_account(tx: Tx, hub: Any) -> tuple[str, bool]:
     """(the token a Claude Code job takes now, whether Claude Code jobs wait). No token at all
     (neither account stored): ("", False), the server's own login. Every stored account full:

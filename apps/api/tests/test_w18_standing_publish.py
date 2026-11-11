@@ -319,7 +319,7 @@ async def test_a_working_groups_daily_reel_goes_out_on_the_owners_standing_word(
         "SELECT title_fa FROM notify.notifications WHERE link_ref = $1 AND source_code = 'publish'",
         bare["output"],
     )
-    assert len(held) == 1 and "منتظر شماست" in held[0]["title_fa"]
+    assert len(held) == 1 and "منتظر توست" in held[0]["title_fa"]
     # ... and his tap on it in the outputs page (no session) sends it
     r = await client.post(
         f"/api/v1/deliverables/{bare['output']}/publish",

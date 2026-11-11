@@ -111,9 +111,9 @@ async def test_the_owners_tap_publishes_a_session_file_through_ig_hub(
     r = await tap(client, owner, order, {"output": output, "file_id": one})
     assert r.status_code == 202, r.text
     assert r.json()["state"] == "waiting_setup" and r.json()["job"] is None
-    assert (
-        "تیم فنی هلدینگ" in r.json()["note_fa"] and "کاری از شما لازم نیست" in r.json()["note_fa"]
-    )
+    note = r.json()["note_fa"]
+    assert "تیم فنی هلدینگ" in note and "کاری از تو لازم نیست" in note
+    assert "همین حالا" not in note and "شما" not in note  # a promise it keeps, to «تو»
     r = await tap(client, owner, order, {"output": output, "file_id": one})
     assert r.json()["state"] == "waiting_setup"
     works = await su.fetch(

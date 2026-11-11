@@ -995,12 +995,15 @@ class RouterService:
     async def _admit_twin(self, plan: Plan, caller: str, max_input_chars: int) -> Plan | None:
         """The same request admitted again (a new ledger row naming the refused one), when the
         other subscription can take it now; None otherwise (the refusal stands)."""
-        snap = await self.registry.get()
-        if self._twin_subscription(snap, plan.connection, plan.req.priority) is None:
-            return None
         try:
+            snap = await self.registry.get()
+            if self._twin_subscription(snap, plan.connection, plan.req.priority) is None:
+                return None
             again = await self.admit(plan.req, caller, max_input_chars, retry_of=plan.row.id)
         except RouterError:
+            return None
+        except Exception:  # the refusal already answered stands; never a 500 instead of it
+            log.exception("retry on the other subscription failed", extra={"call_id": plan.row.id})
             return None
         log.info(
             "refused call moved to the other subscription",

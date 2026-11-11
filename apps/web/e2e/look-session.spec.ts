@@ -6,7 +6,7 @@ import { clean, openDetails } from './support';
 // says who and what (a build of the workshop with its ring of minutes, held and taken up again from the bar; a direct session says so);
 // a knot is one line with its way out; a finished session is closed, or its file published, from the decision bar; a closed one ends
 // with its leaf. The demo holds one session in each state (F-0008 waiting, F-0007 working, F-0010 a workshop build, F-0011 direct,
-// F-0005 stuck, F-0006 ready, F-0012 ready with a reel, F-0004 closed, ⟨2026-11-11⟩ F-0013 a draft in ChatGPT's queue, F-0014 a session
+// F-0005 stuck, F-0006 ready, F-0012 ready with a reel, F-0004 closed, ⟨2026-11-11⟩ F-0094 a draft in ChatGPT's queue, F-0095 a session
 // nobody works on) and asks for the others through `hq.e2e.ring`, `hq.e2e.workers` and `hq.e2e.mood`.
 
 const flag = (page: Page, key: string, value: string) => page.addInitScript(([k, v]) => window.localStorage.setItem(k!, v!), [key, value]);
@@ -158,7 +158,7 @@ test('a direct session: the holder does the work himself, the bar and the detail
 
 test('an outside call at work: ChatGPT in the «الان» bar with its mark, whose it is, the whole sentence and a timer; no ring, nothing to hold', async ({ page }) => {
   await clean(page, async () => {
-    await page.goto('/s/F-0013');
+    await page.goto('/s/F-0094');
     await expect(session(page)).toHaveAttribute('data-mood', 'working');
     await expect(light(page)).toHaveText('کار میکند');
     const bar = page.getByTestId('now-bar');
@@ -181,7 +181,7 @@ test('an outside call at work: ChatGPT in the «الان» bar with its mark, wh
 
 test('a session nobody works on is «ایستاده»: one calm card, a silver edge, the last thing done, and «ادامه بده» as the one gold', async ({ page }) => {
   await clean(page, async () => {
-    await page.goto('/s/F-0014');
+    await page.goto('/s/F-0095');
     await expect(session(page)).toHaveAttribute('data-mood', 'still');
     await expect(light(page)).toHaveText('ایستاده');
     // the header still says where the plan stands and the pace
@@ -318,7 +318,7 @@ test('the details are one sheet: the order\'s words, the plan, the people, the f
 test('@phone the session fits a phone in every state, the composer in reach', async ({ page }) => {
   await page.setViewportSize({ width: 400, height: 860 });
   await clean(page, async () => {
-    for (const ref of ['F-0008', 'F-0007', 'F-0010', 'F-0005', 'F-0012', 'F-0004', 'F-0013', 'F-0014']) {
+    for (const ref of ['F-0008', 'F-0007', 'F-0010', 'F-0005', 'F-0012', 'F-0004', 'F-0094', 'F-0095']) {
       await page.goto(`/s/${ref}`);
       await expect(session(page), ref).toBeVisible();
       await expect(page.getByLabel('نوشتن', { exact: true }), ref).toBeInViewport();

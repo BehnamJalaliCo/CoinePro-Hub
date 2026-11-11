@@ -62,12 +62,12 @@ test('a stuck session says why in plain words and «ادامه بده» wakes it
   });
 });
 
-// ⟨2026-11-11⟩ The owner's 12-hour stall (F-0014: Pro-Chart's daily reels, «با من», task 3 of 18): nobody worked after «… از ChatGPT
+// ⟨2026-11-11⟩ The owner's 12-hour stall (F-0095: Pro-Chart's daily reels, «با من», task 3 of 18): nobody worked after «… از ChatGPT
 // خواسته شد و در صف است» and the hub said «آرام». The page never leaves such a session silent: after twenty minutes it is «ایستاده», with
 // one calm card above the composer that says what was last done and when, and «ادامه بده».
 test('a session nobody works on stands still: «ایستاده», one card with the last thing done, and «ادامه بده» wakes it; a closed one shows nothing of it', async ({ page }) => {
   await clean(page, async () => {
-    await page.goto('/s/F-0014');
+    await page.goto('/s/F-0095');
     await expect(page.getByTestId('session')).toHaveAttribute('data-mood', 'still');
     await expect(page.getByTestId('session').locator('header').getByTestId('mood-light')).toHaveText('ایستاده');
     await expect(page.getByTestId('now-bar')).toHaveCount(0);

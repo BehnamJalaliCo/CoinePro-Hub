@@ -13,8 +13,10 @@ delivered by its turn, and its package follows without waiting for the agent's d
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -27,6 +29,7 @@ from hq_api.domain import humanize as H
 from hq_api.domain import publish_desk as PD
 from hq_api.domain import session_publish as SPB
 from hq_api.domain import work as W
+from hq_api.domain import workspace as WS
 from hq_api.hub import Hub
 
 from .p10_fakes import holding_switch
@@ -59,6 +62,23 @@ async def tech_works(su: Any, tag: str, code: str) -> list[Any]:
             code,
         )
     )
+
+
+# ======================================= the owner is addressed as «تو» in all he reads here ==
+PLURAL = re.compile(
+    r"شما(?!ره)|خودتان|(?:کنید|بزنید|بدهید|ببینید|بچسبانید|بگذارید|بنویسید|کرده‌اید|میخواهید)"
+    r"(?=[\s.،؛»:\"']|$)"
+)
+
+
+def test_what_the_owner_reads_of_publishing_says_tu() -> None:
+    for module in (SPB, CN, GR, BH, WS):
+        source = Path(str(module.__file__)).read_text(encoding="utf-8")
+        assert PLURAL.findall(source) == [], module.__name__
+    assert "همین حالا" not in SPB.SETUP_FA and "کاری از تو لازم نیست" in SPB.SETUP_FA
+    for text in (GR.EMPTY_SEAT_FA, GR.EMPTY_CEO_FA, GR.EMPTY_OPTIONAL_FA):
+        assert H.check(text.format(seat="تحلیلگر عملکرد")) == [], text
+    assert "مدیرعاملی ندارد" in GR.EMPTY_SEAT_FA  # said only when no CEO takes the fill work
 
 
 # ========================================== 1. the route: the holding's command, the accounts ==

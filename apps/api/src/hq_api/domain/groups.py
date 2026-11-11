@@ -58,7 +58,11 @@ WORK_DONE = ("done", "delivered")
 WORK_FAILED = ("failed", "cancelled")
 # ⟨2026-11-11⟩ a routine that cannot run for an empty seat says why on the working group's page,
 # in one plain line, and the company's CEO gets a work to fill the seat (once per seat a day)
-EMPTY_SEAT_FA = "جایگاه «{seat}» هنوز خالی است؛ استخدام خودکار آن را پر میکند."
+# (no CEO to take the fill work: automatic hiring is the one that tries, once a day)
+EMPTY_SEAT_FA = (
+    "جایگاه «{seat}» هنوز خالی است و شرکت مدیرعاملی ندارد که پرش کند؛ "
+    "استخدام خودکار روزی یک بار امتحان میکند."
+)
 EMPTY_OPTIONAL_FA = "جایگاه «{seat}» اختیاری است و خالی مانده؛ این روال تا پر شدن آن اجرا نمیشود."
 EMPTY_CEO_FA = (
     "جایگاه «{seat}» هنوز خالی است؛ مدیرعامل شرکت آن را پر میکند و روال از نوبت بعد اجرا میشود."

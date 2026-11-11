@@ -10,8 +10,8 @@
 // `hq.e2e.stuck=plain` makes F-0005 stuck with no fix of the hub's (the knot's own way out is then «ادامه بده»). The
 // checks ask for the rarer states through `hq.e2e.ring=late` (the turn is past 90 percent of its cap), `hq.e2e.workers=2` (two work
 // at once in F-0007), `hq.e2e.mood=thinking` (a run that has taken no step yet) and `hq.e2e.old55` (a hub before §55: none of these).
-// ⟨2026-11-11⟩ The owner's 12-hour stall (Pro-Chart's daily reels, «با من», task 3 of 18), in its two states and in no list: F-0013 while
-// the draft waits in ChatGPT's queue (an outside call at work, `kind: call`), F-0014 the next morning, when nothing ran after «… از ChatGPT
+// ⟨2026-11-11⟩ The owner's 12-hour stall (Pro-Chart's daily reels, «با من», task 3 of 18), in its two states and in no list: F-0094 while
+// the draft waits in ChatGPT's queue (an outside call at work, `kind: call`), F-0095 the next morning, when nothing ran after «… از ChatGPT
 // خواسته شد و در صف است» and the hub still said «آرام» (the page says «ایستاده» with «ادامه بده»).
 
 import { conversationCard, conversationCounts, conversationDrop, conversationFiles, conversationClosed, conversationSay, presentAdd, presentDrop, sessionConversation } from './mock-v32';
@@ -140,7 +140,7 @@ function seed() {
   const ago41 = (sec: number) => new Date(Date.now() - sec * 1000).toISOString();
   const pc = { code: 'PC-CEO', title_fa: 'مدیرعامل', company: 'PC', company_fa: 'پرو-چارت' };
   mk({
-    ref: 'F-0013', text_fa: 'هر روز یک ریلز آموزشی برای پرو-چارت بساز؛ قدم به قدم با من جلو برو', persona: 'ceo@PC', pace: 'step', listed: false,
+    ref: 'F-0094', text_fa: 'هر روز یک ریلز آموزشی برای پرو-چارت بساز؛ قدم به قدم با من جلو برو', persona: 'ceo@PC', pace: 'step', listed: false,
     opened_at: ago41(40 * 60), last_at: ago41(4 * 60), holder: pc, participants: [holderP('مدیرعامل پرو-چارت', 'PC', 'ceo@PC')], tasks: reelsPlan(),
   }, [
     ['owner', 'هر روز یک ریلز آموزشی برای پرو-چارت بساز؛ قدم به قدم با من جلو برو.', ago41(40 * 60)],
@@ -148,7 +148,7 @@ function seed() {
     ['owner', 'خودت تصمیم بگیر و ادامه بده', ago41(6 * 60)],
   ]);
   mk({
-    ref: 'F-0014', text_fa: 'به هرچه میگویم دقت کن و هر روز یک ریلز برای پرو-چارت بساز؛ قدم به قدم با من', persona: 'ceo@PC', pace: 'step', listed: false,
+    ref: 'F-0095', text_fa: 'به هرچه میگویم دقت کن و هر روز یک ریلز برای پرو-چارت بساز؛ قدم به قدم با من', persona: 'ceo@PC', pace: 'step', listed: false,
     opened_at: ago41(830 * 60), last_at: ago41(812 * 60), holder: pc, participants: [holderP('مدیرعامل پرو-چارت', 'PC', 'ceo@PC')], tasks: reelsPlan(),
   }, [
     ['owner', 'به هرچه میگویم دقت کن و هر روز یک ریلز برای پرو-چارت بساز؛ قدم به قدم با من.', ago41(830 * 60)],
@@ -164,7 +164,7 @@ const REELS_PLAN = [
   'کارگروه روزانه‌ی ریلز', 'انتشار خودکار هر روز', 'گزارش هفته‌ی اول', 'جمع‌بندی و بستن',
 ];
 function reelsPlan(): Task[] { return REELS_PLAN.map((t, i) => task(i + 1, t, i < 2 ? 'done' : i === 2 ? 'doing' : 'todo', 'agent', 'مدیرعامل پرو-چارت')); }
-/** The holder's last word of the owner's 12-hour stall, as it was (F-0014), and while the draft is in ChatGPT's queue (F-0013). */
+/** The holder's last word of the owner's 12-hour stall, as it was (F-0095), and while the draft is in ChatGPT's queue (F-0094). */
 const STALLED_FA = 'گام ۲ در جریان است. موضوع اول («معرفی ابزارهای ترسیم روی نمودار پرو-چارت») ثبت شد. گوینده‌ی ثابت پرو-چارت (Kore، فارسی معیار و گرم) یک‌بار برای همیشه تنظیم شد. '
   + 'پیش‌نویس متن ۱ تا ۱:۳۰ دقیقه با شعار «پرو چارت؛ همیشه با نمودار» و کلمه‌ی کامنت «چارت» از ChatGPT خواسته شد و در صف است.';
 const DRAFT_ASKED_FA = 'پیش‌نویس متن ریلز اول از ChatGPT خواسته شد و در صف است؛ تا جوابش برسد، کاور را آماده میکنم.';
@@ -227,7 +227,7 @@ function actOf(s: S): Act41 {
       idle_since: null, waiting_fa: null, stuck_fa: null,
     };
   }
-  else if (s.ref === 'F-0013') {
+  else if (s.ref === 'F-0094') {
     a = {
       working: [{ who_fa: 'ChatGPT', company_fa: 'پرو-چارت', work_title_fa: 'پیش‌نویس متن ریلز اول', started_at: ago41(4 * 60), step: 0, doing_fa: 'در صف ChatGPT: پیش‌نویس متن', kind: 'call', cap_s: 900, last_fa: null, last_at: ago41(4 * 60) }],
       last: [
@@ -236,7 +236,7 @@ function actOf(s: S): Act41 {
       ],
       idle_since: null, waiting_fa: null, stuck_fa: null,
     };
-  } else if (s.ref === 'F-0014') {
+  } else if (s.ref === 'F-0095') {
     // As the hub said it that night: nobody works, nothing waits for the owner, nothing is stuck: «آرام».
     a = {
       working: [],
@@ -348,14 +348,14 @@ const LOCAL: Record<string, any> = {
     blockers: [], outputs: [{ ref: 'O-000067', title_fa: 'ریلز: حد ضرر را کجا بگذاریم', kind: 'reel' }],
     summary: { done_fa: 'ریلز ۳۰ ثانیه‌ای با کاور ساخته شد.', left_fa: '', need_fa: 'اگر خوب است، تأیید کن تا منتشر شود.' }, updated_at: T('2026-11-10', '06:20'),
   },
-  'F-0013': {
-    ref: 'F-0013', text_fa: 'هر روز یک ریلز آموزشی برای پرو-چارت بساز؛ قدم به قدم با من جلو برو', at: ago41(40 * 60), state: 'in_progress',
+  'F-0094': {
+    ref: 'F-0094', text_fa: 'هر روز یک ریلز آموزشی برای پرو-چارت بساز؛ قدم به قدم با من جلو برو', at: ago41(40 * 60), state: 'in_progress',
     ack: null, route: { companies: ['PC'], department: 'MEDIA', collaborators: [], output_kind: 'reel', budget_tokens: 600_000, mode: 'single', player: 'auto' },
     steps: [{ at: ago41(38 * 60), who_fa: 'منشی هلدینگ', what_fa: 'فرمان را به مدیرعامل پرو-چارت سپرد.' }, { at: ago41(4 * 60), who_fa: 'مدیرعامل پرو-چارت', what_fa: DRAFT_ASKED_FA }],
     blockers: [], outputs: [], summary: null, updated_at: ago41(4 * 60),
   },
-  'F-0014': {
-    ref: 'F-0014', text_fa: 'به هرچه میگویم دقت کن و هر روز یک ریلز برای پرو-چارت بساز؛ قدم به قدم با من', at: ago41(830 * 60), state: 'in_progress',
+  'F-0095': {
+    ref: 'F-0095', text_fa: 'به هرچه میگویم دقت کن و هر روز یک ریلز برای پرو-چارت بساز؛ قدم به قدم با من', at: ago41(830 * 60), state: 'in_progress',
     ack: null, route: { companies: ['PC'], department: 'MEDIA', collaborators: [], output_kind: 'reel', budget_tokens: 600_000, mode: 'single', player: 'auto' },
     steps: [
       { at: ago41(828 * 60), who_fa: 'منشی هلدینگ', what_fa: 'فرمان را به مدیرعامل پرو-چارت سپرد.' },

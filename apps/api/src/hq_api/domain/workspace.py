@@ -479,7 +479,7 @@ async def _wake_or_say(tx: Tx, w: dict[str, Any], reason: str) -> None:
     elif w.get("assignee_id") is None:
         why = "کار مسئولی ندارد"
     else:
-        why = "کار راه نیفتاد؛ «ادامه بده» را بزنید"
+        why = "کار راه نیفتاد؛ «ادامه بده» را بزن"
     await OR._append_steps(tx, rep["id"], [OR._step(SA.SYSTEM_FA, f"کار کارگاه تمام شد ولی {why}")])
 
 

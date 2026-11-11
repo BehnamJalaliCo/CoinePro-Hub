@@ -301,6 +301,13 @@ async def test_the_session_waits_for_the_owner_and_ends_only_by_the_owners_hand(
         "UPDATE work.work SET status = 'cancelled', closed_at = now() WHERE id = $1",
         uuid.UUID(child.json()["id"]),
     )
+    # ⟨2026-11-11⟩ the root of an order whose plan still has open tasks is not delivered: the
+    # holder ticks the rest of its plan first
+    r = await client.post(
+        f"/internal/v1/orders/{ref}/progress", headers=h,
+        json={"step_fa": "گزارش و نمودار آماده شد", "done": [2, 3, 4]},
+    )  # fmt: skip
+    assert r.status_code == 200, r.text
     await client.post(
         f"/internal/v1/work/{wid}/progress", headers=h, json={"note": "تمام", "pct": 100}
     )
