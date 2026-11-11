@@ -4,10 +4,10 @@
 # without sudo (HQ_NO_SUDO=1: the timers those targets enable were enabled once by
 # `make hubops-install`, and each one-shot does nothing while its switch is off).
 #   profile.sh NAME on|off [TURN_OFF...]
-# TURN_OFF (other optional services) are switched off first. Before switching on, the memory
-# budget is asked (hq.sh with NAME's switch on, `config`): over it the answer is exit 3 with
-# hq.sh's own words, and nothing changed (the switch in .env stays off). A target that fails
-# leaves the switch off again.
+# Before switching on, the memory budget is asked first (hq.sh `config` with NAME's switch on and
+# each TURN_OFF switch off): over it the answer is exit 3 with hq.sh's own words, and nothing
+# changed (no target ran, every switch in .env as it was). Only then are TURN_OFF (other optional
+# services) switched off, and NAME on. A target that fails leaves NAME's switch off again.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -38,25 +38,37 @@ for k in "$@"; do
   spec "$k" >/dev/null && [[ "$k" != "$name" ]] || { echo "profile: cannot turn off: $k" >&2; exit 2; }
 done
 
-for k in "$@"; do
-  read -r _ _ k_off <<<"$(spec "$k")"
-  echo "profile: switching $k off first"
-  target "$k_off"
-done
+turn_off() {
+  local k k_off
+  for k in "$@"; do
+    read -r _ _ k_off <<<"$(spec "$k")"
+    echo "profile: switching $k off first"
+    target "$k_off"
+  done
+}
 
 if [[ "$want" == off ]]; then
+  turn_off "$@"
   target "$off_t"
   echo "profile: $name is off"
   exit 0
 fi
 
-# Does it fit? hq.sh answers `config` with a warning, and starts nothing, when it does not.
-over="$(env "$var=on" "$HQ" config --quiet 2>&1 >/dev/null | grep -F "$var=on ignored" || true)"
+# Does it fit, with the TURN_OFF services counted off? Asked before any target runs, so a refusal
+# changes nothing. hq.sh reads each switch from the environment before .env, and answers `config`
+# with a warning, and starts nothing, when it does not fit.
+check_env=("$var=on")
+for k in "$@"; do
+  read -r k_var _ _ <<<"$(spec "$k")"
+  check_env+=("$k_var=off")
+done
+over="$(env "${check_env[@]}" "$HQ" config --quiet 2>&1 >/dev/null | grep -F "$var=on ignored" || true)"
 if [[ -n "$over" ]]; then
   printf '%s\n' "$over"
   echo "profile: $name refused: over the memory budget (nothing changed)"
   exit 3
 fi
+turn_off "$@"
 if ! target "$on_t"; then
   "$SET_ENV" "$var" off >/dev/null 2>&1 || true
   echo "profile: $name did not start; its switch is off again" >&2
