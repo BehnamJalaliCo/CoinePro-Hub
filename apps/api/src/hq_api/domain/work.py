@@ -467,11 +467,31 @@ def effective_tokens(
     )
 
 
-async def delivered_status(tx: Tx, w: dict[str, Any]) -> str:
+PLAN_OPEN_SQL = """
+SELECT 1 FROM owner.orders o
+JOIN owner.order_reports r ON r.order_id = o.id
+JOIN owner.session_tasks t ON t.order_id = o.id
+WHERE o.routes @> jsonb_build_array(jsonb_build_object('work_ref', CAST(:ref AS text)))
+  AND r.ended_at IS NULL AND r.closed_at IS NULL AND t.state IN ('todo', 'doing')
+LIMIT 1
+"""
+
+
+async def plan_open(tx: Tx, ref: str) -> bool:
+    """⟨2026-11-11⟩ Whether this work is a root of an owner's open order whose plan
+    (owner.session_tasks) still has a todo or doing task. The order is the holding's row: a
+    transaction scoped to one agent's company sees none of it (answers False)."""
+    return bool(await tx.scalar(PLAN_OPEN_SQL, ref=ref))
+
+
+async def delivered_status(tx: Tx, w: dict[str, Any], *, plan: bool | None = None) -> str:
     """⟨21⟩ contract §29.2 «the right state»: what a delivery makes of the
     work. Its last deliverable partial: the work goes on (`in_progress`). The
     root of an owner's order with a child still open (`waiting`) or its
-    progress below 100 (`in_progress`) is never `delivered`."""
+    progress below 100 (`in_progress`) is never `delivered`.
+    ⟨2026-11-11⟩ Nor is the root of an owner's order whose plan still has an
+    open task, whoever made the root (`plan`: the caller read it in a
+    transaction that sees the order; None: read here)."""
     row = await tx.one(
         """SELECT w.parent_id, w.created_by_kind, w.progress_pct, w.status,
                   (SELECT d.title FROM cartable.deliverables d WHERE d.work_id = w.id
@@ -488,15 +508,22 @@ async def delivered_status(tx: Tx, w: dict[str, Any]) -> str:
             return "waiting"
         if row["progress_pct"] is not None and int(row["progress_pct"]) < 100:
             return "in_progress"
+    if row["parent_id"] is None and w.get("ref"):
+        if plan is None:
+            plan = await plan_open(tx, str(w["ref"]))
+        if plan:
+            return "waiting" if row["open_child"] else "in_progress"
     return "delivered"
 
 
-async def set_status(tx: Tx, w: dict[str, Any], status: str, **cols: Any) -> str:
+async def set_status(
+    tx: Tx, w: dict[str, Any], status: str, *, plan_open: bool | None = None, **cols: Any
+) -> str:
     """⟨21⟩ `delivered` follows the right-state rule (delivered_status): a
     work that may not be delivered yet stays open, without a delivery time.
-    Returns the status set."""
+    Returns the status set. `plan_open`: see delivered_status."""
     if status == "delivered":
-        status = await delivered_status(tx, w)
+        status = await delivered_status(tx, w, plan=plan_open)
         if status != "delivered":
             cols = {k: v for k, v in cols.items() if k != "delivered_at"}
     sets = ", ".join(["status = :status", *[f"{k} = :{k}" for k in cols]])

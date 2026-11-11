@@ -118,13 +118,13 @@ class Look2ScreensTest(private val name: String, private val night: Boolean) {
             // ⟨2026-11-11⟩ The owner's 12-hour stall: nobody works and the hub said «آرام». The page says «ایستاده», one calm card with the
             // last thing done and when, and «ادامه بده» (the page's one gold; the send steps back).
             "look2-session-still" to Scene(
-                listOf(MOOD_FA.getValue("still"), STILL_FA, "از ChatGPT خواسته شد و در صف است", "دیشب", "22:28", "ادامه بده", "کار 3 از 18", "با من"),
+                listOf(MOOD_FA.getValue("still"), STILL_FA, "خواسته شد و در صف است", "دیشب", "22:28", "ادامه بده", "کار 3 از 18", "با من"),
                 hides = listOf(MOOD_FA.getValue("idle"), "نگه دار"),
             ) { OrderSessionScreen("F-0095") },
             // …the same session while the draft waits in ChatGPT's queue: an outside call at work in the «الان» bar, its model's mark,
             // whose it is, the whole sentence and its timer; no ring, and nothing to hold.
             "look2-session-call" to Scene(
-                listOf("ChatGPT", "پرو-چارت", "در صف ChatGPT: پیش‌نویس متن", "4:00", "کار میکند"),
+                listOf("ChatGPT", "پرو-چارت", "در صف", ": پیش‌نویس متن", "4:00", "کار میکند"),
                 hides = listOf("نگه دار", MOOD_FA.getValue("still"), STILL_FA, "از 60 دقیقه"),
             ) { OrderSessionScreen("F-0094") },
             // «جزئیات»: everything it made at hand, and (a direct session) who does the work.

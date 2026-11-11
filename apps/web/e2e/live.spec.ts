@@ -62,21 +62,47 @@ test('a stuck session says why in plain words and «ادامه بده» wakes it
   });
 });
 
-test('a quiet session says when it last worked, with a small «ادامه بده» in its details; a closed one shows nothing of it', async ({ page }) => {
+// ⟨2026-11-11⟩ The owner's 12-hour stall (F-0014: Pro-Chart's daily reels, «با من», task 3 of 18): nobody worked after «… از ChatGPT
+// خواسته شد و در صف است» and the hub said «آرام». The page never leaves such a session silent: after twenty minutes it is «ایستاده», with
+// one calm card above the composer that says what was last done and when, and «ادامه بده».
+test('a session nobody works on stands still: «ایستاده», one card with the last thing done, and «ادامه بده» wakes it; a closed one shows nothing of it', async ({ page }) => {
   await clean(page, async () => {
-    await page.goto('/s/F-0006');
-    await expect(page.getByTestId('session')).toHaveAttribute('data-mood', 'idle');
+    await page.goto('/s/F-0014');
+    await expect(page.getByTestId('session')).toHaveAttribute('data-mood', 'still');
+    await expect(page.getByTestId('session').locator('header').getByTestId('mood-light')).toHaveText('ایستاده');
     await expect(page.getByTestId('now-bar')).toHaveCount(0);
+    const card = page.getByTestId('still-card');
+    const sentence = card.locator('[data-still-sentence]');
+    await expect(sentence).toContainText('الان کسی روی این جلسه کار نمیکند؛ آخرین کار:');
+    // the last words of the last thing done (never the run's end), and the day and the clock time it was done
+    await expect(sentence).toContainText('از ChatGPT خواسته شد و در صف است');
+    await expect(sentence).not.toContainText('گام ۲ در جریان است');
+    await expect(sentence).not.toContainText('کارش را تمام کرد');
+    await expect(sentence).toContainText(/ \d{2}:\d{2}\)$/);
+    // the card sits right above the composer and holds the page's one gold; the send steps back
+    const cardBox = (await card.boundingBox())!;
+    const composer = (await page.getByLabel('نوشتن', { exact: true }).boundingBox())!;
+    expect(cardBox.y + cardBox.height).toBeLessThanOrEqual(composer.y + 1);
+    await expect(page.locator('main .bg-gold:visible')).toHaveText(['ادامه بده']);
+    // the details keep the quiet line; «ادامه بده» is the card's
     const sheet = await openDetails(page);
     const idle = sheet.getByTestId('idle-nudge');
     await expect(idle).toContainText('آخرین کار');
-    await idle.getByRole('button', { name: 'ادامه بده' }).click();
-    await expect(page.getByText('گفتم ادامه بدهد.')).toBeVisible();
+    await expect(idle.getByRole('button')).toHaveCount(0);
     await page.keyboard.press('Escape');
+    await card.getByRole('button', { name: 'ادامه بده' }).click();
+    await expect(page.getByText('گفتم ادامه بدهد.')).toBeVisible();
     await expect(page.getByTestId('now-bar')).toHaveAttribute('data-state', 'working');
+    await expect(page.getByTestId('still-card')).toHaveCount(0);
+    await expect(page.getByTestId('session')).toHaveAttribute('data-mood', 'working');
+    // A session ready for his OK waits for him: never «آرام», and no still card (the decision bar is its one act).
+    await page.goto('/s/F-0006');
+    await expect(page.getByTestId('session')).toHaveAttribute('data-mood', 'waiting');
+    await expect(page.getByTestId('still-card')).toHaveCount(0);
     await page.goto('/s/F-0004');
     await expect(page.getByRole('heading', { level: 1 })).toContainText('گزارش هزینه');
     await expect(page.getByTestId('now-bar')).toHaveCount(0);
+    await expect(page.getByTestId('still-card')).toHaveCount(0);
     await expect((await openDetails(page)).getByTestId('idle-nudge')).toHaveCount(0);
   });
 });

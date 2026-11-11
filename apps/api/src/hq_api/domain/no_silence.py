@@ -128,6 +128,7 @@ def when_fa(at: datetime | None, zone: Any, now: datetime) -> str | None:
         return f"از فردا ساعت {clock}"
     return f"از {days} روز دیگر، ساعت {clock}"
 
+
 # An automatic hire refused (hiring.auto_fill): the ApiError's code.
 HIRE_WHY_FA: dict[str, tuple[str, str]] = {
     "envelope_required": (

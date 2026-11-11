@@ -808,8 +808,13 @@ async def deliver_work(
                 u.equiv_cost_usd + u.cost_usd,
             )
         # ⟨21⟩ §29.2 the right state: a partial output, or an owner's order
-        # with a child still open or below 100%, stays open (W.delivered_status)
-        status = await W.set_status(tx, w, "delivered", delivered_at=datetime.now().astimezone())
+        # with a child still open or below 100%, stays open (W.delivered_status);
+        # ⟨2026-11-11⟩ so does the root of an owner's order whose plan still has an open
+        # task (read in every company's view: the order is the holding's row)
+        plan = await _plan_open(ctx, w) if w["parent_id"] is None else False
+        status = await W.set_status(
+            tx, w, "delivered", plan_open=plan, delivered_at=datetime.now().astimezone()
+        )
         closed = await W.close_delivered_children(tx, w, ctx.who) if status == "delivered" else []
         await W.event(
             tx,
@@ -910,6 +915,13 @@ async def fail_work(id: UUID, body: Fail, ctx: Ctx = Depends(internal_ctx)) -> W
         out = W.render(await W.load(tx, id))
     await _wake_order_holder(ctx, w, status)
     return out
+
+
+async def _plan_open(ctx: Ctx, w: dict[str, Any]) -> bool:
+    """⟨2026-11-11⟩ Whether the work is a root of an owner's open order whose plan still has a
+    todo or doing task (W.plan_open, in a transaction of its own over every company)."""
+    async with ctx.hub.db.tx(await ctx.hub.companies.ids()) as all_tx:
+        return await W.plan_open(all_tx, str(w["ref"]))
 
 
 async def _wake_order_holder(ctx: Ctx, w: dict[str, Any], what: str) -> None:

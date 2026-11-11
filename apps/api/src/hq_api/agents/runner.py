@@ -34,7 +34,7 @@ import logging
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -179,6 +179,45 @@ TASK_CLASS_OF_ROLE = {"legal_counsel": "legal_case", "archivist": "archive"}
 HEARTBEAT_EVERY_S = 20.0  # the run activity's heartbeat_timeout is 3 minutes
 MIN_OUTPUT_TOKENS = 256  # a step needs at least this much room to answer at all
 LIVE_SCRUB_CHARS = 6_000  # a live delta shows 4,000; a little more is masked for context
+# ⟨2026-11-11⟩ audit E(b): an agent never claims what a refused action did not do. Within a step,
+# once an action came back not ok, what tells the owner a thing is done (ticking the plan, a
+# message, a deliverable) is not run; the run gets one more step that lists what did not happen.
+SKIPPED = "skipped_after_failure"
+CLAIM_TOOLS = ("order.progress", "deliver")
+MAX_STEPS = 50  # agents.steps.n and agents.runs.steps_cap stop at 50
+
+
+def claims(tool: str) -> bool:
+    """A tool whose call tells the owner (or the requester) that something is done."""
+    return tool in CLAIM_TOOLS or tool.startswith("message.")
+
+
+def not_done_text(failed: list[dict[str, Any]], said_done: bool) -> str:
+    """The next step's first lines when actions of the last one did not happen."""
+    lines = [
+        "These actions of your last step did NOT happen (refused, failed, or not run after an "
+        "earlier failure); nothing they would have done is done:"
+    ]
+    for r in failed:
+        code = f" ({r['code']})" if r.get("code") and r.get("code") != r.get("outcome") else ""
+        lines.append(f"- {r.get('tool')}: {r.get('outcome')}{code}")
+    if said_done:
+        lines.append(
+            "Your step said done, but the run is not finished. Do not report these as done: fix "
+            "and retry what you can, tell the owner plainly what did not happen, or ask what "
+            "blocks you; then finish."
+        )
+    return "\n".join(lines) + "\n\n"
+
+
+def done_lines(summary: str, results: list[dict[str, Any]]) -> list[str]:
+    """What a step really did, for «آنچه انجام شد»: its own summary when none of its actions
+    failed; else only its actions that came back ok, in the owner's words (never the summary,
+    which the model wrote before it knew)."""
+    if all(r.get("outcome") == "ok" for r in results):
+        return [summary] if summary else []
+    ok = [r for r in results if r.get("outcome") == "ok"]
+    return [SA.tools_text(ok)] if ok else []
 
 
 @dataclass
@@ -221,6 +260,10 @@ class RunCtx:
     # at a tenth), and why the steps stopped short ("budget": the run's cap)
     last_cache_read: int = 0
     stop: str | None = None
+    # ⟨2026-11-11⟩ what the steps really did (a step with a failed action: only its ok actions),
+    # for a partial deliverable's «آنچه انجام شد»; and whether the one extra step was given
+    done_lines: list[str] = field(default_factory=list)
+    extra_step: bool = False
 
     @property
     def token_cap(self) -> int:
@@ -700,17 +743,34 @@ class Runner:
             results = []
             for i, action in enumerate(step.actions):
                 self.heartbeat()
-                out = await self.gateway.call(rc.token, n, i, action.tool, action.args)
+                if results and claims(action.tool) and any(
+                    r.get("outcome") != "ok" for r in results
+                ):
+                    # ⟨2026-11-11⟩ written before the model saw that an earlier action failed:
+                    # it would tell the owner something is done that is not
+                    out: dict[str, Any] = {
+                        "outcome": SKIPPED, "class": None, "code": SKIPPED, "ref": None,
+                    }  # fmt: skip
+                else:
+                    out = await self.gateway.call(rc.token, n, i, action.tool, action.args)
                 # ⟨1.23⟩ §41.1 what of the arguments the owner may read beside the verb (a site,
                 # a player, a company): stored with the step, shown in the session's activity
                 hint = SA.hint_of(action.tool, action.args)
                 results.append({"tool": action.tool, **out, **({"hint": hint} if hint else {})})
                 await self._after_action(rc, action, out, live_thread)
+            failed = [r for r in results if r.get("outcome") != "ok"]
+            rc.done_lines += done_lines(summary, results)
             await self._record_step(rc, n, summary, results, call)
             # "done" next to an action refused for its arguments is not done: the
             # model gets the field errors and one more step to fix them.
             fixable = any(r.get("code") == "invalid_args" for r in results)
-            done = step.done and not fixable
+            # ⟨2026-11-11⟩ nor next to any action that did not happen: one more step, told plainly
+            done = step.done and not fixable and not failed
+            if (
+                failed and step.done and n >= research_steps and not rc.extra_step
+                and n < MAX_STEPS
+            ):  # fmt: skip
+                research_steps, rc.extra_step = research_steps + 1, True
             rc.messages += [
                 {
                     "role": "assistant",
@@ -728,9 +788,10 @@ class Runner:
                     "content": await self._with_images(
                         rc,
                         P.trim(
-                            P.render_results(
+                            (not_done_text(failed, step.done) if failed else "")
+                            + P.render_results(
                                 results,
-                                steps_left=steps_cap - n,
+                                steps_left=max(steps_cap - n, research_steps - n, 0),
                                 tokens_left=max(token_cap - rc.used_tokens, 0),
                             ),
                             CONTEXT_CHARS,
@@ -1011,8 +1072,13 @@ class Runner:
             status = await tx.scalar("SELECT status FROM work.work WHERE ref = :r", r=work_ref)
         if status not in ("queued", "in_progress", "waiting"):
             return "done", "limit_reached", None
-        body = "سقف قدم یا توکن این اجرا پیش از پایان کار رسید. آنچه انجام شد:\n\n" + "\n".join(
-            f"{i}. {s}" for i, s in enumerate(rc.summaries, 1) if s
+        # ⟨2026-11-11⟩ only what really happened: a step with a refused action is its ok actions
+        done = [s for s in rc.done_lines if s]
+        body = (
+            "سقف قدم یا توکن این اجرا پیش از پایان کار رسید. آنچه انجام شد:\n\n"
+            + "\n".join(f"{i}. {s}" for i, s in enumerate(done, 1))
+            if done
+            else "سقف قدم یا توکن این اجرا پیش از پایان کار رسید و کاری از آن به نتیجه نرسید."
         )
         out = await self.gateway.call(
             rc.token,
@@ -1607,7 +1673,7 @@ class Runner:
             }
             for r in results
         ]
-        usage = {
+        usage: dict[str, Any] = {
             "input": call.input_tokens,
             "output": call.output_tokens,
             "cache_read": call.cache_read_tokens,
@@ -1615,6 +1681,18 @@ class Runner:
             "model": call.model,
             "status": call.status,
         }
+        if not call.ok:
+            # ⟨2026-11-11⟩ why the model call failed, and when it may be tried again (a quota
+            # refusal's reset): requeue_runs brings the run back then; the session can say when
+            usage["code"] = call.code
+            if call.retry_after:
+                at = datetime.now(UTC) + timedelta(seconds=int(call.retry_after))
+                usage["retry_at"] = at.isoformat()
+        # ⟨2026-11-11⟩ audit E(b): an action of this step did not happen; the session shows the
+        # tools' real outcome for it, not the model's summary
+        failed = any(r.get("outcome") != "ok" for r in results)
+        if failed:
+            usage["any_failed"] = True
         async with await self._tx() as tx:
             await tx.exec(
                 """INSERT INTO agents.steps (run_id, company_id, n, summary_fa, actions, usage, call_id)
@@ -1640,8 +1718,13 @@ class Runner:
                 str(rc.run["id"]),
                 {"employee": rc.emp["code"], "n": n, "actions": [a["tool"] for a in actions]},
             )
-            # ⟨1.23⟩ §41.1 the session sees the step as it happens
-            await SA.on_run(tx, rc.run, rc.emp, "step", n=n, summary=summary, actions=actions)
+            # ⟨1.23⟩ §41.1 the session sees the step as it happens; ⟨2026-11-11⟩ a step with an
+            # action that did not happen is told by its tools' outcomes («… (نشد)»), never by the
+            # summary the model wrote before it knew
+            await SA.on_run(
+                tx, rc.run, rc.emp, "step", n=n, summary=None if failed else summary,
+                actions=actions,
+            )  # fmt: skip
 
     async def _activity(self, tx: Tx, emp: dict[str, Any], activity: str, note: str | None) -> None:
         await tx.exec(

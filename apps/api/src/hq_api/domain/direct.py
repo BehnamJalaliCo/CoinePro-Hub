@@ -65,9 +65,9 @@ SYSTEM_FA = "سامانه"
 HANDED = "direct turn {job}"
 WAITING = "direct turn waits: a turn of this session is still working"
 WAITS_FA = (
-    "مسئول هنوز روی نوبت قبلی است؛ حرف شما بعد از آن خوانده میشود. برای قطع کردنش «توقف» را بزنید."
+    "مسئول هنوز روی نوبت قبلی است؛ حرفت بعد از آن خوانده میشود. برای قطع کردنش «توقف» را بزن."
 )
-EMPTY_FA = "این نوبت بی‌جواب تمام شد؛ اگر چیزی لازم است همین‌جا بگویید."
+EMPTY_FA = "این نوبت بی‌جواب تمام شد؛ اگر چیزی لازم است همین‌جا بگو."
 SKILL_LIST = "skill_list"
 SKILL_READ = "skill_read"
 
@@ -425,6 +425,10 @@ async def after_turn(
         return
     code = str(j["actor_code"])
     text = answer.strip()
+    if SV.limit_notice(text):
+        # ⟨2026-11-11⟩ the CLI's usage-limit notice is never the holder's word (audit C1d); the
+        # result route already ends such a turn as a usage-limit failure, this is the last guard
+        text = ""
     asked = bool(OR._j(rep.get("turn")))
     if text and not (asked and len(text) < 20):
         await OT.to_talk(tx, dict(rep), code, text[:6000])

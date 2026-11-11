@@ -3,6 +3,9 @@ active recurring work item, kept in line with the database.
 
 Schedule ids:
     hq-maintenance            every 5 min   Maintenance (escalation, reconciliation, purge)
+    hq-order-tick             every 2 min   OrderTick (⟨2026-11-11⟩ the owner's orders and their
+                              sessions' sweep, §29.2, §41.3; a schedule of its own, never behind
+                              the maintenance chain)
     hq-notification-digest    every 5 min   NotificationDigest
     hq-morning-report         daily, owner.settings.morning_report_at in the owner's zone
     hq-audit-verify           daily 02:30 (owner's zone)  AuditVerify
@@ -118,6 +121,7 @@ from hq_api.domain.recurrence import Rule
 
 RECURRING_PREFIX = "recurring-"
 MAINTENANCE = "hq-maintenance"
+ORDER_TICK = "hq-order-tick"
 DIGEST = "hq-notification-digest"
 MORNING = "hq-morning-report"
 AUDIT = "hq-audit-verify"
@@ -189,6 +193,7 @@ P24M = (
 FIXED = (
     SUPPORT_SWEEP,
     MAINTENANCE,
+    ORDER_TICK,
     DIGEST,
     MORNING,
     AUDIT,
@@ -335,6 +340,8 @@ def fixed(
         Desired(
             MAINTENANCE, "Maintenance", (), every(5), timedelta(minutes=10), timedelta(minutes=10)
         ),
+        # ⟨2026-11-11⟩ an open session never goes silent: its sweep every 2 minutes, on its own
+        Desired(ORDER_TICK, "OrderTick", (), every(2), timedelta(minutes=2), timedelta(minutes=5)),
         Desired(
             DIGEST, "NotificationDigest", (), every(5), timedelta(minutes=10), timedelta(minutes=5)
         ),
@@ -552,7 +559,7 @@ def management_fixed() -> list[Desired]:
             (),
             every(1),
             timedelta(minutes=2),
-            timedelta(minutes=16),
+            timedelta(minutes=18),  # ⟨2026-11-11⟩ its activity may take 17
         ),
         Desired(
             SUBSTITUTE_DAILY,

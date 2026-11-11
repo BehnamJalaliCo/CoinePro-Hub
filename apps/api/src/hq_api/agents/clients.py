@@ -64,7 +64,10 @@ def _model_call(status_code: int, body: Any, retry: str | None = None) -> ModelC
             retry_after=int(retry) if retry and retry.isdigit() else None,
         )
     usage = body.get("usage") or {}
+    # ⟨2026-11-11⟩ a quota refusal the router answered (status quota_exhausted) says when to retry
+    wait = body.get("retry_after")
     return ModelCall(
+        retry_after=wait if isinstance(wait, int) and not isinstance(wait, bool) and wait > 0 else None,
         ok=body.get("status") == "ok",
         status=str(body.get("status")),
         code=body.get("error_class") if body.get("status") != "ok" else None,

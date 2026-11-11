@@ -29,17 +29,19 @@ NOTE_FA = {
     "full": "سقف امروز پر شد؛ کارها تا نیمه‌شب (به وقت جهانی) صبر میکنند.",
     "open": "برای امروز سقفی گذاشته نشده است.",
 }
-ROWS_SQL = """SELECT c.key, c.status AS connection_status, q.status, q.utilization, q.window_kind,
-       q.resets_at, q.observed_at
+ROWS_SQL = """SELECT c.key, c.status AS connection_status, c.fallback_priority, q.status,
+       q.utilization, q.window_kind, q.resets_at, q.observed_at, q.windows
   FROM llm.connections c LEFT JOIN llm.quota_status q ON q.connection_id = c.id
  WHERE c.key = ANY(CAST(:keys AS text[]))"""
+USABLE = ("enabled", "ready", "quota_exhausted")
 
 
 class ClaudeAccount(BaseModel):
     key: str
     name_fa: str
-    # working: the one the hub is on now; ready: has room; full: until its window resets;
-    # off: switched off on the hub, or not stored
+    # working: the one the hub is on now; ready: has room and can take work; full: until its window
+    # resets; off: switched off on the hub, not stored, or (the second one) not a fallback of the
+    # router: the owner reads «خاموش», nothing technical
     state: Literal["working", "ready", "full", "off"]
     utilization: Decimal | None = None
     window_fa: str | None = None
@@ -72,6 +74,18 @@ def _full(row: dict[str, Any] | None, now: datetime) -> bool:
     return SV.account_full(row, now)
 
 
+def usable(row: dict[str, Any] | None, stored: bool, *, main: bool) -> bool:
+    """⟨2026-11-11⟩ «ready» means usable (audit C2): its token is stored, it is switched on on the
+    hub (as llm-router routes: enabled, ready, or out of quota until its reset), and an account
+    other than the main one is a fallback of the router (it has a fallback_priority), since only
+    then does the router ever move a call to it."""
+    if not stored or row is None:
+        return False
+    if row.get("connection_status") not in USABLE:
+        return False
+    return main or row.get("fallback_priority") is not None
+
+
 async def accounts(tx: Tx, hub: Any, now: datetime) -> tuple[list[ClaudeAccount], bool]:
     sec = getattr(hub, "secrets", None)
     keys = [k for k, _ in SV.RUNNER_ACCOUNTS]
@@ -81,13 +95,12 @@ async def accounts(tx: Tx, hub: Any, now: datetime) -> tuple[list[ClaudeAccount]
     usable = 0
     for n, (key, attr) in enumerate(SV.RUNNER_ACCOUNTS):
         r = rows.get(key)
+        # the token in OpenBao (kv/claude-runtime/oauth[-2]): the same secret claude-runtime reads
+        # at its start (`make claude-token` restarts it), so stored here is configured there
         stored = bool(str(getattr(sec, attr, "") or ""))
         if r is None and not stored:
             continue  # this account does not exist on this hub
-        status = (r or {}).get("connection_status")
-        off = not stored or (status is not None and status not in (
-            "enabled", "ready", "quota_exhausted"
-        ))  # fmt: skip
+        off = not usable(r, stored, main=n == 0)
         full = not off and _full(r, now)
         if off:
             state: Literal["working", "ready", "full", "off"] = "off"

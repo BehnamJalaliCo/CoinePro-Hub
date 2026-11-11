@@ -118,16 +118,19 @@ def badge_of(
         b = fixable[0]
         return "your_turn", f"{b['title_fa']}؛ {b['fix']['label_fa']}"[:300]
     if decision_pending:
-        return "your_turn", "یک کارت منتظر تصمیم شماست"
+        return "your_turn", "یک کارت منتظر تصمیم توست"
     roots = [w for w in works if w["is_root"]]
-    if state in OR.ENDED:
+    # ⟨2026-11-11⟩ an output delivered while the plan still has open tasks is not the end: the
+    # session is not `ready` (the sweep opens the root again and wakes its holder)
+    plan_open = pulse is not None and bool(pulse.open_tasks) and state == "delivered"
+    if state in OR.ENDED and not plan_open:
         if state == "delivered":
-            return "ready", "کار تحویل شد؛ منتظر تأیید و بستن شماست"
+            return "ready", "کار تحویل شد؛ منتظر تأیید و بستن توست"
         if state == "cancelled":
-            return "ready", "کارها لغو شد؛ منتظر بستن شماست"
-        return "ready", "کار به نتیجه نرسید؛ منتظر تصمیم و بستن شماست"
-    if roots and all(w["status"] not in OR.OPEN for w in roots):
-        return "ready", "کارها تمام شد؛ منتظر تأیید و بستن شماست"
+            return "ready", "کارها لغو شد؛ منتظر بستن توست"
+        return "ready", "کار به نتیجه نرسید؛ منتظر تصمیم و بستن توست"
+    if roots and all(w["status"] not in OR.OPEN for w in roots) and not plan_open:
+        return "ready", "کارها تمام شد؛ منتظر تأیید و بستن توست"
     stuck = [b for b in blockers if not b.get("fix")]
     if rep.get("talk_stopped_at") is not None:
         return "stuck", "گیر کرد: کارمندها چند بار کار کردند و خروجی ندادند"
@@ -204,7 +207,7 @@ def brief_of(
         now = reason_fa
     if badge == "your_turn":
         turn = OR._j(rep.get("turn"))
-        need = "جواب شما" if turn else reason_fa.split("؛")[-1].strip() or "تصمیم شما"
+        need = "جواب تو" if turn else reason_fa.split("؛")[-1].strip() or "تصمیم تو"
     elif badge == "ready":
         need = "تأیید و بستن"
     elif badge == "stuck":
@@ -566,7 +569,7 @@ async def badge_changed(tx: Tx, rep: dict[str, Any], badge: str, order: dict[str
             company_id=holding["id"],
             company_code=holding["code"],
             level="report",
-            title_fa=f"فرمان شما آماده‌ی تأیید است: {text}"[:300],
+            title_fa=f"فرمان تو آماده‌ی تأیید است: {text}"[:300],
             body_fa=HZ.plain("کارهای این فرمان تمام شد", None, "تأیید و بستن جلسه"),
             link_kind="order",
             link_ref=rep["ref"],
@@ -902,7 +905,7 @@ async def hide(tx: Tx, ref: str, hidden: bool) -> None:
 
 # ------------------------------------------------------------------- pace --
 PACE_FA = {
-    "step": "از این به بعد مرحله‌به‌مرحله با شما",
+    "step": "از این به بعد مرحله‌به‌مرحله با تو",
     "auto": "از این به بعد تا آخر خودش جلو میرود",
 }
 

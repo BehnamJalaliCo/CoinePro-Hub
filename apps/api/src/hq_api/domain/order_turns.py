@@ -72,7 +72,7 @@ PLAN_INSTRUCTION = (
 NUM_ITEM = re.compile(r"^\s*[(\[]?([0-9۰-۹٠-٩]{1,2})\s*[-.)\]:،–—]\s*(.*?)\s*$")
 INLINE_ITEM = re.compile(r"(?:(?<=\s)|^)([0-9۰-۹٠-٩]{1,2})\s*[-.)،:]\s+")
 PLAN_STEP_FA = "برنامه: {n} کار از حرف مدیر کل"
-PLAN_ASIDE_FA = "؛ برنامه همین گام‌های شماست و به ترتیب خودتان، برنامه‌ی قبلی مسئول کنار رفت"
+PLAN_ASIDE_FA = "؛ برنامه همین گام‌های توست و به ترتیب خودت، برنامه‌ی قبلی مسئول کنار رفت"
 MAX_PLAN_ITEMS = 30
 # ⟨2026-11-08⟩ audit B1: in a working session the owner's word is the order's word by code; a
 # question is answered by the talk alone
@@ -192,7 +192,7 @@ async def to_talk(tx: Tx, rep: dict[str, Any], code: str, text: str, *, ask: boo
     if conv is None:
         return False
     key, who = await _speaker(tx, conv, code)
-    lead = "**سؤال از شما** · " if ask else ""
+    lead = "**سؤال از تو** · " if ask else ""  # ⟨2026-11-11⟩ the owner is «تو»
     plain = HZ.humanize(text) or text
     await post_turn(tx, conv, key, f"{who}{plain}", f"{lead}{who}{plain}")
     return True
@@ -259,12 +259,12 @@ async def ask(tx: Tx, who: Principal, ref: str, question_fa: str) -> dict[str, A
         t=json.dumps(turn, ensure_ascii=False),
         id=rep["id"],
     )
-    await OR._append_steps(tx, rep["id"], [OR._step(who_name, "سؤال از شما: " + question)])
+    await OR._append_steps(tx, rep["id"], [OR._step(who_name, "سؤال از تو: " + question)])
     await OR._close_nudges(tx, ref, "مسئول از مدیر کل پرسید (order.ask)")
     from hq_api.domain import session_activity as SA
 
     await SA.emit_safe(tx, ref, SA.make_line(
-        f"ask:{ref}:{len(asks)}", who_name, "سؤال از شما: " + question, kind="ask",
+        f"ask:{ref}:{len(asks)}", who_name, "سؤال از تو: " + question, kind="ask",
         state="running", company=who.company,
     ))  # fmt: skip  # ⟨1.24⟩ §42.2
     talked = await to_talk(tx, rep, who.code, question, ask=True)
@@ -276,7 +276,7 @@ async def ask(tx: Tx, who: Principal, ref: str, question_fa: str) -> dict[str, A
         company_id=holding["id"],
         company_code=holding["code"],
         level="decision",
-        title_fa=f"نوبت شماست: {text}"[:300],
+        title_fa=f"نوبت توست: {text}"[:300],
         body_fa=f"{who_name} میپرسد: {question}"[:4000],
         link_kind="conversation" if talked else "order",
         link_ref=rep["conversation_ref"] if talked else ref,
@@ -720,11 +720,11 @@ async def open_talk(ctx: Any, tx: Tx, ref: str) -> str | None:
     kit = OR.kit_of(order or {})
     hire: dict[str, Any] | None = None
     if turn:
-        first = f"سلام، {who} هستم. منتظر جواب شما هستم: {turn['question_fa']}"
+        first = f"سلام، {who} هستم. منتظر جواب تو هستم: {turn['question_fa']}"
     elif kit is not None:
         first = (
-            f"سلام، {who} هستم. پیش‌نمایش شرکت تازه آماده است؛ تا مُهر نکنید چیزی ساخته نمیشود. "
-            "همین‌جا بگویید چه چیزی را عوض کنم."
+            f"سلام، {who} هستم. پیش‌نمایش شرکت تازه آماده است؛ تا مُهر نکنی چیزی ساخته نمیشود. "
+            "همین‌جا بگو چه چیزی را عوض کنم."
         )
     elif h.get("work_id") is None:
         company = _company_of(order or {})
@@ -734,9 +734,9 @@ async def open_talk(ctx: Any, tx: Tx, ref: str) -> str | None:
         )
         hire = {"company": company, "role": "ceo"}
     elif order and order.get("pace") == "step":
-        first = f"سلام، {who} هستم و این فرمان با من است. مرحله‌به‌مرحله با شما جلو میروم؛ بگویید از کجا شروع کنم."
+        first = f"سلام، {who} هستم و این فرمان با من است. مرحله‌به‌مرحله با تو جلو میروم؛ بگو از کجا شروع کنم."
     else:
-        first = f"سلام، {who} هستم و این فرمان با من است. هر چه بگویید روی همین فرمان انجام میشود."
+        first = f"سلام، {who} هستم و این فرمان با من است. هر چه بگویی روی همین فرمان انجام میشود."
     tid = await post_turn(tx, conv, key, first, first)
     if hire is not None and hire["company"]:
         row = await store.add_card(
@@ -778,6 +778,31 @@ DIRECT_RULE = (
     "then `propose` it once and go on (the hub decides it at once, with no card for him). His "
     "«تأیید» in this session is his approval of what you showed him: never tell him to go and "
     "seal something elsewhere for an internal step."
+)
+# ⟨2026-11-11⟩ the owner's session F-0011 went silent for twelve hours after «پیش‌نویس متن از
+# ChatGPT خواسته شد و در صف است»: the holder read a queued call as done and ended its run
+ASYNC_RULE = (
+    "A tool that answers `queued` or `running` (substitute.call, speech.make, hub.ops, a "
+    "workshop turn) has NOT finished. Say so in one plain line, never as done; carry on with the "
+    "plan's other open tasks (or do that part yourself with your own model); then finish the run. "
+    "The hub wakes you when it ends: an outside model's answer comes as a new work, a voice as a "
+    "run `speech_done:`, a workshop turn as `workshop_done:`; a call that failed, was skipped or "
+    "passed its deadline wakes you too, with the reason. Under `waiting_on` are this order's "
+    "calls still pending, under `ended_without_answer` the ones that ended with no answer: never "
+    "wait for those, do that part yourself."
+)
+IDLE_WAKE_RULE = (
+    "WOKEN BY THE HUB ({k} of at most {cap}): nothing of this order is running — no run, no "
+    "workshop turn, no outside call, no voice job — and the owner is not asked anything. {left} "
+    "{ended}Continue task {n} now with your own tools and your own model, or ask the owner ONE "
+    "short question with `order.ask` about what blocks you. Do not only narrate: a run that only "
+    "reports with `order.progress` (or reads and writes nothing) marks this session «گیر کرد» "
+    "to the owner at once."
+)
+IDLE_DONE_RULE = (
+    "WOKEN BY THE HUB ({k} of at most {cap}): nothing of this order is running and every task of "
+    "the plan is done. {ended}Deliver the final output now with `deliver` (the owner approves it "
+    "in the session), or ask the owner with `order.ask` what the next step is."
 )
 
 
@@ -847,7 +872,8 @@ async def talk_brief(tx: Tx, order_ref: str) -> dict[str, Any] | None:
     nxt = next((t for t in tasks if t["state"] == "doing"), None) or next(
         (t for t in tasks if t["state"] == "todo"), None
     )
-    out = {
+    direct = await _direct_now(tx)
+    out: dict[str, Any] = {
         "order": order_ref,
         "text": " ".join(str(order.get("text") or "").split())[:1500],
         "pace": order.get("pace") or "auto",
@@ -858,9 +884,12 @@ async def talk_brief(tx: Tx, order_ref: str) -> dict[str, Any] | None:
         "plan": [{"n": t["n"], "title": t["title_fa"], "state": t["state"]} for t in tasks],
         "plan_next": nxt["n"] if nxt else None,
         "plan_instruction": PLAN_INSTRUCTION,
-        # ⟨2026-11-10⟩ every session of the owner is direct by default (his decision)
-        "direct": True,
-        "direct_rule": DIRECT_RULE,
+        # ⟨2026-11-10⟩ every session of the owner is direct by default (his decision);
+        # ⟨2026-11-11⟩ said only when the workshop can hold a direct turn now (a runner older
+        # than direct.RUNNER_MIN cannot: the run is classic and must not read it is direct)
+        "direct": direct,
+        **({"direct_rule": DIRECT_RULE} if direct else {}),
+        "async_rule": ASYNC_RULE,
         # ⟨2026-11-10⟩ «با من»: the rule of this run, by code, with the next task named
         **({"step_rule": step_rule(nxt)} if (order.get("pace") or "auto") == "step" else {}),
         # ⟨2026-11-08⟩ audit B1: the owner's last words in the session, verbatim
@@ -902,7 +931,90 @@ async def talk_brief(tx: Tx, order_ref: str) -> dict[str, Any] | None:
     related = await MEM.related(tx, order_ref, _company_of(order))
     if related:
         out["related_sessions"] = related
+    # ⟨2026-11-11⟩ what works for the order outside a run, what ended without an answer, and,
+    # for a run the idle sweep started, the explicit turn: nothing runs, do task N or ask
+    try:
+        async with tx.conn.begin_nested():
+            out = await _outside_and_wake(tx, dict(rep), order, tasks, nxt, out)
+    except Exception:  # noqa: BLE001 - the brief never fails on what it adds
+        log.warning("the order's outside work could not be read", extra={"order": order_ref})
     return out
+
+
+async def _direct_now(tx: Tx) -> bool:
+    """Whether the workshop can hold a direct turn now (direct.server_for)."""
+    from hq_api.domain import direct as DR
+
+    try:
+        async with tx.conn.begin_nested():
+            return await DR.server_for(tx) is not None
+    except Exception:  # noqa: BLE001 - not direct when it cannot be told
+        return False
+
+
+def _outside_line(c: dict[str, Any], *, ended: bool) -> dict[str, Any]:
+    at = c.get("at") if ended else c.get("created_at")
+    line: dict[str, Any] = {
+        "who": c.get("who_fa"),
+        "makes": c.get("seat_fa") if ended else c.get("doing_fa"),
+        "at": at.isoformat() if isinstance(at, datetime) else at,
+    }
+    if ended:
+        line["state"] = c.get("state")
+        line["why"] = c.get("code") or c.get("why_fa")
+    else:
+        dl = c.get("deadline_at")
+        line["deadline"] = dl.isoformat() if isinstance(dl, datetime) else dl
+    return line
+
+
+async def _outside_and_wake(
+    tx: Tx,
+    rep: dict[str, Any],
+    order: dict[str, Any],
+    tasks: list[dict[str, Any]],
+    nxt: dict[str, Any] | None,
+    out: dict[str, Any],
+) -> dict[str, Any]:
+    from hq_api.domain import session_activity as SA
+
+    works = await OR.tree(tx, OR.root_refs(order))
+    ids = [w["id"] for w in works]
+    since = await SA.owner_since(tx, rep, ids)
+    pending = await SA.pending_outside(tx, works)
+    ended = await SA.ended_outside(tx, works, since)
+    if pending:
+        out["waiting_on"] = [_outside_line(c, ended=False) for c in pending]
+    if ended:
+        out["ended_without_answer"] = [_outside_line(c, ended=True) for c in ended[:10]]
+    reason = await tx.scalar(
+        """SELECT r.reason FROM agents.runs r WHERE r.work_id = ANY(:ids) AND r.state = 'running'
+             AND r.trigger = 'work' ORDER BY r.started_at DESC NULLS LAST LIMIT 1""",
+        ids=ids,
+    )
+    if not str(reason or "").startswith("session_idle:"):
+        return out
+    k = len(await SA.idle_wakes(tx, rep, ids, since)) or 1
+    said = "; ".join(
+        f"{c['who_fa']} «{c['seat_fa']}» ({c.get('code') or c['why_fa']})" for c in ended[:5]
+    )
+    ended_txt = (
+        f"These ended without an answer since the owner's last word: {said}. " if said else ""
+    )
+    if nxt is None:
+        wake = IDLE_DONE_RULE.format(k=k, cap=SA.IDLE_WAKES_MAX, ended=ended_txt)
+    else:
+        left = (
+            "Open tasks of the plan: "
+            + "; ".join(
+                f"{t['n']} «{t['title_fa']}»" for t in tasks if t["state"] in ("doing", "todo")
+            )[:1500]
+            + "."
+        )
+        wake = IDLE_WAKE_RULE.format(
+            k=k, cap=SA.IDLE_WAKES_MAX, left=left, ended=ended_txt, n=nxt["n"]
+        )
+    return {"wake": wake, **out}  # first: the run reads it before anything else
 
 
 FAILED_CARDS = 3

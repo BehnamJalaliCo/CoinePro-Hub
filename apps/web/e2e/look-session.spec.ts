@@ -6,8 +6,8 @@ import { clean, openDetails } from './support';
 // says who and what (a build of the workshop with its ring of minutes, held and taken up again from the bar; a direct session says so);
 // a knot is one line with its way out; a finished session is closed, or its file published, from the decision bar; a closed one ends
 // with its leaf. The demo holds one session in each state (F-0008 waiting, F-0007 working, F-0010 a workshop build, F-0011 direct,
-// F-0005 stuck, F-0006 ready, F-0012 ready with a reel, F-0004 closed) and asks for the others through `hq.e2e.ring`,
-// `hq.e2e.workers` and `hq.e2e.mood`.
+// F-0005 stuck, F-0006 ready, F-0012 ready with a reel, F-0004 closed, ⟨2026-11-11⟩ F-0013 a draft in ChatGPT's queue, F-0014 a session
+// nobody works on) and asks for the others through `hq.e2e.ring`, `hq.e2e.workers` and `hq.e2e.mood`.
 
 const flag = (page: Page, key: string, value: string) => page.addInitScript(([k, v]) => window.localStorage.setItem(k!, v!), [key, value]);
 const overflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -156,6 +156,68 @@ test('a direct session: the holder does the work himself, the bar and the detail
   });
 });
 
+test('an outside call at work: ChatGPT in the «الان» bar with its mark, whose it is, the whole sentence and a timer; no ring, nothing to hold', async ({ page }) => {
+  await clean(page, async () => {
+    await page.goto('/s/F-0013');
+    await expect(session(page)).toHaveAttribute('data-mood', 'working');
+    await expect(light(page)).toHaveText('کار میکند');
+    const bar = page.getByTestId('now-bar');
+    await expect(bar).toHaveAttribute('data-state', 'working');
+    await expect(bar).toHaveAttribute('data-kind', 'call');
+    await expect(bar.locator('[data-call-mark]')).toHaveAttribute('aria-label', 'ChatGPT');
+    await expect(bar.locator('[data-now-who]')).toHaveText(/^ChatGPT.*پرو-چارت$/);
+    await expect(bar.locator('[data-now-sentence]')).toHaveText('در صف ChatGPT: پیش‌نویس متن');
+    await expect(bar.locator('[data-now-timer]')).toHaveText(/^\d+:\d{2}$/);
+    await expect(page.getByTestId('build-ring')).toHaveCount(0);
+    await expect(bar.getByRole('button', { name: 'نگه دار' })).toHaveCount(0);
+    await expect(page.getByTestId('still-card')).toHaveCount(0);
+    // one tap: who works, with the same mark
+    await bar.getByRole('button', { name: 'کار زنده را باز کن' }).click();
+    const sheet = page.getByTestId('live-sheet');
+    await expect(sheet.locator('[data-worker="call"]')).toContainText('در صف ChatGPT: پیش‌نویس متن');
+    await expect(sheet.locator('[data-worker="call"] [data-call-mark]')).toBeVisible();
+  });
+});
+
+test('a session nobody works on is «ایستاده»: one calm card, a silver edge, the last thing done, and «ادامه بده» as the one gold', async ({ page }) => {
+  await clean(page, async () => {
+    await page.goto('/s/F-0014');
+    await expect(session(page)).toHaveAttribute('data-mood', 'still');
+    await expect(light(page)).toHaveText('ایستاده');
+    // the header still says where the plan stands and the pace
+    await expect(page.locator('[data-session-facts]')).toContainText('کار 3 از 18');
+    await expect(page.locator('[data-session-facts]')).toContainText('با من');
+    const card = page.getByTestId('still-card');
+    await expect(card).toHaveAttribute('data-edge', 'silver');
+    await expect(card.getByTestId('mood-light')).toHaveText('ایستاده');
+    await expect(card.locator('[data-still-sentence]')).toContainText('الان کسی روی این جلسه کار نمیکند؛ آخرین کار: … پیش‌نویس متن');
+    // the clock time of the last thing done: a Latin figure, after the day it was done
+    await expect(card.locator('[data-still-sentence] bdi.fig')).toHaveText(/^\d{2}:\d{2}$/);
+    await expect(golds(page)).toHaveText(['ادامه بده']);
+    await expect(card).not.toContainText('شما');
+    await expect(page.getByTestId('now-bar')).toHaveCount(0);
+    // the holder's question of that night is a bubble of the talk with the hub's new lead, never «شما»
+    await expect(page.getByLabel('گفتگو', { exact: true })).toContainText('سؤال از تو');
+  });
+});
+
+test('«کار زنده» of a session nobody works on ends with «ادامه بده», as on Android', async ({ page }) => {
+  await clean(page, async () => {
+    // The build held: nobody works; the sheet says since when, and takes it up again.
+    await page.goto('/s/F-0010');
+    const bar = page.getByTestId('now-bar');
+    await bar.getByRole('button', { name: 'نگه دار' }).click();
+    await expect(bar).toHaveAttribute('data-state', 'held');
+    await bar.getByRole('button', { name: 'کار زنده را باز کن' }).click();
+    const sheet = page.getByTestId('live-sheet');
+    const nudge = sheet.getByTestId('idle-nudge');
+    await expect(nudge).toContainText('آخرین کار');
+    await nudge.getByRole('button', { name: 'ادامه بده' }).click();
+    await expect(page.getByText('گفتم ادامه بدهد.')).toBeVisible();
+    await expect(sheet.getByRole('list', { name: 'چه کسی کار میکند' })).toBeVisible();
+  });
+});
+
 test('a knot is one line with its way out; the others wait behind «و … گره‌ی دیگر»', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/s/F-0005');
@@ -256,7 +318,7 @@ test('the details are one sheet: the order\'s words, the plan, the people, the f
 test('@phone the session fits a phone in every state, the composer in reach', async ({ page }) => {
   await page.setViewportSize({ width: 400, height: 860 });
   await clean(page, async () => {
-    for (const ref of ['F-0008', 'F-0007', 'F-0010', 'F-0005', 'F-0012', 'F-0004']) {
+    for (const ref of ['F-0008', 'F-0007', 'F-0010', 'F-0005', 'F-0012', 'F-0004', 'F-0013', 'F-0014']) {
       await page.goto(`/s/${ref}`);
       await expect(session(page), ref).toBeVisible();
       await expect(page.getByLabel('نوشتن', { exact: true }), ref).toBeInViewport();

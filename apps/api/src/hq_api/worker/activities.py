@@ -53,6 +53,60 @@ from hq_api.worker.support_activities import SupportActivities
 
 log = logging.getLogger("hq_api.worker")
 SYSTEM = audit.SYSTEM
+# ⟨2026-11-11⟩ audit S3 / C3: runs that failed quietly come back. A run stopped by the Claude
+# accounts' limit (or the router's breaker) comes back once its reset passed (the reset the router
+# gave, stored on its last step: agents.steps.usage->>'retry_at'), at most QUOTA_REQUEUES times
+# in a row; a run that failed for a passing reason comes back once, five minutes later.
+QUOTA_CODES = ("quota_throttled", "quota_exhausted", "usage_limit", "billing_error", "circuit_open")
+RETRY_CODES = (
+    "model_error", "runtime_error", "busy_timeout", "invalid_output", "router_timeout",
+    "router_unreachable", "stream_ended", "backend_exception", "queue_timeout", "timeout",
+    "rate_limit", "rate_limited", "no_result",
+)  # fmt: skip
+RETRY_CODE_PREFIXES = ("api_5", "router_http_5", "sdk_")
+RETRY_TRIGGERS = ("work", "message", "schedule", "alert")  # never a talk, direct or meeting run
+RETRY_AFTER = timedelta(minutes=5)
+QUOTA_REQUEUES = 12
+REQUEUE, RETRY = "requeue:", "retry:"
+
+
+def _at(value: Any) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        at = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return at if at.tzinfo is not None else at.replace(tzinfo=UTC)
+
+
+async def comes_back(tx: Tx, r: dict[str, Any], now: datetime) -> str | None:
+    """The prefix of a run's requeue when it failed for a reason that passes and its time has
+    come (`requeue:` after a quota reset, `retry:` once after a passing failure); None otherwise."""
+    code = str(r.get("error_code") or "")
+    reason = str(r.get("reason") or "")
+    if r.get("trigger") not in RETRY_TRIGGERS or r.get("finished_at") is None:
+        return None
+    if r["state"] == "failed" and code in QUOTA_CODES:
+        if reason.count(REQUEUE) >= QUOTA_REQUEUES:
+            return None
+        at = r["finished_at"] + RETRY_AFTER
+        stored = _at(
+            await tx.scalar(
+                """SELECT usage->>'retry_at' FROM agents.steps WHERE run_id = :r
+                   ORDER BY n DESC LIMIT 1""",
+                r=r["id"],
+            )
+        )
+        if stored is not None and stored > at:
+            at = stored
+        return REQUEUE if now >= at else None
+    passing = code in RETRY_CODES or code.startswith(RETRY_CODE_PREFIXES)
+    if passing and (r["state"] == "failed" or code == "busy_timeout"):
+        if reason.startswith(RETRY):
+            return None  # one retry, not a loop
+        return RETRY if now >= r["finished_at"] + RETRY_AFTER else None
+    return None
 HOLDING_LOCKED = "HoldingLocked"
 EFFECT_REJECTED = "EffectRejected"
 
@@ -947,14 +1001,16 @@ class Activities:
         again (a new UTC day, or a cap the owner raised; 23.2: they never came back,
         though the owner was told «فردا خودکار جواب میدهد») - the cause (open work,
         an unanswered message) still there; queued runs whose workflow never
-        started are dispatched again."""
+        started are dispatched again. ⟨2026-11-11⟩ And runs the Claude accounts' limit
+        stopped, once its reset passed; runs that failed for a passing reason, once."""
         requeued = 0
         runner = self._runner()
         async with self._tx() as tx:
+            now = await tx.scalar("SELECT now()")
             rows = await tx.all(
                 """SELECT DISTINCT ON (r.employee_id, r.work_id, r.thread_id)
                           r.employee_id, r.work_id, r.thread_id, r.trigger, r.priority, r.state, r.error_code,
-                          r.company_id, r.reason
+                          r.company_id, r.reason, r.id, r.finished_at
                    FROM agents.runs r WHERE r.queued_at > now() - interval '24 hours'
                    ORDER BY r.employee_id, r.work_id, r.thread_id, r.queued_at DESC"""
             )
@@ -965,9 +1021,12 @@ class Activities:
                 held = r["state"] == "refused" and r["error_code"] == "owner_turn"
                 if held and await OR.owner_turn(tx, r["work_id"]) is not None:
                     continue
+                # ⟨2026-11-11⟩ a quota refusal after its reset, a passing failure once
+                again = None if capped or held else await comes_back(tx, r, now)
                 if (
                     not capped
                     and not held
+                    and again is None
                     and (r["state"] != "refused" or r["error_code"] != "locked")
                 ):
                     continue  # a run the day's cap stopped mid-way (failed) comes back too
@@ -998,7 +1057,7 @@ class Activities:
                     tr=r["trigger"],
                     w=r["work_id"],
                     t=r["thread_id"],
-                    reason="requeue:" + (r["reason"] or "")[:180],
+                    reason=(again or REQUEUE) + (r["reason"] or "")[:180],
                     p=r["priority"],
                 ):
                     requeued += 1

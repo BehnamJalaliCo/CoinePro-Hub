@@ -2240,7 +2240,7 @@ def queue_deadline(seat: str | None, task: str | None) -> timedelta:
 def deadline_at(c: dict[str, Any]) -> datetime:
     """When a queued or running call is past saving (the same rule as DEADLINE_SQL)."""
     if c["state"] == "running":
-        start = c.get("claimed_at") or c["created_at"]
+        start: datetime = c.get("claimed_at") or c["created_at"]
         return start + timedelta(seconds=int(c["timeout_s"]) + RUN_GRACE_S)
     created: datetime = c["created_at"]
     return created + queue_deadline(c.get("seat"), c.get("task"))

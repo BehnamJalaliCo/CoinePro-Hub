@@ -607,7 +607,7 @@ def mood_of(working: list[Worker], waiting: str | None, stuck: str | None) -> Mo
     ⟨2026-11-11⟩ an outside call or a voice job pending is work (`working`)."""
     if working:
         moving = any(
-            True if w.kind == "call" else (w.step > 0 if w.kind == "run" else w.last_fa is not None)
+            w.kind == "call" or (w.step > 0 if w.kind == "run" else w.last_fa is not None)
             for w in working
         )
         return "working" if moving else "thinking"
@@ -935,7 +935,9 @@ async def claude_wait_fa(
     except Exception:  # noqa: BLE001
         log.warning("the Claude accounts could not be read")
         return None
-    usable = [r for r in rows if r.get("connection_status") in ("enabled", "ready", "quota_exhausted")]
+    usable = [
+        r for r in rows if r.get("connection_status") in ("enabled", "ready", "quota_exhausted")
+    ]
     if not usable:
         return None
     resets: list[datetime] = []
@@ -1075,7 +1077,7 @@ async def ended_outside(
             "who_fa": str(c.get("player_fa") or "بازیکن بیرونی"),
             "seat_fa": str(c.get("seat_fa") or "کار"),
             "state": str(c.get("state") or "failed"),
-            "code": c.get("state_reason"),
+            "code": str(c.get("state_reason") or "").split(":", 1)[0].strip() or None,
             "why_fa": str(c.get("reason_fa") or VOICE_WHY_DEFAULT_FA),
             "at": c.get("finished_at") or now,
         })  # fmt: skip
@@ -1361,10 +1363,10 @@ async def wake_holder(
         and h.get("work_status") not in OR.OPEN
         and rep.get("ended_at") is None
         and await open_tasks_of(tx, rep.get("order_id"))
-    ):
         # ⟨2026-11-11⟩ the root was delivered with the plan unfinished: it opens again first
-        if await reopen_for_plan(tx, ref) is not None:
-            h = await OT.holder(tx, ref)
+        and await reopen_for_plan(tx, ref) is not None
+    ):
+        h = await OT.holder(tx, ref)
     if h is None or h.get("work_id") is None:
         out["why_fa"] = "کار مسئولی ندارد"
     elif h.get("work_status") not in OR.OPEN:
@@ -1519,15 +1521,18 @@ async def sweep(tx: Tx, ref: str, *, minutes: int | None = None) -> list[str]:
             fired.append("claude_wait")
             await OR.refresh(tx, ref)
         return fired
-    if not pulse.open_tasks and await tx.scalar(
-        "SELECT 1 FROM owner.session_tasks WHERE order_id = :o AND state = 'done' LIMIT 1",
-        o=rep["order_id"],
-    ):
+    if (
+        not pulse.open_tasks
+        and await tx.scalar(
+            "SELECT 1 FROM owner.session_tasks WHERE order_id = :o AND state = 'done' LIMIT 1",
+            o=rep["order_id"],
+        )
         # ⟨2026-11-11⟩ the plan is done and nothing runs: a complete output makes it ready
-        if await finish_plan(tx, works):
-            await OR._append_steps(tx, rep["id"], [OR._step(SYSTEM_FA, PLAN_DONE_FA)])
-            await OR.refresh(tx, ref)
-            return ["plan_done"]
+        and await finish_plan(tx, works)
+    ):
+        await OR._append_steps(tx, rep["id"], [OR._step(SYSTEM_FA, PLAN_DONE_FA)])
+        await OR.refresh(tx, ref)
+        return ["plan_done"]
     threshold = timedelta(minutes=T)
     if (
         not pulse.spent
@@ -1554,8 +1559,11 @@ async def sweep(tx: Tx, ref: str, *, minutes: int | None = None) -> list[str]:
             level="decision",
             title_fa=STUCK_TITLE_FA.format(text=HZ.humanize(text) or text)[:300],
             body_fa=HZ.plain(
-                (f"از {idle_m} دقیقه پیش کسی روی این فرمان کار نمیکند" if idle_m >= 1
-                 else "مسئول دوباره سر کار آمد ولی کار جلو نرفت"),
+                (
+                    f"از {idle_m} دقیقه پیش کسی روی این فرمان کار نمیکند"
+                    if idle_m >= 1
+                    else "مسئول دوباره سر کار آمد ولی کار جلو نرفت"
+                ),
                 pulse.stuck_fa,
                 "در جلسه‌ی فرمان «ادامه بده» را بزن یا آنچه لازم است را درست کن",
             )[:4000],

@@ -1196,38 +1196,98 @@ RUNNER_ACCOUNTS: tuple[tuple[str, str], ...] = (
 ACCOUNT_NEAR_FULL = Decimal("0.99")
 # an older "ok" observation no longer decides (the router's SDK_FRESH)
 ACCOUNT_SDK_FRESH = timedelta(hours=6)
+# ⟨2026-11-11⟩ every window the router (and a runner, below) saw, not only the summary row
 ACCOUNTS_SQL = """SELECT c.key, c.status AS connection_status, q.status, q.utilization,
-       q.resets_at, q.observed_at
+       q.resets_at, q.observed_at, q.windows
   FROM llm.connections c LEFT JOIN llm.quota_status q ON q.connection_id = c.id
  WHERE c.key = ANY(CAST(:keys AS text[]))"""
 
 
-def account_full(row: dict[str, Any] | None, now: datetime) -> bool:
-    """A subscription at 99% of its window or refused, while that window holds."""
-    if row is None or row.get("status") is None:
-        return False
-    resets = row.get("resets_at")
+def _at(v: Any) -> datetime | None:
+    if isinstance(v, datetime):
+        return v
+    if isinstance(v, str):
+        try:
+            d = datetime.fromisoformat(v)
+        except ValueError:
+            return None
+        return d if d.tzinfo is not None else d.replace(tzinfo=UTC)
+    return None
+
+
+def _util(v: Any) -> Decimal | None:
+    if v is None or isinstance(v, bool):
+        return None
+    try:
+        return Decimal(str(v))
+    except ArithmeticError:
+        return None
+
+
+def _window_full(w: dict[str, Any], now: datetime) -> bool:
+    """One window as llm-router's QuotaController reads it: refused, or at 99%, while it holds
+    (an `ok` reading only while fresh)."""
+    status = w.get("status")
+    resets = _at(w.get("resets_at"))
     if resets is not None and resets <= now:
         return False  # its window has reset
-    util = row.get("utilization")
-    near = util is not None and Decimal(str(util)) >= ACCOUNT_NEAR_FULL
-    if row["status"] == "limited":
+    util = _util(w.get("utilization"))
+    near = util is not None and util >= ACCOUNT_NEAR_FULL
+    if status == "limited":
         return True
-    if row["status"] == "ok":
-        seen = row.get("observed_at")
+    if status == "ok":
+        seen = _at(w.get("observed_at"))
         return near and seen is not None and seen > now - ACCOUNT_SDK_FRESH
-    return near
+    return near and status == "warning"
 
 
-async def runner_claude_account(tx: Tx, hub: Any) -> tuple[str, bool]:
-    """(the token a Claude Code job takes now, whether Claude Code jobs wait). No token at all
-    (neither account stored): ("", False), the server's own login. Every stored account full:
-    ("", True), the jobs stay queued until one has room."""
+def _windows(row: dict[str, Any]) -> dict[str, Any]:
+    raw = row.get("windows")
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except ValueError:
+            return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def account_full(row: dict[str, Any] | None, now: datetime) -> bool:
+    """A subscription at 99% of its window or refused, while that window holds. ⟨2026-11-11⟩ Any
+    of its windows (audit C1e): the summary row shows one window only, and five-hour at 100% beside
+    seven-day at 82% read as 82% (a runner then took the full account)."""
+    if row is None:
+        return False
+    if any(isinstance(w, dict) and _window_full(w, now) for w in _windows(row).values()):
+        return True
+    if row.get("status") is None:
+        return False
+    return _window_full(row, now)
+
+
+class AccountPick(BaseModel):
+    """The account a Claude Code job takes now: its key on the hub (llm.connections), its token
+    (never stored, never logged), and whether Claude Code jobs wait (every stored account full)."""
+
+    key: str = ""
+    token: str = Field(default="", repr=False)
+    hold: bool = False
+
+
+NO_PICK = AccountPick()
+
+
+async def runner_claude_pick(
+    tx: Tx, hub: Any, *, avoid: tuple[str, ...] | list[str] = ()
+) -> AccountPick:
+    """The account of the moment (see RUNNER_ACCOUNTS). `avoid`: accounts tried last (a job that
+    hit the limit on one goes to the other while it has room). No token at all (neither account
+    stored): no key, no token, the server's own login. Every stored account full: `hold`."""
     sec = getattr(hub, "secrets", None)
     stored = [(k, str(getattr(sec, attr, "") or "")) for k, attr in RUNNER_ACCOUNTS]
     stored = [(k, t) for k, t in stored if t]
     if not stored:
-        return "", False
+        return NO_PICK
+    stored.sort(key=lambda kt: kt[0] in avoid)  # stable: the main one first, the avoided last
     rows = {str(r["key"]): dict(r) for r in await tx.all(ACCOUNTS_SQL, keys=[k for k, _ in stored])}
     now = await tx.scalar("SELECT now()")
     full = False
@@ -1246,8 +1306,227 @@ async def runner_claude_account(tx: Tx, hub: Any) -> tuple[str, bool]:
         if account_full(r, now):
             full = True
             continue
-        return token, False
-    return "", full
+        return AccountPick(key=key, token=token)
+    return AccountPick(hold=full)
+
+
+async def runner_claude_account(tx: Tx, hub: Any) -> tuple[str, bool]:
+    """(the token a Claude Code job takes now, whether Claude Code jobs wait). No token at all
+    (neither account stored): ("", False), the server's own login. Every stored account full:
+    ("", True), the jobs stay queued until one has room."""
+    pick = await runner_claude_pick(tx, hub)
+    return pick.token, pick.hold
+
+
+def _book(j: dict[str, Any]) -> dict[str, Any]:
+    """⟨2026-11-11⟩ What the hub keeps on a claude job's `usage` beside the runner's figures: the
+    account it was given (`account`), the job a usage-limit failure moved here (`retry_of`), and
+    the account it should not take again (`avoid`)."""
+    u = j.get("usage")
+    if isinstance(u, str):
+        try:
+            u = json.loads(u)
+        except ValueError:
+            u = None
+    if not isinstance(u, dict):
+        return {}
+    return {k: u[k] for k in ("account", "retry_of", "avoid") if k in u}
+
+
+async def claim_account(
+    tx: Tx, hub: Any, j: dict[str, Any], pick: AccountPick
+) -> AccountPick:
+    """A claude job just dispatched: the account it runs on (another one than a usage-limit
+    failure's when that one has room), written on the job so its usage is booked to it and its
+    rate-limit events are that account's."""
+    avoid = [str(a) for a in _book(j).get("avoid") or []]
+    if pick.key and pick.key in avoid:
+        other = await runner_claude_pick(tx, hub, avoid=avoid)
+        if other.key:
+            pick = other
+    if pick.key:
+        await tx.exec(
+            """UPDATE infra.server_jobs
+               SET usage = COALESCE(usage, '{}'::jsonb) || jsonb_build_object('account', CAST(:k AS text))
+               WHERE id = :id""",
+            k=pick.key,
+            id=j["id"],
+        )
+    else:
+        await tx.exec(
+            "UPDATE infra.server_jobs SET usage = usage - 'account' WHERE id = :id AND usage ? 'account'",
+            id=j["id"],
+        )
+    return pick
+
+
+# ⟨2026-11-11⟩ The runner forwards the Claude Code CLI's rate_limit_event of a job as a progress
+# event (company-runner claude_job.session_events). Each is an observation of the account the job
+# ran on, written into llm.quota_status the way llm-router keeps its own (the same window keys and
+# shape): the runner's next job and the router's next call both see a window the job filled.
+SDK_STATUS = {"allowed": "ok", "allowed_warning": "warning", "rejected": "limited"}
+QUOTA_RANK = {"ok": 0, "warning": 1, "limited": 2}
+QUOTA_HOLD = timedelta(hours=5)  # the router's HOLD: a limit whose end is unknown
+QUOTA_MAX_WINDOWS = 16
+_WINDOW_KIND = re.compile(r"[a-z0-9_]{2,40}")
+# the CLI's own notice when the subscription is out (claude-runtime quota.py, the same words)
+LIMIT_WORDS = re.compile(r"usage limit|limit reached|out of (?:extra )?usage|quota", re.IGNORECASE)
+_LIMIT_NOTICE = re.compile(
+    r"\blimit (?:reached|hit)\b|\byou(?:'|’)?ve (?:hit|reached) your (?:[\w-]+ )?limit\b"
+    r"|\bout of (?:extra )?usage\b|\busage limit\b",
+    re.IGNORECASE,
+)
+NOTICE_CHARS = 400
+_EPOCH = re.compile(r"\|(\d{10})\b")
+USAGE_LIMIT = "usage_limit"
+MOVED_FA = "حساب Claude به سقف مصرفش رسید؛ همین نوبت روی حساب دیگر دوباره اجرا میشود."
+LIMIT_FAILED_FA = "حساب Claude به سقف مصرفش رسید و حساب دیگری جا ندارد؛ این نوبت انجام نشد."
+NO_REQUEUE_ACTORS = ("catalogue", "secretary")  # they follow their jobs by id
+
+
+def limit_notice(text: str | None) -> bool:
+    """The CLI's own short usage-limit notice as a turn's whole answer (not an answer that merely
+    mentions a limit)."""
+    t = (text or "").strip()
+    return 0 < len(t) <= NOTICE_CHARS and _LIMIT_NOTICE.search(t) is not None
+
+
+def rate_limit_of(info: Any, now: datetime) -> tuple[str, dict[str, Any]] | None:
+    """(window key, window state) of one rate_limit_info as the CLI sends it (camelCase) or as
+    the runtime passes it on; None when it is not one."""
+    if not isinstance(info, dict):
+        return None
+    status = SDK_STATUS.get(str(info.get("status")))
+    if status is None:
+        return None
+    window = info.get("rateLimitType") or info.get("rate_limit_type") or info.get("window")
+    window = window if isinstance(window, str) and _WINDOW_KIND.fullmatch(window) else None
+    raw_util = info.get("utilization")
+    util = (
+        Decimal(str(raw_util)).quantize(Decimal("0.0001"))
+        if isinstance(raw_util, int | float) and not isinstance(raw_util, bool)
+        and 0 <= raw_util <= 1
+        else None
+    )
+    raw_reset = info.get("resetsAt") or info.get("resets_at")
+    resets = (
+        datetime.fromtimestamp(float(raw_reset), UTC)
+        if isinstance(raw_reset, int | float) and not isinstance(raw_reset, bool) and raw_reset > 0
+        else None
+    )
+    return _state(status, window, util, resets, "sdk_rate_limit_event", now)
+
+
+def _state(
+    status: str, window: str | None, util: Decimal | None, resets: datetime | None, source: str,
+    now: datetime,
+) -> tuple[str, dict[str, Any]]:
+    estimated = False
+    if status == "ok":
+        resets = None
+    elif resets is None or resets <= now:
+        resets, estimated = now + QUOTA_HOLD, True  # never "for good"
+    key = (f"sdk:{window}" if window else "sdk") if source == "sdk_rate_limit_event" else source
+    return key, {
+        "status": status,
+        "window": window,
+        "utilization": str(util) if util is not None else None,
+        "resets_at": resets.isoformat() if resets is not None else None,
+        "source": source,
+        "observed_at": now.isoformat(),
+        "estimated": estimated,
+    }
+
+
+def _summary(windows: dict[str, Any], now: datetime) -> dict[str, Any]:
+    """The row's own columns: the worst window that still holds (llm-router's QuotaState)."""
+    holding = [
+        w for w in windows.values()
+        if isinstance(w, dict) and w.get("status") in ("warning", "limited")
+        and (_at(w.get("resets_at")) or now) > now
+    ]  # fmt: skip
+    if holding:
+        top = max(holding, key=lambda w: (QUOTA_RANK[w["status"]], _at(w["resets_at"]) or now))
+        return {
+            "status": top["status"], "window": top.get("window"),
+            "utilization": _util(top.get("utilization")), "resets_at": _at(top["resets_at"]),
+            "source": top.get("source") or "sdk_rate_limit_event",
+            "estimated": bool(top.get("estimated")),
+        }  # fmt: skip
+    oks = [w for w in windows.values() if isinstance(w, dict) and w.get("status") == "ok"]
+    latest = max(oks, key=lambda w: _at(w.get("observed_at")) or now, default=None)
+    return {
+        "status": "ok", "window": None,
+        "utilization": _util(latest.get("utilization")) if latest else None,
+        "resets_at": None, "source": (latest or {}).get("source") or "reset", "estimated": False,
+    }  # fmt: skip
+
+
+async def observe_quota(tx: Tx, account: str, key: str, window: dict[str, Any]) -> bool:
+    """One window of an account the hub's Claude jobs run on, written into llm.quota_status
+    (under the row's lock; the router takes it in on its next save or scan). Never fails the
+    caller: a savepoint, a warning in the log (e.g. the api's role may not write it yet)."""
+    try:
+        async with tx.conn.begin_nested():
+            cid = await tx.scalar("SELECT id FROM llm.connections WHERE key = :k", k=account)
+            if cid is None:
+                return False
+            now = _at(window.get("observed_at")) or datetime.now(UTC)
+            row = await tx.first(
+                "SELECT status, windows FROM llm.quota_status WHERE connection_id = :c FOR UPDATE",
+                c=cid,
+            )
+            windows = _windows(row) if row is not None else {}
+            windows[key] = window
+            keep = {
+                k: w for k, w in windows.items()
+                if isinstance(w, dict) and (
+                    (_at(w.get("resets_at")) or now) > now and w.get("status") != "ok"
+                    or (_at(w.get("observed_at")) or now) > now - ACCOUNT_SDK_FRESH
+                )
+            }  # fmt: skip
+            if len(keep) > QUOTA_MAX_WINDOWS:
+                keep = dict(sorted(
+                    keep.items(), key=lambda kv: _at(kv[1].get("observed_at")) or now,
+                    reverse=True,
+                )[:QUOTA_MAX_WINDOWS])  # fmt: skip
+            s = _summary(keep, now)
+            await tx.exec(
+                """INSERT INTO llm.quota_status (connection_id, status, window_kind, utilization,
+                       resets_at, source, observed_at, changed_at, resets_estimated, windows)
+                   VALUES (:c, :st, :wk, :u, :r, :src, :at, :at, :est, CAST(:w AS jsonb))
+                   ON CONFLICT (connection_id) DO UPDATE SET status = EXCLUDED.status,
+                       window_kind = EXCLUDED.window_kind, utilization = EXCLUDED.utilization,
+                       resets_at = EXCLUDED.resets_at, source = EXCLUDED.source,
+                       observed_at = EXCLUDED.observed_at,
+                       changed_at = CASE WHEN llm.quota_status.status = EXCLUDED.status
+                                         THEN llm.quota_status.changed_at ELSE EXCLUDED.changed_at END,
+                       resets_estimated = EXCLUDED.resets_estimated, windows = EXCLUDED.windows""",
+                c=cid,
+                st=s["status"],
+                wk=s["window"] if s["status"] != "ok" else None,
+                u=s["utilization"],
+                r=s["resets_at"] if s["status"] != "ok" else None,
+                src=s["source"],
+                at=now,
+                est=s["estimated"] and s["status"] != "ok",
+                w=json.dumps(keep, default=str),
+            )
+        return True
+    except Exception:  # noqa: BLE001 - an observation never fails the runner's call
+        log.warning("runner quota observation not saved", extra={"account": account})
+        return False
+
+
+async def observe_runner_limit(tx: Tx, j: dict[str, Any], info: Any) -> None:
+    """A claude job's rate_limit_event: the account it runs on (if the hub gave it one)."""
+    account = _book(j).get("account")
+    if j["kind"] != "claude" or not account:
+        return
+    now = await tx.scalar("SELECT now()")
+    got = rate_limit_of(info, now)
+    if got is not None:
+        await observe_quota(tx, str(account), *got)
 
 
 def runner_job(j: dict[str, Any], hub: Any, *, claude_token: str = "") -> dict[str, Any]:
@@ -1346,6 +1625,11 @@ async def add_events(tx: Tx, j: dict[str, Any], items: list[dict[str, Any]]) -> 
         added += 1
         used += size
         top = max(top, seq)
+        if type_ == "session_event" and j["kind"] == "claude":
+            # ⟨2026-11-11⟩ the CLI's rate_limit_event: an observation of the account it runs on
+            inner = data.get("data")
+            if isinstance(inner, dict) and isinstance(inner.get("rate_limit"), dict):
+                await observe_runner_limit(tx, j, inner["rate_limit"])
         if type_ == "session_event" and j["session_id"]:
             await _session_event(tx, j, data)
     if top > int(j["last_seq"]):
@@ -1454,6 +1738,17 @@ async def finish(
     result: dict[str, Any] | None = None
     data = dict(data or {})
     overflow = data.pop("output_overflow", None)
+    book = _book(j)
+    # ⟨2026-11-11⟩ a Claude Code turn the account's usage limit stopped (audit C1a, C1d): never a
+    # done turn whose answer is the CLI's limit notice, never a generic exit-1 failure; once, it
+    # runs again on the other account while that one has room
+    moved: AccountPick | None = None
+    if await usage_limited(tx, j, ok, data):
+        ok, state, err = False, "failed", USAGE_LIMIT
+        if book.get("account"):
+            await _record_limit(tx, j, str(book["account"]), data)
+        moved = await _other_account(tx, hub, j, book)
+        summary_fa = MOVED_FA if moved is not None else LIMIT_FAILED_FA
     if ok:
         result = await _apply(tx, hub, j, data)
     elif j["kind"] == "publish":
@@ -1471,7 +1766,8 @@ async def finish(
         s=mask(summary_fa)[:2000] if summary_fa else None,
         e=err,
         r=json.dumps(result, ensure_ascii=False, default=str) if result is not None else None,
-        u=json.dumps(usage, default=str) if usage else None,
+        # the runner's figures beside what the hub keeps on the job (the account it ran on)
+        u=json.dumps({**(usage or {}), **book}, default=str) if usage or book else None,
     )
     j = await load_job(tx, j["id"])
     await store_transcript(tx, hub, j)
@@ -1494,6 +1790,11 @@ async def finish(
         from hq_api.domain import payments
 
         await payments.on_job_finished(tx, j)
+    if moved is not None:
+        # the same turn, queued again for the other account: its session and workspace go on
+        # with the new job; this one is only the record of the refused attempt
+        await emit_call(tx, j, exit_code=exit_code, ms=ms)
+        return {**j, "requeued_as": await _requeue_claude(tx, j, moved)}
     if j["session_id"]:
         if ok:
             await _session_end(tx, j, "idle", None, j["summary_fa"] or "")
@@ -1507,6 +1808,90 @@ async def finish(
             )
     await emit_call(tx, j, exit_code=exit_code, ms=ms)
     return j
+
+
+async def usage_limited(tx: Tx, j: dict[str, Any], ok: bool, data: dict[str, Any]) -> bool:
+    """A claude job the account's usage limit stopped: its final text is the CLI's limit notice
+    (also with exit 0, where it would have been posted as the turn's answer), or it failed with
+    limit wording or after the CLI reported the account `rejected`."""
+    if j["kind"] != "claude":
+        return False
+    final = str(data.get("result_fa") or "")
+    if ok:
+        return limit_notice(final)
+    if LIMIT_WORDS.search(final):
+        return True
+    return bool(
+        await tx.scalar(
+            """SELECT 1 FROM infra.server_job_events WHERE job_id = :j AND type = 'session_event'
+                 AND data->'data'->'rate_limit'->>'status' = 'rejected' LIMIT 1""",
+            j=j["id"],
+        )
+    )
+
+
+async def _record_limit(tx: Tx, j: dict[str, Any], account: str, data: dict[str, Any]) -> None:
+    """The account is out until its reset (the CLI's `|<epoch>`, else the router's hold): the
+    next pick skips it, and the router moves its own calls too."""
+    now = await tx.scalar("SELECT now()")
+    m = _EPOCH.search(str(data.get("result_fa") or ""))
+    resets = datetime.fromtimestamp(float(m.group(1)), UTC) if m else None
+    seen = await tx.scalar(
+        """SELECT max((data->'data'->'rate_limit'->>'resetsAt')::numeric) FROM infra.server_job_events
+           WHERE job_id = :j AND type = 'session_event'
+             AND data->'data'->'rate_limit'->>'status' = 'rejected'
+             AND jsonb_typeof(data->'data'->'rate_limit'->'resetsAt') = 'number'""",
+        j=j["id"],
+    )
+    if seen is not None and float(seen) > 0:
+        resets = datetime.fromtimestamp(float(seen), UTC)
+    await observe_quota(tx, account, *_state("limited", None, None, resets, "quota_guard", now))
+
+
+async def _other_account(tx: Tx, hub: Any, j: dict[str, Any], book: dict[str, Any]) -> AccountPick | None:
+    """The other account, when a refused turn may run again on it now: once per turn (not a job
+    that is itself such a retry), only for a hub account, and only while the other has room."""
+    account = str(book.get("account") or "")
+    if not account or book.get("retry_of") or j["actor_code"] in NO_REQUEUE_ACTORS:
+        return None
+    other = await runner_claude_pick(tx, hub, avoid=(account,))
+    return other if other.key and other.key != account else None
+
+
+async def _requeue_claude(tx: Tx, j: dict[str, Any], to: AccountPick) -> str:
+    """The refused turn again, as a new queued job of the same server, session and workspace (a
+    fresh job: its events and transcript are its own); returns the new job's id."""
+    new = await tx.scalar(
+        """INSERT INTO infra.server_jobs (company_id, server_id, kind, actor_kind, actor_code,
+               on_behalf_code, work_ref, args, args_sha256, summary_in, state, category, pattern,
+               deploy, decision_id, session_id, timeout_s, usage)
+           SELECT company_id, server_id, kind, actor_kind, actor_code, on_behalf_code, work_ref,
+                  args, args_sha256, summary_in, 'queued', category, pattern, deploy, decision_id,
+                  session_id, timeout_s,
+                  jsonb_build_object('retry_of', CAST(id AS text),
+                                     'avoid', jsonb_build_array(CAST(:acct AS text)))
+           FROM infra.server_jobs WHERE id = :id
+           RETURNING id""",
+        id=j["id"],
+        acct=str(_book(j).get("account") or ""),
+    )
+    await tx.exec(
+        "UPDATE work.workspaces SET last_job_id = :n, updated_at = now() WHERE last_job_id = :o",
+        n=new,
+        o=j["id"],
+    )
+    await audit.record(
+        tx,
+        SERVICE,
+        company_id=j["company_id"],
+        action="server.job",
+        action_class="A1",
+        target_kind="server_job",
+        target_ref=str(new),
+        summary=f"{j['server_name']} claude queued again after a usage limit on "
+        f"{_book(j).get('account')}: job {j['id']} -> {to.key}",
+    )
+    return str(new)
 
 
 async def _apply(tx: Tx, hub: Any, j: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]:
@@ -1707,8 +2092,10 @@ async def store_transcript(tx: Tx, hub: Any, j: dict[str, Any]) -> UUID | None:
 
 
 async def record_usage(tx: Tx, j: dict[str, Any], usage: dict[str, Any]) -> None:
-    """A `claude` job's usage (the server's own login) into the Token
-    Treasury at its equivalent cost (contract §26.3), and onto its session."""
+    """A `claude` job's usage into the Token Treasury at its equivalent cost (contract §26.3),
+    and onto its session. ⟨2026-11-11⟩ Booked to the hub's account the job ran on (its
+    connection), so the treasury and the ledger windows see both accounts; without one (no hub
+    token was given), the server's own login."""
 
     def n(k: str) -> int:
         v = usage.get(k)
@@ -1727,14 +2114,17 @@ async def record_usage(tx: Tx, j: dict[str, Any], usage: dict[str, Any]) -> None
         usd = Decimal(0)
     if not (inp or out or cr or cw or think or usd):
         return
+    account = str(_book(j).get("account") or "") or None
     await tx.exec(
         """INSERT INTO llm.calls (id, started_at, finished_at, company_id, actor_ref, work_ref,
                task_class, priority, caller, provider, model, input_tokens, output_tokens,
                cache_read_tokens, cache_write_tokens, thinking_tokens, cost_usd, equiv_cost_usd,
-               status, meta)
+               status, meta, connection_id)
            VALUES (gen_random_uuid(), COALESCE(:start, now()), now(), :co, :actor, :wr,
                    'server_claude', 3, 'company_runner', 'anthropic', :model, :inp, :out, :cr, :cw,
-                   :th, 0, :usd, 'ok', CAST(:meta AS jsonb))""",
+                   :th, 0, :usd, 'ok', CAST(:meta AS jsonb),
+                   (SELECT id FROM llm.connections WHERE key = CAST(:acct AS text)))""",
+        acct=account,
         start=j["started_at"],
         co=j["company_id"],
         actor=j["actor_code"],
@@ -1751,9 +2141,10 @@ async def record_usage(tx: Tx, j: dict[str, Any], usage: dict[str, Any]) -> None
                 "server_job": str(j["id"]),
                 "server": j["server_name"],
                 "session": j.get("session_ref"),
-                # ⟨20.1⟩ prompt 20 finding 6: whose quota it spent (the
-                # server's own Claude Code login, never the hub's) and for what
-                "quota": "company_server",
+                # ⟨20.1⟩ prompt 20 finding 6: whose quota it spent and for what; ⟨2026-11-11⟩
+                # the hub's account the job was given, else the server's own Claude Code login
+                "quota": "hub_account" if account else "company_server",
+                **({"account": account} if account else {}),
                 "via": "catalogue" if j["actor_code"] == "catalogue" else "server_claude",
             }
         ),

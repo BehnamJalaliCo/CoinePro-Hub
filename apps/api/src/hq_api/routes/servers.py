@@ -392,9 +392,13 @@ async def runner_next(
                 raise ApiError(410, "runner_revoked")
             cancels = await SV.cancels_for(tx, r)
             # ⟨2026-11-09⟩ a Claude Code job runs on the hub's account of the moment; both full: it waits
-            token, hold = await SV.runner_claude_account(tx, hub) if slots > 0 else ("", False)
-            job = await SV.dispatch(tx, r, hold_claude=hold) if slots > 0 else None
-            out = SV.runner_job(job, hub, claude_token=token) if job else None
+            pick = await SV.runner_claude_pick(tx, hub) if slots > 0 else SV.NO_PICK
+            job = await SV.dispatch(tx, r, hold_claude=pick.hold) if slots > 0 else None
+            if job is not None and job["kind"] == "claude":
+                # ⟨2026-11-11⟩ the account is written on the job: its usage and its rate-limit
+                # events are that account's (a turn the limit stopped takes the other one)
+                pick = await SV.claim_account(tx, hub, job, pick)
+            out = SV.runner_job(job, hub, claude_token=pick.token) if job else None
             # ⟨1.15⟩ §33.10 the works closed since, once each: the runner removes their
             # folders 30 days later (only a runner on 0.3.0 has workspaces)
             closed = await WS.closed_for(tx, r["server_id"])
@@ -459,6 +463,11 @@ async def runner_result(
             data=body.data if body.data is not None else body.result,
             error=body.error,
         )
+    if j.get("requeued_as"):
+        # ⟨2026-11-11⟩ the account's usage limit stopped this turn and it runs again on the other
+        # account (a new job of the same session and workspace): what follows a turn's end waits
+        # for that job
+        return {"state": j["state"]}
     if j["actor_code"] == "catalogue" and j["state"] in SV.FINAL:
         from hq_api.domain import catalogue
 

@@ -1444,7 +1444,9 @@ async def idle_runs(
     tx: Tx, rep: dict[str, Any], works: list[dict[str, Any]], created: datetime
 ) -> int:
     """How many runs of the order's works produced nothing at all since the last complete
-    deliverable and the last step of the story."""
+    deliverable and the last step of the story. ⟨2026-11-11⟩ An idle wake (`session_idle:`)
+    that only reported with `order.progress` counts too, whatever step it wrote (its own
+    narration moved the story's clock, which hid it before)."""
     n = await tx.scalar(
         """SELECT count(*) FROM agents.runs r
            WHERE r.work_id = ANY(:ids) AND r.state IN ('running', 'done', 'failed')
@@ -1455,17 +1457,24 @@ async def idle_runs(
                  (SELECT max(d.created_at) FROM cartable.deliverables d
                    WHERE d.work_id = ANY(:ids) AND NOT starts_with(d.title, :partial)),
                  :since)
-             AND r.created_at > COALESCE(CAST(:last AS timestamptz), :since)
-             AND NOT (r.reason LIKE ANY(CAST(:wakes AS text[])))
-             AND NOT EXISTS (
-                 SELECT 1 FROM agents.steps s CROSS JOIN LATERAL jsonb_array_elements(s.actions) a
-                 WHERE s.run_id = r.id AND a ->> 'outcome' = 'ok'
-                   AND a ->> 'tool' = ANY(CAST(:tools AS text[])))
              AND NOT EXISTS (
                  SELECT 1 FROM work.work c
                  WHERE (c.parent_id = r.work_id OR c.requested_by_work_id = r.work_id)
                    AND c.created_at >= r.created_at
-                   AND c.created_at <= COALESCE(r.finished_at, now()))""",
+                   AND c.created_at <= COALESCE(r.finished_at, now()))
+             AND (
+                 (r.created_at > COALESCE(CAST(:last AS timestamptz), :since)
+                  AND NOT (r.reason LIKE ANY(CAST(:wakes AS text[])))
+                  AND NOT EXISTS (
+                      SELECT 1 FROM agents.steps s CROSS JOIN LATERAL jsonb_array_elements(s.actions) a
+                      WHERE s.run_id = r.id AND a ->> 'outcome' = 'ok'
+                        AND a ->> 'tool' = ANY(CAST(:tools AS text[]))))
+                 OR (r.reason LIKE 'session_idle:%' AND r.started_at IS NOT NULL
+                     AND NOT EXISTS (
+                         SELECT 1 FROM agents.steps s CROSS JOIN LATERAL jsonb_array_elements(s.actions) a
+                         WHERE s.run_id = r.id AND a ->> 'outcome' = 'ok'
+                           AND a ->> 'tool' = ANY(CAST(:tools AS text[]))
+                           AND a ->> 'tool' <> 'order.progress')))""",
         ids=[w["id"] for w in works],
         partial=W.PARTIAL_PREFIX,
         since=created,
@@ -1516,13 +1525,62 @@ async def _remind_turn(
     )
 
 
+def _beat(**detail: Any) -> None:
+    """A heartbeat when this runs as a worker's activity (order_tick); nothing otherwise."""
+    try:
+        from temporalio import activity
+
+        if activity.in_activity():
+            activity.heartbeat(detail)
+    except Exception:  # noqa: BLE001 - a heartbeat never stops the tick
+        log.debug("no heartbeat")
+
+
+# ⟨2026-11-11⟩ a work run that stays `running` this long without a step is reaped (its worker
+# is gone): the employee is free again and the session reads it as ended, not as working
+STALLED_RUN = timedelta(minutes=30)
+STALLED_NOTE = "reaped: running for 30 minutes without a step (its worker was gone)"
+
+
+async def reap_stalled_runs(tx: Tx) -> int:
+    """⟨2026-11-11⟩ Work runs (a talk or a direct run has its own reaper) running past
+    STALLED_RUN with no step in that time end `failed` `runtime_error`, as a talk run whose turn
+    never closed does (talk.reap_runs)."""
+    rows = await tx.all(
+        """UPDATE agents.runs r SET state = 'failed', error_code = 'runtime_error',
+               finished_at = now(), updated_at = now(), note = :note
+           WHERE r.state = 'running' AND r.trigger = 'work'
+             AND COALESCE(r.started_at, r.queued_at) < now() - make_interval(secs => :s)
+             AND COALESCE((SELECT max(s.at) FROM agents.steps s WHERE s.run_id = r.id),
+                          r.started_at, r.queued_at) < now() - make_interval(secs => :s)
+           RETURNING r.id""",
+        note=STALLED_NOTE,
+        s=int(STALLED_RUN.total_seconds()),
+    )
+    if rows:
+        log.warning("stalled runs reaped", extra={"runs": [str(r["id"]) for r in rows]})
+    return len(rows)
+
+
 async def tick(hub: Any) -> dict[str, Any]:
-    """The worker's tick (every few minutes, rule-based): the reports of the
-    owner's open orders (and of the last week's orders without one yet) are
-    brought up to date and their timers run."""
-    out: dict[str, Any] = {"orders": 0, "fired": {}}
+    """The worker's tick (⟨2026-11-11⟩ every 2 minutes, a schedule of its own: OrderTick;
+    rule-based): the reports of the owner's open orders (and of the last week's orders without
+    one yet) are brought up to date and their timers run. Newest sessions first; each order in a
+    transaction of its own and each of its three passes (timers, the session's sweep, the
+    refresh) in a savepoint of its own: one bad order never stops the others."""
+    out: dict[str, Any] = {"orders": 0, "fired": {}, "failed": []}
+    _beat(stage="start")
     async with hub.db.tx(await hub.companies.ids()) as tx:
-        out["resumed"] = await W.resume_waiting(tx)  # budget added, the player set to auto
+        try:
+            async with tx.conn.begin_nested():
+                out["resumed"] = await W.resume_waiting(tx)  # budget added, the player auto
+        except Exception:
+            log.exception("resume_waiting failed")
+        try:
+            async with tx.conn.begin_nested():
+                out["reaped"] = await reap_stalled_runs(tx)
+        except Exception:
+            log.exception("the stalled-run reaper failed")
         refs = [
             r["ref"]
             for r in await tx.all(
@@ -1530,22 +1588,42 @@ async def tick(hub: Any) -> dict[str, Any]:
                    LEFT JOIN owner.order_reports r ON r.order_id = o.id
                    WHERE (r.id IS NULL AND o.created_at > now() - interval '7 days')
                       OR (r.id IS NOT NULL AND r.ended_at IS NULL)
-                   ORDER BY o.created_at"""
+                   ORDER BY o.created_at DESC"""
             )
         ]
     from hq_api.domain import session_activity as SA
 
     for ref in refs:
-        async with hub.db.tx(await hub.companies.ids()) as tx:
-            fired = await timers(tx, hub.settings, ref)
-            # ⟨1.23⟩ §41.3 never a silent stall: idle → the holder woken once; still idle → stuck
-            try:
-                async with tx.conn.begin_nested():
-                    fired += await SA.sweep(tx, ref, minutes=hub.settings.session_idle_minutes)
-            except Exception:  # one session's sweep never stops the tick
-                log.exception("session sweep failed", extra={"order": ref})
-            await refresh(tx, ref)
+        _beat(order=ref)
+        fired: list[str] = []
+        failed = False
+        try:
+            async with hub.db.tx(await hub.companies.ids()) as tx:
+                try:
+                    async with tx.conn.begin_nested():
+                        fired += await timers(tx, hub.settings, ref)
+                except Exception:  # one order's timers never stop the tick
+                    failed = True
+                    log.exception("order timers failed", extra={"order": ref})
+                # ⟨1.23⟩ §41.3 never a silent stall: idle → the holder woken; still idle → stuck
+                try:
+                    async with tx.conn.begin_nested():
+                        fired += await SA.sweep(tx, ref, minutes=hub.settings.session_idle_minutes)
+                except Exception:  # one session's sweep never stops the tick
+                    failed = True
+                    log.exception("session sweep failed", extra={"order": ref})
+                try:
+                    async with tx.conn.begin_nested():
+                        await refresh(tx, ref)
+                except Exception:
+                    failed = True
+                    log.exception("order refresh failed", extra={"order": ref})
+        except Exception:  # the order's own transaction (connect, commit)
+            failed = True
+            log.exception("order tick failed", extra={"order": ref})
         out["orders"] += 1
+        if failed:
+            out["failed"].append(ref)
         if fired:
             out["fired"][ref] = fired
     return out

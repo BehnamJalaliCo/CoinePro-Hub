@@ -150,9 +150,9 @@ class Maintenance:
             "backups_ingest",
             "inquiries_late",
             "oversight_tick",
-            # ⟨1.11⟩ prompt 21 (contract §29.1-§29.2): every order answered, the
-            # weekly technical summary (Saturday 09:00, the owner's time)
-            "order_tick",
+            # ⟨1.11⟩ prompt 21 (contract §29.1): the weekly technical summary (Saturday 09:00,
+            # the owner's time). ⟨2026-11-11⟩ `order_tick` left this chain for OrderTick, its own
+            # schedule: as the 13th of 14 steps it waited behind the others and starved
             "tech_summary",
         ):
             try:
@@ -160,6 +160,30 @@ class Maintenance:
             except ActivityError:
                 out[name] = {"error": True}
         return out
+
+
+ORDER_TICK_LIMIT = timedelta(minutes=4)
+
+
+@workflow.defn(name="OrderTick")
+class OrderTick:
+    """⟨2026-11-11⟩ Every 2 minutes, on its own schedule (hq-order-tick): every open order's
+    report, its timers and its session's sweep (contract §29.2, §41.3), newest first. Never
+    behind the maintenance chain; one bad order never stops the others (order_report.tick); a
+    heartbeat per order."""
+
+    @workflow.run
+    async def run(self) -> dict[str, Any]:
+        try:
+            result: dict[str, Any] = await workflow.execute_activity(
+                "order_tick",
+                start_to_close_timeout=ORDER_TICK_LIMIT,
+                heartbeat_timeout=timedelta(minutes=2),
+                retry_policy=RetryPolicy(maximum_attempts=1),
+            )
+        except ActivityError:
+            result = {"error": True}
+        return result
 
 
 @workflow.defn(name="Reconcile")
@@ -238,6 +262,7 @@ ONCE = RetryPolicy(maximum_attempts=1)  # a long pull is never run twice at once
 # The advisor's sweep is rule-only until it would wake the advisor (the
 # launch gate decides); the web jobs and the daily pass ask the gate too.
 ONCE_P12 = RetryPolicy(maximum_attempts=1)  # a web job is never sent twice
+SUBSTITUTE_WEB_LIMIT = timedelta(minutes=17)
 
 
 @workflow.defn(name="AdvisorSweep")
@@ -252,12 +277,13 @@ class AdvisorSweep:
 
 @workflow.defn(name="SubstituteWebJobs")
 class SubstituteWebJobs:
-    """Every minute: the substitutes' queued web calls through egress."""
+    """Every minute: the substitutes' queued web calls through egress. ⟨2026-11-11⟩ 17 minutes:
+    each picked job may take its own timeout and 30 s, and the reaper's deadline is past them."""
 
     @workflow.run
     async def run(self) -> dict[str, Any]:
         result: dict[str, Any] = await _act(
-            "substitute_web_jobs", limit=timedelta(minutes=15), retry=ONCE_P12
+            "substitute_web_jobs", limit=SUBSTITUTE_WEB_LIMIT, retry=ONCE_P12
         )
         return result
 
@@ -655,6 +681,7 @@ WORKFLOWS = [
     DecisionLifecycle,
     RecurringRun,
     Maintenance,
+    OrderTick,
     Reconcile,
     NotificationDigest,
     MorningReport,

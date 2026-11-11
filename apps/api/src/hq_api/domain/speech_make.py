@@ -124,6 +124,60 @@ async def held_back(tx: Tx, now: datetime | None = None) -> bool:
     return last is not None and last[0] == "signed_out" and now - last[1] < SIGNED_OUT_HOLD
 
 
+# ------------------------------------------------------------- the wake --
+# ⟨2026-11-11⟩ a voice that ends after the run that asked for it ended wakes that run's work's
+# assignee, as a finished workshop turn does (`workshop_done:`): the holder never waits forever
+DONE_REASON = "speech_done:"
+FAILED_REASON = "speech_failed:"
+CALLER_SQL = """
+SELECT r.id, r.state, r.work_id, w.company_id, w.assignee_id
+FROM agents.runs r
+JOIN core.employees e ON e.id = r.employee_id
+JOIN work.work w ON w.id = r.work_id
+JOIN agents.steps s ON s.run_id = r.id
+CROSS JOIN LATERAL jsonb_array_elements(s.actions) a
+WHERE e.code = :by AND r.created_at > now() - interval '1 day'
+  AND a ->> 'tool' = 'speech.make' AND a ->> 'ref' = :job
+ORDER BY s.at LIMIT 1
+"""
+
+
+async def wake_caller(hub: Any, job: dict[str, Any], *, done: bool) -> str | None:
+    """The run that started this job, when it has ended: its work's assignee gets a run
+    (`speech_done:<job>` / `speech_failed:<job>`), or the work's session says why not (a lock,
+    nobody assigned). None when there is nothing to wake (the run still works and asks again
+    itself, the job was not a run's, the answer was final at once). Never raises."""
+    from hq_api.domain import order_report as OR
+
+    reason = f"{DONE_REASON if done else FAILED_REASON}{job['job']}"[:200]
+    try:
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            run = await tx.first(CALLER_SQL, by=str(job.get("by") or ""), job=str(job["job"]))
+            if run is None or run["state"] in ("queued", "running"):
+                return None
+            if (
+                await tx.scalar("SELECT work.wake_assignee(:w, :r)", w=run["work_id"], r=reason)
+                is not None
+            ):
+                return reason
+            ref = await OR.order_of_work(tx, run["work_id"])
+            rep = await OR.ensure(tx, ref) if ref else None
+            if rep is None or rep.get("ended_at") is not None:
+                return None
+            lock = await tx.scalar("SELECT control.lock_state(:co)", co=run["company_id"])
+            if lock is not None:
+                why = "شرکت قفل است و تا قفل باز نشود کار راه نمیافتد"
+            elif run["assignee_id"] is None:
+                why = "کار مسئولی ندارد"
+            else:
+                why = "کار راه نیفتاد؛ «ادامه بده» را بزن"
+            head = "صدای گوینده آماده شد" if done else "ساخت صدا به نتیجه نرسید"
+            await OR._append_steps(tx, rep["id"], [OR._step("سامانه", f"{head} ولی {why}")])
+    except Exception:  # noqa: BLE001 - the voice is made; a wake that fails never undoes it
+        log.warning("the voice's caller could not be woken", extra={"job": str(job["job"])})
+    return None
+
+
 # ------------------------------------------------------------- the job --
 async def _record(
     hub: Any, job: dict[str, Any], *, account: State | None, summary: str, file_id: UUID | None
@@ -141,7 +195,8 @@ async def _record(
             action_class="A1",
             target_kind="file" if file_id else "speech",
             target_ref=str(file_id or job["job"]),
-            summary=f"{job['by']}: {summary}",
+            # ⟨2026-11-11⟩ the job named: the session reads a voice as pending until this row
+            summary=f"{job['by']}: {summary} (job {job['job']})"[:500],
         )
         if account is not None:
             await audit.record(
@@ -167,6 +222,7 @@ async def make(hub: Any, job: dict[str, Any]) -> dict[str, Any]:
         hint = SIGNED_OUT_FA if code == "signed_out" else e.reason_fa
         account: State | None = "signed_out" if code == "signed_out" else None
         await _record(hub, job, account=account, summary=f"failed: {code}", file_id=None)
+        await wake_caller(hub, job, done=False)
         return {"job": job["job"], "state": "failed", "code": code, "hint_fa": hint}
     company_id = UUID(str(job["company_id"]))
     key, sha = await hub.storage.put(data)
@@ -197,6 +253,7 @@ async def make(hub: Any, job: dict[str, Any]) -> dict[str, Any]:
         summary=f"done: AI Studio {voice}, {len(text)} chars",
         file_id=fid,
     )
+    await wake_caller(hub, job, done=True)
     return {
         "job": job["job"],
         "state": "done",
