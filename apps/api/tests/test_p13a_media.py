@@ -1109,6 +1109,26 @@ def test_captions_follow_the_shots_or_the_narration() -> None:
     assert all(len(c["text_fa"]) <= 60 for c in spread)
 
 
+def test_part_headings_start_a_line_and_trading_words_are_whole() -> None:
+    from hq_api.domain import studio_checks as K
+
+    script = (
+        "قلاب: آیا می‌دانستید؟\n"
+        "بدنه: این دوره رایگان است. لینک ثبت‌نام در کپشن است و همین حالا بزنید.\n"
+        "**«جمع‌بندی و دعوت»:** در جمع‌بندی هم بگوییم.\n"
+        "کپشن: ثبت‌نام رایگان #آموزش"
+    )
+    p = K.parts(script)
+    assert p["بدنه"].endswith("در کپشن است و همین حالا بزنید.")
+    assert p["جمع‌بندی"] == "در جمع‌بندی هم بگوییم."
+    assert p["کپشن"] == "ثبت‌نام رایگان #آموزش"
+    assert K.parts(SCRIPT)["کپشن"].startswith("سطح‌های این هفته")
+    for plain in ("برای اطلاعات بیشتر به سایت سر بزنید", "اطلاع‌رسانی", "با مشورت دوستان"):
+        assert not K.TRADING.search(plain), plain
+    for trading in ("قیمت طلا امروز", "طلای ۱۸ عیار", "پوزیشن شورت"):
+        assert K.TRADING.search(trading), trading
+
+
 def test_a_series_must_fit_its_kind() -> None:
     from hq_api.errors import ApiError
 
