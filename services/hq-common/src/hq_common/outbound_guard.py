@@ -167,13 +167,29 @@ _TLDS = (
     "email|one|ws|ly|eu|fr|nl|ch|se|pl|es|ca|au|jp|kr|hk|sg|asia|mobi|name|tel|game|games|"
     "bet|win|pw|su|ac|im|in|is|it|no|la|ma|sh"
 )
+# A bare name.ext whose last part is a file extension is a file, not a link
+# ("result.json", "Node.js"). Any other bare name.tld is a link, whatever the
+# TLD (phishing look-alikes live on .cfd, .icu, .sbs ...): its TLD must be the
+# last label, in one case ("Thanks.Please" without a space is not a link) and
+# not the start of an e-mail address or a call ("ali.rezaei@...", "x.run(").
+_FILE_EXTS = (
+    "json|jsonl|txt|pdf|png|jpe?g|gif|webp|svg|bmp|ico|tiff?|heic|avif|csv|tsv|xlsx?|docx?|"
+    "pptx?|odt|ods|rtf|md|rst|py|pyc|pyi|ipynb|js|mjs|cjs|jsx|ts|tsx|css|scss|less|html?|xml|"
+    "ya?ml|toml|ini|cfg|conf|env|lock|log|sql|db|sqlite|zip|tar|gz|tgz|bz2|xz|rar|exe|msi|dmg|"
+    "apk|ipa|deb|rpm|bin|iso|img|mp3|mp4|m4a|wav|ogg|oga|opus|flac|aac|mov|avi|mkv|webm|wasm|"
+    "go|rs|java|kt|swift|rb|php|cs|cpp|hpp|bash|zsh|ps1|bat|cmd|ttf|otf|woff2?|eot|lottie|srt|"
+    "vtt|tmp|bak|orig|pem|crt|csr|pub|sig|asc|gpg|map|patch|diff|vue|svelte|proto|pkl|npy|dat|"
+    "ics|vcf|eml"
+)
 _URL_CHARS = r"[^\s<>\"'`()\[\]{}|^،؛«»]"
 _URL = re.compile(
     rf"(?:(?<![A-Za-z0-9+.\-])[A-Za-z][A-Za-z0-9+.\-]{{1,15}}://{_URL_CHARS}+"
     rf"|(?<![\w@./:\-])www\.{_URL_CHARS}+"
     rf"|(?<![\w@./:\-])(?:[A-Za-z0-9](?:[A-Za-z0-9\-]{{0,61}}[A-Za-z0-9])?\.)+"
     rf"(?:(?:{_TLDS})(?![A-Za-z0-9\-])(?::[0-9]{{1,5}})?(?:/{_URL_CHARS}*)?"
-    rf"|[A-Za-z]{{2,24}}(?::[0-9]{{1,5}})?/{_URL_CHARS}*))",
+    rf"|[A-Za-z]{{2,24}}(?::[0-9]{{1,5}})?/{_URL_CHARS}*"
+    rf"|(?!(?:{_FILE_EXTS})(?![A-Za-z0-9\-]))(?-i:[a-z]{{2,24}}|[A-Z]{{2,24}})"
+    rf"(?![A-Za-z0-9\-_@(])(?!\.[A-Za-z0-9])(?::[0-9]{{1,5}})?))",
     re.IGNORECASE,
 )
 _TRAIL = ".,;:!?'\"»«،؛…*_~"
@@ -410,13 +426,76 @@ _HERE = re.compile(
     r"|\b(?:here|below|this\s+(?:chat|bot|form|link|page|thread)|the\s+(?:link|form)\s+below|reply"
     r"|our\s+bot|to\s+us|with\s+us)\b"
 )
-_NEGATION = re.compile(
+_FA_NEGATION = (
     rf"{_W}(?:هرگز|هیچ\w*|نه|نباید\w*|نمی\w*|"
     r"ن(?:فرست|گو|ده|دی|کن|کرد|زن|نویس|گذار|خواه|پرس|دار|یست|فرما|پذیر|گیر)\w*"
     r"|ن(?:شود|شوید|شده|شد)(?!\w))(?!\w)"
-    r"|\b(?:never|not|no|none|nobody|nothing|neither|nor|without|don'?t|doesn'?t|didn'?t|won'?t"
+)
+_NEGATION = re.compile(
+    _FA_NEGATION
+    + r"|\b(?:never|not|no|none|nobody|nothing|neither|nor|without|don'?t|doesn'?t|didn'?t|won'?t"
     r"|wouldn'?t|shouldn'?t|mustn'?t|cannot|can'?t|isn'?t|aren'?t)\b"
 )
+# A negation counts only when it is about the ask or the claim, never because
+# it stands somewhere in the same clause: "We could not find your account so
+# please send your password" asks, «حساب شما فعال نیست لطفا رمز را بفرستید» asks,
+# "Don't miss our guaranteed profit plan" promises.
+_TOKEN = re.compile(r"[\w']+")  # _plain() made every apostrophe '
+_EN_NEG = frozenset(
+    "never not no none nobody nothing neither nor without dont don't doesnt doesn't didnt didn't"
+    " wont won't wouldnt wouldn't shouldnt shouldn't mustnt mustn't cannot cant can't isnt isn't"
+    " arent aren't".split()
+)
+# The words that may stand between an English negation and the ask it governs
+# ("Nobody from our team will ever ask you to send ...", "It is not safe to send").
+_EN_ASK_FILLER = frozenset(
+    "ever ask asks asking asked you us me to need needs needed have has had should will would"
+    " must may might can could be being is are it there a an the any anyone anybody one from our"
+    " team support staff admin admins agent agents employee employees member members of under all"
+    " circumstances circumstance at time times request requests want wants required require"
+    " requires reason necessary mandatory safe ok okay allowed supposed expected obliged really"
+    " even also do does did or official real person people legitimate lbank coinepro exchange"
+    " here".split()
+)
+# The words that may stand between an English negation and a profit claim
+# ("There is no such thing as guaranteed profit", "No exchange can guarantee profit").
+_EN_CLAIM_FILLER = frozenset(
+    "can could will would may might should must is are was were be been being ever really truly"
+    " actually a an any such thing things as there it this that these those one exchange exchanges"
+    " platform platforms broker brokers bot bots company app service signal signals strategy"
+    " trading trade investing investment investments crypto offer offers promise promises"
+    " provide provides give gives get have has make makes do does real true legit".split()
+)
+# After "not" these keep the claim ("don't miss", "won't lose", "is not a scam").
+_EN_HYPE = frozenset(
+    "miss forget wait hesitate delay worry lose scam joke lie lies fake dream kidding fraud".split()
+)
+# Persian negations that govern a later (positive, subjunctive) verb: «نباید ...
+# بفرستید», «لازم نیست ... بفرستید», «نه ... بفرستید». A finite negative verb
+# («نشد», «نیست», «نکردید») closes its own clause and governs nothing after it.
+_FA_GOVERN = re.compile(
+    rf"{_W}(?:هرگز|هیچ\s*(?:وقت|گاه|زمان|موقع|کس\w*)|نباید\w*|نمی\s*(?:توان|تون|بایست)\w*|نه"
+    r"|(?:لازم|نیازی?|لزومی|احتیاجی?|ضرورتی|ضروری|مجبور\w*|قرار|دلیلی)\s*"
+    r"(?:نیست\w*|ندار\w*|نمی\s*باشد))(?!\w)"
+)
+_FA_BREAK = re.compile(rf"{_W}(?:لطفا\w*|و|پس|سپس|بعد|حالا|فقط|اگر|چون|زیرا|همچنین)(?!\w)")
+_EN_BREAK = frozenset("and so then now please kindly just if because since".split())
+# A negated Persian verb of giving takes the secret before it: «رمز را به
+# هیچکس ندهید و فقط UID را بفرستید» does not ask for the password.
+_FA_NEG_GIVE = re.compile(
+    rf"{_W}(?:ن(?:فرست|گو|ده|دی|کن|گذار|نویس)\w*|نمی\s*(?:فرست|گوی|ده|دی|کن|گذار|نویس|خواه)\w*)"
+)
+# English verbs of giving that ask nothing; negated, they take the secret after
+# them ("Never reveal your seed phrase and send us your UID").
+_EN_GIVE = re.compile(r"\b(?:reveal|disclose|hand\s+over|give\s+out)\b")
+# Persian marketing negations that keep the claim: «از دست ندهید», «شک نکنید»,
+# «دروغ نیست», «جا نمانید».
+_FA_HYPE = re.compile(
+    rf"{_W}(?:از\s*دست|فراموش|دریغ|شک|تردید|معطل|صبر|غافل|دروغ|شوخی|کلاه\s*برداری|رویا|خیال"
+    r"|افسانه|فیک|جعلی|تقلبی)\s*ن\w*"
+    rf"|{_W}(?:جا|عقب|منتظر)\s*ن(?:مان|مون)\w*"
+)
+_FA_NEGATION_RX = re.compile(_FA_NEGATION)
 _TRADE = re.compile(rf"{_W}(?:سود|معامله|ترید|سرمایه|کپی|ربات|سیگنال|بازار|خرید|فروش|پول)")
 _PROFIT: tuple[tuple[re.Pattern[str], re.Pattern[str] | None], ...] = (
     (
@@ -463,9 +542,55 @@ def _clauses(folded: str) -> list[list[str]]:
     ]
 
 
+def _persian(text: str) -> bool:
+    return any(ord(ch) > 127 for ch in text)
+
+
+def _governed(clause: str, start: int) -> bool:
+    """Whether a negation governs the verb that starts at `start`: in English
+    one before it with only fillers between ("never send", "nobody will ever
+    ask you to send"), in Persian a governing word before it in the same
+    clause («نباید / لازم نیست / نه ... بفرستید»)."""
+    before = clause[:start]
+    for k, tok in enumerate(reversed(_TOKEN.findall(before)[-10:])):
+        if tok in _EN_NEG:
+            # "no" goes with a noun ("no need to send"); right before the
+            # verb it is an interjection ("No we need your password").
+            return k > 0 or tok not in ("no", "none")
+        if tok not in _EN_ASK_FILLER:
+            break
+    starts = [w.start() for w in re.finditer(r"\S+", before)]
+    cut = starts[-8] if len(starts) >= 8 else 0
+    for g in reversed(list(_FA_GOVERN.finditer(before))):
+        if g.start() < cut:
+            break
+        if not _FA_BREAK.search(before[g.end() :]):
+            return True
+    return False
+
+
+def _verbs(clause: str) -> list[tuple[int, int, bool, bool]]:
+    """The clause's verbs that decide a secret: (start, end, persian, asks).
+    An asking verb asks unless a negation governs it; a negated verb of
+    giving asks nothing but takes its secret. Any other verb is left out."""
+    here = bool(_HERE.search(clause))
+    out: list[tuple[int, int, bool, bool]] = []
+    for rx, asking in ((_ASK, True), (_ENTER, here), (_EN_GIVE, False)):
+        for m in rx.finditer(clause):
+            negated = _governed(clause, m.start())
+            if asking or negated:
+                out.append((m.start(), m.end(), _persian(m.group(0)), not negated))
+    for m in _FA_NEG_GIVE.finditer(clause):
+        out.append((m.start(), m.end(), True, False))
+    return sorted(out)
+
+
 def _asks_secret(folded: str) -> list[str]:
     """The secret kinds the text asks for (per clause; a clause without a verb
-    takes the nearest one after it, else before it: «رمز، کلید ... را بفرستید»)."""
+    takes the nearest one after it, else before it: «رمز، کلید ... را بفرستید»).
+    In its own clause a secret belongs to its verb - the nearest English verb
+    before it, the nearest Persian verb after it - and is asked when that verb
+    asks and no negation governs it."""
     found: list[str] = []
     for sentence in _clauses(folded):
         verb = [bool(_ASK.search(c) or _NEGATION.search(c) or _ENTER.search(c)) for c in sentence]
@@ -480,13 +605,52 @@ def _asks_secret(folded: str) -> list[str]:
                 if not after and not before:
                     continue
                 j = after[0] if after else before[0]
-            c = sentence[j]
-            if _NEGATION.search(c):
+            verbs = _verbs(sentence[j])
+            any_ask = any(v[3] for v in verbs)
+            if j != i:
+                if any_ask:
+                    found += kinds
                 continue
-            asked = _ASK.search(c) or (_ENTER.search(c) and _HERE.search(c))
-            if asked:
-                found += kinds
+            for kind, rx in _SECRETS:
+                for m in rx.finditer(clause):
+                    en = [v for v in verbs if not v[2] and v[1] <= m.start()]
+                    fa = [v for v in verbs if v[2] and v[0] >= m.end()]
+                    own = ([en[-1]] if en else []) + ([fa[0]] if fa else [])
+                    asked = any(v[3] for v in own) if own else any_ask
+                    if asked:
+                        found.append(kind)
+                        break
     return list(dict.fromkeys(found))
+
+
+def _claim_negated(clause: str, start: int, end: int) -> bool:
+    """Whether a negation is about the profit claim at clause[start:end]: one
+    right before it ("there are no", "no exchange can guarantee", «هیچ سود
+    تضمینی») or a negated verb right after it («... وجود ندارد», "... don't
+    exist"), never one elsewhere in the clause."""
+    before = clause[:start]
+    for tok in reversed(_TOKEN.findall(before)[-5:]):
+        if tok in _EN_NEG:
+            return True
+        if tok not in _EN_CLAIM_FILLER:
+            break
+    if re.search(rf"{_W}(?:هیچ|نه)\s*$", before):
+        return True
+    words: list[str] = []
+    for w in clause[end:].split()[:5]:
+        if w.strip(".,!?'\"") in _EN_BREAK or _FA_BREAK.fullmatch(w):
+            break
+        words.append(w)
+    after = " ".join(words)
+    toks = _TOKEN.findall(after)
+    for k, tok in enumerate(toks):
+        if tok in _EN_NEG:
+            if not any(t in _EN_HYPE for t in toks[k + 1 : k + 3]):
+                return True
+            break
+        if tok not in _EN_CLAIM_FILLER:
+            break
+    return bool(_FA_NEGATION_RX.search(_FA_HYPE.sub(" ", after)))
 
 
 def _profit(folded: str) -> list[str]:
@@ -497,8 +661,7 @@ def _profit(folded: str) -> list[str]:
                 for m in rx.finditer(clause):
                     if context is not None and not context.search(clause):
                         continue
-                    rest = clause[: m.start()] + " " + clause[m.end() :]
-                    if _NEGATION.search(rest):
+                    if _claim_negated(clause, m.start(), m.end()):
                         continue
                     found.append(m.group(0).strip()[:40])
     return found
