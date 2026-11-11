@@ -342,7 +342,9 @@ async def dismiss(
                 422, "validation_failed", fields={"transfer_to": "same company, not dismissed"}
             )
     manager = await manager_of(tx, employee["department_id"]) if employee["department_id"] else None
-    if manager and manager["id"] == employee["id"]:
+    if manager is None or manager["id"] == employee["id"]:
+        # no manager left in the department (or the manager is the one going): the CEO, as
+        # W.create does; else the open work and the knowledge transfer go to nobody
         manager = await ceo_of(tx, employee["company_id"])
     receiver = target or manager
     await tx.exec(
