@@ -39,13 +39,18 @@ async def decision_created(hub: Any, ref: str) -> None:
     client = _client(hub)
     if client is None:
         return
+    # A running lifecycle is reused; a closed one is started again. Refs come
+    # back after an owner wipe (the ref sequence restarts) and a lifecycle can
+    # fail on a database outage, so a closed run with this id must never keep
+    # a pending card from its expiry. The workflow reads the card first and
+    # ends at once when it is no longer pending, so a fresh start is harmless.
     try:
         await client.start_workflow(
             DECISION_WORKFLOW,
             ref,
             id=f"decision-{ref}",
             task_queue=hub.settings.task_queue,
-            id_reuse_policy=WorkflowIDReusePolicy.REJECT_DUPLICATE,
+            id_reuse_policy=WorkflowIDReusePolicy.ALLOW_DUPLICATE,
             id_conflict_policy=WorkflowIDConflictPolicy.USE_EXISTING,
         )
     except Exception:  # noqa: BLE001 - reconciled later by Maintenance
