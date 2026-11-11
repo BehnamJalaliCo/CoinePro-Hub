@@ -51,6 +51,8 @@ APPROX_FA = "تقریبی (از جست‌وجوی خودِ هاب؛ جای دق�
 FOLLOW_KEYS = ("subscribers", "members")  # a follower move is judged in percent
 SITEMAP_PATHS = ("/sitemap.xml", "/sitemap_index.xml")
 MAX_CHILD_SITEMAPS = 3
+# A sitemap whose URLs are this share (%) or more "modified today" is stamped wholesale.
+STAMPED_PCT = 90
 LOC = re.compile(r"<loc>\s*(?:<!\[CDATA\[)?\s*([^<\]\s]+)\s*(?:\]\]>)?\s*</loc>", re.I)
 URL_BLOCK = re.compile(r"<url>(.*?)</url>", re.I | re.S)
 LASTMOD = re.compile(r"<lastmod>\s*([0-9]{4}-[0-9]{2}-[0-9]{2})", re.I)
@@ -195,8 +197,12 @@ def parse_sitemap(xml: str, today: date) -> tuple[list[str], int, list[str]]:
 
 def new_pages(pages: int, previous: float | None, fresh: int) -> int:
     """New pages today: the growth of the sitemap since yesterday, or the pages
-    marked modified since yesterday, whichever is larger."""
+    marked modified since yesterday, whichever is larger. A sitemap that stamps
+    (nearly) every URL with today's date (one built on each request, many CMS
+    plugins) says nothing about new pages: only its growth counts then."""
     grown = max(0, pages - int(previous)) if previous is not None else 0
+    if pages > 0 and fresh * 100 >= pages * STAMPED_PCT:
+        return grown
     return max(grown, fresh)
 
 

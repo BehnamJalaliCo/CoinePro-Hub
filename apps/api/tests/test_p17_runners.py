@@ -969,6 +969,20 @@ async def test_owner_session_on_a_company_server(
         "/api/v1/runners/classify", json={"cmd": "docker volume prune -f"}, headers=hdr
     )
     assert r.json()["decision_ref"] == ref
+    # audit 2026-11-11: refusing that one command puts the session back to work at once
+    state_sql = "SELECT state FROM workshop.sessions WHERE ref = $1"
+    assert await su.fetchval(state_sql, s["ref"]) == "waiting_approval"
+    r = await client.post(
+        f"/api/v1/decisions/{ref}/reject", json={"reason_code": "risk"}, headers={**h, **idem()}
+    )
+    assert r.status_code == 200, r.text
+    assert await su.fetchval(state_sql, s["ref"]) == "working"
+    job_sql = "SELECT state FROM infra.server_jobs WHERE id = $1"
+    assert await su.fetchval(job_sql, uuid.UUID(job["id"])) == "running"
+    # a second command waits for its seal, and the turn ends without it: its card is withdrawn
+    r = await client.post("/api/v1/runners/classify", json={"cmd": "dropdb prod"}, headers=hdr)
+    moot = r.json()["decision_ref"]
+    assert r.json()["category"] == "db_drop" and moot and moot != ref
     events_ = [
         {"seq": 1, "type": "session_event", "data": {"type": "state", "summary_fa": "آغاز",
                                                      "data": {"state": "working", "session_id": "cs-1"}}},
@@ -988,6 +1002,10 @@ async def test_owner_session_on_a_company_server(
         headers=rn["h"],
     )  # fmt: skip
     assert r.status_code == 200, r.text
+    assert (
+        await su.fetchval("SELECT status FROM cartable.decisions WHERE ref = $1", moot)
+        == "withdrawn"
+    )
     s = (await client.get(f"/api/v1/workshop/sessions/{s['ref']}", headers=h)).json()
     assert s["state"] == "idle" and s["usage"]["input_tokens"] == 1200
     ledger = await su.fetchrow(
@@ -1024,12 +1042,14 @@ async def test_owner_session_on_a_company_server(
     assert nxt["id"] in r.json()["cancels"]
 
 
+@pytest.mark.parametrize("late", [False, True])
 async def test_publish_through_a_runner(
     client: httpx.AsyncClient,
     hub: Hub,
     owner_session: dict[str, Any],
     new_company: Callable[..., Any],
     su: Any,
+    late: bool,
 ) -> None:
     co = await new_company()
     rn = await pair(client, hub, owner_session, co, "ig-hub")
@@ -1080,6 +1100,18 @@ async def test_publish_through_a_runner(
     assert P.verify(hub, f["url"].rsplit("/", 1)[1]) == fid
     state = await su.fetchval("SELECT state FROM media.items WHERE ref = $1", ref)
     assert state == "scheduled"  # waits for the runner
+    if late:
+        # audit 2026-11-11: the files took long; the sweep failed the job before its result came
+        await su.execute(
+            "UPDATE infra.server_jobs SET dispatched_at = now() - interval '2 hours' WHERE id = $1",
+            uuid.UUID(job["id"]),
+        )
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            await SV.sweep(tx)
+        swept = await su.fetchrow(
+            "SELECT state, error_code FROM infra.server_jobs WHERE id = $1", uuid.UUID(job["id"])
+        )
+        assert (swept["state"], swept["error_code"]) == ("failed", "timed_out")
     r = await client.post(
         f"/api/v1/runners/jobs/{job['id']}/result",
         json={"exit_code": 0, "summary_fa": "منتشر شد",
@@ -1101,6 +1133,47 @@ async def test_publish_through_a_runner(
         "ok",
         "1789",
     )
+    # a late good result is the truth: the post is out
+    assert (
+        await su.fetchval("SELECT state FROM infra.server_jobs WHERE id = $1", uuid.UUID(job["id"]))
+        == "done"
+    )
+
+
+async def test_a_nul_in_output_or_a_result_is_kept_as_a_replacement_character(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    new_company: Callable[..., Any],
+    su: Any,
+) -> None:
+    """Audit 2026-11-11: PostgreSQL keeps NUL in neither text nor jsonb; `find -print0` or a file
+    with NULs in it made the inserts fail and the job never ended."""
+    assert SV.nul_free({"a\x00": ["x\x00y", 1, None]}) == {"a\ufffd": ["x\ufffdy", 1, None]}
+    co = await new_company()
+    rn = await pair(client, hub, owner_session, co)
+    mgr = f"{co['code']}-TECH-MGR"
+    r = await agent_job(client, mgr, {"kind": "exec", "server": "web-1",
+                                      "args": {"cmd": "find . -print0"}})  # fmt: skip
+    assert r.status_code == 201, r.text
+    job = await take(client, rn)
+    r = await client.post(
+        f"/api/v1/runners/jobs/{job['id']}/events",
+        json={"events": [{"seq": 1, "type": "stdout", "data": {"text": "./a\x00./b\x00"}}]},
+        headers=rn["h"],
+    )
+    assert r.status_code == 200 and r.json()["accepted"] == 1, r.text
+    r = await client.post(
+        f"/api/v1/runners/jobs/{job['id']}/result",
+        json={"exit_code": 0, "summary_fa": "تمام\x00شد", "data": {"note": "a\x00b"}},
+        headers=rn["h"],
+    )
+    assert r.status_code == 200 and r.json()["state"] == "done", r.text
+    text = await su.fetchval(
+        "SELECT data ->> 'text' FROM infra.server_job_events WHERE job_id = $1",
+        uuid.UUID(job["id"]),
+    )
+    assert text == "./a\ufffd./b\ufffd"
 
 
 # ---------------------------------------------------------- classification --
