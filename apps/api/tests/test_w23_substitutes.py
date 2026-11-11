@@ -569,6 +569,11 @@ async def test_chatgpt_has_the_content_draft_seat_after_seed_or_migration(su: An
     assert row is not None and (row["via"], row["per_day"]) == ("web", 30)
     m = _migration()
     assert (m.revision, m.down_revision) == ("0062", "0061")
+    # the api records a runner's Claude rate-limit windows (0062's grant)
+    for priv in ("SELECT", "INSERT", "UPDATE"):
+        assert await su.fetchval(
+            "SELECT has_table_privilege('hq_api', 'llm.quota_status', $1)", priv
+        ), priv
     tr = su.transaction()
     await tr.start()
     try:
