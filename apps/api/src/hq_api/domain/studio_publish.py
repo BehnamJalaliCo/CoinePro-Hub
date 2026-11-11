@@ -177,6 +177,16 @@ async def placements(tx: Tx, hub: Any, item: dict[str, Any]) -> list[dict[str, A
     return out
 
 
+def _sent(item: dict[str, Any]) -> dict[tuple[str, str], dict[str, Any]]:
+    """The placements an earlier pass already published the item on (an entry
+    of `item.publish` with its `at`): a retry or a card never sends them again."""
+    return {
+        (str(e.get("channel")), str(e.get("placement"))): e
+        for e in item.get("publish") or []
+        if e.get("at") and e.get("error") != "removed"
+    }
+
+
 async def after_review(tx: Tx, hub: Any, item: dict[str, Any]) -> None:
     rows = await placements(tx, hub, item)
     failed = [c["key"] for c in item.get("checks") or [] if c.get("result") == "fail"]
@@ -263,6 +273,7 @@ async def card(
         body=din,
         thread_code=thread,
     )
+    sent = _sent(item)
     await tx.exec(
         """UPDATE media.items SET state = 'waiting_owner', decision_id = :d, publish_at = NULL,
                publish = CAST(:p AS jsonb), state_note_fa = :n WHERE id = :id""",
@@ -270,7 +281,8 @@ async def card(
         d=d["id"],
         p=S.canonical(
             [
-                {
+                sent.get((r["channel"], r["placement"]))
+                or {
                     "channel": r["channel"],
                     "placement": r["placement"],
                     "at": None,
@@ -466,8 +478,24 @@ async def schedule_at(tx: Tx, item: dict[str, Any]) -> datetime:
 
 async def _publish_one(hub: Any, item: dict[str, Any], rows: list[dict[str, Any]]) -> None:
     by_card = (item.get("render_meta") or {}).get(BY_CARD)
+    sent = _sent(item)
     results = []
     for r in rows:
+        if (prev := sent.get((r["channel"], r["placement"]))) is not None:
+            # Already out (an earlier pass, before a platform_limit retry, a card or a
+            # runner's answer): kept as it is, never sent twice.
+            results.append(
+                {
+                    **r,
+                    "outcome": "ok",
+                    "external_id": prev.get("external_id"),
+                    "url": prev.get("url"),
+                    "error": None,
+                    "sent_at": prev["at"],
+                    **({"job": prev["job"]} if prev.get("job") else {}),
+                }
+            )
+            continue
         if r["via"] == "manual":
             # The owner posts it from the card (the card's approval says so).
             results.append(
@@ -502,6 +530,8 @@ async def _publish_one(hub: Any, item: dict[str, Any], rows: list[dict[str, Any]
         decision = cur.get("decision_id")
         now = datetime.now(UTC)
         for x in results:
+            if x.get("sent_at"):
+                continue  # logged when it went out
             if x["outcome"] == "queued":
                 x["job"] = await _queue_runner(tx, item, x)
                 if x["job"] is not None:
@@ -530,7 +560,7 @@ async def _publish_one(hub: Any, item: dict[str, Any], rows: list[dict[str, Any]
             {
                 "channel": x["channel"],
                 "placement": x["placement"],
-                "at": now if x["outcome"] == "ok" else None,
+                "at": x.get("sent_at") or (now if x["outcome"] == "ok" else None),
                 "external_id": x.get("external_id"),
                 "url": x.get("url"),
                 "error": x.get("error"),
