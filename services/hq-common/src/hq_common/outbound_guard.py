@@ -167,13 +167,29 @@ _TLDS = (
     "email|one|ws|ly|eu|fr|nl|ch|se|pl|es|ca|au|jp|kr|hk|sg|asia|mobi|name|tel|game|games|"
     "bet|win|pw|su|ac|im|in|is|it|no|la|ma|sh"
 )
+# A bare name.ext whose last part is a file extension is a file, not a link
+# ("result.json", "Node.js"). Any other bare name.tld is a link, whatever the
+# TLD (phishing look-alikes live on .cfd, .icu, .sbs ...): its TLD must be the
+# last label, in one case ("Thanks.Please" without a space is not a link) and
+# not the start of an e-mail address or a call ("ali.rezaei@...", "x.run(").
+_FILE_EXTS = (
+    "json|jsonl|txt|pdf|png|jpe?g|gif|webp|svg|bmp|ico|tiff?|heic|avif|csv|tsv|xlsx?|docx?|"
+    "pptx?|odt|ods|rtf|md|rst|py|pyc|pyi|ipynb|js|mjs|cjs|jsx|ts|tsx|css|scss|less|html?|xml|"
+    "ya?ml|toml|ini|cfg|conf|env|lock|log|sql|db|sqlite|zip|tar|gz|tgz|bz2|xz|rar|exe|msi|dmg|"
+    "apk|ipa|deb|rpm|bin|iso|img|mp3|mp4|m4a|wav|ogg|oga|opus|flac|aac|mov|avi|mkv|webm|wasm|"
+    "go|rs|java|kt|swift|rb|php|cs|cpp|hpp|bash|zsh|ps1|bat|cmd|ttf|otf|woff2?|eot|lottie|srt|"
+    "vtt|tmp|bak|orig|pem|crt|csr|pub|sig|asc|gpg|map|patch|diff|vue|svelte|proto|pkl|npy|dat|"
+    "ics|vcf|eml"
+)
 _URL_CHARS = r"[^\s<>\"'`()\[\]{}|^،؛«»]"
 _URL = re.compile(
     rf"(?:(?<![A-Za-z0-9+.\-])[A-Za-z][A-Za-z0-9+.\-]{{1,15}}://{_URL_CHARS}+"
     rf"|(?<![\w@./:\-])www\.{_URL_CHARS}+"
     rf"|(?<![\w@./:\-])(?:[A-Za-z0-9](?:[A-Za-z0-9\-]{{0,61}}[A-Za-z0-9])?\.)+"
     rf"(?:(?:{_TLDS})(?![A-Za-z0-9\-])(?::[0-9]{{1,5}})?(?:/{_URL_CHARS}*)?"
-    rf"|[A-Za-z]{{2,24}}(?::[0-9]{{1,5}})?/{_URL_CHARS}*))",
+    rf"|[A-Za-z]{{2,24}}(?::[0-9]{{1,5}})?/{_URL_CHARS}*"
+    rf"|(?!(?:{_FILE_EXTS})(?![A-Za-z0-9\-]))(?-i:[a-z]{{2,24}}|[A-Z]{{2,24}})"
+    rf"(?![A-Za-z0-9\-_@(])(?!\.[A-Za-z0-9])(?::[0-9]{{1,5}})?))",
     re.IGNORECASE,
 )
 _TRAIL = ".,;:!?'\"»«،؛…*_~"

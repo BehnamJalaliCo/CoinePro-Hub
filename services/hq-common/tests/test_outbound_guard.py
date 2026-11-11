@@ -81,6 +81,7 @@ TABLE: list[tuple[str, tuple[str, ...]]] = [
     ("Scammers may ask you for your seed phrase. Never send it.", OK),
     ("Enter your 2FA code in the LBank app.", OK),
     ("رمز ارز مورد نظرتان را بفرستید", OK),  # رمز ارز is a cryptocurrency, not a password
+    ("فایل config.yaml و کتابخانه\u200cی Node.js", OK),  # files, not links
     # --- asks_secret
     ("لطفا\u064b کد تأیید پیامک را بفرستید", SECRET),
     ("Please send us your password.", SECRET),
@@ -130,6 +131,10 @@ TABLE: list[tuple[str, tuple[str, ...]]] = [
     ("[ثبت\u200cنام](https://lbank.co/ref/COINE1)", LINK),
     ("www.binance.com", LINK),
     ("t.me/FakeSupport", LINK),
+    ("برای تایید حساب به lbank-verify.cfd بروید", LINK),  # any TLD, not only a known one
+    ("Go to lbank-support.icu to restore access", LINK),
+    ("GO TO LBANK-SUPPORT.ICU NOW", LINK),
+    ("coinepro.com.cfd", LINK),  # not the approved coinepro.com
     ("ｈｔｔｐｓ://evil.com", LINK),  # full-width
     ("https%3A%2F%2Fevil.com", LINK),  # percent-encoded
     ("https://www.lbank.com/ref/COINE1?utm=x", LINK),
@@ -241,6 +246,12 @@ def test_urls_and_codes() -> None:
         "https://d.zz/y",
     ]
     assert G.urls("mail support@coinepro.com") == []
+    assert G.urls("lbank-verify.cfd, LBANK.SBS and x.click.") == [
+        "https://lbank-verify.cfd",
+        "https://lbank.sbs",
+        "https://x.click",
+    ]
+    assert G.urls("ali.rezaei@example.com, Thanks.Please, archive.tar.gz, jquery.min.js") == []
     assert G.referral_codes("کد معرف: AB12CD و https://lbank.com/ref/QQ77") == ["AB12CD", "QQ77"]
     assert G.referral_codes("use the referral code below") == []
     assert G.referral_codes("https://www.binance.com/register?r=BN123") == ["BN123"]
