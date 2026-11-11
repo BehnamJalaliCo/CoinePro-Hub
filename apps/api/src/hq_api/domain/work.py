@@ -595,17 +595,34 @@ RESUME = "resume"  # a work event: wake the assignee once (the worker's tick)
 async def uncap(tx: Tx, w: dict[str, Any], who: Principal | None = None) -> str | None:
     """⟨2026-11-08⟩ the owner lifts a work's token cap for good (budget_tokens NULL; the dollar
     budget stays): a `waiting` work is `in_progress` again and its assignee runs at once
-    (work.wake_assignee). Answers the run queued."""
+    (work.wake_assignee). Its capped parents lose their cap first, the root first (as add_budget
+    walks them): work.before_update refuses a child without a cap under a capped parent (HQB01).
+    Answers the run queued."""
     row = await tx.one(
-        "SELECT id, ref, status, assignee_id, priority, company_id FROM work.work WHERE id = :id FOR UPDATE",
+        """SELECT id, ref, parent_id, status, assignee_id, priority, company_id FROM work.work
+           WHERE id = :id FOR UPDATE""",
         id=w["id"],
     )
+    actor = who or Principal(kind="service", code="orders", role="service")
+    chain: list[dict[str, Any]] = []
+    cur = row
+    while cur["parent_id"] is not None:
+        cur = await tx.one(
+            """SELECT id, ref, parent_id, budget_tokens, company_id FROM work.work
+               WHERE id = :id FOR UPDATE""",
+            id=cur["parent_id"],
+        )
+        if cur["budget_tokens"] is None:  # nothing above an uncapped work carries a cap for it
+            break
+        chain.append(cur)
+    for parent in reversed(chain):
+        await tx.exec("UPDATE work.work SET budget_tokens = NULL WHERE id = :id", id=parent["id"])
+        await event(tx, dict(parent), "uncapped", actor, {"budget_tokens": None, "for": row["ref"]})
     await tx.exec("UPDATE work.work SET budget_tokens = NULL WHERE id = :id", id=row["id"])
     if row["status"] not in OPEN:
         return None
     if row["status"] == "waiting":
         await tx.exec("UPDATE work.work SET status = 'in_progress' WHERE id = :id", id=row["id"])
-    actor = who or Principal(kind="service", code="orders", role="service")
     await event(tx, dict(row), "uncapped", actor, {"budget_tokens": None})
     await events.emit(tx, await tx.scalar("SELECT code FROM core.companies WHERE id = :c",
                                           c=row["company_id"]),
