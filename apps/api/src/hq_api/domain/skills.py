@@ -401,7 +401,7 @@ async def write_version(
             """INSERT INTO knowledge.skills (company_id, ref, name_fa, summary_fa, scope, eval_suite,
                    latest_version, status, source, created_by_kind, created_by_code)
                VALUES (:co, COALESCE(CAST(:ref AS text),
-                                     'SK-' || lpad(nextval('knowledge.skill_ref_seq')::text, 3, '0')),
+                                     core.pad_ref('SK-', nextval('knowledge.skill_ref_seq'), 3)),
                        :name, :summary, CAST(:scope AS jsonb), :suite, :v, :st, :src, :bk, :bc)
                RETURNING id""",
             co=company_id,
