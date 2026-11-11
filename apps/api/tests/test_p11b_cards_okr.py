@@ -155,6 +155,14 @@ async def test_a_query_outside_the_registry_is_422(
         r.status_code == 422
         and "not a query of the registry" in r.json()["fields"]["kpis.0.source"]
     )
+    # A holding-wide figure is never an operating company's KPI.
+    q = "treasury.agents_cost_month_usd"
+    holding_only = {"kpis": [{"key": q, "source": {"kind": "query", "query": q},
+                              "card": "safety_cost", "name_fa": "x"}]}  # fmt: skip
+    r = await client.put(
+        f"/api/v1/kpis/{co['code']}", headers={**owner, "If-Match": str(version)}, json=holding_only
+    )
+    assert r.status_code == 422 and "holding-only" in r.json()["fields"]["kpis.0.source"]
     # A target change needs the current version (If-Match) and is versioned.
     ok = {"kpis": [{"key": "health.uptime_24h", "target": 99.9}]}
     r = await client.put(f"/api/v1/kpis/{co['code']}", headers=owner, json=ok)
@@ -218,6 +226,23 @@ async def test_a_number_in_free_text_reads_thousands_separators() -> None:
     assert G.number("۱٫۵") == 1.5 and G.number("1,5") == 1.5
     assert G.number("-2,000") == -2000.0 and G.number("80%") == 80.0
     assert G.number("هیچ") is None and G.number(None) is None
+
+
+async def test_a_value_beyond_six_decimals_is_appended_once(
+    client: httpx.AsyncClient, owner: dict[str, str], new_company: Callable[..., Any], su: Any
+) -> None:
+    co = await new_company()
+    key = await manual_kpi(client, owner, co)
+    now = datetime.now(UTC)
+    for at in (now - timedelta(minutes=10), now):
+        assert (await record(client, co, key, 123.45678912, at)).status_code == 200
+    n = await su.fetchval(
+        """SELECT count(*) FROM governance.kpi_values v JOIN governance.kpis k ON k.id = v.kpi_id
+           WHERE k.company_id = $1 AND k.key = $2""",
+        co["id"],
+        key,
+    )
+    assert n == 1  # stored as numeric(20,6): the same reading is no change
 
 
 async def test_the_scorecard_is_paged_and_searchable(

@@ -464,14 +464,20 @@ async def seed_company(tx: Tx, company_id: UUID, kind: str) -> int:
                 )  # fmt: skip
             continue
         for k in seed.get(card) or []:
-            if k.get("source") != "manual" and k["key"] not in REGISTRY:
-                continue  # never a source the registry does not have
+            if k.get("source") != "manual" and (
+                k["key"] not in REGISTRY or (REGISTRY[k["key"]].holding and kind != "holding")
+            ):
+                continue  # never a source the registry does not have (or not this company's)
             rows.append(_definition(k, card, "standard"))
-    await tx.exec(
-        "INSERT INTO governance.kpi_sets (company_id, seeded_from) VALUES (:co, :f)",
+    # A concurrent first read (collector tick, cards, scorecards) may seed the
+    # same company: the loser waits for the winner's row and seeds nothing.
+    if not await tx.scalar(
+        """INSERT INTO governance.kpi_sets (company_id, seeded_from) VALUES (:co, :f)
+           ON CONFLICT (company_id) DO NOTHING RETURNING company_id""",
         co=company_id,
         f="founding" if founding else "standard",
-    )
+    ):
+        return 0
     for r in rows:
         await _insert(tx, company_id, r)
     return len(rows)
@@ -509,6 +515,7 @@ async def _store(
 ) -> bool:
     """Cache the value on the definition; append it when it changed or the
     last appended one is an hour old. True when a row was appended."""
+    value = round(value, 6)  # kpi_values.value is numeric(20,6): compare what is stored
     last = await tx.first(
         "SELECT value, at FROM governance.kpi_values WHERE kpi_id = :k ORDER BY at DESC LIMIT 1",
         k=k["id"],
@@ -560,6 +567,8 @@ async def collect(tx: Tx, now: datetime | None = None) -> dict[str, Any]:
             src = k["source"] or {}
             if src.get("kind") == "query":
                 q = REGISTRY.get(str(src.get("query")))
+                if q is not None and q.holding and co["kind"] != "holding":
+                    q = None  # a holding-wide figure never lands on a company's card
                 m = await q.fn(ctx) if q is not None and q.key in have else None
                 if q is None or m is None:
                     no_source.append(f"{co['code']}:{k['key']}")
@@ -947,6 +956,16 @@ async def put_set(tx: Tx, who: Principal, company: Any, body: KpiSetIn, expected
                     422,
                     "validation_failed",
                     fields={f"kpis.{i}.source": "not a query of the registry"},
+                )
+            if (
+                c.source.kind == "query"
+                and REGISTRY[str(c.source.query)].holding
+                and company.kind != "holding"
+            ):
+                raise ApiError(
+                    422,
+                    "validation_failed",
+                    fields={f"kpis.{i}.source": "a holding-only query"},
                 )
             if c.source.kind == "query" and c.source.query != c.key:
                 raise ApiError(
