@@ -36,7 +36,7 @@ def test_the_three_part_shape() -> None:
     out = H.plain("سه پست منتشر شد", "فالوور 4٪ بیشتر شد", None)
     assert out.splitlines() == ["چه شد: سه پست منتشر شد", "چرا مهم است: فالوور 4٪ بیشتر شد"]
     need = H.plain("ریلز آماده است", None, "سری انتشار را مُهر کنید")
-    assert need.splitlines()[-1].startswith("از شما چه لازم است:")
+    assert need.splitlines()[-1].startswith("از تو چه لازم است:") and "شما" not in need
 
 
 def test_a_players_answer_is_persian_or_not() -> None:

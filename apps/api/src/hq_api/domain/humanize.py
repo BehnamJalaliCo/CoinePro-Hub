@@ -10,7 +10,7 @@ names what is still wrong; a caller that may spend a light model call does
 so only when `check` is not empty after the rules (never by default here).
 
 `plain(what, why, need)` writes the three-part shape: «چه شد» · «چرا مهم
-است» · «از شما چه لازم است» (the last only when something is needed).
+است» · «از تو چه لازم است» (the last only when something is needed; the owner is «تو»).
 """
 
 from __future__ import annotations
@@ -28,6 +28,8 @@ _ARABIC = str.maketrans({"ي": "ی", "ك": "ک", "ى": "ی"})
 _SPACES = re.compile(r"[ \t\u00a0]{2,}")
 _EMPTY_BRACKETS = re.compile(r"[(\[«]\s*[,،:؛-]?\s*[)\]»]")
 _DANGLING = re.compile(r"\s+([،.؛:!؟)])")
+# ⟨2026-11-11⟩ the owner is addressed as «تو», never «شما» (every notification body has this line)
+NEED_FA = "از تو چه لازم است"
 FIRST = ("english_run", "cjk")
 
 
@@ -128,7 +130,7 @@ def plain(what_fa: str, why_fa: str | None = None, need_fa: str | None = None) -
     if why_fa:
         parts.append(f"چرا مهم است: {humanize(why_fa)}")
     if need_fa:
-        parts.append(f"از شما چه لازم است: {humanize(need_fa)}")
+        parts.append(f"{NEED_FA}: {humanize(need_fa)}")
     return "\n".join(parts)
 
 

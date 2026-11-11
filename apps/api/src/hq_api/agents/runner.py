@@ -123,6 +123,7 @@ def meeting_tools(lib: Any, charter: Charter, tool: str | None) -> tuple[str, ..
 
 FINAL = ("done", "failed", "refused")
 CONTEXT_CHARS = 24_000
+WAKE_CHARS = 4_000  # the hub's idle-wake instruction, at the top of the context
 CAPS_CHARS = 12_000  # the capability brief and the holding map, never cut by the work's own context
 # ⟨2026-11-07⟩ W9 E: the runs that are not work for a person carry the lean brief (`technical`
 # and whom to hand things to), never the players, the company profile or the holding map:
@@ -1429,9 +1430,14 @@ class Runner:
 
             async with await self._tx() as all_tx:
                 order = await OT.dialogue(all_tx, run["work_id"])
+            wake = order.get("wake") if isinstance(order, dict) else None
             if order is not None:
-                brief["order"] = order
+                # ⟨2026-11-11⟩ the hub's idle wake (order_turns: nothing runs, do task N or ask)
+                # goes right after the trigger, never inside the work's JSON a long brief cuts
+                brief["order"] = {k: v for k, v in order.items() if k != "wake"} if wake else order
             parts[work_at] = "# Work\n" + await masked_json(brief)
+            if wake:
+                parts.insert(1, "# Woken by the hub\n" + str(wake)[:WAKE_CHARS])
         if notes:
             parts.append(
                 "# Your memory (latest first)\n" + "\n".join(f"- {n['note'][:500]}" for n in notes)

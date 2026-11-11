@@ -706,6 +706,39 @@ async def test_an_owners_card_is_waiting_never_did_not_happen(
     ]
 
 
+async def test_the_hubs_wake_is_read_first_however_long_the_brief(
+    client: httpx.AsyncClient,
+    owner: dict[str, str],
+    su: Any,
+    agents: Any,
+    new_company: Callable[..., Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The idle wake (order_turns puts it in the order's `wake`) sits right after the trigger:
+    a long work brief is cut from its end, never the instruction that says what to do now."""
+    from hq_api.domain import order_turns as OT
+
+    wake = "WAKE-W23: nothing of this order is running. Do task 3 now, or ask what blocks you."
+
+    async def dialogue(tx: Any, work_id: Any) -> dict[str, Any]:
+        return {"wake": wake, "order": "F-0", "owner_said": ["سلام " * 20_000]}
+
+    monkeypatch.setattr(OT, "dialogue", dialogue)
+    co = (await new_company())["code"]
+    await order(client, owner, co)
+    row = (await runs_of(su, f"{co}-CEO"))[-1]
+    since = len(agents.fake.calls)
+    agents.fake.enqueue(f"{co}-CEO", step("کار ۳"))
+    assert (await run(agents, row["id"]))["state"] == "done"
+    first = next(c for c in agents.fake.calls[since:] if c.actor_ref == f"{co}-CEO")
+    prompt = first.messages[0].content
+    at = prompt.find("# Woken by the hub\n" + wake)
+    assert 0 < at < 1_000  # right after the trigger line, far from the cut
+    assert prompt.count("WAKE-W23") == 1  # not repeated inside the work's JSON
+    assert prompt.index("# Trigger") < at < prompt.index("# Work")
+    assert "…[cut]" in prompt  # the long brief was cut, the wake was not
+
+
 def test_a_partial_output_lists_only_what_happened() -> None:
     ok = {"tool": "work.get", "outcome": "ok"}
     bad = {"tool": "nope.tool", "outcome": "denied", "code": "unknown_tool"}

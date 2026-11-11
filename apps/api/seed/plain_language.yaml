@@ -45,7 +45,7 @@ replace:
   budget_exhausted: بودجه تمام شد
   quota_exhausted: سهمیه تمام شد
   hiring_closed: استخدام بسته است
-  owner_order_required: فقط با دستور شما
+  owner_order_required: فقط با دستور تو
   invalid_args: ورودی نادرست
   policy_denied: اجازه نداشت
   recipe_failed: صفحه‌ی سایت عوض شده بود
