@@ -340,7 +340,16 @@ def tools_text(actions: list[Any], names: dict[str, str] | None = None) -> str:
 def step_text(
     summary_fa: str | None, actions: list[dict[str, Any]], names: dict[str, str] | None = None
 ) -> str:
-    """§41.1 a step in the owner's words: its own summary when plain, else its tools."""
+    """§41.1 a step in the owner's words: its own summary when plain, else its tools.
+    ⟨2026-11-11⟩ When an action of the step did not happen (refused, failed, skipped), its tools'
+    real outcome, never the model's summary (written before any tool ran: it may claim it)."""
+    if any(
+        isinstance(a, dict)
+        and a.get("outcome") not in (None, "ok")
+        and str(a.get("tool") or "") not in SILENT_TOOLS
+        for a in actions
+    ):
+        return tools_text(actions, names)
     return plain(summary_fa) or tools_text(actions, names)
 
 
@@ -403,8 +412,11 @@ async def _names(tx: Tx, hints: set[str]) -> dict[str, str]:
 # ---------------------------------------------------------------- reading --
 # ⟨2026-11-11⟩ when a quota stopped a run, the time its account has room again, if the run carries
 # it (read by name from the row: a column the runner may or may not have)
-RESET_KEYS = ("retry_after", "retry_at", "reset_at", "resets_at")
-RESET_SQL = "COALESCE(" + ", ".join(f"to_jsonb(r) ->> '{k}'" for k in RESET_KEYS) + ")"
+# (the runner keeps it on the run's last step: agents.steps.usage->>'retry_at')
+RESET_SQL = (
+    "(SELECT s.usage ->> 'retry_at' FROM agents.steps s WHERE s.run_id = r.id "
+    "ORDER BY s.n DESC LIMIT 1)"
+)
 RUNS_SQL = f"""
 SELECT r.id, r.state, r.error_code, r.partial, r.queued_at, r.started_at, r.finished_at, r.steps,
        r.reason, w.ref AS work_ref, w.title AS work_title, e.title_fa, c.name_fa AS company_fa,
@@ -1314,7 +1326,11 @@ async def on_run(
                 text = step_text(summary, actions or [])
                 lid, lkind, lstate = line_id(rid, int(n or 0)), "step", "running"
             else:
-                raw = next((run.get(k) for k in RESET_KEYS if run.get(k) is not None), None)
+                raw = await tx.scalar(
+                    """SELECT usage ->> 'retry_at' FROM agents.steps WHERE run_id = :r
+                       ORDER BY n DESC LIMIT 1""",
+                    r=run.get("id"),
+                )
                 now = datetime.now(UTC)
                 reset = NS.when_fa(NS.parse_at(raw, now), await owner_zone(tx), now)
                 text = end_text(state or "done", code, partial, reset_fa=reset)

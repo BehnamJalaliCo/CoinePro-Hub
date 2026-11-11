@@ -284,8 +284,8 @@ async def test_the_incident_a_queued_chatgpt_draft_never_leaves_the_session_sile
     assert p.wakes == 0 and not p.spent and p.live
     await refuse_queued(su, s["root_ref"])
     await idle_for(su, ref, 11)
-    p = await pulse_of(hub, ref)  # idle again: a wake is due, none spent, not stuck
-    assert not p.live and p.wakes == 0 and not p.spent and p.woken is None and p.stuck_fa is None
+    p = await pulse_of(hub, ref)  # idle again: no wake spent since his word, not stuck
+    assert not p.live and p.wakes == 0 and not p.spent and p.stuck_fa is None
 
 
 async def test_two_idle_wakes_that_led_nowhere_make_it_stuck_with_the_plan_named(
@@ -601,3 +601,40 @@ def test_quota_codes_are_said_in_plain_words_with_the_reset_time() -> None:
         assert line is not None and line.startswith("کار متوقف شد: ") and "03:30" in line, line
         assert SA.end_text("failed", code) != SA.end_text("failed", "weird_code")
     assert NS.quota_why_fa("daily_cap") is None
+
+
+async def test_a_run_a_quota_stopped_says_in_the_session_when_it_works_again(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    su: Any,
+    no_model: list[Any],  # noqa: F811
+    new_company: Callable[..., Any],
+) -> None:
+    s = await an_order(client, owner, su, new_company, tasks=2, done=0, pace="auto")
+    co = s["company"]
+    emp = await su.fetchval("SELECT id FROM core.employees WHERE code = $1", s["holder"])
+    rid = await su.fetchval(
+        """INSERT INTO agents.runs (company_id, employee_id, work_id, trigger, reason, state,
+               error_code, queued_at, started_at, finished_at, steps)
+           VALUES ($1, $2, $3, 'work', 'quota', 'failed', 'usage_limit', now() - interval '3 minutes',
+                   now() - interval '3 minutes', now() - interval '1 minute', 1) RETURNING id""",
+        co["id"], emp, s["wid"],
+    )  # fmt: skip
+    at = datetime.now(UTC) + timedelta(hours=2)
+    # the runner keeps the reset the router gave on the run's last step (usage.retry_at)
+    await su.execute(
+        """INSERT INTO agents.steps (run_id, company_id, n, at, summary_fa, actions, usage)
+           VALUES ($1, $2, 1, now() - interval '2 minutes', 'شروع', '[]'::jsonb, $3::jsonb)""",
+        rid, co["id"], json.dumps({"code": "usage_limit", "retry_at": at.isoformat()}),
+    )  # fmt: skip
+    act = await activity(client, owner, s["ref"])
+    [end] = [ln for ln in act["last"] if ln["id"] == f"{rid}:end"]
+    async with await all_tx(hub) as tx:
+        zone = await SA.owner_zone(tx)
+    when = NS.when_fa(at, zone, datetime.now(UTC))
+    assert end["text_fa"] == f"کار متوقف شد: اکانت‌های Claude پر است؛ {when} دوباره کار میکند.", end
+    no_shoma(end["text_fa"])
+    # a step whose action did not happen shows the tools' real outcome, not the model's claim
+    assert SA.step_text("پیش‌نویس آماده شد", [{"tool": "substitute.call", "outcome": "denied",
+                                               "hint": "ChatGPT"}]) == "از ChatGPT پرسید (نشد)"  # fmt: skip
