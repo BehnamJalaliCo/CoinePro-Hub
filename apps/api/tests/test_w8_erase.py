@@ -723,3 +723,15 @@ async def test_the_owners_word_after_delivery_is_a_revision(
         )
         == "in_progress"
     )
+
+
+def test_the_cartable_filter_knows_every_decision_kind() -> None:
+    """GET /decisions?kind= accepts every kind a card can have (erase included)."""
+    import typing
+
+    from hq_api.domain import decisions as D
+    from hq_api.routes import decisions as routes
+
+    hint = typing.get_type_hints(routes.list_decisions)["kind"]
+    lit = next(a for a in typing.get_args(hint) if a is not type(None))
+    assert set(typing.get_args(lit)) == set(D.KINDS)
