@@ -8,6 +8,7 @@ real model, no database row. The templates are loaded and validated by a minimal
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import importlib
 import json
@@ -328,6 +329,32 @@ async def test_a_call_that_never_answers_times_out_plainly(monkeypatch: pytest.M
     with pytest.raises(StepFailed) as e:
         await C.ask_seat(ctx(hub, "gpt_text", timeout_s=10), "x")
     assert e.value.code == "timeout" and "به موقع" in e.value.reason_fa
+
+
+async def test_a_timed_out_or_cancelled_seat_call_leaves_the_queue(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression: an abandoned call stayed queued and the web pass spent the seat on it later."""
+    seat_world(monkeypatch)
+    hub = FakeHub(**{"FROM substitutes.calls": {"state": "queued"}})
+    with pytest.raises(StepFailed):
+        await C.ask_seat(ctx(hub, "gpt_text", timeout_s=10), "x")
+    taken = [q for q in hub.rows["_exec"] if "state_reason = 'abandoned'" in q]
+    assert len(taken) == 1 and "state = 'queued'" in taken[0]
+
+    async def cancelled(_s: float) -> None:  # the engine's wait_for limit fires mid-wait
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(C, "sleep", cancelled)
+    hub2 = FakeHub(**{"FROM substitutes.calls": {"state": "queued"}})
+    with pytest.raises(asyncio.CancelledError):
+        await C.ask_seat(ctx(hub2, "gpt_text"), "x")
+    assert any("'abandoned'" in q for q in hub2.rows["_exec"])
+
+    # an answered call is left alone
+    hub3 = FakeHub(**{"FROM substitutes.calls": {"state": "done", "result": {"text_md": "ok"}}})
+    await C.ask_seat(ctx(hub3, "gpt_text"), "x")
+    assert "_exec" not in hub3.rows
 
 
 # --------------------------------------------------------------------- tts --
@@ -722,6 +749,7 @@ async def test_cover_fails_plainly_without_a_folder_or_images_or_an_image_back(
     with pytest.raises(StepFailed) as e3:
         await REGISTRY["cover"].run(ctx(hub, "cover", library=(folder(uuid4()),)))
     assert e3.value.code == "not_image"
+
 
 
 # ----------------------------------------------------------------- publish --

@@ -136,25 +136,58 @@ async def ask_seat(
         raise StepFailed(skip_fa(call.get("state_reason"), who), code="seat_skipped")
     deadline = timeout_s if timeout_s is not None else timeout_of(ctx)
     waited = 0.0
-    while True:
+    settled = False  # the call reached an end of its own; nothing to take back
+    try:
+        while True:
+            async with hub.db.tx(await hub.companies.ids()) as tx:
+                row = await tx.first(
+                    "SELECT * FROM substitutes.calls WHERE id = :id", id=call["id"]
+                )
+                if row is not None and row["state"] == "done":
+                    settled = True
+                    answer = await S.full_text(tx, hub, row.get("result"))
+                    tokens = int(row.get("input_tokens") or 0) + int(row.get("output_tokens") or 0)
+                    return {
+                        "text": answer,
+                        "tokens": tokens,
+                        "usd_equiv": row.get("equiv_usd") or 0,
+                        "model": row.get("model"),
+                        "player": player,
+                    }
+            if row is not None and row["state"] in ("failed", "skipped", "cancelled"):
+                settled = True
+                raise StepFailed(
+                    skip_fa(row.get("state_reason"), who), code="seat_failed", retry=True
+                )
+            if waited >= deadline:
+                raise StepFailed(f"{who}: جواب به موقع نرسید.", code="timeout", retry=True)
+            await sleep(POLL_S)
+            waited += POLL_S
+    finally:
+        if not settled:  # timed out, cancelled by the engine's limit or broken off
+            await abandon_call(hub, call["id"])
+
+
+async def abandon_call(hub: Any, call_id: Any) -> None:
+    """A seat call nobody waits for any more leaves the queue.
+
+    Without this the web pass would still run it later, spend the owner's seat (its daily cap and
+    ledger) on an answer nobody reads, and hold a step's retry behind it. A call already running
+    is left to finish; only a still-queued one is skipped.
+    """
+    try:
         async with hub.db.tx(await hub.companies.ids()) as tx:
-            row = await tx.first("SELECT * FROM substitutes.calls WHERE id = :id", id=call["id"])
-            if row is not None and row["state"] == "done":
-                answer = await S.full_text(tx, hub, row.get("result"))
-                tokens = int(row.get("input_tokens") or 0) + int(row.get("output_tokens") or 0)
-                return {
-                    "text": answer,
-                    "tokens": tokens,
-                    "usd_equiv": row.get("equiv_usd") or 0,
-                    "model": row.get("model"),
-                    "player": player,
-                }
-        if row is not None and row["state"] in ("failed", "skipped", "cancelled"):
-            raise StepFailed(skip_fa(row.get("state_reason"), who), code="seat_failed", retry=True)
-        if waited >= deadline:
-            raise StepFailed(f"{who}: جواب به موقع نرسید.", code="timeout", retry=True)
-        await sleep(POLL_S)
-        waited += POLL_S
+            await tx.exec(
+                """UPDATE substitutes.calls
+                   SET state = 'skipped', state_reason = 'abandoned', finished_at = now(),
+                       input_md = NULL
+                   WHERE id = :id AND state = 'queued'""",
+                id=call_id,
+            )
+    except Exception as exc:  # noqa: BLE001 - the step's own failure is the one to report
+        log.warning(
+            "seat call not taken back", extra={"call": str(call_id), "error": type(exc).__name__}
+        )
 
 
 # ------------------------------------------------- the profile browser jobs --
