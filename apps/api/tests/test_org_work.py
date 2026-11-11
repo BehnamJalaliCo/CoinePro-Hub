@@ -11,7 +11,7 @@ import pytest
 
 from hq_api.audit import SYSTEM
 from hq_api.domain import decisions as D
-from hq_api.domain import recurrence
+from hq_api.domain import recurrence, recurring
 from hq_api.errors import ApiError
 from hq_api.hub import Hub
 
@@ -433,6 +433,22 @@ async def test_recurring_by_owner_and_planner(
     bad = {**body, "schedule": {"rrule": "FREQ=YEARLY", "timezone": "Asia/Tehran"}}
     r = await client.post("/api/v1/work", headers={**owner, **idem()}, json=bad)
     assert r.status_code == 422 and "schedule.rrule" in r.json()["fields"]
+
+
+def test_the_schedule_shows_its_next_run_not_the_one_just_made() -> None:
+    now = datetime.now(UTC)
+    t = {
+        "sc_rrule": "FREQ=DAILY;BYHOUR=9;BYMINUTE=0",
+        "sc_timezone": "UTC",
+        "expires_at": now + timedelta(days=60),
+    }
+    nxt = recurring._upcoming(t, now - timedelta(minutes=1))  # a run made at (or after) its time
+    assert nxt is not None and now < nxt <= now + timedelta(days=1)
+    assert (nxt.hour, nxt.minute) == (9, 0)
+    ahead = now + timedelta(hours=3)  # a run made ahead of its time is still the next one
+    assert recurring._upcoming(t, ahead) == ahead
+    assert recurring._upcoming({**t, "expires_at": now}, now - timedelta(minutes=1)) is None
+    assert recurring._upcoming({**t, "sc_rrule": None}, now - timedelta(minutes=1)) is None
 
 
 def test_recurrence_rules() -> None:
