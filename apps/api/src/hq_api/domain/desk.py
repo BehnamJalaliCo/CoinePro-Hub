@@ -813,7 +813,7 @@ async def process(tx: Tx, hub: Any, message_id: UUID | str) -> Outcome:
             if row is not None:
                 out = await handoff(tx, hub, conv, "blocked", note=row["failure"] or "guard")
                 return Outcome("handoff", conv["ref"], row["id"], "blocked", queued=_ids(out))
-        # Not live (shadow, paused, off): the would-be answer is recorded, nothing leaves.
+        # Not live (shadow, paused) or auto_send off: the would-be answer is recorded only.
         composed = await compose(
             tx, conv, top["answer_md"], with_safety=conv["safety_sent_at"] is None
         )
@@ -822,6 +822,12 @@ async def process(tx: Tx, hub: Any, message_id: UUID | str) -> Outcome:
             status="draft" if composed.verdict.ok else "blocked", verdict=composed.verdict,
             grounded_ok=True, kb_refs=[ref], confidence=score, verbatim=True,
         )  # fmt: skip
+        if ch["state"] == "live":
+            # A live channel whose auto_send is off: everything waits for the owner (the
+            # teaching queue) and the customer gets the holding reply, as a draft() does.
+            reason = "low_confidence" if composed.verdict.ok else "blocked"
+            out = await handoff(tx, hub, conv, reason, note="auto_send_off")
+            return Outcome("handoff", conv["ref"], row["id"], "auto_send_off", queued=_ids(out))
         return Outcome("shadow", conv["ref"], row["id"], ch["state"])
     # 5. the support agent drafts, unless there is none or its tokens of the day are spent
     agent = await support_agent(tx, conv["company_id"])
