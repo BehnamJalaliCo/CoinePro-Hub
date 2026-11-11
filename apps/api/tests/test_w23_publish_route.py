@@ -229,12 +229,17 @@ async def test_one_tech_work_per_company_and_a_delivered_one_is_made_again_only_
         assert again is not None and again != first
         assert await CN.ensure_ig_publish_work(tx, co["id"]) == again  # open: it stands
     assert [w["ref"] for w in await ig_works(su, code)] == [first, again]
-    # a failed or cancelled one never stands: a new one at once, within the day too
+    # a failed or cancelled one stands for its cool-down only (never a work a tick), then a new
+    # one is made, within the day too
     monkeypatch.setattr(CN, "TECH_AGAIN", timedelta(hours=24))
     other = await new_company()
     async with await all_tx(hub) as tx:
         one = await CN.ensure_ig_setup_work(tx, other["id"], daily=True)
     await su.execute("UPDATE work.work SET status = 'cancelled' WHERE ref = $1", one)
+    async with await all_tx(hub) as tx:
+        assert await CN.ensure_ig_setup_work(tx, other["id"]) == one  # cooling down
+        assert await SPB._setup_fa(tx, one) == SPB.SETUP_SOON_FA
+    monkeypatch.setattr(CN, "TECH_AFTER_FAIL", timedelta(0))
     async with await all_tx(hub) as tx:
         two = await CN.ensure_ig_setup_work(tx, other["id"])  # an order's blocker
         assert two is not None and two != one
