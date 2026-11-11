@@ -3592,7 +3592,7 @@ VoiceEngine { key, title_fa, provider: "google"|"local", model, languages: int, 
   a plain reason mapped from Google's answer («کلید درست نیست»، «این کلید به مدل صدا دسترسی ندارد»، «صورتحساب این پروژه فعال نیست»،
   «سهمیه تمام شده است»). `DELETE /voice/providers/{provider}/secret` 🔏 removes it.
 - **Server defence:** every turn's text is scanned before storage and before any model call; a key-shaped string is replaced by
-  «[کلید حذف شد]» and the persona answers «کلید را با دکمه‌ی 🔑 بدهید». The Audit says only «voice.secret set».
+  «[کلید حذف شد]» and the persona answers «کلید را با دکمه‌ی 🔑 بده». The Audit says only «voice.secret set».
 - **The light** (app header of the talk screen, one dot per engine in use): green `ok`, yellow `checking`, red `missing`/`failing`
   (tap: the reason and the fix), amber `capped`. Rechecked by code every 6 h and after any failure (metadata call only, free).
 
