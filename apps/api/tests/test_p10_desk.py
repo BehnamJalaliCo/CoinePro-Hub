@@ -547,3 +547,25 @@ def test_only_a_whole_opt_out_message_opts_out() -> None:
                  "میخوام سفارشم رو لغو کنم", "لغو سفارش", "app won't stop crashing",
                  "Stop loss کار نمیکنه", "how do I stop the auto renewal", ""):  # fmt: skip
         assert not desk.is_opt_out(text), text
+
+
+async def test_a_shared_secret_gets_the_safety_line_once(
+    hub: Hub, new_company: Callable[..., Any], su: Any
+) -> None:
+    """The safety line sent after a masked secret is the message itself: it is never
+    composed with a second copy of itself."""
+    co = await new_company()
+    basics = await seal_basics(hub, co["id"])
+    await make_live(su, co["id"])
+    async with holding_switch(su, "released"), fake_telegram():
+        msg = await inbound(hub, co["id"], "شماره کارتم 4111 1111 1111 1111 است")
+        await process(hub, co["id"], msg["message"]["id"])
+    bodies = [
+        r["body"]
+        for r in await su.fetch(
+            """SELECT body FROM support.messages WHERE conversation_id = $1
+                 AND direction = 'out'""",
+            msg["conversation"]["id"],
+        )
+    ]
+    assert sum(b.count(basics["safety"]) for b in bodies) == 1, bodies

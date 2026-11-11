@@ -614,15 +614,18 @@ async def auto_message(
     template: str | None = None,
     grounded_ok: bool | None = None,
     run_id: Any = None,
+    with_safety: bool | None = None,
 ) -> dict[str, Any] | None:
     """An automatic message the policy already allowed: the guard, the
     caps, then `queued` for the worker on a live channel (or the mystery
     one); on any other channel nothing leaves (recorded as a draft only when
-    it is an agent's or a verbatim answer, for the owner to see)."""
+    it is an agent's or a verbatim answer, for the owner to see). The safety
+    line is added on the conversation's first answer unless with_safety says
+    otherwise (False: the body is the safety line itself)."""
     ch = await effective_channel(tx, conv)
     if not conv["mystery"] and ch["state"] != "live":
         return None
-    first = conv["safety_sent_at"] is None
+    first = conv["safety_sent_at"] is None if with_safety is None else with_safety
     composed = await compose(tx, conv, body, with_safety=first)
     if not composed.verdict.ok:
         return await insert_out(
@@ -774,8 +777,9 @@ async def process(tx: Tx, hub: Any, message_id: UUID | str) -> Outcome:
         safety, sref = await safety_line(tx, conv["company_id"])
         if safety:
             row = await auto_message(
-                tx, hub, conv, safety, author="rule", author_code=sref or "safety", template=sref
-            )
+                tx, hub, conv, safety, author="rule", author_code=sref or "safety", template=sref,
+                with_safety=False,  # the body is the safety line: never twice in one message
+            )  # fmt: skip
             if row is not None and row["status"] == "queued":
                 await tx.exec(
                     "UPDATE support.conversations SET safety_sent_at = now() WHERE id = :id",
