@@ -930,3 +930,47 @@ async def test_worker_main_starts_and_stops(
     stop.set()
     await asyncio.wait_for(task, 30)
     assert (await entry.load_secrets(None)).web_push_ready is False
+
+
+async def test_secrets_refresh_keeps_or_closes_channels(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Audit 2026-11-11: a refresh kept dropping the push channels (and their http client)
+    every 5 minutes; now they are rebuilt only when the push credentials change, and the
+    old ones are closed."""
+    from types import SimpleNamespace
+
+    from hq_api.secrets import Secrets
+    from hq_api.worker import __main__ as entry
+
+    class FakeChannels:
+        closed = False
+
+        async def aclose(self) -> None:
+            self.closed = True
+
+    loads = [Secrets(telegram_bot_token="a"), Secrets(telegram_bot_token="b")]
+
+    async def load(*_a: Any, **_k: Any) -> Secrets:
+        return loads.pop(0) if loads else Secrets(telegram_bot_token="b")
+
+    monkeypatch.setattr(entry, "SECRETS_REFRESH_S", 0.01)
+    monkeypatch.setattr(entry.secret_store, "load", load)
+    first = FakeChannels()
+    hub: Any = SimpleNamespace(secrets=Secrets(telegram_bot_token="a"), channels=first)
+    task = asyncio.create_task(entry.refresh_secrets(hub, object()))  # type: ignore[arg-type]
+    await asyncio.sleep(0.1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    # Same credentials first: kept; then a change: swapped out and closed.
+    assert hub.channels is None
+    assert first.closed is True
+    assert hub.secrets.telegram_bot_token == "b"
+
+    same = FakeChannels()
+    hub = SimpleNamespace(secrets=Secrets(telegram_bot_token="b"), channels=same)
+    task = asyncio.create_task(entry.refresh_secrets(hub, object()))  # type: ignore[arg-type]
+    await asyncio.sleep(0.05)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert hub.channels is same and same.closed is False
