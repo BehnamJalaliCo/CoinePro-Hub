@@ -142,6 +142,25 @@ refused "$(job restart '{"service": "worker"}' infra/compose/hq.sh restart api)"
 # restart, profile (with turn_off), n8n.import: the table's commands run.
 run "$(job restart '{"service": "worker"}' infra/compose/hq.sh restart worker)"
 if [[ "$(cat "$T/argv.log")" == "restart worker" ]]; then ok "restart worker runs"; else bad "restart worker did not run"; fi
+# A name that ends a line of the multi-line lists is still in them (worker, prometheus, listmonk).
+run "$(job restart '{"service": "prometheus"}' infra/compose/hq.sh restart prometheus)"
+if [[ "$(cat "$T/argv.log")" == "restart prometheus" ]]; then ok "restart prometheus runs"; else bad "restart prometheus did not run"; fi
+run "$(job logs '{"service": "worker", "lines": 50}' infra/compose/hq.sh logs --no-color --tail 50 worker)"
+if [[ "$(cat "$T/argv.log")" == "logs --no-color --tail 50 worker" ]]; then ok "logs worker runs"; else bad "logs worker did not run"; fi
+for k in services restartable; do # every listed name passes the dispatcher's own check
+  for s in $(bash "$HERE/dispatch.sh" --print-lists | sed -n "s/^$k://p"); do
+    if [[ "$k" == services ]]; then
+      run "$(job logs "{\"service\": \"$s\", \"lines\": 5}" infra/compose/hq.sh logs --no-color --tail 5 "$s")"
+      [[ "$(cat "$T/argv.log" 2>/dev/null)" == "logs --no-color --tail 5 $s" ]] || bad "logs $s was refused"
+    else
+      run "$(job restart "{\"service\": \"$s\"}" infra/compose/hq.sh restart "$s")"
+      [[ "$(cat "$T/argv.log" 2>/dev/null)" == "restart $s" ]] || bad "restart $s was refused"
+    fi
+  done
+done
+ok "every listed service: logs and restart (restartable) run"
+refused "$(job logs '{"service": "", "lines": 5}' infra/compose/hq.sh logs --no-color --tail 5 '')" "an empty service"
+refused "$(job logs '{"service": "api worker", "lines": 5}' infra/compose/hq.sh logs --no-color --tail 5 'api worker')" "two services in one"
 run "$(job profile '{"name": "media", "on": true, "turn_off": ["ocr", "tts"]}' infra/hubops/profile.sh media on ocr tts)"
 if [[ "$(cat "$T/bin.log")" == "profile.sh media on ocr tts" ]]; then ok "profile runs"; else
   bad "profile did not run ($(cat "$T/bin.log" 2>/dev/null))"

@@ -109,7 +109,9 @@ refuse() { # refuse REASON: nothing ran
   exit 0
 }
 
-in_list() { [[ "$2" == *" $1 "* ]]; }
+# in_list NAME LIST: NAME is one word of LIST. The lists span lines, so any whitespace separates;
+# an empty name, or one with a space, never matches (two words or an indent would).
+in_list() { [[ "$1" =~ ^[a-z0-9-]+$ && " ${2//[[:space:]]/ } " == *" $1 "* ]]; }
 
 claim="$(printf '' | api /internal/v1/hubops/claim 2>/dev/null)" || claim='{}'
 ref="$(jq -r '.job.ref // empty' <<<"$claim" 2>/dev/null || true)"
