@@ -48,6 +48,7 @@ VOICES = {
 }
 LETTER_WORDS = 600
 LETTER_TOKENS = 40_000
+LETTER_ATTEMPTS_MAX = 10  # reports.ceo_letters.attempts CHECK (0..10)
 UNSOURCED = "«عدد بی‌منبع»"
 TTS_RECLAIM_MIN = 15  # a claim not finished in this time is claimed again
 TTS_MAX_ATTEMPTS = 3
@@ -524,17 +525,20 @@ async def letter_gate(ctx: Any, work_id: UUID, body_md: str) -> bool:
                 fields={"body": f"at most {LETTER_WORDS} words"},
             )
         missing = unsourced(body_md, set(letter["figures"] or []))
-        attempts = int(letter["attempts"]) + 1
+        # The send-back is the first unsourced attempt's, whatever came before:
+        # a delivery refused after this gate (no key, a lock, expired evidence)
+        # never uses it up. `attempts` is only a count, held under its ceiling.
+        send_back = bool(missing) and letter["state"] == "writing"
         await tx.exec(
-            """UPDATE reports.ceo_letters SET attempts = :a, unsourced = :u,
+            """UPDATE reports.ceo_letters SET attempts = least(attempts + 1, :cap), unsourced = :u,
                    state = CASE WHEN :ret THEN 'returned' ELSE state END, updated_at = now()
                WHERE id = :id""",
-            a=attempts,
+            cap=LETTER_ATTEMPTS_MAX,
             u=missing[:50],
-            ret=bool(missing) and attempts == 1,
+            ret=send_back,
             id=letter["id"],
         )
-    if missing and attempts == 1:
+    if send_back:
         raise ApiError(
             422,
             "validation_failed",
