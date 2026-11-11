@@ -84,7 +84,7 @@ internal class V47Demo(private val v35: V35Demo) {
         val title = body?.str("title_fa")?.trim().orEmpty()
         val url = body?.str("url")?.trim()?.ifBlank { null }
         if (kind == "reference" && url == null) return 422 to JsonObject(problem(422, "validation_failed", "نمونه بدون لینک ثبت نمیشود.") + ("fields" to jo("url" to "a reference needs its address")))
-        if (kind == "topic" && title.length < 2) return 422 to problem(422, "validation_failed", "موضوع را بنویسید.")
+        if (kind == "topic" && title.length < 2) return 422 to problem(422, "validation_failed", "موضوع را بنویس.")
         val hit = list.firstOrNull { e ->
             e.str("kind") == kind && if (kind == "reference") e.str("url")?.trimEnd('/') == url?.trimEnd('/') else words(e.str("title_fa").orEmpty()) == words(title)
         }
@@ -166,7 +166,7 @@ internal class V47Demo(private val v35: V35Demo) {
 
     private fun makeRoutine(body: JsonObject?): Pair<Int, JsonElement> {
         val sentence = body?.str("sentence_fa")?.trim().orEmpty()
-        if (sentence.length < 3) return 422 to problem(422, "validation_failed", "جمله‌ی روال را بنویسید.")
+        if (sentence.length < 3) return 422 to problem(422, "validation_failed", "جمله‌ی روال را بنویس.")
         val plain = sentence.replace('ي', 'ی').map { ch -> if (ch in '۰'..'۹') '0' + (ch - '۰') else ch }.joinToString("")
         val weekday = WEEKDAYS.firstOrNull { "هر $it" in plain }
         val daily = listOf("هر روز", "روزانه", "هر صبح", "هر شب").any { it in plain }

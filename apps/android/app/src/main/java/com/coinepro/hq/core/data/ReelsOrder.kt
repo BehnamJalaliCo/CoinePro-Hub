@@ -27,7 +27,7 @@ fun ledgerCountsFa(topics: Int, references: Int): String =
 fun topicSourceFa(source: String): String = when (source) {
     "claim" -> "ثبت کارمند"
     "package" -> "از بسته‌ی منتشرشده"
-    "owner" -> "افزوده‌ی شما"
+    "owner" -> "افزوده‌ی تو"
     else -> ""
 }
 
@@ -61,7 +61,7 @@ fun genderFa(gender: String): String = when (gender) { "female" -> "زن"; "male
 
 /** The one step of the owner there is here: the hub fell out of its account of the speech service. Null otherwise. */
 fun narratorStepFa(n: Narrator): String? =
-    if (n.aistudio == "signed_out") "گوینده‌ی هاب از حسابش بیرون افتاده؛ یک بار ورود شما لازم است." else null
+    if (n.aistudio == "signed_out") "گوینده‌ی هاب از حسابش بیرون افتاده؛ یک بار ورود خودت لازم است." else null
 
 /** `PUT /companies/{code}/narrator`: the voice, and the style when he wrote one (at most 500 letters). */
 fun narratorBody(voice: String, styleFa: String?): JsonObject = buildJsonObject {
@@ -70,8 +70,8 @@ fun narratorBody(voice: String, styleFa: String?): JsonObject = buildJsonObject 
 }
 
 // ------------------------------------------------------------------ §49 the best hour --
-/** The hour as he reads it («۲۱:۰۰»); null when the hub named none. */
-fun bestClockFa(b: BestHour?): String? = b?.hour?.let { clockOf(it) ?: it.trim().ifBlank { null } }?.let(::faDigits)
+/** The hour as he reads it («21:00»: a clock is a Latin figure, C0.4); null when the hub named none. */
+fun bestClockFa(b: BestHour?): String? = b?.hour?.let { clockOf(it) ?: it.trim().ifBlank { null } }
 
 /**
  * What stands under «بهترین ساعت، خودکار»: with enough data, the hour and what it rests on; without, what is missing and what the hub
@@ -82,7 +82,7 @@ fun bestHourLines(b: BestHour, fixedAt: String?): List<String> {
     return if (b.enough && clock != null) listOfNotNull("بهترین ساعت این حساب: $clock", b.noteFa.trim().ifBlank { null })
     else listOfNotNull(
         b.noteFa.trim().ifBlank { null },
-        if (clockOf(fixedAt) != null) "تا آن وقت: ساعت ثابت شما" else "تا آن وقت: همان لحظه‌ی آماده شدن",
+        if (clockOf(fixedAt) != null) "تا آن وقت: ساعت ثابت خودت" else "تا آن وقت: همان لحظه‌ی آماده شدن",
     )
 }
 
@@ -92,12 +92,14 @@ fun standingLineFa(p: MemberPublish, best: BestHour? = null): String = when {
     else -> listOfNotNull(
         "خودکار",
         // the hour first: the line is one row, and the hour is what he looks for
-        if (p.best) listOfNotNull("بهترین ساعت", bestClockFa(best?.takeIf { it.enough })).joinToString(" ") else clockOf(p.at)?.let { "ساعت $it" },
+        if (p.best) listOfNotNull("بهترین ساعت", bestClockFa(best?.takeIf { it.enough })).joinToString(" ") else null,
+        // his fixed hour: the hour itself, or what the hub falls back on until it knows the best one
+        clockOf(p.at)?.takeIf { !(p.best && best?.enough == true && bestClockFa(best) != null) }?.let { if (p.best) "تا آن وقت ساعت $it" else "ساعت $it" },
         p.account?.let { "⁦@$it⁩" }, "استوری هم".takeIf { p.story },
     ).joinToString(" · ")
 }
 
-/** «بهترین ساعت (۲۱:۰۰)» as a time of the publish sheet: offered when the panel carries an hour for the account he chose. */
+/** «بهترین ساعت (21:00)» as a time of the publish sheet: offered when the panel carries an hour for the account he chose. */
 fun bestChoice(best: BestHour?, account: String?): BestHour? =
     best?.takeIf { it.at != null && (it.account == null || account == null || it.account.equals(account.removePrefix("@"), ignoreCase = true)) }
 

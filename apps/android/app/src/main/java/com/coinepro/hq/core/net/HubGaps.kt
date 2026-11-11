@@ -84,6 +84,12 @@ enum class HubFeature {
     /** ⟨1.33⟩ `POST /orders {company}`, the company the owner picked by its mark in the command sheet; a hub that refuses the field
      *  gets the order with that company named in its words. */
     ORDER_COMPANY,
+    /** ⟨1.33⟩ §55.2 `GET /publish-desk`; without it «میز انتشار» (its tab beside «خروجی‌ها», the home's line and the page) is hidden. */
+    PUBLISH_DESK,
+    /** `POST /work/{id}/stop` asked from a session's «الان» bar; without it «نگه دار» is not offered there. */
+    WORK_STOP,
+    /** `GET /groups/{key}/runs` read for a sealed working group's page; without it the runs' dots and «آخرین نوبت» are left out. */
+    GROUP_RUNS,
 }
 
 /**

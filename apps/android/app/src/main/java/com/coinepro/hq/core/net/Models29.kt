@@ -116,6 +116,8 @@ data class OrderReport(
     val publishes: List<SessionPublish> = emptyList(),
     /** ⟨1.31⟩ §50 the standing routines asked for in this session, newest first. Null: a hub before §50 (it has no routines at all). */
     val routines: List<SessionRoutine>? = null,
+    /** ⟨1.32⟩ §54 the workshop can take this session's turns directly now: its holder does the work himself. */
+    val direct: Boolean = false,
 )
 
 /**

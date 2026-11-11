@@ -653,6 +653,9 @@ class Api(
 
     /** ⟨1.33⟩ §55.3 the owner's Claude accounts (each one ring) and today's meter. A hub before it has no such route ([HubFeature.LIMITS]). */
     suspend fun limits(): Limits = get("/treasury/limits")
+    /** ⟨1.33⟩ §55.2 the publish desk: what can go out, is set to go out, or went out, of every company (or of [company]). A hub before
+     *  it has no such route ([HubFeature.PUBLISH_DESK]); an unknown company is the hub's own 404. */
+    suspend fun publishDesk(company: String? = null): PublishDesk = get("/publish-desk", mapOf("company" to company))
     suspend fun whatIf(model: String, from: String, to: String, company: String? = null): WhatIf =
         get("/treasury/what-if", mapOf("model" to model, "from" to from, "to" to to, "company" to company))
     suspend fun calls(company: String? = null, actor: String? = null, status: String? = null, cursor: String? = null, limit: Int = 25): Page<CallRow> =

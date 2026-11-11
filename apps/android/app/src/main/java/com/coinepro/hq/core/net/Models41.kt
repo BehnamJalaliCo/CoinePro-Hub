@@ -7,7 +7,12 @@ import kotlinx.serialization.Serializable
 // (with the fix), or it is quiet since a time. Same rules as Models.kt: camelCase here, snake_case on the wire; a field the hub omits
 // takes its default.
 
-/** Someone working on a work of the order's tree now: who, of which company, on which work, since when, at which step, doing what. */
+/**
+ * Someone working on a work of the order's tree now: who, of which company, on which work, since when, at which step, doing what.
+ * ⟨1.33⟩ §55.1 additive: [kind] `run` (an agent's run) · `workshop` (the workshop's turn) · `direct` (the holder's own turn, §54) ·
+ * `server` (a company server's turn); [capS] a turn's time cap in seconds (null for a run: the build ring fills against it);
+ * [lastFa], [lastAt] the last thing a live turn did, in the owner's words (null: the app shows [doingFa]).
+ */
 @Serializable
 data class SessionWorker(
     val whoFa: String = "",
@@ -16,6 +21,10 @@ data class SessionWorker(
     val startedAt: String = "",
     val step: Int = 0,
     val doingFa: String = "",
+    val kind: String = "run",
+    val capS: Int? = null,
+    val lastFa: String? = null,
+    val lastAt: String? = null,
 )
 
 /**
@@ -46,4 +55,8 @@ data class SessionActivity(
     val idleSince: String? = null,
     val waitingFa: String? = null,
     val stuckFa: String? = null,
+    /** ⟨1.33⟩ §55.1 «چراغ حال»: `thinking` · `working` · `waiting` · `stuck` · `idle`, by the hub's own rule. Null: a hub before §55
+     *  (the app reads the mood from the fields above). */
+    val mood: String? = null,
+    val moodFa: String? = null,
 )
