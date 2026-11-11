@@ -409,7 +409,7 @@ async def reply(tx: Tx, ref: str, text: str) -> dict[str, Any]:
         raise ApiError(404, "not_found", "unknown order", message_fa="این فرمان پیدا نشد.")
     if rep["ended_at"] is not None:
         raise ApiError(409, "validation_failed", "the order has ended",
-                       message_fa="این جلسه بسته شده است؛ برای ادامه آن را دوباره باز کنید.")  # fmt: skip
+                       message_fa="این جلسه بسته شده است؛ برای ادامه آن را دوباره باز کن.")  # fmt: skip
     turn = OR._j(rep.get("turn")) or {}
     order = await OR.load_order(tx, ref)
     assert order is not None
@@ -426,7 +426,7 @@ async def reply(tx: Tx, ref: str, text: str) -> dict[str, Any]:
             targets.append(revised)
     if not targets:
         raise ApiError(409, "validation_failed", "no open work on the order",
-                       message_fa="کار بازی روی این فرمان نمانده است؛ فرمان تازه بدهید.")  # fmt: skip
+                       message_fa="کار بازی روی این فرمان نمانده است؛ فرمان تازه بده.")  # fmt: skip
     steps = [OR._step(OWNER_FA, words)]
     if revised is not None:
         steps.append(OR._step("سامانه", REVISION_FA))

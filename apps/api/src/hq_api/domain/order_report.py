@@ -549,7 +549,7 @@ async def kit_sealed(tx: Tx, ref: str, code: str, name_fa: str) -> None:
             {
                 "done_fa": done,
                 "left_fa": "اتصال حساب‌ها و روشن کردن خط‌ها مانده است",
-                "need_fa": "اتصال‌ها را در صفحه‌ی شرکت وصل کنید",
+                "need_fa": "اتصال‌ها را در صفحه‌ی شرکت وصل کن",
             },
             ensure_ascii=False,
         ),

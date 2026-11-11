@@ -586,7 +586,7 @@ async def _open(tx: Tx, ref: str) -> dict[str, Any]:
         raise ApiError(404, "not_found", "unknown order", message_fa=NOT_FOUND_FA)
     if rep.get("closed_at") is not None or rep.get("ended_at") is not None:
         raise ApiError(409, "validation_failed", "the session is closed",
-                       message_fa="این جلسه بسته شده است؛ برای ادامه آن را دوباره باز کنید.")  # fmt: skip
+                       message_fa="این جلسه بسته شده است؛ برای ادامه آن را دوباره باز کن.")  # fmt: skip
     return rep
 
 
@@ -617,10 +617,10 @@ async def add_participant(ctx: Any, tx: Tx, ref: str, kind: str, key: str) -> st
     if kind == "player":
         if key not in PLAYERS:
             raise ApiError(422, "validation_failed", fields={"key": "gpt | gemini | deepseek"},
-                           message_fa="بازیکن را از میان ChatGPT، Gemini و DeepSeek انتخاب کنید.")  # fmt: skip
+                           message_fa="بازیکن را از میان ChatGPT، Gemini و DeepSeek انتخاب کن.")  # fmt: skip
         why = await PL.availability(tx, key)
         if why is not None:
-            off = f"{PLAYER_FA[key]} الان در دسترس نیست؛ اول در صفحه‌ی بازیکن‌ها واردش کنید."
+            off = f"{PLAYER_FA[key]} الان در دسترس نیست؛ اول در صفحه‌ی بازیکن‌ها واردش کن."
             raise ApiError(409, "validation_failed", f"the player is {why}", message_fa=off)
         pkey, title = f"player:{key}", PLAYER_FA[key]
     else:
