@@ -137,7 +137,8 @@ async def file(
     source_ref: str,
     quote_text: str | None,
 ) -> tuple[dict[str, Any], bool]:
-    """(the item, created?) for one tagged signal."""
+    """(the item, created?) for one tagged signal. The caller links the
+    signal to the item, then runs `threshold` (so that signal is counted)."""
     item = await _target(tx, company_id, kind, area, title_fa)
     if item is None:
         title = (title_fa or quote_text or f"{kind} · {area}")[:300]
@@ -174,7 +175,6 @@ async def file(
         item["ref"],
         {"count": item["count"], "kind": kind, "area": area},
     )
-    await threshold(tx, hub, item, company)
     return item, created
 
 
@@ -267,6 +267,7 @@ async def ingest(
         await tx.exec(
             "UPDATE feedback.signals SET item_id = :i WHERE id = :id", id=row["id"], i=item["id"]
         )
+        await threshold(tx, hub, item, company)
     return {"signal": row, "item": item, "duplicate": False, "tagged_by": row["tagged_by"]}
 
 
@@ -308,11 +309,20 @@ async def tag(
     ):
         raise ApiError(404, "not_found", "no such NPS wave in this company")
     q = quote(text)
-    existing = (
-        await tx.first("SELECT * FROM feedback.signals WHERE message_id = :m", m=message_id)
-        if message_id
-        else None
-    )
+    if message_id:
+        existing = await tx.first(
+            "SELECT * FROM feedback.signals WHERE message_id = :m", m=message_id
+        )
+    else:
+        # an NPS wave (or a conversation with no inbound message) has no message to key on: the
+        # same source tagged again under the same kind and area is the same signal, not +1
+        existing = await tx.first(
+            """SELECT * FROM feedback.signals
+               WHERE company_id = :co AND source_ref = :src AND message_id IS NULL
+                 AND tagged_by = 'agent' AND kind = :k AND area = :a
+               ORDER BY at DESC LIMIT 1""",
+            co=company_id, src=source_ref, k=kind, a=area,
+        )  # fmt: skip
     if existing is not None and existing["item_id"] is not None:
         item = await tx.one("SELECT * FROM feedback.items WHERE id = :i", i=existing["item_id"])
         return {"item": item, "created": False, "already": True}
@@ -342,6 +352,7 @@ async def tag(
                VALUES (:co, :i, :src, :m, :q, :k, :a, 'agent', now())""",
             co=company_id, i=item["id"], src=source_ref, m=message_id, q=q, k=kind, a=area,
         )  # fmt: skip
+    await threshold(tx, hub, item, company)
     return {"item": item, "created": created}
 
 
@@ -445,7 +456,7 @@ async def batch_company(
                 id=sig["id"], k=t["kind"], a=t["area"], i=item["id"],
             )  # fmt: skip
             tagged += 1
-    waited = 0
+    waited = 0  # the sweep also runs the threshold of the items just filed (now linked)
     for item in await tx.all(
         """SELECT * FROM feedback.items WHERE company_id = :co AND threshold_work_id IS NULL
              AND merged_into IS NULL AND state = ANY(:open)""",

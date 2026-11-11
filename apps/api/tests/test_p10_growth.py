@@ -558,6 +558,10 @@ async def test_five_messages_of_one_meaning_are_one_item_and_one_product_task(
                                       source_ref=m["conversation"]["ref"], text=text,
                                       message_id=m["message"]["id"])  # fmt: skip
             assert got["tagged_by"] == "rule"
+        # the 5th signal (the threshold) opens the task at once, not the nightly sweep
+        assert await su.fetchval(
+            "SELECT threshold_work_id FROM feedback.items WHERE company_id = $1", co["id"]
+        )
         await FB.batch(hub, txf(hub), router)
     items = await su.fetch("SELECT * FROM feedback.items WHERE company_id = $1", co["id"])
     assert len(items) == 1
@@ -660,6 +664,25 @@ async def test_feedback_tag_by_the_support_lead_and_the_product_manager(
         "SELECT quotes, sources FROM feedback.items WHERE company_id = $1", co["id"]
     )
     assert "@slow_user" not in item["quotes"] and len(item["sources"]) == 2
+    # An NPS wave has no message to key on: tagging it again is the same signal, not +1.
+    wave = f"NP-2026Q4-{co['code']}"
+    await su.execute(
+        """INSERT INTO growth.nps_waves (company_id, ref, quarter, opens_at, closes_at)
+           VALUES ($1, $2, '2026Q4', now(), now() + interval '14 days')""",
+        co["id"],
+        wave,
+    )
+    nps = {"source_ref": wave, "kind": "feature", "area": "nps_theme", "title_fa": "حالت شب"}
+    async with holding_switch(su, "released"):
+        for _ in range(3):
+            r = await client.post("/internal/v1/feedback/tag", headers=product, json=nps)
+            assert r.status_code == 200, r.text
+            assert r.json()["count"] == 1
+    assert await su.fetchval(
+        "SELECT count(*) FROM feedback.signals WHERE company_id = $1 AND source_ref = $2",
+        co["id"],
+        wave,
+    ) == 1  # fmt: skip
 
 
 async def test_the_weekly_support_figures_go_to_the_lead_or_the_morning_report(

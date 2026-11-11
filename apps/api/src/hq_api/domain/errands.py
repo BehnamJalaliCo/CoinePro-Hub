@@ -364,10 +364,12 @@ async def on_decided(tx: Tx, d: dict[str, Any], verdict: str) -> None:
         "summary_fa": f"تصمیم مالک درباره‌ی {d['ref']}: {verdict}",
         "data": {"decision": d["ref"], "verdict": verdict},
     }
+    # a full errand (CHECK steps <= 200) takes no note: the owner's decision must not fail on it
+    items = [item] if len(e["steps"] or []) < MAX_STEPS else []
     await tx.exec(
         """UPDATE owner.errands SET status = 'working', steps = steps || CAST(:s AS jsonb), updated_at = now()
            WHERE id = :id""",
-        s=json.dumps([item], ensure_ascii=False),
+        s=json.dumps(items, ensure_ascii=False),
         id=e["id"],
     )
     await _updated(tx, str(ref), verdict)

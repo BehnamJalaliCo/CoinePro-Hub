@@ -73,6 +73,7 @@ MEMORY_KINDS = ("correction", "no")
 CORRECTABLE = ("companies", "department", "collaborators", "output_kind", "mode", "player", "kind")
 _DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 _ARABIC_LETTERS = str.maketrans({"ي": "ی", "ك": "ک", "ى": "ی"})
+MAX_COUNT = 100  # the most outputs one order may ask for (Route.count)
 
 
 class Route(Model):
@@ -85,7 +86,7 @@ class Route(Model):
     department: str | None = Field(default=None, pattern=r"^[A-Z][A-Z0-9]{1,11}$")
     collaborators: list[str] = Field(default_factory=list, max_length=10)
     output_kind: OutputKind = "other"
-    count: int | None = Field(default=None, ge=1, le=100)
+    count: int | None = Field(default=None, ge=1, le=MAX_COUNT)
     budget_tokens: int = Field(default=200_000, ge=10_000, le=10_000_000)
     mode: Literal["single", "council"] = "single"
     player: Player = "auto"
@@ -194,7 +195,8 @@ def output_of(norm: str) -> tuple[str, int | None, str | None]:
             if m:
                 tok = m.group(1)
                 count = int(tok) if tok.isdigit() else numbers.get(tok)
-            return kind, count if count and count > 0 else None, w
+            # a year or a large figure before the word is no count (Route caps it at 100)
+            return kind, count if count and 0 < count <= MAX_COUNT else None, w
     return "other", None, None
 
 
@@ -410,7 +412,7 @@ def by_rules(
             dr.why.append("بخش از واژه‌های متن")
     dr.kind = kind
     if memory:
-        apply_memory(dr, memory)
+        apply_memory(dr, memory, d, online)
     dr.confidence = confidence(dr)
     return dr
 
@@ -427,20 +429,34 @@ def kit_draft(dr: Draft, made: tuple[str, str | None], d: dict[str, Any]) -> Dra
     return dr
 
 
-def apply_memory(dr: Draft, to: dict[str, Any]) -> None:
-    """A remembered correction of a like order wins over the rules."""
-    if to.get("companies"):
-        dr.companies = [str(c) for c in to["companies"]]
+def apply_memory(
+    dr: Draft,
+    to: dict[str, Any],
+    d: dict[str, Any],
+    online: set[str] | frozenset[str] = frozenset(),
+) -> None:
+    """A remembered correction of a like order wins over the rules, as far
+    as it still names what exists: a company deleted since is dropped, and a
+    remembered `server` kind holds only while the company's server is online
+    (carry_out reads both without a check)."""
+    known = d.get("companies") or {}
+    if companies := [str(c) for c in to.get("companies") or [] if str(c) in known]:
+        dr.companies = companies
     if "department" in to:
         dr.department = to["department"]
         dr.department_open = False
     if to.get("output_kind") in OUTPUT_KINDS:
         dr.output_kind = str(to["output_kind"])
+    by_rules_kind = dr.kind
     for key in ("mode", "player", "kind"):
         if to.get(key):
             setattr(dr, key, str(to[key]))
-    if to.get("collaborators"):
-        dr.companies = list(dict.fromkeys([*dr.companies, *map(str, to["collaborators"])]))
+    if dr.kind == "kit" and not dr.kit:
+        dr.kind = by_rules_kind  # the memory holds no kit to draft
+    if dr.kind == "server" and not (dr.companies and dr.companies[0] in online):
+        dr.kind = by_rules_kind if by_rules_kind != "server" else "question"
+    if collaborators := [str(c) for c in to.get("collaborators") or [] if str(c) in known]:
+        dr.companies = list(dict.fromkeys([*dr.companies, *collaborators]))
     dr.remembered = True
     dr.why.insert(0, "مثل اصلاح قبلی شما برای فرمانی شبیه همین")
 
