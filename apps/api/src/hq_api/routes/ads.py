@@ -127,8 +127,9 @@ async def edit_ad_rule(
 ) -> AD.AdRule:
     """⟨1.13⟩ §31.6 change a rule. 🔏 `ads.cap` (target = the rule id) when the
     new rule lets more money through (a higher cap, a lower ROAS floor, a larger
-    minimum before judging, only telling instead of pausing, switched off, fewer
-    campaigns); a tighter rule needs none."""
+    minimum before judging, a longer window, only telling instead of pausing,
+    switched off, fewer or other campaigns); a tighter rule needs none. A null is
+    accepted only for the cap, the floor and the note (422 otherwise)."""
     company = await ctx.hub.companies.by_code(code)
     async with ctx.tx() as tx:
         old = await tx.one(

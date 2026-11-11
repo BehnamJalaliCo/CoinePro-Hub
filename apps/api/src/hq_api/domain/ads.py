@@ -12,7 +12,9 @@ model last: nothing here calls a model.
   `ad_roas`) so an automation can watch them. Revenue is the platform's reported
   conversion value; for the campaigns the owner names in the config
   (`hub_revenue_campaigns`) it is the hub's own revenue of the day (§19, the
-  revenue radar's commission, times `usdt_rate`).
+  revenue radar's commission, times `usdt_rate`), shared among those campaigns
+  by their spend so the day is counted once. A ROAS floor on such a campaign is
+  judged only over days the radar has settled.
 - The owner's rules (growth.ad_rules) are judged by code after each read: a
   daily cap on a campaign's spend, and a ROAS floor over a window once a minimum
   was spent. A tripped rule PAUSES the campaign through the platform's API
@@ -57,6 +59,7 @@ KEEP_DAYS = 120
 RETRY_AFTER = timedelta(minutes=30)  # a pause that failed is tried again after this
 GRACE = timedelta(hours=24)  # a campaign the owner resumed is not judged again at once
 STALE_DAYS = 2  # figures older than this are not judged
+JUDGE_DAYS = 90 + STALE_DAYS + 1  # the longest window a rule may have (window_days <= 90)
 META_CONVERSIONS = (
     "purchase",
     "omni_purchase",
@@ -106,6 +109,19 @@ class AdRuleEdit(Model):
     action: Literal["pause", "notify"] | None = None
     state: Literal["on", "off"] | None = None
     note_fa: str | None = Field(default=None, max_length=300)
+
+    @model_validator(mode="after")
+    def _no_null_where_the_rule_needs_a_value(self) -> AdRuleEdit:
+        # Left out means unchanged; an explicit null is only for the cap, the floor
+        # and the note (the rest are NOT NULL in growth.ad_rules).
+        nulls = sorted(
+            k
+            for k in ("scope", "window_days", "min_spend_before_judging", "action", "state")
+            if k in self.model_fields_set and getattr(self, k) is None
+        )
+        if nulls:
+            raise ValueError(f"may not be null: {', '.join(nulls)}")
+        return self
 
 
 class AdRule(BaseModel):
@@ -219,9 +235,14 @@ def judge(rule: dict[str, Any], days: list[dict[str, Any]], today: date) -> Trip
             f"هزینه‌ی روز {last['day']} به {num(last['spend'])} رسید و از سقف روزانه‌ی {num(cap)} گذشت.",
         )
     floor = rule.get("min_roas")
-    if floor is not None:
-        start = last["day"] - timedelta(days=int(rule["window_days"]) - 1)
-        win = [d for d in rows if d["day"] >= start]
+    # A day whose revenue is not known yet (None: the hub's own revenue before
+    # the radar settled the day) is left out; the window ends at the last day
+    # that has one, so unsettled spend never reads as revenue 0.
+    known = [d for d in rows if d["revenue"] is not None]
+    end = known[-1]["day"] if known else None
+    if floor is not None and end is not None and (today - end).days <= STALE_DAYS:
+        start = end - timedelta(days=int(rule["window_days"]) - 1)
+        win = [d for d in known if d["day"] >= start]
         spend = sum(float(d["spend"]) for d in win)
         revenue = sum(float(d["revenue"]) for d in win)
         if spend > 0 and spend >= float(rule.get("min_spend_before_judging") or 0):
@@ -229,8 +250,8 @@ def judge(rule: dict[str, Any], days: list[dict[str, Any]], today: date) -> Trip
             if r < float(floor):
                 return Trip(
                     "min_roas",
-                    last["day"],
-                    f"بازده تبلیغ در {int(rule['window_days'])} روز تا {last['day']} برابر {num(r)} بود، "
+                    end,
+                    f"بازده تبلیغ در {int(rule['window_days'])} روز تا {end} برابر {num(r)} بود، "
                     f"کمتر از حداقل {num(floor)}؛ هزینه‌ی این مدت {num(spend)}.",
                 )
     return None
@@ -256,9 +277,11 @@ def loosens(old: dict[str, Any], new: dict[str, Any]) -> bool:
         up(old["daily_cap"], new["daily_cap"])
         or down(old["min_roas"], new["min_roas"])
         or float(new["min_spend_before_judging"]) > float(old["min_spend_before_judging"])
+        or int(new["window_days"]) > int(old["window_days"])
         or (old["action"] == "pause" and new["action"] == "notify")
         or (old["state"] == "on" and new["state"] == "off")
-        or (old["scope"] == "account" and new["scope"] != "account")  # fewer campaigns covered
+        # fewer campaigns covered, or the guarded campaign is no longer guarded
+        or (old["scope"] != new["scope"] and new["scope"] != "account")
     )
 
 
@@ -560,15 +583,90 @@ async def set_status(ctx: CN.ReadCtx, campaign_id: str, *, paused: bool) -> None
 
 
 # ------------------------------------------------------------- the daily read --
-async def hub_revenue(tx: Tx, company_id: UUID, day: date) -> float:
-    """The hub's own revenue of a day (the revenue radar's commission, §19)."""
-    v = await tx.scalar(
-        """SELECT COALESCE(sum(commission_usdt), 0) FROM revenue.days
-           WHERE company_id = :co AND day = :d""",
-        co=company_id,
-        d=day,
+HubKey = tuple[str, str, date]  # (platform, campaign_id, day)
+HubConfs = dict[str, tuple[set[str], float]]  # platform -> (hub campaigns, usdt_rate)
+
+
+def hub_conf(config: dict[str, Any]) -> tuple[set[str], float]:
+    """A connection's hub campaigns (`hub_revenue_campaigns`) and its `usdt_rate`
+    (the ad account's currency per USDT; 1 when unset or not a positive number)."""
+    rate = CN._num(config.get("usdt_rate"))
+    return (
+        {str(c) for c in config.get("hub_revenue_campaigns") or []},
+        rate if rate is not None and rate > 0 else 1.0,
     )
-    return float(v or 0)
+
+
+async def hub_confs(
+    tx: Tx, company_id: UUID, own: tuple[str, dict[str, Any]] | None = None
+) -> HubConfs:
+    """The company's ad connections that name hub campaigns (`own` is the config
+    of the connection being read, in place of the stored one)."""
+    rows = await tx.all(
+        "SELECT kind, config FROM growth.connections WHERE company_id = :co AND kind = ANY(:k)",
+        co=company_id,
+        k=list(PLATFORMS),
+    )
+    confs = {str(r["kind"]): hub_conf(dict(r["config"] or {})) for r in rows}
+    if own is not None:
+        confs[own[0]] = hub_conf(own[1])
+    return {k: v for k, v in confs.items() if v[0]}
+
+
+async def hub_spend(
+    tx: Tx, company_id: UUID, confs: HubConfs, since: date, skip: str | None = None
+) -> dict[HubKey, float]:
+    """The stored spend of every hub campaign from `since` on (`skip`: a platform
+    whose rows the caller has in hand)."""
+    out: dict[HubKey, float] = {}
+    for kind, (camps, _rate) in confs.items():
+        if kind == skip:
+            continue
+        for r in await tx.all(
+            """SELECT campaign_id, day, spend FROM growth.ad_daily WHERE company_id = :co
+                 AND platform = :p AND campaign_id = ANY(:c) AND day >= :since""",
+            co=company_id,
+            p=kind,
+            c=sorted(camps),
+            since=since,
+        ):
+            out[(kind, str(r["campaign_id"]), r["day"])] = float(r["spend"])
+    return out
+
+
+async def hub_credit(
+    tx: Tx, company_id: UUID, confs: HubConfs, spend: dict[HubKey, float]
+) -> dict[HubKey, tuple[float, bool]]:
+    """The hub's own revenue of each day (§19, the revenue radar's commission),
+    credited once: shared among the hub campaigns of that day, on both ad
+    connections, by their spend in USDT (equally when none spent), each share in
+    its account's currency. The flag says the radar has settled the day (its
+    rows are there and complete); until then the figure is partial or nothing
+    (LBank settles a day at 00:00 UTC+8 and the radar pulls it the next morning)."""
+    days = sorted({k[2] for k in spend})
+    if not days:
+        return {}
+    radar = {
+        r["day"]: (float(r["usdt"] or 0), bool(r["settled"]))
+        for r in await tx.all(
+            """SELECT day, sum(commission_usdt) AS usdt, bool_and(complete) AS settled
+               FROM revenue.days WHERE company_id = :co AND day = ANY(:d) GROUP BY day""",
+            co=company_id,
+            d=days,
+        )
+    }
+    usdt_spend = {k: s / confs[k[0]][1] for k, s in spend.items()}
+    total: dict[date, float] = {}
+    count: dict[date, int] = {}
+    for k, v in usdt_spend.items():
+        total[k[2]] = total.get(k[2], 0.0) + v
+        count[k[2]] = count.get(k[2], 0) + 1
+    out: dict[HubKey, tuple[float, bool]] = {}
+    for k, v in usdt_spend.items():
+        usdt, settled = radar.get(k[2], (0.0, False))
+        share = v / total[k[2]] if total[k[2]] > 0 else 1 / count[k[2]]
+        out[k] = (round(usdt * share * confs[k[0]][1], 4), settled)
+    return out
 
 
 async def store_read(
@@ -576,15 +674,34 @@ async def store_read(
 ) -> list[CN.Figure]:
     """growth.ad_daily and growth.ad_campaigns from one read; the account's
     totals back as the figures of growth.metrics_daily."""
-    hub_camps = {str(c) for c in ctx.config.get("hub_revenue_campaigns") or []}
-    rate = CN._num(ctx.config.get("usdt_rate")) or 1.0
+    hub_camps = hub_conf(ctx.config)[0]
     async with ctx.tx_factory() as tx:
-        hub_days: dict[date, float] = {}
-        for r in rows:
-            if r.campaign_id in hub_camps:
-                if r.day not in hub_days:
-                    hub_days[r.day] = await hub_revenue(tx, ctx.company_id, r.day)
-                r.revenue = round(hub_days[r.day] * rate, 4)
+        mine: dict[HubKey, float] = {
+            (ctx.kind, r.campaign_id, r.day): r.spend for r in rows if r.campaign_id in hub_camps
+        }
+        if mine:
+            confs = await hub_confs(tx, ctx.company_id, (ctx.kind, ctx.config))
+            days = {k[2] for k in mine}
+            stored = await hub_spend(tx, ctx.company_id, confs, min(days), skip=ctx.kind)
+            others = {k: v for k, v in stored.items() if k[2] in days}
+            credit = await hub_credit(tx, ctx.company_id, confs, mine | others)
+            for r in rows:
+                if (got := credit.get((ctx.kind, r.campaign_id, r.day))) is not None:
+                    r.revenue = got[0]
+            for (kind, cid, day), (revenue, _settled) in credit.items():
+                if kind == ctx.kind:
+                    continue
+                # the other connection's hub campaigns: their share of the same days
+                await tx.exec(
+                    """UPDATE growth.ad_daily SET revenue = :r, roas = :roas, at = now()
+                       WHERE company_id = :co AND platform = :p AND campaign_id = :c AND day = :d""",
+                    co=ctx.company_id,
+                    p=kind,
+                    c=cid,
+                    d=day,
+                    r=revenue,
+                    roas=roas_of(revenue, others[(kind, cid, day)]),
+                )
         for r in rows:
             await tx.exec(
                 """INSERT INTO growth.ad_daily (company_id, platform, campaign_id, day, spend, clicks,
@@ -757,10 +874,12 @@ async def evaluate_due(hub: Any, now: datetime | None = None) -> dict[str, Any]:
     out: dict[str, Any] = {"checked": 0, "tripped": 0, "paused": 0, "notified": 0, "failed": 0}
     ids = await hub.companies.ids()
     plans: list[tuple[dict[str, Any], dict[str, Any], Trip, bool]] = []
+    hubs: dict[UUID, tuple[HubConfs, dict[HubKey, tuple[float, bool]]]] = {}
     async with hub.db.tx(ids) as tx:
         if (lock := await gate.automation_lock(tx)) is not None:
             return gate.skipped(lock)
         today = CN.owner_today(await owner_tz(tx), now)
+        since = today - timedelta(days=JUDGE_DAYS)
         rules = await tx.all(
             """SELECT r.*, c.code AS company_code, c.name_fa AS company_name FROM growth.ad_rules r
                JOIN core.companies c ON c.id = r.company_id
@@ -778,17 +897,32 @@ async def evaluate_due(hub: Any, now: datetime | None = None) -> dict[str, Any]:
                 scope=rule["scope"],
                 grace=now - GRACE,
             )
+            co = rule["company_id"]
+            if co not in hubs:
+                confs = await hub_confs(tx, co)
+                spent = await hub_spend(tx, co, confs, since)
+                hubs[co] = (confs, await hub_credit(tx, co, confs, spent))
+            confs, credit = hubs[co]
+            hub_camps = confs.get(rule["platform"], (set(), 1.0))[0]
             for camp in camps:
                 out["checked"] += 1
                 days = await tx.all(
                     """SELECT day, spend, revenue FROM growth.ad_daily
                        WHERE company_id = :co AND platform = :p AND campaign_id = :c AND day > :since
                        ORDER BY day""",
-                    co=rule["company_id"],
+                    co=co,
                     p=rule["platform"],
                     c=camp["campaign_id"],
-                    since=today - timedelta(days=int(rule["window_days"]) + 1),
+                    # the window may end up to STALE_DAYS early (hub revenue not settled yet)
+                    since=today - timedelta(days=int(rule["window_days"]) + STALE_DAYS + 1),
                 )
+                if camp["campaign_id"] in hub_camps:
+                    # the hub's own revenue as the radar has it now (the stored
+                    # figure was taken at the read, often before the day settled);
+                    # None until the day is settled
+                    for d in days:
+                        got = credit.get((rule["platform"], camp["campaign_id"], d["day"]))
+                        d["revenue"] = got[0] if got is not None and got[1] else None
                 trip = judge(rule, days, today)
                 if trip is None:
                     continue
