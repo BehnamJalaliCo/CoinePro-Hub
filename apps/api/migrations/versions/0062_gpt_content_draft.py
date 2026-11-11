@@ -8,12 +8,18 @@ order, docs/ORDER_PROCHART_REELS_2026-11-10.md: topic, script, directing and cov
   Gemini keeps its own seat. The model is `gpt-5.5` while GPT offers it, else the model of GPT's
   second-opinion seat (the strong one the model check moved it to). Only when missing (ON CONFLICT
   DO NOTHING): a seat the owner already set is never touched. One audit row when it is added.
+- substitutes.calls.queued_at: when a call last joined its queue (NULL: when it was made). A call
+  asked again (another model, the Persian instruction, a reloaded page) waits from then, so its
+  queue deadline (substitutes.DEADLINE_SQL) never runs from its first, slow attempt. An index on
+  the claimed calls of each lane reads how long a lane was busy after a call joined it.
 - llm.quota_status: the api may write it (INSERT, UPDATE; it only read it before). A workshop
   turn's Claude Code reports its account's rate-limit windows (the runner's rate_limit_event);
   the api records them, so the next turn picks the account that is not limited.
 
-Additive only; the downgrade switches the seat off (seats are never deleted) and takes the
-grant back.
+Additive only. The downgrade switches the seat off (seats are never deleted), drops the column
+and its index and takes the grant back. A downgrade then an upgrade leaves GPT's content_draft
+seat switched off: the row is still there, so the re-insert does nothing (the owner switches it
+on again on the players' page).
 
 Revision ID: 0062
 Revises: 0061
@@ -28,7 +34,15 @@ down_revision = "0061"
 branch_labels = None
 depends_on = None
 
-UPGRADE = """
+QUEUED_AT = """
+ALTER TABLE substitutes.calls ADD COLUMN queued_at timestamptz;
+COMMENT ON COLUMN substitutes.calls.queued_at IS
+    'when the call last joined its queue (asked again); NULL: when it was made';
+CREATE INDEX substitutes_calls_lane ON substitutes.calls (via, claimed_at)
+    WHERE claimed_at IS NOT NULL;
+"""
+
+SEAT = """
 WITH added AS (
     INSERT INTO substitutes.seats (company_id, player, seat, via, model, enabled, per_day, position)
     SELECT p.company_id, 'gpt', 'content_draft', 'web',
@@ -51,12 +65,18 @@ INSERT INTO audit.entries (actor_kind, actor_code, principal_kind, company_id, a
 SELECT 'system', 'system', 'system', company_id, 'substitute.seats', 'A1', 'seat', 'gpt:' || seat, false,
        'the owner''s reels order: ChatGPT writes the script draft (seat content_draft, migration 0062)'
 FROM added;
+"""
 
+GRANT = """
 GRANT INSERT, UPDATE ON llm.quota_status TO hq_api;
 """
 
+UPGRADE = QUEUED_AT + SEAT + GRANT
+
 DOWNGRADE = """
 REVOKE INSERT, UPDATE ON llm.quota_status FROM hq_api;
+DROP INDEX substitutes.substitutes_calls_lane;
+ALTER TABLE substitutes.calls DROP COLUMN queued_at;
 UPDATE substitutes.seats SET enabled = false, updated_at = now()
  WHERE player = 'gpt' AND seat = 'content_draft';
 """

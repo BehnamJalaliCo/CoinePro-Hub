@@ -43,15 +43,15 @@ class EgressWeb:
 
     async def _post(self, path: str, body: dict[str, Any], limit_s: float) -> dict[str, Any]:
         """Egress's answer; never raises. ⟨2026-11-11⟩ every failure is an answer the hub turns
-        into the call's end: past the limit `timeout`, no answer or an error page `off` (the
-        browser not available), a refused request `failed`."""
+        into the call's end: no answer (none in time either) or an error page `off` (the browser
+        not available: a short hold on the player's web seats), a refused request `failed`."""
         try:
             async with httpx.AsyncClient(transport=self._transport, timeout=limit_s) as http:
                 resp = await http.post(self.base + path, json=body)
             out = resp.json()
         except httpx.TimeoutException as exc:
             log.warning("substitute web call timed out", extra={"error": type(exc).__name__})
-            return {"ok": False, "error": "timeout", "detail": "egress did not answer in time"}
+            return {"ok": False, "error": "off", "detail": "egress did not answer in time"}
         except (httpx.HTTPError, ValueError) as exc:
             log.warning("substitute web call failed", extra={"error": type(exc).__name__})
             return {"ok": False, "error": "off", "detail": "egress did not answer"}

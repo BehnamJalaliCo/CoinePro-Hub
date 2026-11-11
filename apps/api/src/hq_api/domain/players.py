@@ -185,16 +185,22 @@ def from_voice(text: str) -> tuple[str | None, str | None]:
 # ------------------------------------------------------------------ seats --
 async def text_seat(tx: Tx, player: str) -> tuple[dict[str, Any], dict[str, Any]] | None:
     """(player row, seat row) of the player's text seat: the first of
-    TEXT_SEATS it holds and has on, else the first it holds."""
-    held = None
+    TEXT_SEATS it holds and has on whose path can take a call now (⟨2026-11-11⟩
+    a signed-out web chat never hides a signed-in CLI seat, or the other way
+    round), else the first it has on, else the first it holds (whose reason
+    the caller then reads)."""
+    now = datetime.now(UTC)
+    on = held = None
     for seat in TEXT_SEATS:
         found = await S.holder(tx, seat, player)
         if found is None:
             continue
         if found[1]["enabled"]:
-            return found
+            if S._skip_reason(found[0], found[1], now) is None:
+                return found
+            on = on or found
         held = held or found
-    return held
+    return on or held
 
 
 async def availability(tx: Tx, player: str, now: datetime | None = None) -> str | None:

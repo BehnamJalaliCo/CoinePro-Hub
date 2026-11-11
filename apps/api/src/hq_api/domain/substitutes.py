@@ -177,13 +177,30 @@ QUEUE_DEADLINE = timedelta(minutes=15)  # a text call
 QUEUE_DEADLINE_MEDIA = timedelta(minutes=30)  # an image or a video (seat creative)
 RUN_GRACE_S = 120  # past claimed_at + timeout_s + this, a running call is lost
 WEB_PROMPT_LIMIT = 20_000  # egress takes no longer prompt (hq_egress.substitutes_web.WebIn)
-# The deadline of a call row `c` in SQL (constants only), the same rule as deadline_at().
+# The deadline of a call row `c` in SQL (constants only), the same rule as deadline_at(). A queued
+# call's clock runs from when it joined its queue (queued_at: asked again; else created_at), or
+# from when its lane was free again, whichever is later: a call waiting behind a long job is not
+# "nobody took it". The lane is every call of the same path (`via`): one web pass serves every
+# player and waits for all its jobs (and the schedule skips a pass while one runs), so any
+# player's web job holds every player's web queue; the CLI runs one job at a time for both
+# players. A job's end is when it finished, else its own deadline (a lost job holds no longer).
+_END_SQL = (
+    "COALESCE(o.finished_at, o.claimed_at + make_interval(secs => o.timeout_s + {grace}))"
+).format(grace=RUN_GRACE_S)
+_JOINED_SQL = "COALESCE(c.queued_at, c.created_at)"
+BUSY_UNTIL_SQL = (
+    f"(SELECT max({_END_SQL}) FROM substitutes.calls o"
+    " WHERE o.via = c.via AND o.id <> c.id AND o.claimed_at IS NOT NULL"
+    f" AND o.claimed_at >= {_JOINED_SQL} - interval '1 hour'"
+    f" AND {_END_SQL} > {_JOINED_SQL})"
+)
 DEADLINE_SQL = (
     "(CASE WHEN c.state = 'running' THEN COALESCE(c.claimed_at, c.created_at)"
     f" + make_interval(secs => c.timeout_s + {RUN_GRACE_S})"
-    " WHEN c.seat = 'creative' OR c.task IN ('image', 'video')"
-    f" THEN c.created_at + make_interval(mins => {int(QUEUE_DEADLINE_MEDIA.total_seconds()) // 60})"
-    f" ELSE c.created_at + make_interval(mins => {int(QUEUE_DEADLINE.total_seconds()) // 60}) END)"
+    f" ELSE GREATEST({_JOINED_SQL}, {BUSY_UNTIL_SQL})"
+    " + CASE WHEN c.seat = 'creative' OR c.task IN ('image', 'video')"
+    f" THEN make_interval(mins => {int(QUEUE_DEADLINE_MEDIA.total_seconds()) // 60})"
+    f" ELSE make_interval(mins => {int(QUEUE_DEADLINE.total_seconds()) // 60}) END END)"
 )
 # ⟨1.10.1⟩ an answer comes back whole (the runner reads a CLI's output in full,
 # up to its 20 MB stop); beyond INLINE_TEXT it lives in the file store and the
@@ -614,6 +631,8 @@ async def signed_in(tx: Tx, body: SignedInIn) -> dict[str, Any]:
         web_only = text_via(p) == "web"
         await tx.exec(
             """UPDATE substitutes.players SET web_state = 'signed_in', web_last_ok_at = now(),
+                   web_error_until = CASE WHEN web_last_failure LIKE 'off%' THEN NULL
+                                          ELSE web_error_until END,
                    web_last_failure = NULL,
                    status = CASE WHEN :w AND status = 'off' THEN 'ready' ELSE status END,
                    status_reason = CASE WHEN :w AND status = 'off' THEN NULL ELSE status_reason END,
@@ -674,6 +693,9 @@ async def holder(
 
 # ⟨1.10⟩ §28.4 the council's robustness
 WEB_ERROR_HOLD = timedelta(hours=6)
+# ⟨2026-11-11⟩ the hub's browser was not available (egress `off`): the player's web seats are
+# refused (`browser_unavailable`) for this long, not queued to fail one by one
+BROWSER_HOLD = timedelta(minutes=10)
 MODEL_REFUSED = re.compile(
     r"(model\W[^\n]{0,120}?(not supported|unsupported|not available|does not exist|not found|"
     r"no access|not allowed))|(unsupported[_ ]model)|(model[_ ]not[_ ]found)",
@@ -733,7 +755,10 @@ def _skip_reason(p: dict[str, Any], s: dict[str, Any], now: datetime) -> str | N
         if p["web_state"] != "signed_in":
             return "expired" if p["web_state"] == "expired" else "signed_out"
         if web_error(p, now):  # ⟨1.10⟩ §28.4 its recipe failed twice: skipped up front
-            return "limited" if p.get("web_last_failure") == "limited" else "error"
+            failure = str(p.get("web_last_failure") or "")
+            if failure.startswith("off"):  # ⟨2026-11-11⟩ the hub's browser was not available
+                return "browser_unavailable"
+            return "limited" if failure == "limited" else "error"
         return None
     if limited:
         return "limited"
@@ -1156,7 +1181,7 @@ async def _retry_other_model(tx: Tx, hub: Any, c: dict[str, Any], raw: str) -> d
     )
     row: dict[str, Any] = await tx.one(
         """UPDATE substitutes.calls SET state = 'queued', model = :m, attempt = attempt + 1,
-               claimed_at = NULL, state_reason = :r
+               claimed_at = NULL, queued_at = now(), state_reason = :r
            WHERE id = :id RETURNING *""",
         m=alt,
         r=f"model_refused: {c['model']}; retried with {alt or 'the CLI default'}"[:300],
@@ -1220,7 +1245,7 @@ async def _retry_language(tx: Tx, hub: Any, c: dict[str, Any]) -> dict[str, Any]
     room = (WEB_PROMPT_LIMIT if c["via"] == "web" else TEXT_LIMIT) - len(PERSIAN_AGAIN)
     row: dict[str, Any] = await tx.one(
         """UPDATE substitutes.calls SET state = 'queued', lang_retried = true, claimed_at = NULL,
-               state_reason = 'not_persian: asked again in Persian',
+               queued_at = now(), state_reason = 'not_persian: asked again in Persian',
                input_md = left(COALESCE(input_md, ''), :room) || :again
            WHERE id = :id RETURNING *""",
         again=PERSIAN_AGAIN,
@@ -2247,13 +2272,25 @@ def queue_deadline(seat: str | None, task: str | None) -> timedelta:
     )
 
 
-def deadline_at(c: dict[str, Any]) -> datetime:
-    """When a queued or running call is past saving (the same rule as DEADLINE_SQL)."""
+def deadline_at(c: dict[str, Any], busy_until: datetime | None = None) -> datetime:
+    """When a queued or running call is past saving (the same rule as DEADLINE_SQL; `busy_until`:
+    when its lane was free again, read from the database by deadline_of)."""
     if c["state"] == "running":
         start: datetime = c.get("claimed_at") or c["created_at"]
         return start + timedelta(seconds=int(c["timeout_s"]) + RUN_GRACE_S)
-    created: datetime = c["created_at"]
-    return created + queue_deadline(c.get("seat"), c.get("task"))
+    joined: datetime = c.get("queued_at") or c["created_at"]
+    if busy_until is not None and busy_until > joined:
+        joined = busy_until
+    return joined + queue_deadline(c.get("seat"), c.get("task"))
+
+
+async def deadline_of(tx: Tx, call_id: UUID) -> datetime | None:
+    """A call's deadline as the reaper reads it (DEADLINE_SQL), or None when there is no call."""
+    found: datetime | None = await tx.scalar(
+        f"SELECT {DEADLINE_SQL} FROM substitutes.calls c WHERE c.id = :id",  # noqa: S608 - constants
+        id=call_id,
+    )
+    return found
 
 
 async def end_call(
@@ -2637,17 +2674,30 @@ async def apply_web(hub: Any, c: dict[str, Any], account: str, answer: dict[str,
             return
         if error == "off":
             # ⟨2026-11-11⟩ the profile browser is not running, or egress did not answer: a
-            # failure its caller hears (never a silent skip)
-            await _end_safely(
-                tx, hub, c["id"], "failed", "browser_unavailable",
-                why="not made: the hub's browser was not available",
-            )  # fmt: skip
+            # failure its caller hears (never a silent skip), and a short hold on the player's web
+            # path, so the next calls are refused at once instead of each failing a minute later;
+            # its other waiting web calls end now with the same reason
+            await tx.exec(
+                """UPDATE substitutes.players SET web_error_until = now() + :hold,
+                       web_last_failure = :f, updated_at = now() WHERE id = :id""",
+                hold=BROWSER_HOLD,
+                f=f"off: {scrub(str(answer.get('detail') or 'egress did not answer'))}"[:300],
+                id=p["id"],
+            )
+            why = "not made: the hub's browser was not available"
+            await _end_safely(tx, hub, c["id"], "failed", "browser_unavailable", why=why)
+            for other in await tx.all(
+                """SELECT id FROM substitutes.calls WHERE player = :p AND via = 'web'
+                   AND state = 'queued' ORDER BY created_at FOR UPDATE SKIP LOCKED""",
+                p=c["player"],
+            ):
+                await _end_safely(tx, hub, other["id"], "failed", "browser_unavailable", why=why)
             return
         if error == "recipe_failed" and int(c.get("attempt") or 1) < 2:
             # ⟨1.10⟩ §28.4 once more, the profile's page reloaded (the next pass)
             await tx.exec(
                 """UPDATE substitutes.calls SET state = 'queued', attempt = attempt + 1,
-                       claimed_at = NULL, state_reason = :r WHERE id = :id""",
+                       claimed_at = NULL, queued_at = now(), state_reason = :r WHERE id = :id""",
                 r=f"recipe_failed: {answer.get('step') or '?'}; retrying with the page reloaded"[
                     :300
                 ],

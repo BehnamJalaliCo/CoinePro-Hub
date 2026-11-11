@@ -617,7 +617,8 @@ async def test_the_workers_egress_client_answers_every_failure_never_raises() ->
         raise httpx.ConnectError("down", request=request)
 
     ask = {"account": "chatgpt-web", "task": "text", "prompt": "x", "timeout_s": 10}
-    assert (await client(slow).web(**ask))["error"] == "timeout"  # its own clock: `timeout`
+    timed_out = await client(slow).web(**ask)  # no answer in time: the browser is not available
+    assert timed_out["error"] == "off" and "in time" in timed_out["detail"]
     assert (await client(down).web(**ask))["error"] == "off"  # not reachable: the browser is not
     crashed = client(lambda r: httpx.Response(502, text="bad gateway"))
     assert (await crashed.web(**ask))["error"] == "off"
