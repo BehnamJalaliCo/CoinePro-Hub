@@ -532,9 +532,11 @@ async def recent(
     since: datetime | None = None,
     blocked: bool | None = None,
     limit: int = Query(default=50, ge=1, le=100),
+    cursor: str | None = None,
     ctx: Ctx = Depends(internal_ctx),
 ) -> Page[EgressEntry]:
-    """egress.recent: the overseer, the security analyst and AI safety (holding scope)."""
+    """egress.recent: the overseer, the security analyst and AI safety (holding scope).
+    `cursor` is the `next_cursor` of the page before (older entries)."""
     await allow(ctx, "egress.read", {"company": company or ctx.who.company})
     ids = await ctx.hub.companies.ids()
     async with ctx.hub.db.tx(ids) as tx:
@@ -546,5 +548,5 @@ async def recent(
             since=since,
             blocked=blocked,
             limit=limit,
-            cursor=None,
+            cursor=cursor,
         )
