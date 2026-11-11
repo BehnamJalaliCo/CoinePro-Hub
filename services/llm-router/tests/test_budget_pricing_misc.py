@@ -193,3 +193,14 @@ def test_anomaly_rule() -> None:
     busy = [100] * 168  # steady 100/hour -> threshold 300
     assert anomaly.is_anomalous(300, busy) == (False, 300.0)
     assert anomaly.is_anomalous(301, busy)[0]
+
+
+def test_a_caller_at_rpm_zero_is_refused_not_crashed() -> None:
+    """⟨2026-11-11⟩ rpm 0 divided by zero in the Retry-After math: a 500 instead of a 429."""
+    from llm_router.auth import RateLimiter
+
+    limiter = RateLimiter(clock=lambda: 1_000.0)
+    assert limiter.allow("held", 0) == (False, 60)
+    assert limiter.allow("held", -1) == (False, 60)
+    assert limiter.allow("open", 1) == (True, 0)
+    assert limiter.allow("open", 1) == (False, 61)

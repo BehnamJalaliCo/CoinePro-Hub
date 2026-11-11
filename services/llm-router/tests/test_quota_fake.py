@@ -315,9 +315,10 @@ def test_a_subscription_out_of_quota_stays_a_fallback() -> None:
     for c in (
         conn("claude-max", "claude_subscription", "enabled", None),
         conn("claude-max-2", "claude_subscription", "quota_exhausted", 1),
-        conn("api-out", "api", "quota_exhausted", 2),  # an api key out of quota is not tried
+        # ⟨2026-11-11⟩ an api key out of quota stays too: no other path ever reset it
+        conn("api-out", "api", "quota_exhausted", 2),
         conn("api-off", "api", "disabled", 3),
         conn("api-on", "api", "enabled", 4),
     ):
         snap.connections[c.id] = c
-    assert [c.key for c in snap.fallbacks()] == ["claude-max-2", "api-on"]
+    assert [c.key for c in snap.fallbacks()] == ["claude-max-2", "api-out", "api-on"]

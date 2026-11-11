@@ -61,6 +61,8 @@ class RateLimiter:
         self._buckets: dict[str, tuple[float, float]] = {}
 
     def allow(self, name: str, rpm: int) -> tuple[bool, int]:
+        if rpm <= 0:  # a caller held at rpm 0: a clean 429, never a division by zero
+            return False, 60
         now = self._clock()
         level, last = self._buckets.get(name, (float(rpm), now))
         level = min(float(rpm), level + (now - last) * rpm / 60.0)
