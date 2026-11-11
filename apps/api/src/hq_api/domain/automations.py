@@ -64,6 +64,11 @@ MAX_ACTIONS = 5
 MAX_CONDITIONS = 3
 LOOKBACK = timedelta(hours=2)  # a schedule's occurrence is still run this late
 EVENT_BATCH = 25
+# core.outbox.id is taken at insert, not at commit: a transaction still open may
+# hold a lower id than rows already visible. The event cursor therefore only
+# passes rows older than this (created_at is the emitting transaction's start);
+# newer rows are read again each tick and a run's key keeps them to one run.
+EVENT_SETTLE = timedelta(minutes=30)
 N8N_POST: Callable[..., Awaitable[int]] | None = None  # tests put a fake webhook here
 
 TRIGGER_KINDS = ("schedule", "event", "metric")
@@ -1244,6 +1249,20 @@ async def max_outbox(tx: Tx) -> int:
     return int(await tx.scalar("SELECT COALESCE(max(id), 0) FROM core.outbox") or 0)
 
 
+async def settled_outbox(tx: Tx) -> int:
+    """The newest outbox id older than EVENT_SETTLE (by the database's clock):
+    no transaction still open can hold an id at or below it."""
+    return int(
+        await tx.scalar(
+            """SELECT COALESCE((SELECT id FROM core.outbox
+                                WHERE created_at < now() - make_interval(secs => :s)
+                                ORDER BY id DESC LIMIT 1), 0)""",
+            s=EVENT_SETTLE.total_seconds(),
+        )
+        or 0
+    )
+
+
 async def tick(hub: Any, now: datetime | None = None) -> dict[str, Any]:
     """Every few minutes, by code: the schedules due (within LOOKBACK, after the
     seal), the metrics that hold (once per day of data), the events that came
@@ -1254,6 +1273,7 @@ async def tick(hub: Any, now: datetime | None = None) -> dict[str, Any]:
     out: dict[str, Any] = {"fired": 0, "failed": 0, "skipped": 0}
     ids = await hub.companies.ids()
     todo: list[tuple[UUID, str, dict[str, Any]]] = []
+    settled: int | None = None
     async with hub.db.tx(ids) as tx:
         if (lock := await gate.automation_lock(tx)) is not None:
             return gate.skipped(lock)
@@ -1302,16 +1322,21 @@ async def tick(hub: Any, now: datetime | None = None) -> dict[str, Any]:
                         )
                     )
             else:
-                top = await max_outbox(tx)
+                if settled is None:
+                    settled = await settled_outbox(tx)
                 rows = await tx.all(
-                    """SELECT id, payload FROM core.outbox
-                       WHERE id > :cur AND payload ->> 'type' = :t
-                         AND (:scope = 'holding' OR payload ->> 'company' = :co)
-                       ORDER BY id LIMIT :n""",
+                    """SELECT o.id, o.payload FROM core.outbox o
+                       WHERE o.id > :cur AND o.payload ->> 'type' = :t
+                         AND (:scope = 'holding' OR o.payload ->> 'company' = :co)
+                         AND NOT EXISTS (SELECT 1 FROM growth.automation_runs r
+                                         WHERE r.automation_id = :a
+                                           AND r.key = 'event:' || (o.payload ->> 'id'))
+                       ORDER BY o.id LIMIT :n""",
                     cur=a["event_cursor"],
                     t=t["type"],
                     scope=a["scope"],
                     co=a["company_code"],
+                    a=a["id"],
                     n=EVENT_BATCH,
                 )
                 for r in rows:
@@ -1328,9 +1353,12 @@ async def tick(hub: Any, now: datetime | None = None) -> dict[str, Any]:
                             },
                         )
                     )
+                # Never past a row that may still be in flight (see EVENT_SETTLE),
+                # nor past the rows of a full batch not read yet.
+                top = min(settled, rows[-1]["id"]) if len(rows) == EVENT_BATCH else settled
                 await tx.exec(
                     "UPDATE growth.automations SET event_cursor = :c WHERE id = :id",
-                    c=(rows[-1]["id"] if len(rows) == EVENT_BATCH else top),
+                    c=max(int(a["event_cursor"]), top),
                     id=a["id"],
                 )
     for auto_id, key, trigger in todo:

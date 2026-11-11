@@ -523,6 +523,31 @@ async def test_an_event_after_the_seal_runs_it_once_and_earlier_events_never(
     assert run["key"].startswith("event:")
 
 
+async def test_an_event_committed_after_a_later_one_is_still_run(
+    client: httpx.AsyncClient, hub: Hub, owner_session: dict[str, Any], su: Any, made: list[str],
+    new_company: Callable[..., Any],
+) -> None:  # fmt: skip
+    # outbox ids are taken at insert: a transaction still open holds a lower id
+    # than a row committed after it, and the cursor must not pass it.
+    h = owner_session["headers"]
+    co = await new_company()
+    rule = {"trigger": {"kind": "event", "type": "support.message"}, "conditions": [],
+            "actions": [work("پیام دیرهنگام")]}  # fmt: skip
+    a = await propose(client, h, made, rule, co["code"])
+    await seal(client, hub, owner_session, a["ref"])
+    async with holding_switch(su, "released"):
+        before = await run_work_count(su, co["id"])
+        async with hub.db.tx(await hub.companies.ids()) as slow:
+            await events.emit(slow, co["code"], "support.message", "C-1", {"channel": "chat"})
+            async with hub.db.tx(await hub.companies.ids()) as fast:
+                await events.emit(fast, co["code"], "support.message", "C-2", {"channel": "chat"})
+            first = await AU.tick(hub)  # sees only the later id
+        second = await AU.tick(hub)  # the earlier id is committed now
+        third = await AU.tick(hub)
+    assert (first["fired"], second["fired"], third["fired"]) == (1, 1, 0)
+    assert await run_work_count(su, co["id"]) == before + 2
+
+
 async def test_a_failing_automation_turns_itself_off_and_tells_the_owner(
     client: httpx.AsyncClient, hub: Hub, owner_session: dict[str, Any], su: Any, made: list[str],
     new_company: Callable[..., Any], egress: Any,
