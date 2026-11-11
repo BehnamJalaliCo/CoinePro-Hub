@@ -309,7 +309,7 @@ async def agent_connection_set(
         )
         raw = cur["config"] if cur is not None else {}
         current = json.loads(raw) if isinstance(raw, str) else dict(raw or {})
-        config = CN.agent_config(body.kind, current, fields)
+        config = CN.agent_config(body.kind, current, fields, company=company.code)
         await CN.set_config(tx, company, body.kind, config, None)
         keys = ", ".join(sorted(fields))
         for co_id in {who.company_id, company.id}:

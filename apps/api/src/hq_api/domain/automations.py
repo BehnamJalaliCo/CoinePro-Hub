@@ -59,11 +59,16 @@ MODEL = "claude-sonnet-5-5"  # a mid model: one sentence, one rule
 MAX_OUTPUT_TOKENS = 900
 SERVICE = Principal(kind="service", code="automations", role="service")
 FAILURES_OFF = 3  # failures in a row that turn an automation off
-MAX_PER_HOUR = 20  # more runs than this in an hour turn it off (a loop of its own events)
+MAX_PER_HOUR = 20  # more runs that acted in an hour turn it off (a loop of its own events)
 MAX_ACTIONS = 5
 MAX_CONDITIONS = 3
 LOOKBACK = timedelta(hours=2)  # a schedule's occurrence is still run this late
 EVENT_BATCH = 25
+# core.outbox.id is taken at insert, not at commit: a transaction still open may
+# hold a lower id than rows already visible. The event cursor therefore only
+# passes rows older than this (created_at is the emitting transaction's start);
+# newer rows are read again each tick and a run's key keeps them to one run.
+EVENT_SETTLE = timedelta(minutes=30)
 N8N_POST: Callable[..., Awaitable[int]] | None = None  # tests put a fake webhook here
 
 TRIGGER_KINDS = ("schedule", "event", "metric")
@@ -478,16 +483,29 @@ def validate_rule(
 
 
 # ------------------------------------------------------------------ preview --
+def at_fa(hours: tuple[int, ...], minutes: tuple[int, ...]) -> str:
+    """Every time of day the rule runs (each hour with each minute), never only
+    the first: what the owner seals is what runs."""
+    if len(hours) * len(minutes) <= 6:
+        return "ساعت " + " و ".join(f"{h:02d}:{m:02d}" for h in hours for m in minutes)
+    return (
+        f"ساعت‌های {' و '.join(map(str, hours))}، "
+        f"دقیقه‌ی {' و '.join(map(str, minutes))}"
+    )
+
+
 def when_fa(rrule: str) -> str:
     r = recurrence.parse(rrule)
-    hh = f"{r.by_hour[0]:02d}:{r.by_minute[0]:02d}" if r.by_hour else None
+    hh = at_fa(r.by_hour, r.by_minute) if r.by_hour else None
     if r.freq == "HOURLY":
-        return f"هر ساعت، دقیقه‌ی {r.by_minute[0]}" if r.interval == 1 else f"هر {r.interval} ساعت"
+        mins = " و ".join(map(str, r.by_minute))
+        every = "هر ساعت" if r.interval == 1 else f"هر {r.interval} ساعت"
+        return f"{every}، دقیقه‌ی {mins}"
     if r.freq == "DAILY":
-        return f"هر روز ساعت {hh}"
+        return f"هر روز {hh}"
     if r.freq == "WEEKLY":
-        return f"هر {' و '.join(DAYS_FA[recurrence.DAYS[d]] for d in r.by_day)} ساعت {hh}"
-    return f"هر ماه، روز {' و '.join(map(str, r.by_month_day))} ساعت {hh}"
+        return f"هر {' و '.join(DAYS_FA[recurrence.DAYS[d]] for d in r.by_day)} {hh}"
+    return f"هر ماه، روز {' و '.join(map(str, r.by_month_day))} {hh}"
 
 
 def num_fa(v: float) -> str:
@@ -1127,9 +1145,12 @@ async def fire(
         rule = auto["rule"] if isinstance(auto["rule"], dict) else json.loads(auto["rule"])
         steps: list[dict[str, Any]] = []
         outcome, error = "ok", None
+        # Only runs that acted (or failed) count toward the loop guard: a check
+        # whose conditions did not hold did nothing and is never a failure.
         hourly = int(
             await tx.scalar(
-                "SELECT count(*) FROM growth.automation_runs WHERE automation_id = :a AND at > :s",
+                """SELECT count(*) FROM growth.automation_runs
+                   WHERE automation_id = :a AND at > :s AND outcome <> 'skipped'""",
                 a=auto_id,
                 s=now - timedelta(hours=1),
             )
@@ -1244,6 +1265,20 @@ async def max_outbox(tx: Tx) -> int:
     return int(await tx.scalar("SELECT COALESCE(max(id), 0) FROM core.outbox") or 0)
 
 
+async def settled_outbox(tx: Tx) -> int:
+    """The newest outbox id older than EVENT_SETTLE (by the database's clock):
+    no transaction still open can hold an id at or below it."""
+    return int(
+        await tx.scalar(
+            """SELECT COALESCE((SELECT id FROM core.outbox
+                                WHERE created_at < now() - make_interval(secs => :s)
+                                ORDER BY id DESC LIMIT 1), 0)""",
+            s=EVENT_SETTLE.total_seconds(),
+        )
+        or 0
+    )
+
+
 async def tick(hub: Any, now: datetime | None = None) -> dict[str, Any]:
     """Every few minutes, by code: the schedules due (within LOOKBACK, after the
     seal), the metrics that hold (once per day of data), the events that came
@@ -1254,6 +1289,7 @@ async def tick(hub: Any, now: datetime | None = None) -> dict[str, Any]:
     out: dict[str, Any] = {"fired": 0, "failed": 0, "skipped": 0}
     ids = await hub.companies.ids()
     todo: list[tuple[UUID, str, dict[str, Any]]] = []
+    settled: int | None = None
     async with hub.db.tx(ids) as tx:
         if (lock := await gate.automation_lock(tx)) is not None:
             return gate.skipped(lock)
@@ -1302,16 +1338,21 @@ async def tick(hub: Any, now: datetime | None = None) -> dict[str, Any]:
                         )
                     )
             else:
-                top = await max_outbox(tx)
+                if settled is None:
+                    settled = await settled_outbox(tx)
                 rows = await tx.all(
-                    """SELECT id, payload FROM core.outbox
-                       WHERE id > :cur AND payload ->> 'type' = :t
-                         AND (:scope = 'holding' OR payload ->> 'company' = :co)
-                       ORDER BY id LIMIT :n""",
+                    """SELECT o.id, o.payload FROM core.outbox o
+                       WHERE o.id > :cur AND o.payload ->> 'type' = :t
+                         AND (:scope = 'holding' OR o.payload ->> 'company' = :co)
+                         AND NOT EXISTS (SELECT 1 FROM growth.automation_runs r
+                                         WHERE r.automation_id = :a
+                                           AND r.key = 'event:' || (o.payload ->> 'id'))
+                       ORDER BY o.id LIMIT :n""",
                     cur=a["event_cursor"],
                     t=t["type"],
                     scope=a["scope"],
                     co=a["company_code"],
+                    a=a["id"],
                     n=EVENT_BATCH,
                 )
                 for r in rows:
@@ -1328,9 +1369,12 @@ async def tick(hub: Any, now: datetime | None = None) -> dict[str, Any]:
                             },
                         )
                     )
+                # Never past a row that may still be in flight (see EVENT_SETTLE),
+                # nor past the rows of a full batch not read yet.
+                top = min(settled, rows[-1]["id"]) if len(rows) == EVENT_BATCH else settled
                 await tx.exec(
                     "UPDATE growth.automations SET event_cursor = :c WHERE id = :id",
-                    c=(rows[-1]["id"] if len(rows) == EVENT_BATCH else top),
+                    c=max(int(a["event_cursor"]), top),
                     id=a["id"],
                 )
     for auto_id, key, trigger in todo:

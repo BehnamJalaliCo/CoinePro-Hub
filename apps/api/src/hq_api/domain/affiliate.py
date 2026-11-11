@@ -254,8 +254,11 @@ class DayPull:
 
     def deposits_usdt(self) -> Decimal | None:
         """USDT deposits only are summed (another coin's value would need its
-        own price; it is listed in the source, not guessed)."""
+        own price; it is listed in the source, not guessed). A page of the
+        deposits call that did not answer is a gap, never a zero."""
         if not self.deposits and "money/detail/list" not in self.endpoints:
+            return None
+        if any(g.get("endpoint") == "money/detail/list" for g in self.gaps):
             return None
         return self.deposits.get(USDT, Decimal(0))
 

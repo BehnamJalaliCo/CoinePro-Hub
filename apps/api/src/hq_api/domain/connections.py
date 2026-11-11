@@ -169,6 +169,31 @@ def ig_hub() -> dict[str, str]:
     }
 
 
+IG_SERVER_REFUSED_FA = (
+    "سرور ثبت‌شده برای اینستاگرام نه IG-Hub است نه سرور همین شرکت؛ دستوری روی آن اجرا نمیشود."
+)
+
+
+def ig_server_allowed(server_co: str, server_name: str, company: str | None) -> bool:
+    """⟨audit 2026-11-11⟩ The servers a company's Instagram commands (the daily read, publish) may
+    run on: IG-Hub's (the server the owner paired under the `ig_hub` setting's name) or one of the
+    connection's own company. Never another company's server: that would be a cross-company
+    server.exec the server policy refuses (other_company)."""
+    if server_name.strip().lower() == ig_hub()["server"].strip().lower():
+        return True
+    return company is not None and server_co.strip().upper() == company.strip().upper()
+
+
+def ig_server(cfg: dict[str, Any], company: str | None) -> tuple[str, str] | None:
+    """(company, name) of the server a company's Instagram commands run on (IG-Hub's when none is
+    set); None when the stored one is not allowed (`ig_server_allowed`): it is never used."""
+    hub = ig_hub()
+    srv = cfg.get("server") if isinstance(cfg.get("server"), dict) else {}
+    co = str((srv or {}).get("company") or hub["company"])
+    name = str((srv or {}).get("name") or hub["server"])
+    return (co, name) if ig_server_allowed(co, name, company) else None
+
+
 def ig_hub_note(company_code: str | None = None) -> str:
     """What an agent reads when a company's Instagram connection is not connected: the account is
     on IG-Hub; who registers it here and how; publishing goes through IG-Hub's API."""
@@ -410,11 +435,14 @@ def looks_secret(value: Any) -> bool:
     return bool(SECRET_WORDS.search(s)) or bool(TOKEN_LIKE.match(s.strip()))
 
 
-def agent_config(kind: str, current: dict[str, Any], fields: dict[str, Any]) -> dict[str, Any]:
+def agent_config(
+    kind: str, current: dict[str, Any], fields: dict[str, Any], *, company: str | None = None
+) -> dict[str, Any]:
     """⟨2026-11-08⟩ H2: the connection's config after an agent's `connection.set`: the public,
     non-secret settings merged over what is there (handles as linked.handles accepts them, a
     read-only command, public channels, a site's public address); anything secret-looking, an
-    unknown field or a command that could change the server is refused with the field named."""
+    unknown field or a command that could change the server is refused with the field named.
+    `company` is the connection's company: its `server` is IG-Hub's or one of that company's."""
     from hq_api.domain import linked as LD
     from hq_api.errors import ApiError
 
@@ -446,6 +474,9 @@ def agent_config(kind: str, current: dict[str, Any], fields: dict[str, Any]) -> 
             co, name = LD._handle(srv.get("company")), LD._handle(srv.get("name"))
             if not co or not name:
                 bad[key] = "{company, name}"
+                continue
+            if not ig_server_allowed(co, name, company):
+                bad[key] = f"IG-Hub's server ({ig_hub()['server']}) or a server of this company"
                 continue
             out["server"] = {"company": co, "name": name}
         elif key == "read_command":
@@ -1174,8 +1205,10 @@ async def read_instagram(ctx: ReadCtx) -> list[Figure]:
     cmd = str(ctx.config["command"])
     if not read_only(cmd):
         raise ReadError("دستور خواندن IG-Hub فقط‌خواندنی نیست؛ هاب آن را اجرا نمیکند.")
-    srv_cfg = ctx.config.get("server") or {}
-    srv_company, srv_name = srv_cfg.get("company") or "IG", srv_cfg.get("name") or "IG-Hub"
+    where = ig_server(ctx.config, ctx.company)
+    if where is None:
+        raise ReadError(IG_SERVER_REFUSED_FA)
+    srv_company, srv_name = where
     accounts = [str(a) for a in ctx.config.get("accounts") or []]
     async with ctx.tx_factory() as tx:
         pend = ctx.pending or {}

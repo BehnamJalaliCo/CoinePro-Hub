@@ -565,3 +565,18 @@ def test_the_settlement_day_is_t_plus_one_at_utc_plus_8() -> None:
     assert start == int(datetime(2026, 10, 21, tzinfo=A.UTC8).timestamp() * 1000)
     assert end - start == 86_400_000 - 1
     assert dataclasses.is_dataclass(A.DayPull)
+
+
+def test_a_failed_deposits_call_is_a_gap_not_zero() -> None:
+    d = datetime(2026, 10, 21, tzinfo=A.UTC8).date()
+    failed = A.DayPull(day=d, endpoints=["money/detail/list"])
+    failed.gaps.append({"endpoint": "money/detail/list", "page": 0, "error": "http_500"})
+    assert failed.deposits_usdt() is None
+    partial = A.DayPull(day=d, endpoints=["money/detail/list"], deposits={A.USDT: Decimal(5)})
+    partial.gaps.append({"endpoint": "money/detail/list", "page": 1, "error": "http_500"})
+    assert partial.deposits_usdt() is None
+    empty = A.DayPull(day=d, endpoints=["money/detail/list"])
+    assert empty.deposits_usdt() == 0
+    other = A.DayPull(day=d, endpoints=["money/detail/list", "kline"])
+    other.gaps.append({"endpoint": "kline", "page": 0, "error": "no_price", "coin": "btc"})
+    assert other.deposits_usdt() == 0

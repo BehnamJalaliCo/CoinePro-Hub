@@ -184,6 +184,11 @@ def _day(at: datetime, tz: str) -> date:
     return at.astimezone(zone(tz)).date()
 
 
+def _last_day(hi: datetime, tz: str) -> date:
+    """The window's last owner day: `hi` is the exclusive midnight after it."""
+    return _day(hi - timedelta(microseconds=1), tz)
+
+
 async def _optional(tx: Tx, table: str) -> bool:
     return bool(await tx.scalar("SELECT to_regclass(:t) IS NOT NULL", t=table))
 
@@ -195,7 +200,7 @@ async def _manual(
         "SELECT * FROM growth.calendar_manual WHERE day BETWEEN :a AND :b "
         "AND (CAST(:co AS uuid) IS NULL OR company_id = :co)",
         a=_day(lo, tz),
-        b=_day(hi, tz),
+        b=_last_day(hi, tz),
         co=co,
     )
     return [
@@ -216,7 +221,7 @@ async def _manual(
 async def _campaigns(
     tx: Tx, lo: datetime, hi: datetime, tz: str, co: UUID | None, codes: dict[UUID, str]
 ) -> list[CampaignCalendarItem]:
-    a, b = _day(lo, tz), _day(hi, tz)
+    a, b = _day(lo, tz), _last_day(hi, tz)
     rows = await tx.all(
         "SELECT * FROM growth.campaigns WHERE starts <= :b AND ends >= :a "
         "AND (CAST(:co AS uuid) IS NULL OR company_id = :co)",
@@ -334,7 +339,7 @@ async def _ads(
     )
     try:
         async with tx.conn.begin_nested():
-            rows = await tx.all(sql, a=_day(lo, tz), b=_day(hi, tz), co=co)
+            rows = await tx.all(sql, a=_day(lo, tz), b=_last_day(hi, tz), co=co)
     except Exception:
         log.info("the ads tables look different; the ad source is skipped", exc_info=True)
         return []

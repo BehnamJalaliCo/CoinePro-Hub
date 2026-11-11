@@ -240,6 +240,16 @@ def test_the_preview_is_written_by_code_from_the_checked_rule() -> None:
     )
 
 
+def test_the_preview_names_every_time_the_schedule_runs() -> None:
+    assert AU.when_fa("FREQ=DAILY;BYHOUR=9,18;BYMINUTE=0") == "هر روز ساعت 09:00 و 18:00"
+    assert "08:00 و 08:30" in AU.when_fa("FREQ=WEEKLY;BYDAY=SA;BYHOUR=8;BYMINUTE=0,30")
+    assert AU.when_fa("FREQ=HOURLY;BYMINUTE=0,30") == "هر ساعت، دقیقه‌ی 0 و 30"
+    assert AU.when_fa("FREQ=HOURLY;INTERVAL=6;BYMINUTE=15") == "هر 6 ساعت، دقیقه‌ی 15"
+    many = AU.when_fa("FREQ=DAILY;BYHOUR=8,9,10,11;BYMINUTE=0,30")
+    assert "8 و 9 و 10 و 11" in many and "0 و 30" in many
+    assert AU.when_fa("FREQ=DAILY;BYHOUR=9;BYMINUTE=0") == "هر روز ساعت 09:00"
+
+
 async def test_a_good_sentence_is_one_router_call_and_a_checked_rule(
     client: httpx.AsyncClient, owner: dict[str, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -521,6 +531,55 @@ async def test_an_event_after_the_seal_runs_it_once_and_earlier_events_never(
     run = (await client.get(f"/api/v1/automations/{a['ref']}", headers=h)).json()["run_log"][0]
     assert run["trigger"]["kind"] == "event" and run["trigger"]["type"] == "support.message"
     assert run["key"].startswith("event:")
+
+
+async def test_an_event_committed_after_a_later_one_is_still_run(
+    client: httpx.AsyncClient, hub: Hub, owner_session: dict[str, Any], su: Any, made: list[str],
+    new_company: Callable[..., Any],
+) -> None:  # fmt: skip
+    # outbox ids are taken at insert: a transaction still open holds a lower id
+    # than a row committed after it, and the cursor must not pass it.
+    h = owner_session["headers"]
+    co = await new_company()
+    rule = {"trigger": {"kind": "event", "type": "support.message"}, "conditions": [],
+            "actions": [work("پیام دیرهنگام")]}  # fmt: skip
+    a = await propose(client, h, made, rule, co["code"])
+    await seal(client, hub, owner_session, a["ref"])
+    async with holding_switch(su, "released"):
+        before = await run_work_count(su, co["id"])
+        async with hub.db.tx(await hub.companies.ids()) as slow:
+            await events.emit(slow, co["code"], "support.message", "C-1", {"channel": "chat"})
+            async with hub.db.tx(await hub.companies.ids()) as fast:
+                await events.emit(fast, co["code"], "support.message", "C-2", {"channel": "chat"})
+            first = await AU.tick(hub)  # sees only the later id
+        second = await AU.tick(hub)  # the earlier id is committed now
+        third = await AU.tick(hub)
+    assert (first["fired"], second["fired"], third["fired"]) == (1, 1, 0)
+    assert await run_work_count(su, co["id"]) == before + 2
+
+
+async def test_skipped_checks_never_trip_the_loop_guard(
+    client: httpx.AsyncClient, hub: Hub, owner_session: dict[str, Any], su: Any, made: list[str],
+    new_company: Callable[..., Any],
+) -> None:  # fmt: skip
+    h = owner_session["headers"]
+    co = await new_company()
+    cond = {"connection": "ga4", "key": "sessions", "op": ">", "value": 10, "window_days": 1,
+            "agg": "last"}  # fmt: skip
+    rule = {"trigger": {"kind": "event", "type": "support.message"}, "conditions": [cond],
+            "actions": [{"kind": "notify.owner", "args": {"title_fa": "پیام تازه"}}]}  # fmt: skip
+    a = await propose(client, h, made, rule, co["code"])
+    await seal(client, hub, owner_session, a["ref"])
+    n = AU.MAX_PER_HOUR + 2
+    assert n <= AU.EVENT_BATCH
+    async with holding_switch(su, "released"):
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            for i in range(n):
+                await events.emit(tx, co["code"], "support.message", f"C-{i}", {})
+        out = await AU.tick(hub)  # no ga4 figure: every check is skipped, none acted
+    assert out["skipped"] == n and out["failed"] == 0
+    detail = (await client.get(f"/api/v1/automations/{a['ref']}", headers=h)).json()
+    assert detail["state"] == "on" and detail["failures_in_row"] == 0
 
 
 async def test_a_failing_automation_turns_itself_off_and_tells_the_owner(

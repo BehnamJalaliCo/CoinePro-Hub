@@ -289,6 +289,45 @@ async def test_the_ceo_letter_is_sent_back_once_then_marked_with_a_finding(
         assert b["period"] == {"from": "2031-03-29", "to": "2031-04-04"}
 
 
+async def test_a_refused_clean_delivery_does_not_use_up_the_send_back(
+    hub: Hub, su: Any, client: httpx.AsyncClient, new_company: Callable[..., Any]
+) -> None:
+    co = await new_company()
+    week = date(2031, 5, 10)
+    assert week.weekday() == 5
+    at = datetime(2031, 5, 10, 6, 0, tzinfo=UTC)  # Saturday 09:30 Tehran
+    acts = MgmtActivities(hub, lambda: _ScopedTx(hub))
+    async with holding_switch(su, "released"):
+        await acts.ceo_letters(at.isoformat())
+        letter = await su.fetchrow(
+            "SELECT * FROM reports.ceo_letters WHERE company_id = $1 AND week = $2", co["id"], week
+        )
+        # many refused deliveries already: the count stays under the table's ceiling
+        await su.execute(
+            "UPDATE reports.ceo_letters SET attempts = $2 WHERE id = $1",
+            letter["id"],
+            B.LETTER_ATTEMPTS_MAX,
+        )
+        url = f"/internal/v1/work/{letter['work_id']}/deliver"
+        ceo = await agent_headers(f"{co['code']}-CEO")
+        clean = {"title": "نامه‌ی هفتگی", "body": "این هفته 0 خروجی داشتیم."}
+        r = await client.post(url, headers=ceo, json=clean)  # no Idempotency-Key: refused
+        assert r.status_code == 422 and "Idempotency-Key" in r.text
+        bad = {"title": "نامه‌ی هفتگی", "body": "این هفته 98765 کاربر تازه آمدند."}
+        r = await client.post(url, headers={**ceo, **idem()}, json=bad)
+        assert r.status_code == 422 and "98765" in r.text  # still sent back, once
+        row = await su.fetchrow(
+            "SELECT state, attempts FROM reports.ceo_letters WHERE id = $1", letter["id"]
+        )
+        assert row["state"] == "returned" and row["attempts"] == B.LETTER_ATTEMPTS_MAX
+        r = await client.post(url, headers={**ceo, **idem()}, json=bad)
+        assert r.status_code == 200, r.text
+        title = await su.fetchval(
+            "SELECT title FROM cartable.deliverables WHERE ref = $1", r.json()["deliverable"]
+        )
+        assert title.startswith(B.UNSOURCED)
+
+
 async def test_a_sourced_letter_is_published_as_it_is(
     hub: Hub, su: Any, client: httpx.AsyncClient, new_company: Callable[..., Any]
 ) -> None:

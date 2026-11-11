@@ -297,15 +297,19 @@ async def _route(tx: Tx, company_id: UUID) -> dict[str, Any]:
         )
     )
     hubs = CN.ig_hub()
-    srv = cfg.get("server") if isinstance(cfg.get("server"), dict) else {}
+    code = await tx.scalar("SELECT code FROM core.companies WHERE id = :co", co=company_id)
+    # ⟨audit 2026-11-11⟩ a stored server that is neither IG-Hub's nor the company's own is never
+    # used: the route is not ready (the technical team registers it again), and IG-Hub stands in
+    where = CN.ig_server(cfg, str(code) if code is not None else None)
     accounts = [str(a).lstrip("@") for a in cfg.get("accounts") or []]
     command = str(cfg.get("publish_command") or "").strip()
+    server_co, server_name = where or (hubs["company"], hubs["server"])
     return {
         "accounts": accounts,
         "command": command,
-        "ready": bool(accounts and command),
-        "server_co": str((srv or {}).get("company") or hubs["company"]),
-        "server_name": str((srv or {}).get("name") or hubs["server"]),
+        "ready": bool(accounts and command and where is not None),
+        "server_co": server_co,
+        "server_name": server_name,
     }
 
 
