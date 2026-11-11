@@ -10,6 +10,7 @@ import pytest
 from sqlalchemy.exc import DBAPIError
 
 from hq_api.db import Tx
+from hq_api.domain import kb
 from hq_api.errors import from_db_error, sqlstate_of
 from hq_api.hub import Hub
 
@@ -413,6 +414,8 @@ async def test_resolution_refs_are_gapless(hub: Hub) -> None:
 async def test_persian_normalisation(hub: Hub, raw: str, normal: str) -> None:
     async with hub.db.tx([]) as tx:
         assert await tx.scalar("SELECT core.fa_normalize(:t)", t=raw) == normal
+    # The support KB builds its tsquery in Python: it must agree with the SQL side.
+    assert kb.fa_normalize(raw) == normal
 
 
 async def test_lock_state_sees_the_holding_switch(
