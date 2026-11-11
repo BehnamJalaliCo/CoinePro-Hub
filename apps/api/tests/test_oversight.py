@@ -111,7 +111,7 @@ async def test_the_protocols_are_seeded_and_only_the_owner_seals_new_versions(
         owner_session,
         "POST",
         "/api/v1/oversight/protocols",
-        protocol_body(),
+        protocol_body(calendar="jalali"),
         "oversight.protocol",
     )
     assert r.status_code == 201, r.text
@@ -133,6 +133,11 @@ async def test_the_protocols_are_seeded_and_only_the_owner_seals_new_versions(
         await su.fetchval("SELECT count(*) FROM oversight.protocols WHERE ref = $1", new["ref"])
         == 2
     )
+    # a version that does not name its calendar keeps the protocol's (a Jalali one stays Jalali)
+    cal = await su.fetch(
+        "SELECT calendar FROM oversight.protocols WHERE ref = $1 ORDER BY version", new["ref"]
+    )
+    assert [c["calendar"] for c in cal] == ["jalali", "jalali"]
     bad = protocol_body(schedule="FREQ=YEARLY")
     r = await _post_signed(
         client, hub, owner_session, "POST", "/api/v1/oversight/protocols", bad, "oversight.protocol"
