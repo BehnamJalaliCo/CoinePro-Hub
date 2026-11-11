@@ -206,6 +206,29 @@ def test_a_turn_finds_its_input_files_in_the_in_folder(
     assert "ورودی" in fake_hub.results["h10"]["summary_fa"]
 
 
+def test_an_input_never_lands_through_a_link_the_last_turn_planted(
+    fake_hub: FakeHub, cfg: Config, cfg_path: Path, spaces: Path, tmp_path: Path
+) -> None:
+    """in/ is the walled turn's to write and the download runs outside the wall: a link at the
+    part file's (predictable) name is replaced, never written through."""
+    other = tmp_path / "other-company-final.mp4"
+    other.write_bytes(b"company A's deliverable")
+    box = spaces / REF / "in"
+    box.mkdir(parents=True)
+    (box / ".narration.mp3.part").symlink_to(other)
+    fake_hub.inputs["h11/n"] = b"ID3 narration"
+    job = turn("h11")
+    job["args"]["inputs"] = [  # type: ignore[index]
+        {"file_id": "n", "name": "narration.mp3", "url": "/api/v1/runners/jobs/h11/inputs/n"}
+    ]
+    fake_hub.jobs.append(job)
+    run(drive(runner_for(fake_hub, cfg, cfg_path), lambda: "h11" in fake_hub.results, within=60))
+    assert fake_hub.results["h11"]["exit_code"] == 0, fake_hub.results["h11"]
+    assert other.read_bytes() == b"company A's deliverable"
+    assert (box / "narration.mp3").read_bytes() == b"ID3 narration"
+    assert not (box / "narration.mp3").is_symlink()
+
+
 class Streamed(httpx.AsyncByteStream):
     """A body that is really streamed (MockTransport's json= bodies come already read)."""
 
