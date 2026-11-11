@@ -642,6 +642,54 @@ async def test_the_archivist_files_drafts_only_and_never_seals_declassifies_rele
         assert own.status_code in (403, 422)
 
 
+async def test_a_proposed_rank_change_of_a_used_level_is_refused_when_it_is_proposed(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner_session: dict[str, Any],
+    su: Any,
+) -> None:
+    """check_level's «fixed: N record(s)» counts the level's records; the
+    proposal used to run it under the archivist's empty clearance, saw none and
+    filed a card that the seal (full clearance) can only refuse."""
+    h = owner_session["headers"]
+    async with fakes(ocr=False):
+        await filed(client, h, "HQ", title="سند سطح‌دار", text="a used level", level="confidential")
+    lv = await su.fetchrow("SELECT * FROM archive.levels WHERE key = 'confidential'")
+    body = {
+        k: lv[k]
+        for k in (
+            "title_fa",
+            "color_index",
+            "watermark",
+            "encrypt",
+            "step_up_to_view",
+            "agents_max",
+        )
+    }
+    async with holding_switch(su, "released"):
+        a = await agent_headers("HQ-ARC")
+        for change in ({"rank": lv["rank"] + 3}, {"encrypt": not lv["encrypt"]}):
+            card = await client.post(
+                "/internal/v1/decisions",
+                headers={**a, **idem()},
+                json={
+                    "kind": "archive_schema",
+                    "title": "تغییر سطح",
+                    "what": "x",
+                    "why": "y",
+                    "payload": {
+                        "part": "levels",
+                        "key": "confidential",
+                        "base_version": lv["version"],
+                        "body": {**body, "rank": lv["rank"], **change},
+                    },
+                },
+            )
+            assert card.status_code == 422, (change, card.text)
+            assert any("fixed" in v for v in card.json()["fields"].values()), card.text
+    assert await su.fetchval("SELECT rank FROM archive.levels WHERE key = 'confidential'") == lv["rank"]
+
+
 async def test_the_counsel_holds_what_its_case_concerns(
     client: httpx.AsyncClient,
     hub: Hub,
