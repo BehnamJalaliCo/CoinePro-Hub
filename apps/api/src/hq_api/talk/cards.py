@@ -393,6 +393,11 @@ async def _carry_out(
     if kind == "planner":
         try:
             at = datetime.fromisoformat(str(payload.get("at") or ""))
+            if at.tzinfo is None:  # audit 2026-11-11: a time without an offset is the owner's
+                from hq_api.domain.gov_common import owner_tz, zone
+
+                async with ctx.tx() as tx:
+                    at = at.replace(tzinfo=zone(await owner_tz(tx)))
             body = ER.PlannerIn(title_fa=str(payload.get("title_fa") or card["title_fa"])[:200], at=at,
                                 note=(str(payload.get("note"))[:2000] if payload.get("note") else None))  # fmt: skip
         except (ValueError, ValidationError) as exc:
