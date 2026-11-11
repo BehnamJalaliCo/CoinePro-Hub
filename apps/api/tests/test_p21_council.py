@@ -56,6 +56,28 @@ def test_a_web_players_page_residue_is_cut() -> None:
     )
     assert S.cut_residue("چرا کم شد؟ چون قیمت بالا رفت.") == "چرا کم شد؟ چون قیمت بالا رفت."
     assert S.cut_residue("مایلید ادامه بدهم؟") == "مایلید ادامه بدهم؟"  # nothing but residue: kept
+    assert S.cut_residue("Shall I draft it?\nCopy\nYes") == "Shall I draft it?\nCopy\nYes"
+    assert S.cut_residue("متن.\n\nآیا می‌خواهید جدول بسازم؟\n\nبله\n\nخیر\nکپی") == "متن."
+
+
+def test_a_one_word_verdict_and_an_own_closing_question_are_not_residue() -> None:
+    # a reply chip's word on its own is the answer's verdict, not the page's
+    for text in (
+        "آیا این طرح قانونی است؟ بررسی کردم.\n\nپاسخ کوتاه:\n\nخیر.",
+        "Is the deal profitable?\n\nShort answer:\nNo.",
+        "نتیجه‌گیری:\nبله",
+    ):
+        assert S.cut_residue(text) == text
+    assert S.cut_residue("نتیجه‌گیری:\nبله\nCopy") == "نتیجه‌گیری:\nبله"
+    # an offer starts a line or a sentence; a bare «می‌خواهید» is not an offer
+    for text in (
+        "سؤال کلیدی برای هیئت این است: مشتری واقعاً چه می‌خواهید؟",
+        "The real question for the board: do you want growth or margin?",
+        "پیشنهاد نهایی: کدام گزینه بهتر است اگر بخواهید سریع رشد کنید؟",
+        "The open question: should I hire now or wait?",
+    ):
+        assert S.cut_residue(text) == text
+    assert S.cut_residue("Answer here. Do you want me to expand?") == "Answer here."
     assert humanize.is_persian_answer("پاسخ فارسی با نام Gemini و https://example.com/a")
     assert not humanize.is_persian_answer("这是答案，价格两百万。")
 

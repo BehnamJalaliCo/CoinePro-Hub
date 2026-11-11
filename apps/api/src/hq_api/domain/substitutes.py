@@ -1194,27 +1194,34 @@ async def _retry_language(tx: Tx, hub: Any, c: dict[str, Any]) -> dict[str, Any]
 
 
 @lru_cache(maxsize=1)
-def _residue() -> tuple[re.Pattern[str], re.Pattern[str]]:
+def _residue() -> tuple[re.Pattern[str], re.Pattern[str], re.Pattern[str]]:
     data: dict[str, Any] = yaml.safe_load(RESIDUE_FILE.read_text(encoding="utf-8")) or {}
-    buttons = sorted({str(b) for b in data.get("buttons") or []}, key=len, reverse=True)
-    starts = sorted({str(x) for x in data.get("offer_starts") or []}, key=len, reverse=True)
-    b = "|".join(re.escape(x) for x in buttons) or "(?!)"
-    st = "|".join(re.escape(x) for x in starts) or "(?!)"
+
+    def alt(key: str) -> str:
+        words = sorted({str(x) for x in data.get(key) or []}, key=len, reverse=True)
+        return "|".join(re.escape(x) for x in words) or "(?!)"
+
+    b, r, st = alt("buttons"), alt("replies"), alt("offer_starts")
     button_line = re.compile(rf"^\s*(?:{b})\s*[.!،,]?\s*$", re.I)
+    reply_line = re.compile(rf"^\s*(?:{r})\s*[.!،,]?\s*$", re.I)
+    # An offer starts a line or a sentence (after . ! ? ؟), never mid-sentence
+    # («… مشتری واقعاً چه می‌خواهید؟» is the answer's own question).
     offer = re.compile(
-        rf"(?:^|(?<=[\s.!؟?،:؛]))(?:{st})[^?؟\n]*[?؟](?:\s*(?:{b})\s*[.!،,]?)*\s*$", re.I
+        rf"(?:^|(?<=[.!؟?]))\s*(?:{st})[^?؟\n]*[?؟](?:\s*(?:{b}|{r})\s*[.!،,]?)*\s*$", re.I
     )
-    return button_line, offer
+    return button_line, reply_line, offer
 
 
 def cut_residue(text: str | None) -> str | None:
     """⟨1.11⟩ §29.7 a web player's page residue cut from the end of its answer:
     trailing button labels and a trailing offer («مایلید … ؟ بله», «Would you
-    like …?»); the patterns are data (seed/web_residue.yaml). An answer that
-    is nothing but residue is kept as it is."""
+    like …?»); the patterns are data (seed/web_residue.yaml). A reply chip
+    («بله», «Yes») is cut only after such an offer: on its own it is the
+    answer's verdict and stays. An answer that is nothing but residue is kept
+    as it is."""
     if not text:
         return text
-    button_line, offer = _residue()
+    button_line, reply_line, offer = _residue()
     lines = text.rstrip().split("\n")
     for _ in range(12):
         before = list(lines)
@@ -1224,6 +1231,13 @@ def cut_residue(text: str | None) -> str | None:
             lines.pop()
             while lines and not lines[-1].strip():
                 lines.pop()
+        k = len(lines)  # reply chips (and buttons) under the page's offer
+        while k and (
+            not (ln := lines[k - 1]).strip() or reply_line.match(ln) or button_line.match(ln)
+        ):
+            k -= 1
+        if 0 < k < len(lines) and offer.search(lines[k - 1]):
+            del lines[k:]
         if lines and (m := offer.search(lines[-1])):
             lines[-1] = lines[-1][: m.start()].rstrip()
         if lines == before:
