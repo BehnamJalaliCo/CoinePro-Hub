@@ -740,6 +740,38 @@ async def test_a_councils_plan_inside_a_session_continues_the_same_order(
     )
 
 
+async def test_a_councils_plan_on_an_order_with_nothing_open_makes_a_new_order(
+    client: httpx.AsyncClient,
+    hub: Hub,
+    owner: dict[str, str],
+    su: Any,
+    new_company: Callable[..., Any],
+) -> None:
+    """The order is not ended but has no open or delivered work: the same-order
+    path gives way, and its claim of the key goes back with it (no 409
+    idempotency_conflict from the new order's own claim)."""
+    company = await new_company()
+    o = await make_order(hub, company, "تحلیل بازار آموزش آنلاین")
+    ref, w = o["ref"], o["work"]
+    await su.execute(
+        """INSERT INTO work.councils (company_id, work_id, state, plan_md)
+           VALUES ($1, $2, 'done', $3)""",
+        company["id"],
+        w["id"],
+        "هدف: هر روز یک ریلز.\n| چه کسی | چه کاری | تا کی |\n|---|---|---|\n| مدیر رسانه | سه ریلز | پنجشنبه |",
+    )
+    await su.execute(
+        "UPDATE work.work SET status = 'cancelled', closed_at = now() WHERE id = $1", w["id"]
+    )
+    r = await client.post(f"/api/v1/work/{w['id']}/council/run", headers={**owner, **idem()})
+    assert r.status_code == 201, r.text
+    assert r.json()["ref"].startswith("F-") and r.json()["ref"] != ref
+    assert (
+        await su.fetchval("SELECT order_ref FROM work.councils WHERE work_id = $1", w["id"])
+        == r.json()["ref"]
+    )
+
+
 async def test_the_owner_switches_the_pace_at_any_time(
     client: httpx.AsyncClient,
     owner: dict[str, str],
