@@ -54,6 +54,12 @@ def _cause_type(err: ActivityError) -> str | None:
     return cause.type if isinstance(cause, ApplicationError) else None
 
 
+# An approved card waiting out a lock: about 11-17 history events a pass, so ~5 h of
+# one-minute passes stay well under Temporal's 10K warning (51,200 ends the run).
+LOCK_WAITS = 300
+LOCK_WAITS_PATCH = "decision-lock-continue-as-new"
+
+
 @workflow.defn(name="DecisionLifecycle")
 class DecisionLifecycle:
     """Waits for the verdict (or the expiry), then applies an approved
@@ -92,9 +98,12 @@ class DecisionLifecycle:
                     return {"ref": ref, "result": "expired"}
         if state["status"] != "approved" or state["effect_status"] != "pending":
             return {"ref": ref, "result": state["status"], "effect": state["effect_status"]}
+        waits = 0
         while True:
             lock = await _act("holding_locked")
             if lock["locked"]:
+                waits += 1
+                self._keep_history_small(ref, waits)
                 await workflow.sleep(timedelta(seconds=lock["retry_in_s"]))
                 continue
             try:
@@ -108,12 +117,21 @@ class DecisionLifecycle:
                 if _cause_type(err) == "HoldingLocked":
                     # A company switch or a hold: wait like the holding lock,
                     # never spin (prompt 08.1 §2.4).
+                    waits += 1
+                    self._keep_history_small(ref, waits)
                     await workflow.sleep(timedelta(seconds=lock["retry_in_s"]))
                     continue
                 cause = err.cause
                 message = str(cause.message if isinstance(cause, ApplicationError) else err)
                 await _act("decision_effect_failed", ref, message[:500])
                 return {"ref": ref, "result": "effect_failed"}
+
+    @staticmethod
+    def _keep_history_small(ref: str, waits: int) -> None:
+        """A lock that lasts for days: continue as new before Temporal's history limit
+        ends the run. The patch marker keeps the runs already past LOCK_WAITS replaying."""
+        if waits >= LOCK_WAITS and workflow.patched(LOCK_WAITS_PATCH):
+            workflow.continue_as_new(ref)
 
 
 @workflow.defn(name="RecurringRun")
