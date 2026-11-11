@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import secrets
+import uuid
 from collections.abc import Callable
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
@@ -92,6 +93,25 @@ async def _work(su: Any, company_id: Any, status: str = "in_progress") -> Any:
         company_id,
         status,
     )
+
+
+def test_a_finished_run_without_a_work_item_is_not_no_progress_waste() -> None:
+    """A thread reply or a scheduled report (no work item) has no work to move: only a run on
+    a work item that left nothing is waste."""
+    at = datetime(2026, 11, 1, 9, tzinfo=UTC)
+
+    def run(work_id: Any) -> dict[str, Any]:
+        return {"state": "done", "work_id": work_id, "work_status": None, "delivered": False,
+                "moved": False}  # fmt: skip
+
+    def call(i: int, run_id: str) -> dict[str, Any]:
+        return {"id": i, "run_id": run_id, "started_at": at, "status": "ok", "tokens": 10,
+                "usd": 0, "request_sha": None, "prefix_sha": None, "input_tokens": 10,
+                "cache_read": 0, "task_class": "chat", "model": None}  # fmt: skip
+
+    runs = {"thread": run(None), "work": run(uuid.uuid4())}
+    flagged = WASTE.classify([call(1, "thread"), call(2, "work")], runs, {"*": None})
+    assert flagged["no_progress_runs"] == {2}
 
 
 async def test_each_waste_category_is_counted_with_fixed_data(
