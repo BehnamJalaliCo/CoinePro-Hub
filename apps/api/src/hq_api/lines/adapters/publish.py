@@ -16,7 +16,8 @@ By the line's platform:
 Settings: `kind` (reel | story | post | short | video | article | message), `media_from`,
 `cover_from`, `text_from` (input step keys), `publish_at` (ISO) or `delay_min` after `after`'s time,
 `privacy` (YouTube). Output `data.published` = {platform, kind, external_id, at, url} for the run.
-`insights(ctx, published)` reads the post's figures (Instagram, YouTube).
+`insights(ctx, published)` reads the post's figures (Instagram, YouTube); `Publish.insights` is the
+engine's entry to it (learning.read_metrics, with the run's list of published entries).
 """
 
 from __future__ import annotations
@@ -146,6 +147,15 @@ class Publish:
             via=pub.pop("via"),
             data={"published": pub, **extra},
         )
+
+    async def insights(self, ctx: StepContext, published: list[dict[str, Any]]) -> dict[str, Any]:
+        """The engine's 24h/7d read (learning.read_metrics): the run's published entries come as a
+        list; the figures are the line's own post's (its platform's kind, not a story that follows
+        a reel), else the first entry with an id. The module function reads one entry."""
+        ids = [p for p in published if isinstance(p, dict) and p.get("external_id")]
+        main = KIND_OF_PLATFORM.get(ctx.platform)
+        entry = next((p for p in ids if p.get("kind") == main), ids[0] if ids else None)
+        return await insights(ctx, entry) if entry is not None else {}
 
     # ---------------------------------------------------------------- dry --
     async def _dry(

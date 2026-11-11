@@ -1113,6 +1113,24 @@ async def test_insights_read_the_figures_for_instagram_and_youtube() -> None:
     )
 
 
+async def test_the_publish_adapter_answers_the_engines_insights_read() -> None:
+    """Regression: learning.read_metrics looks for `insights` on the registered adapter and passes
+    the run's published list; only a module function existed, so no figure was ever read."""
+    read = getattr(REGISTRY["publish"], "insights", None)
+    assert read is not None
+    hub = reel_hub()
+    hub.rows["FROM growth.connections"] = {"config": {"base_url": "https://ighub.example"}}
+    http = FakeHttp(ok({"views": 500}))
+    CN.OVERRIDE = http
+    published = [
+        {"platform": "instagram_reel", "kind": "story", "external_id": "story-1"},
+        {"platform": "instagram_reel", "kind": "reel", "external_id": "reel-1"},
+    ]
+    got = await read(ctx(hub, "publish"), published)
+    assert got == {"views": 500} and http.calls[0]["url"].endswith("/v1/insights/reel-1")
+    assert await read(ctx(hub, "publish"), [{"platform": "instagram_reel", "kind": "reel"}]) == {}
+
+
 # ----------------------------------------------------------------- deliver --
 async def test_deliver_does_nothing_unless_the_cover_could_not_be_set() -> None:
     settings = {"only_if": "cover_not_set", "check": "publish", "file_from": "cover"}
