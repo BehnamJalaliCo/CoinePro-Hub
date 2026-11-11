@@ -81,6 +81,13 @@ TABLE: list[tuple[str, tuple[str, ...]]] = [
     ("Scammers may ask you for your seed phrase. Never send it.", OK),
     ("Enter your 2FA code in the LBank app.", OK),
     ("رمز ارز مورد نظرتان را بفرستید", OK),  # رمز ارز is a cryptocurrency, not a password
+    ("Nobody from our team will ever ask you to send your password.", OK),
+    ("There is no need to send your seed phrase.", OK),
+    ("Never share your password and just send us your UID.", OK),
+    ("رمز خود را به هیچ\u200cکس ندهید و فقط UID را بفرستید.", OK),  # no comma
+    ("لازم نیست رمز عبور خود را بفرستید.", OK),
+    ("There is no such thing as guaranteed profit.", OK),
+    ("به وعده\u200cی سود تضمینی اعتماد نکنید.", OK),
     ("فایل config.yaml و کتابخانه\u200cی Node.js", OK),  # files, not links
     # --- asks_secret
     ("لطفا\u064b کد تأیید پیامک را بفرستید", SECRET),
@@ -109,6 +116,14 @@ TABLE: list[tuple[str, tuple[str, ...]]] = [
     ("Enter the verification code in this chat.", SECRET),
     ("لطفا رمزتون رو نشون بدید", SECRET),
     ("کد تأیید را در لینک زیر وارد کنید", SECRET),
+    # an unrelated negation in the same clause does not cancel the ask
+    ("We could not find your account so please send your password here", SECRET),
+    ("If the transfer did not arrive please send us your seed phrase", SECRET),
+    ("Do not worry and send us your 2FA code", SECRET),
+    ("Please send us your 2FA code so we can verify you without delay", SECRET),
+    ("اکانت شما پیدا نشد لطفا رمز عبور خود را بفرستید", SECRET),
+    ("حساب شما فعال نیست لطفا رمز عبور خود را بفرستید", SECRET),
+    ("رمز را ندهید و کد تأیید را بفرستید", SECRET),
     # --- profit_promise
     ("با ربات ما سود تضمینی بگیرید", PROFIT),
     ("Guaranteed profit every month!", PROFIT),
@@ -124,6 +139,11 @@ TABLE: list[tuple[str, tuple[str, ...]]] = [
     (quote("سود تضمینی برای همه"), PROFIT),  # percent-encoded
     ("سود تضمينی", PROFIT),  # Arabic yeh
     ("این ربات کاملا بدون ریسک است", PROFIT),
+    # an unrelated negation in the same clause does not cancel the claim
+    ("Don't miss our guaranteed profit plan", PROFIT),
+    ("Nobody beats our risk-free returns", PROFIT),
+    ("فرصت را از دست ندهید سود تضمینی ماهانه", PROFIT),
+    ("سود تضمینی ما دروغ نیست", PROFIT),
     # --- unknown_link / unknown_code
     ("ثبت\u200cنام: https://evil-lbank.com/ref/COINE1", LINK),
     ("https://lbank.com/ref/XXXX", (*LINK, *CODE)),
