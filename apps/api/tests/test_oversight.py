@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import uuid
 from collections.abc import AsyncIterator, Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -254,6 +255,45 @@ async def test_every_code_checker_runs(
     )
     assert near is not None and "temporal" in near["title_fa"] and near["severity"] == "high"
     assert co["code"]
+
+
+class _Rows:
+    """A tx that answers every query with the same rows (a checker's SQL, faked)."""
+
+    def __init__(self, rows: list[dict[str, Any]]) -> None:
+        self.rows = rows
+
+    async def all(self, sql: str, **params: Any) -> list[dict[str, Any]]:
+        return self.rows
+
+
+def _fake_ctx(rows: list[dict[str, Any]], company: uuid.UUID) -> C.CheckCtx:
+    holding = uuid.uuid4()
+    tx: Any = _Rows(rows)
+    return C.CheckCtx(tx, holding, "HQ", {"HQ": holding, "TY": company}, datetime.now(UTC), {})
+
+
+async def test_pr050_keeps_one_finding_and_pr060_reads_a_last_day_certificate() -> None:
+    """Audit 2026-11-11: PR-050's key was built from the overdue refs, so every change in the set
+    opened another finding and left the old ones open; PR-060 read 0 TLS days left as 99."""
+    co = uuid.uuid4()
+    keys = set()
+    for refs in (["W-0012"], ["W-0012", "W-0015"]):
+        got = await C.CHECKS["PR-050"](_fake_ctx([{"company_id": co, "refs": refs}], co))
+        [p] = got.problems
+        keys.add(p.key)
+        assert [e["ref"] for e in p.evidence] == refs
+    assert keys == {"overdue"}
+    site = {
+        "company_id": co,
+        "url": "https://x.example",
+        "consecutive_failures": 3,
+        "incident": True,
+    }
+    got = await C.CHECKS["PR-060"](_fake_ctx([{**site, "tls_days_left": 0}], co))
+    assert [p.body_md for p in got.problems] == ["TLS 0 days left"]
+    got = await C.CHECKS["PR-060"](_fake_ctx([{**site, "tls_days_left": None}], co))
+    assert got.problems == []  # failing with an open incident: being handled
 
 
 async def test_a_judgement_protocol_is_the_overseers_work_within_the_daily_cap(

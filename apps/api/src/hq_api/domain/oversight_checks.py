@@ -545,8 +545,9 @@ async def sites_healthy(ctx: CheckCtx) -> Checked:
     )
     problems = []
     for r in rows:
-        if r["consecutive_failures"] >= 3 and r["incident"] and (r["tls_days_left"] or 99) >= 14:
-            continue  # failing, but with an open incident: being handled
+        days = r["tls_days_left"]
+        if r["consecutive_failures"] >= 3 and r["incident"] and (days is None or days >= 14):
+            continue  # failing, but with an open incident: being handled (0 days left is not)
         why = (
             f"TLS {r['tls_days_left']} days left"
             if r["tls_days_left"] is not None and r["tls_days_left"] < 14
