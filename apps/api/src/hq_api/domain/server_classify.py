@@ -37,12 +37,16 @@ read-only and run free too.
 A command is split into its simple commands (`;`, `&&`, `||`, `|`, newlines,
 `$(…)` and backticks) and each is read without its prefixes (sudo, env,
 nice, nohup, timeout, xargs …), so `cd /srv && sudo rm -rf data/` is caught.
+A command that another one runs is read for what it runs: `bash -c '…'`,
+`su -c '…'`, `eval '…'`, `flock f -c '…'`, `docker exec <ct> …`,
+`docker compose exec <svc> …` and `kubectl exec … -- …`.
 Matching is case-insensitive for SQL. A pattern names what it caught; the
 seal card shows it.
 """
 
 from __future__ import annotations
 
+import posixpath
 import re
 import shlex
 
@@ -62,17 +66,17 @@ TEXT_RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
     ("db_drop", "drop database/table/schema",
      re.compile(r"\bdrop\s+(?:database|table|schema)\b", _I)),
     ("db_drop", "truncate table", re.compile(r"\btruncate\s+(?:table\s+)?(?!-)[\w\"`.]+", _I)),
-    ("db_drop", "dropdb", re.compile(r"(?:^|[\s;&|(`/])dropdb\b")),
+    ("db_drop", "dropdb", re.compile(r"(?:^|[\s;&|(`/'\"])dropdb\b")),
     ("db_drop", "flushall/flushdb", re.compile(r"\bflush(?:all|db)\b", _I)),
     ("db_drop", "dropDatabase()", re.compile(r"\.dropdatabase\s*\(", _I)),
     ("volume_delete", "docker volume rm/prune",
-     re.compile(r"\bdocker\s+volume\s+(?:rm|remove|prune)\b")),
+     re.compile(r"\b(?:docker|podman)\s+volume\s+(?:rm|remove|prune)\b")),
     ("volume_delete", "docker compose down -v",
      re.compile(r"\bdocker(?:-compose|\s+compose)\b[^;&|\n]*\bdown\b[^;&|\n]*\s(?:-v|--volumes)\b")),
     ("volume_delete", "docker system prune --volumes",
      re.compile(r"\bdocker\s+system\s+prune\b[^;&|\n]*--volumes\b")),
-    ("volume_delete", "docker rm -v",
-     re.compile(r"\bdocker\s+(?:container\s+)?rm\b[^;&|\n]*\s-[a-z]*v[a-z]*\b")),
+    ("volume_delete", "docker rm -v/--volumes",
+     re.compile(r"\b(?:docker|podman)\s+(?:container\s+)?rm\b[^;&|\n]*\s(?:-[a-z]*v[a-z]*|--volumes)\b")),
     ("backup_delete", "restic forget/prune", re.compile(r"\brestic\b[^;&|\n]*\b(?:forget|prune)\b")),
     ("backup_delete", "borg delete/prune", re.compile(r"\bborg\s+(?:delete|prune)\b")),
     ("backup_delete", "rclone delete/purge",
@@ -90,7 +94,7 @@ TEXT_RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
     ("access_change", "sshd_config", re.compile(r"sshd_config")),
     ("access_change", "authorized_keys", re.compile(r"authorized_keys")),
     ("access_change", "sudoers", re.compile(r"/etc/sudoers")),
-    ("access_change", "/etc/ssh", re.compile(r"/etc/ssh/")),
+    ("access_change", "/etc/ssh", re.compile(r"/etc/ssh(?:/|(?![\w.-]))")),
     ("access_change", "/etc/passwd or /etc/shadow", re.compile(r"/etc/(?:passwd|shadow|group|gshadow)\b")),
 )  # fmt: skip
 
@@ -119,7 +123,19 @@ READERS = {
     "getent", "id", "who", "w", "last", "lastlog", "find", "du", "df", "echo", "printf",
 }  # fmt: skip
 PREFIXES = {"sudo", "doas", "env", "nice", "ionice", "nohup", "time", "timeout", "exec", "command",
-            "builtin", "xargs", "stdbuf", "setsid", "chronic", "flock", "su"}  # fmt: skip
+            "builtin", "xargs", "stdbuf", "setsid", "chronic", "flock", "su", "busybox"}  # fmt: skip
+# Shells: `bash -c '<cmd>'` runs <cmd>.
+SHELLS = {"bash", "sh", "dash", "zsh", "ksh", "mksh", "ash", "fish"}
+_SHELL_VALUE_OPTS = ("-o", "+o", "-O", "+O", "--rcfile", "--init-file")
+# `docker exec` / `docker compose exec` options that take a value (before the container).
+_EXEC_VALUE_FLAGS = ("-e", "--env", "--env-file", "-u", "--user", "-w", "--workdir",
+                     "--detach-keys", "--index")  # fmt: skip
+# Global options of docker / podman / compose that take a value (before the verb).
+_CLI_VALUE_FLAGS = ("-H", "--host", "-c", "--context", "--config", "-l", "--log-level", "-f",
+                    "--file", "-p", "--project-name", "--env-file", "--profile",
+                    "--project-directory", "--ansi", "--parallel", "--progress")  # fmt: skip
+# How deep a command inside a command inside … is read.
+_DEPTH = 6
 # rm -r of these is the disk (or the system) gone.
 SYSTEM_DIRS = re.compile(
     r"^(?:/|/\*|~|~/|~/\*|\$HOME/?|/(?:bin|boot|etc|home|lib|lib64|opt|root|sbin|srv|usr|var)/?\*?)$"
@@ -149,39 +165,155 @@ _REDIRECT = re.compile(r"(?:^|\s)\d?>{1,2}\s*(\S+)")
 
 
 _VALUE_FLAGS: dict[str, tuple[str, ...]] = {
-    "sudo": ("-u", "-g", "-C", "-h", "-p", "-U", "-r", "-t", "-D", "-R"),
+    "sudo": ("-u", "-g", "-C", "-h", "-p", "-U", "-r", "-t", "-D", "-R", "--user", "--group",
+             "--host", "--prompt", "--chroot", "--chdir", "--close-from", "--role", "--type",
+             "--other-user"),
     "doas": ("-u", "-C"),
-    "su": ("-c", "-s", "-g", "-G"),
     "nice": ("-n",),
     "ionice": ("-c", "-n", "-t", "-p"),
-    "flock": ("-w", "-E", "-c", "-x", "-s"),
-    "timeout": ("-s", "-k"),
-}
+    "flock": ("-w", "--timeout", "--wait", "-E", "--conflict-exit-code"),
+    "timeout": ("-s", "--signal", "-k", "--kill-after"),
+    "env": ("-u", "--unset", "-C", "--chdir"),
+    "xargs": ("-I", "-n", "-P", "-d", "-a", "-L", "-s", "-E", "--max-args", "--max-procs",
+              "--delimiter", "--arg-file", "--max-lines", "--max-chars"),
+    "stdbuf": ("-i", "-o", "-e"),
+}  # fmt: skip
+_SU_COMMAND = ("-c", "--command", "--session-command")
+_SYSTEMCTL_VALUE_FLAGS = ("-H", "--host", "-M", "--machine", "-s", "--signal", "-p",
+                          "--property", "-t", "--type", "--state", "-n", "--lines", "-o",
+                          "--output", "--kill-whom", "--root")  # fmt: skip
+_ASSIGN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=.*")
+_DURATION = re.compile(r"[0-9.]+[smhd]?")
 
 
-def _segments(cmd: str) -> list[list[str]]:
+def _split(part: str) -> list[str]:
+    try:
+        return shlex.split(part, comments=False, posix=True)
+    except ValueError:
+        # An unbalanced quote (a quoted `;` split the line): read the words without their quotes.
+        return [w for w in (t.strip("'\"") for t in part.split()) if w]
+
+
+def _segments(cmd: str, depth: int = 0) -> list[list[str]]:
     """The simple commands of a command line, each as argv without prefixes."""
     out: list[list[str]] = []
     for part in _SPLIT.split(_FD_DUP.sub(" ", cmd)):
         part = part.strip()
-        if not part:
-            continue
-        try:
-            argv = shlex.split(part, comments=False, posix=True)
-        except ValueError:
-            argv = part.split()
-        while argv and (argv[0] in PREFIXES or re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", argv[0])):
-            head = argv.pop(0)
-            if head == "timeout" and argv and re.fullmatch(r"[0-9.]+[smhd]?", argv[0]):
-                argv.pop(0)
-            while argv and argv[0].startswith("-") and head in PREFIXES:
-                flag = argv.pop(0)
-                # Only these flags take a value (`sudo -n` does not: it means non-interactive).
-                if flag in _VALUE_FLAGS.get(head, ()) and argv:
-                    argv.pop(0)
-        if argv:
-            out.append(argv)
+        if part:
+            out.extend(_unwrap(_split(part), depth))
     return out
+
+
+def _inner(code: str, depth: int) -> list[list[str]]:
+    """The simple commands of a command given as text (`bash -c '…'`, `eval …`)."""
+    if not code.strip() or depth >= _DEPTH:
+        return []
+    return _segments(code, depth + 1)
+
+
+def _value_of(args: list[str], names: tuple[str, ...]) -> list[str] | None:
+    """The value of the first of these options in args (`-c x`, `--command=x`), or None."""
+    for i, a in enumerate(args):
+        if a in names:
+            return args[i + 1 : i + 2]
+        for n in names:
+            if n.startswith("--") and a.startswith(n + "="):
+                return [a[len(n) + 1 :]]
+    return None
+
+
+def _shell_command(args: list[str]) -> list[str] | None:
+    """What `bash [opts] -c '<cmd>' [$0 $1 …]` runs (with its arguments), or None (a script)."""
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a in _SHELL_VALUE_OPTS:
+            i += 2
+            continue
+        if a == "-c" or (a.startswith("-") and not a.startswith("--") and "c" in a[1:]):
+            return args[i + 1 :]
+        if a.startswith(("-", "+")):
+            i += 1
+            continue
+        return None
+    return None
+
+
+def _exec_tail(argv: list[str]) -> list[str] | None:
+    """The command `docker exec <ct> …`, `docker compose exec <svc> …` or
+    `kubectl exec … -- …` runs inside the container, or None."""
+    name = _base(argv[0])
+    args = argv[1:]
+    if name == "kubectl":
+        if "exec" in args and "--" in args:
+            return args[args.index("--") + 1 :]
+        return None
+    i = 0
+    while i < len(args) and args[i].startswith("-"):
+        i += 2 if args[i] in _CLI_VALUE_FLAGS else 1
+    rest = args[i:]
+    if name in ("docker", "podman") and rest[:1] in (["compose"], ["container"]):
+        rest = rest[1:]
+        i = 0
+        while i < len(rest) and rest[i].startswith("-"):
+            i += 2 if rest[i] in _CLI_VALUE_FLAGS else 1
+        rest = rest[i:]
+    if rest[:1] != ["exec"]:
+        return None
+    rest = rest[1:]
+    i = 0
+    while i < len(rest) and rest[i].startswith("-"):
+        if rest[i] == "--":
+            i += 1
+            break
+        i += 2 if rest[i] in _EXEC_VALUE_FLAGS else 1
+    return rest[i + 1 :] if i < len(rest) else []
+
+
+def _unwrap(argv: list[str], depth: int) -> list[list[str]]:
+    """argv without its prefixes; a command another one runs is read for what it runs."""
+    argv = list(argv)
+    while argv:
+        name = _base(argv[0])
+        if _ASSIGN.fullmatch(argv[0]):
+            argv.pop(0)
+            continue
+        if name in SHELLS:
+            inner = _shell_command(argv[1:])
+            if inner is None:
+                return [argv]
+            # The code, then its arguments ($0 $1 …) as the words they are.
+            return _inner(" ".join(inner[:1] + [shlex.quote(w) for w in inner[1:]]), depth)
+        if name == "eval":
+            return _inner(" ".join(argv[1:]), depth)
+        if name in ("docker", "podman", "docker-compose", "kubectl"):
+            tail = _exec_tail(argv)
+            if tail is None:
+                return [argv]
+            argv = tail
+            continue
+        if name not in PREFIXES:
+            return [argv]
+        argv.pop(0)
+        if name == "su":
+            # `su [-] [user] -c '<cmd>'` runs <cmd>; a plain `su` runs nothing to read.
+            value = _value_of(argv, _SU_COMMAND)
+            return _inner(value[0], depth) if value else []
+        while argv and argv[0].startswith("-"):
+            flag = argv.pop(0)
+            if flag == "--":
+                break
+            # Only these flags take a value (`sudo -n` does not: it means non-interactive).
+            if flag in _VALUE_FLAGS.get(name, ()) and argv:
+                argv.pop(0)
+        if name == "timeout" and argv and _DURATION.fullmatch(argv[0]):
+            argv.pop(0)  # the duration
+        if name == "flock" and argv:
+            argv.pop(0)  # the lock file or descriptor
+            value = _value_of(argv[:2], ("-c", "--command"))
+            if value is not None:
+                return _inner(value[0], depth) if value else []
+    return []
 
 
 def _base(arg: str) -> str:
@@ -246,6 +378,35 @@ def _in_place(argv: list[str]) -> bool:
     )
 
 
+_SSH_UNIT = re.compile(r"sshd?(?:\.service|\.socket)?")
+
+
+def _systemctl_words(args: list[str]) -> list[str]:
+    """systemctl's verb and units, without its options (`systemctl --now disable ssh`)."""
+    words: list[str] = []
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a in _SYSTEMCTL_VALUE_FLAGS:
+            i += 2
+            continue
+        if not a.startswith("-"):
+            words.append(a)
+        i += 1
+    return words
+
+
+def _writes(argv: list[str]) -> bool:
+    """A reader that writes or deletes: `sed -i`, `find … -delete` or `find … -exec`."""
+    if _in_place(argv):
+        return True
+    return _base(argv[0]) == "find" and any(
+        a in ("-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint", "-fprint0", "-fprintf",
+              "-fls")
+        for a in argv[1:]
+    )  # fmt: skip
+
+
 def _program(argv: list[str]) -> tuple[str, str] | None:
     prog = _base(argv[0])
     args = argv[1:]
@@ -269,13 +430,18 @@ def _program(argv: list[str]) -> tuple[str, str] | None:
         return "access_change", prog
     if prog in FIREWALL_TOOLS:
         return None if _firewall_read_only(prog, args) else ("access_change", prog)
-    if (
-        prog == "systemctl"
-        and len(args) >= 2
-        and args[0] in ("stop", "disable", "mask", "kill")
-        and any(re.fullmatch(r"sshd?(?:\.service|\.socket)?", a) for a in args[1:])
-    ):
-        return "access_change", f"systemctl {args[0]} ssh"
+    if prog == "systemctl":
+        words = _systemctl_words(args)
+        if (
+            len(words) >= 2
+            and words[0] in ("stop", "disable", "mask", "kill")
+            and any(_SSH_UNIT.fullmatch(a) for a in words[1:])
+        ):
+            return "access_change", f"systemctl {words[0]} ssh"
+    if prog == "service" and len(args) >= 2 and _SSH_UNIT.fullmatch(args[0]) and args[1] == "stop":
+        return "access_change", "service ssh stop"
+    if argv[0].startswith("/etc/init.d/") and _SSH_UNIT.fullmatch(prog) and args[:1] == ["stop"]:
+        return "access_change", "init.d ssh stop"
     if prog == "docker" and args[:2] == ["volume", "rm"]:
         return "volume_delete", "docker volume rm"
     return None
@@ -292,11 +458,14 @@ def classify_detail(cmd: str) -> tuple[str, str] | None:
         if hit is not None:
             return hit
     readers_only = bool(segments) and all(
-        _base(a[0]) in READERS and not _in_place(a) for a in segments
+        _base(a[0]) in READERS and not _writes(a) for a in segments
     )
-    redirects = [m.group(1) for m in _REDIRECT.finditer(_FD_DUP.sub(" ", text))]
+    # The text as written, with its paths' `//` and `/./` folded, and as the commands it runs
+    # (`bash -c "dropdb x"` reads as `dropdb x`).
+    texts = [text, _fold(text), "\n".join(" ".join(a) for a in segments)]
+    redirects = [m.group(1) for t in texts[:2] for m in _REDIRECT.finditer(_FD_DUP.sub(" ", t))]
     for category, name, rx in TEXT_RULES:
-        if not rx.search(text):
+        if not any(rx.search(t) for t in texts):
             continue
         if (
             category == "access_change"
@@ -306,6 +475,11 @@ def classify_detail(cmd: str) -> tuple[str, str] | None:
             continue  # reading a sensitive file changes nothing
         return category, name
     return None
+
+
+def _fold(text: str) -> str:
+    """`/etc//passwd` and `/etc/./shadow` as `/etc/passwd` and `/etc/shadow` (URLs kept)."""
+    return re.sub(r"(?<![:/])/(?:\.?/)+", "/", text)
 
 
 def classify(cmd: str) -> str | None:
@@ -318,8 +492,13 @@ def classify_path(path: str) -> tuple[str, str] | None:
     """Writing a file there (server.write): an access change for the
     server's SSH, users or firewall; anything else runs free."""
     p = (path or "").strip()
+    paths = [p]
+    if p:
+        # `/etc//passwd`, `/etc/./shadow` and `/etc/ssh/../passwd` are the same files.
+        norm = posixpath.normpath(p)
+        paths.append("/" + norm.lstrip("/") if norm.startswith("/") else norm)
     for name, rx in SENSITIVE_WRITE_PATHS:
-        if rx.search(p):
+        if any(rx.search(x) for x in paths):
             return "access_change", name
     return None
 
