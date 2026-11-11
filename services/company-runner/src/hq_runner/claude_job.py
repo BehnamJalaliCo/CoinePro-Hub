@@ -1,9 +1,9 @@
 """The `claude` job (contract §26.2, §26.3): the server's own Claude Code on a
 brief, in the repository folder `args.cwd`, under that repository's CLAUDE.md.
 
-    claude -p <brief> --output-format stream-json --verbose --settings <tmp>/settings.json
+    claude -p --output-format stream-json --verbose --settings <tmp>/settings.json
            [--resume <session_id>] [--model M] [--permission-mode P] [--max-turns N]
-           [--allowedTools <tool> ...]
+           [--allowedTools <tool> ...]          (the brief on stdin)
 
 ⟨0.3.2⟩ a workspace turn that ended well sends the files it left in `out/` of
 its folder to the hub (outbox.py; contract §43, the holding's workshop) and
@@ -554,9 +554,10 @@ async def run_claude(ctx: JobContext) -> JobResult:
         granted = [*allow, tools_bridge.ALLOW] if tools_on else allow
         # job/ is the turn's to write too: a link left there is never written through
         sandbox.write_new(settings, json.dumps(hook_settings(ctx.id, granted)))
-        # behind the wall the brief goes in on stdin: a turn's argv is readable by every
-        # process of this user (/proc), and the other turns are other companies'
-        argv = [claude, "-p", *([] if plan is not None else [brief])]
+        # the brief always goes in on stdin: behind the wall a turn's argv is readable by every
+        # process of this user (/proc), and the other turns are other companies'; and a brief
+        # that starts with "-" (a Markdown list) is never read by the CLI as an option
+        argv = [claude, "-p"]
         argv += ["--output-format", "stream-json", "--verbose", "--settings", str(settings)]
         if resume:
             argv += ["--resume", str(resume)]
@@ -621,7 +622,7 @@ async def run_claude(ctx: JobContext) -> JobResult:
                 on_stdout=on_stdout,
                 on_stderr=ctx.line_sink("stderr"),
                 max_line=JSON_LINE_BYTES,
-                stdin_data=brief.encode("utf-8") if plan is not None else None,
+                stdin_data=brief.encode("utf-8"),
             )
             drain_hook_log()
             return out

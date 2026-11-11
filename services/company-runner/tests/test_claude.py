@@ -90,7 +90,8 @@ def test_claude_job_streams_session_events_and_hook_blocks_drop_database(
     # The CLI ran as the contract says, in the repository, with the temporary hook settings.
     rec = json.loads(record.read_text())
     argv = rec["argv"]
-    assert argv[:2] == ["-p", brief]
+    # the brief goes in on stdin, never as an argument the CLI could read as an option
+    assert argv[0] == "-p" and brief not in argv and rec["brief_on_stdin"] is True
     assert argv[argv.index("--output-format") + 1] == "stream-json" and "--verbose" in argv
     assert argv[argv.index("--resume") + 1] == "sess-42"
     assert rec["cwd"] == str(repo)
@@ -239,7 +240,7 @@ def test_the_hubs_allow_list_reaches_claude_code_and_the_hook_stays(
     rec = json.loads(record.read_text())
     argv = rec["argv"]
     i = argv.index("--allowedTools")
-    assert argv[i + 1 :] == allow and argv[:2] == ["-p", "catalogue"]
+    assert argv[i + 1 :] == allow and argv[0] == "-p" and "catalogue" not in argv
     assert rec["settings"]["permissions"]["allow"] == allow
     assert rec["settings"]["hooks"]["PreToolUse"][0]["matcher"] == "Bash"
     assert fake_hub.results["cl11"]["exit_code"] == 0
@@ -253,6 +254,29 @@ def test_the_hubs_allow_list_reaches_claude_code_and_the_hook_stays(
         runner = Runner(cfg, make_route(fake_hub), cfg_path=cfg_path, persist_state=False)
         run(drive(runner, lambda jid=jid: jid in fake_hub.results, within=30))
         assert fake_hub.results[jid]["exit_code"] != 0, bad
+
+
+def test_a_brief_that_starts_with_a_dash_is_never_read_as_an_option(
+    fake_hub: FakeHub, cfg: Config, cfg_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A Markdown list from the owner ("- check the logs") went into argv after -p, where the
+    CLI took it for an unknown option and the turn failed at once: it goes in on stdin."""
+    record = tmp_path / "argv.json"
+    monkeypatch.setenv("FAKE_CLAUDE_RECORD", str(record))
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    cfg.claude_bin = str(FAKE_CLAUDE)
+    save(cfg, cfg_path)
+    brief = "- لاگ‌ها را بررسی کن\n- --verbose گزارش بده"
+    fake_hub.jobs.append(
+        {"id": "cl-dash", "kind": "claude", "args": {"brief": brief, "cwd": str(repo)}}
+    )
+    runner = Runner(cfg, make_route(fake_hub), cfg_path=cfg_path, persist_state=False)
+    run(drive(runner, lambda: "cl-dash" in fake_hub.results, within=60))
+    rec = json.loads(record.read_text())
+    assert rec["brief_on_stdin"] is True
+    assert not any(a.startswith("- ") or "لاگ" in a for a in rec["argv"])
+    assert fake_hub.results["cl-dash"]["exit_code"] == 0
 
 
 def test_the_effort_the_hub_asks_for_reaches_the_cli_when_it_can_take_it(
