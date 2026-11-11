@@ -694,6 +694,33 @@ async def test_a_secret_file_is_encrypted_needs_a_passkey_and_is_served_watermar
         assert rows and rows[0]["step_up"] and rows[0]["watermarked"]
 
 
+
+async def test_a_retry_of_a_taken_over_upload_replays_and_a_second_filing_is_409(
+    client: httpx.AsyncClient, hub: Hub, owner: dict[str, str], new_company: Callable[..., Any]
+) -> None:
+    """The first record took the owner's upload over (its bytes are gone): the
+    same Idempotency-Key gets the first answer back, another record a 409."""
+    co = await new_company()
+    async with fakes(ocr=False):
+        fid = await upload(client, owner, pdf("a letter filed once"), "application/pdf")
+        body = {
+            "scope": co["code"],
+            "class": "other",
+            "title_fa": "نامه",
+            "metadata": {"subject": "نامه"},
+            "file_ids": [fid],
+            "file": True,
+        }
+        key = idem()
+        first = await client.post(f"{A}/records", json=body, headers={**owner, **key})
+        assert first.status_code == 201, first.text
+        again = await client.post(f"{A}/records", json=body, headers={**owner, **key})
+        assert again.status_code == 201, again.text
+        assert again.headers.get("idempotent-replay") == "true"
+        assert again.json()["ref"] == first.json()["ref"]
+        other = await client.post(f"{A}/records", json=body, headers={**owner, **idem()})
+        assert other.status_code == 409 and other.json()["code"] == "not_ready", other.text
+
 # --------------------------------------------------------- OCR, search --
 async def test_a_persian_scan_gives_searchable_text_and_without_ocr_stays_none(
     client: httpx.AsyncClient, hub: Hub, owner: dict[str, str], new_company: Callable[..., Any]

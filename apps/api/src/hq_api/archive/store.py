@@ -216,6 +216,9 @@ async def intake(
                 422, "validation_failed", fields={"file_ids": f"not yours to file: {fid}"}
             )
         if done is not None:
+            # an owner upload taken over by an earlier record has no bytes any more
+            if not await asyncio.to_thread(hub.storage.local_path(f["storage_key"]).exists):
+                raise ApiError(409, "not_ready", f"file {fid} has no content any more")
             out.append(
                 Intake(
                     file_id=fid,
@@ -326,7 +329,12 @@ async def ingest(hub: Any, items: list[Intake], *, encrypt_it: bool) -> list[Sto
     stored: list[Stored] = []
     try:
         for it in items:
-            data = await hub.storage.get(it.storage_key)
+            try:
+                data = await hub.storage.get(it.storage_key)
+            except OSError as exc:
+                raise ApiError(
+                    409, "not_ready", f"file {it.file_id} has no content any more"
+                ) from exc
             if hashlib.sha256(data).hexdigest() != it.sha256:
                 raise ApiError(409, "seal_mismatch", f"file {it.file_id} changed since its intake")
             wrapped = None
