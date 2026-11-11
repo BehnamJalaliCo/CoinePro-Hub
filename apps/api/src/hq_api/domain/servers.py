@@ -152,6 +152,19 @@ def mask_value(value: Any) -> Any:
     return mask_secrets(value)
 
 
+def nul_free(value: Any) -> Any:
+    """NUL (U+0000) as U+FFFD in every string of `value`: PostgreSQL keeps NUL in neither text
+    nor jsonb (`find -print0`, /proc/*/cmdline or a file read with NULs in it would fail the
+    insert and the job would never end)."""
+    if isinstance(value, str):
+        return value.replace("\x00", "\ufffd")
+    if isinstance(value, dict):
+        return {nul_free(k): nul_free(v) for k, v in value.items()}
+    if isinstance(value, list | tuple):
+        return [nul_free(v) for v in value]
+    return value
+
+
 def digest_of(value: Any) -> str:
     canon = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(canon.encode()).hexdigest()
@@ -1062,11 +1075,6 @@ async def on_decided(tx: Tx, d: dict[str, Any], verdict: str) -> None:
             await tx.exec(
                 "UPDATE infra.server_jobs SET state = :st WHERE id = :id", st=state, id=j["id"]
             )
-            if j["session_id"]:
-                await tx.exec(
-                    "UPDATE workshop.sessions SET state = 'working' WHERE id = :s AND state = 'waiting_approval'",
-                    s=j["session_id"],
-                )
         elif j["kind"] == "claude" and j["dispatched_at"]:
             # Only that command is refused; the session goes on without it.
             await tx.exec(
@@ -1074,6 +1082,15 @@ async def on_decided(tx: Tx, d: dict[str, Any], verdict: str) -> None:
             )
         else:
             await cancel(tx, j, "seal_refused", "مدیر کل اجازه‌ی این کار ویرانگر را نداد")
+            continue
+        if j["session_id"]:
+            # the session waited for this seal (runner_classify): it works again, and says so
+            n = await tx.exec(
+                "UPDATE workshop.sessions SET state = 'working' WHERE id = :s AND state = 'waiting_approval'",
+                s=j["session_id"],
+            )
+            if n:
+                await _session_emit(tx, j["session_id"])
     await audit.record(
         tx,
         audit.SYSTEM,
@@ -1086,10 +1103,41 @@ async def on_decided(tx: Tx, d: dict[str, Any], verdict: str) -> None:
     )
 
 
+SEAL_MOOT_FA = "این کار تمام شد و فرمانش دیگر منتظر مُهر نیست"
+
+
+async def _withdraw_seal(tx: Tx, j: dict[str, Any]) -> None:
+    """A job that ends while it waits for a seal (a claude job's command, or a job cancelled or
+    swept) withdraws its pending `server_destructive` card: nothing is left to seal, and a seal
+    given later would let that command run free for 24 h (runner_classify)."""
+    if j["state"] != "awaiting_seal" or not j["decision_id"]:
+        return
+    d = await tx.first(
+        """UPDATE cartable.decisions SET status = 'withdrawn', decided_at = now(),
+               decided_by_kind = 'service', decided_by_code = 'system', note = :n
+           WHERE id = :d AND status = 'pending' AND kind = 'server_destructive'
+             AND NOT EXISTS (SELECT 1 FROM infra.server_jobs x WHERE x.decision_id = :d
+                               AND x.id <> :j AND x.state = 'awaiting_seal')
+           RETURNING ref""",
+        d=j["decision_id"],
+        j=j["id"],
+        n=SEAL_MOOT_FA,
+    )
+    if d is not None:
+        await events.emit(
+            tx,
+            j["company"],
+            "decision.decided",
+            d["ref"],
+            {"status": "withdrawn", "kind": "server_destructive"},
+        )
+
+
 async def cancel(tx: Tx, j: dict[str, Any], code: str, summary_fa: str) -> dict[str, Any]:
     """Cancelled (the runner sees it on its next poll if it runs it)."""
     if j["state"] in FINAL:
         return j
+    await _withdraw_seal(tx, j)
     await tx.exec(
         """UPDATE infra.server_jobs SET state = 'cancelled', finished_at = now(), error_code = :c,
                cancel_reason = :c, summary_fa = :s
@@ -1328,7 +1376,7 @@ async def add_events(tx: Tx, j: dict[str, Any], items: list[dict[str, Any]]) -> 
     top = int(j["last_seq"])
     for it in items:
         seq, type_ = int(it["seq"]), str(it["type"])
-        data = _clean_event(type_, it.get("data"))
+        data = nul_free(_clean_event(type_, it.get("data")))
         size = len(json.dumps(data, ensure_ascii=False))
         if used + size > MAX_JOB_EVENTS_BYTES and type_ in ("stdout", "stderr"):
             continue  # the cap: the rest of a flood is not kept (the runner caps too)
@@ -1440,10 +1488,18 @@ async def finish(
 ) -> dict[str, Any]:
     """The runner's result: the job ends (done or failed), its transcript is
     stored, its kind's effect applied (the map, a read's content, the links
-    of a netcheck, a publish's external id), its usage recorded."""
-    if j["state"] in FINAL:
-        return j
+    of a netcheck, a publish's external id), its usage recorded.
+    A publish the sweep failed as timed_out takes its late good result: the post is out (the
+    runner downloads its files before the command's own clock starts)."""
+    summary_fa, error = nul_free(summary_fa), nul_free(error)
+    usage, data = nul_free(usage), nul_free(data)
     ok = error is None and exit_code is not None and (j["kind"] == "exec" or exit_code == 0)
+    late = (
+        ok and j["kind"] == "publish" and j["state"] == "failed" and j["error_code"] == "timed_out"
+    )
+    if j["state"] in FINAL and not late:
+        return j
+    await _withdraw_seal(tx, j)
     state = "done" if ok else "failed"
     err = None
     if error:
@@ -1796,11 +1852,14 @@ async def sweep(tx: Tx, *, ended: list[UUID] | None = None) -> int:
         n += 1
     for j in await tx.all(
         JOB_SQL
-        + """ WHERE j.state = 'running' AND j.dispatched_at IS NOT NULL
+        + """ WHERE j.state IN ('running', 'awaiting_seal') AND j.dispatched_at IS NOT NULL
               AND j.dispatched_at < now() - make_interval(secs => j.timeout_s + :g)
               FOR UPDATE OF j SKIP LOCKED""",
         g=DISPATCH_GRACE_S,
     ):
+        # a claude job still waiting for a command's seal is past its time too (the runner
+        # stopped it): its card goes with it
+        await _withdraw_seal(tx, j)
         await tx.exec(
             """UPDATE infra.server_jobs SET state = 'failed', finished_at = now(),
                    error_code = 'timed_out', summary_fa = 'کار در زمانش تمام نشد'
