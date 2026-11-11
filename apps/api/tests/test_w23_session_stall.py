@@ -317,13 +317,19 @@ async def test_the_incident_a_queued_chatgpt_draft_never_leaves_the_session_sile
         direct = await DR.server_for(tx) is not None
     assert d is not None and next(iter(d)) == "wake", list(d)[:3]
     assert d["wake"].startswith("WOKEN BY THE HUB (1 of at most 2)"), d["wake"]
-    assert "Continue task 3 now" in d["wake"] and "order.ask" in d["wake"]
+    # «با من» and task 3 not started: never «start it», but show and ask
+    assert "STEP BY STEP" in d["wake"] and "Do NOT start task 3" in d["wake"], d["wake"]
+    assert "order.ask" in d["wake"] and "«گام شماره‌ی 3 ریلز»" in d["wake"]
     assert "ChatGPT «پیش‌نویس متن» (not_claimed)" in d["wake"]
-    assert "3 «گام شماره‌ی 3 ریلز»" in d["wake"] and "Do not only narrate" in d["wake"]
+    assert "Do not only narrate" in d["wake"]
     assert d["ended_without_answer"][0]["why"] == "not_claimed"
     assert d["ended_without_answer"][0]["who"] == "ChatGPT" and "waiting_on" not in d
-    # the brief says the session is direct only when the workshop can hold a direct turn now
-    assert d["direct"] is direct and ("direct_rule" in d) is direct
+    # direct by rule always; whether the workshop can hold a direct turn now, apart
+    assert d["direct"] is True and "direct_rule" in d and d["direct_turn"] is direct
+    # the owner's talk about the order never reads the hub's wake
+    async with await all_tx(hub) as tx:
+        talk = await OT.talk_brief(tx, ref)
+    assert talk is not None and "wake" not in talk and talk["ended_without_answer"]
     assert "`queued`" in d["async_rule"] and "has NOT finished" in d["async_rule"]
     # the woken run only narrates: stuck at once, one sentence, one notification
     await su.execute(

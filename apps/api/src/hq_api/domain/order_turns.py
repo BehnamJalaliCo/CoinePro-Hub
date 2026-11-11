@@ -799,6 +799,17 @@ IDLE_WAKE_RULE = (
     "reports with `order.progress` (or reads and writes nothing) marks this session «گیر کرد» "
     "to the owner at once."
 )
+# ⟨2026-11-11⟩ «با من»: the next task has not started and the owner has not said go; the wake
+# never tells the holder to start it (step_rule binds the run)
+IDLE_STEP_RULE = (
+    "WOKEN BY THE HUB ({k} of at most {cap}): nothing of this order is running and the owner is "
+    "not asked anything. This order is STEP BY STEP («با من»): task {n} «{title}» is next but the "
+    "owner has not told you to start it. {ended}Do NOT start task {n}. Show the owner what the "
+    "last task produced (or, if nothing is ready, where it stands) in one plain line and ask him "
+    "with `order.ask`: «تأیید یا اصلاح؟», or whether to start task {n}. Do not only narrate: a "
+    "run that only reports with `order.progress` marks this session «گیر کرد» to the owner at "
+    "once."
+)
 IDLE_DONE_RULE = (
     "WOKEN BY THE HUB ({k} of at most {cap}): nothing of this order is running and every task of "
     "the plan is done. {ended}Deliver the final output now with `deliver` (the owner approves it "
@@ -859,13 +870,13 @@ async def step_next(tx: Tx, work_id: Any) -> dict[str, Any] | None:
 
 
 async def talk_brief(
-    tx: Tx, order_ref: str, *, work_id: UUID | None = None
+    tx: Tx, order_ref: str, *, work_id: UUID | None = None, for_run: bool = False
 ) -> dict[str, Any] | None:
     """What a talk bound to an order knows of it (by code): the order, how it is carried out, the
-    owner's open turn, the plan, the last steps and what blocks it. ⟨2026-11-11⟩ `work_id`: the
-    work of the run being briefed (dialogue); none: the holder's own work (a direct turn of the
-    holder, the holder's talk). Only that work's own running run, when the idle sweep started
-    it, reads the `wake` instruction."""
+    owner's open turn, the plan, the last steps and what blocks it. ⟨2026-11-11⟩ `for_run`: the
+    brief of a run (dialogue, a direct turn's hand-over), never of the owner's talk; `work_id`:
+    that run's work (none: the holder's own). Only that work's own running run, when the idle
+    sweep started it, reads the `wake` instruction."""
     rep = await tx.first("SELECT * FROM owner.order_reports WHERE ref = :r", r=order_ref)
     order = await OR.load_order(tx, order_ref)
     if rep is None or order is None:
@@ -877,7 +888,7 @@ async def talk_brief(
     nxt = next((t for t in tasks if t["state"] == "doing"), None) or next(
         (t for t in tasks if t["state"] == "todo"), None
     )
-    direct = await _direct_now(tx)
+    direct_turn = await _direct_now(tx)
     out: dict[str, Any] = {
         "order": order_ref,
         "text": " ".join(str(order.get("text") or "").split())[:1500],
@@ -889,11 +900,13 @@ async def talk_brief(
         "plan": [{"n": t["n"], "title": t["title_fa"], "state": t["state"]} for t in tasks],
         "plan_next": nxt["n"] if nxt else None,
         "plan_instruction": PLAN_INSTRUCTION,
-        # ⟨2026-11-10⟩ every session of the owner is direct by default (his decision);
-        # ⟨2026-11-11⟩ said only when the workshop can hold a direct turn now (a runner older
-        # than direct.RUNNER_MIN cannot: the run is classic and must not read it is direct)
-        "direct": direct,
-        **({"direct_rule": DIRECT_RULE} if direct else {}),
+        # ⟨2026-11-10⟩ every session of the owner is direct by default (his decision, contract
+        # §44.3): a classic run of the holder works by the same rule (do it yourself, no
+        # hand-over, no internal card). ⟨2026-11-11⟩ `direct_turn`: whether the workshop can hold
+        # the holder's direct turn now (its runner >= direct.RUNNER_MIN)
+        "direct": True,
+        "direct_rule": DIRECT_RULE,
+        "direct_turn": direct_turn,
         "async_rule": ASYNC_RULE,
         # ⟨2026-11-10⟩ «با من»: the rule of this run, by code, with the next task named
         **({"step_rule": step_rule(nxt)} if (order.get("pace") or "auto") == "step" else {}),
@@ -940,7 +953,7 @@ async def talk_brief(
     # for a run the idle sweep started, the explicit turn: nothing runs, do task N or ask
     try:
         async with tx.conn.begin_nested():
-            out = await _outside_and_wake(tx, dict(rep), order, out, work_id)
+            out = await _outside_and_wake(tx, dict(rep), order, out, work_id, for_run=for_run)
     except Exception:  # noqa: BLE001 - the brief never fails on what it adds
         log.warning("the order's outside work could not be read", extra={"order": order_ref})
     return out
@@ -979,6 +992,8 @@ async def _outside_and_wake(
     order: dict[str, Any],
     out: dict[str, Any],
     work_id: UUID | None,
+    *,
+    for_run: bool,
 ) -> dict[str, Any]:
     from hq_api.domain import session_activity as SA
 
@@ -991,6 +1006,8 @@ async def _outside_and_wake(
         out["waiting_on"] = [_outside_line(c, ended=False) for c in pending]
     if ended:
         out["ended_without_answer"] = [_outside_line(c, ended=True) for c in ended[:10]]
+    if not for_run:
+        return out  # the owner's talk never reads the hub's wake instruction
     if work_id is None:
         h = await holder(tx, str(rep["ref"]))
         work_id = h.get("work_id") if h else None
@@ -1016,6 +1033,10 @@ async def _outside_and_wake(
     )
     if nxt is None:
         wake = IDLE_DONE_RULE.format(k=k, cap=SA.IDLE_WAKES_MAX, ended=ended_txt)
+    elif (order.get("pace") or "auto") == "step" and nxt["state"] == "todo":
+        wake = IDLE_STEP_RULE.format(
+            k=k, cap=SA.IDLE_WAKES_MAX, n=nxt["n"], title=nxt["title_fa"], ended=ended_txt
+        )
     else:
         left = (
             "Open tasks of the plan: "
@@ -1115,4 +1136,4 @@ async def dialogue(tx: Tx, work_id: UUID) -> dict[str, Any] | None:
     ref = await OR.order_of_work(tx, work_id)
     if ref is None:
         return None
-    return await talk_brief(tx, ref, work_id=work_id)
+    return await talk_brief(tx, ref, work_id=work_id, for_run=True)

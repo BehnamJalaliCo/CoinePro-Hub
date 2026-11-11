@@ -67,6 +67,10 @@ EMPTY_OPTIONAL_FA = "جایگاه «{seat}» اختیاری است و خالی �
 EMPTY_CEO_FA = (
     "جایگاه «{seat}» هنوز خالی است؛ مدیرعامل شرکت آن را پر میکند و روال از نوبت بعد اجرا میشود."
 )
+# the seat stays empty for a reason its CEO cannot clear either (hiring closed, the month's
+# envelope, the kill switch, a charter the company cannot hire): said as it is, no CEO work
+EMPTY_STUCK_FA = "جایگاه «{seat}» خالی است و این روال اجرا نشد: {why}"
+HIRING_SHUT_FA = "استخدام بسته است."
 SEAT_FILL_TITLE_FA = "پر کردن جایگاه «{seat}» در کارگروه «{group}»"
 SEAT_FILL_AGAIN = timedelta(hours=24)
 
@@ -700,6 +704,21 @@ async def _record_run(
     return rid
 
 
+async def seat_stuck_fa(tx: Tx, code: str | None) -> str | None:
+    """⟨2026-11-11⟩ Why the company's CEO cannot fill an empty seat either, in one plain Persian
+    sentence (the reason automatic hiring last gave: reconcile_members' `blocked`), or None when
+    the CEO can (no reason known; automatic hiring off while hiring is open: a `hire` card)."""
+    if code is None:
+        return None
+    if code == "hiring_closed":
+        from hq_api.domain import hiring
+
+        return None if await hiring.state(tx) == "open" else HIRING_SHUT_FA
+    if code in ("envelope_required", "envelope_exceeded", "locked", "validation_failed"):
+        return str(NS.hire_why(code)["why_fa"])
+    return None
+
+
 def fill_brief(g: Group, seat: Seat, r: Routine, m: dict[str, Any], occurrence: datetime) -> str:
     code = str(m.get("company") or m.get("code"))
     name = m.get("name_fa") or code
@@ -781,20 +800,30 @@ async def run_routine(
     seat = next(s for s in g.seats if s.seat == r.seat)
     emp = next((s.get("employee") for s in m["seats"] or [] if s.get("seat") == r.seat), None)
     note = None
-    empty = False
+    ask_ceo = False
     if r.needs == "sealed_series" and not await has_sealed_series(tx, m["company_id"]):
         note = "سری انتشار مُهرشده‌ای نیست؛ چیزی برای انتشار نیست."
+    elif emp is None and seat.optional:
+        note = EMPTY_OPTIONAL_FA.format(seat=seat.title_fa)
     elif emp is None:
-        empty = True
-        note = (EMPTY_OPTIONAL_FA if seat.optional else EMPTY_SEAT_FA).format(seat=seat.title_fa)
+        blocked = next(
+            (s.get("blocked") for s in m["seats"] or [] if s.get("seat") == r.seat), None
+        )
+        code = blocked.get("code") if isinstance(blocked, dict) else None
+        stuck = await seat_stuck_fa(tx, code)
+        ask_ceo = stuck is None
+        note = (
+            EMPTY_SEAT_FA.format(seat=seat.title_fa)
+            if stuck is None
+            else EMPTY_STUCK_FA.format(seat=seat.title_fa, why=stuck)
+        )
     if note is not None:
         rid = await _record_run(tx, grow, m, r, occurrence, "skipped", note, None)
         # ⟨2026-11-11⟩ a routine that cannot run is not silent: the company's CEO gets a work to
-        # fill the seat (once per seat per day); the run's line says so
+        # fill the seat (once per seat per day) when it is his to clear; the run's line says so
         if (
             rid is not None
-            and empty
-            and not seat.optional
+            and ask_ceo
             and await fill_seat_work(tx, g, m, seat, r, occurrence) is not None
         ):
             await tx.exec(

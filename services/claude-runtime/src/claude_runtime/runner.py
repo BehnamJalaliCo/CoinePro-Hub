@@ -36,7 +36,7 @@ from claude_agent_sdk import (
     query,
 )
 
-from claude_runtime.quota import OK, TIMEOUT, Signals, Verdict, classify
+from claude_runtime.quota import OK, SYNTHETIC_MODEL, TIMEOUT, Signals, Verdict, classify
 from claude_runtime.render import render, render_blocks
 
 log = logging.getLogger("claude_runtime.runner")
@@ -260,6 +260,7 @@ class ClaudeRunner:
         self, spec: RunSpec, run_dir: Path, token: str, partial: bool
     ) -> AsyncIterator[Delta | Outcome]:
         signals = Signals()
+        synthetic = False
         rate_limit: dict[str, Any] | None = None
         texts: list[str] = []
         model: str | None = None
@@ -280,7 +281,10 @@ class ClaudeRunner:
                             if partial and delta.get("type") == "text_delta" and delta.get("text"):
                                 yield Delta(delta["text"])
                         elif isinstance(msg, AssistantMessage):
-                            model = msg.model or model
+                            if msg.model == SYNTHETIC_MODEL:
+                                synthetic = True  # the CLI's own message, no model wrote it
+                            else:
+                                model = msg.model or model
                             if msg.error:
                                 signals.assistant_errors.append(msg.error)
                             texts += [b.text for b in msg.content if isinstance(b, TextBlock)]
@@ -331,9 +335,13 @@ class ClaudeRunner:
             signals.stop_reason = result.stop_reason
             signals.api_error_status = result.api_error_status
             signals.structured = result.structured_output is not None
+            out_tokens = (result.usage or {}).get("output_tokens")
+            if isinstance(out_tokens, int) and out_tokens == 0:
+                synthetic = True  # nothing was generated: the text is the CLI's own
             if result.model_usage:
                 model = next(iter(result.model_usage), model)
         signals.text = text or error_text
+        signals.synthetic = synthetic
         verdict: Verdict = classify(signals)
         yield Outcome(
             status=verdict.status,

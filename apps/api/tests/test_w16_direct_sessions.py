@@ -180,11 +180,10 @@ async def test_the_narrator_is_on_and_a_session_is_direct(
     async with hub.db.tx(await hub.companies.ids()) as tx:
         held = await OT.talk_brief(tx, out["ref"])
         workshop = await DR.server_for(tx) is not None
-    # ⟨2026-11-11⟩ direct only when the workshop can hold a direct turn now (runner >= 0.3.5)
-    assert held is not None and held["direct"] is workshop
-    assert ("direct_rule" in held) is workshop
-    assert "do not raise a card" in OT.DIRECT_RULE and "workshop" in OT.DIRECT_RULE
-    assert "`queued`" in held["async_rule"]
+    assert held is not None and held["direct"] is True
+    assert "do not raise a card" in held["direct_rule"] and "workshop" in held["direct_rule"]
+    # ⟨2026-11-11⟩ whether the workshop can hold the holder's direct turn now, apart
+    assert held["direct_turn"] is workshop and "`queued`" in held["async_rule"]
     assert "step_rule" not in held  # a general order: only «با من» carries the step rule
 
 

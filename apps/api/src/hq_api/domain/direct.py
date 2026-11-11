@@ -171,7 +171,9 @@ def compose(
         k: brief[k]
         for k in ("order", "pace", "state", "owner_turn", "plan", "plan_next", "step_rule",
                   "steps", "blockers", "outputs", "files", "failed_cards", "playbooks",
-                  "source_playbook", "related_sessions")
+                  "source_playbook", "related_sessions",
+                  # ⟨2026-11-11⟩ what still works for the order outside, what ended unanswered
+                  "waiting_on", "ended_without_answer")
         if brief.get(k)
     }  # fmt: skip
     lines: list[str] = []
@@ -208,6 +210,9 @@ def compose(
             "قاعده‌ها همان است: پاسخ نهایی کوتاه و فارسی برای مدیر کل؛ فایل تحویلی در out/؛ منتشر "
             "نکن؛ هر چه از ستاد است از ابزارهای ستاد.",
         ]
+    if brief.get("wake"):
+        # ⟨2026-11-11⟩ the hub woke this turn because nothing of the order runs: read it first
+        lines[1:1] = ["", "## بیدارباش ستاد (اول این را بخوان)", str(brief["wake"])]
     if inputs:
         lines += [
             "",
@@ -218,6 +223,8 @@ def compose(
     lines += ["", "## وضع جلسه", packed[:BRIEF_JSON_CHARS]]
     if brief.get("direct_rule") and first:
         lines += ["", str(brief["direct_rule"])]
+    if brief.get("async_rule"):
+        lines += ["", str(brief["async_rule"])]
     lines += ["", "## چرا این نوبت", why_fa(reason)]
     if said:
         lines += ["", "## حرف مدیر کل (آخرین‌ها، آخری پایین)", *[f"- {s}" for s in said[-3:]]]
@@ -225,7 +232,15 @@ def compose(
 
 
 def why_fa(reason: str) -> str:
-    """What woke the holder, in a line the session reads."""
+    """What woke the holder, in a line the session reads (⟨2026-11-11⟩ a re-queued run by the
+    reason it retries)."""
+    reason = OR.base_reason(reason)
+    if reason.startswith("session_idle:"):
+        return (
+            "ستاد تو را بیدار کرد: روی این جلسه هیچ کاری در جریان نیست. طبق «بیدارباش ستاد» کار باز "
+            "برنامه را همین حالا خودت پیش ببر یا یک سؤال کوتاه با order_ask از مدیر کل بپرس؛ فقط "
+            "گزارش ننویس."
+        )
     if reason.startswith(("owner_reply:", "owner_turn_over:")):
         return "مدیر کل همین حالا در جلسه حرف زد؛ همان را انجام بده یا جواب بده."
     if reason.startswith("nudge:"):
@@ -280,8 +295,8 @@ async def hand_over(hub: Any, run: dict[str, Any], emp: dict[str, Any]) -> str |
     if run.get("trigger") != "work" or run.get("work_id") is None:
         return None
     reason = str(run.get("reason") or "")
-    if reason.startswith(CLASSIC_REASONS):
-        return None
+    if OR.base_reason(reason).startswith(CLASSIC_REASONS):
+        return None  # ⟨2026-11-11⟩ a re-queued one too (`requeue:workspace_failed:…`)
     try:
         async with hub.db.tx(await hub.companies.ids()) as tx:
             return await _hand_over(tx, hub, run, emp, reason)
@@ -313,7 +328,7 @@ async def _hand_over(
     ws = await WS.of_work(tx, w["id"], lock=True)
     if ws is not None and ws["server_id"] != server["id"]:
         return None  # it works on its company's own server
-    owner_word = reason.startswith(OR.OWNER_WORD_REASONS)
+    owner_word = OR.base_reason(reason).startswith(OR.OWNER_WORD_REASONS)
     if (
         ws is not None
         and ws["state"] == "stopped"
@@ -329,7 +344,7 @@ async def _hand_over(
     charter = lib.get(emp["role"]) if lib is not None else None
     if charter is None or charter.kind == "system":
         return None
-    brief = await OT.talk_brief(tx, ref) or {"order": ref}
+    brief = await OT.talk_brief(tx, ref, work_id=w["id"], for_run=True) or {"order": ref}
     rid = await tx.scalar(
         "SELECT agents.open_direct_run(:e, :w, :r, :ttl)",
         e=emp["id"], w=w["id"], r=f"{REASON}{ref}", ttl=RUN_TTL_S,

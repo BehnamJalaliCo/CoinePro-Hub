@@ -326,9 +326,16 @@ async def after_job(hub: Any, job_id: UUID) -> None:
             state: State = "idle"
             # a workshop turn of the order itself leaves it open: its holder shows the owner.
             # ⟨2026-11-11⟩ A working group's routine work is no order's and nobody is shown it in
-            # a session: its turn delivers it, and its package follows on the owner's standing
-            # word (session_publish.after_delivered) without waiting for the agent's deliver
-            routine = hands and w["parent_id"] is None and await routine_work(tx, w["id"])
+            # a session: a turn that left its whole package (a video or a picture, and
+            # `caption.txt`) delivers it, and the package follows on the owner's standing word
+            # (session_publish.after_delivered) without waiting for the agent's deliver. A turn
+            # that left less (a render that failed) keeps it open and wakes its holder, as before
+            routine = (
+                hands
+                and w["parent_id"] is None
+                and await routine_work(tx, w["id"])
+                and await is_package(tx, files, w["company_id"])
+            )
             close = not (hands and w["parent_id"] is None) or routine
             # ⟨1.32⟩ §54 a direct turn is the session's own holder: what it says is its word in
             # the session, and only what it made (files in `out/`) is an output
@@ -439,6 +446,23 @@ async def after_job(hub: Any, job_id: UUID) -> None:
         from hq_api.domain import session_publish as SPB
 
         await SPB.after_delivered(hub, routine_delivered)
+
+
+async def is_package(tx: Tx, files: list[str], company_id: Any) -> bool:
+    """⟨2026-11-11⟩ The files of one output make a package to publish, as
+    session_publish.package_of reads one: a video or a picture, and the caption (`caption.txt`)."""
+    from hq_api.domain import session_publish as SPB
+
+    if not files:
+        return False
+    rows = await tx.all(
+        "SELECT name, mime FROM files.files WHERE id = ANY(CAST(:ids AS uuid[])) AND company_id = :co",
+        ids=files,
+        co=company_id,
+    )
+    captioned = any(str(r["name"] or "").strip().lower() in SPB.CAPTION_NAMES for r in rows)
+    media = any(str(r["mime"] or "").startswith(("video/", "image/")) for r in rows)
+    return captioned and media
 
 
 async def routine_work(tx: Tx, work_id: UUID) -> bool:

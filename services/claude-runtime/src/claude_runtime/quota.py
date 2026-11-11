@@ -27,18 +27,25 @@ OK, ERROR, REFUSAL, TIMEOUT, RATE_LIMITED, QUOTA = (
     "quota_exhausted",
 )
 _LIMIT_TEXT = re.compile(r"usage limit|limit reached|out of (?:extra )?usage|quota", re.IGNORECASE)
-# The CLI's own notice when the subscription is out ("Claude AI usage limit reached|<epoch>",
-# "5-hour limit reached ∙ resets 3pm", "You've hit your limit · resets ...", "Weekly limit
-# reached ∙ resets Mon 9am"): stricter than _LIMIT_TEXT (no bare "quota"), only a short text,
-# and always with the reset marker every real notice carries. The hub's api keeps the same rule
-# (apps/api hq_api/domain/servers.py limit_notice) for a runner's Claude Code turns.
+# The CLI's own notice when the subscription is out, in its own form only: the limit phrase at the
+# very start ("Claude AI usage limit reached|<epoch>", "5-hour limit reached ∙ resets 3pm",
+# "You've hit your limit · resets 5pm", "You're out of extra usage · resets 3am") and its reset
+# marker ("|<epoch>", or "∙ resets" / "· resets"), short. An answer that merely says a limit was
+# reached and resets ("Instagram publishing limit reached (25/25); resets at 14:00 UTC.") is an
+# answer: taken for the subscription's limit it would mark both accounts full, one after the
+# other, and refuse every call. The hub's api keeps the same rule (apps/api
+# hq_api/domain/servers.py limit_notice) for a runner's Claude Code turns; here the notice must
+# also be the CLI's own (a synthetic message, no output tokens).
 _LIMIT_NOTICE = re.compile(
-    r"\blimit (?:reached|hit)\b|\byou(?:'|\u2019)?ve (?:hit|reached) your (?:[\w-]+ )?limit\b"
-    r"|\bout of (?:extra )?usage\b|\busage limit\b",
+    r"^(?:claude(?: ai)? usage limit reached"
+    r"|(?:(?:5-hour|five-hour|weekly|daily|session|opus|sonnet)(?: weekly)? )?limit reached"
+    r"|you(?:'|\u2019)?ve (?:hit|reached) your (?:[\w-]+ )?limit"
+    r"|you(?:'|\u2019)?re out of (?:extra )?usage)\b",
     re.IGNORECASE,
 )
 NOTICE_CHARS = 400
-_RESET_MARK = re.compile(r"\|\d{10}\b|\bresets?\b", re.IGNORECASE)
+_RESET_MARK = re.compile(r"\|\d{10}\b|[\u2219\u00b7\u2022]\s*resets?\b", re.IGNORECASE)
+SYNTHETIC_MODEL = "<synthetic>"  # the CLI's own messages (no model wrote them)
 _EPOCH = re.compile(r"\|(\d{10})\b")
 
 
@@ -53,6 +60,9 @@ class Signals:
     text: str = ""
     result_seen: bool = False
     structured: bool = False  # the run returned structured output (a real answer)
+    # the CLI wrote the final text itself (an assistant message of model "<synthetic>", or a
+    # result with no output tokens): only such a text can be its limit notice
+    synthetic: bool = False
 
 
 @dataclass(frozen=True)
@@ -68,8 +78,8 @@ def _reset_from_text(text: str) -> float | None:
 
 
 def limit_notice(text: str | None) -> bool:
-    """The CLI's own short usage-limit notice: limit wording with its reset marker (not an
-    answer that merely mentions a limit)."""
+    """The CLI's own short usage-limit notice, in its own form: the limit phrase first, its reset
+    marker in it (never an answer that merely mentions a limit and a reset)."""
     t = (text or "").strip()
     return (
         0 < len(t) <= NOTICE_CHARS
@@ -95,8 +105,8 @@ def classify(s: Signals) -> Verdict:
         return Verdict(REFUSAL, "refusal")
     # ⟨2026-11-11⟩ the CLI's limit notice without a 429 (audit C1c), as an error result or as the
     # whole answer: returned as an answer, the agent's run read it as the model's word and the call
-    # never moved to the other account. Only the marked notice, never bare limit wording.
-    if not s.structured and limit_notice(s.text):
+    # never moved to the other account. Only the CLI's own notice, never an answer about limits.
+    if s.synthetic and not s.structured and limit_notice(s.text):
         return Verdict(QUOTA, "usage_limit", _reset_from_text(s.text))
     if not s.result_seen:
         return Verdict(ERROR, "no_result")

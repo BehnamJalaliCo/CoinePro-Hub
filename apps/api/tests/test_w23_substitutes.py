@@ -448,9 +448,12 @@ async def test_a_skipped_or_browserless_web_call_reaches_its_caller(
         assert (await _call(su, fits))["state"] == "queued"
 
 
-async def test_one_broken_web_job_never_stops_the_other_players_which_run_at_once(
+async def test_one_browser_job_at_a_time_and_a_broken_one_never_stops_the_next(
     client: httpx.AsyncClient, hub: Hub, su: Any
 ) -> None:
+    """browser-web holds one browser: a pass runs ONE web job for every player, the oldest call
+    whose player is not resting; a job that breaks in the worker ends `worker_error` (its caller
+    hears it) and the next pass goes on."""
     pa = await agent_headers("HQ-PA")
     async with bench(su, hub, web=("gpt", "deepseek")):
         await per_day(su, "gpt", "assistant_errand", 5)
@@ -464,31 +467,41 @@ async def test_one_broken_web_job_never_stops_the_other_players_which_run_at_onc
                 ds = await S.seat_call(tx, hub, A.SERVICE, seat="quick_search", input_md="سوال عمومی",
                                        company_id=holding.id)  # fmt: skip
 
-            class Both(FakeEgress):
-                """Each job waits for the other: only jobs that run at once both get through."""
-
-                def __init__(self) -> None:
-                    super().__init__()
-                    self.together = asyncio.Event()
-
+            class Broken(FakeEgress):
                 async def web(self, **kw: Any) -> dict[str, Any]:
                     self.calls.append(kw)
-                    if len(self.calls) == 2:
-                        self.together.set()
-                    await asyncio.wait_for(self.together.wait(), 5)
                     if kw["account"] == "chatgpt-web":
                         raise RuntimeError("the worker broke on this job")
                     return {"ok": True, "text_md": "پاسخ عمومی", "recipe_version": "1"}
 
-            fake = Both()
-            out = await S.web_jobs(hub, fake)
-            assert len(fake.calls) == 2 and out["ran"] == 1, out
+            fake = Broken()
+            out = await S.web_jobs(hub, fake)  # the oldest: ChatGPT's, alone
+            assert [c["account"] for c in fake.calls] == ["chatgpt-web"] and out["ran"] == 0, out
             g, d = await _call(su, gpt_call), await _call(su, ds["id"])
             assert (g["state"], g["state_reason"]) == ("failed", "worker_error")
-            assert d["state"] == "done"
+            assert d["state"] == "queued" and d["claimed_at"] is None  # its turn is the next pass
             reply = await _reply(su, gpt_call)
             assert reply is not None and "internal error" in reply["brief"]
             await refuse_queued(su, reply["ref"])
+            out = await S.web_jobs(hub, fake)
+            assert [c["account"] for c in fake.calls][-1] == "deepseek-web" and out["ran"] == 1
+            d = await _call(su, ds["id"])
+            assert d["state"] == "done"
+            # a resting player's older call waits; a younger call of another player goes first
+            async with hub.db.tx(await hub.companies.ids()) as tx:
+                rest = await S.seat_call(tx, hub, A.SERVICE, seat="quick_search", input_md="باز",
+                                         company_id=holding.id)  # fmt: skip
+                gpt2 = await S.seat_call(tx, hub, A.SERVICE, seat="assistant_errand",
+                                         input_md="خلاصه", company_id=holding.id, player="gpt")  # fmt: skip
+            await su.execute(
+                "UPDATE substitutes.players SET web_last_job_at = now() WHERE player = 'deepseek'"
+            )
+            await su.execute(
+                "UPDATE substitutes.players SET web_last_job_at = NULL WHERE player = 'gpt'"
+            )
+            await S.web_jobs(hub, FakeEgress({"ok": True, "text_md": "خلاصه شد"}))
+            assert (await _call(su, gpt2["id"]))["state"] == "done"
+            assert (await _call(su, rest["id"]))["state"] == "queued"
         finally:
             await su.execute(
                 "UPDATE substitutes.seats SET per_day = 60 WHERE player = 'deepseek' AND seat = 'quick_search'"

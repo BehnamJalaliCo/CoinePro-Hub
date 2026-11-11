@@ -1222,8 +1222,10 @@ def brief_block(raw: Any) -> str:
         "exactly these in `out/`. When the reel asks viewers to comment a word or a number, add "
         "`comment.txt` with three lines, `keyword: <that word>`, `reply: <the private message>` "
         "and `link: https://…`: whoever comments it on this post gets the reply with the link. "
-        "The end of that workshop turn delivers this work by itself and the package goes out, so "
-        "give that one turn the whole package (its input files included); never ask "
+        "When that one turn leaves the whole package in `out/` (the video or the picture, and "
+        "`caption.txt`), its end delivers this work by itself and the package goes out, so give "
+        "that turn the whole package (its input files included); a turn that leaves less wakes "
+        "you to finish it (another turn, then deliver); never ask "
         "the owner to approve it. Without `caption.txt` nothing is published. A routine that "
         "makes nothing to publish (a report, an analysis) delivers as usual.)"
     )

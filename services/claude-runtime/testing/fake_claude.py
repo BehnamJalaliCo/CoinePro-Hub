@@ -13,6 +13,7 @@ chosen by a marker in the prompt:
     [[fake:sleep]]    never answers (timeouts)
     [[fake:warning]]  "OK" after a rate_limit_event allowed_warning (85% of five_hour)
     [[fake:notice]]   the CLI's limit notice as a plain answer (no error flag, no 429)
+    [[fake:limitanswer]] a model's answer in the notice's words (output tokens, a real model)
     anything else     "OK" with usage and total_cost_usd
 If FAKE_CLAUDE_RECORD is set, argv and selected env go to that JSON file.
 Never used in production: only when RUNTIME_CLI_PATH points here.
@@ -123,15 +124,34 @@ def answer(prompt: str) -> None:
         )
         return
     if "[[fake:notice]]" in prompt:
+        # the CLI's own message (model "<synthetic>"): no model wrote it
         notice = "You've hit your limit · resets 5pm (UTC)"
         emit(
             {
                 "type": "assistant",
                 "session_id": SESSION,
-                "message": {"model": model, "content": [{"type": "text", "text": notice}]},
+                "message": {"model": "<synthetic>", "content": [{"type": "text", "text": notice}]},
             }
         )
         emit(result(result=notice))
+        return
+    if "[[fake:limitanswer]]" in prompt:
+        # a model's real answer that speaks of a limit and its reset, in the CLI's very words
+        said = "5-hour limit reached ∙ resets 3pm"
+        emit(
+            {
+                "type": "assistant",
+                "session_id": SESSION,
+                "message": {"model": model, "content": [{"type": "text", "text": said}]},
+            }
+        )
+        emit(
+            result(
+                result=said,
+                usage={"input_tokens": 10, "output_tokens": 9},
+                total_cost_usd=0.0001,
+            )
+        )
         return
     if "[[fake:warning]]" in prompt:
         emit(

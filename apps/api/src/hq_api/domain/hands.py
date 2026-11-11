@@ -163,7 +163,8 @@ async def _owner_said_since(tx: Tx, who: Principal, ws: dict[str, Any]) -> bool:
     )
     return (
         run is not None
-        and str(run["reason"] or "").startswith(OR.OWNER_WORD_REASONS)
+        # ⟨2026-11-11⟩ a re-queued word of his is still his word
+        and OR.base_reason(run["reason"]).startswith(OR.OWNER_WORD_REASONS)
         and run["queued_at"] >= ws["updated_at"]
     )
 
