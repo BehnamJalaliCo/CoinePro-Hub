@@ -2,7 +2,8 @@
 
 > Claude سشن مشورت، ۲۰۲۶-۱۱-۱۰.
 > - **پیش‌نیاز:** پرامپت ۳۴.۱ (deploy شده، ۲۰۲۶-۱۱-۱۰؛ گزارش `docs/ops/reports/PROMPT_34_1.md`).
-> - **شاخه:** `server/p35-deploy` از `claude/coinepro-hub-setup-hsvnw7`.
+> - **شاخه:** `server/p35-deploy` از **`ccr-92048aad-0d2too`** (نه از شاخه‌ی اصلی). کار ۱.۰.۱ هنوز به شاخه‌ی اصلی نرفته، چون ظاهر اپ‌ها نیمه‌کاره است؛ **کد هاب در همین شاخه کامل است** و CI رویش سبز بوده (`4a9c139`). commitهای «Work in progress» و «Checkpoint» این شاخه فقط `apps/web` و `apps/android` را عوض میکنند و به deploy تو ربطی ندارند.
+> - **پنل وب را فعلاً مستقر نکن.** پنل ۱.۰.۱ هنوز کامل نیست و بعداً با پرامپت کوتاه ۳۵.۱ می‌آید. پنل فعلی با این هاب کار میکند (تغییرها افزودنی‌اند).
 > - **گزارش:** `docs/ops/reports/PROMPT_35.md`.
 > - **قرارداد:** §۴۷ تا §۵۳ (v1.31)، §۵۴ (v1.32) و §۵۵ (v1.33).
 > - **طرح:** `docs/HANDOFF_2026-11-10_V1_0_1.md`، `docs/SIMPLIFY_2026-11-10_DIRECT_SESSIONS.md` بخش ۹.
@@ -34,17 +35,17 @@
 - **میز انتشار** (`GET /publish-desk`، `domain/publish_desk.py`): هر خروجی آماده‌ی انتشار، صف، و منتشرشده‌های ۷ روز، برای همه‌ی شرکت‌ها.
 - **سقف در یک نگاه** (`GET /treasury/limits`، `domain/limits.py`): هر اکانت Claude با پر بودن پنجره و ساعت خالی شدنش، و کنتور امروز در برابر `AGENT_DAILY_TOKEN_CAP`. **هیچ توکن یا کلیدی در این جواب نیست.**
 - **یک ردیف برای هر انتشار:** کارهای پیگیری (`meta.check`) و لغو (`meta.cancel`) دیگر ردیف جدا در جلسه و صفحه‌ی خروجی نیستند.
-- **اپ‌ها ۱.۰.۱ (اندروید و وب) و سند OpenAPI:** رابط هر هفت کمبود، نمایش جلسه‌ی مستقیم، نوار فرمان، جلسه‌ی بازطراحی‌شده، میز انتشار و بازسازی شش خانواده‌ی صفحه. هاب فقط **پنل وب** را مستقر میکند.
+- **اپ‌ها ۱.۰.۱ (اندروید و وب) و سند OpenAPI:** رابط هر هفت کمبود، نمایش جلسه‌ی مستقیم، نوار فرمان، جلسه‌ی بازطراحی‌شده، میز انتشار و بازسازی شش خانواده‌ی صفحه. پنل وب ۱.۰.۱ بعداً با پرامپت ۳۵.۱ مستقر میشود.
 
 ### تست‌ها (همه پیش از push سبز اجرا شدند)
 - **api:** `test_w20_order_gaps` (۱۳ تست)، `test_w21_direct_session` (۴ تست)، `test_w22_look` (۸ تست)، `test_w11_activity`، `test_w13_second_account`، `test_w17_session_publish`، `test_w18_standing_publish`، `test_w19_publish_time`، `test_w10_playbooks`، `test_w14_workshop`، `test_w16_direct_sessions`، `test_p17_runners`، `test_p12f_join`، `test_p13f_join`، و سند OpenAPI.
 - **gateway، hq-common، company-runner:** کل مجموعه. **OPA:** همه سبز با پوشش ۱۰۰٪. ruff و mypy پاک.
 
 ## کار تو (Claude سرور هاب)
-1. شاخه را بساز، شاخه‌ی اصلی را merge کن. تست‌های بالا، lint، mypy و `opa test` را اجرا کن.
-2. **بکاپ، بعد migration `0060` و `0061`، بعد deploy:** `api`، `worker`، `gateway`، `opa` (سیاست) و `web` (پروفایل `web`، ‏۱.۰.۱). منشورها (`agents/`) با همین deploy خوانده میشوند.
+1. شاخه را از `origin/ccr-92048aad-0d2too` بساز. تست‌های بالا، lint، mypy و `opa test` را اجرا کن.
+2. **بکاپ، بعد migration `0060` و `0061`، بعد deploy:** `api`، `worker`، `gateway` و `opa` (سیاست). **`web` نه** (بالا را ببین). منشورها (`agents/`) با همین deploy خوانده میشوند.
    - **آزمون رفت‌وبرگشت migration را روی هاب انجام نده.**
-   - **سنجش:** `alembic current` = `0061`؛ `https://hq.coinepro.com/healthz` ‏۲۰۰ و نسخه‌ی پنل ۱.۰.۱؛ `GET /api/v1/runners/jobs/<یک uuid ساختگی>/tools`، `GET /api/v1/publish-desk` و `GET /api/v1/treasury/limits` بی توکن ۴۰۱.
+   - **سنجش:** `alembic current` = `0061`؛ `https://hq.coinepro.com/healthz` ‏۲۰۰؛ `GET /api/v1/runners/jobs/<یک uuid ساختگی>/tools`، `GET /api/v1/publish-desk` و `GET /api/v1/treasury/limits` بی توکن ۴۰۱.
 3. **Caddy:** تغییری لازم نیست (مسیرهای تازه زیر همان `/api/v1/runners/*` و `/api/v1/*` میروند). `/internal` همچنان از Caddy رد نمیشود.
 4. **runner کارگاه هلدینگ باید ۰.۳.۵ شود** (کاربر `studio`). `sudo` میخواهد و با مالک است: **دستورها را آماده کن و در گزارش بگذار** (همان قدم‌های ۰.۳.۴، با کد همین شاخه)، **خودت نزن**. بعد از اینکه مالک زد، فقط بخوان و بنویس: نسخه‌ای که runner به هاب میگوید و آنلاین بودنش. runner سرورهای شرکت‌ها و IG-Hub لازم نیست عوض شود.
 5. **اولین نوبت مستقیم را مالک خودش با یک حرف در جلسه میدهد.** تو فقط ردپا را از دیتابیس هاب بنویس (اگر نوبتی اجرا نشد: «هنوز آزمایش نشده»):
