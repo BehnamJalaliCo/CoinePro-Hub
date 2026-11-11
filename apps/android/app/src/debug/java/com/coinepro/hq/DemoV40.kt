@@ -226,7 +226,7 @@ internal class V40Demo(private val v35: V35Demo) {
                 val code = body?.str("company").orEmpty()
                 val name = names[code]?.takeIf { code != "HQ" } ?: return 404 to problem(404, "not_found", "این شرکت را نمیشناسم.")
                 if ((body?.get("as_is") as? JsonPrimitive)?.booleanOrNull == true) {
-                    if (state != "sealed") return 409 to problem(409, "validation_failed", "عضویت مستقیم فقط برای کارگروه مُهرشده است؛ این یکی را اول مُهر بزنید.")
+                    if (state != "sealed") return 409 to problem(409, "validation_failed", "عضویت مستقیم فقط برای کارگروه مُهرشده است؛ این یکی را اول مُهر کن.")
                     val (said, refused) = wordOf(code, body)
                     if (refused != null) return 422 to pick(refused)
                     val joined = member(code, "on", publish = said ?: word(false))
@@ -304,5 +304,5 @@ internal class V40Demo(private val v35: V35Demo) {
     })
     private fun problem(status: Int, code: String, fa: String) = jo("code" to code, "message_fa" to fa, "status" to status, "title" to code, "type" to "about:blank")
     /** A company with several accounts and none named: the hub names them in `fields.account`. */
-    private fun pick(accounts: String) = JsonObject(problem(422, "validation_failed", "این شرکت چند حساب دارد؛ یکی را انتخاب کنید.") + ("fields" to jo("account" to accounts)))
+    private fun pick(accounts: String) = JsonObject(problem(422, "validation_failed", "این شرکت چند حساب دارد؛ یکی را انتخاب کن.") + ("fields" to jo("account" to accounts)))
 }

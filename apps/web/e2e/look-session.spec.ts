@@ -151,6 +151,25 @@ test('work held for twenty minutes and more: the bar\'s «ادامه بده» is
   });
 });
 
+test('the hold ends however the work starts again: «ادامه بده» of «کار زنده» takes it up, and the page no longer holds it', async ({ page }) => {
+  await clean(page, async () => {
+    await page.goto('/s/F-0010');
+    const bar = page.getByTestId('now-bar');
+    await bar.getByRole('button', { name: 'نگه دار' }).click();
+    await expect(bar).toHaveAttribute('data-state', 'held');
+    await expect(session(page)).toHaveAttribute('data-held', '');
+    // Not the bar's own «ادامه بده»: the one at the end of «کار زنده».
+    await bar.getByRole('button', { name: 'کار زنده را باز کن' }).click();
+    const sheet = page.getByTestId('live-sheet');
+    await sheet.getByTestId('idle-nudge').getByRole('button', { name: 'ادامه بده' }).click();
+    await expect(sheet.getByRole('list', { name: 'چه کسی کار میکند' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(session(page)).not.toHaveAttribute('data-held', '');
+    await expect(bar).toHaveAttribute('data-state', 'working');
+    await expect(bar.getByRole('button', { name: 'نگه دار' })).toBeVisible();
+  });
+});
+
 test('a build near its sixty minutes says so in words, not in colour alone', async ({ page }) => {
   await flag(page, 'hq.e2e.ring', 'late');
   await clean(page, async () => {

@@ -93,10 +93,14 @@ export function useSessionActivity(ref: string, on = true) {
   return q;
 }
 
+/** The key every «ادامه بده» of one session runs under (the session page ends the owner's hold on any of them that succeeds). */
+export const nudgeKey = (ref: string) => ['orders', 'nudge', ref] as const;
+
 /** «ادامه بده»: the holder is woken now with the plan's next task; the answer is the new activity. */
 export function useNudge(ref: string) {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: nudgeKey(ref),
     mutationFn: () => call<SessionActivity>('POST', `/orders/${enc(ref)}/nudge`, {}, { 'Idempotency-Key': crypto.randomUUID() }),
     onSuccess: (a) => { if (a) qc.setQueryData(key(ref), a); },
     onSettled: () => Promise.all(['orders', 'office', 'talk'].map((k) => qc.invalidateQueries({ queryKey: [k] }))),

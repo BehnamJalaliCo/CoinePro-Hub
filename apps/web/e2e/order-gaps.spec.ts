@@ -240,7 +240,7 @@ test('cancel on an output\'s page: asked once in place, the row becomes «لغو
     await expect(busy).toHaveAttribute('data-publish', 'publishing');
     await busy.getByRole('button', { name: 'لغو', exact: true }).click();
     await busy.getByRole('group', { name: 'لغو انتشار' }).getByRole('button', { name: 'لغو کن' }).click();
-    await expect(busy.locator('[data-cancel-refused]')).toContainText('چند لحظه بعد دوباره لغو کنید');
+    await expect(busy.locator('[data-cancel-refused]')).toContainText('چند لحظه بعد دوباره لغو کن');
     await expect(busy).toHaveAttribute('data-publish', 'publishing');
     // One that is out has its link and no «لغو».
     const out = fileRow(page, 'post-03.jpg');

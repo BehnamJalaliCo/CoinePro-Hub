@@ -126,7 +126,7 @@ function wordOf(company: string, b: any): Record<string, unknown> | string | nul
   if (mine.length && (!asked || !mine.includes(asked))) return `one of: ${mine.map((a) => `@${a}`).join(', ')}`;
   return { mode: 'auto', account: asked, story: !!b.story, since: NOW(), at: typeof b.at === 'string' && /^\d\d:\d\d$/.test(b.at) ? b.at : null, best: b.best === true };
 }
-const pick = (accounts: string) => new Response(JSON.stringify({ type: 'about:blank', title: 'validation_failed', status: 422, code: 'validation_failed', message_fa: 'این شرکت چند حساب دارد؛ یکی را انتخاب کنید.', fields: { account: accounts } }), { status: 422, headers: { 'Content-Type': 'application/problem+json' } });
+const pick = (accounts: string) => new Response(JSON.stringify({ type: 'about:blank', title: 'validation_failed', status: 422, code: 'validation_failed', message_fa: 'این شرکت چند حساب دارد؛ یکی را انتخاب کن.', fields: { account: accounts } }), { status: 422, headers: { 'Content-Type': 'application/problem+json' } });
 
 export async function handle40(req: Request, p: string, hooks: Hooks): Promise<Response | null> {
   const m = req.method;

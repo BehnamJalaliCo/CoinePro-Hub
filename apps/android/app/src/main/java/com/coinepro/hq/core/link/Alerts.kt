@@ -167,7 +167,7 @@ object AlertRules {
             t.engaged -> "$name متوقف شد"
             else -> "$name دوباره راه افتاد"
         }
-        val text = if (t.engaged) "کلید توقف را $who زد؛ کارها ایستاد تا او یا خودت دوباره روشنش کنی." else "کلید توقف را $who برداشت."
+        val text = if (t.engaged) "کلید توقف را $who زد؛ کارها تا برداشتن کلید (به دست تو یا او) ایستاده است." else "کلید توقف را $who برداشت."
         return Alert(
             AlertChannel.URGENT, "control:${t.scope}", title, text, if (holding) "control" else "companies/$code", t.company,
             tone = if (t.engaged) AlertTone.ERROR else AlertTone.INFO,

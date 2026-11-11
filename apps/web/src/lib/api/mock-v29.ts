@@ -105,7 +105,7 @@ const READINESS: Record<string, Check[]> = {
     { key: 'seats', ok: false, title_fa: 'هر جایگاه کارمند فعال دارد', detail_fa: 'جایگاه «مسئول انتشار» خالی است.', fix: { action: 'hire', label_fa: 'استخدام مسئول انتشار', target: 'content/publisher' } },
     { key: 'hiring', ok: true, title_fa: 'استخدام خودکار روشن است', detail_fa: 'مدیرعامل در پاکت ماه، بی کارت، استخدام میکند.', fix: null },
     { key: 'envelope', ok: true, title_fa: 'پاکت ماه تعیین شده', detail_fa: 'این ماه 18 میلیون واحد؛ 41% مصرف شده.', fix: null },
-    { key: 'series', ok: false, title_fa: 'برای هر کانال یک سری مُهرشده', detail_fa: 'سری «ریلز آموزشی روزانه» برای اینستاگرام منتظر مُهر شماست.', fix: { action: 'series.propose', label_fa: 'دیدن سری‌های انتشار', target: null } },
+    { key: 'series', ok: false, title_fa: 'برای هر کانال یک سری مُهرشده', detail_fa: 'سری «ریلز آموزشی روزانه» برای اینستاگرام منتظر مُهر توست.', fix: { action: 'series.propose', label_fa: 'دیدن سری‌های انتشار', target: null } },
     { key: 'channels', ok: true, title_fa: 'کانال‌های انتشار وصل‌اند', detail_fa: 'اینستاگرام از راه IG-Hub و کانال تلگرام.', fix: null },
     { key: 'media_tools', ok: true, title_fa: 'ساخت ویدیو و صدا', detail_fa: 'روی ستاد، هر وقت لازم شود روشن میشود.', fix: null },
     { key: 'players', ok: true, title_fa: 'بازیکن‌ها در دسترس‌اند', detail_fa: 'Claude و بازیکن‌های ذخیره آماده‌اند.', fix: null },
@@ -196,7 +196,7 @@ const reports: Record<string, Report> = {
       { at: at('2026-11-02', '12:06'), who_fa: 'مدیر رسانه', what_fa: 'انتشار منتظر ماند: سری انتشار هنوز مُهر نشده و مسئول انتشار نیست.' },
     ],
     blockers: [
-      { kind: 'series_unsealed', title_fa: 'سری انتشار مُهر نشده', detail_fa: 'سه ریلز آماده است، ولی سری «ریلز آموزشی روزانه» هنوز مُهر شما را ندارد.', since: at('2026-11-02', '12:06'), fix: { action: 'series.seal', label_fa: 'مُهر سری انتشار', target: 'SR-0012' } },
+      { kind: 'series_unsealed', title_fa: 'سری انتشار مُهر نشده', detail_fa: 'سه ریلز آماده است، ولی سری «ریلز آموزشی روزانه» هنوز مُهر تو را ندارد.', since: at('2026-11-02', '12:06'), fix: { action: 'series.seal', label_fa: 'مُهر سری انتشار', target: 'SR-0012' } },
       { kind: 'no_employee', title_fa: 'مسئول انتشار نیست', detail_fa: 'جایگاه مسئول انتشار تریدیار خالی است؛ بعد از مُهر هم کسی باید منتشر کند.', since: at('2026-11-02', '12:06'), fix: { action: 'hire', label_fa: 'استخدام مسئول انتشار', target: 'TY/publisher' } },
     ],
     outputs: [
@@ -345,9 +345,9 @@ const PROGRESS = { id: 'PG-0004', company: 'TY', title_fa: 'دنبال‌کنن�
 const MORNING = [
   'دیروز 6 خروجی آماده شد: 3 ریلز تریدیار، 2 پست پرو-چارت و 1 مقاله‌ی FX.',
   'بهترین حرکت: بازدید ریلزهای تریدیار 38% بالا رفت.',
-  'فرمان کلیپ تریدیار آماده است و منتظر مُهر سری انتشار شماست.',
+  'فرمان کلیپ تریدیار آماده است و منتظر مُهر سری انتشار توست.',
   'پیشنهاد مؤثر امروز: ریلز آموزشی روزانه برای تریدیار.',
-  'از شما: مُهر یک سری انتشار و یک تصمیم درباره‌ی بودجه‌ی پرو-چارت.',
+  'از تو: مُهر یک سری انتشار و یک تصمیم درباره‌ی بودجه‌ی پرو-چارت.',
 ];
 const CRITICAL = [
   {

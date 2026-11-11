@@ -109,7 +109,7 @@ type Routine = { ref: string; company: string | null; sentence_fa: string; when_
 let routineSeq = 102;
 const routines: Routine[] = [
   {
-    ref: 'AT-0102', company: 'TY', sentence_fa: 'هر شنبه ساعت ۱۰ خلاصه‌ی بازدید ریلزهای هفته را برایم بفرست', when_fa: 'هر شنبه ساعت 10:00', preview_fa: 'برای شما این خبر فرستاده میشود: «خلاصه‌ی بازدید ریلزهای هفته»',
+    ref: 'AT-0102', company: 'TY', sentence_fa: 'هر شنبه ساعت ۱۰ خلاصه‌ی بازدید ریلزهای هفته را برایم بفرست', when_fa: 'هر شنبه ساعت 10:00', preview_fa: 'برای تو این خبر فرستاده میشود: «خلاصه‌ی بازدید ریلزهای هفته»',
     state: 'off', next_at: null, last_run_at: minsAgo(9 * 1440), runs: 2, order: 'F-0007', note_fa: 'آخرین نوبت انجام نشد: سقف پاکت این ماه پر بود.', hm: '10:00',
   },
   {
@@ -362,7 +362,7 @@ export async function handle47(req: Request, p: string, next: Next): Promise<Res
     const sentence = String(b.sentence_fa ?? '').replace(/\s+/g, ' ').trim();
     if (sentence.length < 3) return refuse(422, 'validation_failed', 'جمله را بنویس.', { sentence_fa: 'at least 3 characters' });
     if (/تبلیغ|کمپین|خط تولید/.test(sentence)) {
-      const why = 'این بیشتر از یک روال است (تبلیغ یا خط تولید را عوض میکند) و مُهر شما را میخواهد.';
+      const why = 'این بیشتر از یک روال است (تبلیغ یا خط تولید را عوض میکند) و مُهر تو را میخواهد.';
       return refuse(422, 'validation_failed', why, { sentence_fa: why });
     }
     const when = whenOf(sentence);
@@ -397,7 +397,7 @@ export async function handle47(req: Request, p: string, next: Next): Promise<Res
     const x = publishes.find((y) => y.job === decodeURIComponent(pc[1]!));
     if (!x) return refuse(404, 'not_found', 'این انتشار پیدا نشد.');
     if (x.state !== 'scheduled' && x.state !== 'publishing') return refuse(409, 'not_cancellable', 'این انتشار دیگر لغوشدنی نیست.');
-    if (x.busy) return refuse(409, 'not_cancellable', 'فایل هنوز در راه IG-Hub است؛ چند لحظه بعد دوباره لغو کنید.');
+    if (x.busy) return refuse(409, 'not_cancellable', 'فایل هنوز در راه IG-Hub است؛ چند لحظه بعد دوباره لغو کن.');
     // one the other server holds already: the cancel is on its way, and a second tap answers the same
     if (x.held) return json(publishView(x));
     Object.assign(x, { state: 'cancelled', note_fa: null });

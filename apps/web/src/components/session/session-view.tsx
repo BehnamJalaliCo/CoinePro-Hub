@@ -16,7 +16,7 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useQueries } from '@tanstack/react-query';
+import { useMutationState, useQueries } from '@tanstack/react-query';
 import { Icon } from '@/components/icon';
 import { Button, IconButton } from '@/components/ui/button';
 import { Card, Empty, ErrorState, FilterChip, PageHeader, Pill, SectionTitle, Segmented, Skeleton } from '@/components/ui/primitives';
@@ -46,7 +46,7 @@ import { DIRECT_FA, type DirectReport } from '@/lib/api/v55';
 import { Routines } from '@/components/v47/routines';
 import { SessionPublishes } from '@/components/v47/session-publishes';
 import { StallWatch, useLastStep, useLiveBadge } from '@/components/live/session-pulse';
-import { useSessionActivity } from '@/lib/api/v41';
+import { nudgeKey, useSessionActivity } from '@/lib/api/v41';
 import { DecisionBar, type DecisionState } from '@/components/look/decision-bar';
 import { FilesStrip, type StripFile } from '@/components/look/files';
 import { useFillHeight } from '@/components/look/fill';
@@ -181,12 +181,25 @@ function Session({ refId, r }: { refId: string; r: Full }) {
   const asked = !!r.turn && !closed;
   // ⟨2026-11-11⟩ An open session nobody works on, that the hub has not explained, is «ایستاده» with its own card (looked at again every
   // minute); never «آرام» for hours with nothing to press.
-  const minute = useTick(60_000, !closed && !activity?.working.length);
   // «نگه دار» in the «الان» bar: while the owner holds the work, the bar's «ادامه بده» is the one way back (no still card beside it).
-  const [held, setHeld] = useState(false);
+  // The hold ends whenever the work starts again, whichever way: «ادامه بده» from any place (the bar, «کار زنده», the details, a
+  // card), or the work at work again after it was seen stopped (the owner's word, the hub's own wake).
+  const [heldAt, setHeldAt] = useState<number | null>(null);
+  const nudged = useMutationState({ filters: { mutationKey: nudgeKey(refId), status: 'success' }, select: (m) => m.state.submittedAt });
+  const held = heldAt != null && !nudged.some((at) => at > heldAt);
+  const sawStopped = useRef(false);
+  useEffect(() => {
+    if (!held) { sawStopped.current = false; return; }
+    if (!activity?.working.length) sawStopped.current = true;
+    else if (sawStopped.current) setHeldAt(null);
+  }, [held, activity]);
   // The hub takes «ادامه بده» where it serves the session's activity (§41: a hub before it answers the activity with nothing).
   const nudgeOn = activity != null;
-  const still = closed || held ? null : stillOf(r, activity, badge, minute);
+  // The minute is looked at only while a still card can come: open, not held, nothing asked or waiting, nobody at work.
+  const stillCan = !closed && !held && !asked && badge !== 'ready' && badge !== 'your_turn' && !r.blockers.length && !(r.cards ?? []).length
+    && !!activity && !activity.working.length && !activity.waiting_fa && !activity.stuck_fa;
+  const minute = useTick(60_000, stillCan);
+  const still = stillCan ? stillOf(r, activity, badge, minute) : null;
   const mood = still ? 'still' : moodOf(activity, { closed, badge, asked });
   const task = taskOf(r.tasks);
   const outs = useSessionOutputs(r.outputs);
@@ -251,7 +264,7 @@ function Session({ refId, r }: { refId: string; r: Full }) {
 
   return (
     <>
-      <div ref={frame} data-testid="session" data-mood={mood} className={cx('mx-auto flex w-full max-w-[58rem] flex-col gap-2.5', !extras && '-mb-6 lg:mb-0')}>
+      <div ref={frame} data-testid="session" data-mood={mood} data-held={held ? '' : undefined} className={cx('mx-auto flex w-full max-w-[58rem] flex-col gap-2.5', !extras && '-mb-6 lg:mb-0')}>
         {/* ⟨1.0.1⟩ M14: the card that was tapped (the home's, the command sheet) grows into this header; M18: it folds to one line. */}
         <header data-stuck={scrolled ? '' : undefined} onClick={() => setDetails(true)} className="hq-vt-hero hq-m18 flex flex-none cursor-pointer flex-col gap-1.5">
           <div className="hq-m18-fold flex items-center gap-2 text-caption text-muted">
@@ -276,7 +289,7 @@ function Session({ refId, r }: { refId: string; r: Full }) {
             quietSend={bar || knot || (!!still && nudgeOn)} answer={asked ? reply : undefined}
             above={(
               <>
-                {closed ? null : <NowBar refId={refId} a={activity} r={r} onOpen={() => setLive(true)} held={held} onHeld={setHeld} />}
+                {closed ? null : <NowBar refId={refId} a={activity} r={r} onOpen={() => setLive(true)} held={held} onHeld={(on) => setHeldAt(on ? Date.now() : null)} />}
                 {asked ? <WaitingCard r={r} busy={act.reply.isPending} onReply={reply} /> : said && !closed ? <AnswerSent text={said} /> : null}
                 {closed ? null : <SessionCards cards={r.cards ?? []} />}
                 {knot ? <KnotCard refId={refId} stuckFa={blockers.length ? null : activity?.stuck_fa} blockers={blockers} company={company} run={runFix} lead={!bar} /> : null}

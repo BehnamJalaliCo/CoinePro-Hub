@@ -386,8 +386,8 @@ test('@phone the office and a session fit a phone', async ({ page }) => {
 test('a session opens scrolled to its last turn; scrolled up it offers «↓» that brings him back', async ({ page }) => {
   await clean(page, async () => {
     await page.setViewportSize({ width: 900, height: 560 });
-    // A session whose talk does not stream new lines while the test waits (F-0007 is the demo's working session).
-    await page.goto('/s/F-0006');
+    // F-0007 is the demo's working session: its live lines stream in while the test waits.
+    await page.goto('/s/F-0007');
     const talk = page.getByTestId('talk-scroll');
     await expect(talk.locator('[data-by]').first()).toBeVisible();
     const gap = () => talk.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight);

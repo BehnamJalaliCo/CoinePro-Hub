@@ -213,7 +213,7 @@ internal class V32Demo {
             when (m.groupValues[2]) {
                 "turns" -> {
                     val text = body?.str("text").orEmpty().trim()
-                    if (Regex("AIza[0-9A-Za-z_-]{35}").containsMatchIn(text)) return 422 to problem(422, "validation_failed", "کلید را با دکمه‌ی کلید بدهید.")
+                    if (Regex("AIza[0-9A-Za-z_-]{35}").containsMatchIn(text)) return 422 to problem(422, "validation_failed", "کلید را با دکمه‌ی کلید بده.")
                     val n = ts.size + 1
                     ts.add(turn(ref, n, "owner", body?.str("source") ?: "typed", text, off = 0, h = 9, m = n % 50))
                     val answer = answer(ref, n + 1, who, text)

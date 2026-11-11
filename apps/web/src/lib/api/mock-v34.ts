@@ -686,7 +686,7 @@ export async function playbookOrder(ref: string) {
 export function postPlaybookCard(ref: string, pb: { ref: string; title_fa: string; purpose_fa: string }) {
   const s = sessions.get(ref);
   if (!s) return;
-  conversationCard(s.conv, s.participants[0]!.key, 'کارگروه از این جلسه آماده است. باز کنید، ویرایش کنید و مُهر بزنید.', 'playbook', `کارگروه از این جلسه: ${pb.title_fa}`, pb.purpose_fa, { playbook: pb.ref });
+  conversationCard(s.conv, s.participants[0]!.key, 'کارگروه از این جلسه آماده است. بازش کن، ویرایشش کن و مُهرش کن.', 'playbook', `کارگروه از این جلسه: ${pb.title_fa}`, pb.purpose_fa, { playbook: pb.ref });
   s.last_at = NOW();
 }
 let applySeq = 200;

@@ -107,6 +107,8 @@ class AlertsTest {
         assertEquals(AlertChannel.URGENT, holding.channel)
         assertEquals("کل هلدینگ متوقف شد", holding.title)
         assertTrue(holding.text.contains("ناظر کل"))
+        // ⟨2026-11-11⟩ to «تو», in one sentence that agrees with itself
+        assertEquals("کلید توقف را ناظر کل زد؛ کارها تا برداشتن کلید (به دست تو یا او) ایستاده است.", holding.text)
         assertEquals("control", holding.route)
         assertEquals("control:holding", holding.key)
         val company = AlertRules.ofSwitch(sw("company:FX", "engaged", "FX-CEO"))!!
