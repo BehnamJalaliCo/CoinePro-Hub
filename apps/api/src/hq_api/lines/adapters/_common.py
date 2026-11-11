@@ -282,12 +282,25 @@ async def bao_dict(hub: Any, path: str) -> dict[str, Any]:
 
 
 # --------------------------------------------------------------- files --
-async def file_bytes(hub: Any, company_id: UUID, file_id: str) -> tuple[bytes, dict[str, Any]]:
-    async with hub.db.tx([company_id]) as tx:
+async def file_bytes(
+    hub: Any, company_id: UUID, file_id: str, *, with_holding: bool = False
+) -> tuple[bytes, dict[str, Any]]:
+    """A file of the company (a step's output), or with `with_holding` of the holding too.
+
+    A library asset's files are the owner's uploads, which POST /files keeps as the holding's, and a
+    line may use the holding's assets (store.check_library): they are read with `with_holding`.
+    """
+    cos = [company_id]
+    if with_holding:
+        holding = (await hub.companies.holding()).id
+        if holding not in cos:
+            cos.append(holding)
+    async with hub.db.tx(cos) as tx:
         row = await tx.first(
-            "SELECT id, name, mime, storage_key, kind FROM files.files WHERE id = :id AND company_id = :co",
+            """SELECT id, name, mime, storage_key, kind FROM files.files
+               WHERE id = :id AND company_id = ANY(CAST(:cos AS uuid[]))""",
             id=UUID(str(file_id)),
-            co=company_id,
+            cos=[str(c) for c in cos],
         )
     if row is None:
         raise StepFailed("فایل این مرحله پیدا نشد.", code="file_missing")

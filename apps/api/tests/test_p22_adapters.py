@@ -751,6 +751,45 @@ async def test_cover_fails_plainly_without_a_folder_or_images_or_an_image_back(
     assert e3.value.code == "not_image"
 
 
+async def test_cover_reads_the_owners_uploads_kept_as_the_holdings(
+    stored: list[dict[str, Any]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: POST /files keeps the folder's images as the holding's; a company line's cover
+    step read them as the company's own and never found them (file_missing)."""
+    holding = SimpleNamespace(id=uuid4(), code="HQ")
+    f1 = uuid4()
+    seen: dict[str, Any] = {}
+
+    class Tx(FakeTx):
+        async def first(self, sql: str, **kw: Any) -> Any:
+            seen.update(kw)
+            if str(holding.id) in kw.get("cos", []):
+                return {"id": f1, "name": "a.png", "mime": "image/png", "storage_key": "k0",
+                        "kind": "image"}  # fmt: skip
+            return None
+
+    hub = FakeHub()
+    hub.stored["k0"] = PNG
+
+    async def holding_of() -> Any:
+        return holding
+
+    scopes: list[Any] = []
+
+    @asynccontextmanager
+    async def tx(ids: Any) -> Any:
+        scopes.append(list(ids))
+        yield Tx(hub.rows)
+
+    monkeypatch.setattr(hub.companies, "holding", holding_of)
+    monkeypatch.setattr(hub.db, "tx", tx)
+    C.WEB_OVERRIDE = FakeWeb(
+        {"ok": True, "file": {"name": "c.png", "mime": "image/png", "b64": b64(PNG)}}
+    )
+    res = await REGISTRY["cover"].run(ctx(hub, "cover", library=(folder(f1),)))
+    assert res.data["from_files"] == 1
+    assert scopes[0] == [CO.id, holding.id] and seen["cos"] == [str(CO.id), str(holding.id)]
+
 
 # ----------------------------------------------------------------- publish --
 class FakeHttp:
