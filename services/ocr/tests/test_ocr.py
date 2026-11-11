@@ -17,6 +17,7 @@ import json
 import os
 import re
 import shutil
+import struct
 import tempfile
 import threading
 import unittest
@@ -39,6 +40,31 @@ PNG_1x1 = bytes.fromhex(
     "89504e470d0a1a0a0000000d4948445200000001000000010806000000"
     "1f15c4890000000d49444154789c63000100000500010d0a2db40000000049454e44ae426082"
 )
+
+
+def tiff(*pages: tuple[int, int], order: str = "<") -> bytes:
+    """A TIFF header and one directory per page with only its width (LONG)
+    and height (SHORT); enough for the size checks, not for a decoder."""
+    magic = b"II*\x00" if order == "<" else b"MM\x00*"
+    out = bytearray(magic + struct.pack(order + "I", 8))
+    for n, (w, h) in enumerate(pages):
+        last = n == len(pages) - 1
+        nxt = 0 if last else len(out) + 2 + 2 * 12 + 4
+        out += struct.pack(order + "H", 2)
+        out += struct.pack(order + "HHII", 256, 4, 1, w)
+        out += struct.pack(order + "HHIHH", 257, 3, 1, h, 0)
+        out += struct.pack(order + "I", nxt)
+    return bytes(out)
+
+
+def jpeg(w: int, h: int, pad: int = 0) -> bytes:
+    """SOI, `pad` bytes of APP1 segments, then SOF0 with w x h."""
+    out = b"\xff\xd8"
+    while pad > 0:
+        n = min(pad, 65533)
+        out += b"\xff\xe1" + (n + 2).to_bytes(2, "big") + b"\x00" * n
+        pad -= n
+    return out + b"\xff\xc0\x00\x11\x08" + struct.pack(">HH", h, w) + b"\x00" * 12
 
 
 def fold_words(text: str) -> list[str]:
@@ -132,6 +158,28 @@ class TsvAndHeaders(unittest.TestCase):
         assert E.image_pixels("webp", vp8x) == 5000
         assert E.image_pixels("tiff", b"II*\x00") is None
         assert E.image_pixels("jpeg", b"\xff\xd8\x00") is None
+
+    def test_a_jpeg_frame_header_past_any_padding_is_found(self) -> None:
+        # Past the bytes `detect` sniffs: the cap used to be skipped.
+        assert E.image_pixels("jpeg", jpeg(60000, 60000, pad=E.HEAD_BYTES * 2)) == 3_600_000_000
+        assert E.image_pixels("jpeg", b"\xff\xd8\xff\xff" + jpeg(30, 20)[2:]) == 600  # fill byte
+        assert E.image_pixels("jpeg", jpeg(30, 0)) is None  # height from a later DNL
+        assert E.image_pixels("jpeg", b"\xff\xd8\xff\xda\x00\x02" + b"\x00" * 20) is None
+        assert E.image_pages("jpeg", jpeg(30, 20)) == 1
+
+    def test_a_tiff_gives_its_largest_page_and_its_page_count(self) -> None:
+        for order in ("<", ">"):
+            data = tiff((100, 50), (3000, 2000), (10, 10), order=order)
+            assert E.sniff(data) == "tiff"
+            assert E.image_pixels("tiff", data) == 6_000_000
+            assert E.image_pages("tiff", data) == 3
+        looped = bytearray(tiff((10, 10)))
+        looped[-4:] = struct.pack("<I", 8)  # the directory points back at itself
+        assert E.image_pixels("tiff", bytes(looped)) is None
+        assert E.image_pages("tiff", bytes(looped)) is None
+        no_height = tiff((10, 10))[:-16] + struct.pack("<HHIHH", 999, 3, 1, 1, 0) + b"\x00" * 4
+        assert E.image_pixels("tiff", no_height) is None
+        assert E.image_pixels("tiff", tiff((10, 10))[:-6]) is None  # cut short
 
 
 class Pinned(unittest.TestCase):
@@ -256,6 +304,9 @@ class Http(unittest.TestCase):
         assert self.calls == [("png", 50)]
         status, _ = self.post(b"%PDF-1.4\n%%EOF\n", "application/pdf", "?max_pages=3")
         assert status == 200 and self.calls[-1] == ("pdf", 3)
+        assert self.post(tiff((5, 5), (8, 8)), "image/tiff", "?max_pages=2")[0] == 200
+        assert self.post(jpeg(9, 9, pad=500), "image/jpeg")[0] == 200
+        assert [k for k, _ in self.calls[-2:]] == ["tiff", "jpeg"]
 
     def test_refusals_have_stable_codes(self) -> None:
         assert self.post(b"GIF89a....", "image/gif") == (415, {"error": "unsupported_type"})
@@ -263,6 +314,19 @@ class Http(unittest.TestCase):
         assert self.post(b"x" * 5000, "image/png") == (413, {"error": "too_large"})
         big = PNG_1x1[:16] + (100).to_bytes(4, "big") + (100).to_bytes(4, "big") + PNG_1x1[24:]
         assert self.post(big, "image/png") == (413, {"error": "too_large"})  # pixels
+        # A size only the whole body tells, or none at all: never let through.
+        assert self.post(jpeg(20, 20, pad=3000), "image/jpeg") == (413, {"error": "too_large"})
+        assert self.post(tiff((20, 20)), "image/tiff") == (413, {"error": "too_large"})
+        assert self.post(tiff((5, 5), (20, 20)), "image/tiff") == (413, {"error": "too_large"})
+        assert self.post(tiff((5, 5), (5, 5)), "image/tiff", "?max_pages=1") == (
+            413,
+            {"error": "too_large"},
+        )
+        assert self.post(b"II*\x00\x00\x00\x00\x00", "image/tiff") == (422, {"error": "unreadable"})
+        assert self.post(b"\xff\xd8\xff\xe0\x00\x04ab", "image/jpeg") == (
+            422,
+            {"error": "unreadable"},
+        )
         assert self.post(PNG_1x1, "image/png", "?max_pages=0") == (400, {"error": "bad_request"})
         assert self.post(PNG_1x1, "image/png", "?max_pages=x") == (400, {"error": "bad_request"})
         assert self.calls == []  # none of these reached the engine
