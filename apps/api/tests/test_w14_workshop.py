@@ -17,6 +17,8 @@ from typing import Any
 import httpx
 from PIL import Image
 
+from hq_api import media
+from hq_api.app import RUNNER_EVENTS_BYTES, RUNNER_RESULT_BYTES, upload_limit
 from hq_api.domain import hands as HANDS
 from hq_api.domain import workspace as WS
 from hq_api.hub import Hub
@@ -507,3 +509,12 @@ async def test_a_step_order_starts_only_its_next_task_and_the_holder_can_stop_th
     assert (st["state"], st["error_code"]) == ("cancelled", "company_locked")
     r = await run_ask(client, holder, {"work": work_ref, "brief": "متن گفتار", "task": 1})
     assert r.status_code == 423, r.text
+
+
+def test_a_runner_file_upload_gets_the_owner_upload_size_limit() -> None:
+    """The body-size middleware lets a workspace turn's file through up to the route's 200 MB
+    (Caddy's @runner_files allows the same), not the 8 MB of a runner's event batch."""
+    job = f"{API}/runners/jobs/{uuid.uuid4()}"
+    assert upload_limit(f"{job}/files", 1, 1) == media.VIDEO.max_bytes
+    assert upload_limit(f"{job}/result", 1, 1) == RUNNER_RESULT_BYTES
+    assert upload_limit(f"{job}/events", 1, 1) == RUNNER_EVENTS_BYTES
