@@ -70,7 +70,8 @@ test('a draft: edit lightly (title, a seat and a rule removed, a routine brief),
     const standing = page.getByTestId('standing');
     await expect(standing.getByLabel('انتشار خودکار')).toBeChecked();
     await standing.getByRole('button', { name: 'استوری هم بشود' }).click();
-    await page.getByRole('button', { name: 'مُهر کن' }).click();
+    // ⟨1.0.1⟩ The seal is the page's one act, in its decision bar (the look, C3.4).
+    await page.getByTestId('decision-bar').getByRole('button', { name: 'مُهر کارگروه' }).click();
     await expect(page.getByText('مُهر شد؛ از نوبت بعد خودش میسازد و خودکار منتشر میکند.')).toBeVisible();
     await expect(page.getByLabel('شرکت‌های عضو')).toContainText('تریدیار');
     const mine = page.locator('[data-standing="TY"]');
@@ -150,7 +151,7 @@ test('the library groups playbooks by state with title, platform, members and th
     await expect(drafts.getByRole('link', { name: /ریلز روزانه/ })).toContainText('از تریدیار');
     const sealed = page.locator('section[data-state="sealed"]');
     await expect(sealed.getByRole('link', { name: /مقاله‌ی هفتگی سئو/ })).toContainText('سایت');
-    await expect(sealed.getByRole('link', { name: /مقاله‌ی هفتگی سئو/ })).toContainText('1 شرکت عضو');
+    await expect(sealed.getByRole('link', { name: /مقاله‌ی هفتگی سئو/ })).toContainText('۱ شرکت عضو');
     await expect(page.getByRole('navigation').getByRole('link', { name: 'کارگروه‌های آماده' }).first()).toBeVisible();
     await sealed.getByRole('link', { name: /مقاله‌ی هفتگی سئو/ }).click();
     await expect(page).toHaveURL(/\/playbooks\/PB-0002$/);

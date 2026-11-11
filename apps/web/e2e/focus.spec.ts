@@ -60,28 +60,30 @@ test('an order report: receipt, route, steps, outputs, and each blocker fixed in
     const sheet = await openDetails(page);
     await expect(sheet.getByLabel('رسید و برنامه').getByText(/خروجی:/)).toBeVisible();
     await page.keyboard.press('Escape');
-    const blockers = page.getByLabel('گیرها');
-    await expect(blockers.getByText('بودجه‌ی این فرمان تمام شد')).toBeVisible();
-    await blockers.getByRole('button', { name: '+200 هزار واحد بده' }).click();
+    // ⟨1.0.1⟩ A knot is one line above the composer with its way out (the look, C2.2).
+    const knot = page.getByTestId('knot');
+    await expect(knot.getByRole('alert')).toContainText('بودجه‌ی این فرمان تمام شد');
+    await knot.getByRole('button', { name: '+200 هزار واحد بده' }).click();
     await expect(page.getByText('انجام شد.')).toBeVisible();
-    await expect(page.getByLabel('گیرها')).toHaveCount(0);
+    await expect(page.getByTestId('knot')).toHaveCount(0);
     await expect((await openDetails(page)).getByLabel('خلاصه‌ی جلسه').getByText('واحد به بودجه اضافه شد؛ کار ادامه دارد.')).toBeVisible();
 
     // The clip order: the series is sealed behind the passkey, the publisher hired.
     await page.goto('/s/F-0007');
-    await page.getByLabel('گیرها').getByRole('button', { name: 'مُهر سری انتشار' }).click();
+    await page.getByTestId('knot').getByRole('button', { name: 'مُهر سری انتشار' }).click();
     // The fix is a system step in the talk; runs of system steps fold into «n رویداد» (the owner's tidy timeline): open them, then read it.
     const talk = page.getByTestId('talk-scroll');
     await expect(async () => {
       for (const fold of await talk.locator('[data-sys-group] > button[aria-expanded="false"]').all()) await fold.click();
       await expect(talk.getByText('سری انتشار مُهر شد؛ انتشار از فردا صبح شروع میشود.')).toBeVisible({ timeout: 1000 });
     }).toPass({ timeout: 15_000 });
-    await page.getByLabel('گیرها').getByRole('button', { name: 'استخدام مسئول انتشار' }).click();
-    await expect(page.getByLabel('گیرها')).toHaveCount(0);
+    await page.getByTestId('knot').getByRole('button', { name: 'استخدام مسئول انتشار' }).click();
+    await expect(page.getByTestId('knot')).toHaveCount(0);
     await expect((await openDetails(page)).getByLabel('خروجی‌ها').getByRole('link')).toHaveCount(3);
     await page.keyboard.press('Escape');
-    // The delivered outputs are also compact cards in the talk.
-    await expect(page.getByLabel('نتیجه‌های رسیده').getByRole('link')).toHaveCount(3);
+    // The delivered outputs are also in the talk, each with its files and a way to its page.
+    await expect(page.locator('section[data-output]')).toHaveCount(3);
+    await expect(page.locator('section[data-output]').getByRole('link', { name: 'باز کن' })).toHaveCount(3);
   });
 });
 
@@ -93,7 +95,7 @@ test('a delivered order is ready for his OK with «چه شد / حالا چه / �
     await expect(end.getByText('حالا چه')).toBeVisible();
     await expect(end.getByText('از تو چه')).toBeVisible();
     await page.keyboard.press('Escape');
-    await page.getByLabel('گیرها').getByRole('button', { name: 'وصل کردن جست‌وجوی گوگل' }).click();
+    await page.getByTestId('knot').getByRole('button', { name: 'وصل کردن جست‌وجوی گوگل' }).click();
     await expect(page.getByRole('dialog', { name: 'وصل کردن جست‌وجوی گوگل (سئو)' })).toBeVisible();
   });
 });
@@ -189,10 +191,14 @@ test('the working group: members paused and resumed, a routine paused, seats wit
     await page.goto('/groups');
     await page.getByRole('link', { name: 'کارگروه تولید محتوا و انتشار' }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'تولید محتوا و انتشار' })).toBeVisible();
-    await page.getByRole('button', { name: 'ادامه عضویت پرو-چارت' }).click();
+    // ⟨1.0.1⟩ A member that stands still is started again from its own tile; one that runs is held from it (the look, C3.4).
+    await page.locator('[data-member="PC"]').getByRole('button', { name: 'راه بینداز' }).click();
     await expect(page.getByText('کارگروه در پرو-چارت ادامه دارد.')).toBeVisible();
+    await page.getByRole('button', { name: 'توقف عضویت پرو-چارت' }).click();
+    await expect(page.getByText('کارگروه در پرو-چارت متوقف شد؛ روال‌هایش اجرا نمیشوند.')).toBeVisible();
     await page.getByRole('switch', { name: 'توقف روال عددهای دیروز' }).click();
     await expect(page.getByRole('switch', { name: 'ادامه روال عددهای دیروز' })).toHaveAttribute('aria-checked', 'false');
+    await page.getByTestId('group-definition').locator('summary').click();
     await expect(page.getByLabel('جایگاه‌ها').getByText('خالی').first()).toBeVisible();
     await expect(page.getByRole('img', { name: 'روند بازدید روزانه' })).toBeVisible();
     await expect(page.getByLabel('آزمایش هفته').getByText('ریلز 15 ثانیه‌ای بیشتر از ریلز 30 ثانیه‌ای تا آخر دیده میشود.')).toBeVisible();

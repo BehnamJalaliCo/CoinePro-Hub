@@ -10,6 +10,7 @@ import { ScopeChips } from '@/components/v17/bits';
 import { RANGES, UndoBar, dayFa, inputCls, ownerDay, span, type Undo } from '@/components/v21/bits';
 import { DeleteDialog, SelectAll, SelectionBar, useCleanup, useSelection } from '@/components/v28/outputs';
 import { STICKY_TOP, useStuck } from '@/components/look/collapse';
+import { useWide } from '@/components/look/fill';
 import { DecisionBar } from '@/components/look/decision-bar';
 import { OutputsTabs } from '@/components/look/desk';
 import { OutputDetail, OutputRow } from '@/components/look/output';
@@ -164,9 +165,12 @@ function OutputsInner() {
   const back = () => router.replace(`/outputs${tab !== 'new' ? `?tab=${tab}` : ''}`, { scroll: false });
   // M18: once the list has scrolled under its bar, the search folds away and the chips stay as one bar.
   const { sentinel, stuck } = useStuck();
+  const wide = useWide();
 
   return (
     <>
+      {/* On a phone an open output is the whole page: the list's own header leaves (and the output's title is the page's heading). */}
+      {sel && !wide ? null : (
       <div className={cx(sel && 'max-lg:hidden')}>
         <PageHeader eyebrow="آنچه ایجنت‌ها و گزارش‌های هاب تحویل داده‌اند" title="خروجی‌ها">
           <div className="flex flex-col gap-2">
@@ -177,6 +181,7 @@ function OutputsInner() {
           </div>
         </PageHeader>
       </div>
+      )}
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(320px,440px)_minmax(0,1fr)] [&>*]:min-w-0">
         {/* On a phone an open output takes the list's place (its own «خروجی‌ها» leads back). */}
         <Card className={cx('flex flex-col gap-3 p-3 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto [&>*]:shrink-0', sel && 'max-lg:hidden')} data-testid="outputs-list">
@@ -232,7 +237,7 @@ function OutputsInner() {
             )}
         </Card>
         <Card className={cx('p-4 lg:p-7', !sel && 'max-lg:hidden')}>{sel ? (
-          <OutputDetail key={sel} refId={sel} onSeen={mark} onGone={back}
+          <OutputDetail key={sel} refId={sel} onSeen={mark} onGone={back} heading={wide ? 'h2' : 'h1'}
             back={<button type="button" onClick={back} className="inline-flex h-8 items-center gap-1 rounded-[8px] text-[12px] text-muted hover:text-ink lg:hidden"><Icon name="back" size={14} mirror />خروجی‌ها</button>} />
         ) : <Empty icon="deliverable" title="یک خروجی را انتخاب کن" body="هر خروجی که بخوانی و «خوانده شد» بزنی به «خوانده‌شده» میرود. چند تا را با جعبه‌ی کنارشان انتخاب کن تا یک‌جا بایگانی، خوانده‌شده یا برای همیشه پاکشان کنی." />}</Card>
       </div>

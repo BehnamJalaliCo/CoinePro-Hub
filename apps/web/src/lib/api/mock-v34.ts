@@ -7,6 +7,7 @@
 // ⟨1.0.1⟩ §54 and §55.1 for the redesigned session: three more sessions (F-0010 a workshop turn that builds a motion graphic, with its
 // time cap; F-0011 a direct session whose holder works himself; F-0012 ready for his OK with a reel to publish), the activity's `mood`
 // and each worker's `kind`, `cap_s`, `last_fa`, `last_at`, and the owner's stop of a live work (./mock-v55 routes it here). The e2e
+// `hq.e2e.stuck=plain` makes F-0005 stuck with no fix of the hub's (the knot's own way out is then «ادامه بده»). The
 // checks ask for the rarer states through `hq.e2e.ring=late` (the turn is past 90 percent of its cap), `hq.e2e.workers=2` (two work
 // at once in F-0007), `hq.e2e.mood=thinking` (a run that has taken no step yet) and `hq.e2e.old55` (a hub before §55: none of these).
 
@@ -150,7 +151,7 @@ const moodOf = (a: Act41): string => {
 const actView = (a: Act41) => (olderHub()
   ? { ...a, working: a.working.map(({ kind: _k, cap_s: _c, last_fa: _l, last_at: _a, ...w }) => w) }
   : { ...a, working: a.working.map((w) => ({ kind: 'run', cap_s: null, last_fa: null, last_at: null, ...w })), mood: moodOf(a), mood_fa: MOOD_FA[moodOf(a)] });
-/** What a live turn of Claude Code says of itself, in the owner's words (never a path, never a command). */
+/** What a live turn of the workshop says of itself, in the owner's words (never a path, never a command). */
 const TURN_SAYS = ['صحنه‌ی ۳ را رندر میکند', 'فایل «scene-4.tsx» را مینویسد', 'دستور اجرا میکند', 'صحنه‌ی ۴ را رندر میکند', 'فایل «caption.md» را مینویسد'];
 const activity = new Map<string, Act41>();
 /** The workers the owner stopped with «نگه دار», by session: «ادامه بده» brings them back. */
@@ -468,12 +469,19 @@ export async function handle34(req: Request, p: string, q: URLSearchParams, next
   }
   const touch = () => { s.last_at = NOW(); };
 
+  // A stuck session with no fix to offer (asked for by the checks): its report names no blocker, its activity still says why.
+  const plainStuck = s.ref === 'F-0005' && flag('hq.e2e.stuck') === 'plain';
   if (act === 'report' && m === 'GET') {
     const rep = await reportOf(s.ref);
     if (!rep) return problem(404, 'not_found', 'گزارش این فرمان پیدا نشد.');
-    return json(decorate(rep, s));
+    return json(decorate(plainStuck ? { ...rep, blockers: [] } : rep, s));
   }
-  if (act === 'activity' && m === 'GET') return json(actView(actOf(s)));
+  if (act === 'activity' && m === 'GET') {
+    const a = actOf(s);
+    // Once its knot is untied the session is no longer stuck (the hub then goes on by itself).
+    if (a.stuck_fa && !plainStuck && !((await reportOf(s.ref))?.blockers ?? []).length) a.stuck_fa = null;
+    return json(actView(a));
+  }
   if (act === 'nudge' && m === 'POST') {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(req.headers.get('Idempotency-Key') ?? '')) return problem(422, 'validation_failed', 'کلید یکتا باید UUID باشد.');
     if (s.closed_at) return problem(409, 'session_closed', 'این جلسه بسته شده است.');
@@ -493,6 +501,10 @@ export async function handle34(req: Request, p: string, q: URLSearchParams, next
     if (s.closed_at) return problem(409, 'conflict', 'این جلسه بسته شده؛ اول بازش کن.');
     if (!String(b.text ?? '').trim()) return problem(422, 'validation_failed', 'جوابت را بنویس.');
     s.turn = null; touch();
+    // The wait is over: the holder takes the work up again with the owner's answer.
+    const act41 = actOf(s);
+    act41.waiting_fa = null; act41.idle_since = null;
+    if (!act41.working.length) act41.working = [{ who_fa: s.holder ? `${s.holder.title_fa} ${s.holder.company_fa}` : 'مشاور کل', company_fa: s.holder?.company_fa ?? '', work_title_fa: s.tasks.find((t) => t.state !== 'done')?.title_fa ?? s.text_fa, started_at: NOW(), step: 1, doing_fa: 'با جواب تو ادامه میدهد' }];
     conversationSay(s.conv, 'owner', String(b.text).trim());
     conversationSay(s.conv, s.participants[0]!.key, 'ممنون، همین را انجام میدهم و نتیجه را همین‌جا میگویم.');
     if (LOCAL[s.ref]) { LOCAL[s.ref].steps.push({ at: NOW(), who_fa: 'مدیر کل', what_fa: String(b.text).trim() }); LOCAL[s.ref].state = 'in_progress'; }

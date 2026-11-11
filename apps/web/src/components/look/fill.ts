@@ -4,7 +4,7 @@
 // talk scrolls inside and the composer keeps its place at the bottom. The hook sets the element's height from where it starts to the
 // bottom of the window, less [bottom] (the navigation and the page's own padding), and keeps it right as the window or the page changes.
 
-import { useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useRef, useSyncExternalStore } from 'react';
 
 export function useFillHeight<T extends HTMLElement = HTMLDivElement>(bottom: () => number, min = 420) {
   const ref = useRef<T>(null);
@@ -23,4 +23,16 @@ export function useFillHeight<T extends HTMLElement = HTMLDivElement>(bottom: ()
     return () => { window.removeEventListener('resize', fit); ro?.disconnect(); };
   }, [bottom, min]);
   return ref;
+}
+
+/**
+ * Whether the window is wide enough for two columns (a list beside its detail). Wide until the browser says otherwise, so a page that
+ * also hides the same thing with CSS never flashes.
+ */
+export function useWide(query = '(min-width: 1024px)'): boolean {
+  return useSyncExternalStore(
+    (changed) => { const m = window.matchMedia(query); m.addEventListener('change', changed); return () => m.removeEventListener('change', changed); },
+    () => window.matchMedia(query).matches,
+    () => true,
+  );
 }

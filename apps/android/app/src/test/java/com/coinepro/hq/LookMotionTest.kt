@@ -209,4 +209,34 @@ class LookMotionTest {
         assertTrue(r.size.width <= 96 * 3)
         assertFalse(r.isLineEllipsized(r.lineCount - 1))
     }
+
+    /** A line of facts laid out at its own width (one line, «…») keeps its last fact, also when a fact ends in a number right before
+     *  the hairline (the platform's line breaker measured that wider than the text's own width; see `SEP_GUARD`). */
+    @Test
+    fun aLineOfFactsAtItsOwnWidthKeepsItsLastWord() {
+        val lines = listOf(
+            arrayOf("مدیرعامل تریدیار", "کار 3 از 4", "با من"), arrayOf("کار 4", "با من"), arrayOf("مدیرعامل", "4", "با من"),
+            arrayOf("هزینه", "\$4.20", "O-000152"), arrayOf("12", "34", "56"), arrayOf("کار ab از cd", "با من"),
+            arrayOf("۲ از ۴ کار", "6 دقیقه پیش", "با من"), arrayOf("با من", "کار 3 از 4"),
+        ).map { com.coinepro.hq.designsystem.facts(*it) }
+        val seen = arrayOfNulls<androidx.compose.ui.text.TextLayoutResult>(lines.size)
+        compose.setContent {
+            DivanTheme(true, reducedMotion = true) {
+                Column {
+                    lines.forEachIndexed { i, line ->
+                        androidx.compose.foundation.layout.Row {
+                            Text(line, style = com.coinepro.hq.designsystem.Divan.type.micro, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, onTextLayout = { seen[i] = it })
+                        }
+                    }
+                }
+            }
+        }
+        compose.waitForIdle()
+        lines.forEachIndexed { i, line ->
+            val r = seen[i]!!
+            assertEquals("line $i is one line", 1, r.lineCount)
+            assertFalse("line $i is whole", r.isLineEllipsized(0))
+            assertEquals("line $i ends at its end", line.length, r.getLineEnd(0, visibleEnd = true))
+        }
+    }
 }

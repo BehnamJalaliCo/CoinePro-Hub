@@ -122,21 +122,25 @@ test('SS-1: every session row says when its last step was; a session that starts
     await expect(row.locator('[data-live-badge="moving"]')).toContainText('در جریان');
     await expect(row.locator('[data-loop="band"]')).toHaveCount(1);
     await expect(row.locator('[data-stall="moving"]')).toBeVisible();
-    // The header of a session has the same watch.
+    // ⟨1.0.1⟩ The header of a session has the same watch once no one works in it (while someone does, the «الان» bar says it).
+    await page.goto('/s/F-0005');
+    await expect(page.getByTestId('session').locator('header [data-stall]')).toContainText('آخرین قدم');
     await page.goto('/s/F-0007');
-    await expect(page.locator('header [data-stall]')).toContainText('آخرین قدم');
+    await expect(page.getByTestId('now-bar')).toBeVisible();
+    await expect(page.getByTestId('session').locator('header [data-stall]')).toHaveCount(0);
   });
 });
 
 test('SE-1: the running step carries its arc and seconds; when it ends, the same line gets its tick', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/s/F-0007');
-    const panel = page.getByTestId('live-work');
-    await expect(panel).toHaveAttribute('data-state', 'working');
+    // ⟨1.0.1⟩ The live steps are thin lines at the end of the talk (the newest three); the «الان» bar says the session works.
+    await expect(page.getByTestId('now-bar')).toHaveAttribute('data-state', 'working');
+    const panel = page.getByTestId('live-tail');
     const running = panel.locator('[data-line][data-state="running"]');
     await expect(running).toHaveCount(1);
     await expect(running.locator('[data-mark="running"] [data-line-secs]')).toHaveText(/^\d+s$/);
-    const text = (await running.locator('span').nth(1).innerText()).trim();
+    const text = (await running.locator('span').first().innerText()).trim(); // who, and what he does
     // The next beat ends it: the very same line (one line with these words) is now done, with its tick; one line runs again.
     const same = panel.locator('[data-line]', { hasText: text });
     await expect(same.first()).toHaveAttribute('data-state', 'done', { timeout: 15_000 });
@@ -265,7 +269,7 @@ test.describe('reduced motion (rule 8)', () => {
       await expect(map.locator('[data-node-edge="TY"]')).toHaveAttribute('data-tint', 'gold');
       expect(await map.locator('[data-particle]').count()).toBe(0);
       await page.goto('/s/F-0007');
-      const running = page.getByTestId('live-work').locator('[data-line][data-state="running"]');
+      const running = page.getByTestId('live-tail').locator('[data-line][data-state="running"]');
       await expect(running.locator('[data-mark="running"]')).toContainText('در حال انجام');
     });
   });

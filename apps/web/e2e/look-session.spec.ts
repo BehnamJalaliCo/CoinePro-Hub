@@ -34,7 +34,9 @@ test('the header: one light for the session, the tasks as segments, the facts on
     await expect(facts).toContainText('کار 2 از 3');
     await expect(facts).toContainText('با من');
     await expect(facts).toContainText('مدیرعامل تریدیار');
-    await expect(facts.locator('[data-sep]')).toHaveCount(2);
+    // (task, pace, holder, and once no one works, when the last step was)
+    await expect(facts.locator('[data-sep]')).toHaveCount(3);
+    await expect(facts.locator('[data-stall]')).toContainText('آخرین قدم');
     await expect(facts).not.toContainText('·');
   });
 });
@@ -56,10 +58,12 @@ test('what waits for him is one card above the composer: the question, its ready
     expect(cardBox.y + cardBox.height).toBeLessThanOrEqual(composer.y + 1);
     expect(composer.y - (cardBox.y + cardBox.height)).toBeLessThan(80);
     await ready.getByRole('button', { name: 'سه نکته برای حد ضرر' }).click();
+    // The answer is said back where the question was, and it is in the talk as his own turn.
+    await expect(page.getByTestId('answer-sent').getByRole('status')).toHaveText('جوابت رفت: سه نکته برای حد ضرر');
     await expect(page.getByLabel('گفتگو', { exact: true })).toContainText('سه نکته برای حد ضرر');
-    // Answered: the session is no longer waiting for him.
+    // Answered: the question is gone and the session is no longer waiting for him.
+    await expect(page.getByTestId('waiting-card')).toHaveCount(0);
     await expect(session(page)).not.toHaveAttribute('data-mood', 'waiting');
-    await expect(page.getByTestId('waiting-card').getByRole('group', { name: 'جواب‌های آماده' })).toHaveCount(0);
   });
 });
 
@@ -87,12 +91,20 @@ test('«الان»: who works and what he does, the live work one tap away, seve
   });
 });
 
-test('«الان»: more than one worker is counted in the bar, and a session whose holder is thinking says so', async ({ page }) => {
+test('«الان»: more than one worker is counted in the bar', async ({ page }) => {
   await flag(page, 'hq.e2e.workers', '2');
+  await clean(page, async () => {
+    await page.goto('/s/F-0007');
+    const bar = page.getByTestId('now-bar');
+    await expect(bar.locator('[data-now-who]')).toContainText('و ۱ نفر دیگر');
+    await expect(bar.locator('[data-workers]')).toHaveAttribute('data-workers', '2');
+  });
+});
+
+test('a session whose holder has taken no step yet says «فکر میکند»', async ({ page }) => {
   await flag(page, 'hq.e2e.mood', 'thinking');
   await clean(page, async () => {
     await page.goto('/s/F-0007');
-    await expect(page.getByTestId('now-bar').locator('[data-now-who]')).toContainText('و ۱ نفر دیگر');
     await expect(session(page)).toHaveAttribute('data-mood', 'thinking');
     await expect(light(page)).toHaveText('فکر میکند');
   });
@@ -104,7 +116,7 @@ test('a build of the workshop: its minutes as a ring, «نگه دار» holds it
     const bar = page.getByTestId('now-bar');
     await expect(bar).toHaveAttribute('data-kind', 'workshop');
     const ring = page.getByTestId('build-ring');
-    await expect(ring).toContainText('از ۶۰ دقیقه');
+    await expect(ring).toHaveText(/^۲[۳-۹] از ۶۰ دقیقه$/);
     await expect(ring.locator('[data-ring-minute]')).toHaveText(/^[۰-۹]+$/);
     await expect(ring).not.toHaveAttribute('data-late', '');
     await expect(bar.locator('[data-now-who]')).toContainText('کارگاه');
@@ -114,7 +126,9 @@ test('a build of the workshop: its minutes as a ring, «نگه دار» holds it
     await expect(bar).toHaveAttribute('data-state', 'held');
     await expect(bar.getByRole('status')).toHaveText('کار نگه داشته شد');
     await bar.getByRole('button', { name: 'ادامه بده' }).click();
-    await expect(page.getByText('گفتم ادامه بدهد.')).toBeVisible();
+    await expect(bar).toHaveAttribute('data-state', 'working');
+    await expect(page.getByTestId('build-ring')).toBeVisible();
+    await expect(bar.getByRole('button', { name: 'نگه دار' })).toBeVisible();
   });
 });
 
@@ -124,7 +138,7 @@ test('a build near its sixty minutes says so in words, not in colour alone', asy
     await page.goto('/s/F-0010');
     const ring = page.getByTestId('build-ring');
     await expect(ring).toHaveAttribute('data-late', '');
-    await expect(ring).toContainText('۵۶ از ۶۰ دقیقه');
+    await expect(ring).toHaveText(/^۵[۶-۹] از ۶۰ دقیقه$/);
     await expect(page.getByTestId('now-bar').locator('[data-now-late]')).toHaveText('نزدیک سقف زمان');
   });
 });
@@ -195,7 +209,7 @@ test('a finished session with a reel: «تأیید و انتشار» is the gold
     await expect(out.locator('[data-tile-publish="cover"]')).toHaveText('کاور ریلز');
     await expect(out.getByRole('button', { name: 'تأیید و انتشار' })).toHaveCount(0);
     // A tap on the video plays it where it is (or, where the browser cannot play it, says so and offers the file).
-    await tiles.nth(0).getByRole('button').first().click();
+    await out.getByRole('button', { name: 'پخش reel-stoploss.mp4' }).click();
     await expect(out.locator('[data-inline-video], [data-video-failed]').first()).toBeVisible();
     // The bar opens the one publish sheet with the caption, the account and the cover already there.
     await bar.getByRole('button', { name: 'تأیید و انتشار' }).click();

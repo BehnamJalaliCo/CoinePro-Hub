@@ -97,8 +97,10 @@ function RatePanel({ d, gold }: { d: Output; gold: boolean }) {
 }
 
 /** One output: the thing itself, its numbers, its text, its files and their publications, and the owner's rating. */
-export function OutputDetail({ refId, onSeen, onGone, back }: {
+export function OutputDetail({ refId, onSeen, onGone, back, heading: Heading = 'h2' }: {
   refId: string; onSeen: (refs: string[], seen: boolean, text: string) => Promise<boolean>; onGone: () => void; back?: ReactNode;
+  /** `h1` where the output takes the whole page (a phone: the list and the page's own header have left). */
+  heading?: 'h1' | 'h2';
 }) {
   const router = useRouter();
   const q = useOutput(refId);
@@ -160,7 +162,7 @@ export function OutputDetail({ refId, onSeen, onGone, back }: {
           <CompanyMark code={d.company} height={13} mono />
           <Facts>{companies?.find((c) => c.code === d.company)?.name_fa ?? d.company}{CATEGORY_FA[cat]}{`${d.producer.title_fa}، ${jDateTime(d.created_at)}`}</Facts>
         </div>
-        <h2 className={cx('font-semibold text-ink', stuck ? 'truncate text-[15px] leading-7' : 'text-h2 leading-9')}>{bidi(plain(d.title))}</h2>
+        <Heading className={cx('font-semibold text-ink', stuck ? 'truncate text-[15px] leading-7' : 'text-h2 leading-9')}>{bidi(plain(d.title))}</Heading>
       </header>
 
       {/* The thing itself. */}

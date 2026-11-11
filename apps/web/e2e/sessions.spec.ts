@@ -58,17 +58,19 @@ test('his turn: the question is answered in place, the session moves on', async 
   await clean(page, async () => {
     await page.goto('/s/F-0008');
     await expect(page.getByRole('heading', { level: 1 })).toContainText('خبرنامه');
-    await expect(page.getByText('نوبت تو').first()).toBeVisible();
-    const turn = page.getByLabel('نوبت تو', { exact: true });
+    // ⟨1.0.1⟩ The question is one card above the composer (the look, C2.2); its ready answers are in e2e/look-session.spec.ts.
+    await expect(page.getByTestId('session')).toHaveAttribute('data-mood', 'waiting');
+    const turn = page.getByTestId('waiting-card');
     await expect(turn).toContainText('کدام عنوان بهتر است');
     // The pace lives in «جزئیات».
     const sheet = await openDetails(page);
     await expect(sheet.getByRole('radiogroup', { name: 'روش کار' }).getByRole('radio', { name: 'با من' })).toHaveAttribute('aria-checked', 'true');
     await page.keyboard.press('Escape');
-    await turn.getByLabel('جواب تو').fill('عنوان دوم، سه نکته برای حد ضرر');
-    await turn.getByRole('button', { name: 'جواب بده' }).click();
-    await expect(page.getByText('جوابت رفت.')).toBeVisible();
-    await expect(page.getByLabel('نوبت تو', { exact: true })).toHaveCount(0);
+    // Typing still works: what he writes in the composer is his answer to the open question.
+    await page.getByLabel('پیام', { exact: true }).fill('عنوان دوم، سه نکته برای حد ضرر');
+    await page.getByRole('button', { name: 'بفرست' }).last().click();
+    await expect(page.getByTestId('answer-sent')).toContainText('جوابت رفت: عنوان دوم، سه نکته برای حد ضرر');
+    await expect(page.getByTestId('waiting-card')).toHaveCount(0);
     await expect(page.getByLabel('گفتگو', { exact: true }).locator('[data-by="owner"]').getByText('عنوان دوم، سه نکته برای حد ضرر')).toBeVisible();
     // he switches to «do it all» at any time
     const pace = (await openDetails(page)).getByRole('radiogroup', { name: 'روش کار' });
@@ -82,7 +84,7 @@ test('his turn: the question is answered in place, the session moves on', async 
 test('the brief says what happened, what is going on and what is needed from him', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/s/F-0006');
-    await expect(page.getByText('آماده‌ی تأیید').first()).toBeVisible();
+    await expect(page.getByTestId('decision-bar')).toContainText('با تأیید تو جلسه بسته و بایگانی میشود');
     const brief = (await openDetails(page)).getByLabel('خلاصه‌ی جلسه');
     for (const t of ['چه شد', 'حالا چه', 'از تو چه']) await expect(brief.getByRole('heading', { name: t })).toBeVisible();
   });
@@ -91,11 +93,11 @@ test('the brief says what happened, what is going on and what is needed from him
 test('blockers carry their one-tap fix, in words', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/s/F-0005');
-    const blockers = page.getByLabel('گیرها');
-    await expect(blockers.getByText('بودجه‌ی این فرمان تمام شد')).toBeVisible();
-    await blockers.getByRole('button', { name: /واحد به بودجه|هزار واحد بده/ }).click();
+    const knot = page.getByTestId('knot');
+    await expect(knot.getByRole('alert')).toContainText('بودجه‌ی این فرمان تمام شد');
+    await knot.getByRole('button', { name: /واحد به بودجه|هزار واحد بده/ }).click();
     await expect(page.getByText('انجام شد.')).toBeVisible();
-    await expect(page.getByLabel('گیرها')).toHaveCount(0);
+    await expect(page.getByTestId('knot')).toHaveCount(0);
     await noRefs(page);
   });
 });
@@ -169,17 +171,19 @@ test('cards in a session: hire and delegate come from the talk, with plain links
 test('confirm and close: the working group and the line come first, then the order is closed, archived and can be reopened or hidden', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/s/F-0006');
-    await page.getByRole('button', { name: 'تأیید و بستن' }).click();
+    // ⟨1.0.1⟩ The bar's «تأیید و بستن» closes with one tap (e2e/look-session.spec.ts); what may come before closing, and a note, are in
+    // the details' «پایان جلسه».
+    await (await openDetails(page)).getByRole('button', { name: 'تأیید و بستن' }).click();
     const sheet = page.getByRole('dialog', { name: 'تأیید و بستن جلسه' });
     await expect(sheet.getByRole('button', { name: 'کارگروه از این جلسه' })).toBeVisible();
     await sheet.getByRole('button', { name: 'خط تولید راه بینداز' }).click();
     // The holder puts the line's card in the talk.
     await expect(page.getByLabel(/^کارت خط تولید/).first()).toBeVisible();
-    await page.getByRole('button', { name: 'تأیید و بستن' }).click();
+    await (await openDetails(page)).getByRole('button', { name: 'تأیید و بستن' }).click();
     await page.getByRole('dialog', { name: 'تأیید و بستن جلسه' }).getByLabel('یادداشت بستن').fill('خوب شد');
     await page.getByRole('dialog', { name: 'تأیید و بستن جلسه' }).getByRole('button', { name: 'تأیید و ببند' }).click();
     await expect(page.getByText('جلسه بسته و بایگانی شد.')).toBeVisible();
-    await expect(page.getByText('بسته شد').first()).toBeVisible();
+    await expect(page.getByTestId('end-leaf')).toContainText('این جلسه تأیید و بایگانی شد');
     await expect(page.getByText('این جلسه بسته شده و فقط خواندنی است')).toBeVisible();
     // The archive lists it; the open list does not. (The demo keeps its records in the page, so the way there is a click, not a reload.)
     await page.locator('header').getByRole('link', { name: 'جلسه‌ها' }).click();
@@ -189,7 +193,7 @@ test('confirm and close: the working group and the line come first, then the ord
     await expect(page.getByText('گزارش هزینه‌ی تبلیغات اکتبر')).toBeVisible();
     // Reopen: the session is open again and the composer is back.
     await page.getByText('یک مقاله‌ی سئو برای FX').click();
-    await page.getByRole('button', { name: 'دوباره باز کن' }).click();
+    await page.getByTestId('end-leaf').getByRole('button', { name: 'دوباره باز کن' }).click();
     await expect(page.getByLabel('پیام', { exact: true })).toBeVisible();
     await expect((await openDetails(page)).getByRole('button', { name: 'تأیید و بستن' })).toBeVisible();
     await page.keyboard.press('Escape');
@@ -349,10 +353,13 @@ test('every turn has a «کپی» that copies its text; cancelling an order work
     await page.goto('/s/F-0006');
     const talk = page.getByLabel('گفتگو', { exact: true });
     const turn = talk.locator('[data-by]').filter({ hasText: 'مقاله نوشته و در وبلاگ منتشر شد' }).first();
+    // ⟨1.0.1⟩ «کپی» and the time are no longer under every bubble: they come up when the pointer (or the focus) is on the turn.
+    await expect(turn.locator('[data-turn-tools]')).toHaveCSS('opacity', '0');
+    await turn.hover();
     await turn.getByRole('button', { name: 'کپی متن' }).click();
     await expect(turn.getByText('کپی شد')).toBeVisible();
     expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('مقاله نوشته و در وبلاگ منتشر شد');
-    await page.getByRole('button', { name: 'تأیید و بستن' }).click();
+    await (await openDetails(page)).getByRole('button', { name: 'تأیید و بستن' }).click();
     const dlg = page.getByRole('dialog', { name: 'تأیید و بستن جلسه' });
     await dlg.getByRole('button', { name: 'لغو فرمان' }).click();
     await dlg.getByRole('button', { name: 'بله، لغو کن' }).click();

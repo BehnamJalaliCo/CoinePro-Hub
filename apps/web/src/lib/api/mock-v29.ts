@@ -266,7 +266,7 @@ const deliverable = (ref: string) => {
     produced_with: { label_fa: 'Sonnet 5.5 · medium' }, usage: OUTPUT_USAGE[ref] ?? {}, rating: null, created_at: OUTPUT_AT[ref] ?? at('2026-11-02', '12:05'), category: 'work', seen_at: null, filed_as: null,
   };
 };
-let orderSeq = 10;
+let orderSeq = 13; // after the demo's own sessions (the last of them is F-0012, ./mock-v34)
 const created: any[] = [];
 const ORDER_ITEMS = () => [
   ...created,

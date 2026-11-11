@@ -1,98 +1,113 @@
 import { expect, test } from '@playwright/test';
-import { clean } from './support';
+import { clean, openDetails } from './support';
 
 // ⟨1.23⟩ Contract §41: the session shows its work live and never stalls. The demo holding's sessions: F-0007 is working (its lines stream with
 // the mock stream), F-0005 is stuck (a nudge wakes it), F-0008 waits for the owner (and is «با من»).
 
-test('a working session shows who works, the step, the elapsed time and the lines as they stream in', async ({ page }) => {
+// ⟨1.0.1⟩ In the look (part C, C2.2) the live work is the «الان» bar above the composer, the newest steps as thin lines at the end of
+// the talk, and the whole of it one tap away; a question is the «منتظر تو» card, a knot the «گره» card (e2e/look-session.spec.ts).
+
+test('a working session shows who works, what he does, the elapsed time and the lines as they stream in', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/s/F-0007');
-    const panel = page.getByTestId('live-work');
-    await expect(panel).toHaveAttribute('data-state', 'working');
-    await expect(panel).toContainText('دارد کار میکند · قدم');
-    await expect(panel.locator('[data-elapsed]')).toHaveText(/^\d+:\d{2}$/);
-    // Newest last, at most the last few; the mock stream adds a line every few seconds.
-    const lines = panel.locator('[data-line]');
+    const bar = page.getByTestId('now-bar');
+    await expect(bar).toHaveAttribute('data-state', 'working');
+    await expect(bar.locator('[data-now-who]')).toContainText('مدیر رسانه تریدیار');
+    await expect(bar.locator('[data-now-sentence]')).not.toBeEmpty();
+    await expect(bar.locator('[data-now-timer]')).toHaveText(/^\d+:\d{2}$/);
+    // The newest steps, at most three, at the end of the talk; the mock stream adds a line every few seconds.
+    const lines = page.getByTestId('live-tail').locator('[data-line]');
     await expect(lines.first()).toBeVisible();
-    const step = async () => Number(((await panel.getByRole('status').innerText()).match(/قدم (\d+)/) ?? [])[1]);
-    const s0 = await step();
-    await expect.poll(step, { timeout: 20_000 }).toBeGreaterThan(s0);
-    await expect(lines).toHaveCount(4);
-    // The whole list on a tap, and back.
-    await panel.getByRole('button', { name: /همه‌ی قدم‌ها/ }).click();
-    await expect.poll(() => lines.count()).toBeGreaterThan(4);
-    await panel.getByRole('button', { name: 'کمتر' }).click();
-    await expect(lines).toHaveCount(4);
-    // It sits just above the composer.
-    const above = await panel.boundingBox();
+    await expect(lines.last().locator('[data-mark="running"]')).toBeVisible();
+    const last = () => lines.last().innerText();
+    const first = await last();
+    await expect.poll(last, { timeout: 20_000 }).not.toBe(first);
+    expect(await lines.count()).toBeLessThanOrEqual(3);
+    // The whole list, and who works, one tap away.
+    await bar.getByRole('button', { name: 'کار زنده را باز کن' }).click();
+    const sheet = page.getByTestId('live-sheet');
+    await expect.poll(() => sheet.getByLabel('همه‌ی قدم‌ها').locator('[data-line]').count()).toBeGreaterThan(3);
+    await page.keyboard.press('Escape');
+    // The bar sits just above the composer.
+    const above = await bar.boundingBox();
     const composer = await page.getByLabel('نوشتن', { exact: true }).boundingBox();
     expect(above && composer && above.y < composer.y).toBeTruthy();
   });
 });
 
-test('a session waiting for the owner says so', async ({ page }) => {
+test('a session waiting for the owner says so, in one place, to «تو»', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/s/F-0008');
-    const panel = page.getByTestId('live-work');
-    await expect(panel).toHaveAttribute('data-state', 'waiting');
-    await expect(panel).toContainText('منتظر شما: انتخاب یکی از سه عنوان');
+    await expect(page.getByTestId('session')).toHaveAttribute('data-mood', 'waiting');
+    const card = page.getByTestId('waiting-card');
+    await expect(card).toContainText('کدام عنوان بهتر است');
+    await expect(card).not.toContainText('شما');
+    await expect(page.getByTestId('now-bar')).toHaveCount(0);
   });
 });
 
 test('a stuck session says why in plain words and «ادامه بده» wakes it', async ({ page }) => {
+  // The demo's stuck session without a fix of the hub's: the knot's own way out is «ادامه بده».
+  await page.addInitScript(() => window.localStorage.setItem('hq.e2e.stuck', 'plain'));
   await clean(page, async () => {
     await page.goto('/s/F-0005');
-    const panel = page.getByTestId('live-work');
-    await expect(panel).toHaveAttribute('data-state', 'stuck');
-    await expect(panel).toContainText('گیر کرده: بودجه‌ی پست سوم تمام شده');
-    await panel.getByRole('button', { name: 'ادامه بده' }).click();
+    await expect(page.getByTestId('session')).toHaveAttribute('data-mood', 'stuck');
+    const knot = page.getByTestId('knot');
+    await expect(knot.getByRole('alert')).toContainText('بودجه‌ی پست سوم تمام شده');
+    await knot.getByRole('button', { name: 'ادامه بده' }).click();
     await expect(page.getByText('گفتم ادامه بدهد.')).toBeVisible();
-    await expect(panel).toHaveAttribute('data-state', 'working');
-    await expect(panel).toContainText('دارد کار میکند');
-    await expect(panel).not.toContainText('گیر کرده');
+    await expect(page.getByTestId('session')).toHaveAttribute('data-mood', 'working');
+    await expect(page.getByTestId('now-bar')).toHaveAttribute('data-state', 'working');
+    await expect(page.getByTestId('knot')).toHaveCount(0);
   });
 });
 
-test('a quiet session says when it last worked, with a small «ادامه بده»; a closed one shows no panel', async ({ page }) => {
+test('a quiet session says when it last worked, with a small «ادامه بده» in its details; a closed one shows nothing of it', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/s/F-0006');
-    const panel = page.getByTestId('live-work');
-    await expect(panel).toHaveAttribute('data-state', 'idle');
-    await expect(panel).toContainText('آرام · آخرین کار');
-    await panel.getByRole('button', { name: 'ادامه بده' }).click();
-    await expect(panel).toHaveAttribute('data-state', 'working');
+    await expect(page.getByTestId('session')).toHaveAttribute('data-mood', 'idle');
+    await expect(page.getByTestId('now-bar')).toHaveCount(0);
+    const sheet = await openDetails(page);
+    const idle = sheet.getByTestId('idle-nudge');
+    await expect(idle).toContainText('آخرین کار');
+    await idle.getByRole('button', { name: 'ادامه بده' }).click();
+    await expect(page.getByText('گفتم ادامه بدهد.')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('now-bar')).toHaveAttribute('data-state', 'working');
     await page.goto('/s/F-0004');
     await expect(page.getByRole('heading', { level: 1 })).toContainText('گزارش هزینه');
-    await expect(page.getByTestId('live-work')).toHaveCount(0);
-    await expect(page.getByTestId('pace-chip')).toHaveCount(0);
+    await expect(page.getByTestId('now-bar')).toHaveCount(0);
+    await expect((await openDetails(page)).getByTestId('idle-nudge')).toHaveCount(0);
   });
 });
 
-test('the pace is switched in the header, and the plan progress opens the plan in the drawer', async ({ page }) => {
+test('the pace is said in the header and switched in the details; the header opens the details with the plan', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/s/F-0008');
-    const chip = page.getByTestId('pace-chip');
-    await expect(chip.getByRole('radio', { name: 'با من' })).toHaveAttribute('aria-checked', 'true');
-    await chip.getByRole('radio', { name: 'خودکار' }).click();
-    await expect(page.getByText('از این به بعد خودش تا آخر میرود.')).toBeVisible();
-    await expect(chip.getByRole('radio', { name: 'خودکار' })).toHaveAttribute('aria-checked', 'true');
-    // The drawer keeps the same switch, in step with the header.
-    const progress = page.getByTestId('plan-progress');
-    await expect(progress).toContainText('کار 1 از 3');
-    await progress.click();
+    const facts = page.locator('[data-session-facts]');
+    await expect(facts).toContainText('با من');
+    await expect(facts).toContainText('کار 2 از 3');
+    // A tap on the header opens the details: the same switch, the tasks.
+    await page.getByRole('heading', { level: 1 }).click();
     const sheet = page.getByRole('dialog', { name: 'جزئیات جلسه' });
     await expect(sheet).toBeVisible();
-    await expect(sheet.getByLabel('کارها', { exact: true })).toBeInViewport();
-    await expect(sheet.getByRole('radiogroup', { name: 'روش کار' }).getByRole('radio', { name: 'خودکار' })).toHaveAttribute('aria-checked', 'true');
+    const pace = sheet.getByRole('radiogroup', { name: 'روش کار' });
+    await expect(pace.getByRole('radio', { name: 'با من' })).toHaveAttribute('aria-checked', 'true');
+    await pace.getByRole('radio', { name: 'خودکار' }).click();
+    await expect(page.getByText('از این به بعد خودش تا آخر میرود.')).toBeVisible();
+    await expect(pace.getByRole('radio', { name: 'خودکار' })).toHaveAttribute('aria-checked', 'true');
+    await expect(sheet.getByLabel('کارها', { exact: true })).toHaveCount(1);
     await page.keyboard.press('Escape');
-    await chip.getByRole('radio', { name: 'با من' }).click();
-    await expect(chip.getByRole('radio', { name: 'با من' })).toHaveAttribute('aria-checked', 'true');
+    await expect(facts).toContainText('خودکار');
+    await (await openDetails(page)).getByRole('radiogroup', { name: 'روش کار' }).getByRole('radio', { name: 'با من' }).click();
+    await page.keyboard.press('Escape');
+    await expect(facts).toContainText('با من');
   });
 });
 
-// The session page is quiet: system lines fold, outputs are one compact card, blockers are pinned above the composer (never in the talk).
+// The session page is quiet: system lines fold, each output is its own tiles, the knots are one card above the composer (never in the talk).
 // The dense demo session (F-0009): nine system steps in three places between real turns, two outputs, two blockers, a long answer.
-test('the dense session: system lines fold into rows that open, outputs are one card, blockers are pinned above the composer', async ({ page }) => {
+test('the dense session: system lines fold into rows that open, each output has its tiles, the knots are one card above the composer', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/s/F-0009');
     await expect(page.getByRole('heading', { level: 1 })).toContainText('کمپین');
@@ -120,24 +135,23 @@ test('the dense session: system lines fold into rows that open, outputs are one 
     expect(await talk.locator('[data-step]').count()).toBeGreaterThanOrEqual(1); // the lone line
     expect((await page.locator('body').innerText()).match(/\b[A-Z]{1,3}-\d{3,}\b/)?.[0] ?? null).toBeNull();
 
-    // 2. Two outputs arrive as one compact card with their titles and «باز کن».
-    const outs = talk.locator('[data-outputs]');
-    await expect(outs).toHaveCount(1);
-    await expect(outs).toHaveAttribute('data-outputs', '2');
-    await expect(outs).toContainText('خروجی تحویل شد');
-    await expect(outs.locator('[data-output]')).toHaveCount(2);
-    await expect(outs).toContainText('ریلز ۱: معرفی ابزار خط روند');
+    // 2. The two outputs are in the talk where they arrived, each with its title and «باز کن».
+    const outs = talk.locator('section[data-output]');
+    await expect(outs).toHaveCount(2);
+    await expect(outs.first()).toContainText('خروجی تحویل شد');
+    await expect(talk).toContainText('ریلز ۱: معرفی ابزار خط روند');
     await expect(outs.getByRole('link', { name: 'باز کن' })).toHaveCount(2);
 
-    // 3. The blockers are not in the talk: one banner above the composer, the first with its fix; the rest fold.
+    // 3. The knots are not in the talk: one card above the composer, the first with its fix; the rest one tap away.
     await expect(talk).not.toContainText('سری انتشار مُهر نشده');
-    const banner = page.getByTestId('blockers');
-    await expect(banner).toHaveAttribute('data-count', '2');
-    await expect(banner.locator('[data-blocker]')).toHaveCount(1);
-    await expect(banner.getByRole('button', { name: 'مُهر سری انتشار' })).toBeVisible();
-    await banner.getByRole('button', { name: /گیر دیگر/ }).click();
-    await expect(banner.locator('[data-blocker]')).toHaveCount(2);
-    const b = await banner.boundingBox();
+    const knot = page.getByTestId('knot');
+    await expect(knot).toHaveAttribute('data-count', '2');
+    await expect(knot.getByRole('alert')).toContainText('سری انتشار مُهر نشده');
+    await expect(knot.getByRole('button', { name: 'مُهر سری انتشار' })).toBeVisible();
+    await expect(knot.locator('[data-blocker]')).toHaveCount(0);
+    await knot.getByRole('button', { name: /گره‌ی دیگر/ }).click();
+    await expect(knot.locator('[data-blocker]')).toHaveCount(1);
+    const b = await knot.boundingBox();
     const composer = await page.getByLabel('نوشتن', { exact: true }).boundingBox();
     const tb = await talk.boundingBox();
     expect(b && composer && tb && b.y >= tb.y + tb.height - 1 && b.y < composer.y).toBeTruthy();

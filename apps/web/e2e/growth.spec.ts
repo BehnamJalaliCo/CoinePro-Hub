@@ -141,8 +141,8 @@ test('one sentence becomes an automation: preview, seal, then on and off', async
 test('a «new company» order shows the kit card; its fix scrolls there and the seal carries the order', async ({ page }) => {
   await clean(page, async () => {
     await page.goto('/s/F-0099');
-    await expect(page.getByLabel('گیرها').getByText('ساخت شرکت منتظر مُهر توست')).toBeVisible();
-    await page.getByLabel('گیرها').getByRole('button', { name: 'ساخت شرکت' }).click();
+    await expect(page.getByTestId('knot').getByRole('alert')).toContainText('ساخت شرکت منتظر مُهر توست');
+    await page.getByTestId('knot').getByRole('button', { name: 'ساخت شرکت' }).click();
     const card = page.getByLabel('شرکت آماده', { exact: true });
     await expect(card.getByLabel('نام فارسی')).toHaveValue('آموزش');
     await card.getByLabel('نام انگلیسی').fill('Amoozesh');

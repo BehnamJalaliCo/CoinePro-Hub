@@ -78,8 +78,8 @@ fun DecisionBar(
     val body: @Composable () -> Unit = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             when {
-                error != null -> Text(error, style = Divan.type.caption, color = c.negative, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
-                context != null -> Text(context, style = Divan.type.caption, color = c.textSecondary)
+                error != null -> Text(error, style = Divan.type.caption, color = c.negative, modifier = Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite })
+                context != null -> Text(context, style = Divan.type.caption, color = c.textSecondary, modifier = Modifier.fillMaxWidth())
             }
             if (state == DecisionState.DONE) {
                 Row(

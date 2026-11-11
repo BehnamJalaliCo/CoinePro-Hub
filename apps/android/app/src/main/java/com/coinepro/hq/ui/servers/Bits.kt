@@ -136,7 +136,7 @@ fun ServerTitle(
         if (mark) CompanyMark(name.company, height = markHeight, mono = true, ink = c.textSecondary)
         Text(name.companyFa, style = style, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
         name.server?.let {
-            Text("·", style = Divan.type.caption, color = c.textMuted)
+            com.coinepro.hq.designsystem.Sep(height = 10.dp)
             Fig(it, style = Divan.type.figureSmall, color = c.textMuted)
         }
     }

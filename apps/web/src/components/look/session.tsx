@@ -27,7 +27,7 @@ import { WORKSPACE_LIVE, useStopWorkspace, type OrderParallel } from '@/lib/api/
 import type { Badge, OrderCard, SessionReport, SessionTask } from '@/lib/api/v34';
 import { useNudge, type ActivityLine, type Mood, type SessionActivity, type Worker } from '@/lib/api/v41';
 import { DECIDE_YOURSELF_FA, MOOD_FA, readyAnswers, type MoodKey } from '@/lib/api/v55';
-import { cx, jTime, tokens } from '@/lib/format';
+import { ago, cx, jTime, tokens } from '@/lib/format';
 import { plain } from '@/lib/plain';
 import { haptic } from './haptics';
 import { waitedFa } from './home';
@@ -146,7 +146,7 @@ function LiveLine({ l, now, draw, name, centred }: { l: ActivityLine; now: numbe
         <span className="text-silver-ink">{l.who_fa}{co && !l.who_fa.includes(co) ? `، ${co}` : ''}: </span><FaText text={plain(l.text_fa)} />
       </span>
       <span className="flex-none self-center">
-        {l.state === 'running' ? <span className="inline-flex items-center gap-1" data-mark="running"><Arc size={13} /><Ltr className="text-[11px] text-muted" >{Math.max(0, Math.round((now - Date.parse(l.at)) / 1000))}s</Ltr></span>
+        {l.state === 'running' ? <span className="inline-flex items-center gap-1" data-mark="running"><Arc size={13} /><span data-line-secs><Ltr className="text-[11px] text-muted">{Math.max(0, Math.round((now - Date.parse(l.at)) / 1000))}s</Ltr></span></span>
           : l.state === 'done' || l.state === 'failed' ? <TickMark size={13} failed={l.state === 'failed'} draw={draw} /> : null}
       </span>
     </li>
@@ -201,7 +201,7 @@ export function BuildRing({ w, now, size = 76 }: { w: W; now: number; size?: num
   return (
     <Ring value={share} size={size} stroke={5} tone={late ? 'near' : 'silver'} label={`${min} دقیقه از ${capMin} دقیقه گذشته${late ? '؛ نزدیک سقف زمان' : ''}`} className="flex-none">
       <span data-testid="build-ring" data-late={late ? '' : undefined} className="flex flex-col items-center gap-0.5">
-        <span className="text-[20px] font-bold leading-6 text-ink" style={late ? LATE_INK : undefined} data-ring-minute>{faCount(min)}</span>
+        <span className="text-[20px] font-bold leading-6 text-ink" style={late ? LATE_INK : undefined} data-ring-minute>{faCount(min)}</span>{' '}
         <span className="text-[9.5px] leading-3 text-muted">از {faCount(capMin)} دقیقه</span>
       </span>
     </Ring>
@@ -272,7 +272,7 @@ export function NowBar({ refId, a, r, onOpen }: { refId: string; a: SessionActiv
               </>
             )}
           </span>
-          {!stopped && w && !isTurn(w) ? <Ltr className="flex-none text-[13px] text-sec" >{timer(working.reduce((m, x) => (Date.parse(x.started_at) < Date.parse(m) ? x.started_at : m), w.started_at), now)}</Ltr> : null}
+          {!stopped && w && !isTurn(w) ? <span className="flex-none" data-now-timer><Ltr className="text-[13px] text-sec">{timer(working.reduce((m, x) => (Date.parse(x.started_at) < Date.parse(m) ? x.started_at : m), w.started_at), now)}</Ltr></span> : null}
         </button>
         {stopped
           ? <button type="button" onClick={go} disabled={nudge.isPending} className={cx(HOLD, 'border-strong text-ink hover:bg-hover')}>ادامه بده</button>
@@ -282,6 +282,27 @@ export function NowBar({ refId, a, r, onOpen }: { refId: string; a: SessionActiv
       {/* The silver work line moves only while the work is live. */}
       <WorkBand on={live && !stopped} height={4} label="کار در جریان است" />
     </section>
+  );
+}
+
+/**
+ * A quiet session, in its details: when it last worked, and one tap that tells its holder to take the work up again (the hub's
+ * nudge). Nothing while someone works, and nothing on the page itself: a quiet session has no bar of its own.
+ */
+export function IdleNudge({ refId, a }: { refId: string; a: SessionActivity | null | undefined }) {
+  const toast = useToast();
+  const nudge = useNudge(refId);
+  if (!a || a.working.length) return null;
+  // The answer changes what the session shows at once, and this piece may be gone by then: the promise says it either way.
+  const go = () => void nudge.mutateAsync().then(
+    () => { haptic('tick'); toast({ tone: 'ok', text: 'گفتم ادامه بدهد.' }); },
+    (e: unknown) => { haptic('error'); toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : 'نشد؛ دوباره بزن.' }); },
+  );
+  return (
+    <div className="flex flex-wrap items-center gap-2" data-testid="idle-nudge">
+      <span className="min-w-0 flex-1 text-[12px] leading-5 text-sec">{a.idle_since ? `آخرین کار ${ago(a.idle_since)}` : 'الان کسی روی این جلسه کار نمیکند.'}</span>
+      <Button variant="secondary" size="sm" loading={nudge.isPending} onClick={go}>ادامه بده</Button>
+    </div>
   );
 }
 
@@ -378,10 +399,11 @@ export function KnotCard({ refId, stuckFa, blockers, company, run, lead }: {
   const rest = blockers.filter((b) => b !== first);
   const why = stuckFa || [first?.title_fa, first?.detail_fa].filter(Boolean).join('؛ ');
   if (!why) return null;
-  const go = () => nudge.mutate(undefined, {
-    onSuccess: () => { haptic('tick'); toast({ tone: 'ok', text: 'گفتم ادامه بدهد.' }); },
-    onError: (e) => { haptic('error'); toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : 'نشد؛ دوباره بزن.' }); },
-  });
+  // The answer changes what the session shows at once, and this piece may be gone by then: the promise says it either way.
+  const go = () => void nudge.mutateAsync().then(
+    () => { haptic('tick'); toast({ tone: 'ok', text: 'گفتم ادامه بدهد.' }); },
+    (e: unknown) => { haptic('error'); toast({ tone: 'error', text: e instanceof ApiError ? e.messageFa : 'نشد؛ دوباره بزن.' }); },
+  );
   return (
     <section aria-label="گره" data-testid="knot" data-count={Math.max(1, blockers.length)} className="hq-edge hq-m1 flex flex-none flex-col gap-2 rounded-[14px] bg-card p-3" data-edge="neg">
       <p role="alert" className="text-[13.5px] font-semibold leading-6 text-ink [overflow-wrap:anywhere]">
@@ -404,6 +426,15 @@ export function KnotCard({ refId, stuckFa, blockers, company, run, lead }: {
           ))}
         </ul>
       ) : null}
+    </section>
+  );
+}
+
+/** «جوابت رفت: …»: said for a moment where the question was, once the hub has taken the answer and asks no more. */
+export function AnswerSent({ text }: { text: string }) {
+  return (
+    <section aria-label="جوابت رفت" data-testid="answer-sent" className={CARD}>
+      <span role="status" className="hq-m2-in flex items-center gap-1.5 text-[13px] text-sec"><span className="flex-none text-pos"><DrawnTick size={16} /></span><span className="min-w-0 [overflow-wrap:anywhere]">جوابت رفت: {text}</span></span>
     </section>
   );
 }

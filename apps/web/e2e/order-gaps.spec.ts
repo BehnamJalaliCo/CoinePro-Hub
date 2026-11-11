@@ -19,7 +19,7 @@ test('the ledger: counts on the member row; open, more, search, add (refused whe
   // The line that is said already is refused on purpose (409 with the earlier line and its day), and «خطاخوان» keeps that.
   await clean(page, async () => {
     await page.goto(GROUP);
-    await expect(page.locator('[data-ledger="PC"]')).toContainText('42 موضوع · 40 نمونه');
+    await expect(page.locator('[data-ledger="PC"]')).toContainText('۴۲ موضوع، ۴۰ نمونه');
     await expect(page.locator('[data-ledger="FX"]')).toContainText('هنوز چیزی ثبت نشده');
     await page.getByRole('button', { name: 'دفتر موضوع‌های پرو-چارت' }).click();
     const sheet = page.getByRole('dialog', { name: 'دفتر موضوع‌ها' });
@@ -73,7 +73,7 @@ test('the ledger: counts on the member row; open, more, search, add (refused whe
     await expect(page.getByText('نمونه در دفتر ثبت شد.')).toBeVisible();
     await expect(samples.first()).toContainText('نمونه‌ی تازه');
     await page.keyboard.press('Escape');
-    await expect(page.locator('[data-ledger="PC"]')).toContainText('42 موضوع · 41 نمونه');
+    await expect(page.locator('[data-ledger="PC"]')).toContainText('۴۲ موضوع، ۴۱ نمونه');
     await noRefs(page);
   }, [/topic_taken/]);
 });
@@ -83,7 +83,7 @@ test('the narrator: set for one company, not for another (with the sign-in line)
     await page.goto(GROUP);
     const pc = page.locator('[data-narrator="PC"]');
     await expect(pc).toContainText('گوینده‌ی محتوا');
-    await expect(pc).toContainText('Charon · آرام و مطمئن');
+    await expect(pc).toContainText('Charon، آرام و مطمئن');
     await expect(pc.locator('[data-aistudio]')).toHaveCount(0);
     const fx = page.locator('[data-narrator="FX"]');
     await expect(fx).toContainText('تنظیم نشده؛ هر بار مدل انتخاب میکند');
@@ -92,18 +92,18 @@ test('the narrator: set for one company, not for another (with the sign-in line)
     const sheet = page.getByRole('dialog', { name: 'گوینده‌ی محتوا' });
     // Nothing is chosen for him; each voice says who it is.
     await expect(sheet.getByRole('button', { name: 'ثبت' })).toBeDisabled();
-    await expect(sheet.getByRole('radio', { name: /Charon/ })).toContainText('مرد · اطلاع‌رسان');
+    await expect(sheet.getByRole('radio', { name: /Charon/ })).toContainText('مرد، اطلاع‌رسان');
     await sheet.getByRole('radio', { name: /Kore/ }).click();
     await expect(sheet.getByRole('radio', { name: /Kore/ })).toHaveAttribute('aria-checked', 'true');
-    await expect(sheet.getByRole('radio', { name: /Kore/ })).toContainText('زن · محکم');
+    await expect(sheet.getByRole('radio', { name: /Kore/ })).toContainText('زن، محکم');
     await sheet.getByLabel('سبک گفتن').fill('آرام و مطمئن، مثل گوینده‌ی خبر');
     await sheet.getByRole('button', { name: 'ثبت' }).click();
     await expect(page.getByText('گوینده ثبت شد')).toBeVisible();
     await expect(sheet).toHaveCount(0);
-    await expect(fx).toContainText('Kore · آرام و مطمئن، مثل گوینده‌ی خبر');
+    await expect(fx).toContainText('Kore، آرام و مطمئن، مثل گوینده‌ی خبر');
     // The same row on the company's own page, beside its mark.
     await page.goto('/companies/PC?tab=brand');
-    await expect(page.getByLabel('گوینده‌ی محتوا', { exact: true })).toContainText('Charon · آرام و مطمئن');
+    await expect(page.getByLabel('گوینده‌ی محتوا', { exact: true })).toContainText('Charon، آرام و مطمئن');
   });
 });
 
@@ -112,7 +112,7 @@ test('the best hour: a member on it says its hour; the switch says what the hub 
   await clean(page, async () => {
     await page.goto(GROUP);
     const pc = page.locator('[data-standing="PC"]');
-    await expect(pc).toContainText('خودکار · بهترین ساعت 19:00');
+    await expect(pc).toContainText('خودکار، بهترین ساعت 19:00');
     await pc.getByRole('button', { name: 'تنظیم' }).click();
     const best = pc.getByTestId('best-hour');
     await expect(best.getByLabel('بهترین ساعت، خودکار')).toBeChecked();
@@ -122,7 +122,7 @@ test('the best hour: a member on it says its hour; the switch says what the hub 
     await expect(pc.getByLabel('ساعت انتشار')).toHaveValue('18:30');
     await best.getByLabel('بهترین ساعت، خودکار').uncheck();
     await pc.getByRole('button', { name: 'ذخیره' }).click();
-    await expect(pc).toContainText('خودکار · ساعت 18:30');
+    await expect(pc).toContainText('خودکار، ساعت 18:30');
     await expect(pc).not.toContainText('بهترین ساعت');
     // Too few posts yet: the hub says how many, and what is used until then.
     const fx = page.locator('[data-standing="FX"]');
@@ -138,7 +138,7 @@ test('the best hour: a member on it says its hour; the switch says what the hub 
     await fx.getByLabel('ساعت انتشار').fill('18:30');
     await expect(thin).toContainText('تا آن وقت: ساعت ثابت شما');
     await fx.getByRole('button', { name: 'ذخیره' }).click();
-    await expect(fx).toContainText('خودکار · بهترین ساعت · تا آن وقت ساعت 18:30');
+    await expect(fx).toContainText('خودکار، بهترین ساعت، تا آن وقت ساعت 18:30');
   }, [/validation_failed/]);
 });
 
@@ -149,7 +149,8 @@ test('the publish sheet: «بهترین ساعت» is one of the times, the JPEG
     await expect(page.getByTestId('made-with')).toContainText('ساخت');
     await expect(page.getByTestId('made-with')).toContainText('Opus 5.5، بیشترین دقت');
     // §52 a picture on its own: the line under a PNG, none under a JPEG.
-    await fileRow(page, 'cover-01.png').getByRole('button', { name: 'تأیید و انتشار' }).click();
+    // ⟨1.0.1⟩ A reel's cover goes out with its reel; on its own it is the quieter «جدا منتشر کن» (the look, C3.3).
+    await fileRow(page, 'cover-01.png').getByRole('button', { name: 'جدا منتشر کن' }).click();
     let sheet = page.getByRole('dialog', { name: 'تأیید و انتشار' });
     await expect(sheet.getByTestId('jpeg-note')).toHaveText('این تصویر هنگام انتشار خودکار به JPEG تبدیل میشود.');
     await page.keyboard.press('Escape');
@@ -159,7 +160,9 @@ test('the publish sheet: «بهترین ساعت» is one of the times, the JPEG
     await expect(sheet.getByTestId('jpeg-note')).toHaveCount(0);
     await page.keyboard.press('Escape');
     // The reel: its cover (the PNG, chosen already) gets the line; another cover, or none, does not.
-    await fileRow(page, 'reel-01.mp4').getByRole('button', { name: 'تأیید و انتشار' }).click();
+    // ⟨1.0.1⟩ The reel is what the page waits on: its «تأیید و انتشار» is the decision bar's, not its row's.
+    await expect(fileRow(page, 'reel-01.mp4').getByRole('button')).toHaveCount(0);
+    await page.getByTestId('output-detail').getByTestId('decision-bar').getByRole('button', { name: 'تأیید و انتشار' }).click();
     sheet = page.getByRole('dialog', { name: 'تأیید و انتشار' });
     await expect(sheet.getByRole('button', { name: 'cover-01.png' })).toHaveAttribute('aria-pressed', 'true');
     await expect(sheet.getByTestId('jpeg-note')).toHaveCount(1);
@@ -171,7 +174,7 @@ test('the publish sheet: «بهترین ساعت» is one of the times, the JPEG
     const time = sheet.getByTestId('publish-time');
     await time.getByRole('button', { name: 'بهترین ساعت (21:00)' }).click();
     await expect(time).toContainText('از روی لایک و کامنت');
-    await sheet.getByRole('button', { name: 'تأیید و زمان‌بندی' }).click();
+    await sheet.getByTestId('decision-bar').getByRole('button', { name: 'زمان‌بندی' }).click();
     await expect(page.getByText('ریلز زمان‌بندی شد؛ سر ساعت خودش منتشر میشود.')).toBeVisible();
     const row = fileRow(page, 'reel-01.mp4');
     await expect(row).toContainText('زمان‌بندی شد');
@@ -181,7 +184,9 @@ test('the publish sheet: «بهترین ساعت» is one of the times, the JPEG
     await row.getByRole('button', { name: 'لغو', exact: true }).click();
     await row.getByRole('group', { name: 'لغو انتشار' }).getByRole('button', { name: 'لغو کن' }).click();
     await expect(row).toContainText('لغو شد');
-    await expect(row.getByRole('button', { name: 'دوباره' })).toBeVisible();
+    // ⟨1.0.1⟩ Taken back, the reel is what the page waits on again: its act is back in the decision bar (never twice on the page).
+    await expect(row.getByRole('button')).toHaveCount(0);
+    await expect(page.getByTestId('output-detail').getByTestId('decision-bar').getByRole('button', { name: 'تأیید و انتشار' })).toBeVisible();
   });
 });
 
@@ -342,7 +347,7 @@ test('@phone the member rows, the ledger and the publish rows fit a phone', asyn
   await clean(page, async () => {
     const fits = async () => expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
     await page.goto(GROUP);
-    await expect(page.locator('[data-ledger="PC"]')).toContainText('42 موضوع');
+    await expect(page.locator('[data-ledger="PC"]')).toContainText('۴۲ موضوع');
     await expect(page.locator('[data-narrator="PC"]')).toContainText('Charon');
     await fits();
     await page.getByRole('button', { name: 'دفتر موضوع‌های پرو-چارت' }).click();

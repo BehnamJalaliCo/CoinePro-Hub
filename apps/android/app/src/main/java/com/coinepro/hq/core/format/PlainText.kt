@@ -75,6 +75,8 @@ fun withoutCodes(text: String?): String {
         .replace(Regex("\\s*[،,]\\s*(?=[،,.؛:])"), "") // a comma left against another mark
         .replace(Regex("(^|\\s)[،,:؛]\\s*")) { it.groupValues[1] } // a mark left at the start
         .replace(Regex("\\s+([،.؛:!؟])"), "$1")
+        .replace(Regex("\\s*[·•]\\s*(?=[·•])"), " ") // a fact's dot left against the next one
+        .replace(Regex("^\\s*[·•]\\s*|\\s*[·•]\\s*$"), "") // a fact's dot left at the start or the end
         .replace(Regex("\\s{2,}"), " ")
         .trim()
 }

@@ -13,6 +13,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { Icon } from '@/components/icon';
 import { DecisionBar } from '@/components/look/decision-bar';
@@ -378,13 +379,15 @@ const soonest = (pb: Pick<Playbook, 'routines'>): string | null =>
 /** The member companies as tiles: state, last run, next run, the work line, and each one's settings as one grouped block. */
 function Members({ pb }: { pb: Playbook }) {
   const toast = useToast();
+  const qc = useQueryClient();
   const members = pb.members ?? [];
   const sealed = pb.state === 'sealed' && !!pb.group;
   const runs = useGroupRunsLook(sealed ? pb.group : null);
   const act = useGroupActions(pb.group ?? '');
   const next = sealed ? soonest(pb) : null;
   const start = (company: string, nameFa: string) => act.member.mutate({ company, state: 'on' }, {
-    onSuccess: () => toast({ tone: 'ok', text: `کارگروه در ${nameFa} دوباره راه افتاد.` }),
+    // the working group's own page reads its members from the playbook: it is read again with the group
+    onSuccess: () => { toast({ tone: 'ok', text: `کارگروه در ${nameFa} دوباره راه افتاد.` }); void qc.invalidateQueries({ queryKey: ['playbooks'] }); },
     onError: (e) => toast({ tone: 'error', text: errText(e, 'راه نیفتاد؛ دوباره بزن.') }),
   });
   return (

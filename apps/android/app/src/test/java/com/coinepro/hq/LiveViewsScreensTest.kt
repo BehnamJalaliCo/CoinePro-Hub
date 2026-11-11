@@ -83,8 +83,8 @@ class LiveViewsScreensTest(private val name: String, private val night: Boolean)
             "live-office" to Scene(listOf("کار میکنند", "جلسه‌ی باز", "منتظر تو"), reduced = false, before = 30) { Office() },
             "live-office-reduced" to Scene(listOf("کار میکنند", "جلسه‌ی باز"), reduced = true, before = 30) { Office() },
             // The token meter (past 70 %, the burn rate, a call in flight) and every company's live card (people by shape, servers, spend).
-            "live-meter" to Scene(listOf("کنتور توکن، امروز", "از ۷۰٪ گذشت", "شرکت‌ها، زنده", "گیر کرده"), reduced = false, before = 20) { Meter() },
-            "live-meter-reduced" to Scene(listOf("کنتور توکن، امروز", "در حال مصرف", "شرکت‌ها، زنده"), reduced = true, before = 20) { Meter() },
+            "live-meter" to Scene(listOf("کنتور توکن، \u200Fامروز", "از ۷۰٪ گذشت", "شرکت‌ها، \u200Fزنده", "گیر کرده"), reduced = false, before = 20) { Meter() },
+            "live-meter-reduced" to Scene(listOf("کنتور توکن، \u200Fامروز", "در حال مصرف", "شرکت‌ها، \u200Fزنده"), reduced = true, before = 20) { Meter() },
             "live-map" to Scene(listOf("نقشه‌ی زنده‌ی هلدینگ", "قطع"), reduced = false, before = 7, after = 7..19) { com.coinepro.hq.ui.servers.NetworkScreen() },
             "live-map-reduced" to Scene(listOf("نقشه‌ی زنده‌ی هلدینگ", "قطع", "×"), reduced = true, before = 7, after = 7..19) { com.coinepro.hq.ui.servers.NetworkScreen() },
             "live-map-table" to Scene(listOf("سرور قطع", "سرورها"), reduced = true, before = 20) { com.coinepro.hq.ui.servers.NetworkScreen(view0 = "table") },

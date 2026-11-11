@@ -162,7 +162,7 @@ fun DecisionRow(d: Decision, companies: List<Company>, onClick: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 CompanyMark(d.company, height = 12.dp, mono = true, ink = c.textSecondary)
                 Text(co.nameFa, style = Divan.type.micro, color = c.textMuted, maxLines = 1)
-                Text("·", style = Divan.type.micro, color = c.textMuted)
+                com.coinepro.hq.designsystem.Sep(height = 10.dp)
                 Text(k.fa, style = Divan.type.micro, color = c.textMuted, maxLines = 1)
             }
             // ⟨1.15⟩ §33.6 the money the card moves (measured, or an estimate with its basis).

@@ -153,11 +153,11 @@ class LookTest {
         assertEquals("FX-QUANT-02", code.text)
         assertEquals(FigureFace, code.spanStyles.single().item.fontFamily)
         // «·» between facts is the hairline: read aloud, and copied, as a Persian comma («۲ از ۴ کار» never reads «۲۰ از ۴ کار»).
-        assertEquals("مدیرعامل تریدیار، ۲ از ۴ کار، ۶ دقیقه پیش", shape("مدیرعامل تریدیار · ۲ از ۴ کار · ۶ دقیقه پیش")!!.text)
-        assertEquals("، بازنشسته", shape("· بازنشسته")!!.text)
-        assertEquals("غیرتجاری، ", shape("غیرتجاری ·")!!.text)
+        assertEquals("مدیرعامل تریدیار، \u200F۲ از ۴ کار، \u200F۶ دقیقه پیش", shape("مدیرعامل تریدیار · ۲ از ۴ کار · ۶ دقیقه پیش")!!.text)
+        assertEquals("، \u200Fبازنشسته", shape("· بازنشسته")!!.text)
+        assertEquals("غیرتجاری، \u200F", shape("غیرتجاری ·")!!.text)
         assertEquals("۴۲ موضوع، ۴۰ نمونه", sepsFa("۴۲ موضوع · ۴۰ نمونه"))
-        assertEquals("اینستاگرام، ⁦@tradeyar⁩", facts("اینستاگرام", null, " ", "@tradeyar").text)
+        assertEquals("اینستاگرام، \u200F⁦@tradeyar⁩", facts("اینستاگرام", null, " ", "@tradeyar").text)
         // A long English passage wraps at its spaces like any text (no joiner); a short Latin run stays whole.
         val long = "خطا: " + "Expected Int but the hub answered with a number that carries a fraction 412.6"
         assertFalse(timesFig(long).text.contains("⁠"))
@@ -376,6 +376,11 @@ class LookTest {
         // What it does not know it leaves as it is (the raw text is then not offered).
         assertEquals("جلسه‌ی هیئت‌مدیره‌ی هلدینگ شروع شد", humanize("جلسه‌ی هیئت‌مدیره‌ی هلدینگ شروع شد", names))
         assertEquals("", humanize(null))
+        // A row never shows a ref; the dot that joined it to the next fact goes with it (never a doubled or a leading separator).
+        val bare = { t: String -> com.coinepro.hq.core.format.withoutCodes(t) }
+        assertEquals("مدیر کل حاضر است، دستورِ جلسه سه بند دارد", bare("MT-0012 · مدیر کل حاضر است، دستورِ جلسه سه بند دارد"))
+        assertEquals("ریسک بالا · ۶ ساعت تا انقضا", bare("ریسک بالا · D-000085 · ۶ ساعت تا انقضا"))
+        assertEquals("ریسک بالا", bare("ریسک بالا · D-000085"))
     }
 
     // ------------------------------------------------------------------ C3.6 the limits --

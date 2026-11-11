@@ -58,11 +58,18 @@ import androidx.compose.ui.unit.sp
 private const val SEP_ID = "hq.sep"
 /** What a screen reader, a copy of the text, or a text drawn without the hairline gets in its place. */
 private const val SEP_ALT = "، "
+/** A zero-width right-to-left mark after the hairline. Without it, a fact that ends in a number or a Latin word («کار 3 از 4»)
+ *  right before the hairline is measured wider by the platform's line breaker than by the text's own width, and a line laid out
+ *  at its own width (one line, «…») loses its last word. Measured, and kept by a test (LookMotionTest). */
+const val SEP_GUARD = "\u200F"
 private val DOT_SEP = Regex("\\s+[·•]\\s+")
 
 /** The separator between two facts: a thin vertical hairline with air on both sides (never «·», which reads as a zero beside a
  *  Persian digit). Drawn by [Text]; read aloud, and copied, as a Persian comma. */
-fun AnnotatedString.Builder.sep() = appendInlineContent(SEP_ID, SEP_ALT)
+fun AnnotatedString.Builder.sep() {
+    appendInlineContent(SEP_ID, SEP_ALT)
+    append(SEP_GUARD)
+}
 
 private val SEP_INLINE: Map<String, InlineTextContent> = mapOf(
     SEP_ID to InlineTextContent(Placeholder(0.95.em, 1.em, PlaceholderVerticalAlign.TextCenter)) {

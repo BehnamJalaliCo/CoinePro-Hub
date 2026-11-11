@@ -13,7 +13,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { Icon } from '@/components/icon';
 import { Button, IconButton } from '@/components/ui/button';
@@ -43,7 +43,7 @@ import { madeWith, type OrderGaps } from '@/lib/api/v47';
 import { DIRECT_FA, type DirectReport } from '@/lib/api/v55';
 import { Routines } from '@/components/v47/routines';
 import { SessionPublishes } from '@/components/v47/session-publishes';
-import { useLiveBadge } from '@/components/live/session-pulse';
+import { StallWatch, useLastStep, useLiveBadge } from '@/components/live/session-pulse';
 import { useSessionActivity } from '@/lib/api/v41';
 import { DecisionBar, type DecisionState } from '@/components/look/decision-bar';
 import { FilesStrip, type StripFile } from '@/components/look/files';
@@ -51,12 +51,14 @@ import { useFillHeight } from '@/components/look/fill';
 import { faceOf, usageOf } from '@/components/look/output';
 import { PublishFor, PublishUnder, leadFile } from '@/components/look/publish';
 import { DrawnTick } from '@/components/look/ring';
-import { EndLeaf, KnotCard, LiveSheet, LiveTail, MoodLight, NowBar, SegmentLine, SessionCards, WaitingCard, moodOf, taskFa, taskOf } from '@/components/look/session';
+import { AnswerSent, EndLeaf, IdleNudge, KnotCard, LiveSheet, LiveTail, MoodLight, NowBar, SegmentLine, SessionCards, WaitingCard, moodOf, taskFa, taskOf } from '@/components/look/session';
 import { SpringSheet } from '@/components/look/spring-sheet';
 import { Facts, Ltr } from '@/components/look/text';
 import { SysRow } from './system-group';
 import { ConversationPane, Face, playerName, type PaneApi } from './conversation-pane';
 
+/** How long «جوابت رفت» stays said where the question was. */
+const SAID_MS = 6000;
 const FIXED: Array<{ key: string; fa: string }> = [{ key: 'advisor', fa: 'مشاور کل' }, { key: 'overseer', fa: 'ناظر کل' }, { key: 'assistant', fa: 'دستیار شخصی' }, { key: 'secretary', fa: 'منشی هلدینگ' }];
 
 export function BadgePill({ badge }: { badge: keyof typeof BADGE }) {
@@ -165,8 +167,14 @@ function Session({ refId, r }: { refId: string; r: Full }) {
   const setPace = (v: Pace) => v === (r.pace ?? 'auto') || act.pace.isPending ? undefined : act.pace.mutate(v, { onSuccess: () => toast({ tone: 'ok', text: v === 'step' ? 'از این به بعد قدم‌به‌قدم با تو.' : 'از این به بعد خودش تا آخر میرود.' }), onError: (e) => failed(e, 'عوض نشد؛ دوباره بزن.') });
 
   // What the session is doing now, and its mood.
+  const [said, setSaid] = useState<string | null>(null);
+  const saidTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (saidTimer.current) clearTimeout(saidTimer.current); }, []);
   const activity = useSessionActivity(refId, !closed).data;
   const badge = useLiveBadge(refId, r.session.badge, r.updated_at);
+  // ⟨1.24⟩ SS-1 the stall watch: when the last step was, and the ring toward the hub's idle sweep. While someone works the «الان» bar
+  // says it; once no one does, the header's facts carry it.
+  const lastStep = useLastStep(refId, r.steps.at(-1)?.at, activity?.last.at(-1)?.at);
   const asked = !!r.turn && !closed;
   const mood = moodOf(activity, { closed, badge, asked });
   const task = taskOf(r.tasks);
@@ -187,7 +195,11 @@ function Session({ refId, r }: { refId: string; r: Full }) {
       onError: (e) => { setCloseState('idle'); failed(e, 'بسته نشد؛ دوباره بزن.'); },
     });
   };
-  const reply = (text: string) => new Promise<boolean>((done) => act.reply.mutate(text, { onSuccess: () => done(true), onError: (e) => { failed(e, 'جوابت نرفت؛ دوباره بزن.'); done(false); } }));
+  // A ready answer that went stays said for a moment where the question was (the hub's next report takes the question away at once).
+  const reply = (text: string) => new Promise<boolean>((done) => act.reply.mutate(text, {
+    onSuccess: () => { setSaid(text); if (saidTimer.current) clearTimeout(saidTimer.current); saidTimer.current = setTimeout(() => setSaid(null), SAID_MS); done(true); },
+    onError: (e) => { failed(e, 'جوابت نرفت؛ دوباره بزن.'); done(false); },
+  }));
 
   // «اصلاح» of an output's page lands here with the output named: the composer opens with it quoted.
   const about = search.get('about');
@@ -242,7 +254,7 @@ function Session({ refId, r }: { refId: string; r: Full }) {
             <IconButton icon="more" label="جزئیات" size={36} aria-haspopup="dialog" onClick={(e) => { e.stopPropagation(); setDetails(true); }} />
           </div>
           <div className="hq-m18-fold text-[12px] leading-5 text-sec" data-session-facts>
-            <Facts>{task ? taskFa(task) : null}{closed ? null : PACE_FA[pace]}{holder ? <PlainText text={holder.title_fa} /> : null}</Facts>
+            <Facts>{task ? taskFa(task) : null}{closed ? null : PACE_FA[pace]}{holder ? <PlainText text={holder.title_fa} /> : null}{closed || activity?.working.length ? null : <StallWatch badge={badge} lastAt={lastStep.at} wokeAt={lastStep.wokeAt} className="align-[-2px]" />}</Facts>
           </div>
           <SegmentLine tasks={r.tasks} waiting={asked || ready} />
         </header>
@@ -250,11 +262,11 @@ function Session({ refId, r }: { refId: string; r: Full }) {
         {talk ? (
           <ConversationPane
             variant="session" fill conversationRef={talk} face={holder?.key ?? 'secretary'} to={target || null} titleOf={titleOf} readOnly={closed || !!conv.data?.closed_at} onApi={bindPane} onScrolled={setScrolled}
-            quietSend={bar || knot}
+            quietSend={bar || knot} answer={asked ? reply : undefined}
             above={(
               <>
                 {closed ? null : <NowBar refId={refId} a={activity} r={r} onOpen={() => setLive(true)} />}
-                {asked ? <WaitingCard r={r} busy={act.reply.isPending} onReply={reply} /> : null}
+                {asked ? <WaitingCard r={r} busy={act.reply.isPending} onReply={reply} /> : said && !closed ? <AnswerSent text={said} /> : null}
                 {closed ? null : <SessionCards cards={r.cards ?? []} />}
                 {knot ? <KnotCard refId={refId} stuckFa={blockers.length ? null : activity?.stuck_fa} blockers={blockers} company={company} run={runFix} lead={!bar} /> : null}
                 {bar ? (
@@ -305,6 +317,8 @@ function Session({ refId, r }: { refId: string; r: Full }) {
             )}
             {/* ⟨1.0.1⟩ §54 a direct session: its holder is one session with the hub's tools; nothing else changes for the owner. */}
             {(r as DirectReport).direct ? <p className="text-[12px] leading-5 text-sec" data-testid="direct-session">{DIRECT_FA}</p> : null}
+            {/* §41 a quiet session never stalls unseen: when it last worked, and one tap that takes it up again. */}
+            {!closed && !asked && mood === 'idle' ? <IdleNudge refId={refId} a={activity} /> : null}
           </Card>
           <Participants r={r} closed={closed} onAddPerson={() => setPeople(true)} />
           <Tasks r={r} closed={closed} />

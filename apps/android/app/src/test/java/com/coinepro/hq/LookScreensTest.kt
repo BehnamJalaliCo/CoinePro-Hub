@@ -166,13 +166,12 @@ class LookScreensTest(private val name: String, private val night: Boolean) {
         private fun Command(state: CommandState) {
             val s = remember { state }
             val companies = rememberCompanies().filter { it.kind != "holding" }
-            Box(Modifier.fillMaxSize().background(Divan.colors.scrim), contentAlignment = Alignment.BottomCenter) {
-                SpringSheetPreview(
-                    if (s.mode == CommandMode.ORDER) COMMAND_FA else ROUTINE_TEMPLATE_FA,
-                    sub = if (s.mode == CommandMode.ROUTINE) "یک جمله بنویس که چه کاری، هر چند وقت یک بار." else null,
-                    bar = { CommandDecisionBar(s, companies, {}, {}, {}) },
-                ) { CommandFields(s, companies, routineOn = true) }
-            }
+            SpringSheetPreview(
+                if (s.mode == CommandMode.ORDER) COMMAND_FA else ROUTINE_TEMPLATE_FA,
+                sub = if (s.mode == CommandMode.ROUTINE) "یک جمله بنویس که چه کاری، هر چند وقت یک بار." else null,
+                bar = { CommandDecisionBar(s, companies, {}, {}, {}) },
+                fill = true,
+            ) { CommandFields(s, companies, routineOn = true) }
         }
 
         @Composable

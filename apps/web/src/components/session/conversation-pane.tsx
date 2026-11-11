@@ -153,6 +153,11 @@ export type PaneProps = {
   quietSend?: boolean;
   /** Whether the talk has scrolled away from its start (the page's header then folds to one line, M18). */
   onScrolled?: (scrolled: boolean) => void;
+  /**
+   * While the session's holder waits for the owner's answer: what he types (with no file) is that answer and goes through the
+   * session's own reply, which says whether the hub took it. Typing still works; it is not a second, parallel turn.
+   */
+  answer?: (text: string) => Promise<boolean>;
 };
 
 /** The composer's textarea grows to this many lines, then scrolls. */
@@ -161,7 +166,7 @@ const LINE_PX = 24;
 /** How near the end counts as «at the end» (px). */
 const END_SLACK = 80;
 
-export function ConversationPane({ conversationRef: ref, face, ensure, to, titleOf, readOnly, onBusy, onMeter, onApi, emptyTitle, emptyBody, talkHeight = 'max-h-[calc(100dvh-22rem)]', placeholder, timeline, tail, above, variant = 'talk', fill, quietSend, onScrolled }: PaneProps) {
+export function ConversationPane({ conversationRef: ref, face, ensure, to, titleOf, readOnly, onBusy, onMeter, onApi, emptyTitle, emptyBody, talkHeight = 'max-h-[calc(100dvh-22rem)]', placeholder, timeline, tail, above, variant = 'talk', fill, quietSend, onScrolled, answer }: PaneProps) {
   const session = variant === 'session';
   const qc = useQueryClient();
   const toast = useToast();
@@ -178,7 +183,8 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
   const pick = useRef<HTMLInputElement | null>(null);
   const filesRef = useRef(files);
   const sending = useRef(false); // a word on its way to the hub: Enter twice is one word
-  useEffect(() => { filesRef.current = files; });
+  const answerRef = useRef(answer); // read when a word is sent: the page's own callback may be new on every render
+  useEffect(() => { filesRef.current = files; answerRef.current = answer; });
   const audio = useAudioQueue();
   const abort = useRef<AbortController | null>(null);
   const liveId = useRef<string | null>(null);
@@ -274,6 +280,15 @@ export function ConversationPane({ conversationRef: ref, face, ensure, to, title
     if (!t || readOnly) return;
     // A key-shaped string is never a message: it moves into the key sheet (the server also scrubs one that slips through).
     if (looksLikeKey(t, engines.data)) { setText(''); openKey(t); return; }
+    // An open question of the session's holder: his typed words are its answer (the hub puts them in the talk as his turn).
+    const answerNow = answerRef.current;
+    if (answerNow && source === 'typed' && !ids.length) {
+      sending.current = true;
+      pinned.current = true;
+      setText('');
+      try { if (!(await answerNow(t))) setText(t); } finally { sending.current = false; }
+      return;
+    }
     let taken = false; // the hub took the word (a turn exists)
     sending.current = true;
     try {

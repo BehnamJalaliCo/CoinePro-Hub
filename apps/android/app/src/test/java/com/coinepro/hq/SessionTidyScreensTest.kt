@@ -52,7 +52,7 @@ class SessionTidyScreensTest(private val name: String, private val night: Boolea
 
     companion object {
         private val SCREENS: Map<String, Scene> = linkedMapOf(
-            "session-tidy" to Scene(Tap.NOTHING, listOf("۲ خروجی تحویل شد", "۲ گیر", "کار ۳ از ۹", "۴ رویداد", "مدیر رسانه‌ی پرو-چارت دارد کار میکند، قدم ۷")),
+            "session-tidy" to Scene(Tap.NOTHING, listOf("۲ خروجی تحویل شد", "۲ گیر", "کار ۳ از ۹", "۴ رویداد", "مدیر رسانه‌ی پرو-چارت دارد کار میکند، \u200Fقدم ۷")),
             // The four steps since the CEO answered, each whole; the one the hub wrote with a ref in parentheses without it.
             "session-tidy-open" to Scene(Tap.EVENTS, listOf("زیرنویس ریلز آزمایشی به تدوینگر سپرده شد", "صداگذاری منتظر بودجه ماند"), hides = listOf("W-000413", "W-000412")),
             "session-tidy-blockers" to Scene(Tap.BLOCKERS, listOf("بودجه بده", "وصل کن", "اینستاگرام پرو-چارت هنوز وصل نیست")),

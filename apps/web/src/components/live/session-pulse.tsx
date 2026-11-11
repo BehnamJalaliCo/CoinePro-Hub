@@ -8,6 +8,7 @@
 import { BADGE, type Badge } from '@/lib/api/v34';
 import { useLiveState } from '@/lib/live/store';
 import { Pill } from '@/components/ui/primitives';
+import { Sep } from '@/components/look/text';
 import { ago, cx } from '@/lib/format';
 import { WorkBand, useChanges, useReducedMotion, useTick } from './motion';
 
@@ -67,8 +68,8 @@ export function StallWatch({ badge, lastAt, wokeAt, className }: { badge: Badge;
         </svg>
       ) : null}
       <span>{when}</span>
-      {watching && rm && badge !== 'stuck' && mins != null ? <span>· {Math.min(into, IDLE_MINUTES)} از {IDLE_MINUTES} دقیقه</span> : null}
-      {woke && badge === 'moving' ? <span>· صاحب کار بیدار شد</span> : null}
+      {watching && rm && badge !== 'stuck' && mins != null ? <span><Sep />{Math.min(into, IDLE_MINUTES)} از {IDLE_MINUTES} دقیقه</span> : null}
+      {woke && badge === 'moving' ? <span><Sep />صاحب کار بیدار شد</span> : null}
     </span>
   );
 }
