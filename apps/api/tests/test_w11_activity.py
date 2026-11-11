@@ -649,7 +649,8 @@ async def test_a_session_activity_line_reaches_the_orders_topic_and_the_holding_
     from .test_control_treasury_stream import serve
 
     async def until(url: str, params: dict[str, Any]) -> dict[str, Any]:
-        """The first `session.activity` on the stream (other events of the order may precede)."""
+        """The first `session.activity` of this order on the stream (other events, and lines of
+        other orders a worker of the same test session is running, may precede)."""
         async with (
             httpx.AsyncClient(base_url=url, timeout=20) as c,
             c.stream("GET", "/api/v1/stream", headers=owner, params=params) as resp,
@@ -662,7 +663,10 @@ async def test_a_session_activity_line_reaches_the_orders_topic_and_the_holding_
                 elif raw.startswith("data: "):
                     current["data"] = json.loads(raw[6:])
                 elif raw == "" and "data" in current:
-                    if current.get("event") == "session.activity":
+                    if (
+                        current.get("event") == "session.activity"
+                        and current["data"].get("ref") == ref
+                    ):
                         return current
                     current = {}
         raise AssertionError("stream closed")
