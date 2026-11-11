@@ -43,7 +43,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from dateutil.rrule import rrulestr
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from hq_api import events
 from hq_api.db import Tx
@@ -104,6 +104,18 @@ class LifecycleLimits(BaseModel):
         default_factory=lambda: ["22:00", "09:00"], min_length=2, max_length=2
     )
     max_follow_ups: int = Field(default=2, ge=0, le=20)
+
+
+class LifecycleTriggerValues(BaseModel):
+    """A rule's trigger values, typed as the owner's route types them: an
+    agent's lifecycle_rule card is checked the same way (a sealed rule's
+    `sample` is read by the support sweep)."""
+
+    event: Literal["signup", "referral_failed", "conversation_closed"] | None = None
+    after_hours: int | None = Field(default=None, ge=0, le=24 * 90)
+    inactive_days: int | None = Field(default=None, ge=1, le=3650)
+    rrule: str | None = Field(default=None, min_length=6, max_length=200)
+    sample: int | None = Field(default=None, ge=1, le=10000)
 
 
 class LifecycleRule(BaseModel):
@@ -337,6 +349,14 @@ def validate_trigger(kind: str, trigger: dict[str, Any] | None) -> dict[str, Any
     extra = sorted(set(t) - allowed)
     if extra:
         raise ApiError(422, "validation_failed", fields={"trigger": f"unknown keys {extra}"[:200]})
+    try:
+        t = LifecycleTriggerValues.model_validate(t).model_dump(exclude_none=True)
+    except ValidationError as exc:
+        fields = {
+            "trigger." + ".".join(str(p) for p in e["loc"]): e["msg"][:200]
+            for e in exc.errors()[:20]
+        }
+        raise ApiError(422, "validation_failed", fields=fields) from exc
     if kind == "nps":
         t.setdefault("rrule", NPS_RRULE)
         try:
@@ -645,6 +665,14 @@ async def send_template(
         return _out(prior, prior["status"])
     r = await active_rule(tx, company_id, purpose, rule_ref)
     if r is None:
+        if prior is not None and prior["status"] == "queued":
+            # Held for a rule that is no longer active: it leaves the retry queue.
+            prior = await tx.one(
+                """UPDATE growth.sends SET status = 'skipped', reason = 'no_active_rule'
+                   WHERE id = :id RETURNING *""",
+                id=prior["id"],
+            )
+            return _out(prior, "skipped")
         return _out(None, "skipped", "no_active_rule")
     tref = f"{r['template_ref']}@{r['template_version']}"
     if not await current_sealed(tx, r["template_ref"], r["template_version"]):
@@ -703,11 +731,15 @@ async def send_template(
         return _out(await _record(tx, **common, status="skipped", reason="per_customer_days"), "")
     if in_quiet_hours(limits, now):
         return _out(await _record(tx, **common, status="queued", reason="quiet_hours"), "")
+    # Counted by when its message was made: a send held yesterday (its row's
+    # `at` is yesterday's) and sent today counts against today's cap.
     sent_today = await tx.scalar(
-        """SELECT count(*) FROM growth.sends WHERE company_id = :co AND rule_id = :rule
-             AND status IN ('sent', 'queued') AND message_id IS NOT NULL
-             AND at >= date_trunc('day', CAST(:now AS timestamptz) AT TIME ZONE 'Asia/Tehran')
-                        AT TIME ZONE 'Asia/Tehran'""",
+        """WITH d AS (SELECT date_trunc('day', CAST(:now AS timestamptz) AT TIME ZONE 'Asia/Tehran')
+                               AT TIME ZONE 'Asia/Tehran' AS start)
+           SELECT count(*) FROM growth.sends s CROSS JOIN d
+             JOIN support.messages m ON m.id = s.message_id
+           WHERE s.company_id = :co AND s.rule_id = :rule AND s.status IN ('sent', 'queued')
+             AND s.at > d.start - interval '8 days' AND m.at >= d.start""",
         co=company_id,
         rule=r["id"],
         now=now,
@@ -739,6 +771,15 @@ async def send_template(
         verdict=composed.verdict, template=tref,
     )  # fmt: skip
     row = await _record(tx, **common, status="queued", reason=None, message_id=msg["id"])
+    if purpose == "csat" and dedupe_key.startswith("csat:"):
+        # The closed conversation it asks about (on_closed's key), also when a
+        # held question goes out later from the sweep: a 1..5 reply is its CSAT.
+        await tx.exec(
+            """UPDATE support.conversations SET csat_asked_at = now()
+               WHERE company_id = :co AND ref = :ref""",
+            co=company_id,
+            ref=dedupe_key[len("csat:") :],
+        )
     await tx.exec("UPDATE growth.rules SET last_run_at = now() WHERE id = :id", id=r["id"])
     company = await hub.companies.code_of(company_id)
     await events.emit(tx, company, "lifecycle.sent", r["ref"], {"purpose": purpose, "queued": True})
@@ -747,10 +788,15 @@ async def send_template(
 
 async def retry_queued(tx: Tx, hub: Any, now: datetime | None = None) -> int:
     """Sends held by quiet hours or the daily cap, tried again (the sweep)."""
+    # A locked company's held sends wait (untouched) for its release, and the
+    # companies take turns, so one company's backlog never fills the batch.
     rows = await tx.all(
-        """SELECT s.*, r.kind FROM growth.sends s JOIN growth.rules r ON r.id = s.rule_id
-           WHERE s.status = 'queued' AND s.message_id IS NULL AND s.at > now() - interval '7 days'
-           ORDER BY s.at LIMIT 200"""
+        """SELECT * FROM (
+               SELECT s.*, r.kind, row_number() OVER (PARTITION BY s.company_id ORDER BY s.at) AS turn
+               FROM growth.sends s JOIN growth.rules r ON r.id = s.rule_id
+               WHERE s.status = 'queued' AND s.message_id IS NULL AND s.at > now() - interval '7 days'
+                 AND control.lock_state(s.company_id) IS NULL
+           ) q ORDER BY q.turn, q.at LIMIT 200"""
     )
     done = 0
     for s in rows:
@@ -793,6 +839,8 @@ async def nps_due(tx: Tx, hub: Any, now: datetime | None = None) -> list[str]:
         last = rr.before(now.astimezone(TEHRAN), inc=True)
         if last is None or now - last > timedelta(days=7):
             continue
+        if await gate.automation_lock(tx, r["company_id"]) is not None:
+            continue  # its wave opens after the release (the rrule's 7-day window)
         quarter = quarter_of(last.date())
         if await tx.scalar(
             "SELECT 1 FROM growth.nps_waves WHERE company_id = :co AND quarter = :q",
@@ -822,7 +870,11 @@ async def nps_due(tx: Tx, hub: Any, now: datetime | None = None) -> list[str]:
             co=r["company_id"],
             now=now,
         )
-        size = min(int(trig.get("sample") or NPS_SAMPLE), len(sample))
+        try:
+            want = int(trig.get("sample") or NPS_SAMPLE)
+        except (TypeError, ValueError):  # a rule sealed before its trigger was typed
+            want = NPS_SAMPLE
+        size = max(0, min(want, len(sample)))
         chosen = random.SystemRandom().sample(sample, size) if size else []
         sent = 0
         for c in chosen:
@@ -882,6 +934,7 @@ async def take_answer(
         """SELECT s.nps_wave_id, w.ref, w.company_id FROM growth.sends s
            JOIN growth.nps_waves w ON w.id = s.nps_wave_id AND w.state = 'open'
            WHERE s.company_id = :co AND s.subject = :sub AND s.status IN ('queued', 'sent')
+             AND s.message_id IS NOT NULL
              AND NOT EXISTS (SELECT 1 FROM growth.nps_responses r WHERE r.wave_id = w.id
                                AND r.subject = :sub)
            ORDER BY s.at DESC LIMIT 1""",
@@ -962,15 +1015,12 @@ async def on_closed(tx: Tx, hub: Any, conv: dict[str, Any]) -> dict[str, Any] | 
     """CSAT after a conversation closes (the sealed csat rule, if active)."""
     if conv["mystery"]:
         return None
-    out = await send_template(
+    # send_template sets csat_asked_at when the question is made (now, or
+    # from the sweep's retry when it is held by quiet hours or the daily cap).
+    return await send_template(
         tx, hub, company_id=conv["company_id"], purpose="csat",
         dedupe_key=f"csat:{conv['ref']}", conversation_id=conv["id"],
     )  # fmt: skip
-    if out.get("message_id"):
-        await tx.exec(
-            "UPDATE support.conversations SET csat_asked_at = now() WHERE id = :id", id=conv["id"]
-        )
-    return out
 
 
 # ---------------------------------------------------------- decision cards --
