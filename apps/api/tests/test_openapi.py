@@ -108,7 +108,8 @@ async def test_schemathesis_finds_no_server_errors(
                    web_state = 'signed_out', limited_until = NULL"""
         )
         await su.execute(
-            """UPDATE substitutes.calls SET state = 'skipped', state_reason = 'test', finished_at = now()
+            """UPDATE substitutes.calls SET state = 'skipped', state_reason = 'test', finished_at = now(),
+                   delivered_at = COALESCE(delivered_at, now())
                WHERE state IN ('queued', 'running')"""
         )
     assert json.dumps({"ok": True})

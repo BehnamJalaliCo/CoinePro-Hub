@@ -487,6 +487,7 @@ async def substitute_call(body: S.CallIn, ctx: Ctx = Depends(internal_ctx)) -> d
         )
         if call["state"] == "skipped":
             raise S.refusal(str(call["state_reason"]))
+        deadline = await S.deadline_of(tx, call["id"]) or S.deadline_at(call)
         await ctx.audit(
             tx,
             company_id=who.company_id,
@@ -521,11 +522,11 @@ async def substitute_call(body: S.CallIn, ctx: Ctx = Depends(internal_ctx)) -> d
     return {
         "state": "queued",
         "call": str(call["id"]),
-        "deadline_at": S.deadline_at(call).isoformat(),
+        "deadline_at": deadline.isoformat(),
         "note": (
             "Not answered yet: this step is not done. The answer, or why there is none, comes "
-            "back to you as a new work item by deadline_at; until then go on with what does not "
-            "need it, or end this run."
+            "back to you as a new work item (by deadline_at, later only while the player's queue "
+            "is busy); until then go on with what does not need it, or end this run."
         ),
     }
 

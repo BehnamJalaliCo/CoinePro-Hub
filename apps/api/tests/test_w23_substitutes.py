@@ -32,7 +32,7 @@ from hq_api.hub import Hub
 from hq_api.principal import Principal
 from hq_api.security import agent_tokens
 
-from .conftest import AGENT_KEY, agent_headers
+from .conftest import AGENT_KEY, agent_headers, substitutes_headers
 from .p10_fakes import holding_switch
 from .test_p12a_advisor import _end_test_runs  # noqa: F401 - an autouse fixture here too
 from .test_p12a_substitutes import FakeEgress, bench, claim, per_day, png
@@ -122,6 +122,11 @@ def test_the_deadlines_and_the_words_are_data() -> None:
         "timeout_s": 600,
     }
     assert S.deadline_at(running) == t0 + timedelta(minutes=2, seconds=600 + 120)
+    # asked again: the clock runs from then; behind a busy lane, from when the lane was free
+    again = {**text, "queued_at": t0 + timedelta(minutes=14)}
+    assert S.deadline_at(again) == t0 + timedelta(minutes=29)
+    assert S.deadline_at(text, t0 + timedelta(minutes=9)) == t0 + timedelta(minutes=24)
+    assert S.deadline_at(text, t0 - timedelta(minutes=9)) == t0 + timedelta(minutes=15)
     # the reasons in the owner's words, by their machine word
     assert S.reason_fa("not_claimed") == "نوبتش نرسید"
     assert S.reason_fa("timeout: egress") == "جوابش طول کشید"
@@ -384,17 +389,9 @@ async def test_a_skipped_or_browserless_web_call_reaches_its_caller(
             reply = await _reply(su, cid)
             assert reply is not None and "signed out" in reply["brief"], reply
             await refuse_queued(su, reply["ref"])
-        # egress answers `off` (the profile browser is not running): a failure, delivered
         await su.execute(
             "UPDATE substitutes.players SET web_state = 'signed_in', web_last_job_at = NULL WHERE player = 'gpt'"
         )
-        third = await ask("خلاصه‌ی سوم")
-        await S.web_jobs(hub, FakeEgress({"ok": False, "error": "off", "detail": "not running"}))
-        row = await _call(su, third)
-        assert (row["state"], row["state_reason"]) == ("failed", "browser_unavailable")
-        reply = await _reply(su, third)
-        assert reply is not None and "browser on the hub was not available" in reply["brief"]
-        await refuse_queued(su, reply["ref"])
         # a web question longer than egress takes: refused at once, the caller shortens it
         r = await client.post("/internal/v1/substitutes/call", headers=pa,
                               json={"seat": "assistant_errand", "input_md": "سلام " * 4_001})  # fmt: skip
@@ -406,14 +403,42 @@ async def test_a_skipped_or_browserless_web_call_reaches_its_caller(
         async with hub.db.tx(await hub.companies.ids()) as tx:
             long = await S.seat_call(tx, hub, A.SERVICE, seat="assistant_errand",
                                      input_md="x" * (S.WEB_PROMPT_LIMIT + 1), company_id=holding.id)  # fmt: skip
-            fits = await S.seat_call(tx, hub, A.SERVICE, seat="assistant_errand",
-                                     input_md="x" * S.WEB_PROMPT_LIMIT, company_id=holding.id)  # fmt: skip
-        assert (long["state"], long["state_reason"], long["input_md"]) == (
-            "skipped",
-            "too_long",
-            None,
+        assert (long["state"], long["state_reason"], long["input_md"]) == ("skipped", "too_long", None)
+        # egress answers `off` (the profile browser is not running): a failure, delivered, and
+        # every other waiting call of that player ends with it
+        third, fourth = await ask("خلاصه‌ی سوم"), await ask("خلاصه‌ی چهارم")
+        await S.web_jobs(hub, FakeEgress({"ok": False, "error": "off", "detail": "not running"}))
+        for cid in (third, fourth):
+            row = await _call(su, cid)
+            assert (row["state"], row["state_reason"]) == ("failed", "browser_unavailable")
+            reply = await _reply(su, cid)
+            assert reply is not None and "browser on the hub was not available" in reply["brief"]
+            await refuse_queued(su, reply["ref"])
+        p = await su.fetchrow(
+            """SELECT web_last_failure, web_error_until - now() AS hold FROM substitutes.players
+               WHERE player = 'gpt'"""
         )
-        assert fits["state"] == "queued"
+        assert p["web_last_failure"] == "off: not running"
+        assert timedelta(minutes=9) < p["hold"] <= S.BROWSER_HOLD
+        # for its ten minutes the next call is refused at once: nothing queued, no reply work
+        calls = await su.fetchval("SELECT count(*) FROM substitutes.calls WHERE player = 'gpt'")
+        works = await su.fetchval("SELECT count(*) FROM work.work")
+        r = await client.post("/internal/v1/substitutes/call", headers=pa,
+                              json={"seat": "assistant_errand", "input_md": "خلاصه‌ی پنجم"})  # fmt: skip
+        assert r.status_code == 503 and "browser_unavailable" in r.text, r.text
+        await S.web_jobs(hub, FakeEgress())
+        assert await su.fetchval("SELECT count(*) FROM substitutes.calls WHERE player = 'gpt'") == calls
+        assert await su.fetchval("SELECT count(*) FROM work.work") == works
+        async with hub.db.tx(await hub.companies.ids()) as tx:
+            held = await S.seat_call(tx, hub, A.SERVICE, seat="assistant_errand", input_md="x",
+                                     company_id=holding.id)  # fmt: skip
+        assert (held["state"], held["state_reason"]) == ("skipped", "browser_unavailable")
+        # the owner signs the profile in again (or the hold ends): calls are taken again
+        r = await client.post("/internal/v1/substitutes/signed-in", headers=substitutes_headers(),
+                              json={"player": "gpt", "via": "web"})  # fmt: skip
+        assert r.status_code == 200, r.text
+        fits = await ask("x" * S.WEB_PROMPT_LIMIT)
+        assert (await _call(su, fits))["state"] == "queued"
 
 
 async def test_one_broken_web_job_never_stops_the_other_players_which_run_at_once(
@@ -580,7 +605,7 @@ async def test_chatgpt_has_the_content_draft_seat_after_seed_or_migration(su: An
         audits = await su.fetchval(
             "SELECT count(*) FROM audit.entries WHERE target_ref = 'gpt:content_draft'"
         )
-        await su.execute(m.UPGRADE)
+        await su.execute(m.SEAT)
         assert await su.fetchval(
             "SELECT count(*) FROM substitutes.seats WHERE player = 'gpt' AND seat = 'content_draft'"
         ) == 1  # fmt: skip
@@ -591,7 +616,7 @@ async def test_chatgpt_has_the_content_draft_seat_after_seed_or_migration(su: An
         await su.execute(
             "UPDATE substitutes.seats SET seat = 'third_opinion' WHERE player = 'gpt' AND seat = 'content_draft'"
         )
-        await su.execute(m.UPGRADE)
+        await su.execute(m.SEAT)
         added = await su.fetchrow(
             """SELECT via, model, enabled, per_day FROM substitutes.seats
                WHERE player = 'gpt' AND seat = 'content_draft'"""

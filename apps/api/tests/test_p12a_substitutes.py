@@ -34,30 +34,21 @@ async def bench(su: Any, hub: Hub, *, cli: tuple[str, ...] = (), web: tuple[str,
     test database), nothing else queued, the holding unlocked; then signed out
     and off again, as they are on the hub. ⟨20.1⟩ GPT named in `cli` has its
     text seats on Codex for the block (the CLI path the code review keeps; by
-    default its text runs on the web); ⟨2026-11-11⟩ its content_draft seat (a
-    GPT work's first text seat, migration 0062) runs there too, as its errand
-    seat (gpt-5.3), and the substitutes runner is on for the block (a CLI seat
-    is never queued while it is off)."""
-    draft_model = None
+    default its text runs on the web); ⟨2026-11-11⟩ the substitutes runner is
+    on for the block (a CLI seat is never queued while it is off), and what the
+    block leaves unfinished ends as delivered (the reaper never delivers it)."""
     if "gpt" in cli:
         await su.execute(
             """UPDATE substitutes.seats SET via = 'cli' WHERE player = 'gpt'
                  AND seat IN ('advisor_second_opinion', 'overseer_cross_check', 'assistant_errand')"""
         )
-        draft_model = await su.fetchval(
-            "SELECT model FROM substitutes.seats WHERE player = 'gpt' AND seat = 'content_draft'"
-        )
-        await su.execute(
-            """UPDATE substitutes.seats SET via = 'cli', model = 'gpt-5.3'
-               WHERE player = 'gpt' AND seat = 'content_draft'"""
-        )
-        await per_day(su, "gpt", "content_draft", 10)
         await su.execute(
             """UPDATE substitutes.players SET capabilities = jsonb_set(capabilities, '{text}', '"cli"')
                WHERE player = 'gpt'"""
         )
     await su.execute(
-        """UPDATE substitutes.calls SET state = 'skipped', state_reason = 'test', finished_at = now()
+        """UPDATE substitutes.calls SET state = 'skipped', state_reason = 'test', finished_at = now(),
+               delivered_at = COALESCE(delivered_at, now())
            WHERE state IN ('queued', 'running')"""
     )
     await su.execute(
@@ -83,11 +74,6 @@ async def bench(su: Any, hub: Hub, *, cli: tuple[str, ...] = (), web: tuple[str,
                    limited_until = NULL, status_reason = NULL, web_last_failure = NULL"""
         )
         await restore_seats(su)
-        if draft_model is not None:
-            await su.execute(
-                "UPDATE substitutes.seats SET model = $1 WHERE player = 'gpt' AND seat = 'content_draft'",
-                draft_model,
-            )
 
 
 async def restore_seats(su: Any) -> None:

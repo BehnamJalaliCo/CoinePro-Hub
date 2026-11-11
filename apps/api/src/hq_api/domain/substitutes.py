@@ -2370,7 +2370,10 @@ async def expire_stale(tx: Tx, hub: Any, now: datetime | None = None) -> int:
     (QUEUE_DEADLINE after it was made, QUEUE_DEADLINE_MEDIA for an image or a video); a running
     one (web or CLI) past claimed_at + timeout_s + RUN_GRACE_S ends `failed` `timeout`; while the
     holding's kill switch is engaged an agent's queued call ends `skipped` (holding_locked): it
-    would not run. Every one through `_applied`, so its caller hears it. How many ended."""
+    would not run. Every one through `_applied`, so its caller hears it. An agent's call that
+    ended in the last day without reaching it (its delivery failed: _end_safely's bare end) is
+    delivered once more, a pass later; a second failure is logged and given up. How many calls
+    it ended or delivered."""
     now = now or datetime.now(UTC)
     stale = await tx.all(
         f"""SELECT c.id, c.state FROM substitutes.calls c
@@ -2390,9 +2393,40 @@ async def expire_stale(tx: Tx, hub: Any, now: datetime | None = None) -> int:
                ORDER BY created_at FOR UPDATE SKIP LOCKED"""
         ):
             ended += await _end_safely(tx, hub, c["id"], "skipped", gate.REASONS["holding"])
+    for c in await tx.all(
+        """SELECT * FROM substitutes.calls
+           WHERE caller_kind = 'agent' AND kind = 'call' AND delivered_at IS NULL
+             AND (purpose_kind IS NULL OR purpose_kind = :cw)
+             AND state IN ('done', 'failed', 'skipped')
+             AND finished_at > CAST(:now AS timestamptz) - interval '1 day'
+             AND finished_at <= CAST(:now AS timestamptz) - interval '1 minute'
+           ORDER BY finished_at FOR UPDATE SKIP LOCKED""",
+        now=now,
+        cw=CALLER_WORK,
+    ):
+        ended += await _deliver_again(tx, hub, c)
     if ended:
         log.info("substitute calls ended by the reaper", extra={"ended": ended})
     return ended
+
+
+async def _deliver_again(tx: Tx, hub: Any, c: dict[str, Any]) -> bool:
+    """An agent's ended call whose delivery failed, once more; a second failure is logged and
+    marked delivered (given up), so it is never tried a third time."""
+    try:
+        async with tx.conn.begin_nested():
+            await deliver_to_agent(tx, hub, c)
+        return True
+    except Exception:
+        log.exception(
+            "a substitute call's end could not be delivered again; given up",
+            extra={"call": str(c["id"])},
+        )
+    await tx.exec(
+        "UPDATE substitutes.calls SET delivered_at = now() WHERE id = :id AND delivered_at IS NULL",
+        id=c["id"],
+    )
+    return False
 
 
 async def abandon(tx: Tx, hub: Any, call_id: UUID) -> bool:
