@@ -1058,6 +1058,14 @@ async def test_the_hubs_own_addresses_are_the_hub(site: Site) -> None:
         g.target("https://93.184.216.34/internal/v1/runs")
     assert e.value.reason == "hub_internal"
     assert g.target("https://93.184.216.34/").host == "93.184.216.34"
+    # the same IPv4 inside IPv6 (mapped, 6to4, NAT64) is the hub too
+    for spelling in ("[::ffff:93.184.216.34]", "[::ffff:5db8:d822]", "[2002:5db8:d822::1]",
+                     "[64:ff9b::93.184.216.34]"):  # fmt: skip
+        assert g.is_hub(spelling), spelling
+        with pytest.raises(Blocked) as e:
+            g.target(f"https://{spelling}/internal/v1/runs")
+        assert e.value.reason == "hub_internal", spelling
+    assert not g.is_hub("[::ffff:93.184.216.35]")
     with pytest.raises(Blocked) as e:
         await g.addresses("alias.test", 443)
     assert e.value.reason == "hub_internal"
@@ -1068,7 +1076,7 @@ async def test_the_hubs_own_addresses_are_the_hub(site: Site) -> None:
     port = server.sockets[0].getsockname()[1]
     key, secret = buckets.open("web.browse", "A0", 1_000_000)
     head = "Proxy-Authorization: Basic " + base64.b64encode(f"{key}:{secret}".encode()).decode()
-    for target in ("93.184.216.34:443", "alias.test:443"):
+    for target in ("93.184.216.34:443", "alias.test:443", "[::ffff:93.184.216.34]:443"):
         out = await _raw(port, f"CONNECT {target} HTTP/1.1\r\n{head}\r\n\r\n".encode())
         assert out.startswith(b"HTTP/1.1 403") and b"hub_internal" in out, (target, out[:100])
     server.close()
