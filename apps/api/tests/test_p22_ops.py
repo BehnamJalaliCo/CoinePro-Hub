@@ -666,6 +666,15 @@ def test_a_rule_trips_on_the_daily_cap_or_on_a_low_roas_after_the_minimum() -> N
     assert AD.judge(cap, days((4, 500, 0)), today) is None  # stale figures are not judged
     assert AD.judge(cap, [], today) is None
     assert AD.roas_of(60, 120) == 0.5 and AD.roas_of(5, 0) is None
+    # hub revenue not settled yet (None) is left out: the window ends at the last known day
+    hub = {"daily_cap": None, "min_roas": 1, "window_days": 1, "min_spend_before_judging": 0}
+    unsettled = days((0, 40, 0), (1, 40, 0), (2, 40, 50))
+    for d in unsettled[:2]:
+        d["revenue"] = None
+    assert AD.judge(hub, unsettled, today) is None  # 50 / 40 on day -2, not 0 / 40 today
+    late = days((0, 40, 0), (3, 40, 0))
+    late[0]["revenue"] = None
+    assert AD.judge(hub, late, today) is None  # the last known day is stale: not judged
 
 
 def test_loosening_a_rule_is_what_needs_the_seal() -> None:
@@ -813,6 +822,17 @@ async def test_the_daily_read_stores_each_campaigns_day_and_the_accounts_totals(
     assert float(await su.fetchval(
         "SELECT revenue FROM growth.ad_daily WHERE company_id = $1 AND campaign_id = '111' AND day = $2",
         co["id"], today)) == 90  # fmt: skip
+    # two hub campaigns share the day by spend (in USDT): the commission is counted once
+    await put_config(su, co["id"], "meta_ads",
+                     {"account_id": "555", "hub_revenue_campaigns": ["333"], "usdt_rate": 1})  # fmt: skip
+    async with holding_switch(su, "released"):
+        await CN.read_one(hub, co["id"], "meta_ads")
+    rev = {r["campaign_id"]: float(r["revenue"]) for r in await su.fetch(
+        "SELECT campaign_id, revenue FROM growth.ad_daily WHERE company_id = $1 AND day = $2 "
+        "AND campaign_id IN ('111', '333')", co["id"], today)}  # fmt: skip
+    # 111 spent 120 at 2 a USDT (60 USDT), 333 spent 30.5 USDT: 45 USDT split 60 : 30.5
+    assert rev["111"] == pytest.approx(45 * 60 / 90.5 * 2, abs=0.01)
+    assert rev["333"] == pytest.approx(45 * 30.5 / 90.5, abs=0.01)
 
 
 async def test_a_tripped_rule_pauses_the_campaign_tells_the_lead_and_never_raises_a_budget(
@@ -860,6 +880,41 @@ async def test_a_tripped_rule_pauses_the_campaign_tells_the_lead_and_never_raise
         lines = await AD.weekly_lines(tx, co["id"], datetime.now(UTC) - timedelta(days=7),
                                       datetime.now(UTC) + timedelta(days=1))  # fmt: skip
     assert lines and "متوقف شد" in lines[0] and H.check(lines[0]) == []
+
+
+async def test_a_roas_floor_on_a_hub_campaign_waits_for_the_settled_revenue(
+    hub: Hub, su: Any, new_company: Callable[..., Any], egress: Any, clean_rules: list[UUID]
+) -> None:
+    co = await new_company()
+    today = await today_of(hub)
+    CN.OVERRIDE = AdsEgress(today)
+    await put_config(su, co["id"], "google_ads",
+                     {"customer_id": "1234567890", "hub_revenue_campaigns": ["111", "222"]})  # fmt: skip
+    acct = await su.fetchval(
+        """INSERT INTO revenue.accounts (company_id, exchange, adapter, service_account, title_fa,
+               created_by_kind, created_by_code)
+           VALUES ($1, 'lbank', 'lbank-v2', 'lbank-test', 'حساب', 'owner', 'owner') RETURNING id""",
+        co["id"])  # fmt: skip
+    for back in (0, 1, 2):  # the read's days; the radar has settled only the day before yesterday
+        day = today - timedelta(days=back)
+        await seed_campaign(su, co, day, spend=40)
+        await seed_campaign(su, co, day, spend=40, campaign="222")
+    await su.execute("INSERT INTO revenue.days (company_id, account_id, day, commission_usdt, complete) "
+                     "VALUES ($1, $2, $3, 100, true)", co["id"], acct, today - timedelta(days=2))  # fmt: skip
+    # ROAS 1.25 on the settled day for each campaign (100 shared by spend, not 100 each)
+    clean_rules.append(await add_rule(su, co, daily_cap=None, min_roas=1, window_days=7))
+    async with holding_switch(su, "released"):
+        out = await AD.evaluate_due(hub)
+    assert out["checked"] == 2 and out["tripped"] == 0  # today's spend is not revenue 0
+    clean_rules.append(await add_rule(su, co, daily_cap=None, min_roas=1.5, window_days=1,
+                                      action="notify"))  # fmt: skip
+    async with holding_switch(su, "released"):
+        out = await AD.evaluate_due(hub)
+    assert out["notified"] == 2  # 50 / 40 = 1.25 < 1.5: each campaign has half of the day
+    trips = await su.fetch("SELECT day, detail_fa FROM growth.ad_trips WHERE company_id = $1",
+                           co["id"])  # fmt: skip
+    assert {t["day"] for t in trips} == {today - timedelta(days=2)}
+    assert all("1.25" in t["detail_fa"] for t in trips)
 
 
 async def test_notify_only_rules_do_not_touch_the_platform_and_a_failed_pause_is_tried_again(
