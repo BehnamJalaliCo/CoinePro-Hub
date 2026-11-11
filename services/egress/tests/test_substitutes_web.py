@@ -459,6 +459,27 @@ def test_a_recipe_failure_carries_one_screenshot_and_nothing_else_does() -> None
     assert SW.WebIn(account="gemini-web", task="text", prompt="x", reload=True).reload is True
 
 
+def test_every_gemini_label_selector_takes_both_languages() -> None:
+    """Audit 2026-11-11: the gemini-web profile is fa-IR, yet the video task
+    waited for the English-only «Download video» label, so every video job
+    failed at its wait step after the quota was spent. Each aria-label
+    selector in every Gemini task names the English and the Persian label."""
+    tasks = RC.load(recipes_dir())["gemini-web"].tasks
+    labelled = 0
+    for name, task in tasks.items():
+        for s in task.steps:
+            sel = str(s.selector or "")
+            if "aria-label" not in sel:
+                continue
+            labelled += 1
+            labels = [p for p in sel.split(",") if "aria-label" in p]
+            assert any(any("؀" <= ch <= "ۿ" for ch in p) for p in labels), (name, sel)
+            assert any(p.isascii() for p in labels), (name, sel)
+    video = [s for s in tasks["video"].steps if s.do in ("wait", "download")]
+    assert any("دانلود" in str(s.selector) for s in video if s.do == "download")
+    assert labelled >= 4
+
+
 def test_chatgpts_text_task_stands_on_the_pages_structure_not_on_one_language() -> None:
     """⟨20.1⟩ GPT's text runs on chatgpt-web now (the lesson of 19.3: the page
     is fa-IR): the prompt is sent with Enter (no label), every label kept sits
