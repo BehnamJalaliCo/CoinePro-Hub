@@ -10,6 +10,7 @@ Message bodies never go to NATS or the audit log.
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
@@ -162,6 +163,9 @@ CITED = {
     "message": "SELECT 1 FROM msg.messages WHERE ref = :r",
     "audit": "SELECT 1 FROM audit.entries WHERE seq = CAST(:r AS bigint)",
 }
+# An audit seq the bigint cast takes: ASCII digits only (str.isdigit() is also
+# true for Persian and superscript digits) and at most 18 of them (in range).
+AUDIT_SEQ = re.compile(r"[0-9]{1,18}")
 
 
 async def validate_citations(tx: Tx, citations: list[Citation]) -> tuple[list[Citation], int]:
@@ -174,7 +178,7 @@ async def validate_citations(tx: Tx, citations: list[Citation]) -> tuple[list[Ci
         if key in seen:
             continue
         seen.add(key)
-        if c.kind == "audit" and not c.ref.isdigit():
+        if c.kind == "audit" and not AUDIT_SEQ.fullmatch(c.ref):
             continue
         if await tx.scalar(CITED[c.kind], r=c.ref):
             kept.append(c)
