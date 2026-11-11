@@ -187,13 +187,16 @@ def test_a_refused_events_batch_never_costs_the_result(fake_hub: FakeHub, cfg: C
     assert refused and fake_hub.results["e1"]["exit_code"] == 0
     assert "two" in fake_hub.texts("e1")
 
-    # a backlog of large events goes in bodies of at most POST_MAX_BYTES each
+    # a backlog of large events goes in bodies of at most MAX_POST_BYTES each (_take only
+    # reads the batch; flush takes it off the buffer)
     sink = EV.EventSink(runner.hub, "e2")
     for _ in range(6):
         sink.emit("session_event", {"text": "ی" * (EV.MAX_POST_BYTES // 4)})
     sizes: list[int] = []
     while sink._buf:
-        sizes.append(len(json.dumps(sink._take(), ensure_ascii=False).encode()))
+        batch = sink._take()
+        sink._set_buf(sink._buf[len(batch) :])
+        sizes.append(len(json.dumps(batch, ensure_ascii=False).encode()))
     assert len(sizes) > 1 and all(s <= EV.MAX_POST_BYTES + 1024 for s in sizes)
 
 
