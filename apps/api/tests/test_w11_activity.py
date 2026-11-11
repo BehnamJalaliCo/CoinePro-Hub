@@ -340,6 +340,29 @@ async def test_the_owners_numbered_steps_become_the_plan_once(
     assert "## The order you hold" in talk["router"].text_sent()
 
 
+async def test_a_list_of_his_lines_without_a_space_after_the_number_is_the_plan(
+    client: httpx.AsyncClient,
+    owner: dict[str, str],
+    no_model: list[Any],  # noqa: F811
+    new_company: Callable[..., Any],
+) -> None:
+    """Audit 2026-11-11: the reply collapsed his lines into one before the plan was read, so a
+    list only the line parser knows («۱.متن» with no space, «1– …») gave no plan task at all."""
+    assert OT.numbered_items("۱.متن گفتار\n۲.صدا\n۳.ساخت ریلز") == ["متن گفتار", "صدا", "ساخت ریلز"]
+    assert OT.numbered_items(" ".join("۱.متن گفتار\n۲.صدا\n۳.ساخت ریلز".split())) == []
+    co = (await new_company())["code"]
+    out = await post_order(client, owner, WORK_TEXT.format(co=co, w=words()))
+    ref = out["ref"]
+    r = await client.post(
+        f"/api/v1/orders/{ref}/reply",
+        headers={**owner, **idem()},
+        json={"text": "۱.متن گفتار\n۲.صدا\n۳.ساخت ریلز"},
+    )
+    assert r.status_code == 200, r.text
+    titles = [t["title_fa"] for t in r.json()["tasks"] if t["by"] == "owner"]
+    assert titles == ["متن گفتار", "صدا", "ساخت ریلز"], titles
+
+
 # ====================================================== C. never a silent stall ==
 async def test_the_holder_is_woken_on_a_join_a_hire_decision_and_a_childs_delivery(
     client: httpx.AsyncClient,

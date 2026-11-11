@@ -457,7 +457,9 @@ async def reply(tx: Tx, ref: str, text: str) -> dict[str, Any]:
     # ⟨2026-11-09⟩ «با من»: what waited for this answer (a colleague's part) goes on too
     await OR.resume_held(tx, ref)
     await OR._append_steps(tx, rep["id"], steps)
-    await plan_from_owner(tx, ref, words)  # ⟨1.23⟩ §41.2 a numbered list is the plan
+    # ⟨1.23⟩ §41.2 a numbered list is the plan: read from his own lines (a list item per line,
+    # «۱.متن» or «1– …»), not the one-line step text, else the line-based parser never runs
+    await plan_from_owner(tx, ref, text[: 2 * OWNER_WORD_MAX])
     return {
         "work_ref": targets[0]["ref"],
         "run_id": runs[0] if runs else None,
@@ -605,12 +607,12 @@ async def owner_word(tx: Tx, ref: str, text: str, *, work_mode: bool) -> dict[st
     if work_mode and not is_question(words):
         try:
             async with tx.conn.begin_nested():
-                got = await reply(tx, ref, words[:OWNER_WORD_MAX])
+                got = await reply(tx, ref, text)  # its own lines: the plan is read from them
             out.update(replied=True, woken=got["woken"])
             return out  # reply() read the plan already
         except ApiError:
             pass  # ended, or nothing open: the talk alone carries it
-    out["tasks"] = await plan_from_owner(tx, ref, words)
+    out["tasks"] = await plan_from_owner(tx, ref, text[: 2 * OWNER_WORD_MAX])
     return out
 
 
