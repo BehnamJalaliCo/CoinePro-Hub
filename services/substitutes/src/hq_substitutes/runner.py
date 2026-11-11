@@ -570,18 +570,31 @@ def _cwd(job: Job, s: Settings) -> Path | None:
     return None
 
 
+def _creds(job: Job, s: Settings) -> Path:
+    """The file the CLI keeps its sign-in in."""
+    if job.runner == "codex_cli":
+        return s.auth_dir / "codex" / "auth.json"
+    return s.auth_dir / "gemini" / ".gemini" / "oauth_creds.json"
+
+
+def _creds_stamp(creds: Path) -> tuple[int, int, int] | None:
+    """(inode, mtime_ns, size) of a non-empty sign-in file, or None: a
+    sign-in counts only when this changed (an old, maybe revoked file left
+    on disk is not a new sign-in)."""
+    try:
+        st = creds.stat()
+    except OSError:
+        return None
+    if not creds.is_file() or st.st_size <= 0:
+        return None
+    return (st.st_ino, st.st_mtime_ns, st.st_size)
+
+
 def signed_in(job: Job, s: Settings) -> bool:
     """Whether the CLI has a stored sign-in: without one it is never started
     (signed out, Codex would fall back to the API host and Gemini would ask
     for a sign-in it cannot get here)."""
-    if job.runner == "codex_cli":
-        creds = s.auth_dir / "codex" / "auth.json"
-    else:
-        creds = s.auth_dir / "gemini" / ".gemini" / "oauth_creds.json"
-    try:
-        return creds.is_file() and creds.stat().st_size > 0
-    except OSError:
-        return False
+    return _creds_stamp(_creds(job, s)) is not None
 
 
 def _call(job: Job, s: Settings) -> dict[str, Any]:
@@ -690,6 +703,7 @@ def _login(job: Job, s: Settings, more: Iterator[str]) -> Iterator[dict[str, Any
     else:
         argv, method = [s.gemini_bin], "auth_code"
     env = {**_env(job, s), "TERM": "xterm"}
+    before = _creds_stamp(_creds(job, s))  # taken before the CLI can write it
     session = Pty(argv, s.work_dir, env)
     deadline = time.monotonic() + job.timeout_s
     try:
@@ -714,7 +728,7 @@ def _login(job: Job, s: Settings, more: Iterator[str]) -> Iterator[dict[str, Any
                 return
             session.write(pasted + "\r")
             del pasted
-        yield session.wait_signed_in(job, s, deadline)
+        yield session.wait_signed_in(job, s, deadline, before)
     finally:
         session.close()
 
@@ -794,17 +808,18 @@ class Pty:
     def write(self, text: str) -> None:
         os.write(self.master, text.encode())
 
-    def wait_signed_in(self, job: Job, s: Settings, deadline: float) -> dict[str, Any]:
-        """Done when the CLI stored its sign-in (Gemini's creds file; Codex's
-        auth.json, or its own exit 0); failed when it says so."""
-        creds = (
-            s.auth_dir / "codex" / "auth.json"
-            if job.runner == "codex_cli"
-            else s.auth_dir / "gemini" / ".gemini" / "oauth_creds.json"
-        )
+    def wait_signed_in(
+        self, job: Job, s: Settings, deadline: float, before: tuple[int, int, int] | None
+    ) -> dict[str, Any]:
+        """Done when the CLI stored a new sign-in (Gemini's creds file; Codex's
+        auth.json, or its own exit 0); failed when it says so. `before` is the
+        sign-in file as it was before the CLI started: a file left from an
+        earlier (maybe expired or revoked) sign-in does not count."""
+        creds = _creds(job, s)
         mark = len(self.seen)
         while time.monotonic() < deadline:
-            if creds.is_file() and creds.stat().st_size > 0:
+            now = _creds_stamp(creds)
+            if now is not None and now != before:
                 return done(True)
             rc = self.proc.poll()
             if rc is not None:
