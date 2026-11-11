@@ -187,12 +187,18 @@ def test_the_hook_asks_the_runner_over_its_socket(tmp_path: Path) -> None:
         # a path longer than a socket's own limit goes through its folder
         deep = tmp_path / ("d" * 60) / ("e" * 60)
         deep.mkdir(parents=True)
-        server = await sandbox.serve_hook(deep / "hook.sock", classify)
+        server = await sandbox.serve_hook(deep / "hook.sock", classify, "k-1")
+        sock = str(deep / "hook.sock")
         try:
-            return [
-                await asyncio.to_thread(sandbox.ask_hook_socket, str(deep / "hook.sock"), c)
+            got = [
+                await asyncio.to_thread(sandbox.ask_hook_socket, sock, c, 45.0, "k-1")
                 for c in ("ls", "psql -c 'DROP DATABASE x'", "unreachable")
             ]
+            # another turn (same user, a socket Landlock does not guard) without this turn's key
+            for wrong in ("", "k-2"):
+                refused = await asyncio.to_thread(sandbox.ask_hook_socket, sock, "ls", 45.0, wrong)
+                assert refused == (None, "forbidden")
+            return got
         finally:
             server.close()
             await server.wait_closed()

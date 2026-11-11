@@ -43,6 +43,7 @@ import functools
 import json
 import os
 import re
+import secrets
 import shlex
 import shutil
 import subprocess
@@ -556,8 +557,15 @@ async def run_claude(ctx: JobContext) -> JobResult:
         meter = TokenMeter()
         hook_seen = 0
         session_id = None
+        # the job's sockets take only this session's key: every turn runs as the same user,
+        # and Landlock does not guard a socket's connect() (contract §43.9)
+        key = secrets.token_urlsafe(32)
         if plan is None:
-            tmp = Path(tempfile.mkdtemp(prefix="hq-claude-"))
+            # not in /tmp, which a walled turn can read: mcp.json there holds the key. The
+            # runner's own folder is closed to every walled turn.
+            own = (ctx.cfg_path or config_path()).resolve().parent
+            own.mkdir(parents=True, exist_ok=True, mode=0o700)
+            tmp = Path(tempfile.mkdtemp(prefix="hq-claude-", dir=own))
             os.chmod(tmp, 0o700)
         else:
             tmp = plan.job
@@ -582,7 +590,10 @@ async def run_claude(ctx: JobContext) -> JobResult:
         tools_sock = tmp / "tools.sock"
         if tools_on:
             mcp_file = tmp / "mcp.json"
-            mcp_file.write_text(json.dumps(tools_bridge.mcp_config(tools_sock)), encoding="utf-8")
+            mcp_file.touch(mode=0o600)
+            mcp_file.write_text(
+                json.dumps(tools_bridge.mcp_config(tools_sock, key)), encoding="utf-8"
+            )
             # only the hub's own server: nothing this machine's user configured rides along
             argv += ["--mcp-config", str(mcp_file), "--strict-mcp-config"]
         if granted:  # last: the option takes every value after it
@@ -594,6 +605,7 @@ async def run_claude(ctx: JobContext) -> JobResult:
             env["HQ_RUNNER_CONFIG"] = str((ctx.cfg_path or config_path()).resolve())
         else:
             env = sandbox.env_of(plan, env)
+            env[sandbox.HOOK_KEY_ENV] = key
         env.update(
             {
                 "HQ_RUNNER_VIA": ctx.via,
@@ -608,13 +620,13 @@ async def run_claude(ctx: JobContext) -> JobResult:
         tools_server: asyncio.AbstractServer | None = None
         try:
             if tools_on:
-                tools_server = await tools_bridge.serve(tools_sock, list_tools, call_tool)
+                tools_server = await tools_bridge.serve(tools_sock, list_tools, call_tool, key)
             if plan is not None:
                 if resume:
                     await asyncio.to_thread(
                         sandbox.carry_session, Path.home(), plan.home, cwd, str(resume)
                     )
-                server = await sandbox.serve_hook(plan.sock, classify_for_hook)
+                server = await sandbox.serve_hook(plan.sock, classify_for_hook, key)
                 argv = sandbox.wrap(plan, argv)
             elif resume and workspace is not None:
                 # a session that began behind the wall is found again without it

@@ -605,11 +605,22 @@ def _short(path: str | Path) -> Any:
 
 Classify = Callable[[str], Awaitable[tuple[str | None, str | None]]]
 HOOK_LINE = 1024 * 1024
+HOOK_KEY_ENV = "HQ_RUNNER_HOOK_KEY"
 
 
-async def serve_hook(path: Path, classify: Classify) -> asyncio.AbstractServer:
+def _key_ok(given: Any, key: str) -> bool:
+    import hmac
+
+    return (
+        isinstance(given, str) and bool(key) and hmac.compare_digest(given.encode(), key.encode())
+    )
+
+
+async def serve_hook(path: Path, classify: Classify, key: str) -> asyncio.AbstractServer:
     """The hook behind the wall cannot read the runner's token: it asks here, one JSON line
-    `{cmd}` for one `{category, error}`, and the runner asks the hub."""
+    `{cmd, key}` for one `{category, error}`, and the runner asks the hub. Every turn runs as
+    the same user and Landlock does not guard a socket's connect(), so a line without this
+    turn's `key` (only in this turn's environment, HQ_RUNNER_HOOK_KEY) is refused."""
 
     async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         answer: dict[str, Any] = {"category": None, "error": "bad request"}
@@ -617,7 +628,9 @@ async def serve_hook(path: Path, classify: Classify) -> asyncio.AbstractServer:
             line = await asyncio.wait_for(reader.readline(), 30)
             obj = json.loads(line or b"{}")
             cmd = obj.get("cmd") if isinstance(obj, dict) else None
-            if isinstance(cmd, str) and cmd.strip():
+            if not isinstance(obj, dict) or not _key_ok(obj.get("key"), key):
+                answer = {"category": None, "error": "forbidden"}
+            elif isinstance(cmd, str) and cmd.strip():
                 category, error = await classify(cmd)
                 answer = {"category": category, "error": error}
         except (ValueError, TimeoutError, asyncio.LimitOverrunError):
@@ -646,16 +659,17 @@ async def serve_hook(path: Path, classify: Classify) -> asyncio.AbstractServer:
 
 
 def ask_hook_socket(
-    sock_path: str, cmd: str, timeout: float = 45.0
+    sock_path: str, cmd: str, timeout: float = 45.0, key: str | None = None
 ) -> tuple[str | None, str | None]:
-    """The hook's side: (category, error)."""
+    """The hook's side: (category, error). `key`: this turn's (HQ_RUNNER_HOOK_KEY when None)."""
     import socket
 
+    line = {"cmd": cmd, "key": os.environ.get(HOOK_KEY_ENV, "") if key is None else key}
     try:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s, _short(sock_path) as short:
             s.settimeout(timeout)
             s.connect(short)
-            s.sendall(json.dumps({"cmd": cmd}).encode() + b"\n")
+            s.sendall(json.dumps(line).encode() + b"\n")
             data = b""
             while not data.endswith(b"\n"):
                 chunk = s.recv(65536)
