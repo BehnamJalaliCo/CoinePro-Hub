@@ -264,3 +264,86 @@ def test_a_download_the_hub_refuses_is_a_hub_error(tmp_path: Path) -> None:
     err = run(fetch(403, "forbidden"))
     assert type(err) is HubError and err.code == "forbidden"
     assert not (tmp_path / "f").exists()
+
+
+def test_a_link_planted_in_the_in_folder_never_redirects_an_input(
+    fake_hub: FakeHub, cfg: Config, cfg_path: Path, spaces: Path, tmp_path: Path
+) -> None:
+    """A turn may leave links in `in/` (at the next input's `.part` name, or at its name): the
+    hub's bytes still land in `in/` only, never in the file a link points to (another work's
+    CLAUDE.md, the runner's own config)."""
+    victim = spaces / "W-000777" / "CLAUDE.md"
+    victim.parent.mkdir(parents=True)
+    victim.write_text("company B's instructions", encoding="utf-8")
+    other = tmp_path / "config.json"
+    other.write_text("token", encoding="utf-8")
+    box = spaces / REF / "in"
+    box.mkdir(parents=True)
+    os.symlink(victim, box / ".brief.md.part")
+    os.symlink(other, box / "brief.md")
+    os.symlink(other, box / ".logo.png.part")
+    fake_hub.inputs["h11/a"] = b"# planted"
+    fake_hub.inputs["h11/b"] = b"\x89PNG"
+    job = turn("h11")
+    job["args"]["inputs"] = [  # type: ignore[index]
+        {"file_id": "a", "name": "brief.md", "url": "/api/v1/runners/jobs/h11/inputs/a"},
+        {"file_id": "b", "name": "logo.png", "url": "/api/v1/runners/jobs/h11/inputs/b"},
+    ]
+    fake_hub.jobs.append(job)
+    run(drive(runner_for(fake_hub, cfg, cfg_path), lambda: "h11" in fake_hub.results, within=60))
+    assert fake_hub.results["h11"]["exit_code"] == 0, fake_hub.results["h11"]
+    assert victim.read_text(encoding="utf-8") == "company B's instructions"
+    assert other.read_text(encoding="utf-8") == "token"
+    for name, data in (("brief.md", b"# planted"), ("logo.png", b"\x89PNG")):
+        assert not (box / name).is_symlink() and (box / name).read_bytes() == data
+    assert sorted(p.name for p in box.iterdir()) == ["brief.md", "logo.png"]
+
+    # in/ itself a link: the turn does not start, and nothing is written where it points
+    sink = tmp_path / "elsewhere"
+    sink.mkdir()
+    for p in box.iterdir():
+        p.unlink()
+    box.rmdir()
+    os.symlink(sink, box)
+    fake_hub.inputs["h12/a"] = b"x"
+    job = turn("h12")
+    job["args"]["inputs"] = [  # type: ignore[index]
+        {"file_id": "a", "name": "brief.md", "url": "/api/v1/runners/jobs/h12/inputs/a"}
+    ]
+    fake_hub.jobs.append(job)
+    run(drive(runner_for(fake_hub, cfg, cfg_path), lambda: "h12" in fake_hub.results, within=60))
+    assert fake_hub.results["h12"]["exit_code"] != 0
+    assert list(sink.iterdir()) == []
+
+
+def test_a_file_swapped_for_a_link_after_the_list_is_never_sent(
+    fake_hub: FakeHub, cfg: Config, cfg_path: Path, spaces: Path, tmp_path: Path
+) -> None:
+    """contract §43.9: a process the turn left running swaps a listed name (or the folder that
+    holds it) for a link to the runner's token while an earlier file is being sent; the runner
+    sends what it listed, or nothing, never what the link points to."""
+    token = tmp_path / "runner" / "z.txt"
+    token.parent.mkdir()
+    token.write_text("hqr1_secret", encoding="utf-8")
+    out = out_dir(spaces)
+    (out / "a.txt").write_text("first", encoding="utf-8")
+    (out / "sub").mkdir()
+    (out / "sub" / "z.txt").write_text("mine", encoding="utf-8")
+    (out / "z.txt").write_text("mine too", encoding="utf-8")
+
+    def swap(jid: str) -> None:
+        if len(fake_hub.uploads[jid]) == 1:  # a.txt is in: swap the two not yet sent
+            (out / "z.txt").unlink()
+            os.symlink(token, out / "z.txt")
+            (out / "sub" / "z.txt").unlink()
+            (out / "sub").rmdir()
+            os.symlink(token.parent, out / "sub")
+
+    fake_hub.on_upload = swap
+    fake_hub.jobs.append(turn("h13"))
+    run(drive(runner_for(fake_hub, cfg, cfg_path), lambda: "h13" in fake_hub.results, within=60))
+    res = fake_hub.results["h13"]
+    assert res["exit_code"] == 0, res
+    assert [u["name"] for u in fake_hub.uploads["h13"]] == ["a.txt"]
+    assert all(b"hqr1_secret" not in u["data"] for u in fake_hub.uploads["h13"])
+    assert {s["name"] for s in res["data"]["files_skipped"]} == {"sub/z.txt", "z.txt"}

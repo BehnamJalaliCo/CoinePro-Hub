@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -186,12 +187,18 @@ def test_the_hook_asks_the_runner_over_its_socket(tmp_path: Path) -> None:
         # a path longer than a socket's own limit goes through its folder
         deep = tmp_path / ("d" * 60) / ("e" * 60)
         deep.mkdir(parents=True)
-        server = await sandbox.serve_hook(deep / "hook.sock", classify)
+        server = await sandbox.serve_hook(deep / "hook.sock", classify, "k-1")
+        sock = str(deep / "hook.sock")
         try:
-            return [
-                await asyncio.to_thread(sandbox.ask_hook_socket, str(deep / "hook.sock"), c)
+            got = [
+                await asyncio.to_thread(sandbox.ask_hook_socket, sock, c, 45.0, "k-1")
                 for c in ("ls", "psql -c 'DROP DATABASE x'", "unreachable")
             ]
+            # another turn (same user, a socket Landlock does not guard) without this turn's key
+            for wrong in ("", "k-2"):
+                refused = await asyncio.to_thread(sandbox.ask_hook_socket, sock, "ls", 45.0, wrong)
+                assert refused == (None, "forbidden")
+            return got
         finally:
             server.close()
             await server.wait_closed()
@@ -431,3 +438,91 @@ def test_the_wrapper_refuses_to_run_a_command_it_could_not_wall(
     monkeypatch.setattr(sandbox, "abi", lambda: 0)
     assert sandbox.exec_main([], [], ["/bin/true"]) == sandbox.EXIT_NO_WALL
     assert "no Landlock" in capsys.readouterr().err
+
+
+def test_what_a_turn_left_in_its_private_area_never_takes_the_wall_down(
+    place: dict[str, Path], tmp_path: Path
+) -> None:
+    """A walled session can change its own private area: a file or a link it leaves where
+    tmp/, job/ or a folder of its home goes is removed when the next turn is set up (before, the
+    setup failed with «File exists» and the next turn ran without the wall)."""
+    p = the_plan(place)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    (elsewhere / "keep.txt").write_text("not the turn's")
+    shutil.rmtree(p.tmp)
+    p.tmp.write_text("planted")
+    shutil.rmtree(p.job)
+    os.symlink(elsewhere, p.job)
+    (p.home / ".config").mkdir(exist_ok=True)
+    (place["home"] / ".config" / "hq-runner").mkdir(parents=True, exist_ok=True)
+    shutil.rmtree(p.home / ".config")
+    (p.home / ".config").write_text("planted")  # a folder of the home that holds a closed one
+    sandbox.prepare(p)
+    for d in (p.tmp, p.job, p.home / ".config"):
+        assert d.is_dir() and not d.is_symlink(), d
+    assert os.listdir(p.tmp) == [] and os.listdir(p.job) == []
+    assert (elsewhere / "keep.txt").read_text() == "not the turn's"  # a link is never followed
+
+
+def test_the_code_that_also_runs_outside_the_wall_is_read_only_behind_it(
+    place: dict[str, Path], cfg: Config
+) -> None:
+    """contract §43.9: the runner's own installation, its Python and the CLI's folder (under
+    ~/.local on the workshop) also run outside the wall (the wrapper imports the runner before
+    the wall goes up; the runner itself runs `claude --help`). A walled turn can read and run
+    them, never change them; the rest of ~/.local stays as it was."""
+    local = place["home"] / ".local"
+    venv = local / "share" / "hq-runner" / "venv"
+    (venv / "site").mkdir(parents=True)
+    (venv / "site" / "net.py").write_text("X = 1\n")
+    (local / "bin").mkdir(parents=True)
+    tool = local / "bin" / "claude"
+    tool.write_text("#!/bin/sh\necho cli\n")
+    tool.chmod(0o755)
+    (local / "share" / "other").mkdir()
+    # what is found on its own: this runner's installation and the CLI's folder, never the home
+    found = sandbox.code_paths(str(tool), place["home"], [str(place["ws"])])
+    assert str(local / "bin") in found
+    root = sandbox.package_root()
+    assert (root in found) == os.access(root, os.W_OK)  # what root owns needs no rule
+    assert str(place["home"]) not in found and "/" not in found
+    p = sandbox.plan(
+        "W-000111", place["ws"] / "W-000111", place["ws"], place["cfg"], str(tool),
+        code=[str(venv), str(local / "bin")],
+    )  # fmt: skip
+    sandbox.prepare(p)
+    # the turn's home holds its own ~/.local: what is new lands there, the code is a link
+    assert not (p.home / ".local").is_symlink() and (p.home / ".local" / "bin").is_symlink()
+    if sandbox.abi() < sandbox.MIN_ABI:
+        return
+    save(cfg, place["cfg"])
+    code = r"""
+import json, os, subprocess, sys
+venv, bin_, share = sys.argv[1:4]
+def t(fn):
+    try:
+        fn()
+        return "ok"
+    except OSError as exc:
+        return type(exc).__name__
+print(json.dumps({
+    "read": t(lambda: open(venv + "/site/net.py").read()),
+    "run": t(lambda: subprocess.run([bin_ + "/claude"], check=True, capture_output=True)),
+    "append": t(lambda: open(venv + "/site/net.py", "a").write("import os")),
+    "new": t(lambda: open(venv + "/site/evil.pth", "w").write("import os")),
+    "remove": t(lambda: os.remove(venv + "/site/net.py")),
+    "relink": t(lambda: os.symlink("/bin/sh", bin_ + "/claude2")),
+    "rest": t(lambda: open(share + "/other/x", "w").write("x")),
+}))
+"""
+    argv = sandbox.wrap(p, [sys.executable, "-c", code, str(venv), str(local / "bin"),
+                            str(local / "share")])  # fmt: skip
+    out = subprocess.run(argv, env=sandbox.env_of(p, dict(os.environ)), cwd=p.work,
+                         capture_output=True, text=True, timeout=60, check=False)  # fmt: skip
+    assert out.returncode == 0, out.stderr
+    seen = json.loads(out.stdout)
+    assert seen["read"] == "ok" and seen["run"] == "ok" and seen["rest"] == "ok", seen
+    for denied in ("append", "new", "remove", "relink"):
+        assert seen[denied] == "PermissionError", (denied, seen)
+    assert (venv / "site" / "net.py").read_text() == "X = 1\n"

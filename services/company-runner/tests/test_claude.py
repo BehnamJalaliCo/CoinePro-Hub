@@ -442,6 +442,45 @@ def test_the_mcp_server_speaks_the_protocol_and_never_fails_the_session() -> Non
         "outcome": "ok", "class": "A0", "result": {"n": 1}}  # fmt: skip
 
 
+def test_the_tools_socket_answers_only_its_own_turn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """contract §43.9: every turn of the workshop runs as the same user and Landlock does not
+    guard a socket's connect(), so another company's turn can reach this turn's tools.sock; it
+    is refused without this turn's key (which only this turn's mcp.json holds)."""
+    from hq_runner import tools_bridge as TB
+
+    calls: list[str] = []
+
+    async def lister() -> dict[str, Any]:
+        return {"tools": [{"name": "revenue_read"}]}
+
+    async def caller(name: str, args: dict[str, Any]) -> dict[str, Any]:
+        calls.append(name)
+        return {"outcome": "ok", "class": "A0", "code": None, "ref": None}
+
+    sock = tmp_path / "tools.sock"
+
+    async def main() -> list[dict[str, Any]]:
+        server = await TB.serve(sock, lister, caller, "this-turn")
+        try:
+            out = []
+            for key in ("this-turn", "", "another-turn"):
+                monkeypatch.setenv(TB.KEY_ENV, key)
+                for op in ({"op": "list"}, {"op": "call", "name": "revenue_read", "args": {}}):
+                    out.append(await asyncio.to_thread(TB.ask, str(sock), op, 10.0))
+            return out
+        finally:
+            server.close()
+            await server.wait_closed()
+
+    got = run(main())
+    assert got[0] == {"tools": [{"name": "revenue_read"}]} and got[1]["outcome"] == "ok"
+    assert all(g["code"] == "forbidden" for g in got[2:]), got
+    assert calls == ["revenue_read"]  # only the call with the key reached the hub
+    assert TB.mcp_config(sock, "k")["mcpServers"]["hq"]["env"][TB.KEY_ENV] == "k"
+
+
 def test_a_claude_job_runs_on_the_hubs_account_when_it_sends_one(
     fake_hub: FakeHub, cfg: Config, cfg_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

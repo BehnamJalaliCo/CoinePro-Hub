@@ -13,14 +13,14 @@ Errors are RFC 9457 problems with a stable `code`.
 from __future__ import annotations
 
 import asyncio
-import io
+import contextlib
 import logging
 import os
 import random
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 from urllib.parse import quote, urljoin, urlsplit
 
 import httpx
@@ -33,6 +33,8 @@ log = logging.getLogger("hq_runner.hub")
 API = "/api/v1"
 UPLOAD_TIMEOUT_S = 600.0  # ⟨0.3.2⟩ one file of out/ (a 200 MB video over the public path)
 LONG_POLL_S = 30.0
+# a downloaded file is always a new one, never a link that was already there
+NEW_FILE = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC
 
 
 class HubError(Exception):
@@ -250,19 +252,17 @@ class Hub:
         return str(cat) if cat else None
 
     async def upload_file(
-        self, job_id: str, path: Path, name: str, content_type: str
+        self, job_id: str, fh: BinaryIO, name: str, content_type: str
     ) -> dict[str, Any]:
         """⟨0.3.2⟩ One file of a workspace turn's `out/` to the hub (raw body, streamed): the
-        hub's FileRef. The name goes percent-encoded (X-File-Name)."""
+        hub's FileRef. The name goes percent-encoded (X-File-Name). The caller opened the file
+        (once, never through a link) and closes it; each attempt reads it from the start."""
         client = self.route.client()
 
         async def body() -> Any:
-            fh = await asyncio.to_thread(path.open, "rb")
-            try:
-                while chunk := await asyncio.to_thread(fh.read, 1 << 16):
-                    yield chunk
-            finally:
-                await asyncio.to_thread(fh.close)
+            await asyncio.to_thread(fh.seek, 0)
+            while chunk := await asyncio.to_thread(fh.read, 1 << 16):
+                yield chunk
 
         headers = self.headers(True, job_id) | {
             "Content-Type": content_type,
@@ -290,13 +290,16 @@ class Hub:
         a, b = urlsplit(self.route.hub), urlsplit(urljoin(self.route.hub + "/", url))
         return (a.scheme, a.hostname, a.port) == (b.scheme, b.hostname, b.port)
 
-    async def download(self, url: str, dest: Path, max_bytes: int) -> int:
+    async def download(
+        self, url: str, dest: Path | str, max_bytes: int, *, dir_fd: int | None = None
+    ) -> int:
         """Downloads a hub URL (absolute on the hub, or a hub path) with the
         runner token. A URL on any other host is refused: the token never leaves.
 
-        `dest` is made anew: what was there goes first and a link is never
-        followed (a workspace's in/ is the walled turn's to write; this runs
-        outside the wall)."""
+        `dest` (relative to `dir_fd` when given) is always a new file: whatever is there is
+        removed first (a symbolic or hard link is never written through) and the file is
+        made with O_EXCL|O_NOFOLLOW, so a link planted there by a session never redirects
+        the hub's bytes to another path."""
         if not self.same_origin(url):
             raise HubError(0, "foreign_url", "files are fetched from the hub only")
         full = urljoin(self.route.hub + "/", url.lstrip("/")) if not url.startswith("http") else url
@@ -310,25 +313,23 @@ class Hub:
                 if err is not None:
                     raise err
                 try:
-                    fh = _create(dest)
+                    with contextlib.suppress(FileNotFoundError):
+                        os.unlink(dest, dir_fd=dir_fd)
+                    fd = os.open(dest, NEW_FILE, 0o600, dir_fd=dir_fd)
                 except OSError as exc:
                     raise HubError(0, "bad_destination", type(exc).__name__) from exc
-                with fh:
+                with os.fdopen(fd, "wb") as fh:
                     async for chunk in resp.aiter_bytes(1 << 16):
                         size += len(chunk)
                         if size > max_bytes:
                             raise HubError(0, "file_too_large")
-                        fh.write(chunk)
+                        try:
+                            fh.write(chunk)
+                        except OSError as exc:
+                            raise HubError(0, "write_failed", type(exc).__name__) from exc
         except httpx.TransportError as exc:
             raise Transient(0, "network_error", type(exc).__name__) from exc
         return size
-
-
-def _create(dest: Path) -> io.BufferedWriter:
-    """A new file of this user's (600) at `dest`, for writing, never through a link."""
-    dest.unlink(missing_ok=True)  # a link goes itself; a folder raises
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC
-    return os.fdopen(os.open(dest, flags, 0o600), "wb")
 
 
 async def with_retry[T](

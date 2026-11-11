@@ -163,6 +163,40 @@ def test_at_most_two_jobs_at_once(fake_hub: FakeHub, cfg: Config) -> None:
     assert peak == 2
 
 
+def test_a_refused_events_batch_never_costs_the_result(fake_hub: FakeHub, cfg: Config) -> None:
+    """One events batch the hub refuses (a 422, a 413 from its proxy) loses that batch only: the
+    later events and the job's result still go (before, the sink went dead and the result was
+    never posted, so the turn hung until the hub's sweep failed it)."""
+    from conftest import problem
+
+    from hq_runner import events as EV
+
+    plain = fake_hub.handle
+    refused: list[int] = []
+
+    async def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/events") and not refused:
+            refused.append(len(request.content))
+            return problem(422, "validation_failed")
+        return await plain(request)
+
+    fake_hub.handle = handle  # type: ignore[method-assign]
+    fake_hub.jobs.append(exec_job("e1", "echo one; sleep 1; echo two"))
+    runner = Runner(cfg, make_route(fake_hub), persist_state=False)
+    run(drive(runner, lambda: "e1" in fake_hub.results))
+    assert refused and fake_hub.results["e1"]["exit_code"] == 0
+    assert "two" in fake_hub.texts("e1")
+
+    # a backlog of large events goes in bodies of at most POST_MAX_BYTES each
+    sink = EV.EventSink(runner.hub, "e2")
+    for _ in range(6):
+        sink.emit("session_event", {"text": "ی" * (EV.MAX_POST_BYTES // 4)})
+    sizes: list[int] = []
+    while sink._buf:
+        sizes.append(len(json.dumps(sink._take(), ensure_ascii=False).encode()))
+    assert len(sizes) > 1 and all(s <= EV.MAX_POST_BYTES + 1024 for s in sizes)
+
+
 def test_unknown_kind_fails_cleanly(fake_hub: FakeHub, cfg: Config) -> None:
     fake_hub.jobs.append({"id": "u1", "kind": "teleport", "args": {}})
     runner = Runner(cfg, make_route(fake_hub), persist_state=False)
