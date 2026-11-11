@@ -16,10 +16,10 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta
-from typing import Any
 from uuid import UUID
 
 from hq_api.db import Tx
+from hq_api.domain import humanize as HZ
 from hq_api.domain import notify
 
 log = logging.getLogger("hq_api.no_silence")
@@ -90,20 +90,6 @@ def hire_why(code: str | None) -> dict[str, str]:
     return {"code": code or "unknown", "why_fa": why, "fix_fa": fix}
 
 
-async def _told_since(tx: Tx, company_id: UUID, link_kind: str, link_ref: str, since: Any) -> bool:
-    return bool(
-        await tx.scalar(
-            """SELECT 1 FROM notify.notifications
-               WHERE company_id = :co AND link_kind = :lk AND link_ref = :lr AND created_at >= :since
-               LIMIT 1""",
-            co=company_id,
-            lk=link_kind,
-            lr=link_ref,
-            since=since,
-        )
-    )
-
-
 async def tell_seat_blocked(
     tx: Tx,
     company_id: UUID,
@@ -116,13 +102,16 @@ async def tell_seat_blocked(
     """Once a day per company, group and reason: why the seat stays empty and what fixes it."""
     w = hire_why(code)
     title = f"کارگروه «{group_title}» در {company_code}: جایگاه «{seat_title}» خالی ماند"
+    # An owner-visible notice is stored humanized (notify.raise_notification): match
+    # either form, or the once-a-day dedupe never finds it and every pass tells again.
     if await tx.scalar(
         """SELECT 1 FROM notify.notifications
-           WHERE company_id = :co AND link_kind = 'group' AND link_ref = :g AND title_fa = :t
+           WHERE company_id = :co AND link_kind = 'group' AND link_ref = :g AND title_fa IN (:t, :h)
              AND created_at > now() - interval '24 hours' LIMIT 1""",
         co=company_id,
         g=group_key,
         t=title,
+        h=HZ.humanize(title) or notify.UNTITLED_FA,
     ):
         return False
     await notify.raise_notification(
@@ -154,14 +143,16 @@ async def sweep_unanswered(tx: Tx, *, limit: int = 20) -> int:
            WHERE m.author_kind = 'owner'
              AND m.created_at < now() - make_interval(secs => :quiet)
              AND m.created_at > now() - interval '24 hours'
+             -- already told: left out here, or 20 told threads fill the LIMIT for a day
+             AND NOT EXISTS (SELECT 1 FROM notify.notifications n
+                             WHERE n.company_id = t.company_id AND n.link_kind = 'thread'
+                               AND n.link_ref = t.code AND n.created_at >= m.created_at)
            ORDER BY m.created_at LIMIT :l""",
         quiet=int(QUIET.total_seconds()),
         l=limit,
     )
     told = 0
     for r in rows:
-        if await _told_since(tx, r["company_id"], "thread", r["thread"], r["created_at"]):
-            continue
         who = r["emp_title"] or "این گفت‌وگو"
         if r["employee_id"] is None:
             why, fix = (
